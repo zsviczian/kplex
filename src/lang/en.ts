@@ -45,6 +45,11 @@ export const englishCatalog = {
     context: "Accessible label/tooltip for the top-bar button that navigates backward in K-Plex history.",
     params: [],
   },
+  "toolbar.navigateForward": {
+    message: "Navigate forward",
+    context: "Accessible label/tooltip for the top-bar button that navigates forward in K-Plex history.",
+    params: [],
+  },
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

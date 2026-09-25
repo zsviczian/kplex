@@ -62,6 +62,7 @@ test("English catalog is strict, typed at source, and falls back from future loc
   const english = localization.createTranslator("en");
   assert.equal(english("command.openGraph"), "Open graph");
   assert.equal(english("toolbar.navigateBack"), "Navigate back");
+  assert.equal(english("toolbar.navigateForward"), "Navigate forward");
   assert.equal(english("search.placeholderWithShortcut", { shortcut: "Command+F" }), "Search nodes… (Command+F)");
 
   const futureGerman = localization.createTranslator("de_DE", {
@@ -253,13 +254,15 @@ test("representative production consumers preserve command ids and existing Engl
   assert(main.includes('name: this.translator("command.openGraph")'));
   assert(main.includes('this.translator("notice.excaliBrainSettingsImported")'));
   assert(main.includes('this.translator("notice.indexedNodes", { count: this.index.size })'));
-  assert(app.includes('title={translate("toolbar.navigateBack")}'));
+  assert(app.includes('label={translate("toolbar.navigateBack")}'));
+  assert(app.includes('label={translate("toolbar.navigateForward")}'));
   assert(app.includes("searchFieldCopy(translate, environment)"));
   assert(app.includes("isSearchFocusShortcut(event)"));
   for (const exact of [
     "Open graph",
     "Imported ExcaliBrain settings into K-Plex.",
     "Navigate back",
+    "Navigate forward",
     "Search nodes…",
     "Search nodes",
     "K-Plex indexed {count} nodes.",

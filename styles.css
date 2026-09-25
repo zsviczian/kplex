@@ -15,6 +15,14 @@
   --eb-muted: rgba(222, 231, 243, 0.56);
   --eb-text: #e9f1fb;
   --eb-accent: #74b6ff;
+  /* Host-owned values for migrated action controls. Keep the current dark Plex palette until
+     the broader shell is themed; the component itself remains independent of Obsidian CSS. */
+  --kplex-action-fg: var(--eb-text);
+  --kplex-action-bg: rgba(255, 255, 255, .055);
+  --kplex-action-bg-hover: rgba(255, 255, 255, .11);
+  --kplex-action-border: rgba(255, 255, 255, .09);
+  --kplex-action-focus: var(--interactive-accent);
+  --kplex-action-disabled-opacity: .28;
   color: var(--eb-text);
   background: #0d1219;
   font-family: var(--font-interface);
@@ -105,6 +113,17 @@
 .excalibrain-zoom-controls button:hover { background: rgba(255,255,255,.11); }
 .excalibrain-topbar button.is-on { color: #dcecff; border-color: rgba(116,182,255,.48); background: rgba(67,132,205,.18); }
 .excalibrain-topbar button:disabled { opacity: .28; cursor: default; }
+.excalibrain-topbar .kplex-action-button {
+  color: var(--kplex-action-fg);
+  background: var(--kplex-action-bg);
+  border-color: var(--kplex-action-border);
+}
+.excalibrain-topbar .kplex-action-button:hover { background: var(--kplex-action-bg-hover); }
+.excalibrain-topbar .kplex-action-button:disabled { opacity: var(--kplex-action-disabled-opacity); }
+.excalibrain-topbar .kplex-action-button:focus-visible {
+  outline: 2px solid var(--kplex-action-focus);
+  outline-offset: 2px;
+}
 .excalibrain-view-host .excalibrain-icon-button { width: 30px; padding: 0; font-size: 17px; }
 .excalibrain-top-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; }
 .excalibrain-top-actions .kplex-auto-open { width: 32px; padding: 0; }

@@ -17,6 +17,7 @@ import type { Translator } from "../lang";
 import { searchFieldCopy } from "./features/searchPresentation";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarPosition } from "../settings";
 import { SearchBox } from "./SearchBox";
+import { ActionButton } from "./components/ActionButton";
 import { PlexGraph } from "./PlexGraph";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { EMPTY_PLEX_FILTER, PlexFilter, type GraphFilterLayoutMode, type PlexFilterState, type PlexVisibilitySetting } from "./PlexFilter";
@@ -150,22 +151,6 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   );
 
   useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    return installKplexLongPressTooltips(el.ownerDocument);
-  }, []);
-
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    const update = () => setHostWidth(el.getBoundingClientRect().width);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
     const followFile = (file: TFile | null) => {
       if (!plugin.isKplexLeafVisible(hostLeaf)) return;
       if (!file || !plugin.shouldFollowDocumentFile(file) || !plugin.index.get(file.path)) return;
@@ -190,6 +175,25 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   const page = exactPage
     ?? (fallbackPath ? plugin.index.get(fallbackPath) : undefined)
     ?? plugin.index.get("folder:/");
+  const hasPage = Boolean(page);
+
+  // The first render can show the empty indexing view, which has no rootRef. Attach once the
+  // graph root appears, and release the document-scoped listener if it disappears again.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    return installKplexLongPressTooltips(el.ownerDocument);
+  }, [hasPage]);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const update = () => setHostWidth(el.getBoundingClientRect().width);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasPage]);
 
   useEffect(() => {
     if (!page) return;
@@ -392,8 +396,18 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
         <header className="excalibrain-topbar">
           <IndexStatusIndicator plugin={plugin} />
           <div className="excalibrain-brand"><ObsidianIcon name="brain-circuit" size={20} className="excalibrain-brand-mark" /><strong>K-Plex</strong></div>
-          <ToolButton icon="arrow-big-left" title={translate("toolbar.navigateBack")} onClick={() => goHistory(-1)} disabled={historyCursor <= 0} />
-          <ToolButton icon="arrow-big-right" title="Navigate forward" onClick={() => goHistory(1)} disabled={historyCursor >= plugin.settings.navigationHistory.length - 1} />
+          <ActionButton
+            label={translate("toolbar.navigateBack")}
+            icon={<ObsidianIcon name="arrow-big-left" size={17} />}
+            onClick={() => goHistory(-1)}
+            disabled={historyCursor <= 0}
+          />
+          <ActionButton
+            label={translate("toolbar.navigateForward")}
+            icon={<ObsidianIcon name="arrow-big-right" size={17} />}
+            onClick={() => goHistory(1)}
+            disabled={historyCursor >= plugin.settings.navigationHistory.length - 1}
+          />
           <SearchBox
             index={plugin.index}
             onActivate={activate}
