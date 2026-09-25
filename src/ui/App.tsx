@@ -11,6 +11,10 @@ import {
 import { Menu, type TFile, type WorkspaceLeaf } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import type { GraphPage } from "../types";
+import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
+import { isSearchFocusShortcut } from "../core/plex/shortcutPresentation";
+import type { Translator } from "../lang";
+import { searchFieldCopy } from "./features/searchPresentation";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarPosition } from "../settings";
 import { SearchBox } from "./SearchBox";
 import { PlexGraph } from "./PlexGraph";
@@ -46,7 +50,13 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
   ><ObsidianIcon name={icon} size={17} /></button>;
 }
 
-export function ExcaliBrainApp({ plugin, surface, hostLeaf }: { plugin: ExcaliBrainPlugin; surface: KplexViewSurface; hostLeaf: WorkspaceLeaf }) {
+export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environment }: {
+  plugin: ExcaliBrainPlugin;
+  surface: KplexViewSurface;
+  hostLeaf: WorkspaceLeaf;
+  translate: Translator;
+  environment: PresentationEnvironment;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [renderRevision, forceRender] = useState(0);
   const [plexFilter, setPlexFilter] = useState<PlexFilterState>(EMPTY_PLEX_FILTER);
@@ -298,11 +308,10 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf }: { plugin: ExcaliBr
   };
 
   const activateSearch = () => setSearchFocusRequest((value) => value + 1);
+  const searchCopy = searchFieldCopy(translate, environment);
 
   const handlePlexKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const isF4 = event.key === "F4";
-    const isFindShortcut = event.key.toLocaleLowerCase() === "f" && (event.ctrlKey || event.metaKey) && !event.altKey;
-    if (!isF4 && !isFindShortcut) return;
+    if (!isSearchFocusShortcut(event)) return;
     event.preventDefault();
     event.stopPropagation();
     activateSearch();
@@ -383,9 +392,15 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf }: { plugin: ExcaliBr
         <header className="excalibrain-topbar">
           <IndexStatusIndicator plugin={plugin} />
           <div className="excalibrain-brand"><ObsidianIcon name="brain-circuit" size={20} className="excalibrain-brand-mark" /><strong>K-Plex</strong></div>
-          <ToolButton icon="arrow-big-left" title="Navigate back" onClick={() => goHistory(-1)} disabled={historyCursor <= 0} />
+          <ToolButton icon="arrow-big-left" title={translate("toolbar.navigateBack")} onClick={() => goHistory(-1)} disabled={historyCursor <= 0} />
           <ToolButton icon="arrow-big-right" title="Navigate forward" onClick={() => goHistory(1)} disabled={historyCursor >= plugin.settings.navigationHistory.length - 1} />
-          <SearchBox index={plugin.index} onActivate={activate} focusRequest={searchFocusRequest} />
+          <SearchBox
+            index={plugin.index}
+            onActivate={activate}
+            focusRequest={searchFocusRequest}
+            placeholder={searchCopy.placeholder}
+            ariaLabel={searchCopy.ariaLabel}
+          />
           <PlexFilter
             index={plugin.index}
             center={page}

@@ -59,3 +59,15 @@ test("new source cannot hide in an unclassified core folder or declaration file"
   fixture({ "src/core/graph/types.d.ts": 'import type { App } from "obsidian"; export type Host = App;' }, failWith("forbidden external import obsidian"));
   fixture({ "src/core/graph/helper.js": 'export const app = window.app;' }, failWith("forbidden global window"));
 });
+
+
+test("localization is a host-free migrated layer usable by features and adapters", () => {
+  fixture({
+    "src/lang/en.ts": 'export const message = "English";',
+    "src/ui/features/copy.ts": 'import { message } from "../../lang/en"; export const copy = message;',
+    "src/adapters/obsidian/copy.ts": 'import { getLanguage } from "obsidian"; import { message } from "../../lang/en"; export const copy = () => getLanguage() + message;',
+  }, (result) => assert.deepEqual(result.errors, []));
+  fixture({
+    "src/lang/en.ts": 'import { getLanguage } from "obsidian"; export const message = getLanguage();',
+  }, failWith("src/lang/en.ts: forbidden external import obsidian"));
+});

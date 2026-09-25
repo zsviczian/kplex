@@ -15,6 +15,8 @@ import { AddToOntologyModal, type OntologyAssignmentRole } from "./ui/AddToOntol
 import { NoteTypeModal } from "./ui/NoteTypeModal";
 import { activeLayoutProfile, effectiveViewSettings, layoutProfileKey } from "./ui/viewProfile";
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
+import { createObsidianTranslator } from "./adapters/obsidian/localization";
+import { createTranslator, type Translator } from "./lang";
 import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurface } from "./core/plex/viewPresentation";
 import { perfNow } from "./util/perf";
 
@@ -45,6 +47,7 @@ const MANAGED_CREATED_PATH_TTL_MS = 4_000;
 export default class ExcaliBrainPlugin extends Plugin {
   settings: ExcaliBrainSettings = DEFAULT_SETTINGS;
   index!: GraphIndex;
+  translator: Translator = createTranslator("en");
   private rebuildTimer: number | null = null;
   private indexDirty = true;
   private linkedDocumentLeaf: WorkspaceLeaf | null = null;
@@ -117,6 +120,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
+    this.translator = createObsidianTranslator();
     const ownData: unknown = await this.loadData();
     const ownRecord = ownData && typeof ownData === "object" ? ownData as Record<string, unknown> : null;
     const alreadyKplex = Boolean(
@@ -150,7 +154,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     // false result keeps unavailable actions out of the list instead of merely disabling them.
     this.addCommand({
       id: "excalibrain-start",
-      name: "Open graph",
+      name: this.translator("command.openGraph"),
       checkCallback: (checking) => {
         if (!isGraphTabCommandAvailable(readObsidianPresentationEnvironment())) return false;
         if (!checking) void this.activateView();
@@ -295,7 +299,7 @@ export default class ExcaliBrainPlugin extends Plugin {
           const legacySettings = this.runningExcaliBrainSettings();
           if (legacySettings) {
             this.settings = migrateAndMergeSettings(legacySettings);
-            new Notice("Imported ExcaliBrain settings into K-Plex.", 2600);
+            new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
           }
           this.settings.kplexInitialized = true;
           await this.saveData(this.settings);
@@ -883,7 +887,7 @@ export default class ExcaliBrainPlugin extends Plugin {
         this.indexDirty = true;
       }
       await this.refreshBookmarkedEntryPoints();
-      if (showNotice) new Notice(`K-Plex indexed ${this.index.size} nodes.`, 1800);
+      if (showNotice) new Notice(this.translator("notice.indexedNodes", { count: this.index.size }), 1800);
     })();
     this.rebuildTask = task;
     this.notifyIndexStatus();

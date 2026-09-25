@@ -7,10 +7,14 @@ export function SearchBox({
   index,
   onActivate,
   focusRequest,
+  placeholder,
+  ariaLabel,
 }: {
   index: GraphIndex;
   onActivate: (page: GraphPage) => void;
   focusRequest?: number;
+  placeholder: string;
+  ariaLabel: string;
 }) {
   const [query, setQuery] = useState("");
   const results = useMemo(() => index.search(query, 24), [index, query]);
@@ -23,8 +27,8 @@ export function SearchBox({
     getKey={(page) => page.path}
     getLabel={(page) => index.titleFor(page)}
     getDetail={(page) => page.path}
-    placeholder="Search nodes…"
-    ariaLabel="Search nodes"
+    placeholder={placeholder}
+    ariaLabel={ariaLabel}
     floating
     focusRequest={focusRequest}
   />;

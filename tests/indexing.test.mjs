@@ -234,6 +234,8 @@ function compile(relativePath) {
 }
 
 for (const file of [
+  "src/lang/en.ts",
+  "src/lang/index.ts",
   "src/types.ts",
   "src/core/plex/viewPresentation.ts",
   "src/util/perf.ts",
@@ -384,6 +386,10 @@ exports.readObsidianPresentationEnvironment = () => ({
   inputModes: { keyboard: true, pointer: true, touch: false },
   hostActions: { graphTab: true, sidepanel: true, popout: true },
 });
+`);
+writeRuntimeStub("src/adapters/obsidian/localization.js", `
+const { createTranslator } = require("../../lang");
+exports.createObsidianTranslator = () => createTranslator("en");
 `);
 
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
