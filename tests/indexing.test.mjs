@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { canonicalGraph, canonicalNeighborhood, canonicalPair, canonicalScene } from "./support/canonicalGraph.mjs";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
@@ -253,10 +254,6 @@ for (const file of [
   "src/lens/GraphLensSimple.ts",
   "src/lens/SimplePlexFilter.ts",
   "src/ui/layout.ts",
-  "src/ui/NewRelatedNoteModal.ts",
-  "src/ui/MaterializeGhostModal.ts",
-  "src/ui/CreateFolderNoteModal.ts",
-  "src/ui/DeleteNodeModal.ts",
 ]) compile(file);
 
 const obsidianModuleDir = join(temp, "node_modules/obsidian");
@@ -349,6 +346,7 @@ globalThis.window.moment = obsidianTestApi.moment;
 // performRebuild method. Its unrelated UI/settings dependencies are inert stubs in this fixture.
 function writeRuntimeStub(relativePath, source) {
   const path = join(temp, relativePath);
+  assert(!existsSync(path), `Runtime stub must not replace compiled behavior: ${relativePath}`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, source);
 }
@@ -368,7 +366,6 @@ for (const [path, name] of [
   ["src/ui/NewRelatedNoteModal.js", "NewRelatedNoteModal"],
   ["src/ui/MaterializeGhostModal.js", "MaterializeGhostModal"],
   ["src/ui/CreateFolderNoteModal.js", "CreateFolderNoteModal"],
-  ["src/ui/DeleteNodeModal.js", "DeleteNodeConfirmationModal"],
   ["src/editor/OntologySuggester.js", "OntologySuggester"],
   ["src/ui/AddToOntologyModal.js", "AddToOntologyModal"],
   ["src/ui/NoteTypeModal.js", "NoteTypeModal"],
@@ -751,6 +748,19 @@ try {
   assert(A);
   const neighborhoodA = index.getNeighborhood("Note A.md");
   assert(neighborhoodA);
+
+  // Capture published behavior before any of this suite's runtime edits. This fixture protects
+  // every graph page, original declaration, precedence decision and ordinary Plex scene when
+  // compilation and layout move into host-independent modules.
+  const baseline = {
+    graph: canonicalGraph(index),
+    neighborhoods: Object.fromEntries(["Note A.md", "folder:/", "tag:project"]
+      .map((path) => [path, canonicalNeighborhood(index, path)])),
+    scene: canonicalScene(buildScene(neighborhoodA, index, settings)),
+    searches: Object.fromEntries(["note a", "note b", "project", "folder", "https"]
+      .map((query) => [query, index.search(query, 12).map((page) => page.path)])),
+  };
+  assert.deepEqual(baseline, JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-indexing/graph-baseline.json"), "utf8")));
 
   // A custom style selected by the Style property is an explicit user choice. It must remain
   // visible on the central note instead of being masked by the generic central-node appearance.
@@ -1720,21 +1730,9 @@ try {
   const cleanIndex = new GraphIndex(plugin, app);
   try {
     assert.equal(await cleanIndex.rebuild(), true);
-    const relationShape = (candidate, sourcePath, targetPath) => {
-      const relation = candidate.get(sourcePath)?.neighbours.get(targetPath);
-      return relation ? {
-        isParent: relation.isParent, isChild: relation.isChild,
-        isLeftFriend: relation.isLeftFriend, isRightFriend: relation.isRightFriend,
-        isNextFriend: relation.isNextFriend, isPreviousFriend: relation.isPreviousFriend,
-        direction: relation.direction,
-      } : null;
-    };
     for (const [sourcePath, targetPath] of [["tag:runtime", "tag:runtime/perf"], ["tag:runtime/perf", "Note A.md"]]) {
-      assert.deepEqual(relationShape(index, sourcePath, targetPath), relationShape(cleanIndex, sourcePath, targetPath));
-      assert.equal(
-        index.evidenceBetween(sourcePath, targetPath).filter((item) => item.sourceKind === "tag-tree").length,
-        cleanIndex.evidenceBetween(sourcePath, targetPath).filter((item) => item.sourceKind === "tag-tree").length,
-      );
+      assert.deepEqual(canonicalPair(index, sourcePath, targetPath), canonicalPair(cleanIndex, sourcePath, targetPath),
+        `Incremental relation and provenance must match a full rebuild for ${sourcePath} -> ${targetPath}`);
     }
   } finally {
     cleanIndex.destroy();

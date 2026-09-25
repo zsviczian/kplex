@@ -262,7 +262,7 @@ IDs C00–C26 replace the draft's numbering. All implementation statuses start P
 | ID | Deliverable | Prerequisites | Lanes | Status / evidence |
 | --- | --- | --- | --- | --- |
 | C00 | Baseline, conflicts, invariant inventory | — | G/I/P/U/X/M | Review — Node 22 test/build, inventory and exact-build CLI render smoke pass; geometry/interaction and large-vault performance pending (see baseline doc) |
-| C01 | Behavior characterization and test seams | C00 | G/I/X | Pending |
+| C01 | Behavior characterization and test seams | C00 | G/I/X | Done — canonical graph/evidence/scene fixture, pair comparison, stub guard and source-check map; Node 22 test/build pass |
 | C02 | Dependency rules, checker, PR verification and optional-host runner | C01 | H/O | Pending |
 | C03 | Token/icon seam and one action primitive | C02 | U | Pending |
 | C04 | Floating-layer mechanics from existing consumers | C03 | U | Pending |
@@ -615,3 +615,12 @@ Next checkpoint / exact first step:
 ### 2026-09-25 — Test-vault deployment preference
 
 - Maintainer confirmed `kplex-test` is a disposable playground. Future test deployments may replace prior plugin bundles without a backup. Keep artifact identity checks and scenario-specific settings/data preservation or reset explicit.
+
+### 2026-09-25 — C01 behavior characterization (Done)
+
+- Starting revision: `kplex-refactor` / `14f071c` (C00 committed; clean tree). Test-only checkpoint; no production consumer, persisted format or plugin artifact changed.
+- Added `tests/support/canonicalGraph.mjs` and the initial-state fixture `tests/fixtures/excalibrain-indexing/graph-baseline.json`. The fixture records 42 pages, 96 original declarations, 74 pair explanations with 96 decisions (including one inactive/suppressed decision), three representative neighborhoods, 24 scene nodes, 50 scene edges and five search queries. Normalization drops generated evidence IDs and mtimes but retains direction, provenance, duplicates and resolver decisions. The later tag-tree patch now compares canonical relation/evidence/explanation pairs against a clean rebuild.
+- Removed four modal files from the behavioral harness's compile list because that harness had immediately overwritten their compiled JavaScript with Obsidian host stubs. Runtime stub creation now fails on any compiled-file collision. `docs/REFACTOR_TEST_SEAMS.md` maps remaining source-text checks to their intended invariants and replacement checkpoints. C02/C08 must still establish a truly host-free import lane.
+- Node 22.22.2 `npm test` and `npm run build` passed. Deliberately changed a baseline fixture expectation, confirmed `npm test` failed with an assertion, restored the fixture and reran successfully. `git diff --check` passed. No Obsidian host smoke is applicable to this test-only change; C00's UI/performance evidence remains pending, and physical touch remains a separate gate.
+- A whole-graph comparison late in the long mutation test is not a valid clean-build oracle because that scenario includes optimistic/synthetic runtime state. C14 must add an isolated equal-input full-versus-incremental sequence. Highest-probability regression from this checkpoint is a golden fixture being accepted without semantic review; inspect changed evidence/scene fields before updating it.
+- Rollback scope: test helper, golden fixture, harness edits and this C01 documentation. Next: C02a, starting with an import/dependency inventory and a checker that detects direct, transitive and type-only host leaks; C02b then adds environment-aware exact-build Obsidian CLI verification.
