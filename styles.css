@@ -2303,7 +2303,6 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
 .kplex-lens-style-check input { width: auto; margin: 0; }
 @media (max-width: 520px) {
   .kplex-lens-style-grid { grid-template-columns: 1fr; }
-  .kplex-filter-layout-toggle > span:first-child { display: none; }
 }
 
 /* Edge imagery is resolved only for the currently visible Plex. The preview never changes the
