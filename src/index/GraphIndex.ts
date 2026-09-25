@@ -2117,9 +2117,9 @@ export class GraphIndex {
     // retaining the most recent dozen prefixes gives fast typing and backspacing without keeping
     // large candidate arrays forever.
     while (this.searchCandidateCache.size > 12) {
-      const oldest: string | undefined = this.searchCandidateCache.keys().next().value;
-      if (oldest === undefined) break;
-      this.searchCandidateCache.delete(oldest);
+      const oldest = this.searchCandidateCache.keys().next();
+      if (oldest.done) break;
+      this.searchCandidateCache.delete(oldest.value);
     }
 
     return best.map((item) => item.page);

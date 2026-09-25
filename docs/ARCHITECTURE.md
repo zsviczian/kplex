@@ -38,9 +38,15 @@ No grandfathered migrated edges exist at C02a. Legacy `src/index/`, `src/lens/`,
 | New feature | First owner and check |
 | --- | --- |
 | Relationship source or ontology rule | Obsidian adapter collects facts; graph compiler/resolver owns meaning and evidence. Compare canonical declarations and decisions. |
+| Shared URL referrers | Source records preserve each declaring note for one URL identity; graph read contracts retain all relationships. Showing multiple referrers around a centered URL is [feature request #26](https://github.com/zsviczian/kplex/issues/26), outside refactor scope. |
 | Search or lens operator | Graph read/query or Plex predicate contract; preserve ranking/filter ordering and lazy property reads. |
 | Condensed, expanded, rotated or mindmap view | Projection policy decides included semantic nodes; layout strategy maps roles to positions/gates. Mode changes must not rebuild graph semantics. |
 | Toolbar action or modal | Portable component/feature for reusable interaction, application intent for action, native shell for Obsidian workspace or Vault effects. |
+| Device-dependent action or shortcut hint | Host adapter supplies device/input/OS facts and available actions; portable presentation selects applicable affordances and formats catalog copy from the actual shortcut. |
 | Another PKM host | A new adapter implements existing narrow ports and supplies normalized facts; no host-specific parsing of opaque core IDs. |
 
-Run `npm run verify` before review. It runs architecture self-tests/checker, the aggregate behavioral tests and the production build. C02b will add `verify:obsidian` for exact-build testing in a configured test vault; that lane will remain separate from portable CI.
+The localization boundary is planned, not implemented yet: L00 will provide English language files and a typed translation capability to React features and Obsidian shells. The host supplies the language; core graph semantics do not import Obsidian or UI translations. L01 will enforce catalog use for all plugin-owned user-facing copy. Console diagnostics remain English, and no non-English translation is part of this refactor.
+
+The environment boundary is also planned. Existing Obsidian UI already distinguishes desktop, tablet and phone for view profiles and command routing; its persisted phone profile key is `mobile`. E00 will preserve that behavior while moving device, OS/key convention, input capability and host-feature facts behind a narrow adapter-provided presentation contract. Portable UI may use those facts to select available actions and present correct instructions, but graph semantics and pure layout do not inspect Obsidian platform globals. L00 will pair translated copy with a formatter for the actual shortcut convention, such as Command/Option on macOS or Control/Alt on Windows. A future host supplies its own environment facts and available actions. Device class does not imply keyboard, pointer, touch or pop-out support; physical phone/tablet checks remain separate from desktop emulation.
+
+Run `npm run verify` before review. It runs architecture self-tests/checker, official Obsidian ESLint, the aggregate behavioral tests and the production build. `npm run verify:obsidian` is a separate, strict, explicitly configured exact-build test-vault lane; it is not part of portable CI.

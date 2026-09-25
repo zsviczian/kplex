@@ -1587,6 +1587,10 @@ try {
   contents.set("Note B.md", `${contents.get("Note B.md")}\n${repeatUrl}\n`);
   noteB.stat.mtime += 1000;
   assert.deepEqual(await index.patchMarkdownPaths(["Note B.md"]), { outcome: "patched", count: 1 });
+  expectRole(repeatUrl, "parent", "Note A.md", RelationType.INFERRED);
+  expectRole(repeatUrl, "parent", "Note B.md", RelationType.INFERRED);
+  const sharedUrlParents = new Set(index.getNeighborhood(repeatUrl).parents.map((item) => item.page.path));
+  assert(sharedUrlParents.has("Note A.md") && sharedUrlParents.has("Note B.md"), "A centered shared URL must expose both referrers in its neighborhood");
   contents.set("Note A.md", contents.get("Note A.md").replace(`\n${repeatUrl}\n`, "\n"));
   noteA.stat.mtime += 1000;
   assert.deepEqual(await index.patchMarkdownPaths(["Note A.md"]), { outcome: "patched", count: 1 });

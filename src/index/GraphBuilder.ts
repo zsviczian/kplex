@@ -515,9 +515,9 @@ export class GraphBuilder {
     this.fieldCache.set(path, entry);
     const hotLimit = Platform.isIosApp ? 48 : Platform.isMobile ? 160 : 1200;
     while (this.fieldCache.size > hotLimit) {
-      const oldest = this.fieldCache.keys().next().value;
-      if (!oldest) break;
-      this.fieldCache.delete(oldest);
+      const oldest = this.fieldCache.keys().next();
+      if (oldest.done) break;
+      this.fieldCache.delete(oldest.value);
     }
   }
 

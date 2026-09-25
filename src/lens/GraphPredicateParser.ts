@@ -184,7 +184,7 @@ class Parser {
     if (this.match(".")) key = this.expect("identifier").text;
     else if (this.match("[")) {
       const field = this.expect("string");
-      key = String(field.value ?? "");
+      key = typeof field.value === "string" ? field.value : "";
       this.expect("]");
     } else if (namespace !== "this") {
       // Function namespaces such as value.exists(...) are handled as call paths below.

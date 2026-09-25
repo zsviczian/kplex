@@ -33,6 +33,8 @@ Do not claim a successful build from a stub-only/type-harness check. When Obsidi
 
 Treat Obsidian's code scanner as part of the compatibility contract. New or touched code should avoid known scanner warnings rather than relying on suppressions.
 
+The repository installs the official `eslint-plugin-obsidianmd` in `eslint.config.mjs`. Run `npm run lint:obsidian`; `npm run verify` includes it. Existing sentence-case warnings are visible legacy work, not permission to add more. Fix touched code's scanner errors and review warnings instead of disabling the recommended rules.
+
 - Prefer TypeScript's inferred/public API type when it is already correct. Do not add `as SomeType` assertions that do not narrow or change the expression type.
 - Do not union literal/string-enum types with the broad `string` primitive (for example `TokenKind | string`); `string` subsumes the narrower string members. Use `string`, a genuinely closed union, or separate parameters/overloads as appropriate.
 - Do not use `globalThis` in plugin/UI code. For host globals use `window` or the owning/active window. For DOM created in pop-outs, derive the window from `element.ownerDocument.defaultView` when the operation is window-specific.
@@ -111,11 +113,25 @@ Keep Obsidian-specific side effects behind clear boundaries. Presentational comp
 
 The paths above describe the legacy runtime. New modules migrated under `src/core/`, `src/application/`, `src/ui/components/`, `src/ui/features/` and `src/adapters/obsidian/` follow [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and `npm run check:architecture`. Do not claim legacy modules are already portable. The checker follows type-only, aliased and transitive imports; a portable module must not pull Obsidian in through a helper, `window`, browser storage, Node APIs, patched Obsidian DOM helpers or a global plugin escape hatch. Adapter-to-core imports are allowed; core-to-adapter imports are not. Place a narrow port in the layer that needs it and implement it in the host adapter.
 
-Keep relationship classification and evidence precedence in one graph-semantic owner. React components and adapters must not duplicate it. Do not weaken a source-text or golden behavior assertion merely to move code; add an equivalent behavioral test first and review any fixture difference. Record a temporary exception as an exact edge, reason, owner and removal checkpoint before introducing it. There are no migrated-edge exceptions at C02a. Run `npm run verify` (architecture checks, tests and real build) after changes; C02b adds an optional-environment Obsidian CLI lane.
+Keep relationship classification and evidence precedence in one graph-semantic owner. React components and adapters must not duplicate it. Do not weaken a source-text or golden behavior assertion merely to move code; add an equivalent behavioral test first and review any fixture difference. Record a temporary exception as an exact edge, reason, owner and removal checkpoint before introducing it. There are no migrated-edge exceptions at C02a. Run `npm run verify` (architecture checks, tests and real build) after changes. When a configured test vault and CLI are available, run `npm run verify:obsidian` for applicable desktop checks; it requires the three explicit test-vault variables documented in `CONTRIBUTING.md`. The portable lane must remain usable without Obsidian.
+
+Close each refactor checkpoint with the automated commands/results and their limits, followed by at most three prioritized manual checks with the precise expected outcome. If no manual check is needed, say so. Do not call a screenshot or generated fixture a performance or interaction pass; keep unavailable host/device evidence pending in the plan ledger. See section 5 and the action-log template in `Refactor plan.md`.
+
+### Localization readiness
+
+All plugin-owned user-facing copy belongs in language files: captions, commands, menus, settings, help, placeholders, tooltips, ARIA labels, notifications and user-visible errors. Developer console logs and console error messages stay English; localize the user-facing notice separately. Do not translate vault content, stable IDs or persisted keys. L00 establishes the English catalog and typed lookup before the next UI extraction; no non-English translations are part of this refactor. Until L00 lands, do not introduce new user-facing copy without also establishing its catalog path. After L00, every new or changed user-visible literal must use a catalog key; L01 removes the remaining legacy literals and enforces the rule across the source. See section 3.6 of `Refactor plan.md`.
+
+### Host environment and shortcut copy
+
+Preserve Obsidian desktop, tablet and phone distinctions and existing profile/command behavior. E00 introduces a narrow, host-provided environment seam before further UI extraction; until it lands, use the existing centralized classifier instead of adding platform checks to portable modules. Keep device class, OS/key convention, keyboard/pointer/touch availability and host feature availability distinct. A tablet can have a keyboard; a desktop can have touch. Future hosts provide their own facts. Do not import Obsidian `Platform` into portable core or newly migrated UI.
+
+After L00, user-facing shortcut text in tooltips, help, labels and notices must combine catalog copy with environment-aware formatting of the actual action. Do not hard-code `Ctrl/Cmd`, `Mod`, `Option`, `Alt` or platform-specific key sequences in new copy; show Command/Option on macOS and Control/Alt on Windows where those keys are relevant. Use the effective binding for host-configurable shortcuts when available; do not claim a fixed sequence when it is unknown. Omit hints for unavailable actions and provide the applicable touch instruction on touch-only surfaces. Test displayed hints against registration/handlers, including macOS/Windows, mobile key conventions and keyboard-equipped phones/tablets. See section 3.7 and E00/L00/L01 of `Refactor plan.md`.
 
 ## Performance is a product requirement
 
 The plugin must remain responsive in vaults with 20,000+ files and 100,000+ graph/search entries.
+
+For current scale work use the verified `Synthetic-Scale-v2` fixture described in `CONTRIBUTING.md` and `docs/REFACTOR_BASELINE.md`: about 10% of Markdown files, by **file count**, are 950,000 bytes and include long prose, fenced code and dense links. Its source counts are not runtime index or performance results; record indexing completion, responsiveness and cold/warm measurements separately. Do not combine v1 and v2 timings as one baseline.
 
 ### Startup
 
@@ -246,7 +262,7 @@ Density must **not** change node interior padding. Use the tight padding from th
 
 ### Mobile / view-surface rules
 
-- Use only the public `Platform.isMobile` flag. Distinguish phone vs tablet using the shortest CSS-pixel screen dimension; do not rely on undocumented `Platform.isPhone` / `Platform.isTablet` members.
+- Keep phone/tablet detection centralized in `currentDeviceClass()`; do not add new direct reads of undocumented `Platform.isPhone` / `Platform.isTablet` members elsewhere. The existing classifier checks optional runtime members before a viewport fallback; E00 must verify its supported API assumptions and preserve current routing and persisted profile keys before changing it.
 - Phone: the generic K-Plex open action routes to the right sidepanel; command palette should expose only **Open in side panel** among K-Plex surface-opening commands.
 - Tablet: **Open graph** opens a normal K-Plex tab and **Open in side panel** remains available; pop-out is desktop-only.
 - Touch activation must not depend on a synthesized browser click. A stationary one-finger pointer-up activates the node explicitly; movement owns pan/pinch; long-press owns context menus.
