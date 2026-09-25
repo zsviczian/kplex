@@ -1,6 +1,6 @@
 # K-Plex refactor plan and checkpoint ledger
 
-Design reviewed against `main` at `3ac122e` on 2026-09-24. Implementation has **not started** under this plan.
+Design reviewed against `main` at `3ac122e` on 2026-09-24. C00 baseline work began on `kplex-refactor` at `9b8e8c0` on 2026-09-25; see the ledger and `docs/REFACTOR_BASELINE.md` for current evidence.
 
 ## 1. Objective and scope
 
@@ -225,7 +225,7 @@ Codex, Claude Code and other implementing agents should run applicable real-host
 **Local build and test loop:**
 
 1. Preflight the CLI, desktop connection, required commands and explicitly configured test-vault identity/path/config directory. Use bounded timeouts. Record versions and capabilities; distinguish missing setup from a command/assertion failure. Never fall back to the currently active personal vault. Establish a dedicated fixture vault, following [Obsidian's development-vault guidance](https://docs.obsidian.md/Plugins/Getting%20started/Build%20a%20plugin), and keep machine-specific paths out of committed configuration.
-2. Run `verify`, then stage this checkout's `dist/main.js`, `dist/manifest.json` and `dist/styles.css` into that vault's plugin directory for `k-plex`. Validate destination and artifact hashes; keep plugin data/settings for warm-restore cases. Disable the test plugin while replacing artifacts, then enable/reload through the CLI. Restart the test application when required by manifest changes. `plugin:install` installs a community plugin; it does not deploy an unpublished local build. Do not test a downloaded release instead of the changed code.
+2. Run `verify`, then stage this checkout's `dist/main.js`, `dist/manifest.json` and `dist/styles.css` into that vault's plugin directory for `k-plex`. `kplex-test` is a disposable playground: overwrite prior plugin bundles without backing them up. Validate destination and artifact hashes; keep plugin data/settings for warm-restore cases unless a scenario explicitly resets them. Disable the test plugin while replacing artifacts, then enable/reload through the CLI. Restart the test application when required by manifest changes. `plugin:install` installs a community plugin; it does not deploy an unpublished local build. Do not test a downloaded release instead of the changed code.
 3. Drive the relevant fixture scenarios through registered commands and real UI input. Discover command IDs rather than invent them. Use DOM/CSS assertions and screenshots for rendering; use CLI-supported CDP/input automation where available for keyboard/pointer/focus flows. Direct `eval` invocation of application methods is useful for state checks but does not prove UI event wiring. Wait for observable readiness and expected state with deadlines, not arbitrary long sleeps.
 4. Assert outcomes and capture errors/console output per scenario. For performance, use section 4.5's datasets, repetitions and cold/warm conditions; distinguish CLI round-trip time, indexing completion and visible rendering. Any temporary measurement hooks stay development/test-only and are removed or disabled in production. Verify pop-out target/window coverage explicitly; if the driver cannot reach it, leave that scenario pending.
 5. Emit a machine-readable report plus failure evidence: source revision and dirty-tree/build identity, artifact hashes, runtime/OS/host versions, capabilities, fixture/settings/viewport, scenario IDs, assertions, timings and screenshot/log paths. A process exit code alone is not success. Clean up only resources owned by the test run; preserve artifacts needed to diagnose failures. Run cold-state cleanup only in the designated disposable fixture storage.
@@ -261,7 +261,7 @@ IDs C00–C26 replace the draft's numbering. All implementation statuses start P
 
 | ID | Deliverable | Prerequisites | Lanes | Status / evidence |
 | --- | --- | --- | --- | --- |
-| C00 | Baseline, conflicts, invariant inventory | — | G/I/P/U/X/M | Pending |
+| C00 | Baseline, conflicts, invariant inventory | — | G/I/P/U/X/M | Review — Node 22 test/build, inventory and exact-build CLI render smoke pass; geometry/interaction and large-vault performance pending (see baseline doc) |
 | C01 | Behavior characterization and test seams | C00 | G/I/X | Pending |
 | C02 | Dependency rules, checker, PR verification and optional-host runner | C01 | H/O | Pending |
 | C03 | Token/icon seam and one action primitive | C02 | U | Pending |
@@ -599,3 +599,19 @@ Next checkpoint / exact first step:
 
 - Added an optional-environment, strict-when-invoked Obsidian CLI verification lane, local artifact deployment, scenario evidence and performance capture. Separated host drivers from portable tests and distinguished unavailable checks from genuinely inapplicable host scenarios. C02 establishes the runner; later checkpoints extend coverage. Agent instructions support both Codex and Claude Code without requiring Obsidian on every machine.
 - Checked the official CLI and plugin-development documentation. This update changes the plan only; no CLI installation, vault deployment or application/UI/performance tests were performed.
+
+### 2026-09-25 — C00 baseline started (Review)
+
+- Starting revision: `kplex-refactor` / `9b8e8c0`, clean working tree. Completed repository inventory and invariant-to-evidence mapping in `docs/REFACTOR_BASELINE.md`. Corrected the deletion-command versus external-deletion and configured sibling-scale conflicts in `AGENTS.md`; no runtime or persisted data changed.
+- Node 22.22.2 `npm test` and `npm run build` passed. The named `kplex-test` vault and installed plugin were found, but the installed bundle differs from this checkout. An approved desktop launch succeeded, then the bundled Obsidian CLI reported that **Command line interface** is disabled in Obsidian settings; no host or performance validation was claimed.
+- Pending before C00 Done: stage this exact build into the dedicated vault, collect desktop UI/Sidecar/section/filter evidence, and measure the large-vault cold/warm baseline or record the environment-specific test run that will supply it. Physical touch/iOS remains a separate relevant gate. C01 can characterize tests independently while host setup is resolved.
+
+### 2026-09-25 — C00 CLI smoke update (Review)
+
+- User enabled Obsidian CLI. Verified CLI version/connection against the explicit `kplex-test` vault, Obsidian 1.14.2, enabled `k-plex`, registered commands and no captured JavaScript errors. Disabled the test plugin, backed up its older bundle, staged the exact locally built `main.js` and re-enabled it; `main.js` SHA-256 matches the build, while manifest/styles were already identical. Plugin data was preserved.
+- Ran `k-plex:excalibrain-start` through the CLI and asserted one rendered `.excalibrain-app` with K-Plex zones and the `Welcome` center via DOM text. The CLI screenshot captured the other Welcome Markdown window, so it does not establish geometry or pop-out behavior. Console capture also remains unverified without debugger attachment.
+- C00 remains Review pending representative interactions and large-vault cold/warm measurements. C02b should make exact-build deployment and target-window assertions repeatable; C01 can proceed with portable test characterization.
+
+### 2026-09-25 — Test-vault deployment preference
+
+- Maintainer confirmed `kplex-test` is a disposable playground. Future test deployments may replace prior plugin bundles without a backup. Keep artifact identity checks and scenario-specific settings/data preservation or reset explicit.
