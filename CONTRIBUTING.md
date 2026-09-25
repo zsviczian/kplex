@@ -10,7 +10,7 @@ Use Node.js **22.22.2** where possible.
 
 ```bash
 npm i
-npm run build
+npm run verify
 ```
 
 For watch-mode development:
@@ -28,6 +28,8 @@ Build output must appear in `dist/` and contain:
 The plugin ID is `k-plex`.
 
 Do not consider a change complete until it builds against the real installed Obsidian typings. A local stub harness is useful for fast checks but is not authoritative.
+
+`npm run check:architecture` checks migrated-layer imports and its negative fixtures. `npm run verify` runs that lane, all non-host tests, then the production build. No Obsidian installation is needed for these commands. The current legacy graph/UI is not yet portable; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the checkpoint ledger in [Refactor plan.md](Refactor%20plan.md). A separate CLI-driven test-vault lane is planned for C02b.
 
 ## Documentation
 

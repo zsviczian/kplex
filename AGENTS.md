@@ -107,6 +107,12 @@ Do not reimplement relationship classification inside React components. UI code 
 
 Keep Obsidian-specific side effects behind clear boundaries. Presentational components should not reach deeply into workspace/vault APIs when plugin/index services can perform the operation.
 
+### Refactor migration guardrails
+
+The paths above describe the legacy runtime. New modules migrated under `src/core/`, `src/application/`, `src/ui/components/`, `src/ui/features/` and `src/adapters/obsidian/` follow [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and `npm run check:architecture`. Do not claim legacy modules are already portable. The checker follows type-only, aliased and transitive imports; a portable module must not pull Obsidian in through a helper, `window`, browser storage, Node APIs, patched Obsidian DOM helpers or a global plugin escape hatch. Adapter-to-core imports are allowed; core-to-adapter imports are not. Place a narrow port in the layer that needs it and implement it in the host adapter.
+
+Keep relationship classification and evidence precedence in one graph-semantic owner. React components and adapters must not duplicate it. Do not weaken a source-text or golden behavior assertion merely to move code; add an equivalent behavioral test first and review any fixture difference. Record a temporary exception as an exact edge, reason, owner and removal checkpoint before introducing it. There are no migrated-edge exceptions at C02a. Run `npm run verify` (architecture checks, tests and real build) after changes; C02b adds an optional-environment Obsidian CLI lane.
+
 ## Performance is a product requirement
 
 The plugin must remain responsive in vaults with 20,000+ files and 100,000+ graph/search entries.

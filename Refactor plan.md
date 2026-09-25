@@ -263,7 +263,9 @@ IDs C00–C26 replace the draft's numbering. All implementation statuses start P
 | --- | --- | --- | --- | --- |
 | C00 | Baseline, conflicts, invariant inventory | — | G/I/P/U/X/M | Review — Node 22 test/build, inventory and exact-build CLI render smoke pass; geometry/interaction and large-vault performance pending (see baseline doc) |
 | C01 | Behavior characterization and test seams | C00 | G/I/X | Done — canonical graph/evidence/scene fixture, pair comparison, stub guard and source-check map; Node 22 test/build pass |
-| C02 | Dependency rules, checker, PR verification and optional-host runner | C01 | H/O | Pending |
+| C02 | Dependency rules, checker, PR verification and optional-host runner | C01 | H/O | Active — C02a Done; C02b pending |
+| C02a | Architecture rules/checker and portable CI lane | C01 | H | Done — checker/self-tests, `verify`, PR CI and architecture guide; remote CI unverified |
+| C02b | Environment-aware exact-build Obsidian runner | C02a | O | Pending |
 | C03 | Token/icon seam and one action primitive | C02 | U | Pending |
 | C04 | Floating-layer mechanics from existing consumers | C03 | U | Pending |
 | C05 | Host-free shared suggester | C04 | U | Pending |
@@ -624,3 +626,11 @@ Next checkpoint / exact first step:
 - Node 22.22.2 `npm test` and `npm run build` passed. Deliberately changed a baseline fixture expectation, confirmed `npm test` failed with an assertion, restored the fixture and reran successfully. `git diff --check` passed. No Obsidian host smoke is applicable to this test-only change; C00's UI/performance evidence remains pending, and physical touch remains a separate gate.
 - A whole-graph comparison late in the long mutation test is not a valid clean-build oracle because that scenario includes optimistic/synthetic runtime state. C14 must add an isolated equal-input full-versus-incremental sequence. Highest-probability regression from this checkpoint is a golden fixture being accepted without semantic review; inspect changed evidence/scene fields before updating it.
 - Rollback scope: test helper, golden fixture, harness edits and this C01 documentation. Next: C02a, starting with an import/dependency inventory and a checker that detects direct, transitive and type-only host leaks; C02b then adds environment-aware exact-build Obsidian CLI verification.
+
+### 2026-09-25 — C02a architecture guardrails (Done)
+
+- Starting revision: `kplex-refactor` / `f3c6bec`, clean working tree after C01 commit. Contract/checker checkpoint; no production module or persisted data changed.
+- Added `docs/ARCHITECTURE.md` with import direction, current migration status, ownership and feature-placement examples. `scripts/check-architecture.mjs` discovers new migrated roots and checks their full reachable import graph using the TypeScript parser/resolver. It covers aliases, re-exports, type-only and `import()` types, literal dynamic imports/`require`, unresolved/nonliteral loading, forbidden globals/Obsidian helpers, layer direction and cycles. No migrated roots or grandfathered edges exist yet; a zero-root pass is explicitly **not** a portability proof. Existing `src/index/`, `src/lens/`, `src/ui/` and settings remain legacy until later checkpoints.
+- Added negative fixtures in `tests/architecture.test.mjs` for direct, transitive, type-only, alias, unmigrated-file, forbidden-global and loading leaks, plus a permitted Obsidian-adapter-to-core import. Added `check:architecture` and aggregate `verify` scripts, PR/push verification on the repository's `main` branch using Node 22.22.2 and `npm ci`, and updated contributor/agent instructions. Remote CI has not run on this branch and is not claimed as passed.
+- Node 22.22.2 `npm run verify` passed locally: checker self-tests, current-source scan (zero roots), indexing/behavior suite and real production build. No host UI check is required for this contract-only slice. Highest-probability risk is a new portable file escaping discovery or an unsupported loading syntax; later migrated checkpoints must check the actual reported root count and extend negative fixtures when adding import forms.
+- Rollback scope: architecture checker/tests, workflow/scripts and C02a documentation only. Next: C02b, beginning with a strict CLI/test-vault preflight and exact-build artifact staging into `kplex-test`, then rendered-state/error assertions and a machine-readable report. C00's geometry/interaction/performance evidence remains open.

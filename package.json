@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+    "check:architecture": "node --test tests/architecture.test.mjs && node scripts/check-architecture.mjs",
+    "verify": "npm run check:architecture && npm test && npm run build",
     "repo:export": "node scripts/generate-repository-zip.mjs",
     "repo:update": "node scripts/update-repository.mjs",
     "test": "node scripts/run-indexing-tests.mjs"
