@@ -241,6 +241,8 @@ Codex, Claude Code and other implementing agents should run applicable real-host
 
 **Verified CLI basis (2026-09-25):** The official CLI controls the desktop application, which must run and may be launched by a command. Detect the installed version and commands using `obsidian version` and `obsidian help`; installation of Obsidian alone does not establish CLI readiness. Explicit `vault=<name-or-id>` comes before the command. Available developer commands include `plugin:reload`, `dev:dom`, `dev:css`, `dev:screenshot`, `dev:errors`, `dev:console`, `eval` and `dev:cdp`. Recheck local help instead of assuming a fixed capability set. [Official CLI reference](https://help.obsidian.md/cli).
 
+**Phone/tablet desktop emulation:** In the disposable test vault, `obsidian vault=kplex-test eval 'code=app.emulateMobile(true)'` enables Obsidian's mobile UI and reloads the window. Wait for CLI readiness after that reload. `window.resizeTo(width, height)` through `eval` changes the form-factor branch once the inner width settles; a tablet-sized window and a phone-sized window can then be checked for available commands, active layout profiles, routing and CSS. Obsidian also advertises `dev:mobile on|off` in local CLI help. Restore the original window dimensions and run `app.emulateMobile(false)` after the scenario, then confirm desktop command/profile behavior and captured errors. A first CLI command immediately after reload may fail transiently; retry after readiness rather than accepting that as a product failure. Emulation is repeatable host evidence for form-factor policy and layout, **not** evidence of native touch, on-screen keyboard, mobile WebView or OS-specific lifecycle. Extend the host runner with bounded emulation assertions and `finally` restoration when the affected UI checkpoint needs them; keep physical-device checks explicit.
+
 **Separate the runners:** Keep shared fixtures, scenario expectations and result records independent of the host. Put CLI invocation, deployment and UI-driving details in test infrastructure such as `scripts/testing/obsidian/` and `tests/host/obsidian/`, outside shipped `src/` and the core dependency graph. Future hosts can implement their own driver and applicability list; do not build a universal automation framework now. No Obsidian CLI dependency belongs in portable tests, production runtime, or generic application contracts.
 
 **Local build and test loop:**
@@ -268,6 +270,12 @@ Codex, Claude Code and other implementing agents should run applicable real-host
 5. Update the ledger, append an action record and update architecture/component docs only for implemented contracts. Record exact verification evidence and the next small step. Close every checkpoint or subcheckpoint with a concise automated-test summary (command, environment, pass/fail and what it actually proves) and prioritized maintainer-test recommendations. Recommend only the 1–3 highest-value checks by likelihood and impact; give each an exact workflow, target, expected observation and reason automation did not cover it. State **no manual test needed** when automated evidence is sufficient. Keep required but unavailable host/device checks visibly pending rather than treating recommendations as completion evidence.
 6. Stop at the checkpoint boundary. Local build deployment to the configured disposable test vault is part of verification; do not commit, publish or deploy to a personal/production vault unless separately requested. Do not ask again for permission for routine authorized edits/checks.
 
+### Temporary external-agent handoffs
+
+At each checkpoint boundary, consult the **Agent fit** column and proactively tell the maintainer whether the next checkpoint or a named slice should be handed to an agent without Obsidian access. For a selected handoff, the reviewing agent **overwrites the single root `HANDOFF.md`** with the current base revision, exact scope, preserved behaviors, acceptance checks, unavailable host checks and a short results template. Never create dated handoff files or archive old handoffs. The external agent implements only that scope and records its actual changes, commands, failures and pending host/device checks in `HANDOFF.md`; it does not mark the checkpoint Done in this plan.
+
+When the modified repository returns, the main/reviewing agent independently inspects the full diff, reproduces checks on the required Node version, fixes defects, runs applicable Obsidian CLI scenarios in the explicit test vault, and reports up to three prioritized manual checks with exact expected outcomes and reasons they remain manual. **Validation is confirmed** when the required automated/host evidence passes and the maintainer confirms any requested manual checks. Only then commit the accepted checkpoint and move to the next one. If a required device is unavailable, keep its check and checkpoint in **Review**; do not call an offline pass complete or commit it as a completed checkpoint. Transfer the accepted outcome, test evidence, limitations, facade owner and next step into this plan's ledger/action log. The next handoff overwrites `HANDOFF.md`; this plan, not the transient handoff, remains the durable record. A failed or rejected handoff is recorded here as such before it is overwritten.
+
 If a product-policy conflict cannot be resolved from current instructions and tests, record it and ask one focused question; continue independent work. If manual validation is unavailable, mark **Review** rather than **Done**. Do not fabricate a smoke test or block independent work just because a device is unavailable. Dependent high-risk expansion waits for its prerequisite acceptance evidence.
 
 Status values: **Pending**, **Active**, **Review** (code checks pass; named validation outstanding), **Done**, **Blocked** (specific dependency/decision), **Deferred** (explicit scope reason). A deferred optional UI checkpoint does not block core work. Reverted checkpoints return to Pending with an action-log entry.
@@ -280,40 +288,42 @@ Rollback is normally a reviewable reversal of that checkpoint's code and tests, 
 
 IDs C00–C26 replace the draft's numbering; E00 and L00/L01 are inserted environment and localization checkpoints. The review evidence above is a seed for C00, not completion of its manual baseline.
 
-| ID | Deliverable | Prerequisites | Lanes | Status / evidence |
-| --- | --- | --- | --- | --- |
-| C00 | Baseline, conflicts, invariant inventory | — | G/I/P/U/X/M | Review — Node 22 `verify`, inventory, exact-build CLI render/error smoke and maintainer's qualitative v1 graph inspection; v2 large-file fixture verified, but its runtime completion, representative interaction and cold/warm performance remain pending (see baseline doc) |
-| C01 | Behavior characterization and test seams | C00 | G/I/X | Done — canonical graph/evidence/scene fixture, pair comparison, stub guard and source-check map; Node 22 test/build pass |
-| C02 | Dependency rules, checker, PR verification and optional-host runner | C01 | H/O | Done — C02a/C02b local lanes pass; remote CI unverified |
-| C02a | Architecture rules/checker and portable CI lane | C01 | H | Done — checker/self-tests, `verify`, PR CI and architecture guide; remote CI unverified |
-| C02b | Environment-aware exact-build Obsidian runner | C02a | O | Done — strict preflight/staging/report tests and real `kplex-test` render/error smoke pass |
-| E00 | Host environment/capability seam and device-class preservation | C02 | E/H/U | Pending |
-| L00 | English language catalog, typed lookup, host language seam and shortcut formatting | E00 | L/E/H/U | Pending; no translations |
-| C03 | Token/icon seam and one action primitive | L00 | U/L/E | Pending |
-| C04 | Floating-layer mechanics from existing consumers | C03 | U | Pending |
-| C05 | Host-free shared suggester | C04 | U | Pending |
-| C06 | Shared collection mechanics, if justified | C05 | U | Pending; optional |
-| C07 | Form/dialog content, if justified | C05 | U/M | Pending; optional |
-| C08 | Host-free graph/settings contracts and identity seam | C02 | G/H | Pending |
-| C09 | Narrow graph read interfaces | C08 | G/X/H | Pending |
-| C10 | Lazy property provider and portable predicates | C09 | G/X/H | Pending |
-| C11 | Normalized source contract and test records | C08 | G/H | Pending |
-| C12 | Obsidian source collection boundary | C11 | G/I/P | Pending |
-| C13 | Host-free full compiler/resolver/parser path | C12 | G/I/H | Pending |
-| C14 | Incremental compiler and commit contract | C13 | G/I/H | Pending |
-| C15 | Index demand/revision coordinator | C14 | I/P | Pending |
-| C16 | Snapshot/cache orchestration behind storage ports | C15 | P/I/H | Pending |
-| C17 | Search extraction | C09, C14 | G/I/H | Pending |
-| C18 | Presentation metadata/settings ownership | C10, C17 | X/I/H | Pending |
-| C19 | Plex projector using existing scene pipeline | C18 | G/X/H | Pending |
-| C20 | Pure layout and transient-section projection | C19 | X/I/U/H | Pending |
-| C21 | View-scoped navigation intents | C09 | M/U | Pending |
-| C22 | Relationship mutation intent and host writer | C14, C21 | G/M/I | Pending |
-| C23 | Creation/materialization/deletion intents | C22 | G/M/I/P | Pending |
-| C24 | Explicit Obsidian shells and composition cleanup | C05, C16, C20, C23 | U/M/P | Pending |
-| L01 | Finish legacy user-copy and shortcut-hint extraction; strict localization gate | C24 | L/E/U/M | Pending; no translations |
-| C25 | Complete enforcement and retire migration facades | C24, L01 | all | Pending |
-| C26 | End-to-end in-memory proof and final acceptance | C25 | H + all relevant | Pending |
+| ID | Deliverable | Prerequisites | Lanes | Agent fit | Status / evidence |
+| --- | --- | --- | --- | --- | --- |
+| C00 | Baseline, conflicts, invariant inventory | — | G/I/P/U/X/M | Host | Review — Node 22 `verify`, inventory, exact-build CLI render/error smoke and maintainer's qualitative v1 graph inspection; v2 large-file fixture verified, but its runtime completion, representative interaction and cold/warm performance remain pending (see baseline doc) |
+| C01 | Behavior characterization and test seams | C00 | G/I/X | — | Done — canonical graph/evidence/scene fixture, pair comparison, stub guard and source-check map; Node 22 test/build pass |
+| C02 | Dependency rules, checker, PR verification and optional-host runner | C01 | H/O | — | Done — C02a/C02b local lanes pass; remote CI unverified |
+| C02a | Architecture rules/checker and portable CI lane | C01 | H | — | Done — checker/self-tests, `verify`, PR CI and architecture guide; remote CI unverified |
+| C02b | Environment-aware exact-build Obsidian runner | C02a | O | — | Done — strict preflight/staging/report tests and real `kplex-test` render/error smoke pass |
+| E00 | Host environment/capability seam and device-class preservation | C02 | E/H/U | Strong | Done — Node 22 `verify`, exact-build desktop CLI and phone/tablet emulation checks passed; maintainer confirmed manual validation and requested commit |
+| L00 | English language catalog, typed lookup, host language seam and shortcut formatting | E00 | L/E/H/U | Strong | Pending; no translations |
+| C03 | Token/icon seam and one action primitive | L00 | U/L/E | Scoped | Pending |
+| C04 | Floating-layer mechanics from existing consumers | C03 | U | Scoped | Pending |
+| C05 | Host-free shared suggester | C04 | U | Scoped | Pending |
+| C06 | Shared collection mechanics, if justified | C05 | U | Scoped | Pending; optional |
+| C07 | Form/dialog content, if justified | C05 | U/M | Scoped | Pending; optional |
+| C08 | Host-free graph/settings contracts and identity seam | C02 | G/H | Strong | Pending |
+| C09 | Narrow graph read interfaces | C08 | G/X/H | Strong | Pending |
+| C10 | Lazy property provider and portable predicates | C09 | G/X/H | Strong | Pending |
+| C11 | Normalized source contract and test records | C08 | G/H | Strong | Pending |
+| C12 | Obsidian source collection boundary | C11 | G/I/P | Scoped | Pending |
+| C13 | Host-free full compiler/resolver/parser path | C12 | G/I/H | Strong | Pending |
+| C14 | Incremental compiler and commit contract | C13 | G/I/H | Scoped | Pending |
+| C15 | Index demand/revision coordinator | C14 | I/P | Scoped | Pending |
+| C16 | Snapshot/cache orchestration behind storage ports | C15 | P/I/H | Scoped | Pending |
+| C17 | Search extraction | C09, C14 | G/I/H | Strong | Pending |
+| C18 | Presentation metadata/settings ownership | C10, C17 | X/I/H | Scoped | Pending |
+| C19 | Plex projector using existing scene pipeline | C18 | G/X/H | Scoped | Pending |
+| C20 | Pure layout and transient-section projection | C19 | X/I/U/H | Scoped | Pending |
+| C21 | View-scoped navigation intents | C09 | M/U | Scoped | Pending |
+| C22 | Relationship mutation intent and host writer | C14, C21 | G/M/I | Scoped | Pending |
+| C23 | Creation/materialization/deletion intents | C22 | G/M/I/P | Scoped | Pending |
+| C24 | Explicit Obsidian shells and composition cleanup | C05, C16, C20, C23 | U/M/P | Host | Pending |
+| L01 | Finish legacy user-copy and shortcut-hint extraction; strict localization gate | C24 | L/E/U/M | Scoped | Pending; no translations |
+| C25 | Complete enforcement and retire migration facades | C24, L01 | all | Scoped | Pending |
+| C26 | End-to-end in-memory proof and final acceptance | C25 | H + all relevant | Host | Pending |
+
+**Agent fit:** **Strong** means a no-Obsidian agent can implement and run the portable checks; the reviewing agent still owns applicable host validation. **Scoped** means hand off only a named slice with a buildable boundary and leave host-dependent behavior to the reviewer. **Host** means the checkpoint should remain with an Obsidian-equipped agent. This is a planning recommendation, not a waiver of prerequisites or acceptance lanes. Reassess it when starting each checkpoint and proactively tell the maintainer whether the next step is a handoff candidate.
 
 Recommended order is table order, with C06/C07 deferred unless demonstrably useful. C21 can occur earlier if it unlocks a specific portable UI consumer. Do not postpone all boundary tests to C26.
 
@@ -738,3 +748,18 @@ Next checkpoint / exact first step:
 ### 2026-09-25 — Pre-existing filtered gate-count defect (C00 remains Review)
 
 - Compared the maintainer's Alpha Hub screenshots with the checked-in fixture and the pre-refactor `PlexGraph` counting path. The empty right badges on left-friend nodes X/G/H are consistent with their semantic left-gate relationships; D's unfiltered right `1` is its separate `Next` link to F. The filtered `3/1` right badge on D is an invalid ratio caused by counting displayed edge endpoints against a semantic-gate total. Filed [bug #28](https://github.com/zsviczian/kplex/issues/28) with the fixture-based reproduction and source-level diagnosis. No production code or fixture behavior changed; C00's host/performance evidence remains pending. Fix and characterize this product defect separately from structural extraction.
+
+### 2026-09-25 — E00 external-agent handoff reviewed (Review)
+
+- Starting revision: `0ba8571` on `kplex-refactor`. The external agent returned an uncommitted diff and filled the temporary `HANDOFF.md`; it could not run the pinned Node version, install all dependencies or access Obsidian. The reviewing agent reproduced the changes in this checkout and kept this plan as the durable record.
+- Implemented a host-free presentation environment contract, pure routing/layout-profile policy and an Obsidian adapter. Production command visibility, generic open routing and profile selection now use a fresh environment; `src/ui/viewProfile.ts` remains a compatibility facade for its live layout-helper callers until C25, while its unused legacy `currentDeviceClass()` delegate was removed. The reviewing agent corrected two handoff details: mobile hardware-keyboard presence is `unknown` rather than falsely absent, and Obsidian-specific phone/tablet and OS flag classification lives in the adapter rather than portable `core/plex`. The existing `mobile:*` persisted phone-profile keys, command IDs, defaults, migration, iOS indexing policy and UI copy were not changed.
+- **Automated summary:** Node 22.22.2 `npm run verify:obsidian` passed in the explicit `kplex-test` vault on Obsidian 1.14.2/macOS; it ran architecture checker/self-tests, Obsidian lint (zero errors, 25 existing sentence-case warnings), indexing and focused E00/runner/generator tests, and the production build. Architecture reported **4 migrated roots, 4 reachable files, 0 violations**. A focused adapter fixture checked real fact mapping, including `unknown` mobile keyboard state. `git diff --check` passed. The final host report at `/var/folders/b1/2dys0jfs7bq73whkl2qnyyym0000gn/T/kplex-obsidian-uG4ohD/report.json` recorded matching staged/built hashes (`main.js` SHA-256 `650ea17d7dd0e09256e84ac84a2619e2eea4a667cdfbb315cffcd053a25ec824`), K-Plex rendered and no captured JavaScript errors. A separate real CLI check found graph/pop-out/sidepanel desktop commands available, `desktop:leaf` and `desktop:sidepanel` profile values selected, and an executed pop-out command created a K-Plex view in a different document; no errors followed, and the test-created pop-out was closed. These checks do not prove phone/tablet behavior, physical touch or large-vault performance.
+- **Prioritized maintainer tests:** P0 — on a physical phone, invoke the K-Plex ribbon/open action and inspect the command palette: it should open the sidepanel, offer **Open in side panel**, omit **Open graph** and **Open in pop-out window**, and activate a node on touch. The available desktop CLI cannot validate mobile form factor/touch. P1 — on a physical tablet, invoke **Open graph** and **Open in side panel**: the former should open a normal graph tab, the latter a sidepanel, while **Open in pop-out window** is absent. The desktop host cannot validate tablet classification. Record device/OS and whether a hardware keyboard is attached; keyboard-dependent UI hints are addressed in L00.
+- Outstanding: maintainer confirmation of the phone/tablet checks, or a recorded unavailable-device decision. E00 remains **Review** and uncommitted under the temporary-handoff workflow until the required validation is confirmed. No other manual desktop test is needed for this seam. C00's separate v2 index/performance baseline remains Review. After E00 acceptance, **L00 is a Strong external-agent candidate**: overwrite `HANDOFF.md` with its specific catalog/shortcut assignment and keep this plan as the only durable handoff summary.
+
+### 2026-09-25 — E00 validation accepted (Done)
+
+- The maintainer reported conducting the requested manual test and instructed the reviewing agent to commit. Device names/OS and separate pass/fail details were not supplied, so the report records acceptance without inventing a physical-device trace. The earlier Node 22, exact-build desktop and four-root architecture evidence remains valid for the accepted source; no production source changed after that run.
+- Additional Obsidian CLI checks on the exact staged E00 build used `app.emulateMobile(true)` in `kplex-test`. At **1440 px** mobile width, graph command availability was true, pop-out was false, and `tablet:leaf`/`tablet:sidepanel` profiles were selected. At **390 px**, graph/pop-out commands were false, `mobile:leaf`/`mobile:sidepanel` profiles were selected, and the generic `activateView()` created one sidepanel and no graph tab. At **900 px**, graph command availability returned, pop-out stayed false, `tablet:leaf` was selected, and generic open created a normal graph tab. The test-created sidepanel was detached; the original **1440 × 875 px** window size and desktop mode were restored. Desktop profile/pop-out availability returned, and `dev:errors` reported no captured errors. These checks validate form-factor policy and routing, not physical touch; the maintainer's manual observation is the only touch evidence supplied.
+- **Automated summary:** Node 22.22.2 `npm run verify:obsidian` passed architecture (4 migrated roots/4 reachable files/0 violations), Obsidian lint (0 errors/25 existing warnings), indexing and E00/runner/generator tests, production build, exact-bundle render/error smoke, and matching staged/built SHA-256 hashes in the report named above. `git diff --check` passed. The CLI emulation checks were run interactively through the CLI and recorded here; the host runner does not yet script them. No further maintainer test is required for E00 before commit. Physical-device specifics and large-vault performance are not claimed by this checkpoint.
+- Persisted formats/keys changed: none. The compatibility layout helpers in `src/ui/viewProfile.ts` remain owned by legacy UI/composition and retire at C25. C00 remains Review for its separate v2 index/performance evidence. Next checkpoint: **L00**, a Strong no-Obsidian-agent candidate; overwrite the transient `HANDOFF.md` with the L00 assignment after committing E00.

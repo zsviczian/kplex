@@ -123,7 +123,7 @@ All plugin-owned user-facing copy belongs in language files: captions, commands,
 
 ### Host environment and shortcut copy
 
-Preserve Obsidian desktop, tablet and phone distinctions and existing profile/command behavior. E00 introduces a narrow, host-provided environment seam before further UI extraction; until it lands, use the existing centralized classifier instead of adding platform checks to portable modules. Keep device class, OS/key convention, keyboard/pointer/touch availability and host feature availability distinct. A tablet can have a keyboard; a desktop can have touch. Future hosts provide their own facts. Do not import Obsidian `Platform` into portable core or newly migrated UI.
+Preserve Obsidian desktop, tablet and phone distinctions and existing profile/command behavior. Use the E00 presentation seam: host-owned facts come from `src/adapters/obsidian/presentationEnvironment.ts`, while portable routing/profile code consumes `PresentationEnvironment`. Keep device class, OS/key convention, keyboard/pointer/touch availability and host feature availability distinct. A tablet can have a keyboard; a desktop can have touch. Future hosts provide their own facts. Do not import Obsidian `Platform` into portable core or newly migrated UI, and do not introduce a mutable global platform singleton.
 
 After L00, user-facing shortcut text in tooltips, help, labels and notices must combine catalog copy with environment-aware formatting of the actual action. Do not hard-code `Ctrl/Cmd`, `Mod`, `Option`, `Alt` or platform-specific key sequences in new copy; show Command/Option on macOS and Control/Alt on Windows where those keys are relevant. Use the effective binding for host-configurable shortcuts when available; do not claim a fixed sequence when it is unknown. Omit hints for unavailable actions and provide the applicable touch instruction on touch-only surfaces. Test displayed hints against registration/handlers, including macOS/Windows, mobile key conventions and keyboard-equipped phones/tablets. See section 3.7 and E00/L00/L01 of `Refactor plan.md`.
 
@@ -262,7 +262,7 @@ Density must **not** change node interior padding. Use the tight padding from th
 
 ### Mobile / view-surface rules
 
-- Keep phone/tablet detection centralized in `currentDeviceClass()`; do not add new direct reads of undocumented `Platform.isPhone` / `Platform.isTablet` members elsewhere. The existing classifier checks optional runtime members before a viewport fallback; E00 must verify its supported API assumptions and preserve current routing and persisted profile keys before changing it.
+- Keep phone/tablet detection centralized in the E00 presentation seam. `readObsidianPresentationEnvironment()` is the Obsidian boundary; its pure adapter-local `classifyDeviceClass()` preserves optional runtime phone/tablet flags before the shortest-side fallback. The remaining `viewProfile.ts` layout helpers are compatibility delegates until C25. Do not add new direct `Platform.isPhone` / `Platform.isTablet` reads elsewhere.
 - Phone: the generic K-Plex open action routes to the right sidepanel; command palette should expose only **Open in side panel** among K-Plex surface-opening commands.
 - Tablet: **Open graph** opens a normal K-Plex tab and **Open in side panel** remains available; pop-out is desktop-only.
 - Touch activation must not depend on a synthesized browser click. A stationary one-finger pointer-up activates the node explicitly; movement owns pan/pinch; long-press owns context menus.

@@ -13,7 +13,9 @@ import { extractLinksFromValue, normalizeFieldName, parseBodyMetadata } from "./
 import type { RelationEvidence } from "./index/RelationEvidence";
 import { AddToOntologyModal, type OntologyAssignmentRole } from "./ui/AddToOntologyModal";
 import { NoteTypeModal } from "./ui/NoteTypeModal";
-import { activeLayoutProfile, currentDeviceClass, effectiveViewSettings, layoutProfileKey } from "./ui/viewProfile";
+import { activeLayoutProfile, effectiveViewSettings, layoutProfileKey } from "./ui/viewProfile";
+import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
+import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurface } from "./core/plex/viewPresentation";
 import { perfNow } from "./util/perf";
 
 type LoadAwareView = FileView & { _loaded?: boolean };
@@ -150,7 +152,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       id: "excalibrain-start",
       name: "Open graph",
       checkCallback: (checking) => {
-        if (currentDeviceClass() === "mobile") return false;
+        if (!isGraphTabCommandAvailable(readObsidianPresentationEnvironment())) return false;
         if (!checking) void this.activateView();
         return true;
       },
@@ -160,7 +162,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       id: "kplex-open-popout",
       name: "Open in pop-out window",
       checkCallback: (checking) => {
-        if (currentDeviceClass() !== "desktop") return false;
+        if (!isPopoutCommandAvailable(readObsidianPresentationEnvironment())) return false;
         if (!checking) void this.activateViewInPopout();
         return true;
       },
@@ -2029,15 +2031,16 @@ export default class ExcaliBrainPlugin extends Plugin {
   async activateView(): Promise<void> {
     // Phones intentionally route the generic/open-ribbon action to the sidepanel. Tablets retain
     // the normal graph tab because there is enough screen real-estate to make that useful.
-    const device = currentDeviceClass();
-    if (device === "mobile") {
+    const environment = readObsidianPresentationEnvironment();
+    const target = primaryOpenSurface(environment, this.settings.startInPopout);
+    if (target === "sidepanel") {
       await this.activateSidepanel();
       return;
     }
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
     let leaf = this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE)[0];
     if (!leaf) {
-      if (this.settings.startInPopout && device === "desktop") {
+      if (target === "popout") {
         try { leaf = this.app.workspace.getLeaf("window"); }
         catch { leaf = this.app.workspace.getLeaf(true); }
       } else {
@@ -2144,16 +2147,17 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   getViewSettings(surface: KplexViewSurface): ExcaliBrainSettings {
-    return effectiveViewSettings(this.settings, surface);
+    return effectiveViewSettings(this.settings, surface, readObsidianPresentationEnvironment());
   }
 
   getActiveLayoutProfile(surface: KplexViewSurface): KplexLayoutProfile {
-    return activeLayoutProfile(this.settings, surface);
+    return activeLayoutProfile(this.settings, surface, readObsidianPresentationEnvironment());
   }
 
   async updateLayoutProfile(surface: KplexViewSurface, patch: Partial<KplexLayoutProfile>): Promise<void> {
-    const key = layoutProfileKey(surface, currentDeviceClass());
-    const current = this.getActiveLayoutProfile(surface);
+    const environment = readObsidianPresentationEnvironment();
+    const key = layoutProfileKey(surface, environment);
+    const current = activeLayoutProfile(this.settings, surface, environment);
     this.settings.layoutProfiles[key] = { ...current, ...patch };
     await this.saveSettings(false, false);
     this.index.notify();

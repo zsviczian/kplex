@@ -235,6 +235,7 @@ function compile(relativePath) {
 
 for (const file of [
   "src/types.ts",
+  "src/core/plex/viewPresentation.ts",
   "src/util/perf.ts",
   "src/main.ts",
   "src/index/fieldParser.ts",
@@ -373,9 +374,16 @@ for (const [path, name] of [
 writeRuntimeStub("src/ui/DeleteNodeModal.js", `exports.DeleteNodeConfirmationModal = class {}; exports.RemainingNodeReferencesModal = class {};`);
 writeRuntimeStub("src/ui/viewProfile.js", `
 exports.activeLayoutProfile = () => null;
-exports.currentDeviceClass = () => "desktop";
 exports.effectiveViewSettings = (_settings, view) => view ?? {};
 exports.layoutProfileKey = () => "desktop";
+`);
+writeRuntimeStub("src/adapters/obsidian/presentationEnvironment.js", `
+exports.readObsidianPresentationEnvironment = () => ({
+  device: "desktop",
+  keyConvention: "unknown",
+  inputModes: { keyboard: true, pointer: true, touch: false },
+  hostActions: { graphTab: true, sidepanel: true, popout: true },
+});
 `);
 
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));

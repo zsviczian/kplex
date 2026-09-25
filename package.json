@@ -14,7 +14,7 @@
     "fixture:large": "node scripts/testing/generate-large-vault.mjs",
     "repo:export": "node scripts/generate-repository-zip.mjs",
     "repo:update": "node scripts/update-repository.mjs",
-    "test": "node scripts/run-indexing-tests.mjs && node --test tests/obsidian-runner.test.mjs tests/large-vault-generator.test.mjs"
+    "test": "node scripts/run-indexing-tests.mjs && node --test tests/presentation-environment.test.mjs tests/obsidian-runner.test.mjs tests/large-vault-generator.test.mjs"
   },
   "engines": {
     "node": ">=22.22.2 <23"
