@@ -1,0 +1,16 @@
+{
+  "sourceId": "opaque-source-17",
+  "sourceSemanticPath": "Case/Note.md",
+  "caseDistinctId": "opaque-source-18",
+  "caseDistinctSemanticPath": "case/note.md",
+  "pathlessDeleted": {
+    "id": "opaque-deleted-19",
+    "kind": "document",
+    "state": "deleted"
+  },
+  "pathlessMissing": {
+    "id": "opaque-missing-20",
+    "kind": "document",
+    "state": "missing"
+  }
+}

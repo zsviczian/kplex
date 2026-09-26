@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "C11",
+  "status": "passed",
+  "date": "2026-09-26",
+  "source": {
+    "revision": "60cf0bcf2f1781ff265e7e414e92da0d5e80e362",
+    "dirty": true,
+    "node": "v22.22.2"
+  },
+  "portable": {
+    "cleanLockfileInstall": "passed",
+    "verify": "passed",
+    "architecture": {
+      "roots": 23,
+      "reachableFiles": 64,
+      "violations": 0
+    },
+    "restrictedCoreTests": 17,
+    "newSourceContractTests": 6,
+    "aggregateNodeTests": 46,
+    "browserTests": 4,
+    "indexingFixture": "all existing assertions and C08P watchdog cases passed",
+    "lintErrors": 0,
+    "existingLintWarnings": 24,
+    "diffCheck": "passed (tracked diff; staged full delivery checked before commit)"
+  },
+  "review": {
+    "familyComparison": "exact declaring-source/target multisets for eight direct legacy families; URL origins separately derived",
+    "fixes": [
+      "optional malformed-URL origin",
+      "explicit metadata surfaces and competing note-type values",
+      "name-only field discovery",
+      "physical contribution owner for tag membership",
+      "missing Date target entity facts",
+      "host per-target occurrence aggregation across headings",
+      "CRLF source locations",
+      "body URL labels"
+    ],
+    "extraCoverage": [
+      "referential endpoint completion",
+      "600-occurrence dense source split into batches",
+      "wrong sequence/post-final/mixed generation and snapshot rejection"
+    ]
+  },
+  "artifacts": {
+    "sourceHashes": {
+      "main.js": "1303e1b6b45670b105819fe9a9f0be5ba3265ffbfccd699704414c84ba9ea75c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+    },
+    "comparison": "byte-identical to accepted C10 artifacts",
+    "priorReport": "C10-2026-09-26.json"
+  },
+  "host": {
+    "newRun": "unnecessary: no production consumer of the new contract and byte-identical shipped artifacts",
+    "priorEvidence": "accepted C10 host results; not represented as new C11 execution"
+  },
+  "manual": {
+    "required": false,
+    "reason": "unused contract/fixture checkpoint, clean host-free tests and identical shipped artifacts",
+    "remaining": "C00 physical-device/cold-performance matrix remains open"
+  },
+  "limits": [
+    "Batch cap limits record count, not bytes; C12 retains byte budgets and avoids repeated dense raw values.",
+    "Cursor validates stream order/boundary/finality, not record content/completeness.",
+    "Fixture producer is test-only, materializes small arrays and uses limited grammar/resolution; not a host oracle or production collector."
+  ],
+  "next": "C12a: scoped offline-agent handoff for file/container/tag full-build collection"
+}
