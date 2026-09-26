@@ -30,11 +30,13 @@ The main boundaries are:
 - `src/core/parser/metadata.ts` — host-free canonical grammar for legacy Dataview-style body fields, body URLs and property-value references, with explicit cooperative runtime capabilities.
 - `src/index/fieldParser.ts` — narrow Obsidian compatibility facade for metadata merge/linkpath resolution and the historical cooperative signature; it contains no duplicate grammar.
 - `MetadataParser.ts` — production worker/fallback boundary using the portable owner; the legacy `MetadataParseWorker` class delegates here and contains no parser copy.
-- `RelationEvidence.ts` — immutable relationship evidence and source provenance.
-- `RelationResolver.ts` — precedence and ExcaliBrain-compatible relationship classification.
+- `src/core/graph/evidence.ts` — host-free immutable relationship evidence, compact copy-on-write store, provenance and precedence; `src/index/RelationEvidence.ts` is the legacy re-export facade.
+- `src/core/graph/resolver.ts` — host-free ExcaliBrain-compatible classification/resolution/explanation owner with injected cooperative clock/yield/lifetime; `src/index/RelationResolver.ts` supplies the renderer runtime for the historical signature.
 - `GraphState.ts` — one graph snapshot.
 - `GraphBuilder.ts` — collects all vault evidence and builds a complete private snapshot.
 - `GraphIndex.ts` — publishes snapshots atomically and serves neighbourhood/search/explanation queries.
+
+C13b keeps explicit semantic paths as the compatibility key for evidence declarations and neighbour maps. These paths are not opaque IDs and core does not infer file/kind/basename semantics from them. Original declarations remain stored once; reverse/inverse perspectives are generated on read, hidden evidence remains directional, and declaration IDs/multiplicity survive forks, rename and compaction. The production compiler still creates/binds `GraphPage`/file targets in C13c, while publication remains outside the resolver.
 
 ## Frontmatter precedence
 

@@ -1,0 +1,1327 @@
+{
+  "enums": {
+    "RelationType": {
+      "DEFINED": 1,
+      "INFERRED": 2
+    },
+    "LinkDirection": {
+      "TO": 1,
+      "FROM": 2,
+      "BOTH": 3
+    }
+  },
+  "store": {
+    "declarationCount": 13,
+    "pairCount": 9,
+    "depth": 0,
+    "declarations": [
+      {
+        "id": "ev-1:forward",
+        "sourcePath": "A.md",
+        "targetPath": "B.md",
+        "role": "child",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "A.md",
+        "declaredTargetPath": "B.md",
+        "declaredRole": "child",
+        "sourceKind": "inline-ontology",
+        "definition": "children",
+        "fieldName": "Children",
+        "rawValue": "[[B]]",
+        "line": 4,
+        "start": 10,
+        "end": 20
+      },
+      {
+        "id": "ev-2:forward",
+        "sourcePath": "A.md",
+        "targetPath": "B.md",
+        "role": "parent",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "A.md",
+        "declaredTargetPath": "B.md",
+        "declaredRole": "parent",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "parents",
+        "fieldName": "Parent",
+        "rawValue": "[[B]]"
+      },
+      {
+        "id": "ev-3:forward",
+        "sourcePath": "A.md",
+        "targetPath": "B.md",
+        "role": "parent",
+        "relationType": 1,
+        "direction": 1,
+        "declaredByPath": "A.md",
+        "declaredTargetPath": "B.md",
+        "declaredRole": "parent",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "parents2",
+        "fieldName": "Parent 2",
+        "rawValue": "[[B]]"
+      },
+      {
+        "id": "ev-4:forward",
+        "sourcePath": "C.md",
+        "targetPath": "D.md",
+        "role": "parent",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "C.md",
+        "declaredTargetPath": "D.md",
+        "declaredRole": "parent",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "parent"
+      },
+      {
+        "id": "ev-5:forward",
+        "sourcePath": "C.md",
+        "targetPath": "D.md",
+        "role": "child",
+        "relationType": 1,
+        "direction": 1,
+        "declaredByPath": "C.md",
+        "declaredTargetPath": "D.md",
+        "declaredRole": "child",
+        "sourceKind": "inline-ontology",
+        "definition": "child"
+      },
+      {
+        "id": "ev-6:forward",
+        "sourcePath": "E.md",
+        "targetPath": "F.md",
+        "role": "child",
+        "relationType": 2,
+        "direction": 2,
+        "declaredByPath": "E.md",
+        "declaredTargetPath": "F.md",
+        "declaredRole": "child",
+        "sourceKind": "obsidian-link"
+      },
+      {
+        "id": "ev-7:forward",
+        "sourcePath": "F.md",
+        "targetPath": "E.md",
+        "role": "child",
+        "relationType": 2,
+        "direction": 2,
+        "declaredByPath": "F.md",
+        "declaredTargetPath": "E.md",
+        "declaredRole": "child",
+        "sourceKind": "unresolved-link"
+      },
+      {
+        "id": "ev-8:forward",
+        "sourcePath": "G.md",
+        "targetPath": "H.md",
+        "role": "hidden",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "G.md",
+        "declaredTargetPath": "H.md",
+        "declaredRole": "hidden",
+        "sourceKind": "frontmatter-ontology",
+        "fieldName": "Hidden"
+      },
+      {
+        "id": "ev-9:forward",
+        "sourcePath": "I.md",
+        "targetPath": "J.md",
+        "role": "child",
+        "relationType": 2,
+        "direction": 2,
+        "declaredByPath": "I.md",
+        "declaredTargetPath": "J.md",
+        "declaredRole": "child",
+        "sourceKind": "date-property",
+        "fieldName": "Date",
+        "rawValue": "2026-09-26"
+      },
+      {
+        "id": "ev-10:forward",
+        "sourcePath": "K.md",
+        "targetPath": "L.md",
+        "role": "child",
+        "relationType": 2,
+        "direction": 2,
+        "declaredByPath": "K.md",
+        "declaredTargetPath": "L.md",
+        "declaredRole": "child",
+        "sourceKind": "body-url",
+        "line": 9
+      },
+      {
+        "id": "ev-11:forward",
+        "sourcePath": "M.md",
+        "targetPath": "N.md",
+        "role": "right",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "M.md",
+        "declaredTargetPath": "N.md",
+        "declaredRole": "right",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "right-friend"
+      },
+      {
+        "id": "ev-12:forward",
+        "sourcePath": "O.md",
+        "targetPath": "P.md",
+        "role": "previous",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "O.md",
+        "declaredTargetPath": "P.md",
+        "declaredRole": "previous",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "previous"
+      },
+      {
+        "id": "ev-13:forward",
+        "sourcePath": "Q.md",
+        "targetPath": "R.md",
+        "role": "next",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "Q.md",
+        "declaredTargetPath": "R.md",
+        "declaredRole": "next",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "next"
+      }
+    ],
+    "betweenAB": [
+      {
+        "id": "ev-1:forward",
+        "sourcePath": "A.md",
+        "targetPath": "B.md",
+        "role": "child",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "A.md",
+        "declaredTargetPath": "B.md",
+        "declaredRole": "child",
+        "sourceKind": "inline-ontology",
+        "definition": "children",
+        "fieldName": "Children",
+        "rawValue": "[[B]]",
+        "line": 4,
+        "start": 10,
+        "end": 20
+      },
+      {
+        "id": "ev-2:forward",
+        "sourcePath": "A.md",
+        "targetPath": "B.md",
+        "role": "parent",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "A.md",
+        "declaredTargetPath": "B.md",
+        "declaredRole": "parent",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "parents",
+        "fieldName": "Parent",
+        "rawValue": "[[B]]"
+      },
+      {
+        "id": "ev-3:forward",
+        "sourcePath": "A.md",
+        "targetPath": "B.md",
+        "role": "parent",
+        "relationType": 1,
+        "direction": 1,
+        "declaredByPath": "A.md",
+        "declaredTargetPath": "B.md",
+        "declaredRole": "parent",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "parents2",
+        "fieldName": "Parent 2",
+        "rawValue": "[[B]]"
+      }
+    ],
+    "betweenBA": [
+      {
+        "id": "ev-1:reverse",
+        "sourcePath": "B.md",
+        "targetPath": "A.md",
+        "role": "parent",
+        "relationType": 1,
+        "direction": 1,
+        "declaredByPath": "A.md",
+        "declaredTargetPath": "B.md",
+        "declaredRole": "child",
+        "sourceKind": "inline-ontology",
+        "definition": "children",
+        "fieldName": "Children",
+        "rawValue": "[[B]]",
+        "line": 4,
+        "start": 10,
+        "end": 20
+      },
+      {
+        "id": "ev-2:reverse",
+        "sourcePath": "B.md",
+        "targetPath": "A.md",
+        "role": "child",
+        "relationType": 1,
+        "direction": 1,
+        "declaredByPath": "A.md",
+        "declaredTargetPath": "B.md",
+        "declaredRole": "parent",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "parents",
+        "fieldName": "Parent",
+        "rawValue": "[[B]]"
+      },
+      {
+        "id": "ev-3:reverse",
+        "sourcePath": "B.md",
+        "targetPath": "A.md",
+        "role": "child",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "A.md",
+        "declaredTargetPath": "B.md",
+        "declaredRole": "parent",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "parents2",
+        "fieldName": "Parent 2",
+        "rawValue": "[[B]]"
+      }
+    ],
+    "fromA": [
+      {
+        "targetPath": "B.md",
+        "evidence": [
+          {
+            "id": "ev-1:forward",
+            "sourcePath": "A.md",
+            "targetPath": "B.md",
+            "role": "child",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "A.md",
+            "declaredTargetPath": "B.md",
+            "declaredRole": "child",
+            "sourceKind": "inline-ontology",
+            "definition": "children",
+            "fieldName": "Children",
+            "rawValue": "[[B]]",
+            "line": 4,
+            "start": 10,
+            "end": 20
+          },
+          {
+            "id": "ev-2:forward",
+            "sourcePath": "A.md",
+            "targetPath": "B.md",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "A.md",
+            "declaredTargetPath": "B.md",
+            "declaredRole": "parent",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "parents",
+            "fieldName": "Parent",
+            "rawValue": "[[B]]"
+          },
+          {
+            "id": "ev-3:forward",
+            "sourcePath": "A.md",
+            "targetPath": "B.md",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 1,
+            "declaredByPath": "A.md",
+            "declaredTargetPath": "B.md",
+            "declaredRole": "parent",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "parents2",
+            "fieldName": "Parent 2",
+            "rawValue": "[[B]]"
+          }
+        ]
+      }
+    ],
+    "betweenHG": []
+  },
+  "storeOps": {
+    "baseCounts": {
+      "declarations": 2,
+      "pairs": 2,
+      "depth": 0
+    },
+    "forkCounts": {
+      "declarations": 2,
+      "pairs": 2,
+      "depth": 1
+    },
+    "baseDeclarations": [
+      {
+        "id": "ev-1:forward",
+        "sourcePath": "Base/A.md",
+        "targetPath": "Base/B.md",
+        "role": "child",
+        "relationType": 2,
+        "direction": 2,
+        "declaredByPath": "Base/A.md",
+        "declaredTargetPath": "Base/B.md",
+        "declaredRole": "child",
+        "sourceKind": "obsidian-link"
+      },
+      {
+        "id": "ev-2:forward",
+        "sourcePath": "Base/C.md",
+        "targetPath": "Base/D.md",
+        "role": "parent",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "Base/C.md",
+        "declaredTargetPath": "Base/D.md",
+        "declaredRole": "parent",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "parent"
+      }
+    ],
+    "forkDeclarations": [
+      {
+        "id": "ev-2:forward",
+        "sourcePath": "Base/Z.md",
+        "targetPath": "Base/D.md",
+        "role": "parent",
+        "relationType": 1,
+        "direction": 2,
+        "declaredByPath": "Base/Z.md",
+        "declaredTargetPath": "Base/D.md",
+        "declaredRole": "parent",
+        "sourceKind": "frontmatter-ontology",
+        "definition": "parent"
+      },
+      {
+        "id": "ev-3:forward",
+        "sourcePath": "Base/A.md",
+        "targetPath": "Base/Z.md",
+        "role": "left",
+        "relationType": 1,
+        "direction": 3,
+        "declaredByPath": "Base/A.md",
+        "declaredTargetPath": "Base/Z.md",
+        "declaredRole": "left",
+        "sourceKind": "inline-ontology",
+        "definition": "friend"
+      }
+    ],
+    "forkBetweenAZ": [
+      {
+        "id": "ev-3:forward",
+        "sourcePath": "Base/A.md",
+        "targetPath": "Base/Z.md",
+        "role": "left",
+        "relationType": 1,
+        "direction": 3,
+        "declaredByPath": "Base/A.md",
+        "declaredTargetPath": "Base/Z.md",
+        "declaredRole": "left",
+        "sourceKind": "inline-ontology",
+        "definition": "friend"
+      }
+    ],
+    "forkBetweenZA": [
+      {
+        "id": "ev-3:reverse",
+        "sourcePath": "Base/Z.md",
+        "targetPath": "Base/A.md",
+        "role": "left",
+        "relationType": 1,
+        "direction": 3,
+        "declaredByPath": "Base/A.md",
+        "declaredTargetPath": "Base/Z.md",
+        "declaredRole": "left",
+        "sourceKind": "inline-ontology",
+        "definition": "friend"
+      }
+    ],
+    "renamedTouched": [
+      "Base/Z.md",
+      "Base/D.md",
+      "Base/A.md"
+    ]
+  },
+  "resolved": {
+    "A.md": [
+      [
+        "B.md",
+        {
+          "targetPath": "B.md",
+          "direction": 3,
+          "isHidden": false,
+          "isParent": true,
+          "parentType": 1,
+          "parentTypeDefinition": "parents, parents2",
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "B.md": [
+      [
+        "A.md",
+        {
+          "targetPath": "A.md",
+          "direction": 3,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": true,
+          "childType": 1,
+          "childTypeDefinition": "parents, parents2",
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "C.md": [
+      [
+        "D.md",
+        {
+          "targetPath": "D.md",
+          "direction": 2,
+          "isHidden": false,
+          "isParent": true,
+          "parentType": 1,
+          "parentTypeDefinition": "parent",
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "D.md": [
+      [
+        "C.md",
+        {
+          "targetPath": "C.md",
+          "direction": 1,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": true,
+          "childType": 1,
+          "childTypeDefinition": "parent",
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "E.md": [
+      [
+        "F.md",
+        {
+          "targetPath": "F.md",
+          "direction": 3,
+          "isHidden": false,
+          "isParent": true,
+          "parentType": 2,
+          "isChild": true,
+          "childType": 2,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "F.md": [
+      [
+        "E.md",
+        {
+          "targetPath": "E.md",
+          "direction": 3,
+          "isHidden": false,
+          "isParent": true,
+          "parentType": 2,
+          "isChild": true,
+          "childType": 2,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "G.md": [
+      [
+        "H.md",
+        {
+          "targetPath": "H.md",
+          "direction": null,
+          "isHidden": true,
+          "isParent": false,
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "H.md": [],
+    "I.md": [
+      [
+        "J.md",
+        {
+          "targetPath": "J.md",
+          "direction": 2,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": true,
+          "childType": 2,
+          "childTypeDefinition": "Date",
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "J.md": [
+      [
+        "I.md",
+        {
+          "targetPath": "I.md",
+          "direction": 1,
+          "isHidden": false,
+          "isParent": true,
+          "parentType": 2,
+          "parentTypeDefinition": "Date",
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "K.md": [
+      [
+        "L.md",
+        {
+          "targetPath": "L.md",
+          "direction": 2,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": true,
+          "childType": 2,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "L.md": [
+      [
+        "K.md",
+        {
+          "targetPath": "K.md",
+          "direction": 1,
+          "isHidden": false,
+          "isParent": true,
+          "parentType": 2,
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "M.md": [
+      [
+        "N.md",
+        {
+          "targetPath": "N.md",
+          "direction": 2,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": true,
+          "rightFriendType": 1,
+          "rightFriendTypeDefinition": "right-friend",
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "N.md": [
+      [
+        "M.md",
+        {
+          "targetPath": "M.md",
+          "direction": 1,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": true,
+          "rightFriendType": 1,
+          "rightFriendTypeDefinition": "right-friend",
+          "isNextFriend": false,
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "O.md": [
+      [
+        "P.md",
+        {
+          "targetPath": "P.md",
+          "direction": 2,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": true,
+          "previousFriendType": 1,
+          "previousFriendTypeDefinition": "previous"
+        }
+      ]
+    ],
+    "P.md": [
+      [
+        "O.md",
+        {
+          "targetPath": "O.md",
+          "direction": 1,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": true,
+          "nextFriendType": 1,
+          "nextFriendTypeDefinition": "previous",
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "Q.md": [
+      [
+        "R.md",
+        {
+          "targetPath": "R.md",
+          "direction": 2,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": true,
+          "nextFriendType": 1,
+          "nextFriendTypeDefinition": "next",
+          "isPreviousFriend": false
+        }
+      ]
+    ],
+    "R.md": [
+      [
+        "Q.md",
+        {
+          "targetPath": "Q.md",
+          "direction": 1,
+          "isHidden": false,
+          "isParent": false,
+          "isChild": false,
+          "isLeftFriend": false,
+          "isRightFriend": false,
+          "isNextFriend": false,
+          "isPreviousFriend": true,
+          "previousFriendType": 1,
+          "previousFriendTypeDefinition": "next"
+        }
+      ]
+    ]
+  },
+  "explanations": {
+    "frontmatterConflict": {
+      "sourcePath": "A.md",
+      "targetPath": "B.md",
+      "resolvedRoles": [
+        {
+          "role": "parent",
+          "relationType": 1
+        }
+      ],
+      "hidden": false,
+      "summary": "Frontmatter ontology takes precedence over conflicting body ontology; the overridden body evidence is retained for explanation.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-1:forward",
+            "sourcePath": "A.md",
+            "targetPath": "B.md",
+            "role": "child",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "A.md",
+            "declaredTargetPath": "B.md",
+            "declaredRole": "child",
+            "sourceKind": "inline-ontology",
+            "definition": "children",
+            "fieldName": "Children",
+            "rawValue": "[[B]]",
+            "line": 4,
+            "start": 10,
+            "end": 20
+          },
+          "active": false,
+          "suppressionReason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair."
+        },
+        {
+          "evidence": {
+            "id": "ev-2:forward",
+            "sourcePath": "A.md",
+            "targetPath": "B.md",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "A.md",
+            "declaredTargetPath": "B.md",
+            "declaredRole": "parent",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "parents",
+            "fieldName": "Parent",
+            "rawValue": "[[B]]"
+          },
+          "active": true
+        },
+        {
+          "evidence": {
+            "id": "ev-3:forward",
+            "sourcePath": "A.md",
+            "targetPath": "B.md",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 1,
+            "declaredByPath": "A.md",
+            "declaredTargetPath": "B.md",
+            "declaredRole": "parent",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "parents2",
+            "fieldName": "Parent 2",
+            "rawValue": "[[B]]"
+          },
+          "active": true
+        }
+      ]
+    },
+    "inverseFrontmatterConflict": {
+      "sourcePath": "B.md",
+      "targetPath": "A.md",
+      "resolvedRoles": [
+        {
+          "role": "child",
+          "relationType": 1
+        }
+      ],
+      "hidden": false,
+      "summary": "Frontmatter ontology takes precedence over conflicting body ontology; the overridden body evidence is retained for explanation.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-1:reverse",
+            "sourcePath": "B.md",
+            "targetPath": "A.md",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 1,
+            "declaredByPath": "A.md",
+            "declaredTargetPath": "B.md",
+            "declaredRole": "child",
+            "sourceKind": "inline-ontology",
+            "definition": "children",
+            "fieldName": "Children",
+            "rawValue": "[[B]]",
+            "line": 4,
+            "start": 10,
+            "end": 20
+          },
+          "active": false,
+          "suppressionReason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair."
+        },
+        {
+          "evidence": {
+            "id": "ev-2:reverse",
+            "sourcePath": "B.md",
+            "targetPath": "A.md",
+            "role": "child",
+            "relationType": 1,
+            "direction": 1,
+            "declaredByPath": "A.md",
+            "declaredTargetPath": "B.md",
+            "declaredRole": "parent",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "parents",
+            "fieldName": "Parent",
+            "rawValue": "[[B]]"
+          },
+          "active": true
+        },
+        {
+          "evidence": {
+            "id": "ev-3:reverse",
+            "sourcePath": "B.md",
+            "targetPath": "A.md",
+            "role": "child",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "A.md",
+            "declaredTargetPath": "B.md",
+            "declaredRole": "parent",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "parents2",
+            "fieldName": "Parent 2",
+            "rawValue": "[[B]]"
+          },
+          "active": true
+        }
+      ]
+    },
+    "multiRoleConflict": {
+      "sourcePath": "C.md",
+      "targetPath": "D.md",
+      "resolvedRoles": [
+        {
+          "role": "parent",
+          "relationType": 1
+        }
+      ],
+      "hidden": false,
+      "summary": "Frontmatter ontology takes precedence over conflicting body ontology; the overridden body evidence is retained for explanation.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-4:forward",
+            "sourcePath": "C.md",
+            "targetPath": "D.md",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "C.md",
+            "declaredTargetPath": "D.md",
+            "declaredRole": "parent",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "parent"
+          },
+          "active": true
+        },
+        {
+          "evidence": {
+            "id": "ev-5:forward",
+            "sourcePath": "C.md",
+            "targetPath": "D.md",
+            "role": "child",
+            "relationType": 1,
+            "direction": 1,
+            "declaredByPath": "C.md",
+            "declaredTargetPath": "D.md",
+            "declaredRole": "child",
+            "sourceKind": "inline-ontology",
+            "definition": "child"
+          },
+          "active": false,
+          "suppressionReason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair."
+        }
+      ]
+    },
+    "bidirectionalInferred": {
+      "sourcePath": "E.md",
+      "targetPath": "F.md",
+      "resolvedRoles": [
+        {
+          "role": "left",
+          "relationType": 2
+        }
+      ],
+      "hidden": false,
+      "summary": "Ordinary links provide evidence in both directions, so the pair resolves to an inferred friend relationship.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-6:forward",
+            "sourcePath": "E.md",
+            "targetPath": "F.md",
+            "role": "child",
+            "relationType": 2,
+            "direction": 2,
+            "declaredByPath": "E.md",
+            "declaredTargetPath": "F.md",
+            "declaredRole": "child",
+            "sourceKind": "obsidian-link"
+          },
+          "active": true
+        },
+        {
+          "evidence": {
+            "id": "ev-7:reverse",
+            "sourcePath": "E.md",
+            "targetPath": "F.md",
+            "role": "parent",
+            "relationType": 2,
+            "direction": 1,
+            "declaredByPath": "F.md",
+            "declaredTargetPath": "E.md",
+            "declaredRole": "child",
+            "sourceKind": "unresolved-link"
+          },
+          "active": true
+        }
+      ]
+    },
+    "hiddenDirectional": {
+      "sourcePath": "G.md",
+      "targetPath": "H.md",
+      "resolvedRoles": [],
+      "hidden": true,
+      "summary": "The relationship is indexed but hidden from this source note's visible neighbourhood.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-8:forward",
+            "sourcePath": "G.md",
+            "targetPath": "H.md",
+            "role": "hidden",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "G.md",
+            "declaredTargetPath": "H.md",
+            "declaredRole": "hidden",
+            "sourceKind": "frontmatter-ontology",
+            "fieldName": "Hidden"
+          },
+          "active": true
+        }
+      ]
+    },
+    "dateProperty": {
+      "sourcePath": "I.md",
+      "targetPath": "J.md",
+      "resolvedRoles": [
+        {
+          "role": "child",
+          "relationType": 2
+        }
+      ],
+      "hidden": false,
+      "summary": "An Obsidian Date property maps to a Daily Notes target and is treated as an inferred outgoing relationship.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-9:forward",
+            "sourcePath": "I.md",
+            "targetPath": "J.md",
+            "role": "child",
+            "relationType": 2,
+            "direction": 2,
+            "declaredByPath": "I.md",
+            "declaredTargetPath": "J.md",
+            "declaredRole": "child",
+            "sourceKind": "date-property",
+            "fieldName": "Date",
+            "rawValue": "2026-09-26"
+          },
+          "active": true
+        }
+      ]
+    },
+    "bodyUrl": {
+      "sourcePath": "K.md",
+      "targetPath": "L.md",
+      "resolvedRoles": [
+        {
+          "role": "child",
+          "relationType": 2
+        }
+      ],
+      "hidden": false,
+      "summary": "The visible relationship is derived from body URL evidence.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-10:forward",
+            "sourcePath": "K.md",
+            "targetPath": "L.md",
+            "role": "child",
+            "relationType": 2,
+            "direction": 2,
+            "declaredByPath": "K.md",
+            "declaredTargetPath": "L.md",
+            "declaredRole": "child",
+            "sourceKind": "body-url",
+            "line": 9
+          },
+          "active": true
+        }
+      ]
+    },
+    "rightDefined": {
+      "sourcePath": "M.md",
+      "targetPath": "N.md",
+      "resolvedRoles": [
+        {
+          "role": "right",
+          "relationType": 1
+        }
+      ],
+      "hidden": false,
+      "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-11:forward",
+            "sourcePath": "M.md",
+            "targetPath": "N.md",
+            "role": "right",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "M.md",
+            "declaredTargetPath": "N.md",
+            "declaredRole": "right",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "right-friend"
+          },
+          "active": true
+        }
+      ]
+    },
+    "previousDefined": {
+      "sourcePath": "O.md",
+      "targetPath": "P.md",
+      "resolvedRoles": [
+        {
+          "role": "previous",
+          "relationType": 1
+        }
+      ],
+      "hidden": false,
+      "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-12:forward",
+            "sourcePath": "O.md",
+            "targetPath": "P.md",
+            "role": "previous",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "O.md",
+            "declaredTargetPath": "P.md",
+            "declaredRole": "previous",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "previous"
+          },
+          "active": true
+        }
+      ]
+    },
+    "nextDefined": {
+      "sourcePath": "Q.md",
+      "targetPath": "R.md",
+      "resolvedRoles": [
+        {
+          "role": "next",
+          "relationType": 1
+        }
+      ],
+      "hidden": false,
+      "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+      "decisions": [
+        {
+          "evidence": {
+            "id": "ev-13:forward",
+            "sourcePath": "Q.md",
+            "targetPath": "R.md",
+            "role": "next",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "Q.md",
+            "declaredTargetPath": "R.md",
+            "declaredRole": "next",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "next"
+          },
+          "active": true
+        }
+      ]
+    }
+  },
+  "classifications": {
+    "frontmatterConflict": {
+      "vector": {
+        "pi": false,
+        "pd": true,
+        "ci": false,
+        "cd": false,
+        "lfd": false,
+        "rfd": false,
+        "pfd": false,
+        "nfd": false
+      },
+      "roles": [
+        [
+          "parent",
+          1
+        ],
+        [
+          "child",
+          null
+        ],
+        [
+          "left",
+          null
+        ],
+        [
+          "right",
+          null
+        ],
+        [
+          "previous",
+          null
+        ],
+        [
+          "next",
+          null
+        ]
+      ]
+    },
+    "multiRoleConflict": {
+      "vector": {
+        "pi": false,
+        "pd": true,
+        "ci": false,
+        "cd": false,
+        "lfd": false,
+        "rfd": false,
+        "pfd": false,
+        "nfd": false
+      },
+      "roles": [
+        [
+          "parent",
+          1
+        ],
+        [
+          "child",
+          null
+        ],
+        [
+          "left",
+          null
+        ],
+        [
+          "right",
+          null
+        ],
+        [
+          "previous",
+          null
+        ],
+        [
+          "next",
+          null
+        ]
+      ]
+    },
+    "bidirectionalInferred": {
+      "vector": {
+        "pi": true,
+        "pd": false,
+        "ci": true,
+        "cd": false,
+        "lfd": false,
+        "rfd": false,
+        "pfd": false,
+        "nfd": false
+      },
+      "roles": [
+        [
+          "parent",
+          null
+        ],
+        [
+          "child",
+          null
+        ],
+        [
+          "left",
+          2
+        ],
+        [
+          "right",
+          null
+        ],
+        [
+          "previous",
+          null
+        ],
+        [
+          "next",
+          null
+        ]
+      ]
+    },
+    "friendModeInferred": {
+      "vector": {
+        "pi": true,
+        "pd": false,
+        "ci": true,
+        "cd": false,
+        "lfd": false,
+        "rfd": false,
+        "pfd": false,
+        "nfd": false
+      },
+      "roles": [
+        [
+          "parent",
+          null
+        ],
+        [
+          "child",
+          null
+        ],
+        [
+          "left",
+          2
+        ],
+        [
+          "right",
+          null
+        ],
+        [
+          "previous",
+          null
+        ],
+        [
+          "next",
+          null
+        ]
+      ]
+    }
+  }
+}

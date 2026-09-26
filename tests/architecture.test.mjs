@@ -38,6 +38,8 @@ test("transitive and aliased host dependencies fail", () => {
 test("unmigrated dependencies, globals and loading escape hatches fail", () => {
   fixture({ "src/core/graph/root.ts": 'import type { Page } from "../../types"; export type P = Page;', "src/types.ts": 'export type Page = string;' }, failWith("unmigrated module"));
   fixture({ "src/core/graph/root.ts": 'export const now = window.performance.now();' }, failWith("forbidden global window"));
+  fixture({ "src/core/graph/root.ts": 'export const now = performance.now();' }, failWith("forbidden global performance"));
+  fixture({ "src/core/graph/root.ts": 'export const later = () => setTimeout(() => {}, 0);' }, failWith("forbidden global setTimeout"));
   fixture({ "src/core/graph/root.ts": 'export const load = (name: string) => import(name);' }, failWith("nonliteral module loading"));
   fixture({ "src/core/graph/root.ts": 'export const load = require("node:fs");' }, failWith("forbidden external import node:fs"));
   fixture({ "src/ui/features/root.tsx": 'export const plugin = window["app"].plugins;' }, failWith("plugin escape through window[app]"));
