@@ -17,7 +17,7 @@ const LAYERS = [
 const ALLOWED = {
   lang: new Set(["lang"]),
   contracts: new Set(["contracts"]),
-  parser: new Set(["parser"]),
+  parser: new Set(["contracts", "parser"]),
   graph: new Set(["contracts", "graph"]),
   plex: new Set(["contracts", "graph", "plex"]),
   application: new Set(["contracts", "graph", "plex", "application"]),

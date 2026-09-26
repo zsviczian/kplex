@@ -194,7 +194,9 @@ try {
     assert.equal(memberships.length, 2);
     const nestedTag = memberships.find((record) => record.provenance?.rawValue === "#Project/Shared/Leaf");
     assert(nestedTag);
-    assert.equal(nestedTag.source.semanticPath, "#Project/Shared/Leaf", "Collector must preserve raw tag identity; GraphBuilder owns normalization");
+    assert.equal(nestedTag.source.semanticPath, "tag:Project/Shared/Leaf");
+    assert.equal(nestedTag.source.id, "tag:Project/Shared/Leaf", "The adapter must bind raw host tags to explicit canonical IDs");
+    assert.equal(nestedTag.provenance.rawValue, "#Project/Shared/Leaf", "Raw host spelling remains provenance");
     assert.equal(nestedTag.target.entity.semanticPath, note.path);
     assert.equal(nestedTag.contribution.source.semanticPath, note.path);
     assert.notEqual(nestedTag.contribution.revision, nestedTag.sourceRevision);

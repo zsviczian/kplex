@@ -36,7 +36,7 @@ The main boundaries are:
 - `GraphBuilder.ts` — collects all vault evidence and builds a complete private snapshot.
 - `GraphIndex.ts` — publishes snapshots atomically and serves neighbourhood/search/explanation queries.
 
-C13b keeps explicit semantic paths as the compatibility key for evidence declarations and neighbour maps. These paths are not opaque IDs and core does not infer file/kind/basename semantics from them. Original declarations remain stored once; reverse/inverse perspectives are generated on read, hidden evidence remains directional, and declaration IDs/multiplicity survive forks, rename and compaction. The production compiler still creates/binds `GraphPage`/file targets in C13c, while publication remains outside the resolver.
+C13b keeps explicit semantic paths as the compatibility key for evidence declarations and neighbour maps. These paths are not opaque IDs and core does not infer file/kind/basename semantics from them. Original declarations remain stored once; reverse/inverse perspectives are generated on read, hidden evidence remains directional, and declaration IDs/multiplicity survive forks, rename and compaction. C13c now compiles full semantics into portable nodes over normalized facts; its host adapter cooperatively binds legacy `GraphPage`/file targets. Publication remains outside the resolver and incremental preparation/publication remains C14a/C14b.
 
 ## Frontmatter precedence
 
@@ -174,3 +174,5 @@ The definitive checkpoint ledger is [Refactor plan.md](../Refactor%20plan.md), s
 - C17 (or measured C13 follow-up): maintained search/secondary indexes to avoid redundant whole-graph passes without sacrificing atomic publication or increasing retained memory unnecessarily.
 
 These are measured follow-up design opportunities, not shipped capabilities or permission to redesign the index before its boundaries are extracted.
+
+C13c full compilation is accepted with exact same-input accepted-compiler parity. The host owns physical file binding, body/cache acquisition and platform runtime selection; the portable owner has terminal read rejection, exact identity mapping and cooperative resolution. Source/legacy binding checks remain across awaits. C13W is a separate deferred worker experiment; C13 acceptance does not claim that experiment or physical/cold performance completion.

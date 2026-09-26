@@ -87,6 +87,55 @@ export function classifyRelation<TTarget>(
   }
 }
 
+
+export type ResolverKeyTarget<TTarget> = {
+  neighbours: Map<string, SemanticRelation<TTarget>>;
+};
+
+const relationHasRole = <TTarget>(relation: SemanticRelation<TTarget>): boolean =>
+  relation.isHidden || relation.isParent || relation.isChild || relation.isLeftFriend ||
+  relation.isRightFriend || relation.isNextFriend || relation.isPreviousFriend;
+
+/**
+ * Resolve one exact identity-key pair without requiring that the key be a semantic path.
+ * The legacy path-based API below delegates to the same evidence/precedence implementation.
+ */
+export function resolveEvidencePairByKey<TPage extends ResolverKeyTarget<TPage>>(
+  pages: Map<string, TPage>,
+  store: RelationEvidenceStore,
+  sourceKey: string,
+  targetKey: string,
+  canonicalTarget?: (key: string, staged: TPage) => TPage,
+): void {
+  const source = pages.get(sourceKey);
+  const target = pages.get(targetKey);
+  if (!source || !target) return;
+  const evidence = store.between(sourceKey, targetKey);
+  if (!evidence.length) {
+    source.neighbours.delete(targetKey);
+    return;
+  }
+  const relation: SemanticRelation<TPage> = { ...emptyRelation<TPage>(), target: canonicalTarget?.(targetKey, target) ?? target };
+  for (const decision of applyOntologyPrecedence(evidence)) applyEvidenceToRelation(relation, decision);
+  if (relationHasRole(relation)) source.neighbours.set(targetKey, relation);
+  else source.neighbours.delete(targetKey);
+}
+
+export function resolveEvidenceStoreByKey<TPage extends ResolverKeyTarget<TPage>>(
+  pages: Map<string, TPage>,
+  store: RelationEvidenceStore,
+): void {
+  for (const page of pages.values()) page.neighbours = new Map();
+  for (const [sourceKey, targetKey, evidence] of store.entries()) {
+    const source = pages.get(sourceKey);
+    const target = pages.get(targetKey);
+    if (!source || !target) continue;
+    const relation: SemanticRelation<TPage> = { ...emptyRelation<TPage>(), target };
+    for (const decision of applyOntologyPrecedence(evidence)) applyEvidenceToRelation(relation, decision);
+    if (relationHasRole(relation)) source.neighbours.set(targetKey, relation);
+  }
+}
+
 export function resolveEvidencePair<TPage extends ResolverTarget<TPage>>(
   pages: Map<string, TPage>,
   store: RelationEvidenceStore,
@@ -94,41 +143,18 @@ export function resolveEvidencePair<TPage extends ResolverTarget<TPage>>(
   targetPath: string,
   canonicalTarget?: (path: string, staged: TPage) => TPage,
 ): void {
-  const source = pages.get(sourcePath);
-  const target = pages.get(targetPath);
-  if (!source || !target) return;
-  const evidence = store.between(sourcePath, targetPath);
-  if (!evidence.length) {
-    source.neighbours.delete(targetPath);
-    return;
-  }
-  const relation: SemanticRelation<TPage> = { ...emptyRelation<TPage>(), target: canonicalTarget?.(targetPath, target) ?? target };
-  for (const decision of applyOntologyPrecedence(evidence)) applyEvidenceToRelation(relation, decision);
-  const hasRole = relation.isHidden || relation.isParent || relation.isChild || relation.isLeftFriend ||
-    relation.isRightFriend || relation.isNextFriend || relation.isPreviousFriend;
-  if (hasRole) source.neighbours.set(targetPath, relation);
-  else source.neighbours.delete(targetPath);
+  resolveEvidencePairByKey(pages, store, sourcePath, targetPath, canonicalTarget);
 }
 
 export function resolveEvidenceStore<TPage extends ResolverTarget<TPage>>(
   pages: Map<string, TPage>,
   store: RelationEvidenceStore,
 ): void {
-  for (const page of pages.values()) page.neighbours = new Map();
-
-  for (const [sourcePath, targetPath, evidence] of store.entries()) {
-    const source = pages.get(sourcePath);
-    const target = pages.get(targetPath);
-    if (!source || !target) continue;
-    const relation: SemanticRelation<TPage> = { ...emptyRelation<TPage>(), target };
-    for (const decision of applyOntologyPrecedence(evidence)) applyEvidenceToRelation(relation, decision);
-    const hasRole = relation.isHidden || relation.isParent || relation.isChild || relation.isLeftFriend || relation.isRightFriend || relation.isNextFriend || relation.isPreviousFriend;
-    if (hasRole) source.neighbours.set(targetPath, relation);
-  }
+  resolveEvidenceStoreByKey(pages, store);
 }
 
 /** Cooperative full-store resolution using an injected clock, yield and lifetime policy. */
-export async function resolveEvidenceStoreCooperative<TPage extends ResolverTarget<TPage>>(
+export async function resolveEvidenceStoreCooperativeByKey<TPage extends ResolverKeyTarget<TPage>>(
   pages: Map<string, TPage>,
   store: RelationEvidenceStore,
   runtime: ResolverCooperativeRuntime,
@@ -155,20 +181,29 @@ export async function resolveEvidenceStoreCooperative<TPage extends ResolverTarg
   }
 
   processed = 0;
-  for (const [sourcePath, targetPath, evidence] of store.entries()) {
+  for (const [sourceKey, targetKey, evidence] of store.entries()) {
     if (!runtime.isCurrent()) return false;
-    const source = pages.get(sourcePath);
-    const target = pages.get(targetPath);
+    const source = pages.get(sourceKey);
+    const target = pages.get(targetKey);
     if (source && target) {
       const relation: SemanticRelation<TPage> = { ...emptyRelation<TPage>(), target };
       for (const decision of applyOntologyPrecedence(evidence)) applyEvidenceToRelation(relation, decision);
-      const hasRole = relation.isHidden || relation.isParent || relation.isChild || relation.isLeftFriend || relation.isRightFriend || relation.isNextFriend || relation.isPreviousFriend;
-      if (hasRole) source.neighbours.set(targetPath, relation);
+      if (relationHasRole(relation)) source.neighbours.set(targetKey, relation);
     }
     processed += 1;
     if (!(await maybeYield(processed))) return false;
   }
   return runtime.isCurrent();
+}
+
+export async function resolveEvidenceStoreCooperative<TPage extends ResolverTarget<TPage>>(
+  pages: Map<string, TPage>,
+  store: RelationEvidenceStore,
+  runtime: ResolverCooperativeRuntime,
+  batchSize = 300,
+  onProgress?: () => void,
+): Promise<boolean> {
+  return resolveEvidenceStoreCooperativeByKey(pages, store, runtime, batchSize, onProgress);
 }
 
 function sourceLabel(evidence: RelationEvidence): string {

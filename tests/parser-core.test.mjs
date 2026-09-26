@@ -14,15 +14,22 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const temp = mkdtempSync(join(tmpdir(), "kplex-parser-core-"));
 process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
 const bundledPath = join(temp, "metadata-parser.mjs");
+const fieldNamePath = join(temp, "field-name.mjs");
 const sourcePath = join(root, "src/core/parser/metadata.ts");
+const fieldNameSourcePath = join(root, "src/core/contracts/fieldName.ts");
+const compilerOptions = { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.ESNext, strict: true };
+const fieldNameCompiled = ts.transpileModule(readFileSync(fieldNameSourcePath, "utf8"), {
+  compilerOptions, fileName: fieldNameSourcePath, reportDiagnostics: true,
+});
+const fieldNameErrors = (fieldNameCompiled.diagnostics ?? []).filter((item) => item.category === ts.DiagnosticCategory.Error);
+if (fieldNameErrors.length) throw new Error(fieldNameErrors.map((item) => ts.flattenDiagnosticMessageText(item.messageText, "\n")).join("\n"));
+writeFileSync(fieldNamePath, fieldNameCompiled.outputText);
 const compiled = ts.transpileModule(readFileSync(sourcePath, "utf8"), {
-  compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.ESNext, strict: true },
-  fileName: sourcePath,
-  reportDiagnostics: true,
+  compilerOptions, fileName: sourcePath, reportDiagnostics: true,
 });
 const compileErrors = (compiled.diagnostics ?? []).filter((item) => item.category === ts.DiagnosticCategory.Error);
 if (compileErrors.length) throw new Error(compileErrors.map((item) => ts.flattenDiagnosticMessageText(item.messageText, "\n")).join("\n"));
-writeFileSync(bundledPath, compiled.outputText);
+writeFileSync(bundledPath, compiled.outputText.replace(/from ["']\.\.\/contracts\/fieldName["']/g, 'from "./field-name.mjs"'));
 const parser = await import(pathToFileURL(bundledPath).href);
 const oracle = JSON.parse(readFileSync(join(root, "tests/fixtures/parser-c12c-oracle.json"), "utf8"));
 

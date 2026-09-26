@@ -148,8 +148,8 @@ export class RelationEvidenceStore {
     relationType: RelationType,
     direction: LinkDirection,
     provenance: EvidenceProvenance,
-  ): void {
-    if (sourcePath === targetPath) return;
+  ): string | null {
+    if (sourcePath === targetPath) return null;
     const declarationId = `ev-${this.nextId++}`;
     this.addDeclarationRecord({
       id: `${declarationId}:forward`,
@@ -163,10 +163,11 @@ export class RelationEvidenceStore {
       declaredRole: role,
       ...provenance,
     });
+    return `${declarationId}:forward`;
   }
 
-  addHidden(sourcePath: string, targetPath: string, provenance: EvidenceProvenance): void {
-    if (sourcePath === targetPath) return;
+  addHidden(sourcePath: string, targetPath: string, provenance: EvidenceProvenance): string | null {
+    if (sourcePath === targetPath) return null;
     const declarationId = `ev-${this.nextId++}`;
     this.addDeclarationRecord({
       id: `${declarationId}:forward`,
@@ -180,6 +181,7 @@ export class RelationEvidenceStore {
       declaredRole: "hidden",
       ...provenance,
     });
+    return `${declarationId}:forward`;
   }
 
   /**

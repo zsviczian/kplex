@@ -1,14 +1,17 @@
 import { Platform, TFile, type App } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
-import { normalizeFieldName, type ParsedBodyMetadata, type ParsedFileMetadata } from "../core/parser/metadata";
+import { normalizeFieldName } from "../core/contracts/fieldName";
+import type { ParsedBodyMetadata, ParsedFileMetadata } from "../core/parser/metadata";
 import { mergeFileMetadata } from "./fieldParser";
 import { MetadataParseCancelledError, type MetadataParser } from "./MetadataParser";
 import type { KplexIndexedDbCache } from "./IndexedDbCache";
 import type { EvidenceProvenance, EvidenceRole, EvidenceSourceKind } from "./RelationEvidence";
-import { resolveEvidencePair, resolveEvidenceStoreCooperative } from "./RelationResolver";
+import { resolveEvidencePair } from "./RelationResolver";
 import { createGraphState, getGraphPage, type GraphState } from "./GraphState";
 import { perfNow } from "../util/perf";
+import { NormalizedGraphCompiler, type GraphCompilerSettings, type GraphCompilerSourceRead, type PortableGraphCompilation } from "../core/graph/compiler";
+import type { NodeId } from "../core/graph/model";
 import { ObsidianStructuralSourceCollector } from "../adapters/obsidian/structuralSourceCollector";
 import { ObsidianHostLinkSourceCollector, readHostLinkSignatureEntries } from "../adapters/obsidian/hostLinkSourceCollector";
 import { ObsidianOntologySourceCollector } from "../adapters/obsidian/ontologySourceCollector";
@@ -24,14 +27,11 @@ import {
   sourceReadCanPublish,
   type BodyUrlOccurrence,
   type DatePropertyOccurrence,
-  type FileTreeOccurrence,
   type HostLinkOccurrence,
   type NormalizedSourceBatch,
   type OntologyOccurrence,
-  type SourceBatchCursor,
-  type SourceEntityFact,
   type SourceFieldNameFact,
-  type TagTreeOccurrence,
+  type SourceReadBoundary,
 } from "../core/graph/source";
 
 export type FieldCacheEntry = {
@@ -531,20 +531,49 @@ export class GraphBuilder {
   }
 
   async build(): Promise<GraphState | null> {
-    const state = createGraphState();
-    const structuralRead = await this.addStructuralSources(state);
+    const compiler = this.createFullCompiler();
+    const structuralRead = await this.collectStructuralSources(compiler);
     if (!structuralRead) return null;
-    if (!(await this.addHostLinkSources(state))) return null;
-    if (!(await this.enrichMarkdownPages(state))) return null;
-    if (!this.isCurrent()) return null;
-    if (!(await resolveEvidenceStoreCooperative(
-      state.pages,
-      state.evidence,
-      this.isCurrent,
-      Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
-    ))) return null;
-    if (!(await this.finalizeStructuralSources(state, structuralRead))) return null;
+    if (!(await this.collectHostLinkSources(compiler))) return null;
+    if (!(await this.collectMarkdownSources(compiler))) return null;
+    if (!(await this.finalizeStructuralSources(compiler, structuralRead))) return null;
+
+    const compiled = await compiler.finish();
+    if (!compiled || !structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) || !this.isCurrent()) return null;
+    const state = await this.bindCompiledGraph(compiled, structuralRead.collector);
+    if (!state || !structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) || !this.isCurrent()) return null;
     return state;
+  }
+
+  private fullCompilerSettings(): GraphCompilerSettings {
+    const hierarchy = this.plugin.settings.hierarchy;
+    return {
+      hierarchy: {
+        hidden: [...hierarchy.hidden],
+        parents: [...hierarchy.parents],
+        children: [...hierarchy.children],
+        leftFriends: [...hierarchy.leftFriends],
+        rightFriends: [...hierarchy.rightFriends],
+        previous: [...hierarchy.previous],
+        next: [...hierarchy.next],
+      },
+      inferAllLinksAsFriends: this.plugin.settings.inferAllLinksAsFriends,
+      inverseInfer: this.plugin.settings.inverseInfer,
+      excalibrainFilepath: this.plugin.settings.excalibrainFilepath,
+      showFullTagName: this.plugin.settings.showFullTagName,
+      tagStyleList: [...this.plugin.settings.tagStyleList],
+      maxLabelLength: this.plugin.settings.baseNodeStyle.maxLabelLength ?? 30,
+    };
+  }
+
+  private createFullCompiler(): NormalizedGraphCompiler {
+    return new NormalizedGraphCompiler(this.fullCompilerSettings(), {
+      now: perfNow,
+      yield: async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); },
+      isCurrent: this.isCurrent,
+      sliceBudgetMs: Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13,
+      resolverBatchSize: Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
+    });
   }
 
   private async yieldToHost(force = false): Promise<boolean> {
@@ -598,179 +627,136 @@ export class GraphBuilder {
     this.patchTouchedPagePaths?.add(page.path);
   }
 
-  private async addStructuralSources(state: GraphState): Promise<{
+  private async collectStructuralSources(compiler: NormalizedGraphCompiler): Promise<{
     collector: ObsidianStructuralSourceCollector;
-    cursor: SourceBatchCursor;
-    pendingFileTree: FileTreeOccurrence[];
-    pendingTagTree: TagTreeOccurrence[];
-    tagPages: Map<string, GraphPage | null>;
+    read: GraphCompilerSourceRead;
   } | null> {
     const collector = new ObsidianStructuralSourceCollector(
       { vault: this.app.vault, metadataCache: this.app.metadataCache },
       { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => this.plugin.getIndexSourceRevision() },
     );
-    const context = {
-      collector,
-      cursor: beginSourceRead(collector.boundary),
-      pendingFileTree: [] as FileTreeOccurrence[],
-      pendingTagTree: [] as TagTreeOccurrence[],
-      tagPages: new Map<string, GraphPage | null>(),
-    };
-    const consumed = await collector.collectBatches(async (batch) => {
-      const next = this.acceptStructuralBatch(state, context, batch);
-      if (!next) return false;
-      context.cursor = next;
-      return this.yieldToHost();
-    });
-    return consumed && this.isCurrent() ? context : null;
+    const read = compiler.beginRead(collector.boundary);
+    const consumed = await collector.collectBatches((batch) => compiler.acceptBatch(read, batch));
+    return consumed && this.isCurrent() ? { collector, read } : null;
   }
 
   private async finalizeStructuralSources(
-    state: GraphState,
-    context: {
-      collector: ObsidianStructuralSourceCollector;
-      cursor: SourceBatchCursor;
-      pendingFileTree: FileTreeOccurrence[];
-      pendingTagTree: TagTreeOccurrence[];
-      tagPages: Map<string, GraphPage | null>;
-    },
+    compiler: NormalizedGraphCompiler,
+    context: { collector: ObsidianStructuralSourceCollector; read: GraphCompilerSourceRead },
   ): Promise<boolean> {
     const finalBatch = await context.collector.finalize();
-    if (!finalBatch) return false;
-    const cursor = this.acceptStructuralBatch(state, context, finalBatch);
-    if (!cursor) return false;
-    context.cursor = cursor;
-    if (!this.flushPendingStructuralRecords(state, context)) return false;
-    return context.pendingFileTree.length === 0
-      && context.pendingTagTree.length === 0
-      && context.collector.isBoundaryCurrent(context.cursor.boundary)
-      && sourceReadCanPublish(context.cursor, context.collector.boundary)
+    if (!finalBatch || !(await compiler.acceptBatch(context.read, finalBatch))) return false;
+    return context.collector.isBoundaryCurrent(context.read.boundary)
+      && compiler.completeRead(context.read, context.collector.boundary)
       && this.isCurrent();
   }
 
-  private acceptStructuralBatch(
-    state: GraphState,
-    context: {
-      collector: ObsidianStructuralSourceCollector;
-      cursor: SourceBatchCursor;
-      pendingFileTree: FileTreeOccurrence[];
-      pendingTagTree: TagTreeOccurrence[];
-      tagPages: Map<string, GraphPage | null>;
-    },
-    batch: NormalizedSourceBatch,
-  ): SourceBatchCursor | null {
-    const accepted = acceptSourceBatch(context.cursor, batch);
-    if (!accepted.accepted) return null;
-    for (const record of batch.records) {
-      if (record.kind === "entity") {
-        if (!this.consumeStructuralEntity(state, context.collector, record)) return null;
-      } else if (record.kind === "file-tree") {
-        if (!this.consumeFileTreeRecord(state, record)) context.pendingFileTree.push(record);
-      } else if (record.kind === "tag-tree") {
-        if (!this.consumeTagTreeRecord(state, record, context.tagPages)) context.pendingTagTree.push(record);
-      } else {
-        return null;
-      }
-      if (!this.flushPendingStructuralRecords(state, context)) return null;
-    }
-    return accepted.cursor;
-  }
-
-  private consumeStructuralEntity(
-    state: GraphState,
-    collector: ObsidianStructuralSourceCollector,
-    record: SourceEntityFact,
-  ): boolean {
-    const path = record.entity.semanticPath;
-    if (!path) return record.entity.kind === "tag";
-    if (record.entity.kind === "tag") return true;
-    if (state.pages.has(path)) return true;
-    if (record.entity.kind === "container") {
-      this.addPage(state, this.createPage({ path, name: record.name, isFolder: true, mtime: record.semanticMtime ?? null }));
-      return true;
-    }
-    if (record.entity.kind !== "document" && record.entity.kind !== "attachment") return false;
-    if (!record.file || record.entity.physicalPath !== record.file.path) return false;
-    const file = collector.materializedFile(record.file);
-    if (!file || file.path !== path) return false;
-    this.addPage(state, this.createPage({
-      path,
-      name: record.name,
-      file,
-      mtime: record.semanticMtime ?? record.file.mtime ?? null,
-    }));
-    return true;
-  }
-
-  private consumeFileTreeRecord(state: GraphState, record: FileTreeOccurrence): boolean {
-    const sourcePath = record.source.semanticPath;
-    const targetPath = record.target.entity.semanticPath;
-    if (!sourcePath || !targetPath) return false;
-    const source = getGraphPage(state, sourcePath);
-    const target = getGraphPage(state, targetPath);
-    if (!source || !target) return false;
-    this.addEvidencePair(state, source, target, "child", RelationType.DEFINED, LinkDirection.FROM, { sourceKind: "file-tree", definition: "file-tree" });
-    return true;
-  }
-
-  private consumeTagTreeRecord(state: GraphState, record: TagTreeOccurrence, tagPages: Map<string, GraphPage | null>): boolean {
-    const rawTag = record.provenance?.rawValue
-      ?? record.source.semanticPath?.replace(/^tag:/, "")
-      ?? (record.membership === "tag-child" ? record.target.entity.semanticPath?.replace(/^tag:/, "") : undefined);
-    if (!rawTag) return false;
-    // The former grouped collector resolved each raw tag hierarchy once, not once per member.
-    // This run-local cache retains only existing graph pages, never a tag-to-members input copy.
-    if (!tagPages.has(rawTag)) tagPages.set(rawTag, this.ensureTagPath(state, rawTag));
-    const tagPage = tagPages.get(rawTag);
-    if (!tagPage) return true;
-    if (record.membership === "tag-child") return true;
-    const targetPath = record.target.entity.semanticPath;
-    if (!targetPath) return false;
-    const member = getGraphPage(state, targetPath);
-    if (!member) return false;
-    // getAllTags can return repeated memberships. Preserve those original declarations;
-    // only ensureTagPath owns deduplication of structural hierarchy edges.
-    this.addEvidencePair(state, tagPage, member, "child", RelationType.DEFINED, LinkDirection.TO, { sourceKind: "tag-tree", definition: "tag-tree" });
-    return true;
-  }
-
-  private flushPendingStructuralRecords(
-    state: GraphState,
-    context: { pendingFileTree: FileTreeOccurrence[]; pendingTagTree: TagTreeOccurrence[]; tagPages: Map<string, GraphPage | null> },
-  ): boolean {
-    if (context.pendingFileTree.length) {
-      const remaining = context.pendingFileTree.filter((record) => !this.consumeFileTreeRecord(state, record));
-      context.pendingFileTree.splice(0, context.pendingFileTree.length, ...remaining);
-    }
-    if (context.pendingTagTree.length) {
-      const remaining = context.pendingTagTree.filter((record) => !this.consumeTagTreeRecord(state, record, context.tagPages));
-      context.pendingTagTree.splice(0, context.pendingTagTree.length, ...remaining);
-    }
-    return this.isCurrent();
-  }
-
-  private async addHostLinkSources(state: GraphState): Promise<boolean> {
+  private async collectHostLinkSources(compiler: NormalizedGraphCompiler): Promise<boolean> {
     const collector = new ObsidianHostLinkSourceCollector(
       { vault: this.app.vault, metadataCache: this.app.metadataCache },
       { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => this.plugin.getIndexSourceRevision() },
     );
-    let cursor = beginSourceRead(collector.boundary);
-    const consume = async (batch: NormalizedSourceBatch): Promise<boolean> => {
-      const accepted = acceptSourceBatch(cursor, batch);
-      if (!accepted.accepted) return false;
-      for (const record of batch.records) {
-        if (record.kind !== "obsidian-link" && record.kind !== "unresolved-link") return false;
-        if (!this.consumeHostLinkRecord(state, record)) return false;
-      }
-      cursor = accepted.cursor;
-      return this.yieldToHost();
-    };
-    if (!(await collector.collectBatches(consume))) return false;
+    const read = compiler.beginRead(collector.boundary);
+    if (!(await collector.collectBatches((batch) => compiler.acceptBatch(read, batch)))) return false;
     const finalBatch = await collector.finalize();
-    if (!finalBatch || !(await consume(finalBatch))) return false;
-    return collector.isBoundaryCurrent(cursor.boundary)
-      && sourceReadCanPublish(cursor, collector.boundary)
+    if (!finalBatch || !(await compiler.acceptBatch(read, finalBatch))) return false;
+    return collector.isBoundaryCurrent(read.boundary)
+      && compiler.completeRead(read, collector.boundary)
       && this.isCurrent();
+  }
+
+  private async collectFinalCompilerSource(
+    compiler: NormalizedGraphCompiler,
+    collector: {
+      readonly boundary: SourceReadBoundary;
+      collectBatches(consume: (batch: NormalizedSourceBatch) => Promise<boolean> | boolean): Promise<boolean>;
+      isBoundaryCurrent(boundary: SourceReadBoundary): boolean;
+    },
+  ): Promise<boolean> {
+    const read = compiler.beginRead(collector.boundary);
+    if (!(await collector.collectBatches((batch) => compiler.acceptBatch(read, batch)))) return false;
+    return collector.isBoundaryCurrent(read.boundary)
+      && compiler.completeRead(read, collector.boundary)
+      && this.isCurrent();
+  }
+
+  private async collectMetadataSources(
+    compiler: NormalizedGraphCompiler,
+    file: TFile,
+    meta: ParsedFileMetadata,
+  ): Promise<boolean> {
+    const runtime = {
+      isCurrent: this.isCurrent,
+      checkpoint: () => this.yieldToHost(),
+      sourceRevision: () => this.plugin.getIndexSourceRevision(),
+    };
+    const metadata = new ObsidianMetadataSourceCollector(
+      this.metadataSourceHost, runtime, file, meta, this.metadataSourceSettings, "metadata",
+    );
+    if (!(await this.collectFinalCompilerSource(compiler, metadata))) return false;
+
+    const ontology = new ObsidianOntologySourceCollector(
+      { metadataCache: this.app.metadataCache }, runtime, file, meta, this.ontologyConfiguredFields,
+    );
+    if (!(await this.collectFinalCompilerSource(compiler, ontology))) return false;
+
+    const relations = new ObsidianMetadataSourceCollector(
+      this.metadataSourceHost, runtime, file, meta, this.metadataSourceSettings, "relations",
+    );
+    return this.collectFinalCompilerSource(compiler, relations);
+  }
+
+  private async bindCompiledGraph(
+    compiled: PortableGraphCompilation,
+    structuralCollector: ObsidianStructuralSourceCollector,
+  ): Promise<GraphState | null> {
+    if (!this.isCurrent()) return null;
+    const evidence = compiled.legacyEvidence();
+    if (!evidence) return null;
+    const state = createGraphState();
+    state.evidence = evidence;
+    state.discoveredFields = new Map(compiled.discoveredFields);
+    const pagesById = new Map<NodeId, GraphPage>();
+    let processed = 0;
+
+    for (const node of compiled.nodes.values()) {
+      if (!node.semanticPath) return null;
+      let file: TFile | null = null;
+      if (node.file) {
+        file = structuralCollector.materializedFile(node.file);
+        if (!file || file.path !== node.physicalPath) return null;
+      }
+      const page = this.createPage({
+        path: node.semanticPath,
+        name: node.name,
+        file,
+        url: node.url,
+        isFolder: node.kind === "container",
+        isTag: node.kind === "tag",
+        mtime: node.semanticMtime,
+        aliases: [...node.aliases],
+        tags: [...node.tags],
+        noteType: node.noteType,
+        primaryStyleTag: node.primaryStyleTag,
+        styleTags: [...node.styleTags],
+        maxLabelLength: node.maxLabelLength,
+      });
+      this.addPage(state, page);
+      pagesById.set(node.id, page);
+      if ((++processed & 127) === 0 && !(await this.yieldToHost())) return null;
+    }
+
+    for (const node of compiled.nodes.values()) {
+      const page = pagesById.get(node.id);
+      if (!page) return null;
+      for (const relation of node.neighbours.values()) {
+        const target = pagesById.get(relation.target.id);
+        if (!target) return null;
+        page.neighbours.set(target.path, { ...relation, target });
+        if ((++processed & 127) === 0 && !(await this.yieldToHost())) return null;
+      }
+    }
+    return state;
   }
 
   private consumeHostLinkRecord(state: GraphState, record: HostLinkOccurrence): boolean {
@@ -879,7 +865,7 @@ export class GraphBuilder {
     return true;
   }
 
-  private async enrichMarkdownPages(state: GraphState): Promise<boolean> {
+  private async collectMarkdownSources(compiler: NormalizedGraphCompiler): Promise<boolean> {
     const files = this.app.vault.getMarkdownFiles();
     const alive = new Set(files.map((file) => file.path));
     for (const cachedPath of this.fieldCache.keys()) {
@@ -974,9 +960,6 @@ export class GraphBuilder {
         if (!this.isCurrent()) return false;
         const revision = revisions.get(file.path)!;
         if (!this.fileRevisionMatches(file, revision)) return false;
-        const page = getGraphPage(state, file.path);
-        if (!page) continue;
-
         let entry = this.fieldCache.get(file.path);
         if (!entry || entry.mtime !== revision.mtime) {
           const body = durable.get(file.path) ?? fresh.get(file.path);
@@ -988,7 +971,7 @@ export class GraphBuilder {
         const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), entry.body);
         entry.semanticSignature = this.semanticSourceSignature(file, entry.body);
         this.semanticFingerprints.set(file.path, entry.semanticSignature);
-        if (!(await this.applyMetadata(state, page, file, meta))) return false;
+        if (!(await this.collectMetadataSources(compiler, file, meta))) return false;
         if (!(await this.yieldToHost())) return false;
       }
     }

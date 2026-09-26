@@ -110,14 +110,15 @@ function fileRef(file: TFile): SourceEntityRef {
 }
 
 function tagRef(rawTag: string): SourceEntityRef | null {
-  if (!rawTag.trim()) return null;
+  const canonical = rawTag.replace(/^#/, "").split("/").map((part) => part.trim()).filter(Boolean).join("/");
+  if (!canonical) return null;
   return {
-    // Preserve the host's exact tag spelling here. GraphBuilder remains the single owner of
-    // tag path normalization, hierarchy construction, exclusions and presentation naming.
-    id: nodeId(`obsidian-tag:${rawTag}`),
+    // Bind the legacy host tag to its explicit canonical identity. Preserve raw spelling in
+    // occurrence provenance; the portable compiler still owns hierarchy and presentation.
+    id: nodeId(`tag:${canonical}`),
     kind: "tag",
     state: "materialized",
-    semanticPath: rawTag,
+    semanticPath: `tag:${canonical}`,
   };
 }
 

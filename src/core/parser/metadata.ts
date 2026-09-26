@@ -1,4 +1,6 @@
-export const normalizeFieldName = (name: string): string => name.toLowerCase().replace(/\s+/g, "-").trim();
+import { normalizeFieldName } from "../contracts/fieldName";
+
+export { normalizeFieldName };
 
 const WIKI_LINK_RE = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
 const MARKDOWN_LINK_RE = /\[[^\]]*\]\(([^)]+)\)/g;
