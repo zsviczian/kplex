@@ -3,7 +3,6 @@ import type ExcaliBrainPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
 import {
   extractLinksFromValue,
-  getInlineFieldOccurrences,
   getNormalizedFieldValues,
   getNormalizedFrontmatterValues,
   getNormalizedInlineFieldValues,
@@ -19,12 +18,16 @@ import { resolveEvidencePair, resolveEvidenceStoreCooperative } from "./Relation
 import { createGraphState, getGraphPage, type GraphState } from "./GraphState";
 import { perfNow } from "../util/perf";
 import { ObsidianStructuralSourceCollector } from "../adapters/obsidian/structuralSourceCollector";
+import { ObsidianHostLinkSourceCollector, readHostLinkSignatureEntries } from "../adapters/obsidian/hostLinkSourceCollector";
+import { ObsidianOntologySourceCollector } from "../adapters/obsidian/ontologySourceCollector";
 import {
   acceptSourceBatch,
   beginSourceRead,
   sourceReadCanPublish,
   type FileTreeOccurrence,
+  type HostLinkOccurrence,
   type NormalizedSourceBatch,
+  type OntologyOccurrence,
   type SourceBatchCursor,
   type SourceEntityFact,
   type TagTreeOccurrence,
@@ -272,6 +275,8 @@ export class GraphBuilder {
   private patchTouchedPagePaths: Set<string> | null = null;
   private readonly semanticFrontmatterFields: Set<string>;
   private readonly semanticInlineFields: Set<string>;
+  private readonly ontologyAssignments: ReadonlyArray<{ configuredFieldName: string; normalizedFieldName: string; role: EvidenceRole }>;
+  private readonly ontologyConfiguredFields: readonly string[];
 
   constructor(
     private plugin: ExcaliBrainPlugin,
@@ -283,6 +288,21 @@ export class GraphBuilder {
     private semanticFingerprints: Map<string, string> = new Map(),
   ) {
     const hierarchy = plugin.settings.hierarchy;
+    const ontologyGroups: ReadonlyArray<readonly [readonly string[], EvidenceRole]> = [
+      [hierarchy.hidden, "hidden"],
+      [hierarchy.parents, "parent"],
+      [hierarchy.children, "child"],
+      [hierarchy.leftFriends, "left"],
+      [hierarchy.rightFriends, "right"],
+      [hierarchy.previous, "previous"],
+      [hierarchy.next, "next"],
+    ];
+    this.ontologyAssignments = ontologyGroups.flatMap(([fieldNames, role]) => fieldNames.map((configuredFieldName) => ({
+      configuredFieldName,
+      normalizedFieldName: normalizeFieldName(configuredFieldName),
+      role,
+    }))).filter((assignment) => Boolean(assignment.normalizedFieldName));
+    this.ontologyConfiguredFields = [...new Set(this.ontologyAssignments.map((assignment) => assignment.configuredFieldName))];
     this.semanticFrontmatterFields = new Set([
       "aliases", "alias", "tags", "tag",
       plugin.settings.noteTypeField,
@@ -333,8 +353,7 @@ export class GraphBuilder {
     const tags = (cache?.tags ?? []).map((item: { tag: string }) => item.tag).sort();
     // Counts matter for presentation-only image suppression: one thumbnail link plus one ordinary
     // link must remain graph-semantic, while a single thumbnail-only link is suppressed.
-    const resolved = Object.entries(this.app.metadataCache.resolvedLinks[file.path] ?? {}).sort(([a], [b]) => a.localeCompare(b));
-    const unresolved = Object.entries(this.app.metadataCache.unresolvedLinks[file.path] ?? {}).sort(([a], [b]) => a.localeCompare(b));
+    const { resolved, unresolved } = readHostLinkSignatureEntries(this.app.metadataCache, file.path);
     const relevantOccurrences = body.inlineFieldOccurrences
       .filter((item) => this.semanticInlineFields.has(item.normalizedName));
     const topologyBody = {
@@ -390,8 +409,7 @@ export class GraphBuilder {
     }
 
     const tags = (cache?.tags ?? []).map((item: { tag: string }) => item.tag).sort();
-    const resolved = Object.entries(this.app.metadataCache.resolvedLinks[file.path] ?? {}).sort(([a], [b]) => a.localeCompare(b));
-    const unresolved = Object.entries(this.app.metadataCache.unresolvedLinks[file.path] ?? {}).sort(([a], [b]) => a.localeCompare(b));
+    const { resolved, unresolved } = readHostLinkSignatureEntries(this.app.metadataCache, file.path);
     const topologyFields: unknown[] = [];
     const provenanceFields: unknown[] = [];
     for (const item of body.inlineFieldOccurrences) {
@@ -536,8 +554,7 @@ export class GraphBuilder {
     const state = createGraphState();
     const structuralRead = await this.addStructuralSources(state);
     if (!structuralRead) return null;
-    if (!(await this.addResolvedLinks(state))) return null;
-    if (!(await this.addUnresolvedLinks(state))) return null;
+    if (!(await this.addHostLinkSources(state))) return null;
     if (!(await this.enrichMarkdownPages(state))) return null;
     if (!this.isCurrent()) return null;
     if (!(await resolveEvidenceStoreCooperative(
@@ -752,38 +769,134 @@ export class GraphBuilder {
     return this.isCurrent();
   }
 
-  private async addResolvedLinks(state: GraphState): Promise<boolean> {
-    let visitedTargets = 0;
-    for (const [sourcePath, targets] of Object.entries(this.app.metadataCache.resolvedLinks)) {
-      if (!this.isCurrent()) return false;
-      const source = getGraphPage(state, sourcePath);
-      if (!source) continue;
-      for (const targetPath of Object.keys(targets)) {
-        const target = getGraphPage(state, targetPath);
-        if (target) this.addInferredParentChild(state, source, target, "obsidian-link");
-        visitedTargets += 1;
-        if (visitedTargets % 64 === 0 && !(await this.yieldToHost())) return false;
+  private async addHostLinkSources(state: GraphState): Promise<boolean> {
+    const collector = new ObsidianHostLinkSourceCollector(
+      { vault: this.app.vault, metadataCache: this.app.metadataCache },
+      { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => this.plugin.getIndexSourceRevision() },
+    );
+    let cursor = beginSourceRead(collector.boundary);
+    const consume = async (batch: NormalizedSourceBatch): Promise<boolean> => {
+      const accepted = acceptSourceBatch(cursor, batch);
+      if (!accepted.accepted) return false;
+      for (const record of batch.records) {
+        if (record.kind !== "obsidian-link" && record.kind !== "unresolved-link") return false;
+        if (!this.consumeHostLinkRecord(state, record)) return false;
       }
-      if (!(await this.yieldToHost())) return false;
-    }
-    return this.isCurrent();
+      cursor = accepted.cursor;
+      return this.yieldToHost();
+    };
+    if (!(await collector.collectBatches(consume))) return false;
+    const finalBatch = await collector.finalize();
+    if (!finalBatch || !(await consume(finalBatch))) return false;
+    return collector.isBoundaryCurrent(cursor.boundary)
+      && sourceReadCanPublish(cursor, collector.boundary)
+      && this.isCurrent();
   }
 
-  private async addUnresolvedLinks(state: GraphState): Promise<boolean> {
-    let visitedTargets = 0;
-    for (const [sourcePath, targets] of Object.entries(this.app.metadataCache.unresolvedLinks)) {
-      if (!this.isCurrent()) return false;
-      const source = getGraphPage(state, sourcePath);
-      if (!source || sourcePath === this.plugin.settings.excalibrainFilepath) continue;
-      for (const targetPath of Object.keys(targets)) {
-        const target = this.ensureVirtual(state, targetPath);
-        this.addInferredParentChild(state, source, target, "unresolved-link");
-        visitedTargets += 1;
-        if (visitedTargets % 64 === 0 && !(await this.yieldToHost())) return false;
-      }
-      if (!(await this.yieldToHost())) return false;
+  private consumeHostLinkRecord(state: GraphState, record: HostLinkOccurrence): boolean {
+    const sourcePath = record.source.semanticPath;
+    const targetPath = record.target.entity.semanticPath;
+    if (!sourcePath || !targetPath) return false;
+    const source = getGraphPage(state, sourcePath);
+    if (!source) return true;
+    if (record.kind === "obsidian-link") {
+      const target = getGraphPage(state, targetPath);
+      if (target) this.addInferredParentChild(state, source, target, "obsidian-link");
+      return true;
     }
-    return this.isCurrent();
+    if (sourcePath === this.plugin.settings.excalibrainFilepath) return true;
+    const target = this.ensureVirtual(state, targetPath);
+    this.addInferredParentChild(state, source, target, "unresolved-link");
+    return true;
+  }
+
+  private async applyHostLinkSourcesForFile(
+    state: GraphState,
+    sourcePath: string,
+    affected: Set<string>,
+  ): Promise<boolean> {
+    const collector = new ObsidianHostLinkSourceCollector(
+      { vault: this.app.vault, metadataCache: this.app.metadataCache },
+      { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => this.plugin.getIndexSourceRevision() },
+      sourcePath,
+    );
+    let cursor = beginSourceRead(collector.boundary);
+    const consume = async (batch: NormalizedSourceBatch): Promise<boolean> => {
+      const accepted = acceptSourceBatch(cursor, batch);
+      if (!accepted.accepted) return false;
+      for (const record of batch.records) {
+        if (record.kind !== "obsidian-link" && record.kind !== "unresolved-link") return false;
+        if (!this.consumeHostLinkRecord(state, record)) return false;
+        const targetPath = record.target.entity.semanticPath;
+        if (targetPath && state.pages.has(targetPath)) affected.add(targetPath);
+      }
+      cursor = accepted.cursor;
+      return this.yieldToHost();
+    };
+    if (!(await collector.collectBatches(consume))) return false;
+    const finalBatch = await collector.finalize();
+    if (!finalBatch || !(await consume(finalBatch))) return false;
+    return collector.isBoundaryCurrent(cursor.boundary)
+      && sourceReadCanPublish(cursor, collector.boundary)
+      && this.isCurrent();
+  }
+
+  /**
+   * Consume configured frontmatter/inline ontology occurrences through the same Obsidian adapter
+   * in both rebuild and incremental paths. The adapter owns property selection plus exact
+   * source-relative host resolution; relationship role/precedence remains a compiler concern here.
+   */
+  private async applyOntologySourceFacts(
+    state: GraphState,
+    page: GraphPage,
+    file: TFile,
+    meta: ParsedFileMetadata,
+  ): Promise<boolean> {
+    const collector = new ObsidianOntologySourceCollector(
+      { metadataCache: this.app.metadataCache },
+      { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => this.plugin.getIndexSourceRevision() },
+      file,
+      meta,
+      this.ontologyConfiguredFields,
+    );
+    let cursor = beginSourceRead(collector.boundary);
+    const consume = async (batch: NormalizedSourceBatch): Promise<boolean> => {
+      const accepted = acceptSourceBatch(cursor, batch);
+      if (!accepted.accepted) return false;
+      for (const record of batch.records) {
+        if (record.kind !== "frontmatter-ontology" && record.kind !== "inline-ontology") return false;
+        if (!this.consumeOntologyRecord(state, page, record)) return false;
+      }
+      cursor = accepted.cursor;
+      return this.isCurrent();
+    };
+    if (!(await collector.collectBatches(consume))) return false;
+    return collector.isBoundaryCurrent(cursor.boundary)
+      && sourceReadCanPublish(cursor, collector.boundary)
+      && this.isCurrent();
+  }
+
+  private consumeOntologyRecord(state: GraphState, page: GraphPage, record: OntologyOccurrence): boolean {
+    if (record.source.semanticPath !== page.path) return false;
+    const targetPath = record.target.entity.semanticPath;
+    const configuredFieldName = record.provenance?.configuredFieldName;
+    if (!targetPath || !configuredFieldName) return false;
+    const assignments = this.ontologyAssignments.filter((assignment) => assignment.configuredFieldName === configuredFieldName);
+    if (!assignments.length) return false;
+    const target = this.ensureTarget(state, targetPath);
+    for (const assignment of assignments) {
+      const location = record.provenance?.location;
+      this.addOntologyEvidence(state, page, target, assignment.role, {
+        sourceKind: record.kind,
+        definition: record.provenance?.definition ?? assignment.normalizedFieldName,
+        fieldName: record.provenance?.fieldName ?? configuredFieldName,
+        ...(record.provenance?.rawValue === undefined ? {} : { rawValue: record.provenance.rawValue }),
+        ...(location?.line === undefined ? {} : { line: location.line }),
+        ...(location?.start === undefined ? {} : { start: location.start }),
+        ...(location?.end === undefined ? {} : { end: location.end }),
+      });
+    }
+    return true;
   }
 
   private async enrichMarkdownPages(state: GraphState): Promise<boolean> {
@@ -895,7 +1008,7 @@ export class GraphBuilder {
         const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), entry.body);
         entry.semanticSignature = this.semanticSourceSignature(file, entry.body);
         this.semanticFingerprints.set(file.path, entry.semanticSignature);
-        this.applyMetadata(state, page, file, meta);
+        if (!(await this.applyMetadata(state, page, file, meta))) return false;
         if (!(await this.yieldToHost())) return false;
       }
     }
@@ -1039,23 +1152,8 @@ export class GraphBuilder {
       }, () => this.yieldToHost());
       if (removed === null) return { ok: false, cancelled: true, touchedPagePaths, semanticChanges, semanticNoops };
 
-      for (const targetPath of Object.keys(this.app.metadataCache.resolvedLinks[file.path] ?? {})) {
-        const target = getGraphPage(stagedState, targetPath);
-        if (target) {
-          this.addInferredParentChild(stagedState, stagedPage, target, "obsidian-link");
-          affected.add(target.path);
-        }
-        processed += 1;
-        if ((processed & 63) === 0 && !(await this.yieldToHost())) return { ok: false, cancelled: true, touchedPagePaths, semanticChanges, semanticNoops };
-      }
-      for (const targetPath of Object.keys(this.app.metadataCache.unresolvedLinks[file.path] ?? {})) {
-        if (file.path !== this.plugin.settings.excalibrainFilepath) {
-          const target = this.ensureVirtual(stagedState, targetPath);
-          this.addInferredParentChild(stagedState, stagedPage, target, "unresolved-link");
-          affected.add(target.path);
-        }
-        processed += 1;
-        if ((processed & 63) === 0 && !(await this.yieldToHost())) return { ok: false, cancelled: true, touchedPagePaths, semanticChanges, semanticNoops };
+      if (!(await this.applyHostLinkSourcesForFile(stagedState, file.path, affected))) {
+        return { ok: false, cancelled: true, touchedPagePaths, semanticChanges, semanticNoops };
       }
 
       const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), body);
@@ -1191,39 +1289,7 @@ export class GraphBuilder {
       if ((processed & 31) === 0 && !(await this.yieldToHost())) return false;
     }
 
-    const hierarchy = this.plugin.settings.hierarchy;
-    const groups: Array<[string[], EvidenceRole]> = [
-      [hierarchy.hidden, "hidden"], [hierarchy.parents, "parent"], [hierarchy.children, "child"],
-      [hierarchy.leftFriends, "left"], [hierarchy.rightFriends, "right"],
-      [hierarchy.previous, "previous"], [hierarchy.next, "next"],
-    ];
-    for (const [fieldNames, role] of groups) {
-      for (const originalName of fieldNames) {
-        const field = normalizeFieldName(originalName);
-        for (const value of getNormalizedFrontmatterValues(meta, field)) {
-          for (const path of extractLinksFromValue(this.app, value, file)) {
-            const target = this.ensureTarget(state, path);
-            this.addOntologyEvidence(state, page, target, role, {
-              sourceKind: "frontmatter-ontology", definition: field, fieldName: originalName,
-              rawValue: typeof value === "string" ? value : JSON.stringify(value),
-            });
-            processed += 1;
-            if ((processed & 31) === 0 && !(await this.yieldToHost())) return false;
-          }
-        }
-        for (const occurrence of getInlineFieldOccurrences(meta, field)) {
-          for (const path of extractLinksFromValue(this.app, occurrence.value, file)) {
-            const target = this.ensureTarget(state, path);
-            this.addOntologyEvidence(state, page, target, role, {
-              sourceKind: "inline-ontology", definition: field, fieldName: occurrence.name, rawValue: occurrence.value,
-              line: occurrence.line, start: occurrence.start, end: occurrence.end,
-            });
-            processed += 1;
-            if ((processed & 31) === 0 && !(await this.yieldToHost())) return false;
-          }
-        }
-      }
-    }
+    if (!(await this.applyOntologySourceFacts(state, page, file, meta))) return false;
 
     this.addDatePropertyEvidence(state, page, meta);
     if (!(await this.yieldToHost())) return false;
@@ -1244,13 +1310,13 @@ export class GraphBuilder {
     return this.yieldToHost();
   }
 
-  private applyMetadata(
+  private async applyMetadata(
     state: GraphState,
     page: GraphPage,
     file: TFile,
     meta: ParsedFileMetadata,
     discoveryMode: "rebuild" | "patch" = "rebuild",
-  ): void {
+  ): Promise<boolean> {
     page.aliases = meta.aliases;
     page.tags = meta.tags;
     this.recordDiscoveredFields(state, meta, discoveryMode);
@@ -1284,49 +1350,7 @@ export class GraphBuilder {
       }
     }
 
-    const hierarchy = this.plugin.settings.hierarchy;
-    const groups: Array<[string[], EvidenceRole]> = [
-      [hierarchy.hidden, "hidden"],
-      [hierarchy.parents, "parent"],
-      [hierarchy.children, "child"],
-      [hierarchy.leftFriends, "left"],
-      [hierarchy.rightFriends, "right"],
-      [hierarchy.previous, "previous"],
-      [hierarchy.next, "next"],
-    ];
-
-    // Record all ontology evidence. Precedence belongs to the resolver, not the collector.
-    for (const [fieldNames, role] of groups) {
-      for (const originalName of fieldNames) {
-        const field = normalizeFieldName(originalName);
-        for (const value of getNormalizedFrontmatterValues(meta, field)) {
-          for (const path of extractLinksFromValue(this.app, value, file)) {
-            const target = this.ensureTarget(state, path);
-            this.addOntologyEvidence(state, page, target, role, {
-              sourceKind: "frontmatter-ontology",
-              definition: field,
-              fieldName: originalName,
-              rawValue: typeof value === "string" ? value : JSON.stringify(value),
-            });
-          }
-        }
-
-        for (const occurrence of getInlineFieldOccurrences(meta, field)) {
-          for (const path of extractLinksFromValue(this.app, occurrence.value, file)) {
-            const target = this.ensureTarget(state, path);
-            this.addOntologyEvidence(state, page, target, role, {
-              sourceKind: "inline-ontology",
-              definition: field,
-              fieldName: occurrence.name,
-              rawValue: occurrence.value,
-              line: occurrence.line,
-              start: occurrence.start,
-              end: occurrence.end,
-            });
-          }
-        }
-      }
-    }
+    if (!(await this.applyOntologySourceFacts(state, page, file, meta))) return false;
 
     this.addDatePropertyEvidence(state, page, meta);
 
@@ -1345,6 +1369,7 @@ export class GraphBuilder {
     }
 
     this.suppressPresentationOnlyImageLinks(state, page, file, meta);
+    return this.isCurrent();
   }
 
   /**

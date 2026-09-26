@@ -45,6 +45,8 @@ export type SourceProvenance = Readonly<{
   definition?: string;
   /** Original declaring property name, preserving presentation/casing. */
   fieldName?: string;
+  /** Configured ontology field label when it differs from the physical inline field label. */
+  configuredFieldName?: string;
   /** Normalized property key used for later compiler lookup, never a relationship role. */
   normalizedFieldName?: string;
   rawValue?: string;

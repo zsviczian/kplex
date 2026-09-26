@@ -2,9 +2,17 @@ import type { App, CachedMetadata, TFile } from "obsidian";
 
 export const normalizeFieldName = (name: string): string => name.toLowerCase().replace(/\s+/g, "-").trim();
 
-const WIKI_LINK_RE = /\[\[([^\]#|]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]/g;
+const WIKI_LINK_RE = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
 const MARKDOWN_LINK_RE = /\[[^\]]*\]\(([^)]+)\)/g;
 const URL_RE = /\bhttps?:\/\/[^\s<>()\u005B\u005D{}"']+/gi;
+
+export type ExtractedLinkReference = Readonly<{
+  /** Literal target text from the property value, before host resolution or URI decoding. */
+  rawTarget: string;
+  /** Heading/block subpath when the literal internal target carries one. */
+  subpath?: string;
+  external: boolean;
+}>;
 
 export type ExternalUrlReference = {
   url: string;
@@ -830,6 +838,59 @@ export function parseFileMetadata(cache: CachedMetadata | null, content: string)
   return mergeFileMetadata(cache, parseBodyMetadata(content));
 }
 
+function splitInternalSubpath(rawTarget: string): { rawTarget: string; subpath?: string } {
+  const hash = rawTarget.indexOf("#");
+  if (hash < 0) return { rawTarget };
+  const subpath = rawTarget.slice(hash);
+  return subpath ? { rawTarget, subpath } : { rawTarget };
+}
+
+/**
+ * Extract literal property-value link references without resolving them through Obsidian. Host
+ * destination selection belongs to the adapter; this shared grammar keeps legacy edit/image
+ * consumers and normalized ontology collection from drifting before C13 moves the parser seam.
+ */
+export function extractLinkReferencesFromValue(value: unknown): ExtractedLinkReference[] {
+  return [...iterateLinkReferencesFromValue(value)];
+}
+
+/** Streaming form used by normalized source collectors so one dense value need not first build a
+ * target array. Regex instances are local to each scanned string because consumers may checkpoint
+ * asynchronously between yielded references. */
+export function* iterateLinkReferencesFromValue(value: unknown): IterableIterator<ExtractedLinkReference> {
+  if (Array.isArray(value)) {
+    for (const nested of value) yield* iterateLinkReferencesFromValue(nested);
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const nested of Object.values(value as Record<string, unknown>)) yield* iterateLinkReferencesFromValue(nested);
+    return;
+  }
+  if (typeof value !== "string") return;
+
+  const wikiLinkRe = new RegExp(WIKI_LINK_RE.source, WIKI_LINK_RE.flags);
+  const markdownLinkRe = new RegExp(MARKDOWN_LINK_RE.source, MARKDOWN_LINK_RE.flags);
+  const urlRe = new RegExp(URL_RE.source, URL_RE.flags);
+  let match: RegExpExecArray | null;
+  while ((match = wikiLinkRe.exec(value)) !== null) {
+    const rawTarget = match[1].trim();
+    if (rawTarget) yield { ...splitInternalSubpath(rawTarget), external: false };
+  }
+  while ((match = markdownLinkRe.exec(value)) !== null) {
+    const rawTarget = match[1];
+    if (!rawTarget) continue;
+    // Preserve the legacy external Markdown target exactly, including surrounding spaces.
+    // Internal targets are trimmed later by host resolution.
+    yield /^https?:\/\//i.test(rawTarget)
+      ? { rawTarget, external: true }
+      : { ...splitInternalSubpath(rawTarget), external: false };
+  }
+  while ((match = urlRe.exec(value)) !== null) {
+    const rawTarget = match[0].replace(/[.,;:!?]+$/, "");
+    if (rawTarget) yield { rawTarget, external: true };
+  }
+}
+
 function resolveLink(app: App, raw: string, hostPath: string): string {
   let candidate = raw.trim();
   try { candidate = decodeURIComponent(candidate); } catch { /* keep raw */ }
@@ -841,29 +902,11 @@ function resolveLink(app: App, raw: string, hostPath: string): string {
 
 export function extractLinksFromValue(app: App, value: unknown, file: TFile): string[] {
   const found = new Set<string>();
-
-  const scan = (input: unknown): void => {
-    if (Array.isArray(input)) { input.forEach(scan); return; }
-    if (input && typeof input === "object") {
-      for (const nested of Object.values(input as Record<string, unknown>)) scan(nested);
-      return;
-    }
-    if (typeof input !== "string") return;
-
-    WIKI_LINK_RE.lastIndex = 0;
-    MARKDOWN_LINK_RE.lastIndex = 0;
-    URL_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = WIKI_LINK_RE.exec(input)) !== null) found.add(resolveLink(app, m[1], file.path));
-    while ((m = MARKDOWN_LINK_RE.exec(input)) !== null) {
-      if (/^https?:\/\//i.test(m[1])) found.add(m[1]);
-      else found.add(resolveLink(app, m[1], file.path));
-    }
-    while ((m = URL_RE.exec(input)) !== null) found.add(m[0].replace(/[.,;:!?]+$/, ""));
-  };
-
-  scan(value);
-  return [...found].filter(Boolean);
+  for (const reference of iterateLinkReferencesFromValue(value)) {
+    const target = reference.external ? reference.rawTarget : resolveLink(app, reference.rawTarget, file.path);
+    if (target) found.add(target);
+  }
+  return [...found];
 }
 
 export function getNormalizedFrontmatterValues(meta: ParsedFileMetadata, normalizedField: string): unknown[] {

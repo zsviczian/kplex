@@ -246,6 +246,8 @@ for (const file of [
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/predicateContracts.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts",
+  "src/adapters/obsidian/hostLinkSourceCollector.ts",
+  "src/adapters/obsidian/ontologySourceCollector.ts",
   "src/util/perf.ts",
   "src/main.ts",
   "src/index/fieldParser.ts",
@@ -1055,6 +1057,24 @@ try {
   assert(explainXY.decisions.some((d) => !d.active && d.evidence.sourceKind === "inline-ontology" && d.evidence.declaredRole === "child"));
   assert(explainXY.decisions.some((d) => d.active && d.evidence.sourceKind === "obsidian-link"));
   assert.equal(explainXY.decisions.filter((d) => d.evidence.sourceKind === "obsidian-link").length, 1);
+
+  // Exact duplicate configured labels and assignments across roles retain legacy multiplicity.
+  const savedParents = [...plugin.settings.hierarchy.parents];
+  const savedChildren = [...plugin.settings.hierarchy.children];
+  const ontologyForXY = () => index.state.evidence.declarationsForPair("Note X.md", "Note Y.md")
+    .filter(item => item.sourceKind === "frontmatter-ontology" && item.definition === "parent" && !item.mirrored);
+  const countXY = ontologyForXY().length;
+  try {
+    plugin.settings.hierarchy.parents.push("Parent");
+    plugin.settings.hierarchy.children.push("Parent");
+    await index.rebuild();
+    assert.equal(ontologyForXY().length, countXY + 2, "Repeated configured field and competing role must both survive compilation");
+    assert(ontologyForXY().some(item => item.declaredRole === "child"));
+  } finally {
+    plugin.settings.hierarchy.parents = savedParents;
+    plugin.settings.hierarchy.children = savedChildren;
+    await index.rebuild();
+  }
 
   // The same precedence decision must survive the inverse perspective.
   expectRole("Note Y.md", "child", "Note X.md", RelationType.DEFINED);
