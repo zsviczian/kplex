@@ -261,6 +261,23 @@ export class NormalizedGraphCompiler {
     return read;
   }
 
+  /**
+   * Seed one exact entity from a stable published-state read. This is used only by per-source
+   * preparation so the full semantic compiler can resolve current materialized targets without
+   * cloning the published graph. Entity seeds carry no relationship contribution of their own.
+   */
+  async seedEntityFact(record: SourceEntityFact): Promise<boolean> {
+    if (this.finished || this.rejected || !this.runtime.isCurrent()) return this.reject();
+    if (!this.consumeEntity(record)) return this.reject();
+    // A published URL name can carry the first meaningful label chosen by an earlier contribution.
+    // Preserve it while recompiling one later source: full compilation chooses that label on first
+    // materialization, whereas a patch must not let an arbitrary edited referrer rename a shared URL.
+    if (record.entity.kind === "url" && record.url && record.name && record.name !== record.url) {
+      this.urlLabels.set(record.entity.id, record.name);
+    }
+    return this.checkpoint();
+  }
+
   async acceptBatch(read: GraphCompilerSourceRead, batch: NormalizedSourceBatch): Promise<boolean> {
     if (this.finished || this.rejected || read.complete || !this.openReads.has(read) || !this.runtime.isCurrent()) return this.reject();
     const accepted = acceptSourceBatch(read.cursor, batch);

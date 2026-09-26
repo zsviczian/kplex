@@ -348,7 +348,9 @@ test("production GraphBuilder full build delegates normalized facts to the porta
   ]) assert(body.includes(call), `production full build must delegate through ${call}`);
   for (const removed of ["this.addStructuralSources(state)", "this.addHostLinkSources(state)", "this.enrichMarkdownPages(state)", "resolveEvidenceStoreCooperative("])
     assert(!body.includes(removed), `legacy full-build semantic path must not remain active: ${removed}`);
-  assert(source.includes("private consumeHostLinkRecord("), "C14 still owns the named legacy incremental patch seam");
+  assert(source.includes("new NormalizedSourcePatchPreparer("), "incremental preparation must reuse the portable semantic owner");
+  assert(source.includes("this.prepareMarkdownSourcePatch(stagedState, file, meta)"), "the production patch path must delegate preparation before publication");
+  assert(!source.includes("private consumeHostLinkRecord("), "the retired incremental host-link classifier must not remain active");
 });
 
 test("compiler rejection is terminal even if a producer retries the batch", async () => {

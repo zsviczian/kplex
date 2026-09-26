@@ -247,6 +247,7 @@ for (const file of [
   "src/core/graph/source.ts",
   "src/core/graph/settings.ts",
   "src/core/graph/compiler.ts",
+  "src/core/graph/patch.ts",
   "src/core/plex/predicate.ts",
   "src/core/plex/predicateParser.ts",
   "src/core/plex/lens.ts",

@@ -390,3 +390,68 @@ export class ObsidianStructuralSourceCollector {
     return { digest: digest.value() };
   }
 }
+
+/**
+ * Scoped structural producer for one already-published Markdown source. It supplies the source's
+ * current entity fact plus tag-membership facts without rescanning folders or the whole vault.
+ * Folder topology remains owned by structural create/rename/delete handling outside C14a.
+ */
+export class ObsidianStructuralPatchSourceCollector {
+  readonly boundary: SourceReadBoundary;
+  private readonly startingRevision: number;
+  private readonly startingStat: { mtime: number; ctime: number; size: number };
+  private complete = false;
+
+  constructor(
+    private readonly host: StructuralSourceCollectorHost,
+    private readonly runtime: StructuralSourceCollectorRuntime,
+    private readonly file: TFile,
+  ) {
+    const label = `obsidian-structural-patch-${++collectorRunSequence}`;
+    this.startingRevision = runtime.sourceRevision();
+    this.startingStat = { mtime: file.stat.mtime, ctime: file.stat.ctime, size: file.stat.size };
+    this.boundary = {
+      generation: sourceGeneration(label),
+      snapshotRevision: sourceSnapshotRevision(`${label}:boundary`),
+    };
+  }
+
+  async collectBatches(consume: (batch: NormalizedSourceBatch) => Promise<boolean> | boolean): Promise<boolean> {
+    if (this.complete || !this.isCurrent()) return false;
+    const cache = this.host.metadataCache.getFileCache(this.file);
+    const rawTags = cache ? (getAllTags(cache) ?? []) : [];
+    const contributionRevision = tagContributionRevision(this.file, rawTags);
+    let sequence = 0;
+    let records: NormalizedSourceRecord[] = [entityFactForFile(this.file)];
+    const flush = async (final: boolean): Promise<boolean> => {
+      const batch = { boundary: this.boundary, sequence: sequence++, final, records } satisfies NormalizedSourceBatch;
+      records = [];
+      if (!(await consume(batch))) return false;
+      if (!final && !(await this.runtime.checkpoint())) return false;
+      return this.isCurrent();
+    };
+    for (const rawTag of rawTags) {
+      const record = tagMembershipOccurrence(this.file, rawTag, contributionRevision);
+      if (!record) continue;
+      records.push(record);
+      if (records.length >= MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH && !(await flush(false))) return false;
+    }
+    if (!(await flush(true))) return false;
+    this.complete = true;
+    return this.isCurrent();
+  }
+
+  isBoundaryCurrent(boundary: SourceReadBoundary): boolean {
+    return this.complete && this.isCurrent()
+      && boundary.generation === this.boundary.generation
+      && boundary.snapshotRevision === this.boundary.snapshotRevision;
+  }
+
+  private isCurrent(): boolean {
+    return this.runtime.isCurrent()
+      && this.runtime.sourceRevision() === this.startingRevision
+      && this.file.stat.mtime === this.startingStat.mtime
+      && this.file.stat.ctime === this.startingStat.ctime
+      && this.file.stat.size === this.startingStat.size;
+  }
+}

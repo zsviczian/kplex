@@ -1059,6 +1059,7 @@ export class GraphIndex {
         },
       });
       if (!result.ok || run !== this.generation) {
+        if (result.rebuildRequired && run === this.generation) return { outcome: "needs-rebuild", count: committed };
         return {
           outcome: "cancelled",
           count: committed,

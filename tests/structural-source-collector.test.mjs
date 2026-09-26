@@ -64,7 +64,7 @@ module.exports = { TAbstractFile, TFile, TFolder, getAllTags };
 `);
 
 const { TFile, TFolder } = require(join(obsidianDir, "index.js"));
-const { ObsidianStructuralSourceCollector } = require(join(temp, "src/adapters/obsidian/structuralSourceCollector.js"));
+const { ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } = require(join(temp, "src/adapters/obsidian/structuralSourceCollector.js"));
 const {
   MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH,
   acceptSourceBatch,
@@ -284,6 +284,32 @@ try {
 
   {
     const rootFolder = new TFolder("");
+    const note = addChild(rootFolder, new TFile("Patch.md", { mtime: 7, ctime: 3, size: 42 }));
+    const other = addChild(rootFolder, new TFile("Other.md", { mtime: 8, ctime: 4, size: 43 }));
+    const caches = new Map([[note.path, { tags: [{ tag: "#patch/nested" }, { tag: "#patch" }] }]]);
+    const { host, counters } = makeHost({ files: [note, other], rootFolder, caches });
+    let revision = 11;
+    const collector = new ObsidianStructuralPatchSourceCollector(host, {
+      isCurrent: () => true, sourceRevision: () => revision, checkpoint: async () => true,
+    }, note);
+    const batches = [];
+    assert.equal(await collector.collectBatches((batch) => { batches.push(batch); return true; }), true);
+    assert.equal(batches.at(-1).final, true);
+    assert(batches.every((batch) => batch.records.length <= MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH));
+    const records = flattenRecords(batches);
+    assert.equal(records.filter((record) => record.kind === "entity").length, 1, "Scoped patch collection emits only the changed file entity");
+    assert.equal(records.filter((record) => record.kind === "tag-tree").length, 2);
+    assert(records.every((record) => record.kind === "entity" ? record.entity.semanticPath === note.path : record.target.entity.semanticPath === note.path));
+    assert.equal(counters.root, 0);
+    assert.equal(counters.markdown, 0, "Scoped patch collection must not rescan the vault Markdown list");
+    assert.equal(counters.lookup, 0);
+    assert.equal(collector.isBoundaryCurrent(collector.boundary), true);
+    revision += 1;
+    assert.equal(collector.isBoundaryCurrent(collector.boundary), false, "A newer host source revision invalidates a completed scoped read");
+  }
+
+  {
+    const rootFolder = new TFolder("");
     const { host } = makeHost({ files: [], rootFolder, caches: new Map() });
     const runtime = { isCurrent: () => true, sourceRevision: () => 0, checkpoint: async () => true };
     const rejected = new ObsidianStructuralSourceCollector(host, runtime);
@@ -299,7 +325,7 @@ try {
     assert.equal(await replay.finalize(), null, "Finality cannot be replayed");
   }
 
-  console.log("C12a structural source collector: bounded batches, later targets, dense tags, revision fences, validity and cancellation PASS");
+  console.log("Structural source collectors: full and scoped patch batching, revision fences, validity and cancellation PASS");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
