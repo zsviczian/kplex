@@ -1865,6 +1865,26 @@
   .kplex-add-related-type-button { width: 33px; min-width: 33px; }
 }
 
+/* Opt-in native modals fill the usable mobile WebView, including when its software keyboard
+   changes VisualViewport without resizing the layout viewport. The shell supplies these values. */
+.is-mobile .modal.kplex-mobile-fullscreen-modal {
+  position: fixed;
+  left: var(--kplex-visible-left, 0px);
+  top: var(--kplex-visible-top, 0px);
+  width: var(--kplex-visible-width, 100%);
+  max-width: var(--kplex-visible-width, 100%);
+  height: var(--kplex-visible-height, 100%);
+  max-height: var(--kplex-visible-height, 100%);
+  margin: 0;
+  border-radius: 0;
+  overflow: hidden;
+}
+.is-mobile .modal.kplex-mobile-fullscreen-modal > .modal-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 /* Folding K-Plex in companion-sidecar mode removes the Plex tab group from the split. The
    surviving native document group owns this small edge control so K-Plex is always recoverable. */
 .kplex-sidecar-unfold-plex {
