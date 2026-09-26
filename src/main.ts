@@ -1582,6 +1582,11 @@ export default class ExcaliBrainPlugin extends Plugin {
     return true;
   }
 
+  /** Existing source-event revision; collection must not mistake a yielding rescan for an atomic read. */
+  getIndexSourceRevision(): number {
+    return this.indexDirtyRevision;
+  }
+
   getIndexStatus(): { upToDate: boolean; label: string } {
     const upToDate = this.initialIndexComplete
       && !this.indexDirty

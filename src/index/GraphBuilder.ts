@@ -1,4 +1,4 @@
-import { getAllTags, Platform, TFile, TFolder, type App } from "obsidian";
+import { Platform, TFile, type App } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
 import {
@@ -18,6 +18,17 @@ import type { EvidenceProvenance, EvidenceRole, EvidenceSourceKind } from "./Rel
 import { resolveEvidencePair, resolveEvidenceStoreCooperative } from "./RelationResolver";
 import { createGraphState, getGraphPage, type GraphState } from "./GraphState";
 import { perfNow } from "../util/perf";
+import { ObsidianStructuralSourceCollector } from "../adapters/obsidian/structuralSourceCollector";
+import {
+  acceptSourceBatch,
+  beginSourceRead,
+  sourceReadCanPublish,
+  type FileTreeOccurrence,
+  type NormalizedSourceBatch,
+  type SourceBatchCursor,
+  type SourceEntityFact,
+  type TagTreeOccurrence,
+} from "../core/graph/source";
 
 export type FieldCacheEntry = {
   mtime: number;
@@ -523,8 +534,8 @@ export class GraphBuilder {
 
   async build(): Promise<GraphState | null> {
     const state = createGraphState();
-    if (!(await this.addVaultTree(state))) return null;
-    if (!(await this.addTagTree(state))) return null;
+    const structuralRead = await this.addStructuralSources(state);
+    if (!structuralRead) return null;
     if (!(await this.addResolvedLinks(state))) return null;
     if (!(await this.addUnresolvedLinks(state))) return null;
     if (!(await this.enrichMarkdownPages(state))) return null;
@@ -535,6 +546,7 @@ export class GraphBuilder {
       this.isCurrent,
       Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
     ))) return null;
+    if (!(await this.finalizeStructuralSources(state, structuralRead))) return null;
     return state;
   }
 
@@ -589,67 +601,153 @@ export class GraphBuilder {
     this.patchTouchedPagePaths?.add(page.path);
   }
 
-  private async addVaultTree(state: GraphState): Promise<boolean> {
-    // Folder topology is a cheap structural layer sourced directly from Obsidian's in-memory
-    // Vault tree. Keep it indexed regardless of current visibility so the toolbar can reveal or
-    // hide folders instantly without scheduling a semantic rebuild.
-    const root = this.createPage({ path: "folder:/", name: "/", isFolder: true });
-    this.addPage(state, root);
-    const stack: Array<{ folder: TFolder; parent: GraphPage }> = [{ folder: this.app.vault.getRoot(), parent: root }];
-    let visited = 0;
-    while (stack.length) {
-      if (!this.isCurrent()) return false;
-      const { folder, parent } = stack.pop()!;
-      for (const item of folder.children) {
-        if (item instanceof TFolder) {
-          const node = this.createPage({ path: `folder:${item.path}`, name: item.name, isFolder: true });
-          this.addPage(state, node);
-          this.addEvidencePair(state, parent, node, "child", RelationType.DEFINED, LinkDirection.FROM, { sourceKind: "file-tree", definition: "file-tree" });
-          stack.push({ folder: item, parent: node });
-        } else if (item instanceof TFile) {
-          const node = this.createPage({ path: item.path, name: item.extension === "md" ? item.basename : item.name, file: item });
-          this.addPage(state, node);
-          this.addEvidencePair(state, parent, node, "child", RelationType.DEFINED, LinkDirection.FROM, { sourceKind: "file-tree", definition: "file-tree" });
-        }
-        visited += 1;
-        if (visited % 64 === 0 && !(await this.yieldToHost())) return false;
-      }
-      if (!(await this.yieldToHost())) return false;
-    }
-    return this.isCurrent();
+  private async addStructuralSources(state: GraphState): Promise<{
+    collector: ObsidianStructuralSourceCollector;
+    cursor: SourceBatchCursor;
+    pendingFileTree: FileTreeOccurrence[];
+    pendingTagTree: TagTreeOccurrence[];
+    tagPages: Map<string, GraphPage | null>;
+  } | null> {
+    const collector = new ObsidianStructuralSourceCollector(
+      { vault: this.app.vault, metadataCache: this.app.metadataCache },
+      { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => this.plugin.getIndexSourceRevision() },
+    );
+    const context = {
+      collector,
+      cursor: beginSourceRead(collector.boundary),
+      pendingFileTree: [] as FileTreeOccurrence[],
+      pendingTagTree: [] as TagTreeOccurrence[],
+      tagPages: new Map<string, GraphPage | null>(),
+    };
+    const consumed = await collector.collectBatches(async (batch) => {
+      const next = this.acceptStructuralBatch(state, context, batch);
+      if (!next) return false;
+      context.cursor = next;
+      return this.yieldToHost();
+    });
+    return consumed && this.isCurrent() ? context : null;
   }
 
-  private async addTagTree(state: GraphState): Promise<boolean> {
-    // Tag topology comes entirely from Obsidian's MetadataCache; no Markdown body read or K-Plex
-    // parser pass is needed. Build each unique hierarchy once, then attach cached memberships.
-    // This keeps the structural layer cheap even when thousands of notes share the same tags.
-    const membersByTag = new Map<string, GraphPage[]>();
-    let scannedFiles = 0;
-    for (const file of this.app.vault.getMarkdownFiles()) {
-      if (!this.isCurrent()) return false;
-      const page = getGraphPage(state, file.path);
-      const cache = this.app.metadataCache.getFileCache(file);
-      if (page && cache) {
-        for (const rawTag of getAllTags(cache) ?? []) {
-          const members = membersByTag.get(rawTag);
-          if (members) members.push(page);
-          else membersByTag.set(rawTag, [page]);
-        }
-      }
-      scannedFiles += 1;
-      if (scannedFiles % 128 === 0 && !(await this.yieldToHost())) return false;
-    }
+  private async finalizeStructuralSources(
+    state: GraphState,
+    context: {
+      collector: ObsidianStructuralSourceCollector;
+      cursor: SourceBatchCursor;
+      pendingFileTree: FileTreeOccurrence[];
+      pendingTagTree: TagTreeOccurrence[];
+      tagPages: Map<string, GraphPage | null>;
+    },
+  ): Promise<boolean> {
+    const finalBatch = await context.collector.finalize();
+    if (!finalBatch) return false;
+    const cursor = this.acceptStructuralBatch(state, context, finalBatch);
+    if (!cursor) return false;
+    context.cursor = cursor;
+    if (!this.flushPendingStructuralRecords(state, context)) return false;
+    return context.pendingFileTree.length === 0
+      && context.pendingTagTree.length === 0
+      && context.collector.isBoundaryCurrent(context.cursor.boundary)
+      && sourceReadCanPublish(context.cursor, context.collector.boundary)
+      && this.isCurrent();
+  }
 
-    let attached = 0;
-    for (const [rawTag, members] of membersByTag) {
-      if (!this.isCurrent()) return false;
-      const tagPage = this.ensureTagPath(state, rawTag);
-      if (!tagPage) continue;
-      for (const page of members) {
-        this.addEvidencePair(state, tagPage, page, "child", RelationType.DEFINED, LinkDirection.TO, { sourceKind: "tag-tree", definition: "tag-tree" });
-        attached += 1;
-        if (attached % 256 === 0 && !(await this.yieldToHost())) return false;
+  private acceptStructuralBatch(
+    state: GraphState,
+    context: {
+      collector: ObsidianStructuralSourceCollector;
+      cursor: SourceBatchCursor;
+      pendingFileTree: FileTreeOccurrence[];
+      pendingTagTree: TagTreeOccurrence[];
+      tagPages: Map<string, GraphPage | null>;
+    },
+    batch: NormalizedSourceBatch,
+  ): SourceBatchCursor | null {
+    const accepted = acceptSourceBatch(context.cursor, batch);
+    if (!accepted.accepted) return null;
+    for (const record of batch.records) {
+      if (record.kind === "entity") {
+        if (!this.consumeStructuralEntity(state, context.collector, record)) return null;
+      } else if (record.kind === "file-tree") {
+        if (!this.consumeFileTreeRecord(state, record)) context.pendingFileTree.push(record);
+      } else if (record.kind === "tag-tree") {
+        if (!this.consumeTagTreeRecord(state, record, context.tagPages)) context.pendingTagTree.push(record);
+      } else {
+        return null;
       }
+      if (!this.flushPendingStructuralRecords(state, context)) return null;
+    }
+    return accepted.cursor;
+  }
+
+  private consumeStructuralEntity(
+    state: GraphState,
+    collector: ObsidianStructuralSourceCollector,
+    record: SourceEntityFact,
+  ): boolean {
+    const path = record.entity.semanticPath;
+    if (!path) return record.entity.kind === "tag";
+    if (record.entity.kind === "tag") return true;
+    if (state.pages.has(path)) return true;
+    if (record.entity.kind === "container") {
+      this.addPage(state, this.createPage({ path, name: record.name, isFolder: true, mtime: record.semanticMtime ?? null }));
+      return true;
+    }
+    if (record.entity.kind !== "document" && record.entity.kind !== "attachment") return false;
+    if (!record.file || record.entity.physicalPath !== record.file.path) return false;
+    const file = collector.materializedFile(record.file);
+    if (!file || file.path !== path) return false;
+    this.addPage(state, this.createPage({
+      path,
+      name: record.name,
+      file,
+      mtime: record.semanticMtime ?? record.file.mtime ?? null,
+    }));
+    return true;
+  }
+
+  private consumeFileTreeRecord(state: GraphState, record: FileTreeOccurrence): boolean {
+    const sourcePath = record.source.semanticPath;
+    const targetPath = record.target.entity.semanticPath;
+    if (!sourcePath || !targetPath) return false;
+    const source = getGraphPage(state, sourcePath);
+    const target = getGraphPage(state, targetPath);
+    if (!source || !target) return false;
+    this.addEvidencePair(state, source, target, "child", RelationType.DEFINED, LinkDirection.FROM, { sourceKind: "file-tree", definition: "file-tree" });
+    return true;
+  }
+
+  private consumeTagTreeRecord(state: GraphState, record: TagTreeOccurrence, tagPages: Map<string, GraphPage | null>): boolean {
+    const rawTag = record.provenance?.rawValue
+      ?? record.source.semanticPath?.replace(/^tag:/, "")
+      ?? (record.membership === "tag-child" ? record.target.entity.semanticPath?.replace(/^tag:/, "") : undefined);
+    if (!rawTag) return false;
+    // The former grouped collector resolved each raw tag hierarchy once, not once per member.
+    // This run-local cache retains only existing graph pages, never a tag-to-members input copy.
+    if (!tagPages.has(rawTag)) tagPages.set(rawTag, this.ensureTagPath(state, rawTag));
+    const tagPage = tagPages.get(rawTag);
+    if (!tagPage) return true;
+    if (record.membership === "tag-child") return true;
+    const targetPath = record.target.entity.semanticPath;
+    if (!targetPath) return false;
+    const member = getGraphPage(state, targetPath);
+    if (!member) return false;
+    // getAllTags can return repeated memberships. Preserve those original declarations;
+    // only ensureTagPath owns deduplication of structural hierarchy edges.
+    this.addEvidencePair(state, tagPage, member, "child", RelationType.DEFINED, LinkDirection.TO, { sourceKind: "tag-tree", definition: "tag-tree" });
+    return true;
+  }
+
+  private flushPendingStructuralRecords(
+    state: GraphState,
+    context: { pendingFileTree: FileTreeOccurrence[]; pendingTagTree: TagTreeOccurrence[]; tagPages: Map<string, GraphPage | null> },
+  ): boolean {
+    if (context.pendingFileTree.length) {
+      const remaining = context.pendingFileTree.filter((record) => !this.consumeFileTreeRecord(state, record));
+      context.pendingFileTree.splice(0, context.pendingFileTree.length, ...remaining);
+    }
+    if (context.pendingTagTree.length) {
+      const remaining = context.pendingTagTree.filter((record) => !this.consumeTagTreeRecord(state, record, context.tagPages));
+      context.pendingTagTree.splice(0, context.pendingTagTree.length, ...remaining);
     }
     return this.isCurrent();
   }

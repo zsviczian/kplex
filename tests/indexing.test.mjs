@@ -239,11 +239,13 @@ for (const file of [
   "src/types.ts",
   "src/core/plex/viewPresentation.ts",
   "src/core/graph/model.ts",
+  "src/core/graph/source.ts",
   "src/core/plex/predicate.ts",
   "src/core/plex/predicateParser.ts",
   "src/core/plex/lens.ts",
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/predicateContracts.ts",
+  "src/adapters/obsidian/structuralSourceCollector.ts",
   "src/util/perf.ts",
   "src/main.ts",
   "src/index/fieldParser.ts",
@@ -678,7 +680,7 @@ const settings = {
   newNodeDefaultType: "markdown",
 };
 
-const plugin = { app, settings, recordDiagnostic() {}, manifest: { dir: "" } };
+const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnostic() {}, manifest: { dir: "" } };
 const index = new GraphIndex(plugin, app);
 
 function expectRole(sourcePath, role, targetPath, type) {
@@ -1093,6 +1095,48 @@ try {
 
   // Legacy Markdown link inside string-valued YAML ontology remains supported.
   expectRole("Note C.md", "left", "Note D.md", RelationType.DEFINED);
+
+  // Shared nested tags must reuse one hierarchy declaration rather than duplicating prefix edges.
+  const sharedNestedCache = caches.get("Note C.md");
+  const sharedNestedOriginalTags = [...(sharedNestedCache?.tags ?? [])];
+  assert(sharedNestedCache);
+  sharedNestedCache.tags = [...sharedNestedOriginalTags, { tag: "#taxonomy/body/leaf" }];
+  await index.rebuild();
+  expectRole("tag:taxonomy/body/leaf", "child", "Note A.md", RelationType.DEFINED);
+  expectRole("tag:taxonomy/body/leaf", "child", "Note C.md", RelationType.DEFINED);
+  assert.equal(
+    index.state.evidence.declarationsForPair("tag:taxonomy", "tag:taxonomy/body")
+      .filter((item) => item.sourceKind === "tag-tree").length,
+    1,
+    "Shared nested tags must not duplicate the parent hierarchy declaration",
+  );
+  assert.equal(
+    index.state.evidence.declarationsForPair("tag:taxonomy/body", "tag:taxonomy/body/leaf")
+      .filter((item) => item.sourceKind === "tag-tree").length,
+    1,
+    "Shared nested tags must not duplicate the leaf hierarchy declaration",
+  );
+  sharedNestedCache.tags = sharedNestedOriginalTags;
+  await index.rebuild();
+
+  // Real getAllTags can retain repeated body/frontmatter memberships; the default double dedups.
+  // Preserve membership multiplicity while keeping hierarchy deduplication in ensureTagPath.
+  const originalGetAllTags = obsidianTestApi.getAllTags;
+  const originalFixtureMemberships = index.state.evidence.declarationsForPair("tag:fixture", "Note C.md")
+    .filter((item) => item.sourceKind === "tag-tree").length;
+  try {
+    obsidianTestApi.getAllTags = (cache) => {
+      const tags = originalGetAllTags(cache);
+      return cache === sharedNestedCache ? [...tags, "#fixture"] : tags;
+    };
+    await index.rebuild();
+    assert.equal(index.state.evidence.declarationsForPair("tag:fixture", "Note C.md")
+      .filter((item) => item.sourceKind === "tag-tree").length, originalFixtureMemberships + 1,
+    "Repeated host tag memberships must retain original declaration multiplicity");
+  } finally {
+    obsidianTestApi.getAllTags = originalGetAllTags;
+    await index.rebuild();
+  }
 
   // Tags and hierarchical tag tree.
   expectRole("tag:body-tag", "child", "Note A.md", RelationType.DEFINED);
