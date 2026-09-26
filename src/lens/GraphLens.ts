@@ -1,9 +1,9 @@
-import type { GraphIndex } from "../index/GraphIndex";
 import type { GraphPage, LinkStyle, NodeStyle, StrokeStyle, FillStyle } from "../types";
+import { createLegacyEvidenceProvider, lensCandidateFromLegacy, type LegacyEvidenceSource } from "../adapters/obsidian/predicateContracts";
+import { matchesPortableLenses, portableLensStyle } from "../core/plex/lens";
 import {
   compileGraphPredicate,
   type CompiledGraphPredicate,
-  type GraphPredicateContext,
   type GraphPredicateEdgeContext,
   type GraphPredicateEngine,
   type GraphPredicateExpression,
@@ -228,96 +228,20 @@ export type GraphLensCandidate = {
   edge?: GraphPredicateEdgeContext;
 };
 
-function matchesEvidenceLens(
-  engine: GraphPredicateEngine,
-  index: GraphIndex,
-  lens: CompiledGraphLens,
-  candidate: GraphLensCandidate,
-): boolean {
-  const center = candidate.center;
-  const sourcePath = candidate.edge?.sourcePath ?? center?.path;
-  const targetPath = candidate.edge?.targetPath ?? candidate.page.path;
-  if (!sourcePath || sourcePath === targetPath) return false;
-  const explanation = index.explainRelationship(sourcePath, targetPath);
-  if (!explanation) return false;
-  return explanation.decisions.some((decision) => {
-    const evidence = {
-      ...decision.evidence,
-      active: decision.active,
-      suppressionReason: decision.suppressionReason,
-    };
-    const context: GraphPredicateContext = {
-      node: { page: candidate.page, label: candidate.label },
-      center,
-      edge: candidate.edge,
-      evidence,
-    };
-    return engine.matches(lens.predicate, context);
-  });
+/** Include lenses union, excludes subtract; evaluation is delegated to the host-free core. */
+export function matchesGraphLenses(engine: GraphPredicateEngine, index: LegacyEvidenceSource, lensSet: CompiledGraphLensSet, candidate: GraphLensCandidate): boolean {
+  if (!lensSet.lenses.some((lens) => lens.mode === "include" || lens.mode === "exclude")) return true;
+  return matchesPortableLenses(engine.portable, createLegacyEvidenceProvider(index), lensSet.lenses, lensCandidateFromLegacy(candidate));
 }
-
-function matchesLens(
-  engine: GraphPredicateEngine,
-  index: GraphIndex,
-  lens: CompiledGraphLens,
-  candidate: GraphLensCandidate,
-): boolean {
-  if (lens.scope === "evidence") return matchesEvidenceLens(engine, index, lens, candidate);
-  const context: GraphPredicateContext = {
-    node: { page: candidate.page, label: candidate.label },
-    center: candidate.center,
-    edge: candidate.edge,
-  };
-  return engine.matches(lens.predicate, context);
-}
-
-/**
- * Active include lenses are OR'ed (union); active exclude lenses subtract from that result.
- * With no include lens the whole currently materialized Plex is the baseline. This function never
- * discovers or traverses additional graph depth: it only decides whether an already-visible
- * candidate survives the lens layer.
- */
-export function matchesGraphLenses(
-  engine: GraphPredicateEngine,
-  index: GraphIndex,
-  lensSet: CompiledGraphLensSet,
-  candidate: GraphLensCandidate,
-): boolean {
-  if (!lensSet.lenses.length) return true;
-  const includes = lensSet.lenses.filter((lens) => lens.mode === "include");
-  const excludes = lensSet.lenses.filter((lens) => lens.mode === "exclude");
-  const included = includes.length === 0 || includes.some((lens) => matchesLens(engine, index, lens, candidate));
-  if (!included) return false;
-  return !excludes.some((lens) => matchesLens(engine, index, lens, candidate));
-}
-
 
 /** Merge matching style lenses in list order. Later lenses override earlier style fields. */
-export function graphLensNodeStyle(
-  engine: GraphPredicateEngine,
-  index: GraphIndex,
-  lensSet: CompiledGraphLensSet,
-  candidate: GraphLensCandidate,
-): GraphLensNodeStyle {
-  const style: GraphLensNodeStyle = {};
-  for (const lens of lensSet.lenses) {
-    if (lens.mode !== "style" || lens.scope !== "node" || !lens.style?.node) continue;
-    if (matchesLens(engine, index, lens, candidate)) Object.assign(style, lens.style.node);
-  }
-  return style;
+export function graphLensNodeStyle(engine: GraphPredicateEngine, index: LegacyEvidenceSource, lensSet: CompiledGraphLensSet, candidate: GraphLensCandidate): GraphLensNodeStyle {
+  if (!lensSet.lenses.some((lens) => lens.mode === "style" && lens.scope === "node" && lens.style?.node)) return {};
+  return portableLensStyle(engine.portable, createLegacyEvidenceProvider(index), lensSet.lenses, lensCandidateFromLegacy(candidate), "node");
 }
 
 /** Edge and evidence style lenses both decorate the resolved visible relationship. */
-export function graphLensEdgeStyle(
-  engine: GraphPredicateEngine,
-  index: GraphIndex,
-  lensSet: CompiledGraphLensSet,
-  candidate: GraphLensCandidate,
-): GraphLensEdgeStyle {
-  const style: GraphLensEdgeStyle = {};
-  for (const lens of lensSet.lenses) {
-    if (lens.mode !== "style" || lens.scope === "node" || !lens.style?.edge) continue;
-    if (matchesLens(engine, index, lens, candidate)) Object.assign(style, lens.style.edge);
-  }
-  return style;
+export function graphLensEdgeStyle(engine: GraphPredicateEngine, index: LegacyEvidenceSource, lensSet: CompiledGraphLensSet, candidate: GraphLensCandidate): GraphLensEdgeStyle {
+  if (!lensSet.lenses.some((lens) => lens.mode === "style" && lens.scope !== "node" && lens.style?.edge)) return {};
+  return portableLensStyle(engine.portable, createLegacyEvidenceProvider(index), lensSet.lenses, lensCandidateFromLegacy(candidate), "edge");
 }

@@ -18,6 +18,8 @@ export function graphNodeViewFromLegacy(page: GraphPage): GraphNodeView {
   return {
     id: nodeId(page.path),
     name: page.name,
+    path: page.path,
+    mtime: page.mtime,
     kind,
     resolution: kind === "unresolved" ? "unresolved" : "resolved",
     url: page.url,
@@ -32,7 +34,10 @@ export function graphNodeViewFromLegacy(page: GraphPage): GraphNodeView {
         name: page.file.name,
         extension: page.file.extension,
         path: page.file.path,
-        mtime: page.mtime,
+        mtime: page.file.stat.mtime,
+        basename: page.file.basename,
+        ctime: page.file.stat.ctime,
+        size: page.file.stat.size,
       },
     } : {}),
   };

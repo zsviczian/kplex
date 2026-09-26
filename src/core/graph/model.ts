@@ -12,12 +12,20 @@ export type FileFacet = Readonly<{
   extension: string;
   path: string;
   mtime: number | null;
+  /** Physical file facts; distinct from semantic page mtime. */
+  basename?: string;
+  ctime?: number;
+  size?: number;
 }>;
 
 /** Host-free read DTO. It deliberately excludes mutable neighbour maps and host objects. */
 export type GraphNodeView = Readonly<{
   id: NodeId;
   name: string;
+  /** Semantic modification time, independent of physical file facts (null is meaningful). */
+  mtime?: number | null;
+  /** Semantic path is explicit and never derived from id; virtual/pathless nodes may omit it. */
+  path?: string;
   kind: GraphNodeKind;
   resolution: GraphResolution;
   url: string | null;
