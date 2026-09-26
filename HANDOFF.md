@@ -1,49 +1,51 @@
-# C09 handoff — narrow graph reads and one production consumer
+# C10 handoff — lazy properties and portable predicate/lens evaluation
 
 ## Assignment and workflow
 
-C08P is accepted after main-agent review; its persisted result is in `Refactor plan.md` and `docs/validation/C08P-2026-09-26.md`. **C09 is the next Strong candidate for an agent without Obsidian access.** Implement C09 only. This document is transient: overwrite it for the next assignment, do not archive it or turn it into an ongoing log. The refactor plan is the definitive tracker.
+Implement **C10 only**, after accepted C09. C10 is a **Strong offline-agent candidate**: no Obsidian installation/CLI is required for implementation and portable validation. Read `AGENTS.md`, `Refactor plan.md` (workflow, C10 and invariants), `docs/ARCHITECTURE.md`, and the C09 acceptance report before editing. Check branch/status and record your actual starting commit; expected branch is `kplex-refactor`.
 
-Read `AGENTS.md`, `docs/ARCHITECTURE.md`, C08/C08P/C09 in `Refactor plan.md`, and the relevant production callers before editing. Return uncommitted changes for the main agent to review, fix and validate in Obsidian. Do not commit, publish, open issues or deploy to a vault. Mark C09 **Review**, not Done, when delivering; host acceptance remains the main agent's responsibility.
+This is the single transient handoff. Update its delivery section in place; do not archive it or create another running log. The definitive tracker is `Refactor plan.md`. Deliver reviewable uncommitted source changes, update C10 to **Review**, and summarize attempted/passed/unavailable checks truthfully. Do not mark Done or commit acceptance: the main agent reviews, fixes, tests the exact build in Obsidian, and reports any prioritized manual checks. Accepted results persist in the refactor plan before this file is overwritten for the next assignment.
 
 ## Outcome
 
-Introduce the smallest host-free graph read capability justified by a real existing consumer. Migrate one cohesive production read path to it. That path consumes opaque `NodeId` / plain `GraphNodeView` data, does not read `TFile`, mutable neighbour maps or the plugin instance, and preserves existing observable output. The legacy `GraphIndex` remains the production facade and semantic owner. Record other concrete-index consumers explicitly; do not claim the whole graph/UI is portable.
+The production Quick Filter / Graph Lens predicate and lens evaluation must run through host-free data/contracts and a lazy property provider. Core evaluation must not import `App`, `TFile`, `GraphIndex`, legacy `GraphPage`, plugin state or mutable neighbour maps, even transitively. Obsidian remains responsible for cached metadata and physical file facts. Keep existing expressions, comparisons, filtering/style/evidence semantics and persisted settings byte-compatible.
 
-C08 established `src/core/graph/model.ts` and `settings.ts`, plus the bounded legacy mapper in `src/adapters/obsidian/graphContracts.ts`. They are foundations, not existing production read ports. C08P stabilized hydration/coordinator lifetime; preserve those guarantees without redesigning indexing.
+C09's read port is deliberately **search-only**. Do not pretend it already exposes evidence or neighborhoods. Add only the narrow property/evidence capabilities required by the real C10 callers, using the established C08/C09 boundary patterns. Preserve C09 search and C08P termination/lifetime guarantees.
 
-## Practical checkpoints
+## Practical checkpoints and verifications
 
-1. **Inventory and select.** Inspect actual reads in `src/ui/layout.ts`, `src/lens/GraphLens.ts`, `src/ui/PlexGraph.tsx`, search and adjacent callers. Record each capability and its semantic/presentation ownership. Select one bounded real path and explain why it can cross the seam now. A coherent subpath of a large consumer is acceptable; an unused interface/demo is not. Keep C10's lazy property/provider and predicate extraction separate.
-2. **Characterize.** Capture current output/ranking/ordering/filter behavior for the selected path before moving it. Include relevant missing/unresolved nodes and every kind that the path actually supports. Preserve semantic role/precedence logic; do not move classification into UI or recreate it in the adapter.
-3. **Define and implement only what is used.** Place a narrow read contract in the lowest portable layer that needs it. Legacy facade/Obsidian adapter maps existing objects at the boundary; portable modules must not import legacy GraphIndex/types/settings or Obsidian transitively. Separate semantic relations from today's presentation-filtered neighbourhood APIs. Do not call a filtered query “raw graph.” Avoid a speculative universal graph API or unused methods for later checkpoints.
-4. **Migrate the production call site.** Wire the actual runtime path, using the interface and C08 views. Keep IDs exact/opaque: no case folding, URL/path/kind parsing in core. Physical path terms and file facets come from host mapping. Do not expose `GraphPage`, `TFile`, live maps or global plugin discovery through a port.
-5. **State validity and cost.** State how mapped views remain valid across full/preview publication, incremental per-file commits, optimistic edits, rename/delete and presentation refresh for the selected path. Readonly shared arrays are not frozen snapshots. Use existing notification/publication boundaries or a justified bounded in-memory revision mechanism; do not add persisted revision keys or copy/cache every graph node. Never reread Markdown, rebuild the index or allocate a second full-vault DTO graph just to support reads/rendering.
-6. **Verify and deliver.** Run Node 22.22.2 `npm run verify` and inspect all results, including real Obsidian typings/build. Test the new consumer with a plain fake read model in a clean process, without Obsidian, window shims or host-object fixtures. Also preserve the existing compatibility/golden tests through the legacy production adapter. Test changed output and stale-view behavior, not merely method presence/source text. Search the migrated path for concrete-index/host reach-through. Update durable architecture documentation and the definitive plan, recording remaining consumers and limits.
+- [ ] **Inventory the real path before changing it.** Read `src/lens/GraphPredicate.ts`, `GraphPredicateParser.ts`, `GraphLens.ts`, `GraphLensSimple.ts`, `SimplePlexFilter.ts`, and their production callers in `src/ui/App.tsx`, `PlexGraph.tsx`, `layout.ts`, `PlexFilter.tsx` and `main.ts`. Trace frontmatter refresh separately from semantic indexing. Read existing predicate/lens fixtures in `tests/indexing.test.mjs`. Record actual consumers and compatibility-delegate retirement owners.
+- [ ] **Extract contracts and computation.** Use classified folders such as `src/core/plex/` for portable predicate/parser/lens behavior, `src/core/graph/` or `contracts/` for consumed read contracts, and `src/adapters/obsidian/` for host mapping. Preserve grammar/AST/operator behavior first. `node.path`, `file.path`, `this`, edge source/target paths and folder tests need explicit semantic path data; never infer a path/kind/case from opaque NodeId. C08 file facets omit basename/ctime/size: expose only needed additional plain facts without silently losing their existing semantics or equating file mtime with semantic page mtime.
+- [ ] **Provide properties lazily.** Host code resolves cached frontmatter/required file facts for a requested candidate and field. No Markdown body reads, full-frontmatter copies, whole-vault scans, new graph-wide DTO store, generic property collection during indexing, or eager loading of all referenced properties for every visible node. Preserve missing/null/scalar/list behavior, field-name lookup and file-kind rules. Frontmatter remains host cache data, not persisted GraphNodeView state. No property refresh may request a new semantic rebuild solely to reevaluate a lens.
+- [ ] **Isolate evidence access.** Replace `GraphLens.ts` concrete `index.explainRelationship()` reach-through with a narrow adapter returning plain decision/evidence values only when an evidence-scope candidate is evaluated. Preserve active/suppressed evidence, suppression reason, relation kind/direction/definition and exact field values. This is a bounded read seam; do not extract the resolver or redesign evidence storage. Do not treat presentation-filtered neighbors as raw adjacency.
+- [ ] **Integrate real production callers.** Construct host providers at composition boundaries, migrate actual Quick Filter / Graph Lens evaluation and preserve labels, center context and current-Plex candidate scope. Narrow compatibility delegates/re-exports may remain for unmigrated callers, but they must use the extracted implementation rather than maintaining a second evaluator. Track remaining concrete consumers. Metadata-only property changes must still refresh visible affected evaluations through existing dependency-driven notifications; hidden views catch up on reveal. Keep graph visibility, filtered gate-count mode, Keep layout/Reflow and style precedence intact.
+- [ ] **Prove behavior in a fresh process.** Plain IDs/data and fake providers must exercise the actual portable implementation without Obsidian/window stubs. Cover missing/null/scalar/list/negative operators, exact versus case-normalized comparisons, tags/folder/file facts, `this`, parser round trips/errors and dependency collection. Cover include union, exclude subtraction, multiple ordered style lenses (later fields win), disabled/invalid lenses, style-only visibility/count behavior, and active/suppressed evidence. Include opaque/pathless/case-distinct IDs with independent path facets. Provider-call counters must show unrequested properties and evidence are not read; short-circuit and unrelated candidate paths must remain lazy. Preserve existing characterization tests rather than merely rewriting them to agree with the new code.
+- [ ] **Run required portable checks.** Verify Node **22.22.2**, install lockfile dependencies, run `npm run verify` and `git diff --check`. Include new clean-process tests in the mandatory scripts. Restricted core ES2021/no-DOM/no-Node type checks and architecture transitive checks must pass. Build against real installed Obsidian types, not invented APIs or stub-only proof. Do not weaken boundary rules, timer assertions or existing tests to hide failures; record unrelated failures with evidence.
 
-## Boundaries and guardrails
+## Guardrails
 
-- No graph semantic change, new URL-referrer feature, view/layout strategy, parser pool, normalized source producer, snapshot delta/schema change, worker/iOS policy change or search redesign. The C08P roadmap remains assigned to C11–C17.
-- Preserve localized/platform-aware UI copy and device routing. Avoid unrelated literal migration or styling.
-- Keep C08P metadata/preview/full hydration bounded, terminal outcomes immutable, sampled progress active, late publication guarded and unload settlement immediate. Do not disable the watchdog or loosen cancellation/atomic-publication assertions to make extraction pass.
-- Do not weaken architecture/core restrictions. A core module must compile with ES2021 and no DOM/Node/Obsidian ambient types. Add no blanket allowlist/suppression.
-- Obsidian is optional for your environment. Do not invent host evidence. `docs/OBSIDIAN_RUNTIME_TESTING.md` describes the main-agent CLI lane through the installed `app.plugins.plugins["k-plex"]` instance; this is maintenance access, not a portable production dependency boundary.
-- A missing browser executable can block the browser DOM lane independently of Obsidian. Report the exact failure and completed checks; do not silently bypass tests or claim a full pass.
+No settings-key/default/migration, snapshot/schema, graph identity/role/URL semantics, search ranking, modal/CSS/device routing or command-ID changes. No generic service locator, global plugin discovery, speculative all-purpose graph API, permanent debug globals or new dependency without a demonstrated need. Do not copy vault data into the portable layer. Do not implement C11–C18 optimizations from `docs/INDEXING_ARCHITECTURE.md` during C10.
 
-## Reviewer acceptance
+Every newly introduced user-facing caption/help/notification/error must use localization. Console diagnostics remain English. Preserve existing parser/validation output compatibility when mechanically moving code; identify remaining localization work and its owner rather than rewriting unrelated copy. Environment-specific modifier labels remain supplied by the existing presentation environment.
 
-A real production read path uses the narrow interface and returns unchanged output. Its portable behavior runs with plain IDs/data and no host module. Mapping validity/invalidation is explicit and bounded. Existing semantics, hydration/watchdog behavior, persistence bytes and large-vault query/body-read/build counts remain unchanged. No dead scaffold or parallel classifier was introduced. Remaining concrete consumers are inventoried honestly.
+## Main-agent host acceptance after delivery
 
-The main agent will run the full portable suite and exact-build Obsidian checks for the changed workflow, review performance risk, and return at most three prioritized manual checks (or explain why none are needed). After validation is confirmed, the main agent commits and moves on; C10 is the next Strong offline-agent candidate.
+The reviewer installs the exact built artifacts using `npm run verify:obsidian` in the explicitly selected disposable `kplex-test`. Use `docs/OBSIDIAN_RUNTIME_TESTING.md` for `app.plugins.plugins["k-plex"]` inspection and cleanup; working-tree TypeScript is not the live plugin. Missing CLI/device access is unavailable evidence, never a silent pass.
 
-## External agent delivery — fill this section in place
+Prioritize: (1) change an arbitrary frontmatter property used by an open filter/lens and confirm immediate reevaluation without a new full graph build; (2) verify include/exclude composition, style-only appearance without visibility/count changes, and Keep layout/Reflow in the reference graph; (3) verify evidence-scope matching including suppressed evidence and center `this` semantics. Compare saved expressions/settings with baseline. Choose at most three manual checks only for behavior not established by automation; physical devices are needed if native touch/keyboard mechanics unexpectedly change. Test on current large vault using only currently materialized candidates; do not claim C00 physical-device performance is closed.
 
-- Selected consumer/path and inventory of remaining concrete consumers:
-- Before/after behavior and production wiring:
-- Contract/adapter ownership and view validity/invalidation rules:
-- Files changed and why:
-- Automated commands/results, environment and failures/limits:
-- Required main-agent host assertions and any proposed prioritized manual checks:
-- Persistence/settings/semantic compatibility and performance risks:
-- Refactor-plan summary/action-log entry updated; C09 status:
-- Open concerns or deliberately deferred work:
+## Delivery — fill in before returning
+
+- Starting branch/commit and initial dirty state:
+- Selected production consumers and complete call path:
+- Added/extracted portable contracts/modules and lazy host providers:
+- Preserved semantics and any reviewer decision needed:
+- Remaining compatibility delegates/concrete readers and named retirement checkpoints:
+- Dependency-driven property refresh versus semantic rebuild behavior:
+- Added behavior/provider-call/clean-process tests:
+- Node/dependency versions, exact commands, pass/fail/unavailable evidence:
+- Host/physical-device checks performed (or explicitly unavailable):
+- Persisted keys/schemas changed (expected: none):
+- Cleanup/lifetime owner and rollback scope:
+- Prioritized reviewer host/manual checks and expected outcomes:
+- C10 status: **Review**, pending main-agent acceptance.

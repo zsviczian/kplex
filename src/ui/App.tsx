@@ -16,7 +16,8 @@ import { isSearchFocusShortcut } from "../core/plex/shortcutPresentation";
 import type { Translator } from "../lang";
 import { searchFieldCopy } from "./features/searchPresentation";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarPosition } from "../settings";
-import { SearchBox } from "./SearchBox";
+import { SearchBox } from "./features/SearchBox";
+import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { ActionButton } from "./components/ActionButton";
 import { PlexGraph } from "./PlexGraph";
 import { ObsidianIcon } from "./ObsidianIcon";
@@ -60,6 +61,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [renderRevision, forceRender] = useState(0);
+  const graphSearchRead = useMemo(() => createLegacyGraphSearchRead(plugin.index), [plugin.index]);
   const [plexFilter, setPlexFilter] = useState<PlexFilterState>(EMPTY_PLEX_FILTER);
   const [filterLayoutMode, setFilterLayoutMode] = useState<GraphFilterLayoutMode>("keep");
   const plexFilterPredicate = useMemo(() => compilePlexFilter(plexFilter), [plexFilter]);
@@ -409,8 +411,15 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
             disabled={historyCursor >= plugin.settings.navigationHistory.length - 1}
           />
           <SearchBox
-            index={plugin.index}
-            onActivate={activate}
+            graph={graphSearchRead}
+            icon={<ObsidianIcon name="search" size={16} />}
+            portalSelector=".excalibrain-app"
+            appTopbarSelector=".excalibrain-topbar"
+            revision={renderRevision}
+            onActivate={(id) => {
+              const target = plugin.index.get(id);
+              if (target) activate(target);
+            }}
             focusRequest={searchFocusRequest}
             placeholder={searchCopy.placeholder}
             ariaLabel={searchCopy.ariaLabel}

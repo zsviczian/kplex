@@ -190,11 +190,11 @@ test("displayed search hint matches a gesture the production handler accepts", (
 
 
 test("SearchBox React consumer forwards localized copy into its input surface", () => {
-  const temp = compileModules(["src/ui/SearchBox.tsx"], "kplex-localization-react-test-");
+  const temp = compileModules(["src/ui/features/SearchBox.tsx"], "kplex-localization-react-test-");
   try {
     const reactPath = join(temp, "node_modules/react/index.js");
     const jsxRuntimePath = join(temp, "node_modules/react/jsx-runtime.js");
-    const fuzzyPath = join(temp, "src/ui/FuzzySearchInput.js");
+    const fuzzyPath = join(temp, "src/ui/components/FuzzySuggester.js");
     mkdirSync(dirname(reactPath), { recursive: true });
     mkdirSync(dirname(fuzzyPath), { recursive: true });
     writeFileSync(reactPath, `
@@ -206,11 +206,12 @@ exports.jsx = (type, props) => ({ type, props });
 exports.jsxs = exports.jsx;
 exports.Fragment = Symbol.for("react.fragment");
 `);
-    writeFileSync(fuzzyPath, "exports.FuzzySearchInput = function FuzzySearchInput() {};\n");
+    writeFileSync(fuzzyPath, "exports.FuzzySuggester = function FuzzySuggester() {};\n");
 
-    const { SearchBox } = require(join(temp, "src/ui/SearchBox.js"));
+    const { SearchBox } = require(join(temp, "src/ui/features/SearchBox.js"));
     const element = SearchBox({
-      index: { search: () => [], titleFor: () => "" },
+      graph: { search: () => [] },
+      revision: 0,
       onActivate: () => {},
       focusRequest: 7,
       placeholder: "Search nodes… (F4)",

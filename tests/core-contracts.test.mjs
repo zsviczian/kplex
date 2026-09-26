@@ -95,3 +95,27 @@ test("semantic settings mapper preserves legacy values and excludes unrelated ho
   assert.deepEqual(settings, before, "mapping must not sanitize/mutate persisted settings");
   assert.equal(semanticIndexSettingsFromLegacy({ ...settings, baseNodeStyle: { maxLabelLength: 0 } }).maxLabelLength, 0);
 });
+
+test("legacy search read maps ranked results to plain views without host reach-through", async () => {
+  const { createLegacyGraphSearchRead } = await import(pathToFileURL(adapterPath).href);
+  const first = page({ path: "Case:Node", name: "First", aliases: ["A"] });
+  const second = page({ path: "entity:web", name: "Web", url: "https://example.com" });
+  const third = page({ path: "Opaque:File", file: { name: "Different.md", extension: "md", path: "actual/Different.md", stat: { mtime: 3 } } });
+  const calls = [];
+  const graph = createLegacyGraphSearchRead({
+    search(query, limit) { calls.push([query, limit]); return [second, first, third]; },
+    titleFor(candidate) { return candidate === second ? "Configured web title" : "Configured first title"; },
+  });
+  const hits = graph.search("needle", 24);
+  assert.deepEqual(calls, [["needle", 24]]);
+  assert.deepEqual(hits.map((hit) => [hit.node.id, hit.label, hit.detail, hit.node.kind]), [
+    ["entity:web", "Configured web title", "entity:web", "url"],
+    ["Case:Node", "Configured first title", "Case:Node", "unresolved"],
+    ["Opaque:File", "Configured first title", "Opaque:File", "document"],
+  ]);
+  assert.equal(hits[1].node.aliases, first.aliases, "mapping stays bounded rather than cloning metadata arrays");
+  for (const hit of hits) {
+    assert.equal("file" in hit.node && "stat" in hit.node.file, false);
+    assert.equal("neighbours" in hit.node, false);
+  }
+});

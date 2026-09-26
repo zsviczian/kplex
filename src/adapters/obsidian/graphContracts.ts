@@ -1,5 +1,6 @@
 import type { ExcaliBrainSettings } from "../../settings";
 import type { GraphPage } from "../../types";
+import type { GraphSearchRead } from "../../core/graph/read";
 import { nodeId, type GraphNodeKind, type GraphNodeView } from "../../core/graph/model";
 import type { SemanticIndexSettings } from "../../core/graph/settings";
 
@@ -48,5 +49,27 @@ export function semanticIndexSettingsFromLegacy(settings: ExcaliBrainSettings): 
     primaryTagField: settings.primaryTagField,
     tagStyleList: settings.tagStyleList,
     maxLabelLength: settings.baseNodeStyle.maxLabelLength ?? 30,
+  };
+}
+
+
+type LegacySearchSource = Readonly<{
+  search(query: string, limit?: number): GraphPage[];
+  titleFor(page: GraphPage): string;
+}>;
+
+/**
+ * Adapts the legacy semantic-index search facade without exposing GraphPage/TFile to consumers.
+ * Search ordering/visibility stay with the legacy source; this boundary only maps returned values.
+ */
+export function createLegacyGraphSearchRead(source: LegacySearchSource): GraphSearchRead {
+  return {
+    search(query, limit) {
+      return source.search(query, limit).map((page) => ({
+        node: graphNodeViewFromLegacy(page),
+        label: source.titleFor(page),
+        detail: page.path,
+      }));
+    },
   };
 }

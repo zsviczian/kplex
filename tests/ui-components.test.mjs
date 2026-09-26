@@ -646,6 +646,72 @@ try {
 `;
 }
 
+function graphSearchBrowserEntry() {
+  return `
+import React from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { SearchBox } from ${JSON.stringify(join(root, "src/ui/features/SearchBox.tsx"))};
+
+const result = document.querySelector("#result");
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+const type = (input, value) => {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+};
+try {
+  check(!window.app, "host object unexpectedly exists");
+  const host = document.createElement("div"); host.className = "test-search-host";
+  document.body.append(host);
+  host.getBoundingClientRect = () => ({ left: 0, top: 0, right: 600, bottom: 500, width: 600, height: 500 });
+  const node = (id, kind) => ({ id, kind, resolution: "resolved", name: "Name", url: null, aliases: [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 30 });
+  const first = { node: node("folder:Opaque-ID", "document"), label: "Ranked first", detail: "actual/First.md" };
+  const second = { node: node("Case:SECOND", "url"), label: "Configured second", detail: "https://example.com/view" };
+  let hits = [second, first];
+  const calls = [], chosen = [];
+  const graph = { search(query, limit) { calls.push([query, limit]); return hits; } };
+  const topbar = document.createElement("div"); topbar.className = "test-search-topbar"; host.append(topbar);
+  topbar.getBoundingClientRect = () => ({ left: 0, top: 0, right: 600, bottom: 60, width: 600, height: 60 });
+  const root = createRoot(topbar);
+  const render = (revision) => flushSync(() => root.render(React.createElement(SearchBox, {
+    graph, revision, onActivate: (id) => chosen.push(id), placeholder: "Localized placeholder", ariaLabel: "Localized search",
+    icon: React.createElement("span", { "data-test-icon": "true" }, "search icon"), portalSelector: ".test-search-host", appTopbarSelector: ".test-search-topbar",
+  })));
+  render(0);
+  const input = host.querySelector("input");
+  host.querySelector(".kplex-fuzzy-search").getBoundingClientRect = () => ({ left: 10, top: 20, right: 310, bottom: 50, width: 300, height: 30 });
+  flushSync(() => input.focus());
+  flushSync(() => type(input, "needle"));
+  const rows = () => [...host.querySelectorAll(".excalibrain-search-result")];
+  check(rows().length === 2, "search hits did not render");
+  check(rows()[0].querySelector("span").textContent === second.label, "source ranking was changed");
+  check(rows()[1].querySelector("small").textContent === first.detail, "opaque ID was used as display detail");
+  check(input.getAttribute("aria-label") === "Localized search" && input.placeholder === "Localized placeholder", "localized copy was changed");
+  check(host.querySelector("[data-test-icon]"), "host icon slot missing");
+  check(calls.every(([, limit]) => limit === 24), "search mapping was not bounded to 24 hits");
+  const count = calls.length; render(0);
+  check(calls.length === count, "unchanged revision unnecessarily reran search");
+  hits = [{ ...first, label: "Renamed first", detail: "actual/Renamed.md" }]; render(1);
+  check(calls.length === count + 1 && calls.at(-1)[0] === "needle", "publication revision did not refresh the same query");
+  check(input.value === "needle" && document.activeElement === input, "publication lost query or focus");
+  check(rows().length === 1 && rows()[0].querySelector("span").textContent === "Renamed first", "stale label/result survived publication");
+  flushSync(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+  check(chosen.length === 1 && chosen[0] === first.node.id, "activation reinterpreted/normalized the opaque ID");
+  check(input.value === "", "selection did not clear query");
+  flushSync(() => input.focus());
+  flushSync(() => type(input, "needle"));
+  check(rows().length === 1, "deletion fixture must be visible before its publication");
+  hits = []; render(2);
+  check(rows().length === 0 && input.value === "needle", "deleted result survived publication or query was lost");
+  flushSync(() => root.unmount());
+  check(!host.querySelector(".kplex-fuzzy-floating-results"), "search portal survived unmount");
+  result.dataset.status = "passed"; result.textContent = "Graph search read consumer behavior passed";
+} catch (error) {
+  result.dataset.status = "failed"; result.textContent = String(error?.stack ?? error);
+}
+`;
+}
+
 function runBrowserDom(entry, successText) {
   const browser = findBrowser();
   assert(browser, "A Chromium-family browser is required for the DOM behavior lane; set KPLEX_TEST_BROWSER to its executable path.");
@@ -698,4 +764,8 @@ test("FloatingLayer owner-document browser behavior", () => {
 
 test("FuzzySuggester production browser behavior", () => {
   runBrowserDom(fuzzySuggesterBrowserEntry(), "FuzzySuggester browser behavior passed");
+});
+
+test("SearchBox plain read model and revision browser behavior", () => {
+  runBrowserDom(graphSearchBrowserEntry(), "Graph search read consumer behavior passed");
 });
