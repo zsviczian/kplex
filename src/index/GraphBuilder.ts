@@ -2,10 +2,6 @@ import { Platform, TFile, type App } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
 import {
-  extractLinksFromValue,
-  getNormalizedFieldValues,
-  getNormalizedFrontmatterValues,
-  getNormalizedInlineFieldValues,
   mergeFileMetadata,
   normalizeFieldName,
   type ParsedBodyMetadata,
@@ -21,15 +17,24 @@ import { ObsidianStructuralSourceCollector } from "../adapters/obsidian/structur
 import { ObsidianHostLinkSourceCollector, readHostLinkSignatureEntries } from "../adapters/obsidian/hostLinkSourceCollector";
 import { ObsidianOntologySourceCollector } from "../adapters/obsidian/ontologySourceCollector";
 import {
+  createObsidianMetadataSourceHost,
+  ObsidianMetadataSourceCollector,
+  type ObsidianMetadataSourceHost,
+  type ObsidianMetadataSourceSettings,
+} from "../adapters/obsidian/metadataSourceCollector";
+import {
   acceptSourceBatch,
   beginSourceRead,
   sourceReadCanPublish,
+  type BodyUrlOccurrence,
+  type DatePropertyOccurrence,
   type FileTreeOccurrence,
   type HostLinkOccurrence,
   type NormalizedSourceBatch,
   type OntologyOccurrence,
   type SourceBatchCursor,
   type SourceEntityFact,
+  type SourceFieldNameFact,
   type TagTreeOccurrence,
 } from "../core/graph/source";
 
@@ -67,36 +72,6 @@ const FILE_OWNED_EVIDENCE = new Set<EvidenceSourceKind>([
   "body-url",
   "date-property",
 ]);
-
-function flatten(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value.flatMap(flatten);
-  if (value === null || value === undefined) return [];
-  return [value];
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/");
-}
-
-type ObsidianMomentInstance = {
-  isValid(): boolean;
-  format(format: string): string;
-};
-
-type ObsidianMomentFactory = (value: string, inputFormat: string, strict: boolean) => ObsidianMomentInstance;
-
-/**
- * Render an Obsidian Date property with the vault's configured Daily Notes Moment format.
- *
- * Obsidian provides Moment at runtime on `window`. Do not import Moment into production code:
- * doing so either hits Obsidian's namespace-style typing mismatch or bundles a library that the
- * host already provides. This mirrors the long-standing approach used by Obsidian Tasks.
- */
-function formatDailyDate(isoDate: string, format: string): string | null {
-  const obsidianMoment = (window as unknown as { moment: ObsidianMomentFactory }).moment;
-  const parsed = obsidianMoment(isoDate, "YYYY-MM-DD", true);
-  return parsed.isValid() ? parsed.format(format) : null;
-}
 
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -277,6 +252,8 @@ export class GraphBuilder {
   private readonly semanticInlineFields: Set<string>;
   private readonly ontologyAssignments: ReadonlyArray<{ configuredFieldName: string; normalizedFieldName: string; role: EvidenceRole }>;
   private readonly ontologyConfiguredFields: readonly string[];
+  private readonly metadataSourceHost: ObsidianMetadataSourceHost;
+  private readonly metadataSourceSettings: ObsidianMetadataSourceSettings;
 
   constructor(
     private plugin: ExcaliBrainPlugin,
@@ -287,6 +264,13 @@ export class GraphBuilder {
     private isCurrent: () => boolean,
     private semanticFingerprints: Map<string, string> = new Map(),
   ) {
+    this.metadataSourceHost = createObsidianMetadataSourceHost(app);
+    this.metadataSourceSettings = {
+      noteTypeField: plugin.settings.noteTypeField,
+      primaryTagField: plugin.settings.primaryTagField,
+      thumbnailProperty: plugin.settings.thumbnailProperty,
+      nodeImageProperty: plugin.settings.nodeImageProperty,
+    };
     const hierarchy = plugin.settings.hierarchy;
     const ontologyGroups: ReadonlyArray<readonly [readonly string[], EvidenceRole]> = [
       [hierarchy.hidden, "hidden"],
@@ -345,7 +329,7 @@ export class GraphBuilder {
 
     const semanticFrontmatter: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(frontmatter)) {
-      if (this.semanticFrontmatterFields.has(normalizeFieldName(key)) || this.isDateProperty(key)) {
+      if (this.semanticFrontmatterFields.has(normalizeFieldName(key)) || this.metadataSourceHost.isDateProperty(key)) {
         semanticFrontmatter[key] = stableSemanticValue(value);
       }
     }
@@ -401,7 +385,7 @@ export class GraphBuilder {
     const semanticFrontmatter: Record<string, unknown> = {};
     let processed = 0;
     for (const [key, value] of Object.entries(frontmatter)) {
-      if (this.semanticFrontmatterFields.has(normalizeFieldName(key)) || this.isDateProperty(key)) {
+      if (this.semanticFrontmatterFields.has(normalizeFieldName(key)) || this.metadataSourceHost.isDateProperty(key)) {
         semanticFrontmatter[key] = stableSemanticValue(value);
       }
       processed += 1;
@@ -1107,7 +1091,7 @@ export class GraphBuilder {
         // Even semantic no-ops stage their small metadata/cache-visible mutations. Cancellation can
         // therefore never leave a half-updated discovered-field table or mtime behind.
         const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), body);
-        if (!(await this.recordDiscoveredFieldsCooperative(stagedState, meta))) {
+        if (!(await this.applyFieldNameSourceFacts(stagedState, file, meta))) {
           return { ok: false, cancelled: true, touchedPagePaths, semanticChanges, semanticNoops };
         }
         stagedPage.mtime = revision.mtime;
@@ -1202,111 +1186,157 @@ export class GraphBuilder {
     return { ok: this.isCurrent(), cancelled: !this.isCurrent(), touchedPagePaths, semanticChanges, semanticNoops };
   }
 
-  private recordDiscoveredFields(
+  private consumeFieldNameRecord(
     state: GraphState,
-    meta: ParsedFileMetadata,
+    record: SourceFieldNameFact,
     discoveryMode: "rebuild" | "patch",
-  ): void {
-    const recordField = (name: string): void => {
-      const normalized = normalizeFieldName(name);
-      if (!normalized) return;
-      const current = state.discoveredFields.get(normalized);
-      if (discoveryMode === "patch") {
-        // Incremental edits must not inflate counts every time the same note is saved. Exact counts
-        // are rebuilt on an authoritative full build; during patches we only discover new fields.
-        if (!current) state.discoveredFields.set(normalized, { name: name.trim(), count: 1 });
-        return;
-      }
-      state.discoveredFields.set(normalized, { name: current?.name ?? name.trim(), count: (current?.count ?? 0) + 1 });
-    };
-    Object.keys(meta.frontmatter).forEach(recordField);
-    meta.inlineFieldOccurrences.forEach((occurrence) => recordField(occurrence.name));
+  ): boolean {
+    const normalized = record.normalizedFieldName;
+    if (!normalized) return true;
+    const current = state.discoveredFields.get(normalized);
+    if (discoveryMode === "patch") {
+      // Incremental edits must not inflate counts every time the same note is saved. Exact counts
+      // are rebuilt on an authoritative full build; during patches we only discover new fields.
+      if (!current) state.discoveredFields.set(normalized, { name: record.fieldName.trim(), count: 1 });
+      return true;
+    }
+    state.discoveredFields.set(normalized, {
+      name: current?.name ?? record.fieldName.trim(),
+      count: (current?.count ?? 0) + 1,
+    });
+    return true;
   }
 
-  private async recordDiscoveredFieldsCooperative(
+  private async applyFieldNameSourceFacts(
     state: GraphState,
+    file: TFile,
     meta: ParsedFileMetadata,
   ): Promise<boolean> {
-    const recordField = (name: string): void => {
-      const normalized = normalizeFieldName(name);
-      if (!normalized) return;
-      const current = state.discoveredFields.get(normalized);
-      if (!current) state.discoveredFields.set(normalized, { name: name.trim(), count: 1 });
+    const collector = new ObsidianMetadataSourceCollector(
+      this.metadataSourceHost,
+      { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => this.plugin.getIndexSourceRevision() },
+      file,
+      meta,
+      this.metadataSourceSettings,
+      "field-names",
+    );
+    let cursor = beginSourceRead(collector.boundary);
+    const consume = async (batch: NormalizedSourceBatch): Promise<boolean> => {
+      const accepted = acceptSourceBatch(cursor, batch);
+      if (!accepted.accepted) return false;
+      for (const record of batch.records) {
+        if (record.kind !== "field-name" || record.source.semanticPath !== file.path) return false;
+        if (!this.consumeFieldNameRecord(state, record, "patch")) return false;
+      }
+      cursor = accepted.cursor;
+      return this.isCurrent();
     };
-    let processed = 0;
-    for (const name of Object.keys(meta.frontmatter)) {
-      recordField(name);
-      processed += 1;
-      if ((processed & 127) === 0 && !(await this.yieldToHost())) return false;
-    }
-    for (const occurrence of meta.inlineFieldOccurrences) {
-      recordField(occurrence.name);
-      processed += 1;
-      if ((processed & 127) === 0 && !(await this.yieldToHost())) return false;
-    }
-    return this.isCurrent();
+    if (!(await collector.collectBatches(consume))) return false;
+    return collector.isBoundaryCurrent(cursor.boundary)
+      && sourceReadCanPublish(cursor, collector.boundary)
+      && this.isCurrent();
   }
 
-  /** Incremental metadata application runs against a private patch overlay. Every potentially large
-   * collection is checkpointed so parsing a note in a worker cannot simply move the UI stall into
-   * URL/tag/evidence construction on the main thread. */
+  private unwrapNoteType(value: unknown): string | null {
+    const first: unknown = Array.isArray(value) ? value[0] : value;
+    if (typeof first !== "string" && typeof first !== "number") return null;
+    let text = String(first).trim();
+    const wiki = text.match(/^\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]$/);
+    if (wiki) text = wiki[1].trim();
+    text = text.replace(/^#/, "").trim();
+    return text || null;
+  }
+
+  private async applyMetadataSourceFacts(
+    state: GraphState,
+    page: GraphPage,
+    file: TFile,
+    meta: ParsedFileMetadata,
+    discoveryMode: "rebuild" | "patch",
+  ): Promise<boolean> {
+    const collector = new ObsidianMetadataSourceCollector(
+      this.metadataSourceHost,
+      { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => this.plugin.getIndexSourceRevision() },
+      file,
+      meta,
+      this.metadataSourceSettings,
+      "metadata",
+    );
+    let cursor = beginSourceRead(collector.boundary);
+    const aliases: string[] = [];
+    const tags: string[] = [];
+    let frontmatterNoteType: unknown;
+    let inlineNoteType: unknown;
+    let hasFrontmatterNoteType = false;
+    let hasInlineNoteType = false;
+    const primaryValues: unknown[] = [];
+    const consume = async (batch: NormalizedSourceBatch): Promise<boolean> => {
+      const accepted = acceptSourceBatch(cursor, batch);
+      if (!accepted.accepted) return false;
+      for (const record of batch.records) {
+        if (record.source.semanticPath !== page.path) return false;
+        if (record.kind === "field-name") {
+          if (!this.consumeFieldNameRecord(state, record, discoveryMode)) return false;
+          continue;
+        }
+        if (record.kind !== "semantic-metadata") return false;
+        if (record.metadataKind === "alias") {
+          if (typeof record.value !== "string") return false;
+          aliases.push(record.value);
+        } else if (record.metadataKind === "tag") {
+          if (typeof record.value !== "string") return false;
+          tags.push(record.value);
+        } else if (record.metadataKind === "note-type") {
+          if (record.provenance?.surface === "frontmatter" && !hasFrontmatterNoteType) {
+            frontmatterNoteType = record.value;
+            hasFrontmatterNoteType = true;
+          } else if (record.provenance?.surface === "inline" && !hasInlineNoteType) {
+            inlineNoteType = record.value;
+            hasInlineNoteType = true;
+          }
+        } else if (record.metadataKind === "primary-tag-field") {
+          primaryValues.push(record.value);
+        }
+      }
+      cursor = accepted.cursor;
+      return this.isCurrent();
+    };
+    if (!(await collector.collectBatches(consume))) return false;
+    if (!collector.isBoundaryCurrent(cursor.boundary) || !sourceReadCanPublish(cursor, collector.boundary)) return false;
+
+    page.aliases = aliases;
+    page.tags = tags;
+    const noteTypeInput = (hasFrontmatterNoteType ? frontmatterNoteType : undefined)
+      ?? (hasInlineNoteType ? inlineNoteType : undefined);
+    page.noteType = this.unwrapNoteType(noteTypeInput);
+
+    const styleTags = page.tags.filter((tag) => this.plugin.settings.tagStyleList.some((prefix) => tag.startsWith(prefix)));
+    const primaryTags = primaryValues
+      .flatMap((value) => typeof value === "string" ? value.match(/#[^\s\])$"'\\]+/g) ?? [] : []);
+    page.primaryStyleTag = primaryTags.find((tag) => styleTags.some((styleTag) => styleTag.startsWith(tag))) ?? styleTags[0] ?? null;
+    page.styleTags = styleTags.filter((tag) => tag !== page.primaryStyleTag);
+
+    if (discoveryMode === "patch") {
+      let processed = 0;
+      for (const tag of page.tags) {
+        const tagPage = this.ensureTagPath(state, tag);
+        if (tagPage) this.addEvidencePair(state, tagPage, page, "child", RelationType.DEFINED, LinkDirection.TO, { sourceKind: "tag-tree", definition: "tag-tree" });
+        processed += 1;
+        if ((processed & 31) === 0 && !(await this.yieldToHost())) return false;
+      }
+    }
+
+    if (!(await this.applyOntologySourceFacts(state, page, file, meta))) return false;
+    return this.applyRemainingRelationSourceFacts(state, page, file, meta);
+  }
+
   private async applyMetadataPatchCooperative(
     state: GraphState,
     page: GraphPage,
     file: TFile,
     meta: ParsedFileMetadata,
   ): Promise<boolean> {
-    page.aliases = meta.aliases;
-    page.tags = meta.tags;
-    if (!(await this.recordDiscoveredFieldsCooperative(state, meta))) return false;
-
-    const noteTypeField = normalizeFieldName(this.plugin.settings.noteTypeField);
-    const frontmatterNoteType = getNormalizedFrontmatterValues(meta, noteTypeField)[0];
-    const inlineNoteType = getNormalizedInlineFieldValues(meta, noteTypeField)[0];
-    const unwrapNoteType = (value: unknown): string | null => {
-      const first: unknown = Array.isArray(value) ? (value as unknown[])[0] : value;
-      if (typeof first !== "string" && typeof first !== "number") return null;
-      let text = String(first).trim();
-      const wiki = text.match(/^\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]$/);
-      if (wiki) text = wiki[1].trim();
-      text = text.replace(/^#/, "").trim();
-      return text || null;
-    };
-    page.noteType = unwrapNoteType(frontmatterNoteType ?? inlineNoteType);
-
-    const styleTags = page.tags.filter((tag) => this.plugin.settings.tagStyleList.some((prefix) => tag.startsWith(prefix)));
-    const primaryField = normalizeFieldName(this.plugin.settings.primaryTagField);
-    const primaryValues = getNormalizedFieldValues(meta, primaryField)
-      .flatMap((v) => typeof v === "string" ? v.match(/#[^\s\])$"'\\]+/g) ?? [] : []);
-    page.primaryStyleTag = primaryValues.find((tag) => styleTags.some((s) => s.startsWith(tag))) ?? styleTags[0] ?? null;
-    page.styleTags = styleTags.filter((tag) => tag !== page.primaryStyleTag);
-
-    let processed = 0;
-    for (const tag of page.tags) {
-      const tagPage = this.ensureTagPath(state, tag);
-      if (tagPage) this.addEvidencePair(state, tagPage, page, "child", RelationType.DEFINED, LinkDirection.TO, { sourceKind: "tag-tree", definition: "tag-tree" });
-      processed += 1;
-      if ((processed & 31) === 0 && !(await this.yieldToHost())) return false;
-    }
-
-    if (!(await this.applyOntologySourceFacts(state, page, file, meta))) return false;
-
-    this.addDatePropertyEvidence(state, page, meta);
-    if (!(await this.yieldToHost())) return false;
-    for (const reference of meta.urls) {
-      const urlPage = this.ensureUrl(state, reference.url, reference.label || reference.url);
-      this.addInferredParentChild(state, page, urlPage, "body-url", reference.line ? { line: reference.line } : undefined);
-      try {
-        const origin = new URL(reference.url).origin;
-        const originPage = this.ensureUrl(state, origin, origin);
-        const hasOriginEvidence = state.evidence.between(originPage.path, urlPage.path).some((item) => item.sourceKind === "url-origin");
-        if (!hasOriginEvidence) this.addEvidencePair(state, originPage, urlPage, "child", RelationType.INFERRED, LinkDirection.TO, { sourceKind: "url-origin", definition: "url-origin" });
-      } catch { /* malformed URL - keep the raw URL node */ }
-      processed += 1;
-      if ((processed & 31) === 0 && !(await this.yieldToHost())) return false;
-    }
-
-    this.suppressPresentationOnlyImageLinks(state, page, file, meta);
+    if (!(await this.applyMetadataSourceFacts(state, page, file, meta, "patch"))) return false;
     return this.yieldToHost();
   }
 
@@ -1317,104 +1347,102 @@ export class GraphBuilder {
     meta: ParsedFileMetadata,
     discoveryMode: "rebuild" | "patch" = "rebuild",
   ): Promise<boolean> {
-    page.aliases = meta.aliases;
-    page.tags = meta.tags;
-    this.recordDiscoveredFields(state, meta, discoveryMode);
-
-    const noteTypeField = normalizeFieldName(this.plugin.settings.noteTypeField);
-    const frontmatterNoteType = getNormalizedFrontmatterValues(meta, noteTypeField)[0];
-    const inlineNoteType = getNormalizedInlineFieldValues(meta, noteTypeField)[0];
-    const unwrapNoteType = (value: unknown): string | null => {
-      const first: unknown = Array.isArray(value) ? (value as unknown[])[0] : value;
-      if (typeof first !== "string" && typeof first !== "number") return null;
-      let text = String(first).trim();
-      const wiki = text.match(/^\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]$/);
-      if (wiki) text = wiki[1].trim();
-      text = text.replace(/^#/, "").trim();
-      return text || null;
-    };
-    // Frontmatter wins when both forms are present, but classic Dataview body fields remain valid.
-    page.noteType = unwrapNoteType(frontmatterNoteType ?? inlineNoteType);
-
-    const styleTags = page.tags.filter((tag) => this.plugin.settings.tagStyleList.some((prefix) => tag.startsWith(prefix)));
-    const primaryField = normalizeFieldName(this.plugin.settings.primaryTagField);
-    const primaryValues = getNormalizedFieldValues(meta, primaryField)
-      .flatMap((v) => typeof v === "string" ? v.match(/#[^\s\])$"'\\]+/g) ?? [] : []);
-    page.primaryStyleTag = primaryValues.find((tag) => styleTags.some((s) => s.startsWith(tag))) ?? styleTags[0] ?? null;
-    page.styleTags = styleTags.filter((tag) => tag !== page.primaryStyleTag);
-
-    if (discoveryMode === "patch") {
-      for (const tag of page.tags) {
-        const tagPage = this.ensureTagPath(state, tag);
-        if (tagPage) this.addEvidencePair(state, tagPage, page, "child", RelationType.DEFINED, LinkDirection.TO, { sourceKind: "tag-tree", definition: "tag-tree" });
-      }
-    }
-
-    if (!(await this.applyOntologySourceFacts(state, page, file, meta))) return false;
-
-    this.addDatePropertyEvidence(state, page, meta);
-
-    for (const reference of meta.urls) {
-      const urlPage = this.ensureUrl(state, reference.url, reference.label || reference.url);
-      this.addInferredParentChild(state, page, urlPage, "body-url", reference.line ? { line: reference.line } : undefined);
-      try {
-        const origin = new URL(reference.url).origin;
-        const originPage = this.ensureUrl(state, origin, origin);
-        const hasOriginEvidence = state.evidence.between(originPage.path, urlPage.path)
-          .some((item) => item.sourceKind === "url-origin");
-        if (!hasOriginEvidence) {
-          this.addEvidencePair(state, originPage, urlPage, "child", RelationType.INFERRED, LinkDirection.TO, { sourceKind: "url-origin", definition: "url-origin" });
-        }
-      } catch { /* malformed URL - keep the raw URL node */ }
-    }
-
-    this.suppressPresentationOnlyImageLinks(state, page, file, meta);
-    return this.isCurrent();
+    return this.applyMetadataSourceFacts(state, page, file, meta, discoveryMode);
   }
 
-  /**
-   * `thumbnail` / `node-image` are presentation metadata, not graph semantics. Obsidian's
-   * resolvedLinks includes links stored in those fields, so without this small reconciliation an
-   * image used only to decorate a thought also appears as an inferred child. Compare Obsidian's
-   * occurrence count with the links K-Plex can account for inside the two visual fields: only when
-   * every occurrence is presentation-only do we remove the generic inferred-link declaration.
-   * A second prose/ontology link therefore keeps the attachment visible in the Plex as expected.
-   */
-  private suppressPresentationOnlyImageLinks(
+  private consumeDatePropertyRecord(state: GraphState, page: GraphPage, record: DatePropertyOccurrence): boolean {
+    if (record.source.semanticPath !== page.path || record.target.resolvedBy !== "daily-notes") return false;
+    const targetPath = record.target.entity.semanticPath;
+    const fieldName = record.provenance?.fieldName;
+    const rawValue = record.provenance?.rawValue;
+    if (!targetPath || !fieldName || typeof rawValue !== "string") return false;
+    const target = this.ensureVirtualOrExisting(state, targetPath);
+    this.addEvidencePair(state, page, target, this.inferredRole(), RelationType.INFERRED, LinkDirection.FROM, {
+      sourceKind: "date-property",
+      definition: record.provenance?.definition ?? fieldName,
+      fieldName,
+      rawValue,
+    });
+    return true;
+  }
+
+  private consumeBodyUrlRecord(state: GraphState, page: GraphPage, record: BodyUrlOccurrence): boolean {
+    if (record.source.semanticPath !== page.path || record.target.resolvedBy !== "url") return false;
+    const url = record.target.entity.semanticPath;
+    if (!url) return false;
+    const urlPage = this.ensureUrl(state, url, record.label || url);
+    const line = record.provenance?.location?.line;
+    this.addInferredParentChild(state, page, urlPage, "body-url", line ? { line } : undefined);
+    const origin = record.origin?.entity.semanticPath;
+    if (origin) {
+      const originPage = this.ensureUrl(state, origin, origin);
+      const hasOriginEvidence = state.evidence.between(originPage.path, urlPage.path)
+        .some((item) => item.sourceKind === "url-origin");
+      if (!hasOriginEvidence) {
+        this.addEvidencePair(state, originPage, urlPage, "child", RelationType.INFERRED, LinkDirection.TO, { sourceKind: "url-origin", definition: "url-origin" });
+      }
+    }
+    return true;
+  }
+
+  private suppressPresentationOnlyImageLinkFacts(
+    state: GraphState,
+    page: GraphPage,
+    visualCounts: ReadonlyMap<string, { visual: number; host: number }>,
+  ): void {
+    if (!visualCounts.size) return;
+    for (const [targetPath, counts] of visualCounts) {
+      if (counts.host <= 0 || counts.host > counts.visual) continue;
+      state.evidence.removeDeclarationsTouching(page.path, (item) =>
+        item.declaredByPath === page.path
+        && item.declaredTargetPath === targetPath
+        && item.sourceKind === "obsidian-link");
+    }
+  }
+
+  private async applyRemainingRelationSourceFacts(
     state: GraphState,
     page: GraphPage,
     file: TFile,
     meta: ParsedFileMetadata,
-  ): void {
-    const fields = [this.plugin.settings.thumbnailProperty, this.plugin.settings.nodeImageProperty]
-      .map(normalizeFieldName)
-      .filter(Boolean);
-    if (!fields.length) return;
-
-    const visualCounts = new Map<string, number>();
-    for (const field of new Set(fields)) {
-      const values = [
-        ...getNormalizedFrontmatterValues(meta, field),
-        ...getNormalizedInlineFieldValues(meta, field),
-      ];
-      for (const value of values) {
-        for (const targetPath of extractLinksFromValue(this.app, value, file)) {
-          visualCounts.set(targetPath, (visualCounts.get(targetPath) ?? 0) + 1);
+  ): Promise<boolean> {
+    const collector = new ObsidianMetadataSourceCollector(
+      this.metadataSourceHost,
+      { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => this.plugin.getIndexSourceRevision() },
+      file,
+      meta,
+      this.metadataSourceSettings,
+      "relations",
+    );
+    let cursor = beginSourceRead(collector.boundary);
+    const visualCounts = new Map<string, { visual: number; host: number }>();
+    let processed = 0;
+    const consume = async (batch: NormalizedSourceBatch): Promise<boolean> => {
+      const accepted = acceptSourceBatch(cursor, batch);
+      if (!accepted.accepted) return false;
+      for (const record of batch.records) {
+        if (record.kind === "date-property") {
+          if (!this.consumeDatePropertyRecord(state, page, record)) return false;
+        } else if (record.kind === "body-url") {
+          if (!this.consumeBodyUrlRecord(state, page, record)) return false;
+        } else if (record.kind === "presentation-link") {
+          if (record.source.semanticPath !== page.path) return false;
+          const targetPath = record.target.entity.semanticPath;
+          if (!targetPath) return false;
+          visualCounts.set(targetPath, { visual: (visualCounts.get(targetPath)?.visual ?? 0) + 1, host: record.hostOccurrenceCount });
+        } else {
+          return false;
         }
+        processed += 1;
+        if ((processed & 31) === 0 && !(await this.yieldToHost())) return false;
       }
-    }
-    if (!visualCounts.size) return;
-
-    const resolved = this.app.metadataCache.resolvedLinks[file.path] ?? {};
-    for (const [targetPath, visualCount] of visualCounts) {
-      const totalCount = resolved[targetPath] ?? 0;
-      if (totalCount <= 0 || totalCount > visualCount) continue;
-      state.evidence.removeDeclarationsTouching(file.path, (item) =>
-        item.declaredByPath === page.path &&
-        item.declaredTargetPath === targetPath &&
-        item.sourceKind === "obsidian-link",
-      );
-    }
+      cursor = accepted.cursor;
+      return this.isCurrent();
+    };
+    if (!(await collector.collectBatches(consume))) return false;
+    if (!collector.isBoundaryCurrent(cursor.boundary) || !sourceReadCanPublish(cursor, collector.boundary)) return false;
+    this.suppressPresentationOnlyImageLinkFacts(state, page, visualCounts);
+    return this.isCurrent();
   }
 
   private addOntologyEvidence(state: GraphState, source: GraphPage, target: GraphPage, role: EvidenceRole, provenance: EvidenceProvenance): void {
@@ -1689,59 +1717,6 @@ export class GraphBuilder {
     for (const path of children) if (!(await removeIfUnused(path))) return false;
     for (const path of origins) if (!(await removeIfUnused(path))) return false;
     return this.isCurrent();
-  }
-
-  private addDatePropertyEvidence(state: GraphState, source: GraphPage, meta: ParsedFileMetadata): void {
-    const daily = this.dailyNotesSettings();
-    if (!daily) return;
-    for (const [fieldName, rawValue] of Object.entries(meta.frontmatter)) {
-      if (!this.isDateProperty(fieldName)) continue;
-      for (const value of flatten(rawValue)) {
-        if (typeof value !== "string") continue;
-        const rendered = formatDailyDate(value.trim(), daily.format);
-        if (!rendered) continue;
-        const relative = normalizePath([daily.folder, rendered].filter(Boolean).join("/"));
-        const targetPath = relative.toLowerCase().endsWith(".md") ? relative : `${relative}.md`;
-        const target = this.ensureVirtualOrExisting(state, targetPath);
-        this.addEvidencePair(state, source, target, this.inferredRole(), RelationType.INFERRED, LinkDirection.FROM, {
-          sourceKind: "date-property",
-          definition: fieldName,
-          fieldName,
-          rawValue: value,
-        });
-      }
-    }
-  }
-
-  private isDateProperty(fieldName: string): boolean {
-    const app = this.app as App & {
-      metadataTypeManager?: {
-        getPropertyInfo?: (name: string) => { widget?: string } | null;
-        getAssignedWidget?: (name: string) => string | null;
-      };
-    };
-    const info = app.metadataTypeManager?.getPropertyInfo?.(fieldName);
-    const widget = info?.widget ?? app.metadataTypeManager?.getAssignedWidget?.(fieldName);
-    return widget === "date";
-  }
-
-  private dailyNotesSettings(): { folder: string; format: string } | null {
-    const app = this.app as App & {
-      internalPlugins?: {
-        getPluginById?: (id: string) => unknown;
-        plugins?: Record<string, unknown>;
-      };
-    };
-    const registry = app.internalPlugins;
-    const candidate = registry?.getPluginById?.("daily-notes") ?? registry?.plugins?.["daily-notes"];
-    if (!candidate || typeof candidate !== "object") return null;
-    const record = candidate as Record<string, unknown>;
-    if (record.enabled === false) return null;
-    const instance = record.instance && typeof record.instance === "object" ? record.instance as Record<string, unknown> : record;
-    const options = instance.options && typeof instance.options === "object" ? instance.options as Record<string, unknown> : instance;
-    const folder = typeof options.folder === "string" ? options.folder : "";
-    const format = typeof options.format === "string" && options.format.trim() ? options.format : "YYYY-MM-DD";
-    return { folder: normalizePath(folder), format };
   }
 
   private ensureVirtual(state: GraphState, path: string): GraphPage {

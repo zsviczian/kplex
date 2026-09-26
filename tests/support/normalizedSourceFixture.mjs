@@ -304,7 +304,7 @@ export function produceNormalizedFixtureRecords(root, options = {}) {
         }
         if (presentationFields.has(normalizedName)) for (const link of rawLinkTargets(value)) {
           if (/^https?:\/\//i.test(link.raw)) continue;
-          records.push({ kind: "presentation-link", surface: "frontmatter", source, sourceRevision: sourceRevisionFor(path), target: refForInternal(path, link.raw),
+          records.push({ kind: "presentation-link", hostOccurrenceCount: 0, surface: "frontmatter", source, sourceRevision: sourceRevisionFor(path), target: refForInternal(path, link.raw),
             provenance: { definition: normalizedName, fieldName: field.name, normalizedFieldName: normalizedName, rawValue: value, location: { line: field.line } } });
         }
       }
@@ -319,7 +319,7 @@ export function produceNormalizedFixtureRecords(root, options = {}) {
       }
       if (presentationFields.has(occurrence.normalizedName)) for (const link of rawLinkTargets(occurrence.value)) {
         if (/^https?:\/\//i.test(link.raw)) continue;
-        records.push({ kind: "presentation-link", surface: "inline", source, sourceRevision: sourceRevisionFor(path), target: refForInternal(path, link.raw),
+        records.push({ kind: "presentation-link", hostOccurrenceCount: 0, surface: "inline", source, sourceRevision: sourceRevisionFor(path), target: refForInternal(path, link.raw),
           provenance: { definition: occurrence.normalizedName, fieldName: occurrence.name, normalizedFieldName: occurrence.normalizedName, rawValue: occurrence.value,
             location: { line: occurrence.line, start: occurrence.start, end: occurrence.end } } });
       }
@@ -366,6 +366,10 @@ export function produceNormalizedFixtureRecords(root, options = {}) {
     records.push({ kind: "file-tree", source: parent, sourceRevision: sourceRevisionFor("vault-tree"), target: targetRef(child, child.semanticPath, "structural") });
   }
 
+  for (const record of records) if (record.kind === "presentation-link") {
+    record.hostOccurrenceCount = records.find(r => r.kind === "obsidian-link" && r.source.semanticPath === record.source.semanticPath
+      && r.target.entity.semanticPath === record.target.entity.semanticPath)?.occurrenceCount ?? 0;
+  }
   const allTags = new Set(records.filter((record) => record.kind === "semantic-metadata" && record.metadataKind === "tag").map((record) => record.value));
   for (const tag of [...allTags].sort()) {
     const parts = tag.replace(/^#/, "").split("/").filter(Boolean);

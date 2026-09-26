@@ -248,6 +248,7 @@ for (const file of [
   "src/adapters/obsidian/structuralSourceCollector.ts",
   "src/adapters/obsidian/hostLinkSourceCollector.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts",
+  "src/adapters/obsidian/metadataSourceCollector.ts",
   "src/util/perf.ts",
   "src/main.ts",
   "src/index/fieldParser.ts",

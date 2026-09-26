@@ -86,11 +86,19 @@ export type SourceEntityFact = SourceRecordBase & Readonly<{
 }>;
 
 /** Only graph-relevant metadata is normalized; arbitrary frontmatter values are deliberately absent. */
+export type SemanticMetadataScalar = string | number | boolean | null | Readonly<{ unsupported: true }>;
+export type SemanticMetadataValue = SemanticMetadataScalar | readonly SemanticMetadataScalar[];
+
 export type SemanticMetadataOccurrence = SourceRecordBase & Readonly<{
   kind: "semantic-metadata";
-  metadataKind: "alias" | "tag" | "note-type" | "primary-tag-field";
+}> & (Readonly<{
+  metadataKind: "alias" | "tag";
   value: string;
-}>;
+}> | Readonly<{
+  metadataKind: "note-type" | "primary-tag-field";
+  /** Unsupported objects/nested values use a plain marker, preserving non-null precedence. */
+  value: SemanticMetadataValue;
+}>);
 
 /** Property discovery needs names, including non-ontology fields, but never their arbitrary values. */
 export type SourceFieldNameFact = SourceRecordBase & Readonly<{
@@ -152,6 +160,8 @@ export type DatePropertyOccurrence = SourceRecordBase & Readonly<{
  */
 export type PresentationLinkOccurrence = SourceRecordBase & Readonly<{
   kind: "presentation-link";
+  /** Exact aggregate for this visual target only; no retained whole-vault link map. */
+  hostOccurrenceCount: number;
   surface: "frontmatter" | "inline";
   target: SourceTargetRef;
 }>;

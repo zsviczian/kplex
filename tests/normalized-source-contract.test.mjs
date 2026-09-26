@@ -158,6 +158,7 @@ test("source-relative/case-distinct targets, subpaths, image-only reconciliation
   const imagePresentation = byKind(records, "presentation-link").find((record) => record.source.semanticPath === "One/Source.md" && record.target.entity.semanticPath === "Assets/picture.png");
   assert(imageHost && imagePresentation, "image field link must be present both in host summary and presentation-only reconciliation facts");
   assert.equal(imageHost.target.entity.id, imagePresentation.target.entity.id);
+  assert.equal(imagePresentation.hostOccurrenceCount, imageHost.occurrenceCount);
   assert.equal(imagePresentation.provenance.fieldName, "thumbnail");
 
   const shared = byKind(records, "body-url").filter((record) => record.target.entity.semanticPath === "https://shared.example/item");
