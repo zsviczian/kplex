@@ -6,6 +6,11 @@
  * every `{placeholder}` used by the message. Do not put vault/user data into keys.
  */
 export const englishCatalog = {
+  "collection.showMore": {
+    message: "Show {count} more",
+    context: "Button that renders the next bounded batch in a settings manager list.",
+    params: ["count"],
+  },
   "command.openGraph": {
     message: "Open graph",
     context: "Command palette action that opens K-Plex in a normal graph tab.",

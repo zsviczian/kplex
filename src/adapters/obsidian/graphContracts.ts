@@ -1,0 +1,52 @@
+import type { ExcaliBrainSettings } from "../../settings";
+import type { GraphPage } from "../../types";
+import { nodeId, type GraphNodeKind, type GraphNodeView } from "../../core/graph/model";
+import type { SemanticIndexSettings } from "../../core/graph/settings";
+
+function kindOf(page: GraphPage): GraphNodeKind {
+  if (page.isFolder) return "container";
+  if (page.isTag) return "tag";
+  if (page.url) return "url";
+  if (!page.file) return "unresolved";
+  // Match the existing builder/render predicates; changing extension case rules is not C08.
+  return page.file.extension === "md" ? "document" : "attachment";
+}
+
+export function graphNodeViewFromLegacy(page: GraphPage): GraphNodeView {
+  const kind = kindOf(page);
+  return {
+    id: nodeId(page.path),
+    name: page.name,
+    kind,
+    resolution: kind === "unresolved" ? "unresolved" : "resolved",
+    url: page.url,
+    aliases: page.aliases,
+    tags: page.tags,
+    noteType: page.noteType,
+    primaryStyleTag: page.primaryStyleTag,
+    styleTags: page.styleTags,
+    maxLabelLength: page.maxLabelLength,
+    ...(page.file ? {
+      file: {
+        name: page.file.name,
+        extension: page.file.extension,
+        path: page.file.path,
+        mtime: page.mtime,
+      },
+    } : {}),
+  };
+}
+
+export function semanticIndexSettingsFromLegacy(settings: ExcaliBrainSettings): SemanticIndexSettings {
+  return {
+    hierarchy: settings.hierarchy,
+    inferAllLinksAsFriends: settings.inferAllLinksAsFriends,
+    inverseInfer: settings.inverseInfer,
+    excalibrainFilepath: settings.excalibrainFilepath,
+    showFullTagName: settings.showFullTagName,
+    noteTypeField: settings.noteTypeField,
+    primaryTagField: settings.primaryTagField,
+    tagStyleList: settings.tagStyleList,
+    maxLabelLength: settings.baseNodeStyle.maxLabelLength ?? 30,
+  };
+}

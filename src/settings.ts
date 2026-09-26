@@ -11,6 +11,8 @@ import {
 import type ExcaliBrainPlugin from "./main";
 import type { Arrowhead, Hierarchy, LinkStyle, NodeStyle } from "./types";
 import { sanitizeGraphLensDefinitions, type GraphLensDefinition } from "./lens/GraphLens";
+import { collectionWindow } from "./ui/components/collectionWindow";
+import { createObsidianTranslator } from "./adapters/obsidian/localization";
 
 export const DEFAULT_LINK_STYLE: LinkStyle = {
   strokeColor: "#696969ff",
@@ -852,6 +854,7 @@ class OntologyLinkStyleModal extends Modal {
 }
 
 class OntologyLinkStylesManagerModal extends Modal {
+  private readonly translate = createObsidianTranslator();
   private search = "";
   private role = "all";
   // Modal already owns a `scope: Scope` keyboard-handler property. Keep this UI filter distinct.
@@ -950,7 +953,8 @@ class OntologyLinkStylesManagerModal extends Modal {
       return;
     }
 
-    for (const field of matches.slice(0, this.visibleLimit)) {
+    const windowed = collectionWindow(matches, this.visibleLimit, 20);
+    for (const field of windowed.visible) {
       const style = this.getStyle(field.name);
       const customized = hasMeaningfulLinkOverride(style, this.baseStyle);
       const effective = { ...this.baseStyle, ...(style ?? {}) };
@@ -972,10 +976,10 @@ class OntologyLinkStylesManagerModal extends Modal {
       appendIcon(row, "chevron-right");
       row.addEventListener("click", () => this.onEdit(field.name, () => this.renderList()));
     }
-    if (matches.length > this.visibleLimit) {
+    if (windowed.remaining > 0) {
       const more = this.listEl.createEl("button", {
         cls: "kplex-style-manager-more",
-        text: `Show ${Math.min(20, matches.length - this.visibleLimit)} more`,
+        text: this.translate("collection.showMore", { count: windowed.nextCount }),
       });
       more.type = "button";
       more.addEventListener("click", () => {
@@ -991,6 +995,7 @@ class OntologyLinkStylesManagerModal extends Modal {
 }
 
 class NoteTypeStylesManagerModal extends Modal {
+  private readonly translate = createObsidianTranslator();
   private search = "";
   private visibleLimit = 12;
   private listEl: HTMLElement | null = null;
@@ -1049,7 +1054,8 @@ class NoteTypeStylesManagerModal extends Modal {
       return;
     }
 
-    for (const name of matches.slice(0, this.visibleLimit)) {
+    const windowed = collectionWindow(matches, this.visibleLimit, 20);
+    for (const name of windowed.visible) {
       const style = this.getStyle(name);
       const row = this.listEl.createEl("button", { cls: "kplex-style-manager-row" });
       row.type = "button";
@@ -1064,10 +1070,10 @@ class NoteTypeStylesManagerModal extends Modal {
       appendIcon(row, "chevron-right");
       row.addEventListener("click", () => this.onEdit(name, () => this.renderList()));
     }
-    if (matches.length > this.visibleLimit) {
+    if (windowed.remaining > 0) {
       const more = this.listEl.createEl("button", {
         cls: "kplex-style-manager-more",
-        text: `Show ${Math.min(20, matches.length - this.visibleLimit)} more`,
+        text: this.translate("collection.showMore", { count: windowed.nextCount }),
       });
       more.type = "button";
       more.addEventListener("click", () => {
@@ -1085,6 +1091,7 @@ class NoteTypeStylesManagerModal extends Modal {
 type UnassignedOntologyField = { normalized: string; name: string; count: number };
 
 class UnassignedOntologyManagerModal extends Modal {
+  private readonly translate = createObsidianTranslator();
   private search = "";
   private sortMode: "frequency" | "name" = "frequency";
   private visibleLimit = 16;
@@ -1166,7 +1173,8 @@ class UnassignedOntologyManagerModal extends Modal {
       return;
     }
 
-    for (const field of matches.slice(0, this.visibleLimit)) {
+    const windowed = collectionWindow(matches, this.visibleLimit, 24);
+    for (const field of windowed.visible) {
       const row = this.listEl.createEl("button", { cls: "kplex-style-manager-row" });
       row.type = "button";
       const icon = row.createSpan({ cls: "kplex-style-manager-property-icon" });
@@ -1181,10 +1189,10 @@ class UnassignedOntologyManagerModal extends Modal {
       row.addEventListener("click", () => this.onAssign(field.name, () => this.renderList()));
     }
 
-    if (matches.length > this.visibleLimit) {
+    if (windowed.remaining > 0) {
       const more = this.listEl.createEl("button", {
         cls: "kplex-style-manager-more",
-        text: `Show ${Math.min(24, matches.length - this.visibleLimit)} more`,
+        text: this.translate("collection.showMore", { count: windowed.nextCount }),
       });
       more.type = "button";
       more.addEventListener("click", () => {
