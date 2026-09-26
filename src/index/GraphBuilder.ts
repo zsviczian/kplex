@@ -1,12 +1,8 @@
 import { Platform, TFile, type App } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
-import {
-  mergeFileMetadata,
-  normalizeFieldName,
-  type ParsedBodyMetadata,
-  type ParsedFileMetadata,
-} from "./fieldParser";
+import { normalizeFieldName, type ParsedBodyMetadata, type ParsedFileMetadata } from "../core/parser/metadata";
+import { mergeFileMetadata } from "./fieldParser";
 import { MetadataParseCancelledError, type MetadataParser } from "./MetadataParser";
 import type { KplexIndexedDbCache } from "./IndexedDbCache";
 import type { EvidenceProvenance, EvidenceRole, EvidenceSourceKind } from "./RelationEvidence";

@@ -9,7 +9,8 @@ import { MaterializeGhostModal, type GhostMaterializationKind, type GhostMateria
 import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, type RemainingNodeReference } from "./ui/DeleteNodeModal";
 import { LinkDirection, type GateRole, type GraphPage, type RelationshipRole } from "./types";
 import { OntologySuggester } from "./editor/OntologySuggester";
-import { extractLinksFromValue, normalizeFieldName, parseBodyMetadata } from "./index/fieldParser";
+import { normalizeFieldName, parseBodyMetadata } from "./core/parser/metadata";
+import { extractLinksFromValue } from "./index/fieldParser";
 import type { RelationEvidence } from "./index/RelationEvidence";
 import { AddToOntologyModal, type OntologyAssignmentRole } from "./ui/AddToOntologyModal";
 import { NoteTypeModal } from "./ui/NoteTypeModal";

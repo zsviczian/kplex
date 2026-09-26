@@ -24,7 +24,7 @@ import {
   normalizeFieldName,
   type ExtractedLinkReference,
   type ParsedFileMetadata,
-} from "../../index/fieldParser";
+} from "../../core/parser/metadata";
 
 export type ObsidianMetadataSourceRuntime = Readonly<{
   isCurrent: () => boolean;

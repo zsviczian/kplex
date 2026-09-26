@@ -26,6 +26,7 @@ function compile(relativePath) {
 
 for (const file of [
   "src/core/graph/model.ts",
+  "src/core/parser/metadata.ts",
   "src/core/graph/source.ts",
   "src/index/fieldParser.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",

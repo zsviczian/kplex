@@ -54,6 +54,18 @@ test("host adapters may import core while core cannot import adapters", () => {
   }, failWith("graph cannot import adapter"));
 });
 
+
+test("portable parser layer cannot reach host globals or graph semantics", () => {
+  fixture({ "src/core/parser/root.ts": 'export const timer = window.setTimeout(() => {}, 0);' }, failWith("forbidden global window"));
+  fixture({
+    "src/core/parser/root.ts": 'import type { Node } from "../graph/model"; export type Parsed = Node;',
+    "src/core/graph/model.ts": 'export type Node = string;',
+  }, failWith("parser cannot import graph"));
+  fixture({
+    "src/core/parser/root.ts": 'export type Parsed = { value: string };',
+    "src/adapters/obsidian/source.ts": 'import type { Parsed } from "../../core/parser/root"; export type Bound = Parsed;',
+  }, (result) => assert.deepEqual(result.errors, []));
+});
 test("new source cannot hide in an unclassified core folder or declaration file", () => {
   fixture({ "src/core/other/root.ts": "export const value = 1;" }, failWith("unclassified migrated path"));
   fixture({ "src/core/graph/types.d.ts": 'import type { App } from "obsidian"; export type Host = App;' }, failWith("forbidden external import obsidian"));

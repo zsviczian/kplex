@@ -1,7 +1,8 @@
 import type { App, CachedMetadata } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Neighbour, type Neighborhood, type Relation, type Role } from "../types";
-import { extractLinksFromValue, normalizeFieldName, parseBodyMetadataCooperative, type ParsedBodyMetadata } from "./fieldParser";
+import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
+import { extractLinksFromValue, parseBodyMetadataCooperative } from "./fieldParser";
 import type { GraphIndex } from "./GraphIndex";
 import { applyEvidenceToRelation, applyOntologyPrecedence, emptyRelation, type EvidenceRole, type RelationEvidence } from "./RelationEvidence";
 import { classifyRelation, explainResolvedRelationship, type RelationshipExplanation } from "./RelationResolver";

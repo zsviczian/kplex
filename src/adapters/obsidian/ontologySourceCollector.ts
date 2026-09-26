@@ -20,7 +20,7 @@ import {
   normalizeFieldName,
   type ExtractedLinkReference,
   type ParsedFileMetadata,
-} from "../../index/fieldParser";
+} from "../../core/parser/metadata";
 
 export type OntologySourceCollectorHost = Readonly<{
   metadataCache: Readonly<{

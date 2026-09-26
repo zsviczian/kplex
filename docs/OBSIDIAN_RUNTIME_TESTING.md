@@ -22,6 +22,8 @@ Diagnostics return a copy containing run number, phase, last active phase, epoch
 
 Every five seconds the watchdog checks for **90 seconds without observable work**, including metadata/preview reads. Search/resolver loops also signal sampled progress. This is not a 90-second startup limit. A suspended or synchronously blocked event loop delays the check until it can run again. Timeout invalidates the run, releases the public wait and lets startup rebuild. A preview remains non-authoritative. Diagnostics remain `timed-out` after a successful fallback rebuild: inspect readiness separately.
 
+Stop dependent probes when a readiness prerequisite fails; a shell driver can use `set -e`, and a tool driver must inspect each result before continuing. Require both current index readiness and authoritative hydration before hashing, and reject captures whose graph state changes across awaits. A preview may contain nodes with no authoritative declarations; an empty preview hash is not a semantic regression or an acceptance comparison.
+
 Poll short serializable probes instead of leaving CLI eval awaiting a potentially stuck promise. `waitForSnapshotHydration()` is useful inside a bounded test controller. A green indicator alone does not prove equality: compare cardinality, representative search and relationship evidence with the same fixture.
 
 ## Reload, fault injection and cleanup

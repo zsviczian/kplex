@@ -14,7 +14,8 @@ import {
   type Role,
 } from "../types";
 import { GraphBuilder, type FieldCacheEntry } from "./GraphBuilder";
-import { extractLinksFromValue, normalizeFieldName, type ParsedBodyMetadata } from "./fieldParser";
+import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
+import { extractLinksFromValue } from "./fieldParser";
 import { KplexIndexedDbCache, type IndexedDbSnapshotMeta } from "./IndexedDbCache";
 import { createGraphState, getGraphPage } from "./GraphState";
 import type { EvidenceRole, EvidenceSourceKind, RelationEvidence } from "./RelationEvidence";

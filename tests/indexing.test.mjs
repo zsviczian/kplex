@@ -239,6 +239,7 @@ for (const file of [
   "src/types.ts",
   "src/core/plex/viewPresentation.ts",
   "src/core/graph/model.ts",
+  "src/core/parser/metadata.ts",
   "src/core/graph/source.ts",
   "src/core/plex/predicate.ts",
   "src/core/plex/predicateParser.ts",
@@ -1815,6 +1816,9 @@ try {
   for (const sample of grammarSamples) {
     assert.deepEqual(await workerParser.parse(sample), parseBodyMetadataCore(sample), `Worker parser differs for ${JSON.stringify(sample)}`);
   }
+  const workerCancelPromise = workerParser.parse("Parent:: [[cancel-worker]]");
+  workerParser.cancelPending();
+  await assert.rejects(workerCancelPromise, MetadataParseCancelledError, "Worker cancellation must reject pending parses with the production cancellation error");
   workerParser.destroy();
   if (originalWorker === undefined) delete globalThis.Worker; else globalThis.Worker = originalWorker;
 

@@ -6,6 +6,7 @@ import ts from "typescript";
 const LAYERS = [
   ["src/lang/", "lang"],
   ["src/core/contracts/", "contracts"],
+  ["src/core/parser/", "parser"],
   ["src/core/graph/", "graph"],
   ["src/core/plex/", "plex"],
   ["src/application/", "application"],
@@ -16,14 +17,15 @@ const LAYERS = [
 const ALLOWED = {
   lang: new Set(["lang"]),
   contracts: new Set(["contracts"]),
+  parser: new Set(["parser"]),
   graph: new Set(["contracts", "graph"]),
   plex: new Set(["contracts", "graph", "plex"]),
   application: new Set(["contracts", "graph", "plex", "application"]),
   components: new Set(["components"]),
   features: new Set(["lang", "contracts", "graph", "plex", "application", "components", "features"]),
-  adapter: new Set(["lang", "contracts", "graph", "plex", "application", "components", "features", "adapter"]),
+  adapter: new Set(["lang", "contracts", "parser", "graph", "plex", "application", "components", "features", "adapter"]),
 };
-const PORTABLE = new Set(["lang", "contracts", "graph", "plex", "application", "components", "features"]);
+const PORTABLE = new Set(["lang", "contracts", "parser", "graph", "plex", "application", "components", "features"]);
 const UI = new Set(["components", "features"]);
 const SHARED_GLOBALS = new Set(["globalThis", "localStorage", "sessionStorage", "indexedDB", "IDBDatabase", "caches", "process", "Buffer", "eval", "Function"]);
 const CORE_GLOBALS = new Set(["window", "document", "self", "navigator", "HTMLElement", "Element", "Document", "Node", "MutationObserver", "ResizeObserver", "Worker", "performance", "setTimeout", "setInterval", "requestAnimationFrame", "FileReader", "Image"]);

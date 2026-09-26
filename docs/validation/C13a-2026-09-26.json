@@ -1,0 +1,593 @@
+{
+  "checkpoint": "C13a",
+  "status": "accepted",
+  "acceptedBaseline": "6af77d0306f1585ea8406c5eff78058b4d63444c",
+  "node": "v22.22.2",
+  "npm": "10.9.7",
+  "sourceHashes": {
+    "package.json": "5189054fae63eaf74be9a6f411af009c2a530c90e3e689027be3d94de4deb0ca",
+    "scripts/check-architecture.mjs": "95aa92d957659b7af85c0609a2274832d9f835c260eefc2747841347d0cec17f",
+    "src/adapters/obsidian/metadataSourceCollector.ts": "4130f647190006ef0d6266c15a70d2976787eb0448c7d6fabd5451e06925dc6d",
+    "src/adapters/obsidian/ontologySourceCollector.ts": "92aeb96e57689d193c1ad8b724842ceaa9ba87a1a65461ce6bc9eb2068e1fa02",
+    "src/index/GraphBuilder.ts": "5cf2453e0acba3ce87cb095c2270c57ca61d483dbd4b891d7de6ca27cbf7fbab",
+    "src/index/GraphIndex.ts": "b0c5d0ff4136a21dcad06fb93dd2aa1e35723898d726267236542681796e2d85",
+    "src/index/IndexedDbCache.ts": "fbe07692903f94281de3d517e9720ddd239750115f84d6fedc55c4a2fbb8b5a0",
+    "src/index/MetadataParseWorker.ts": "299dcf1f49e8e5b1e1f9f041e43d2cb5f847b31715794aedd1d812ed6ad8ab17",
+    "src/index/MetadataParser.ts": "6e0457100a55f61778b8b7a80445ef0dde09162209c1129ea4eb54a6a764c2f6",
+    "src/index/SectionExpansion.ts": "aaeee805887ab32ad1d335383ef11f7a24a0df5e2a4a7412ce0e57968c6adead",
+    "src/index/fieldParser.ts": "4c6dccf5ffc09ebb72ff3f3d36ff0eec9f81083bb3a2e17970df1ec6f227c097",
+    "src/main.ts": "89743d511719c26ee79214f7825c4ef14a41864619db86cf48488796ad54c52b",
+    "tests/architecture.test.mjs": "a359f21f0a5636a216763fa5ce6b3dde0b93338d7bb5c5cb708a0e9d829c8014",
+    "tests/indexing.test.mjs": "bdbfdecc645ffc84e6e91ae654502368c24b11347cdb33ecc4cf8fabd2a15939",
+    "tests/metadata-source-collector.test.mjs": "9517192b6cf70f8f5016cc2643807ffe1e65a025179c2cfc38ab8fbac5a9f8e0",
+    "tests/ontology-source-collector.test.mjs": "542d4aece57bc830a6e176c0e14441a8d27f3d7cd4578dbff02ca78f0919b94e",
+    "src/core/parser/metadata.ts": "4aa9c2d6410267b4abb4b65fa52ec84ad5a48d129b1954993f37c00c419ebb5b",
+    "tests/parser-core.test.mjs": "5a1ea177fa4c3b3a4b179fd5f150547c7631a28cfea0275e6210cbfd71904556",
+    "tests/fixtures/parser-c12c-oracle.json": "fabc5c02ed35b2e9345ea35315650ede411b8c782cbb6d8c4d597bd957fdf79a"
+  },
+  "portable": {
+    "cleanNpmCi": "passed, 317 packages",
+    "verify": "passed",
+    "finalVerifyObsidianIncludesVerify": "passed",
+    "architecture": {
+      "roots": 28,
+      "reachable": 69,
+      "violations": 0
+    },
+    "architectureTests": 7,
+    "restrictedCoreTests": 22,
+    "aggregateNodeTests": 55,
+    "browserTests": 4,
+    "indexing": "assertions 1\u201368 + P1\u2013P17 and additional watchdog/placeholder assertions passed unchanged",
+    "lint": {
+      "errors": 0,
+      "legacyWarnings": 24
+    },
+    "build": "real installed Obsidian types passed",
+    "diffCheck": "passed"
+  },
+  "acceptedSourceComparison": {
+    "identicalMovedFunctions": [
+      "parseBodyMetadataCore",
+      "splitInternalSubpath",
+      "extractLinkReferencesFromValue",
+      "iterateLinkReferencesFromValue",
+      "getNormalizedFrontmatterValues",
+      "getNormalizedInlineFieldValues",
+      "getInlineFieldOccurrences",
+      "getNormalizedFieldValues"
+    ],
+    "cooperative": "identical except explicit runtime injection/guard",
+    "acceptedOracleBodyCases": 33,
+    "acceptedOraclePropertyCases": 5
+  },
+  "nativeParser": {
+    "phase": "done",
+    "workerCases": 33,
+    "fallbackCases": 33,
+    "hiddenSamples": 0,
+    "realWorker": true,
+    "platformIos": false,
+    "forcedFallback": true,
+    "largeNoteBytes": 950000,
+    "largeOutput": {
+      "fields": 0,
+      "urls": 48
+    },
+    "workerCancelled": true,
+    "fallbackCancelled": true,
+    "graphUnchanged": true,
+    "parsersDisposed": true,
+    "maxGapMs": 1337.5,
+    "p95GapMs": 32.599999997764826
+  },
+  "nativeMetadata": {
+    "initial": {
+      "ready": true,
+      "type": "Concept",
+      "aliases": [
+        "C12c native alias"
+      ],
+      "tags": [
+        "#Inline",
+        "#c12c-native"
+      ],
+      "relevant": [
+        {
+          "declaredByPath": "C13a-Review-Second.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://c12c-review.example/shared",
+          "direction": 2,
+          "line": 1,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "body-url",
+          "sourcePath": "C13a-Review-Second.md",
+          "targetPath": "https://c12c-review.example/shared"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "2026-09-18.md",
+          "definition": "date",
+          "direction": 2,
+          "fieldName": "date",
+          "rawValue": "2026-09-18",
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "date-property",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "2026-09-18.md"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "Concept",
+          "direction": 2,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "unresolved-link",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "Concept"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://%",
+          "direction": 2,
+          "line": 11,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "body-url",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "https://%"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://c12c-review.example/shared",
+          "direction": 2,
+          "line": 10,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "body-url",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "https://c12c-review.example/shared"
+        },
+        {
+          "declaredByPath": "https://c12c-review.example",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://c12c-review.example/shared",
+          "definition": "url-origin",
+          "direction": 1,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "url-origin",
+          "sourcePath": "https://c12c-review.example",
+          "targetPath": "https://c12c-review.example/shared"
+        }
+      ],
+      "linkCount": 2,
+      "dateType": {
+        "name": "date",
+        "widget": "date"
+      },
+      "dailyEnabled": true
+    },
+    "edited": {
+      "ready": true,
+      "type": "Updated",
+      "aliases": [
+        "C12c native alias"
+      ],
+      "tags": [
+        "#Inline",
+        "#c12c-native"
+      ],
+      "relevant": [
+        {
+          "declaredByPath": "C13a-Review-Second.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://c12c-review.example/shared",
+          "direction": 2,
+          "line": 1,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "body-url",
+          "sourcePath": "C13a-Review-Second.md",
+          "targetPath": "https://c12c-review.example/shared"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "2026-09-19.md",
+          "definition": "date",
+          "direction": 2,
+          "fieldName": "date",
+          "rawValue": "2026-09-19",
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "date-property",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "2026-09-19.md"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "C13a-Review-Image.md",
+          "direction": 2,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "obsidian-link",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "C13a-Review-Image.md"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://%",
+          "direction": 2,
+          "line": 11,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "body-url",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "https://%"
+        },
+        {
+          "declaredByPath": "https://c12c-review.example",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://c12c-review.example/shared",
+          "definition": "url-origin",
+          "direction": 1,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "url-origin",
+          "sourcePath": "https://c12c-review.example",
+          "targetPath": "https://c12c-review.example/shared"
+        }
+      ],
+      "counts": {
+        "patches": 1,
+        "rebuilds": 0
+      },
+      "linkCount": 3,
+      "dateType": {
+        "name": "date",
+        "widget": "date"
+      },
+      "dailyEnabled": true
+    },
+    "rebuilt": {
+      "ready": true,
+      "type": "Updated",
+      "aliases": [
+        "C12c native alias"
+      ],
+      "tags": [
+        "#Inline",
+        "#c12c-native"
+      ],
+      "relevant": [
+        {
+          "declaredByPath": "C13a-Review-Second.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://c12c-review.example/shared",
+          "direction": 2,
+          "line": 1,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "body-url",
+          "sourcePath": "C13a-Review-Second.md",
+          "targetPath": "https://c12c-review.example/shared"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "2026-09-19.md",
+          "definition": "date",
+          "direction": 2,
+          "fieldName": "date",
+          "rawValue": "2026-09-19",
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "date-property",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "2026-09-19.md"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "C13a-Review-Image.md",
+          "direction": 2,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "obsidian-link",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "C13a-Review-Image.md"
+        },
+        {
+          "declaredByPath": "C13a-Review-Source.md",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://%",
+          "direction": 2,
+          "line": 11,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "body-url",
+          "sourcePath": "C13a-Review-Source.md",
+          "targetPath": "https://%"
+        },
+        {
+          "declaredByPath": "https://c12c-review.example",
+          "declaredRole": "child",
+          "declaredTargetPath": "https://c12c-review.example/shared",
+          "definition": "url-origin",
+          "direction": 1,
+          "relationType": 2,
+          "role": "child",
+          "sourceKind": "url-origin",
+          "sourcePath": "https://c12c-review.example",
+          "targetPath": "https://c12c-review.example/shared"
+        }
+      ],
+      "linkCount": 3,
+      "dateType": {
+        "name": "date",
+        "widget": "date"
+      },
+      "dailyEnabled": true
+    }
+  },
+  "nativeFinalRunner": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "startedAt": "2026-09-26T15:12:44.651Z",
+    "source": {
+      "revision": "6af77d0306f1585ea8406c5eff78058b4d63444c",
+      "dirty": true,
+      "node": "v22.22.2",
+      "os": "darwin 23.5.0"
+    },
+    "target": {
+      "vaultName": "kplex-test",
+      "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+      "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+    },
+    "capabilities": {
+      "version": "1.14.2 (installer 1.14.0)",
+      "commands": [
+        "version",
+        "vault",
+        "plugin:disable",
+        "plugin:enable",
+        "commands",
+        "command",
+        "dev:dom",
+        "dev:errors"
+      ]
+    },
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "27ee495ca61e5b073a8b4be90572125965ce4bade24372836c6ba82e512e1627",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+      },
+      "pluginVersion": "0.0.5",
+      "stagedHashes": {
+        "main.js": "27ee495ca61e5b073a8b4be90572125965ce4bade24372836c6ba82e512e1627",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .excalibrain-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 211
+      }
+    ],
+    "completedAt": "2026-09-26T15:13:18.745Z"
+  },
+  "finalProduction": {
+    "nodes": 20701,
+    "relations": 1225746,
+    "declarations": 715030,
+    "declarationHash": "587e33e9a4eba5e6804f7348c39aa293dbe5ca0f7c8c1c4330520569be85bb57",
+    "fields": [
+      [
+        "aliases",
+        {
+          "name": "aliases",
+          "count": 20002
+        }
+      ],
+      [
+        "challenger",
+        {
+          "name": "Challenger",
+          "count": 2
+        }
+      ],
+      [
+        "child",
+        {
+          "name": "Child",
+          "count": 20004
+        }
+      ],
+      [
+        "children",
+        {
+          "name": "Children",
+          "count": 1
+        }
+      ],
+      [
+        "date",
+        {
+          "name": "date",
+          "count": 1
+        }
+      ],
+      [
+        "follow-up-date",
+        {
+          "name": "follow-up-date",
+          "count": 1
+        }
+      ],
+      [
+        "friend",
+        {
+          "name": "Friend",
+          "count": 20003
+        }
+      ],
+      [
+        "hidden",
+        {
+          "name": "Hidden",
+          "count": 1
+        }
+      ],
+      [
+        "milestone-date",
+        {
+          "name": "milestone-date",
+          "count": 1
+        }
+      ],
+      [
+        "next",
+        {
+          "name": "Next",
+          "count": 20001
+        }
+      ],
+      [
+        "note-type",
+        {
+          "name": "Note type",
+          "count": 20003
+        }
+      ],
+      [
+        "opposes",
+        {
+          "name": "opposes",
+          "count": 20000
+        }
+      ],
+      [
+        "parent",
+        {
+          "name": "Parent",
+          "count": 20004
+        }
+      ],
+      [
+        "previous",
+        {
+          "name": "Previous",
+          "count": 2001
+        }
+      ],
+      [
+        "review-date",
+        {
+          "name": "review-date",
+          "count": 1
+        }
+      ],
+      [
+        "source",
+        {
+          "name": "source",
+          "count": 4
+        }
+      ],
+      [
+        "tags",
+        {
+          "name": "tags",
+          "count": 20012
+        }
+      ]
+    ],
+    "status": {
+      "upToDate": true,
+      "label": "Index status: up to date"
+    },
+    "throttling": true
+  },
+  "warmObservation": {
+    "phase": "done",
+    "startedReady": true,
+    "startedHidden": false,
+    "hiddenSamples": 0,
+    "reads": 0,
+    "cachedReads": 0,
+    "parses": 0,
+    "cacheGets": 79,
+    "started": 165245.1000000015,
+    "heapBefore": 824568053,
+    "elapsedMs": 7806.199999999255,
+    "finishedHidden": false,
+    "status": {
+      "upToDate": true,
+      "label": "Index status: up to date"
+    },
+    "nodes": 20701,
+    "heapAfter": 1291071562,
+    "maxGapMs": 65,
+    "p95GapMs": 32,
+    "samples": 420,
+    "hidden": false
+  },
+  "cleanup": {
+    "status": {
+      "upToDate": true,
+      "label": "Index status: up to date"
+    },
+    "nodes": 20701,
+    "pendingHydration": false,
+    "temporaryAccessor": false,
+    "globals": [],
+    "files": [
+      {
+        "path": "C13a-Review-Source.md",
+        "present": false
+      },
+      {
+        "path": "C13a-Review-Second.md",
+        "present": false
+      },
+      {
+        "path": "C13a-Review-Image.md",
+        "present": false
+      },
+      {
+        "path": "C13a-Review-Target.md",
+        "present": false
+      }
+    ],
+    "backgroundThrottling": true
+  },
+  "limits": [
+    "Desktop forced workerless fallback is not physical iOS validation; unchanged iOS policy and C00 physical/cold matrix remain pending.",
+    "Single final foreground warm observation, not statistical performance parity or peak memory.",
+    "Composite native parity probe max heartbeat 1337.5 ms includes accepted synchronous baseline scans and output comparisons; it does not isolate production worker/fallback responsiveness. Portable strict parser timer thresholds passed unchanged.",
+    "Initial reload readiness timed out while hidden/background-throttled. The driver continued after failed readiness, resulting in an invalid warm probe, empty preview declaration hash and cleanup assertion. None is credited as acceptance. Added authoritative readiness/state fences and performed prerequisites sequentially; final fresh full graph matches accepted hash.",
+    "Temporary background-throttle override completed diagnostic initialization, then original true policy was restored before final warm build/hash/cleanup. Excluded diagnostic timings.",
+    "Core parser portable; full compiler and evidence/resolver extraction remain C13c/C13b."
+  ],
+  "manualTests": [],
+  "manualReason": "Algorithms match accepted source exactly apart from explicit runtime injection; all native worker/fallback cases, cancellation/resume, real note edit/rebuild parity and final full declaration hash passed. UI/device policy unchanged.",
+  "next": "C13b \u2014 Strong offline-agent candidate; transient HANDOFF.md overwritten"
+}

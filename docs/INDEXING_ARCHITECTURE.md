@@ -27,8 +27,9 @@ Vault tree / tag tree / Obsidian links / frontmatter / body fields / Date proper
 
 The main boundaries are:
 
-- `fieldParser.ts` — one canonical parser for legacy Dataview-style body fields and body URLs.
-- `MetadataParser.ts` — parsing abstraction used by the builder; no duplicated parser grammar.
+- `src/core/parser/metadata.ts` — host-free canonical grammar for legacy Dataview-style body fields, body URLs and property-value references, with explicit cooperative runtime capabilities.
+- `src/index/fieldParser.ts` — narrow Obsidian compatibility facade for metadata merge/linkpath resolution and the historical cooperative signature; it contains no duplicate grammar.
+- `MetadataParser.ts` — production worker/fallback boundary using the portable owner; the legacy `MetadataParseWorker` class delegates here and contains no parser copy.
 - `RelationEvidence.ts` — immutable relationship evidence and source provenance.
 - `RelationResolver.ts` — precedence and ExcaliBrain-compatible relationship classification.
 - `GraphState.ts` — one graph snapshot.
@@ -165,7 +166,7 @@ Assertions **34–50** cover the runtime-only central-note section outline, incl
 The definitive checkpoint ledger is [Refactor plan.md](../Refactor%20plan.md), section C08P. Preserve these assigned opportunities through subsequent extractions:
 
 - C11/C12: compact per-file normalized semantic contributions; no new persistence yet.
-- C13: benchmark two desktop parser workers with byte/file limits; keep the existing iOS worker policy.
+- Measured parser-worker benchmarking remains a separate follow-up after the C13 boundary work; C13a preserves the existing worker count and iOS fallback policy.
 - C14: latest-wins per-source compilation with atomic per-file commit; supersession does not imply a full rebuild.
 - C16: extract current snapshot/cache bytes and transactions first; evaluate semantic shards and checkpoint-plus-delta persistence separately with migration, compaction and fallback designs.
 - C17 (or measured C13 follow-up): maintained search/secondary indexes to avoid redundant whole-graph passes without sacrificing atomic publication or increasing retained memory unnecessarily.

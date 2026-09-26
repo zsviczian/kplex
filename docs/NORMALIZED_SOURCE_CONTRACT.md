@@ -96,12 +96,14 @@ Inline semantic and visual values come from the established `inlineFields` map, 
 
 | Retained compatibility seam | Exact current use | Retirement owner |
 | --- | --- | --- |
-| `GraphBuilder` `getFileCache` / `mergeFileMetadata` | Full and patch metadata acquisition and semantic fingerprints; values feed collectors | C13 separates plain parser/compiler inputs; C15 coordinates revisions |
-| Vault read/cachedRead, field cache, `MetadataParser`, IndexedDB `getBodies` | Existing byte/read-bounded full and patch body acquisition | C13 parser strategy; C16 cache/storage orchestration |
+| `GraphBuilder` `getFileCache` / `mergeFileMetadata` | Full and patch metadata acquisition and semantic fingerprints; values feed collectors | C13c portable compiler input/binding; C15 coordinates revisions |
+| Vault read/cachedRead, field cache, `MetadataParser`, IndexedDB `getBodies` | Existing byte/read-bounded full and patch body acquisition; C13a parser grammar/runtime now portable | C16 cache/storage orchestration; acquisition policy remains host-side |
 | `TFile`, live GraphPage file binding and host materialization | Existing compiler pages and legacy consumers; targets carry explicit facts | C13 portable compiler output plus adapter binding |
-| `Platform`, `window.setTimeout`, time-budget checks | Existing graph/parser cooperative scheduling | C13 injected cooperative policy; C15 scheduler |
+| `Platform`, renderer `window.setTimeout`, time-budget checks | Parser runtime bridge plus remaining graph cooperative scheduling | C13a injected parser runtime complete; C15 scheduler/remaining graph policy |
 | Plugin `getIndexSourceRevision()` and build lifetime callback | Family/file fences before and after awaits | C15 coordinator; C14 publication contract |
 | Fingerprints and incremental tag/URL cleanup | Work avoidance and current contribution lifetimes; discovery no-op uses field-only collector | C14 shared incremental compilation; C16 cached signatures |
 | Lazy imagery, section expansion, relationship editing compatibility extractor | Existing non-compiler host resolution consumers | C18, C20b, C22 respectively |
+
+C13a extraction status: body grammar, parser DTOs, field normalization and property-reference enumeration now live in `src/core/parser/metadata.ts`. The portable cooperative parser receives explicit clock/yield/lifetime capabilities and does not select a browser timer. `src/index/fieldParser.ts` remains the host compatibility facade for metadata merge, linkpath resolution and the historical renderer-thread cooperative signature. `GraphBuilder` retains `mergeFileMetadata` until C13c; `GraphIndex`/`main.ts`/`SectionExpansion` retain host link extraction until C18/C22/C20b respectively; `MetadataParser` and `SectionExpansion` retain the renderer runtime bridge. C13b owns evidence/resolver extraction and does not remove parser facade calls. Cache/body acquisition stays C16 and coordination stays C14/C15.
 
 C12 completes source collection, not a new scheduler, an atomic whole-vault snapshot, a persisted contribution cache or host-free compilation. Collector count caps remain 256, not byte caps. Existing read budgets and source/file/revision fences remain; C14/C15 retain create/delete-during-build and publication validation.
