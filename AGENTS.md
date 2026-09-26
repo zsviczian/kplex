@@ -117,6 +117,8 @@ Keep relationship classification and evidence precedence in one graph-semantic o
 
 Close each refactor checkpoint with the automated commands/results and their limits, followed by at most three prioritized manual checks with the precise expected outcome. If no manual check is needed, say so. Do not call a screenshot or generated fixture a performance or interaction pass; keep unavailable host/device evidence pending in the plan ledger. See section 5 and the action-log template in `Refactor plan.md`.
 
+For CLI runtime inspection through the loaded `app.plugins.plugins["k-plex"]` instance, follow [docs/OBSIDIAN_RUNTIME_TESTING.md](docs/OBSIDIAN_RUNTIME_TESTING.md). This maintenance access is not a production dependency boundary. Reacquire instances after reload and remove temporary test controllers/wrappers.
+
 ### Localization readiness
 
 All plugin-owned user-facing copy belongs in language files: captions, commands, menus, settings, help, placeholders, tooltips, ARIA labels, notifications and user-visible errors. Developer console logs and console error messages stay English; localize the user-facing notice separately. Do not translate vault content, stable IDs or persisted keys. The English source catalog and strict typed lookup live under `src/lang/`; the Obsidian adapter supplies `getLanguage()` while portable feature code receives a translator capability. No non-English translations are part of this refactor. Every new or changed user-visible literal must use a catalog key; L01 removes the remaining legacy literals and adds the whole-source enforcement gate. Do not claim that gate exists before L01. See section 3.6 of `Refactor plan.md`.

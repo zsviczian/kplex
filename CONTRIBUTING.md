@@ -42,6 +42,8 @@ npm run verify:obsidian
 
 The strict host lane checks the CLI-reported vault path before changing anything, runs `verify`, then disables K-Plex, copies this build's three installable artifacts into the test vault, checks hashes, enables it and asserts a rendered K-Plex view with no captured JavaScript errors. It preserves plugin `data.json` and creates no bundle backup. It writes `report.json` in a printed temporary directory, or `KPLEX_HOST_REPORT_DIR` if set. A missing CLI, wrong vault, failed build or failed assertion returns nonzero. The portable `verify` lane never invokes Obsidian. CLI commands target the named vault explicitly; do not use a personal/default vault for test deployment.
 
+For live plugin/index diagnostics, CLI fault injection, reload-safe references and evidence capture, see [Obsidian runtime testing](docs/OBSIDIAN_RUNTIME_TESTING.md).
+
 To create a reproducible large synthetic input for performance work, run `npm run fixture:large -- --out /absolute/path/to/a/new-test-vault-folder --files 20000`. The generator copies the small indexing compatibility fixture and adds 20,000 deterministic notes. About 10% of all Markdown files are exactly 950,000 bytes, mixing very long paragraphs, large fenced code and dense real links; ordinary notes add shared note hubs and URLs. A default fixture is about 1.9 GB of Markdown, so allow adequate disk space and index time. The generator refuses to replace an existing folder. Check it with `npm run fixture:large -- --verify /absolute/path/to/that-folder`. Keep generated vault contents out of Git and use the same verified fixture and settings for before/after runs. Manifest link/declaration counts describe source input; measure actual K-Plex index counts separately.
 
 ## Documentation

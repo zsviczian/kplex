@@ -61,6 +61,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private readonly indexBacklogReasons = new Set<string>();
   private indexDirtyRevision = 0;
   private rebuildTask: Promise<void> | null = null;
+  private unloading = false;
   private initialIndexTask: Promise<void> | null = null;
   private initialIndexComplete = false;
   private snapshotRestoreTask: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> | null = null;
@@ -295,6 +296,7 @@ export default class ExcaliBrainPlugin extends Plugin {
 
     this.app.workspace.onLayoutReady(() => {
       void (async () => {
+        if (this.unloading) return;
         if (!alreadyKplex) {
           const legacySettings = this.runningExcaliBrainSettings();
           if (legacySettings) {
@@ -305,6 +307,7 @@ export default class ExcaliBrainPlugin extends Plugin {
           await this.saveData(this.settings);
         }
 
+        if (this.unloading) return;
         this.layoutReady = true;
 
         // Re-associate a persisted sidecar before normal recent-tab synchronization is allowed to
@@ -320,6 +323,7 @@ export default class ExcaliBrainPlugin extends Plugin {
             }
           }
         }
+        if (this.unloading) return;
 
         // Keep the startup guard alive for a little longer than the sidecar polling window so
         // trailing file-open/active-leaf events from Obsidian cannot immediately undo the restored
@@ -338,9 +342,11 @@ export default class ExcaliBrainPlugin extends Plugin {
         const startupSeedPaths = this.startupGraphSeedPaths();
         this.snapshotRestoreTask ??= this.index.restorePersistedSnapshot(startupSeedPaths);
         const restored = await this.snapshotRestoreTask;
+        if (this.unloading) return;
         if (restored.restored) {
           await this.refreshBookmarkedEntryPoints();
         }
+        if (this.unloading) return;
         this.indexDirty = !restored.fresh;
         if (!restored.fresh) {
           this.indexDirtyRevision += 1;
@@ -406,6 +412,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.unloading = true;
     this.dismissKplexMenu();
     if (this.rebuildTimer !== null) window.clearTimeout(this.rebuildTimer);
     if (this.startupInitializationTimer !== null) window.clearTimeout(this.startupInitializationTimer);
@@ -673,6 +680,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   private async ensureInitialIndex(): Promise<void> {
+    if (this.unloading) return;
     if (this.initialIndexTask) {
       return this.initialIndexTask;
     }
@@ -687,12 +695,14 @@ export default class ExcaliBrainPlugin extends Plugin {
       // finishes. View rendering itself does not await this task.
       if (this.index.hasPendingSnapshotHydration()) {
         const hydrated = await this.index.waitForSnapshotHydration();
+        if (this.unloading) return;
         if (!hydrated.restored) {
           this.indexDirty = true;
           this.indexDirtyRevision += 1;
           this.indexBacklogReasons.add("startup:partial-restore-incomplete");
         } else {
           await this.refreshBookmarkedEntryPoints();
+          if (this.unloading) return;
           if (!hydrated.fresh) {
             this.indexDirty = true;
             this.indexBacklogReasons.add("startup:stale-snapshot");
@@ -717,6 +727,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (!this.metadataStabilized) {
         this.metadataStabilityPromise ??= this.waitForMetadataCacheStability();
         await this.metadataStabilityPromise;
+        if (this.unloading) return;
         this.metadataStabilized = true;
       }
 
@@ -727,6 +738,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (this.indexDirty && this.index.size > 0 && this.index.hasIncrementalRestorePatch()) {
         const patchRevision = this.indexDirtyRevision;
         const patched = await this.index.reconcileRestoredSnapshot();
+        if (this.unloading) return;
         if (patched.reconciled && patchRevision === this.indexDirtyRevision) {
           this.indexDirty = false;
           this.indexBacklogReasons.clear();
@@ -741,6 +753,8 @@ export default class ExcaliBrainPlugin extends Plugin {
         await new Promise<void>((resolve) => window.setTimeout(resolve, 450));
       }
 
+      if (this.unloading) return;
+
       // Large iOS cold start: prime parsed Markdown bodies in small transactional IndexedDB
       // checkpoints before allocating the complete semantic graph. The previous architecture read
       // ~12k files while retaining the growing graph and could push WebKit over its memory limit
@@ -749,7 +763,8 @@ export default class ExcaliBrainPlugin extends Plugin {
       const noteCount = this.app.vault.getMarkdownFiles().length;
       const needsIosBodyPrewarm = Platform.isIosApp && this.index.size === 0 && noteCount > 5000;
       if (needsIosBodyPrewarm) {
-        const warmed = await this.index.prewarmBodyCache(() => this.hasVisibleKplexSurface());
+        const warmed = await this.index.prewarmBodyCache(() => !this.unloading && this.hasVisibleKplexSurface());
+        if (this.unloading) return;
         if (!warmed && !this.hasVisibleKplexSurface()) {
           return;
         }
@@ -758,6 +773,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (this.indexDirty || this.index.size === 0) {
         await this.performRebuild(false, this.index.size === 0, "startup:initial-index", true);
       }
+      if (this.unloading) return;
       this.initialIndexComplete = this.index.size > 0;
       this.notifyIndexStatus();
 
@@ -775,6 +791,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   async ensureIndexReady(reason = "view-open"): Promise<void> {
     if (!this.layoutReady) return;
     await this.ensureInitialIndex();
+    if (this.unloading) return;
     await this.rebuildIndex(false, this.index.size === 0, reason);
   }
 
@@ -783,6 +800,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   private async performRebuild(showNotice: boolean, force: boolean, reason: string, allowClosed: boolean): Promise<void> {
+    if (this.unloading) return;
     const explicitlyRequested = showNotice;
     if (!this.hasVisibleKplexSurface() && !allowClosed && !explicitlyRequested) {
       return;
@@ -825,6 +843,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (canIncrementalPatch) {
         const paths = [...this.dirtyMarkdownPaths];
         const result = await this.index.patchMarkdownPaths(paths);
+        if (this.unloading) return;
         if (result.outcome === "patched") {
           if (this.indexDirtyRevision === startRevision) {
             for (const path of paths) this.dirtyMarkdownPaths.delete(path);
@@ -871,6 +890,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       }
       if (showNotice) new Notice("Rebuilding K-Plex index…", 1200);
       const published = await this.index.rebuild();
+      if (this.unloading) return;
       if (!published) {
         this.indexDirty = true;
         this.indexBacklogReasons.add(reason);
@@ -899,7 +919,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     }
 
 
-    if (this.indexDirty && this.initialIndexComplete && this.hasVisibleKplexSurface() && this.rebuildTimer === null) {
+    if (!this.unloading && this.indexDirty && this.initialIndexComplete && this.hasVisibleKplexSurface() && this.rebuildTimer === null) {
       this.rebuildTimer = window.setTimeout(() => {
         this.rebuildTimer = null;
         void this.rebuildIndex(false, false, "coalesced-backlog");

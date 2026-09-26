@@ -394,7 +394,7 @@ exports.createObsidianTranslator = () => createTranslator("en");
 
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
 const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
-const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedRelations, computeIndexSettingsSignature } = require(join(temp, "src/index/IndexSnapshot.js"));
+const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedRelations, computeIndexSettingsSignature, computeVaultSignature, persistedDeclarationFromEvidence } = require(join(temp, "src/index/IndexSnapshot.js"));
 const { createGraphState } = require(join(temp, "src/index/GraphState.js"));
 const { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion } = require(join(temp, "src/index/SectionExpansion.js"));
 const { parseBodyMetadata, parseBodyMetadataCore, parseBodyMetadataCooperative } = require(join(temp, "src/index/fieldParser.js"));
@@ -1259,6 +1259,175 @@ try {
   for (const saved of savedPages) addPersistedPageToState(warmState, saved, app);
   assert.equal(hydratePersistedRelations(warmState, savedPages), true);
   assert.equal(warmState.pages.get("Note A.md")?.neighbours.get("Note B.md")?.isParent, true);
+  // C08P exercises the production restore and startup coordinator with deterministic stalled I/O.
+  // Only the external cache and watchdog clock are controlled; graph semantics remain real.
+  const snapshotEvidence = [...index.state.evidence.declarations()].map(persistedDeclarationFromEvidence);
+  const snapshotMeta = {
+    schema: 3, generation: "test-generation", createdAt: 123,
+    settingsSignature: computeIndexSettingsSignature(settings), vaultSignature: computeVaultSignature(app),
+    discoveredFields: [...index.state.discoveredFields],
+  };
+  const realNow = Date.now, realSetTimeout = window.setTimeout, realClearTimeout = window.clearTimeout;
+  let clock = realNow(), timerId = -1;
+  const watchdogTimers = new Map();
+  Date.now = () => clock;
+  window.setTimeout = (callback, ms, ...args) => {
+    if (ms !== 5000) return realSetTimeout(callback, ms, ...args);
+    const id = timerId--;
+    watchdogTimers.set(id, callback);
+    return id;
+  };
+  window.clearTimeout = (id) => {
+    if (id < 0) watchdogTimers.delete(id);
+    else realClearTimeout(id);
+  };
+  const settle = async () => { for (let n = 0; n < 24; n++) await Promise.resolve(); };
+  const advanceWatchdog = async (ms) => {
+    clock += ms;
+    const callbacks = [...watchdogTimers.values()]; watchdogTimers.clear();
+    callbacks.forEach((callback) => callback());
+    await settle();
+  };
+  const controlledIndexes = [];
+  const makeRestoreIndex = () => {
+    const restored = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+    restored.indexedDb.readSnapshotMeta = async () => snapshotMeta;
+    restored.indexedDb.snapshotUsesChunks = () => true;
+    restored.indexedDb.getPages = async (_generation, paths) => new Map(savedPages.filter((page) => paths.includes(page.path)).map((page) => [page.path, page]));
+    restored.indexedDb.iterateSnapshotPages = async (_meta, onPage, current) => {
+      for (const page of savedPages) { if (!current()) return false; onPage(page); }
+      return current();
+    };
+    restored.indexedDb.iterateSnapshotEvidence = async (_meta, onEvidence, current) => {
+      for (const item of snapshotEvidence) { if (!current()) return false; onEvidence(item); }
+      return current();
+    };
+    restored.scheduleOrphanCleanup = () => {};
+    restored.scheduleSnapshotPersist = () => {};
+    controlledIndexes.push(restored);
+    return restored;
+  };
+  try {
+    const normal = makeRestoreIndex();
+    const normalResult = await normal.restoreIndexedDbSnapshot(["Note A.md"]);
+    assert.equal(normalResult.partial, true);
+    assert.equal((await normal.waitForSnapshotHydration()).restored, true);
+    assert.equal(normal.size, index.size);
+    assert.deepEqual(normal.search("Note A").map((page) => page.path), index.search("Note A").map((page) => page.path));
+    const evidenceShape = (items) => JSON.parse(JSON.stringify(items.map(({ id, ...item }) => item)));
+    assert.deepEqual(evidenceShape(normal.evidenceBetween("Note A.md", "Note B.md")), evidenceShape(index.evidenceBetween("Note A.md", "Note B.md")));
+    assert.equal(normal.getSnapshotHydrationDiagnostics().outcome, "complete");
+    assert.equal(normal.getSnapshotHydrationDiagnostics().pages, savedPages.length);
+    assert.equal(watchdogTimers.size, 0);
+    const copied = normal.getSnapshotHydrationDiagnostics(); copied.outcome = "failed";
+    assert.equal(normal.getSnapshotHydrationDiagnostics().outcome, "complete");
+
+    const failed = makeRestoreIndex();
+    failed.indexedDb.readSnapshotMeta = async () => null;
+    assert.equal((await failed.restoreIndexedDbSnapshot()).restored, false);
+    assert.equal(failed.getSnapshotHydrationDiagnostics().outcome, "failed");
+    assert.equal(failed.hasPendingSnapshotHydration(), false);
+    assert.equal(watchdogTimers.size, 0);
+
+    const legacy = makeRestoreIndex();
+    legacy.indexedDb.readSnapshotMeta = async () => ({ ...snapshotMeta, schema: 1 });
+    assert.equal((await legacy.restoreIndexedDbSnapshot()).restored, true);
+    assert.equal(legacy.size, index.size);
+    assert.equal(legacy.getSnapshotHydrationDiagnostics().outcome, "complete");
+    assert.deepEqual(evidenceShape(legacy.evidenceBetween("Note A.md", "Note B.md")), evidenceShape(index.evidenceBetween("Note A.md", "Note B.md")));
+
+    const replaced = makeRestoreIndex();
+    let releaseReplaced;
+    replaced.indexedDb.readSnapshotMeta = () => new Promise((resolve) => { releaseReplaced = resolve; });
+    const oldRestore = replaced.restoreIndexedDbSnapshot();
+    await settle();
+    replaced.indexedDb.readSnapshotMeta = async () => snapshotMeta;
+    const newRestore = await replaced.restoreIndexedDbSnapshot();
+    assert.equal((await oldRestore).restored, false);
+    assert.equal(newRestore.restored, true);
+    const replacementState = replaced.state, replacementDiagnostics = replaced.getSnapshotHydrationDiagnostics();
+    releaseReplaced(snapshotMeta); await settle();
+    assert.equal(replaced.state, replacementState);
+    assert.deepEqual(replaced.getSnapshotHydrationDiagnostics(), replacementDiagnostics);
+    assert.equal(watchdogTimers.size, 0);
+
+    for (const phase of ["metadata", "preview", "pages", "evidence", "preview-search"]) {
+      const stalled = makeRestoreIndex();
+      let release;
+      const blocked = new Promise((resolve) => { release = resolve; });
+      const method = { metadata: "readSnapshotMeta", preview: "getPages", pages: "iterateSnapshotPages", evidence: "iterateSnapshotEvidence", "preview-search": "prepareSearchIndex" }[phase];
+      const owner = phase === "preview-search" ? stalled : stalled.indexedDb;
+      const original = owner[method];
+      owner[method] = async (...args) => { await blocked; return original.apply(owner, args); };
+      const start = stalled.restoreIndexedDbSnapshot(["Note A.md"]);
+      await settle();
+      assert.equal(stalled.getSnapshotHydrationDiagnostics().phase, phase);
+      await advanceWatchdog(89999);
+      assert.equal(stalled.hasPendingSnapshotHydration(), true, "Watchdog must honor the inactivity window");
+      await advanceWatchdog(1);
+      await start;
+      assert.equal((await stalled.waitForSnapshotHydration()).restored, false);
+      assert.equal(stalled.hasPendingSnapshotHydration(), false);
+      assert.equal(stalled.isFullSnapshotHydrated(), false);
+      assert.equal(stalled.getSnapshotHydrationDiagnostics().outcome, "timed-out");
+      assert.equal(stalled.getSnapshotHydrationDiagnostics().lastActivePhase, phase);
+      assert.equal(watchdogTimers.size, 0);
+      owner[method] = original;
+      const coordinator = new ExcaliBrainPlugin();
+      coordinator.index = stalled; coordinator.app = app; coordinator.layoutReady = true;
+      coordinator.metadataStabilized = true; coordinator.initialIndexComplete = false;
+      coordinator.refreshBookmarkedEntryPoints = async () => {};
+      let rebuilds = 0;
+      coordinator.performRebuild = async () => {
+        rebuilds++;
+        assert(coordinator.indexBacklogReasons.has("startup:partial-restore-incomplete") || stalled.size === 0);
+        await stalled.rebuild();
+        coordinator.indexDirty = false; coordinator.indexBacklogReasons.clear();
+      };
+      await coordinator.ensureInitialIndex();
+      assert.equal(rebuilds, 1, "Timeout must route startup to an authoritative build");
+      assert.equal(stalled.size, index.size);
+      assert.equal(coordinator.getIndexStatus().upToDate, true);
+      const rebuiltState = stalled.state;
+      const terminal = stalled.getSnapshotHydrationDiagnostics();
+      release(); await settle();
+      assert.equal(stalled.state, rebuiltState, "Released old work must not publish over the rebuilt graph");
+      assert.deepEqual(stalled.getSnapshotHydrationDiagnostics(), terminal, "Late work must not rewrite terminal diagnostics");
+    }
+
+    const rejected = makeRestoreIndex();
+    let rejectRead;
+    rejected.indexedDb.readSnapshotMeta = () => new Promise((_resolve, reject) => { rejectRead = reject; });
+    const rejectRestore = rejected.restoreIndexedDbSnapshot();
+    await advanceWatchdog(90000); await rejectRestore;
+    rejectRead(new Error("Late cache failure")); await settle();
+    assert.equal(rejected.getSnapshotHydrationDiagnostics().outcome, "timed-out");
+
+    const cancelled = makeRestoreIndex();
+    let releaseCancelled;
+    cancelled.indexedDb.iterateSnapshotPages = () => new Promise((resolve) => { releaseCancelled = resolve; });
+    await cancelled.restoreIndexedDbSnapshot(["Note A.md"]);
+    const waiting = cancelled.waitForSnapshotHydration();
+    const unloaded = new ExcaliBrainPlugin();
+    unloaded.index = cancelled; unloaded.app = app; unloaded.layoutReady = true;
+    unloaded.metadataStabilized = true;
+    let unloadRebuilds = 0;
+    unloaded.performRebuild = async () => { unloadRebuilds++; };
+    const initialization = unloaded.ensureInitialIndex();
+    unloaded.onunload();
+    assert.equal((await waiting).restored, false);
+    await initialization;
+    assert.equal(unloadRebuilds, 0, "Unload cancellation must not start a replacement build");
+    assert.equal(cancelled.getSnapshotHydrationDiagnostics().outcome, "cancelled");
+    assert.equal(watchdogTimers.size, 0, "Unload must release the watchdog immediately");
+    releaseCancelled(true); await settle();
+    assert.equal(cancelled.getSnapshotHydrationDiagnostics().outcome, "cancelled");
+    console.log("C08P restore watchdog: warm equality, five stalled phases, late completion/rejection and unload PASS");
+  } finally {
+    controlledIndexes.forEach((item) => item.destroy());
+    controlledIndexes.length = 0;
+    Date.now = realNow; window.setTimeout = realSetTimeout; window.clearTimeout = realClearTimeout;
+  }
   const runtimePatch = await index.patchMarkdownPaths(["Note A.md"]);
   assert.deepEqual(runtimePatch, { outcome: "patched", count: 1 });
   expectRole("Note A.md", "parent", "Note B.md", RelationType.DEFINED);

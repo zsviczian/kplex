@@ -129,12 +129,14 @@ export async function resolveEvidenceStoreCooperative(
   store: RelationEvidenceStore,
   isCurrent: () => boolean,
   batchSize = 300,
+  onProgress?: () => void,
 ): Promise<boolean> {
   // batchSize is now only a cheap cancellation checkpoint. Host yielding is time-budgeted: the
   // old iOS path yielded every 12 records, creating thousands of timers during a large rebuild.
   const sliceBudgetMs = 7;
   let sliceStartedAt = performance.now();
   const maybeYield = async (processed: number): Promise<boolean> => {
+    if ((processed & 255) === 0) onProgress?.();
     if (processed % batchSize === 0 && !isCurrent()) return false;
     if (performance.now() - sliceStartedAt < sliceBudgetMs) return true;
     await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
