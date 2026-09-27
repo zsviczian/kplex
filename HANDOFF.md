@@ -16,64 +16,64 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-### Current transfer
+### Handoff template
 
-**State: main-agent review and local validation complete; changes remain uncommitted. Two device/reboot acceptance checks remain manual.**
+#### Current transfer
 
-- Sender → recipient: main validation agent → maintainer.
-- Kind: reviewed implementation / validation report.
-- Objective: publish a useful center neighborhood and working search before cold/warm startup indexing is authoritative, then grow progressively; add a reusable anchored information bubble for incomplete startup indexing.
-- Branch/base: `instant-initialization`, `4d4e0e103d0421298df2146015d21df05758fb0c`.
-- Validation environment: macOS, Node 22.22.2, Obsidian 1.14.2 (installer 1.14.0), disposable `kplex-test` vault with 20,000+ Markdown notes including its large-file population.
-- Review covered `AGENTS.md`, `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, `docs/INDEXING_ARCHITECTURE.md` and `docs/AGENT_WORKFLOW.md`. No commit, push or PR action was performed.
+**State: inactive — template only; no implementation or investigation assignment is issued.** Replace the body from this section onward when a concrete assignment is selected.
 
-### Main-agent findings and fixes
+- Sender → recipient: specify offline development agent or main validation agent.
+- Kind: implementation / investigation / trace analysis / host probe / return review.
+- Objective and user-visible expected behavior or investigation question:
+- Base commit/branch and initial dirty files: record actual values; state when Git metadata is absent.
+- Input/diff/patch/source identity and prior evidence links:
+- Actual capabilities: Node/npm, installed packages, browser, network, Git; Obsidian/CLI only for equipped recipient.
 
-1. **Partial snapshot persistence was not fully prevented.** `rebuildProgressively()` scheduled persistence only after completion, but another graph action could schedule the existing writer while a partial graph was live. `persistIndexedDbSnapshot()` now rejects every non-authoritative state through `fullSnapshotHydrated`, with an executable regression test proving no write occurs.
-2. **The startup bubble could reopen during an ordinary later update.** Readiness only made its `open` expression false while leaving caller state true. `App.tsx` now clears that state when readiness becomes true. A ready → later-updating runtime probe confirmed the bubble closes and stays closed in the same session.
-3. **Escape could not restore focus to the index indicator.** The `span` anchor could not receive programmatic focus. It now has `tabIndex={-1}`. Exact-build pop-out validation confirmed Escape is consumed, the bubble closes and focus returns to the indicator.
-4. **The claimed InfoBubble browser coverage did not exist.** The returned test only inspected source text. `tests/ui-components.test.mjs` now renders the real component and verifies owner-document portal placement, accessible note/description semantics, action labels/order, caller-owned advance behavior and explicit dismissal.
+#### Scope and architecture
 
-The implementation otherwise follows the established architecture: GraphBuilder owns host fact collection and prepared source work; GraphIndex owns coherent publication/search/persistence; main.ts owns startup coordination; the host-free `InfoBubble` composes the existing owner-document-aware `FloatingLayer`; all product copy uses the localization catalog.
+- Existing owners/contracts, callers and required reading:
+- Allowed changes, excluded work and preserved behavior:
+- Product decisions, compatibility/schema/default/command effects:
+- Invalidation, lifetime, cancellation/publication and workspace/device risks:
+- Practical independently reviewable steps:
 
-### Automated validation
+#### Acceptance and validation ownership
 
-- `npm run verify:obsidian` on exact Node 22.22.2: **passed** after review fixes.
-  - Architecture: 7/7; 36 migrated roots, 77 reachable files, zero violations.
-  - Core contracts: 58/58.
-  - Official Obsidian ESLint and production TypeScript/esbuild build: passed.
-  - Indexing fixture, progressive cold parity, warm preview, publication/search/discovered-field checks: passed.
-  - Aggregate Node tests: 101/101.
-  - Browser component tests: 5/5, including the new real InfoBubble lane.
-  - Exact built artifacts were staged and reloaded in `kplex-test`; command registration, graph render and captured-error smoke checks passed.
-- Final runner report: `/private/tmp/kplex-progressive-final/report.json`. The report records identical source/staged SHA-256 hashes; these are transient local artifacts.
-- `git diff --check`: passed.
-- One earlier full run hit the existing timing-sensitive malformed-URL scaling assertion while the native 20,000-note cold build was consuming resources (31 ms outlier). The unchanged suite passed after stopping that concurrent native build. This was treated as harness contention, not a waived failure.
+- Offline portable/build/browser checks and expected assertions:
+- Pending main-agent exact-build/native scenarios and expected assertions:
+- Physical/manual checks, priority, expected outcome and why automation cannot cover them (or none):
+- Required environment/fixture/settings and source/artifact identities:
+- Cleanup requirements and owner; accepted limitations are assignment-specific:
 
-### Native cold-start and interruption evidence
+#### Debug/trace packet or host probe request — when relevant
 
-- Deleted only K-Plex's IndexedDB cache in the authorized disposable vault and restarted the exact staged plugin.
-- Before first useful publication: `full=false`, graph size 0, updating indicator active.
-- First useful publication: remembered center `Synthetic-Scale-v2/Nodes/056/Scale-005600.md` existed, search returned that note and its URL, `full=false`, and graph size was already about 20,500 because the structural baseline materializes vault nodes. Subsequent samples grew while Markdown semantics were ingested.
-- The red/updating state remained active. The localized bubble appeared only after a useful page was present and pointed to the index indicator.
-- While the partial graph was live, `readSnapshotMeta()` returned `null`.
-- Interrupted the run by disabling the plugin. IndexedDB still had `meta=null` while 1,017 durable body-cache records remained, proving partial semantic state was not promoted and resumable parse checkpoints survived.
-- Restarted K-Plex: it republished the useful partial graph from the retained cache and resumed progressive work without false-ready state.
-- The test vault's roughly 2,000 near-1 MB notes make complete first indexing intentionally long. The native test validated useful publication and interruption/resume rather than waiting hours for completion. Final authoritative parity and warm targeted-preview behavior are covered by executable fixtures.
+- Minimal reproduction and question distinguishing the hypotheses:
+- Build/source/fixture identity, relevant environment and phase/revision/readiness:
+- Actual observations/trace excerpts and expected versus observed behavior:
+- Larger minimized trace path/attachment and hash; ensure the recipient receives it:
+- Harness effects (scheduling, gates, emulation, throttling, timing units), failures/incomplete capture:
+- Observations versus hypotheses, requested analysis/output or precise additional host probe:
+- Temporary diagnostics and restoration/removal status:
 
-### InfoBubble and environment evidence
+#### Recipient return — replace placeholders with actual results
 
-- Desktop main window: anchored below the indicator, 320 px wide, z-index 1000, Obsidian theme background, fully inside the viewport.
-- Outside pointer dismissal closed it; an index rerender in the same session did not reopen it.
-- Pop-out: the bubble and indicator were in the pop-out's owner document. Escape closed it, prevented host handling and restored focus to the indicator.
-- Temporary ready → later-updating status transition: automatic ready close passed; the later ordinary update did not reopen the bubble; coordinator fields were immediately restored.
-- Tablet emulation at 900×875: partial center/search published, bubble fit fully inside the viewport.
-- Phone emulation at 390×875: partial graph published, only the visible K-Plex surface claimed guidance, and the 320 px bubble fit fully inside the viewport.
-- Final cleanup restored `app.emulateMobile(false)`, cleared the CDP metrics override, restored the 996×795 desktop window and removed temporary pop-outs/globals. Final `dev:errors`: no errors captured.
+- Changed files/actions and relevant diff/source identity:
+- Findings and implementation decisions; separate inference from verified runtime observations:
+- Actual commands, versions, outcomes and evidence paths:
+- Failed/unavailable checks, precise reason and reviewer rerun instructions:
+- Scope deviations/remaining risks and any compatibility-facade caller/retirement changes:
+- Temporary files/hooks/settings and cleanup status:
+- Next recipient and requested action (main review, bounded host probe, more offline analysis):
 
-### Prioritized manual checks
+## Main-agent acceptance — fill after independent review
 
-1. **Physical iPhone/iPad, first cold run:** confirm the center neighborhood paints before remaining body-cache prewarm, touch dismissal/positioning works, closing/reopening resumes, and memory remains stable. Desktop emulation proves layout/routing but not native WebView touch or memory behavior.
-2. **True warm Obsidian reboot after a completed snapshot exists:** confirm the persisted center and one-hop search/neighborhood appear before full hydration, transient workspace focus does not replace the K-Plex center, and the final graph becomes ready. The disposable vault's new cold run was deliberately interrupted, so it did not produce a new authoritative snapshot for this reboot observation; the warm path passed its executable snapshot fixture.
+- Review fixes and final source/installed artifact identities:
+- Required automated/native evidence and remaining coverage limits:
+- Prioritized manual tests/results or explicit maintainer acceptance of limitations:
+- Durable tracker/report/issue/PR updated:
+- Repository action authorized/performed and remaining action:
+- Final state: accepted/inactive or named pending work; no automatic refactor resume.
 
-No additional desktop manual test is required for local acceptance. Changes remain uncommitted pending maintainer review of the two manual boundaries above.
+---
+
+<<insert handoff content here>>
