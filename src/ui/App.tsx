@@ -1,5 +1,5 @@
 /**
- * Host-bound React shell for K-Plex navigation, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects.
+ * Host-bound React shell for K-Plex navigation, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects.
  */
 import {
   useCallback,
@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -22,6 +23,7 @@ import { searchFieldCopy } from "./features/searchPresentation";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarPosition } from "../settings";
 import { SearchBox } from "./features/SearchBox";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
+import { getDraggedMarkdownFile } from "../adapters/obsidian/fileExplorerDrag";
 import { ActionButton } from "./components/ActionButton";
 import { PlexGraph } from "./PlexGraph";
 import { ObsidianIcon } from "./ObsidianIcon";
@@ -91,12 +93,15 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     );
   });
   const activePathRef = useRef(activePath);
+  const pendingFileExplorerDropRef = useRef<TFile | null>(null);
   const activeFileRef = useRef<TFile | null>(
     plugin.index.get(activePath)?.file ?? (initialWorkspaceFile?.path === activePath ? initialWorkspaceFile : null),
   );
   const [historyCursor, setHistoryCursor] = useState(() => Math.max(0, plugin.settings.navigationHistory.length - 1));
 
   const activate = useCallback((target: GraphPage, record = true) => {
+    // Any newer explicit navigation supersedes a note waiting for partial indexing.
+    pendingFileExplorerDropRef.current = null;
     activePathRef.current = target.path;
     activeFileRef.current = target.file;
     setActivePath(target.path);
@@ -110,6 +115,28 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     void plugin.syncPageToDocumentLeaf(target);
     void plugin.syncSidecarToPage(hostLeaf, target);
   }, [plugin, hostLeaf]);
+
+  /** Complete a queued File Explorer note drop as soon as partial indexing publishes that note. */
+  const activatePendingFileExplorerDrop = useCallback(() => {
+    const file = pendingFileExplorerDropRef.current;
+    if (!file) return;
+    if (plugin.app.vault.getFileByPath(file.path) !== file) {
+      pendingFileExplorerDropRef.current = null;
+      return;
+    }
+    const target = plugin.index.get(file.path);
+    if (!target) return;
+    pendingFileExplorerDropRef.current = null;
+    activate(target, true);
+  }, [plugin, activate]);
+
+  /** Register and clean up the pending-drop index subscription for this mounted K-Plex surface. */
+  const subscribePendingFileExplorerDrop = useCallback(
+    () => plugin.index.subscribe(activatePendingFileExplorerDrop),
+    [plugin, activatePendingFileExplorerDrop],
+  );
+
+  useEffect(subscribePendingFileExplorerDrop, [subscribePendingFileExplorerDrop]);
 
   useEffect(() => plugin.index.subscribe(() => {
     // A TFile keeps its object identity while Obsidian renames or moves it. Track the central file
@@ -328,6 +355,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     activateSearch();
   };
 
+  /** Keep ordinary pointer focus behavior separate from File Explorer drag/drop handling. */
   const handlePlexPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     plugin.dismissKplexMenu();
     const target = event.target as Element | null;
@@ -335,8 +363,32 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     rootRef.current?.focus({ preventScroll: true });
   };
 
+  /** Allow the browser drop gesture only for a single Markdown note from Obsidian File Explorer. */
+  const handlePlexDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!getDraggedMarkdownFile(plugin.app)) return;
+    event.preventDefault();
+  };
 
-  if (!page) return <div className="excalibrain-app excalibrain-empty">
+  /** Re-center this K-Plex surface on a File Explorer note, queuing it while partial indexing catches up. */
+  const handlePlexDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+    const file = getDraggedMarkdownFile(plugin.app);
+    if (!file) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const target = plugin.index.get(file.path);
+    if (target) {
+      pendingFileExplorerDropRef.current = null;
+      activate(target, true);
+      return;
+    }
+    pendingFileExplorerDropRef.current = file;
+  };
+
+  if (!page) return <div
+    className="excalibrain-app excalibrain-empty"
+    onDragOver={handlePlexDragOver}
+    onDrop={handlePlexDrop}
+  >
     <div className="kplex-index-status-empty"><IndexStatusIndicator plugin={plugin} /></div>
     <span>{translate("app.buildingIndex")}</span>
   </div>;
@@ -397,6 +449,8 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     tabIndex={-1}
     onKeyDownCapture={handlePlexKeyDown}
     onPointerDownCapture={handlePlexPointerDown}
+    onDragOver={handlePlexDragOver}
+    onDrop={handlePlexDrop}
   >
     <div className="excalibrain-main-column">
       <div className="excalibrain-top-stack">

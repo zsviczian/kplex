@@ -417,6 +417,147 @@ try {
 }
 
 
+function draggableDialogBrowserEntry() {
+  return `
+import { enableDraggableDialog } from ${JSON.stringify(join(root, "src/ui/components/DraggableDialog.ts"))};
+
+const result = document.querySelector("#result");
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+const setViewport = (view, width, height) => {
+  Object.defineProperty(view, "innerWidth", { configurable: true, value: width });
+  Object.defineProperty(view, "innerHeight", { configurable: true, value: height });
+  if (view.visualViewport) {
+    Object.defineProperty(view.visualViewport, "width", { configurable: true, value: width });
+    Object.defineProperty(view.visualViewport, "height", { configurable: true, value: height });
+    Object.defineProperty(view.visualViewport, "offsetLeft", { configurable: true, value: 0 });
+    Object.defineProperty(view.visualViewport, "offsetTop", { configurable: true, value: 0 });
+  }
+};
+const installStyles = (doc, selector, left, top, width, height) => {
+  const style = doc.createElement("style");
+  style.textContent = selector + " { position: fixed; left: " + left + "px; top: " + top + "px; width: " + width + "px; height: " + height + "px; box-sizing: border-box; }" +
+    ".kplex-draggable-dialog.is-positioned { position: fixed; left: var(--kplex-dialog-left); top: var(--kplex-dialog-top); right: auto; bottom: auto; margin: 0; }";
+  doc.head.append(style);
+};
+const dispatchPointer = (view, target, type, init) => target.dispatchEvent(new view.PointerEvent(type, {
+  bubbles: true,
+  cancelable: true,
+  pointerId: init.pointerId ?? 1,
+  button: init.button ?? 0,
+  clientX: init.clientX ?? 0,
+  clientY: init.clientY ?? 0,
+}));
+
+try {
+  setViewport(window, 800, 600);
+  installStyles(document, ".test-draggable-modal", 250, 180, 300, 200);
+  const background = document.createElement("div");
+  const modal = document.createElement("div");
+  const title = document.createElement("div");
+  const titleText = document.createElement("span");
+  const roleSelect = document.createElement("select");
+  const input = document.createElement("input");
+  titleText.textContent = "Add link / child";
+  roleSelect.append(new Option("Child", "child"), new Option("Parent", "parent"));
+  title.append(titleText, roleSelect);
+  modal.className = "test-draggable-modal";
+  modal.append(title, input);
+  document.body.append(background, modal);
+
+  let backgroundMoves = 0;
+  background.addEventListener("pointermove", () => { backgroundMoves += 1; });
+  input.value = "preserved form state";
+  input.focus();
+  const release = enableDraggableDialog({ modalEl: modal, handleEl: title });
+  check(modal.classList.contains("kplex-draggable-dialog"), "desktop shell did not opt into draggable positioning");
+  check(title.classList.contains("kplex-draggable-dialog-handle"), "dialog title was not marked as the drag handle");
+
+  dispatchPointer(window, titleText, "pointerdown", { pointerId: 7, clientX: 300, clientY: 200 });
+  check(document.activeElement === input, "starting a title drag stole form focus");
+  check(!modal.classList.contains("is-positioned"), "pointerdown without movement replaced native modal positioning");
+  dispatchPointer(window, background, "pointermove", { pointerId: 7, clientX: 900, clientY: 700 });
+  check(modal.classList.contains("is-dragging"), "pointer movement did not start dragging");
+  check(backgroundMoves === 0, "active dialog drag leaked a pointer move to the Plex/background");
+  check(modal.style.getPropertyValue("--kplex-dialog-left") === "492px", "horizontal drag was not clamped inside the viewport");
+  check(modal.style.getPropertyValue("--kplex-dialog-top") === "392px", "vertical drag was not clamped inside the viewport");
+  check(input.value === "preserved form state", "dragging changed the form state");
+  dispatchPointer(window, background, "pointerup", { pointerId: 7, clientX: 900, clientY: 700 });
+  check(!modal.classList.contains("is-dragging"), "pointerup did not finish the drag");
+
+  setViewport(window, 500, 350);
+  window.dispatchEvent(new Event("resize"));
+  check(modal.style.getPropertyValue("--kplex-dialog-left") === "192px", "resize did not keep the dialog's right edge reachable");
+  check(modal.style.getPropertyValue("--kplex-dialog-top") === "142px", "resize did not keep the dialog's title/actions reachable");
+
+  const beforeControlPointer = [
+    modal.style.getPropertyValue("--kplex-dialog-left"),
+    modal.style.getPropertyValue("--kplex-dialog-top"),
+  ].join("|");
+  dispatchPointer(window, roleSelect, "pointerdown", { pointerId: 8, clientX: 350, clientY: 190 });
+  check(!modal.classList.contains("is-dragging"), "interactive title control incorrectly started a drag");
+  dispatchPointer(window, background, "pointermove", { pointerId: 8, clientX: 100, clientY: 100 });
+  const afterControlPointer = [
+    modal.style.getPropertyValue("--kplex-dialog-left"),
+    modal.style.getPropertyValue("--kplex-dialog-top"),
+  ].join("|");
+  check(afterControlPointer === beforeControlPointer, "interactive title control moved the dialog");
+
+  release();
+  release();
+  check(!modal.classList.contains("kplex-draggable-dialog"), "close cleanup left draggable modal classes behind");
+  check(!title.classList.contains("kplex-draggable-dialog-handle"), "close cleanup left draggable title classes behind");
+  check(!modal.style.getPropertyValue("--kplex-dialog-left") && !modal.style.getPropertyValue("--kplex-dialog-top"), "close cleanup left fixed positioning behind");
+  dispatchPointer(window, titleText, "pointerdown", { pointerId: 9, clientX: 300, clientY: 200 });
+  check(!modal.classList.contains("is-dragging"), "released dialog still responded to pointerdown");
+  setViewport(window, 800, 600);
+  const releaseReopened = enableDraggableDialog({ modalEl: modal, handleEl: title });
+  check(!modal.classList.contains("is-positioned"), "reopened dialog inherited stale dragged positioning");
+  check(!modal.style.getPropertyValue("--kplex-dialog-left"), "reopened dialog did not return positioning ownership to the native modal");
+  dispatchPointer(window, titleText, "pointerdown", { pointerId: 10, clientX: 300, clientY: 200 });
+  dispatchPointer(window, titleText, "pointerup", { pointerId: 10, clientX: 300, clientY: 200 });
+  check(!modal.classList.contains("is-positioned"), "clicking the title without dragging replaced native modal positioning");
+  releaseReopened();
+
+  const iframe = document.createElement("iframe");
+  document.body.append(iframe);
+  const frameDocument = iframe.contentDocument;
+  const frameWindow = iframe.contentWindow;
+  check(frameDocument && frameWindow, "pop-out test document unavailable");
+  setViewport(frameWindow, 600, 400);
+  installStyles(frameDocument, ".frame-draggable-modal", 100, 80, 200, 150);
+  const frameModal = frameDocument.createElement("div");
+  const frameTitle = frameDocument.createElement("div");
+  const frameTitleText = frameDocument.createElement("span");
+  const frameBackground = frameDocument.createElement("div");
+  frameTitleText.textContent = "Pop-out title";
+  frameTitle.append(frameTitleText);
+  frameModal.className = "frame-draggable-modal";
+  frameModal.append(frameTitle);
+  frameDocument.body.append(frameBackground, frameModal);
+  enableDraggableDialog({ modalEl: frameModal, handleEl: frameTitle });
+  dispatchPointer(frameWindow, frameTitleText, "pointerdown", { pointerId: 11, clientX: 130, clientY: 100 });
+  const framePinned = frameModal.style.getPropertyValue("--kplex-dialog-left") + "|" + frameModal.style.getPropertyValue("--kplex-dialog-top");
+  dispatchPointer(window, background, "pointermove", { pointerId: 11, clientX: 400, clientY: 300 });
+  check(frameModal.style.getPropertyValue("--kplex-dialog-left") + "|" + frameModal.style.getPropertyValue("--kplex-dialog-top") === framePinned, "parent-window pointer moved a pop-out dialog");
+  dispatchPointer(frameWindow, frameBackground, "pointermove", { pointerId: 11, clientX: 400, clientY: 300 });
+  check(frameModal.style.getPropertyValue("--kplex-dialog-left") === "370px", "pop-out drag did not use its owning document coordinates");
+  check(frameModal.style.getPropertyValue("--kplex-dialog-top") === "242px", "pop-out drag did not clamp against its owning window");
+  dispatchPointer(frameWindow, frameBackground, "pointerup", { pointerId: 11, clientX: 400, clientY: 300 });
+  frameWindow.dispatchEvent(new frameWindow.Event("pagehide"));
+  check(!frameModal.classList.contains("kplex-draggable-dialog"), "pop-out teardown did not release draggable classes");
+  check(!frameModal.style.getPropertyValue("--kplex-dialog-left"), "pop-out teardown did not clear positioning");
+  iframe.remove();
+
+  result.dataset.status = "passed";
+  result.textContent = "DraggableDialog browser behavior passed";
+} catch (error) {
+  result.dataset.status = "failed";
+  result.textContent = String(error?.stack ?? error);
+}
+`;
+}
+
+
 function fuzzySuggesterBrowserEntry() {
   return `
 import React, { useState } from "react";
@@ -759,6 +900,10 @@ test("ActionButton rendered browser behavior", () => {
 
 test("FloatingLayer owner-document browser behavior", () => {
   runBrowserDom(floatingLayerBrowserEntry(), "FloatingLayer browser behavior passed");
+});
+
+test("DraggableDialog owner-document browser behavior", () => {
+  runBrowserDom(draggableDialogBrowserEntry(), "DraggableDialog browser behavior passed");
 });
 
 
