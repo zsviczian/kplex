@@ -1,0 +1,1328 @@
+{
+  "provenance": "Frozen from accepted C12c src/index/fieldParser.ts before C13a extraction on 2026-09-26.",
+  "bodyCases": [
+    {
+      "name": "compatibility",
+      "input": "---\nParent: \"[[IgnoredFrontmatter]]\"\n---\nParent:: [[A]]\nText before (Friend:: [[B]], [[C]]) but [[D]] stays outside.\nText before [Challenger:: [[E]]] after.\n**source**:: [Alias](https://example.com/x)\n- Previous:: [[P]]\nText (Friend:: [[F1]]) then [Challenger:: [[F2]]] on one line.\n`Fake:: [[Ignored]]`\n<!-- (Parent:: [[IgnoredComment]]) -->\n<!--\nChild:: [[IgnoredMultilineComment]]\n-->\n```\nHidden:: [[Ignored2]]\n```",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "[[A]]"
+          ],
+          "friend": [
+            "[[B]], [[C]]",
+            "[[F1]]"
+          ],
+          "challenger": [
+            "[[E]]",
+            "[[F2]]"
+          ],
+          "source": [
+            "[Alias](https://example.com/x)"
+          ],
+          "previous": [
+            "[[P]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "[[A]]",
+            "syntax": "line",
+            "line": 4,
+            "start": 41,
+            "end": 55
+          },
+          {
+            "name": "Friend",
+            "normalizedName": "friend",
+            "value": "[[B]], [[C]]",
+            "syntax": "parenthesized",
+            "line": 5,
+            "start": 68,
+            "end": 91
+          },
+          {
+            "name": "Challenger",
+            "normalizedName": "challenger",
+            "value": "[[E]]",
+            "syntax": "bracketed",
+            "line": 6,
+            "start": 129,
+            "end": 149
+          },
+          {
+            "name": "source",
+            "normalizedName": "source",
+            "value": "[Alias](https://example.com/x)",
+            "syntax": "line",
+            "line": 7,
+            "start": 157,
+            "end": 200
+          },
+          {
+            "name": "Previous",
+            "normalizedName": "previous",
+            "value": "[[P]]",
+            "syntax": "line",
+            "line": 8,
+            "start": 201,
+            "end": 219
+          },
+          {
+            "name": "Friend",
+            "normalizedName": "friend",
+            "value": "[[F1]]",
+            "syntax": "parenthesized",
+            "line": 9,
+            "start": 225,
+            "end": 242
+          },
+          {
+            "name": "Challenger",
+            "normalizedName": "challenger",
+            "value": "[[F2]]",
+            "syntax": "bracketed",
+            "line": 9,
+            "start": 248,
+            "end": 269
+          }
+        ],
+        "urls": [
+          {
+            "url": "https://example.com/x",
+            "label": "Alias",
+            "line": 7
+          }
+        ]
+      }
+    },
+    {
+      "name": "incomplete-https",
+      "input": "https://",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": []
+      }
+    },
+    {
+      "name": "incomplete-http-closer",
+      "input": "http://)",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": []
+      }
+    },
+    {
+      "name": "uppercase-incomplete",
+      "input": "HTTPS://",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": []
+      }
+    },
+    {
+      "name": "empty-list-key",
+      "input": "- :: [[A]]",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": []
+      }
+    },
+    {
+      "name": "list-parent",
+      "input": "- Parent:: [[A]]",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "[[A]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "[[A]]",
+            "syntax": "line",
+            "line": 1,
+            "start": 0,
+            "end": 16
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "plus-friend",
+      "input": "+ Friend:: [[C]]",
+      "expected": {
+        "inlineFields": {
+          "friend": [
+            "[[C]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Friend",
+            "normalizedName": "friend",
+            "value": "[[C]]",
+            "syntax": "line",
+            "line": 1,
+            "start": 0,
+            "end": 16
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "crlf-url",
+      "input": "* Child:: [[B]]\r\nhttps://example.com/path",
+      "expected": {
+        "inlineFields": {
+          "child": [
+            "[[B]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Child",
+            "normalizedName": "child",
+            "value": "[[B]]",
+            "syntax": "line",
+            "line": 1,
+            "start": 0,
+            "end": 15
+          }
+        ],
+        "urls": [
+          {
+            "url": "https://example.com/path",
+            "line": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "escaped-round",
+      "input": "\\(Parent:: [[A]]) https://example.com",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": [
+          {
+            "url": "https://example.com",
+            "line": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "escaped-square",
+      "input": "\\[Parent:: [[A]]] https://example.com",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": [
+          {
+            "url": "https://example.com",
+            "line": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "inline-lines",
+      "input": "(Parent:: [[A]])\n[Child:: [[B]]]",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "[[A]]"
+          ],
+          "child": [
+            "[[B]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "[[A]]",
+            "syntax": "parenthesized",
+            "line": 1,
+            "start": 0,
+            "end": 16
+          },
+          {
+            "name": "Child",
+            "normalizedName": "child",
+            "value": "[[B]]",
+            "syntax": "bracketed",
+            "line": 2,
+            "start": 17,
+            "end": 32
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "nested-round",
+      "input": "(outer (Parent:: [[A]]))",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": []
+      }
+    },
+    {
+      "name": "nested-field-round",
+      "input": "(Parent:: (Child:: [[A]]))",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "(Child:: [[A]])"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "(Child:: [[A]])",
+            "syntax": "parenthesized",
+            "line": 1,
+            "start": 0,
+            "end": 26
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "nested-square",
+      "input": "[outer [Child:: [[B]]]]",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": []
+      }
+    },
+    {
+      "name": "mixed-square-round",
+      "input": "[Parent:: (Child:: [[B]])]",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "(Child:: [[B]])"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "(Child:: [[B]])",
+            "syntax": "bracketed",
+            "line": 1,
+            "start": 0,
+            "end": 26
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "double-round",
+      "input": "((Parent:: [[A]]))",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": []
+      }
+    },
+    {
+      "name": "inline-code",
+      "input": "`Parent:: [[ignored]]`\nParent:: [[A]]",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "[[A]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "[[A]]",
+            "syntax": "line",
+            "line": 2,
+            "start": 23,
+            "end": 37
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "double-inline-code-crlf",
+      "input": "``Parent:: [[ignored]]``\r\nChild:: [[B]]",
+      "expected": {
+        "inlineFields": {
+          "child": [
+            "[[B]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Child",
+            "normalizedName": "child",
+            "value": "[[B]]",
+            "syntax": "line",
+            "line": 2,
+            "start": 25,
+            "end": 38
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "markdown-url",
+      "input": "[label](https://example.com/path).",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": [
+          {
+            "url": "https://example.com/path",
+            "label": "label",
+            "line": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "markdown-url-whitespace",
+      "input": "[ label ](https://example.com/path).",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": [
+          {
+            "url": "https://example.com/path",
+            "label": "label",
+            "line": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "markdown-incomplete-https",
+      "input": "[label](https://)",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": []
+      }
+    },
+    {
+      "name": "markdown-incomplete-http",
+      "input": "[label](http://)",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": []
+      }
+    },
+    {
+      "name": "trailing-newline",
+      "input": "Parent:: [[A]]\nFriend:: [[B]]\n",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "[[A]]"
+          ],
+          "friend": [
+            "[[B]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "[[A]]",
+            "syntax": "line",
+            "line": 1,
+            "start": 0,
+            "end": 14
+          },
+          {
+            "name": "Friend",
+            "normalizedName": "friend",
+            "value": "[[B]]",
+            "syntax": "line",
+            "line": 2,
+            "start": 15,
+            "end": 29
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "trailing-crlf",
+      "input": "Parent:: [[A]]\r\nFriend:: [[B]]\r\n",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "[[A]]"
+          ],
+          "friend": [
+            "[[B]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "[[A]]",
+            "syntax": "line",
+            "line": 1,
+            "start": 0,
+            "end": 14
+          },
+          {
+            "name": "Friend",
+            "normalizedName": "friend",
+            "value": "[[B]]",
+            "syntax": "line",
+            "line": 2,
+            "start": 15,
+            "end": 29
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "yaml-crlf",
+      "input": "---\r\ntags: [x]\r\n---\r\nParent:: [[A]]\r\n",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "[[A]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "[[A]]",
+            "syntax": "line",
+            "line": 4,
+            "start": 18,
+            "end": 32
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "comment-tail",
+      "input": "<!-- Parent:: [[ignored]] --> Child:: [[B]]",
+      "expected": {
+        "inlineFields": {
+          "child": [
+            "[[B]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Child",
+            "normalizedName": "child",
+            "value": "[[B]]",
+            "syntax": "line",
+            "line": 1,
+            "start": 30,
+            "end": 43
+          }
+        ],
+        "urls": []
+      }
+    },
+    {
+      "name": "yaml-dots",
+      "input": "---\nParent: ignored\n...\nChild:: [[B]]\nhttps://example.org/z",
+      "expected": {
+        "inlineFields": {
+          "child": [
+            "[[B]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Child",
+            "normalizedName": "child",
+            "value": "[[B]]",
+            "syntax": "line",
+            "line": 4,
+            "start": 24,
+            "end": 37
+          }
+        ],
+        "urls": [
+          {
+            "url": "https://example.org/z",
+            "line": 5
+          }
+        ]
+      }
+    },
+    {
+      "name": "malformed-url",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": [
+          {
+            "url": "https://example.com/path",
+            "line": 1
+          }
+        ]
+      },
+      "inputSpec": {
+        "kind": "malformed-label-url",
+        "repeat": "[a",
+        "count": 65536,
+        "suffix": " https://example.com/path"
+      }
+    },
+    {
+      "name": "dense-urls",
+      "input": "https://dense-0.example/p/0 https://dense-1.example/p/1 https://dense-2.example/p/2 https://dense-3.example/p/3 https://dense-4.example/p/4 https://dense-5.example/p/5 https://dense-6.example/p/6 https://dense-7.example/p/7 https://dense-8.example/p/8 https://dense-9.example/p/9 https://dense-10.example/p/10 https://dense-11.example/p/11 https://dense-12.example/p/12 https://dense-13.example/p/13 https://dense-14.example/p/14 https://dense-15.example/p/15 https://dense-16.example/p/16 https://dense-17.example/p/17 https://dense-18.example/p/18 https://dense-19.example/p/19 https://dense-20.example/p/20 https://dense-21.example/p/21 https://dense-22.example/p/22 https://dense-23.example/p/23 https://dense-24.example/p/24 https://dense-25.example/p/25 https://dense-26.example/p/26 https://dense-27.example/p/27 https://dense-28.example/p/28 https://dense-29.example/p/29 https://dense-30.example/p/30 https://dense-31.example/p/31 https://dense-32.example/p/32 https://dense-33.example/p/33 https://dense-34.example/p/34 https://dense-35.example/p/35 https://dense-36.example/p/36 https://dense-37.example/p/37 https://dense-38.example/p/38 https://dense-39.example/p/39 https://dense-40.example/p/40 https://dense-41.example/p/41 https://dense-42.example/p/42 https://dense-43.example/p/43 https://dense-44.example/p/44 https://dense-45.example/p/45 https://dense-46.example/p/46 https://dense-47.example/p/47 https://dense-48.example/p/48 https://dense-49.example/p/49 https://dense-50.example/p/50 https://dense-51.example/p/51 https://dense-52.example/p/52 https://dense-53.example/p/53 https://dense-54.example/p/54 https://dense-55.example/p/55 https://dense-56.example/p/56 https://dense-57.example/p/57 https://dense-58.example/p/58 https://dense-59.example/p/59 https://dense-60.example/p/60 https://dense-61.example/p/61 https://dense-62.example/p/62 https://dense-63.example/p/63 https://dense-64.example/p/64 https://dense-65.example/p/65 https://dense-66.example/p/66 https://dense-67.example/p/67 https://dense-68.example/p/68 https://dense-69.example/p/69 https://dense-70.example/p/70 https://dense-71.example/p/71 https://dense-72.example/p/72 https://dense-73.example/p/73 https://dense-74.example/p/74 https://dense-75.example/p/75 https://dense-76.example/p/76 https://dense-77.example/p/77 https://dense-78.example/p/78 https://dense-79.example/p/79 https://dense-80.example/p/80 https://dense-81.example/p/81 https://dense-82.example/p/82 https://dense-83.example/p/83 https://dense-84.example/p/84 https://dense-85.example/p/85 https://dense-86.example/p/86 https://dense-87.example/p/87 https://dense-88.example/p/88 https://dense-89.example/p/89 https://dense-90.example/p/90 https://dense-91.example/p/91 https://dense-92.example/p/92 https://dense-93.example/p/93 https://dense-94.example/p/94 https://dense-95.example/p/95 https://dense-96.example/p/96 https://dense-97.example/p/97 https://dense-98.example/p/98 https://dense-99.example/p/99 https://dense-100.example/p/100 https://dense-101.example/p/101 https://dense-102.example/p/102 https://dense-103.example/p/103 https://dense-104.example/p/104 https://dense-105.example/p/105 https://dense-106.example/p/106 https://dense-107.example/p/107 https://dense-108.example/p/108 https://dense-109.example/p/109 https://dense-110.example/p/110 https://dense-111.example/p/111 https://dense-112.example/p/112 https://dense-113.example/p/113 https://dense-114.example/p/114 https://dense-115.example/p/115 https://dense-116.example/p/116 https://dense-117.example/p/117 https://dense-118.example/p/118 https://dense-119.example/p/119 https://dense-120.example/p/120 https://dense-121.example/p/121 https://dense-122.example/p/122 https://dense-123.example/p/123 https://dense-124.example/p/124 https://dense-125.example/p/125 https://dense-126.example/p/126 https://dense-127.example/p/127",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": [
+          {
+            "url": "https://dense-0.example/p/0",
+            "line": 1
+          },
+          {
+            "url": "https://dense-1.example/p/1",
+            "line": 1
+          },
+          {
+            "url": "https://dense-2.example/p/2",
+            "line": 1
+          },
+          {
+            "url": "https://dense-3.example/p/3",
+            "line": 1
+          },
+          {
+            "url": "https://dense-4.example/p/4",
+            "line": 1
+          },
+          {
+            "url": "https://dense-5.example/p/5",
+            "line": 1
+          },
+          {
+            "url": "https://dense-6.example/p/6",
+            "line": 1
+          },
+          {
+            "url": "https://dense-7.example/p/7",
+            "line": 1
+          },
+          {
+            "url": "https://dense-8.example/p/8",
+            "line": 1
+          },
+          {
+            "url": "https://dense-9.example/p/9",
+            "line": 1
+          },
+          {
+            "url": "https://dense-10.example/p/10",
+            "line": 1
+          },
+          {
+            "url": "https://dense-11.example/p/11",
+            "line": 1
+          },
+          {
+            "url": "https://dense-12.example/p/12",
+            "line": 1
+          },
+          {
+            "url": "https://dense-13.example/p/13",
+            "line": 1
+          },
+          {
+            "url": "https://dense-14.example/p/14",
+            "line": 1
+          },
+          {
+            "url": "https://dense-15.example/p/15",
+            "line": 1
+          },
+          {
+            "url": "https://dense-16.example/p/16",
+            "line": 1
+          },
+          {
+            "url": "https://dense-17.example/p/17",
+            "line": 1
+          },
+          {
+            "url": "https://dense-18.example/p/18",
+            "line": 1
+          },
+          {
+            "url": "https://dense-19.example/p/19",
+            "line": 1
+          },
+          {
+            "url": "https://dense-20.example/p/20",
+            "line": 1
+          },
+          {
+            "url": "https://dense-21.example/p/21",
+            "line": 1
+          },
+          {
+            "url": "https://dense-22.example/p/22",
+            "line": 1
+          },
+          {
+            "url": "https://dense-23.example/p/23",
+            "line": 1
+          },
+          {
+            "url": "https://dense-24.example/p/24",
+            "line": 1
+          },
+          {
+            "url": "https://dense-25.example/p/25",
+            "line": 1
+          },
+          {
+            "url": "https://dense-26.example/p/26",
+            "line": 1
+          },
+          {
+            "url": "https://dense-27.example/p/27",
+            "line": 1
+          },
+          {
+            "url": "https://dense-28.example/p/28",
+            "line": 1
+          },
+          {
+            "url": "https://dense-29.example/p/29",
+            "line": 1
+          },
+          {
+            "url": "https://dense-30.example/p/30",
+            "line": 1
+          },
+          {
+            "url": "https://dense-31.example/p/31",
+            "line": 1
+          },
+          {
+            "url": "https://dense-32.example/p/32",
+            "line": 1
+          },
+          {
+            "url": "https://dense-33.example/p/33",
+            "line": 1
+          },
+          {
+            "url": "https://dense-34.example/p/34",
+            "line": 1
+          },
+          {
+            "url": "https://dense-35.example/p/35",
+            "line": 1
+          },
+          {
+            "url": "https://dense-36.example/p/36",
+            "line": 1
+          },
+          {
+            "url": "https://dense-37.example/p/37",
+            "line": 1
+          },
+          {
+            "url": "https://dense-38.example/p/38",
+            "line": 1
+          },
+          {
+            "url": "https://dense-39.example/p/39",
+            "line": 1
+          },
+          {
+            "url": "https://dense-40.example/p/40",
+            "line": 1
+          },
+          {
+            "url": "https://dense-41.example/p/41",
+            "line": 1
+          },
+          {
+            "url": "https://dense-42.example/p/42",
+            "line": 1
+          },
+          {
+            "url": "https://dense-43.example/p/43",
+            "line": 1
+          },
+          {
+            "url": "https://dense-44.example/p/44",
+            "line": 1
+          },
+          {
+            "url": "https://dense-45.example/p/45",
+            "line": 1
+          },
+          {
+            "url": "https://dense-46.example/p/46",
+            "line": 1
+          },
+          {
+            "url": "https://dense-47.example/p/47",
+            "line": 1
+          },
+          {
+            "url": "https://dense-48.example/p/48",
+            "line": 1
+          },
+          {
+            "url": "https://dense-49.example/p/49",
+            "line": 1
+          },
+          {
+            "url": "https://dense-50.example/p/50",
+            "line": 1
+          },
+          {
+            "url": "https://dense-51.example/p/51",
+            "line": 1
+          },
+          {
+            "url": "https://dense-52.example/p/52",
+            "line": 1
+          },
+          {
+            "url": "https://dense-53.example/p/53",
+            "line": 1
+          },
+          {
+            "url": "https://dense-54.example/p/54",
+            "line": 1
+          },
+          {
+            "url": "https://dense-55.example/p/55",
+            "line": 1
+          },
+          {
+            "url": "https://dense-56.example/p/56",
+            "line": 1
+          },
+          {
+            "url": "https://dense-57.example/p/57",
+            "line": 1
+          },
+          {
+            "url": "https://dense-58.example/p/58",
+            "line": 1
+          },
+          {
+            "url": "https://dense-59.example/p/59",
+            "line": 1
+          },
+          {
+            "url": "https://dense-60.example/p/60",
+            "line": 1
+          },
+          {
+            "url": "https://dense-61.example/p/61",
+            "line": 1
+          },
+          {
+            "url": "https://dense-62.example/p/62",
+            "line": 1
+          },
+          {
+            "url": "https://dense-63.example/p/63",
+            "line": 1
+          },
+          {
+            "url": "https://dense-64.example/p/64",
+            "line": 1
+          },
+          {
+            "url": "https://dense-65.example/p/65",
+            "line": 1
+          },
+          {
+            "url": "https://dense-66.example/p/66",
+            "line": 1
+          },
+          {
+            "url": "https://dense-67.example/p/67",
+            "line": 1
+          },
+          {
+            "url": "https://dense-68.example/p/68",
+            "line": 1
+          },
+          {
+            "url": "https://dense-69.example/p/69",
+            "line": 1
+          },
+          {
+            "url": "https://dense-70.example/p/70",
+            "line": 1
+          },
+          {
+            "url": "https://dense-71.example/p/71",
+            "line": 1
+          },
+          {
+            "url": "https://dense-72.example/p/72",
+            "line": 1
+          },
+          {
+            "url": "https://dense-73.example/p/73",
+            "line": 1
+          },
+          {
+            "url": "https://dense-74.example/p/74",
+            "line": 1
+          },
+          {
+            "url": "https://dense-75.example/p/75",
+            "line": 1
+          },
+          {
+            "url": "https://dense-76.example/p/76",
+            "line": 1
+          },
+          {
+            "url": "https://dense-77.example/p/77",
+            "line": 1
+          },
+          {
+            "url": "https://dense-78.example/p/78",
+            "line": 1
+          },
+          {
+            "url": "https://dense-79.example/p/79",
+            "line": 1
+          },
+          {
+            "url": "https://dense-80.example/p/80",
+            "line": 1
+          },
+          {
+            "url": "https://dense-81.example/p/81",
+            "line": 1
+          },
+          {
+            "url": "https://dense-82.example/p/82",
+            "line": 1
+          },
+          {
+            "url": "https://dense-83.example/p/83",
+            "line": 1
+          },
+          {
+            "url": "https://dense-84.example/p/84",
+            "line": 1
+          },
+          {
+            "url": "https://dense-85.example/p/85",
+            "line": 1
+          },
+          {
+            "url": "https://dense-86.example/p/86",
+            "line": 1
+          },
+          {
+            "url": "https://dense-87.example/p/87",
+            "line": 1
+          },
+          {
+            "url": "https://dense-88.example/p/88",
+            "line": 1
+          },
+          {
+            "url": "https://dense-89.example/p/89",
+            "line": 1
+          },
+          {
+            "url": "https://dense-90.example/p/90",
+            "line": 1
+          },
+          {
+            "url": "https://dense-91.example/p/91",
+            "line": 1
+          },
+          {
+            "url": "https://dense-92.example/p/92",
+            "line": 1
+          },
+          {
+            "url": "https://dense-93.example/p/93",
+            "line": 1
+          },
+          {
+            "url": "https://dense-94.example/p/94",
+            "line": 1
+          },
+          {
+            "url": "https://dense-95.example/p/95",
+            "line": 1
+          },
+          {
+            "url": "https://dense-96.example/p/96",
+            "line": 1
+          },
+          {
+            "url": "https://dense-97.example/p/97",
+            "line": 1
+          },
+          {
+            "url": "https://dense-98.example/p/98",
+            "line": 1
+          },
+          {
+            "url": "https://dense-99.example/p/99",
+            "line": 1
+          },
+          {
+            "url": "https://dense-100.example/p/100",
+            "line": 1
+          },
+          {
+            "url": "https://dense-101.example/p/101",
+            "line": 1
+          },
+          {
+            "url": "https://dense-102.example/p/102",
+            "line": 1
+          },
+          {
+            "url": "https://dense-103.example/p/103",
+            "line": 1
+          },
+          {
+            "url": "https://dense-104.example/p/104",
+            "line": 1
+          },
+          {
+            "url": "https://dense-105.example/p/105",
+            "line": 1
+          },
+          {
+            "url": "https://dense-106.example/p/106",
+            "line": 1
+          },
+          {
+            "url": "https://dense-107.example/p/107",
+            "line": 1
+          },
+          {
+            "url": "https://dense-108.example/p/108",
+            "line": 1
+          },
+          {
+            "url": "https://dense-109.example/p/109",
+            "line": 1
+          },
+          {
+            "url": "https://dense-110.example/p/110",
+            "line": 1
+          },
+          {
+            "url": "https://dense-111.example/p/111",
+            "line": 1
+          },
+          {
+            "url": "https://dense-112.example/p/112",
+            "line": 1
+          },
+          {
+            "url": "https://dense-113.example/p/113",
+            "line": 1
+          },
+          {
+            "url": "https://dense-114.example/p/114",
+            "line": 1
+          },
+          {
+            "url": "https://dense-115.example/p/115",
+            "line": 1
+          },
+          {
+            "url": "https://dense-116.example/p/116",
+            "line": 1
+          },
+          {
+            "url": "https://dense-117.example/p/117",
+            "line": 1
+          },
+          {
+            "url": "https://dense-118.example/p/118",
+            "line": 1
+          },
+          {
+            "url": "https://dense-119.example/p/119",
+            "line": 1
+          },
+          {
+            "url": "https://dense-120.example/p/120",
+            "line": 1
+          },
+          {
+            "url": "https://dense-121.example/p/121",
+            "line": 1
+          },
+          {
+            "url": "https://dense-122.example/p/122",
+            "line": 1
+          },
+          {
+            "url": "https://dense-123.example/p/123",
+            "line": 1
+          },
+          {
+            "url": "https://dense-124.example/p/124",
+            "line": 1
+          },
+          {
+            "url": "https://dense-125.example/p/125",
+            "line": 1
+          },
+          {
+            "url": "https://dense-126.example/p/126",
+            "line": 1
+          },
+          {
+            "url": "https://dense-127.example/p/127",
+            "line": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "large-fenced-code",
+      "expected": {
+        "inlineFields": {
+          "parent": [
+            "[[A]]"
+          ],
+          "child": [
+            "[[B]]"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "Parent",
+            "normalizedName": "parent",
+            "value": "[[A]]",
+            "syntax": "line",
+            "line": 1,
+            "start": 0,
+            "end": 14
+          },
+          {
+            "name": "Child",
+            "normalizedName": "child",
+            "value": "[[B]]",
+            "syntax": "line",
+            "line": 5,
+            "start": 1048645,
+            "end": 1048658
+          }
+        ],
+        "urls": []
+      },
+      "inputSpec": {
+        "kind": "large-fenced-code",
+        "bytes": 1048576
+      }
+    },
+    {
+      "name": "long-paragraph",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": [
+          {
+            "url": "https://long.example/path",
+            "line": 1
+          }
+        ]
+      },
+      "inputSpec": {
+        "kind": "long-paragraph-url",
+        "bytes": 1048576,
+        "url": "https://long.example/path"
+      }
+    },
+    {
+      "name": "malformed-multimeg-round",
+      "expected": {
+        "inlineFields": {
+          "x": [
+            "y"
+          ]
+        },
+        "inlineFieldOccurrences": [
+          {
+            "name": "x",
+            "normalizedName": "x",
+            "value": "y",
+            "syntax": "parenthesized",
+            "line": 1,
+            "start": 2097151,
+            "end": 2097158
+          }
+        ],
+        "urls": []
+      },
+      "inputSpec": {
+        "kind": "repeated-round-field",
+        "count": 2097152,
+        "suffix": "x:: y)"
+      }
+    },
+    {
+      "name": "malformed-multimeg-square-url",
+      "expected": {
+        "inlineFields": {},
+        "inlineFieldOccurrences": [],
+        "urls": [
+          {
+            "url": "https://huge.example/path",
+            "line": 1
+          }
+        ]
+      },
+      "inputSpec": {
+        "kind": "malformed-label-url",
+        "repeat": "[a",
+        "count": 1048576,
+        "suffix": " https://huge.example/path"
+      }
+    }
+  ],
+  "valueCases": [
+    {
+      "name": "simple",
+      "value": "[[One#A|alias]] [two](Two#B) https://example.org/x",
+      "expected": [
+        {
+          "rawTarget": "One#A",
+          "subpath": "#A",
+          "external": false
+        },
+        {
+          "rawTarget": "Two#B",
+          "subpath": "#B",
+          "external": false
+        },
+        {
+          "rawTarget": "https://example.org/x",
+          "external": true
+        }
+      ]
+    },
+    {
+      "name": "escaped-encoded",
+      "value": "[[Folder/My%20Note#Heading|Alias]] [md](Folder/Other%20Note.md#Block) https://example.org/a%20b",
+      "expected": [
+        {
+          "rawTarget": "Folder/My%20Note#Heading",
+          "subpath": "#Heading",
+          "external": false
+        },
+        {
+          "rawTarget": "Folder/Other%20Note.md#Block",
+          "subpath": "#Block",
+          "external": false
+        },
+        {
+          "rawTarget": "https://example.org/a%20b",
+          "external": true
+        }
+      ]
+    },
+    {
+      "name": "external-whitespace",
+      "value": "[label](  https://example.org/space  )",
+      "expected": [
+        {
+          "rawTarget": "  https://example.org/space  ",
+          "external": false
+        },
+        {
+          "rawTarget": "https://example.org/space",
+          "external": true
+        }
+      ]
+    },
+    {
+      "name": "nested-array-object",
+      "value": [
+        "[[A]]",
+        {
+          "child": "[B](B#H)",
+          "external": "https://example.org/x, https://example.org/x"
+        }
+      ],
+      "expected": [
+        {
+          "rawTarget": "A",
+          "external": false
+        },
+        {
+          "rawTarget": "B#H",
+          "subpath": "#H",
+          "external": false
+        },
+        {
+          "rawTarget": "https://example.org/x",
+          "external": true
+        },
+        {
+          "rawTarget": "https://example.org/x",
+          "external": true
+        }
+      ]
+    },
+    {
+      "name": "punctuation",
+      "value": "https://example.org/a, https://example.org/b!",
+      "expected": [
+        {
+          "rawTarget": "https://example.org/a",
+          "external": true
+        },
+        {
+          "rawTarget": "https://example.org/b",
+          "external": true
+        }
+      ]
+    }
+  ]
+}

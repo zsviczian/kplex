@@ -1,0 +1,1082 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "C10",
+  "status": "passed",
+  "date": "2026-09-26",
+  "source": {
+    "revision": "cf9cb9e872427696cd6a039b61c68df1e052b250",
+    "dirty": true,
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0"
+  },
+  "target": {
+    "vaultName": "kplex-test",
+    "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+    "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+  },
+  "hostVersion": "1.14.2 (installer 1.14.0)",
+  "viewport": {
+    "mode": "desktop",
+    "width": 996,
+    "height": 795
+  },
+  "artifacts": {
+    "sourceHashes": {
+      "main.js": "1303e1b6b45670b105819fe9a9f0be5ba3265ffbfccd699704414c84ba9ea75c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+    },
+    "pluginVersion": "0.0.5",
+    "stagedHashes": {
+      "main.js": "1303e1b6b45670b105819fe9a9f0be5ba3265ffbfccd699704414c84ba9ea75c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+    }
+  },
+  "fixture": {
+    "name": "Synthetic-Scale-v2",
+    "hash": "cb616324209906b54d3bf370ecee755dfea7487e53e882ad4e7700463b839bc8",
+    "syntheticMarkdownFiles": 20013,
+    "largeFiles": 2001,
+    "largeFileBytes": 950000,
+    "wholeVaultRuntimeNodes": 20701
+  },
+  "portable": {
+    "node": "22.22.2",
+    "cleanInstall": "passed",
+    "verify": "passed",
+    "lintErrors": 0,
+    "existingLintWarnings": 24,
+    "restrictedCoreAndArchitecture": "passed",
+    "diffCheck": "passed"
+  },
+  "differential": {
+    "status": "passed",
+    "baseline": "cf9cb9e",
+    "predicateComparisons": 8460,
+    "lensComparisons": 576,
+    "caseKinds": 6,
+    "windowDefined": false
+  },
+  "hostRunner": {
+    "status": "passed",
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .excalibrain-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 3878
+      }
+    ]
+  },
+  "livePropertyAndLenses": {
+    "checkpoint": "C10",
+    "status": "passed",
+    "startedAt": "2026-09-26T07:08:25.939Z",
+    "checks": [
+      {
+        "id": "metadata-property-show",
+        "paths": [
+          "Synthetic-Scale-v2/Reference/Note A.md",
+          "Synthetic-Scale-v2/Reference/Note D.md"
+        ],
+        "counters": {
+          "full": 0,
+          "patch": 1
+        }
+      },
+      {
+        "id": "metadata-property-hide",
+        "paths": [
+          "Synthetic-Scale-v2/Reference/Note A.md"
+        ],
+        "counters": {
+          "full": 0,
+          "patch": 2
+        }
+      },
+      {
+        "id": "include-union-exclude-subtraction",
+        "paths": [
+          "Synthetic-Scale-v2/Reference/Note A.md",
+          "Synthetic-Scale-v2/Reference/Note G.md"
+        ]
+      },
+      {
+        "id": "style-only-later-field-precedence",
+        "visibilityAndGateCountsUnchanged": true,
+        "border": "rgb(254, 220, 186)"
+      },
+      {
+        "id": "active-evidence-center-this",
+        "targetVisible": true
+      },
+      {
+        "id": "suppressed-evidence",
+        "status": "not-present-in-selected-host-pair",
+        "coverage": "portable and baseline differential checks"
+      }
+    ],
+    "baseline": {
+      "nodes": [
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note A.md",
+          "gates": [
+            "3",
+            "5",
+            "4",
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-90px",
+          "top": "-24px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note B.md",
+          "gates": [
+            "1",
+            "5"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-174.575px",
+          "top": "-164.55px"
+        },
+        {
+          "path": "https://source.com/ontology-full-line",
+          "gates": [
+            "1",
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-28.825px",
+          "top": "-164.55px"
+        },
+        {
+          "path": "https://source.com/ontology-inline",
+          "gates": [
+            "1",
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-101.7px",
+          "top": "-214.85px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note C.md",
+          "gates": [
+            "2",
+            "1",
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-438.9px",
+          "top": "110.55px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note F.md",
+          "gates": [
+            "1",
+            "1",
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-293.15px",
+          "top": "110.55px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note Y.md",
+          "gates": [
+            "1",
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-147.4px",
+          "top": "110.55px"
+        },
+        {
+          "path": "https://youtu.be/excalibrain-fixture-video",
+          "gates": [
+            "2"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-1.65px",
+          "top": "110.55px"
+        },
+        {
+          "path": "https://source.com/inferred",
+          "gates": [
+            "2"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "235.5px",
+          "top": "110.55px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note D.md",
+          "gates": [
+            "2",
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-284.375px",
+          "top": "-70.225px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note X.md",
+          "gates": [
+            "2",
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-284.375px",
+          "top": "-32.075px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note G.md",
+          "gates": [
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-284.375px",
+          "top": "6.075px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note H.md",
+          "gates": [
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-284.375px",
+          "top": "44.225px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note E.md",
+          "gates": [
+            "1",
+            "1"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "172.375px",
+          "top": "-13px"
+        }
+      ],
+      "paths": [
+        "Synthetic-Scale-v2/Reference/Note A.md",
+        "Synthetic-Scale-v2/Reference/Note B.md",
+        "Synthetic-Scale-v2/Reference/Note C.md",
+        "Synthetic-Scale-v2/Reference/Note D.md",
+        "Synthetic-Scale-v2/Reference/Note E.md",
+        "Synthetic-Scale-v2/Reference/Note F.md",
+        "Synthetic-Scale-v2/Reference/Note G.md",
+        "Synthetic-Scale-v2/Reference/Note H.md",
+        "Synthetic-Scale-v2/Reference/Note X.md",
+        "Synthetic-Scale-v2/Reference/Note Y.md",
+        "https://source.com/inferred",
+        "https://source.com/ontology-full-line",
+        "https://source.com/ontology-inline",
+        "https://youtu.be/excalibrain-fixture-video"
+      ],
+      "size": 20701,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "hidden": false,
+      "counters": {
+        "full": 0,
+        "patch": 0
+      },
+      "reference": "Synthetic-Scale-v2/Reference/Note A.md"
+    },
+    "evidence": [
+      {
+        "active": true,
+        "kind": "obsidian-link"
+      },
+      {
+        "active": true,
+        "kind": "inline-ontology"
+      }
+    ],
+    "final": {
+      "nodes": [
+        {
+          "path": "Synthetic-Scale-v2/Nodes/056/Scale-005600.md",
+          "gates": [
+            "13",
+            "11",
+            "4",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-130.7px",
+          "top": "-24px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/100/Scale-010000.md",
+          "gates": [
+            "19886",
+            "51",
+            "108",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-541.2px",
+          "top": "110.55px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/000/Scale-000000.md",
+          "gates": [
+            "19986",
+            "6",
+            "8",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-309.85px",
+          "top": "110.55px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/050/Scale-005000.md",
+          "gates": [
+            "19986",
+            "6",
+            "8",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-78.5px",
+          "top": "110.55px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/150/Scale-015000.md",
+          "gates": [
+            "19986",
+            "6",
+            "8",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "152.85px",
+          "top": "110.55px"
+        },
+        {
+          "path": "https://example.com/kplex-scale/shared/32",
+          "gates": [
+            "3128"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "384.2px",
+          "top": "110.55px"
+        },
+        {
+          "path": "https://example.com/kplex-scale/shared/13",
+          "gates": [
+            "3126"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-520.9px",
+          "top": "230.85px"
+        },
+        {
+          "path": "https://example.com/kplex-scale/shared/45",
+          "gates": [
+            "3124"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-330.15px",
+          "top": "230.85px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/073/Scale-007309.md",
+          "gates": [
+            "14",
+            "10",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-139.4px",
+          "top": "230.85px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/056/Scale-005607.md",
+          "gates": [
+            "13",
+            "10",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "91.95px",
+          "top": "230.85px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/055/Scale-005599.md",
+          "gates": [
+            "12",
+            "10",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "323.3px",
+          "top": "230.85px"
+        },
+        {
+          "path": "https://example.com/kplex-scale/Scale-005600",
+          "gates": [
+            "2"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "-69.8px",
+          "top": "351.15px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/054/Scale-005473.md",
+          "gates": [
+            "13",
+            "10",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "170.275px",
+          "top": "-231.75px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/057/Scale-005727.md",
+          "gates": [
+            "13",
+            "10",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "170.275px",
+          "top": "-123.6px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/065/Scale-006597.md",
+          "gates": [
+            "14",
+            "10",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "170.275px",
+          "top": "-15.45px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/187/Scale-018725.md",
+          "gates": [
+            "14",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "737.8px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/199/Scale-019995.md",
+          "gates": [
+            "14",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "255.35px",
+          "top": "737.8px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/008/Scale-000884.md",
+          "gates": [
+            "13",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "617.5px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/144/Scale-014407.md",
+          "gates": [
+            "13",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "255.35px",
+          "top": "617.5px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/165/Scale-016566.md",
+          "gates": [
+            "13",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "497.2px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/178/Scale-017836.md",
+          "gates": [
+            "13",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "255.35px",
+          "top": "497.2px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/030/Scale-003043.md",
+          "gates": [
+            "12",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "376.9px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/052/Scale-005202.md",
+          "gates": [
+            "12",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "255.35px",
+          "top": "376.9px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/135/Scale-013518.md",
+          "gates": [
+            "12",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "256.6px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/156/Scale-015677.md",
+          "gates": [
+            "12",
+            "155",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "255.35px",
+          "top": "256.6px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/056/Scale-005601.md",
+          "gates": [
+            "15",
+            "10",
+            "3",
+            "4"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "136.3px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/038/Scale-003891.md",
+          "gates": [
+            "13",
+            "10",
+            "3",
+            "4"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "255.35px",
+          "top": "136.3px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/055/Scale-005593.md",
+          "gates": [
+            "13",
+            "10",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "139.675px",
+          "top": "16px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/056/Scale-005631.md",
+          "gates": [
+            "15",
+            "10",
+            "3",
+            "4"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "16px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/055/Scale-005569.md",
+          "gates": [
+            "12",
+            "10",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "124.15px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/077/Scale-007711.md",
+          "gates": [
+            "12",
+            "155",
+            "3",
+            "4"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "232.3px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/046/Scale-004603.md",
+          "gates": [
+            "13",
+            "10",
+            "3",
+            "3"
+          ],
+          "border": "rgba(0, 0, 0, 0)",
+          "left": "24px",
+          "top": "340.45px"
+        }
+      ],
+      "paths": [
+        "Synthetic-Scale-v2/Nodes/000/Scale-000000.md",
+        "Synthetic-Scale-v2/Nodes/008/Scale-000884.md",
+        "Synthetic-Scale-v2/Nodes/030/Scale-003043.md",
+        "Synthetic-Scale-v2/Nodes/038/Scale-003891.md",
+        "Synthetic-Scale-v2/Nodes/046/Scale-004603.md",
+        "Synthetic-Scale-v2/Nodes/050/Scale-005000.md",
+        "Synthetic-Scale-v2/Nodes/052/Scale-005202.md",
+        "Synthetic-Scale-v2/Nodes/054/Scale-005473.md",
+        "Synthetic-Scale-v2/Nodes/055/Scale-005569.md",
+        "Synthetic-Scale-v2/Nodes/055/Scale-005593.md",
+        "Synthetic-Scale-v2/Nodes/055/Scale-005599.md",
+        "Synthetic-Scale-v2/Nodes/056/Scale-005600.md",
+        "Synthetic-Scale-v2/Nodes/056/Scale-005601.md",
+        "Synthetic-Scale-v2/Nodes/056/Scale-005607.md",
+        "Synthetic-Scale-v2/Nodes/056/Scale-005631.md",
+        "Synthetic-Scale-v2/Nodes/057/Scale-005727.md",
+        "Synthetic-Scale-v2/Nodes/065/Scale-006597.md",
+        "Synthetic-Scale-v2/Nodes/073/Scale-007309.md",
+        "Synthetic-Scale-v2/Nodes/077/Scale-007711.md",
+        "Synthetic-Scale-v2/Nodes/100/Scale-010000.md",
+        "Synthetic-Scale-v2/Nodes/135/Scale-013518.md",
+        "Synthetic-Scale-v2/Nodes/144/Scale-014407.md",
+        "Synthetic-Scale-v2/Nodes/150/Scale-015000.md",
+        "Synthetic-Scale-v2/Nodes/156/Scale-015677.md",
+        "Synthetic-Scale-v2/Nodes/165/Scale-016566.md",
+        "Synthetic-Scale-v2/Nodes/178/Scale-017836.md",
+        "Synthetic-Scale-v2/Nodes/187/Scale-018725.md",
+        "Synthetic-Scale-v2/Nodes/199/Scale-019995.md",
+        "https://example.com/kplex-scale/Scale-005600",
+        "https://example.com/kplex-scale/shared/13",
+        "https://example.com/kplex-scale/shared/32",
+        "https://example.com/kplex-scale/shared/45"
+      ],
+      "size": 20701,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "hidden": false,
+      "counters": {
+        "full": 0,
+        "patch": 3
+      },
+      "reference": "Synthetic-Scale-v2/Nodes/056/Scale-005600.md"
+    },
+    "cleanup": {
+      "controllerRemoved": true
+    },
+    "errors": "No errors captured.",
+    "completedAt": "2026-09-26T07:08:30.601Z"
+  },
+  "layout": {
+    "status": "passed",
+    "keep": {
+      "nodes": [
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note A.md",
+          "left": "-90px",
+          "top": "-24px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note D.md",
+          "left": "-284.375px",
+          "top": "-70.225px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note G.md",
+          "left": "-284.375px",
+          "top": "6.075px"
+        }
+      ],
+      "paths": [
+        "Synthetic-Scale-v2/Reference/Note A.md",
+        "Synthetic-Scale-v2/Reference/Note D.md",
+        "Synthetic-Scale-v2/Reference/Note G.md"
+      ],
+      "size": 20701,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      }
+    },
+    "reflow": {
+      "nodes": [
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note A.md",
+          "left": "-90px",
+          "top": "-24px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note D.md",
+          "left": "-284.375px",
+          "top": "-32.075px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Reference/Note G.md",
+          "left": "-284.375px",
+          "top": "6.075px"
+        }
+      ],
+      "paths": [
+        "Synthetic-Scale-v2/Reference/Note A.md",
+        "Synthetic-Scale-v2/Reference/Note D.md",
+        "Synthetic-Scale-v2/Reference/Note G.md"
+      ],
+      "size": 20701,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "reflow": true
+    },
+    "layout": "passed",
+    "suppressed": {
+      "status": "not-present-in-current-reference-neighborhood",
+      "coverage": "portable and prior-evaluator comparison"
+    },
+    "final": {
+      "nodes": [
+        {
+          "path": "Synthetic-Scale-v2/Nodes/056/Scale-005600.md",
+          "left": "-130.7px",
+          "top": "-24px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/100/Scale-010000.md",
+          "left": "-541.2px",
+          "top": "110.55px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/000/Scale-000000.md",
+          "left": "-309.85px",
+          "top": "110.55px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/050/Scale-005000.md",
+          "left": "-78.5px",
+          "top": "110.55px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/150/Scale-015000.md",
+          "left": "152.85px",
+          "top": "110.55px"
+        },
+        {
+          "path": "https://example.com/kplex-scale/shared/32",
+          "left": "384.2px",
+          "top": "110.55px"
+        },
+        {
+          "path": "https://example.com/kplex-scale/shared/13",
+          "left": "-520.9px",
+          "top": "230.85px"
+        },
+        {
+          "path": "https://example.com/kplex-scale/shared/45",
+          "left": "-330.15px",
+          "top": "230.85px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/073/Scale-007309.md",
+          "left": "-139.4px",
+          "top": "230.85px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/056/Scale-005607.md",
+          "left": "91.95px",
+          "top": "230.85px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/055/Scale-005599.md",
+          "left": "323.3px",
+          "top": "230.85px"
+        },
+        {
+          "path": "https://example.com/kplex-scale/Scale-005600",
+          "left": "-69.8px",
+          "top": "351.15px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/054/Scale-005473.md",
+          "left": "170.275px",
+          "top": "-231.75px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/057/Scale-005727.md",
+          "left": "170.275px",
+          "top": "-123.6px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/065/Scale-006597.md",
+          "left": "170.275px",
+          "top": "-15.45px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/187/Scale-018725.md",
+          "left": "24px",
+          "top": "737.8px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/199/Scale-019995.md",
+          "left": "255.35px",
+          "top": "737.8px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/008/Scale-000884.md",
+          "left": "24px",
+          "top": "617.5px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/144/Scale-014407.md",
+          "left": "255.35px",
+          "top": "617.5px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/165/Scale-016566.md",
+          "left": "24px",
+          "top": "497.2px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/178/Scale-017836.md",
+          "left": "255.35px",
+          "top": "497.2px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/030/Scale-003043.md",
+          "left": "24px",
+          "top": "376.9px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/052/Scale-005202.md",
+          "left": "255.35px",
+          "top": "376.9px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/135/Scale-013518.md",
+          "left": "24px",
+          "top": "256.6px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/156/Scale-015677.md",
+          "left": "255.35px",
+          "top": "256.6px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/056/Scale-005601.md",
+          "left": "24px",
+          "top": "136.3px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/038/Scale-003891.md",
+          "left": "255.35px",
+          "top": "136.3px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/055/Scale-005593.md",
+          "left": "139.675px",
+          "top": "16px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/056/Scale-005631.md",
+          "left": "24px",
+          "top": "16px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/055/Scale-005569.md",
+          "left": "24px",
+          "top": "124.15px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/077/Scale-007711.md",
+          "left": "24px",
+          "top": "232.3px"
+        },
+        {
+          "path": "Synthetic-Scale-v2/Nodes/046/Scale-004603.md",
+          "left": "24px",
+          "top": "340.45px"
+        }
+      ],
+      "paths": [
+        "Synthetic-Scale-v2/Nodes/000/Scale-000000.md",
+        "Synthetic-Scale-v2/Nodes/008/Scale-000884.md",
+        "Synthetic-Scale-v2/Nodes/030/Scale-003043.md",
+        "Synthetic-Scale-v2/Nodes/038/Scale-003891.md",
+        "Synthetic-Scale-v2/Nodes/046/Scale-004603.md",
+        "Synthetic-Scale-v2/Nodes/050/Scale-005000.md",
+        "Synthetic-Scale-v2/Nodes/052/Scale-005202.md",
+        "Synthetic-Scale-v2/Nodes/054/Scale-005473.md",
+        "Synthetic-Scale-v2/Nodes/055/Scale-005569.md",
+        "Synthetic-Scale-v2/Nodes/055/Scale-005593.md",
+        "Synthetic-Scale-v2/Nodes/055/Scale-005599.md",
+        "Synthetic-Scale-v2/Nodes/056/Scale-005600.md",
+        "Synthetic-Scale-v2/Nodes/056/Scale-005601.md",
+        "Synthetic-Scale-v2/Nodes/056/Scale-005607.md",
+        "Synthetic-Scale-v2/Nodes/056/Scale-005631.md",
+        "Synthetic-Scale-v2/Nodes/057/Scale-005727.md",
+        "Synthetic-Scale-v2/Nodes/065/Scale-006597.md",
+        "Synthetic-Scale-v2/Nodes/073/Scale-007309.md",
+        "Synthetic-Scale-v2/Nodes/077/Scale-007711.md",
+        "Synthetic-Scale-v2/Nodes/100/Scale-010000.md",
+        "Synthetic-Scale-v2/Nodes/135/Scale-013518.md",
+        "Synthetic-Scale-v2/Nodes/144/Scale-014407.md",
+        "Synthetic-Scale-v2/Nodes/150/Scale-015000.md",
+        "Synthetic-Scale-v2/Nodes/156/Scale-015677.md",
+        "Synthetic-Scale-v2/Nodes/165/Scale-016566.md",
+        "Synthetic-Scale-v2/Nodes/178/Scale-017836.md",
+        "Synthetic-Scale-v2/Nodes/187/Scale-018725.md",
+        "Synthetic-Scale-v2/Nodes/199/Scale-019995.md",
+        "https://example.com/kplex-scale/Scale-005600",
+        "https://example.com/kplex-scale/shared/13",
+        "https://example.com/kplex-scale/shared/32",
+        "https://example.com/kplex-scale/shared/45"
+      ],
+      "size": 20701,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      }
+    }
+  },
+  "suppressedEvidence": {
+    "status": "passed",
+    "fixture": {
+      "size": 20703,
+      "hidden": false,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "decisions": [
+        {
+          "active": true,
+          "kind": "obsidian-link"
+        },
+        {
+          "active": true,
+          "kind": "frontmatter-ontology"
+        },
+        {
+          "active": false,
+          "reason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair.",
+          "kind": "inline-ontology"
+        }
+      ]
+    },
+    "match": {
+      "size": 20703,
+      "hidden": false,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "paths": [
+        "C10EvidenceReviewA.md",
+        "C10EvidenceReviewB.md"
+      ],
+      "decisions": [
+        {
+          "active": true,
+          "kind": "obsidian-link"
+        },
+        {
+          "active": true,
+          "kind": "frontmatter-ontology"
+        },
+        {
+          "active": false,
+          "reason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair.",
+          "kind": "inline-ontology"
+        }
+      ]
+    },
+    "removal": [
+      {
+        "path": "C10EvidenceReviewA.md",
+        "removed": true
+      },
+      {
+        "path": "C10EvidenceReviewB.md",
+        "removed": true
+      }
+    ],
+    "final": {
+      "size": 20701,
+      "hidden": false,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      }
+    },
+    "errors": "No errors captured."
+  },
+  "limits": [
+    "Desktop Electron validation; no new physical-device/C00 performance evidence.",
+    "Initial external-created evidence fixture exceeded readiness wait; passing fixture used existing managed creation.",
+    "A timed-out CLI subprocess ignored SIGTERM; it was stopped separately and later waits used SIGKILL for their own subprocess.",
+    "Existing index cleanup methods reconciled only disposable test endpoints after an interrupted fixture build; no production indexing change.",
+    "No new timing/heap benchmark claimed."
+  ],
+  "manualAcceptanceChecks": []
+}

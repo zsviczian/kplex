@@ -321,8 +321,9 @@ export async function finalizeHydratedGraphStateCooperative(
   state: GraphState,
   isCurrent: () => boolean = () => true,
   batchSize = 240,
+  onProgress?: () => void,
 ): Promise<boolean> {
-  return resolveEvidenceStoreCooperative(state.pages, state.evidence, isCurrent, batchSize);
+  return resolveEvidenceStoreCooperative(state.pages, state.evidence, isCurrent, batchSize, onProgress);
 }
 
 export function hydrateGraphState(snapshot: PersistedIndexSnapshot, app: App): GraphState {

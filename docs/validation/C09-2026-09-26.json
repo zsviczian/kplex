@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "C09",
+  "status": "passed",
+  "date": "2026-09-26",
+  "source": {
+    "revision": "1a5bbb714c55cd61b2b9f80380ef0e9a6a6d9a9b",
+    "dirty": true,
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0"
+  },
+  "target": {
+    "vaultName": "kplex-test",
+    "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+    "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+  },
+  "hostVersion": "1.14.2 (installer 1.14.0)",
+  "artifacts": {
+    "sourceHashes": {
+      "main.js": "44bf7e8abc8274c50b37e0ea016f49661e8b009c6f8272a90f49641d5e5c07fa",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+    },
+    "pluginVersion": "0.0.5",
+    "stagedHashes": {
+      "main.js": "44bf7e8abc8274c50b37e0ea016f49661e8b009c6f8272a90f49641d5e5c07fa",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+    }
+  },
+  "fixture": {
+    "name": "Synthetic-Scale-v2",
+    "hash": "cb616324209906b54d3bf370ecee755dfea7487e53e882ad4e7700463b839bc8",
+    "syntheticMarkdownFiles": 20013,
+    "largeFiles": 2001,
+    "largeFileBytes": 950000,
+    "wholeVaultRuntimeNodes": 20701
+  },
+  "portable": {
+    "node": "22.22.2",
+    "cleanInstall": "passed",
+    "verify": "passed",
+    "lintErrors": 0,
+    "existingLintWarnings": 24,
+    "browserConsumer": "passed",
+    "diffCheck": "passed"
+  },
+  "hostRunner": {
+    "status": "passed",
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .excalibrain-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 986
+      }
+    ]
+  },
+  "liveSearch": {
+    "checkpoint": "C09",
+    "checks": [
+      {
+        "id": "ranked-search",
+        "query": "",
+        "results": 24
+      },
+      {
+        "id": "ranked-search",
+        "query": "Note",
+        "results": 11
+      },
+      {
+        "id": "ranked-search",
+        "query": "https://",
+        "results": 24
+      },
+      {
+        "id": "fixture-search",
+        "results": [
+          {
+            "label": "C09AliasInitial",
+            "detail": "C09ReviewFixture20260926 A.md"
+          },
+          {
+            "label": "C09AliasInitial",
+            "detail": "C09ReviewFixture20260926 B.md"
+          }
+        ]
+      },
+      {
+        "id": "same-query-rename",
+        "results": [
+          {
+            "label": "C09AliasInitial",
+            "detail": "C09ReviewFixture20260926 B.md"
+          },
+          {
+            "label": "C09AliasInitial",
+            "detail": "C09ReviewFixture20260926 Renamed.md"
+          }
+        ]
+      },
+      {
+        "id": "same-query-alias-refresh",
+        "results": [
+          {
+            "label": "C09AliasInitial",
+            "detail": "C09ReviewFixture20260926 B.md"
+          },
+          {
+            "label": "C09AliasChanged",
+            "detail": "C09ReviewFixture20260926 Renamed.md"
+          }
+        ]
+      },
+      {
+        "id": "alias-search",
+        "results": [
+          {
+            "label": "C09AliasChanged",
+            "detail": "C09ReviewFixture20260926 Renamed.md"
+          }
+        ]
+      },
+      {
+        "id": "result-activation",
+        "selected": "C09ReviewFixture20260926 B.md"
+      },
+      {
+        "id": "same-query-deletion-ghost-transition",
+        "results": [
+          {
+            "label": "C09ReviewFixture20260926 Renamed",
+            "detail": "C09ReviewFixture20260926 Renamed.md"
+          },
+          {
+            "label": "C09AliasInitial",
+            "detail": "C09ReviewFixture20260926 B.md"
+          }
+        ]
+      },
+      {
+        "id": "same-query-deletion-hidden-placeholder",
+        "results": [
+          {
+            "label": "C09AliasInitial",
+            "detail": "C09ReviewFixture20260926 B.md"
+          }
+        ]
+      }
+    ],
+    "startedAt": "2026-09-26T06:17:00.677Z",
+    "status": "passed",
+    "errors": "No errors captured.",
+    "completedAt": "2026-09-26T06:17:40.965Z"
+  },
+  "baseline": {
+    "nodes": 20701,
+    "status": {
+      "upToDate": true,
+      "label": "Index status: up to date"
+    },
+    "lastActivePath": "Synthetic-Scale-v2/Nodes/056/Scale-005600.md",
+    "hidden": false
+  },
+  "cleanup": {
+    "value": "",
+    "rows": [
+      {
+        "label": "Welcome",
+        "detail": "Welcome.md"
+      },
+      {
+        "label": "fixture-manifest.json",
+        "detail": "Synthetic-Scale-v2/fixture-manifest.json"
+      },
+      {
+        "label": "Alpha Hub",
+        "detail": "Synthetic-Scale-v2/Reference/Note A.md"
+      },
+      {
+        "label": "Bravo",
+        "detail": "Synthetic-Scale-v2/Reference/Note B.md"
+      },
+      {
+        "label": "Note C",
+        "detail": "Synthetic-Scale-v2/Reference/Note C.md"
+      },
+      {
+        "label": "Note D",
+        "detail": "Synthetic-Scale-v2/Reference/Note D.md"
+      },
+      {
+        "label": "Note E",
+        "detail": "Synthetic-Scale-v2/Reference/Note E.md"
+      },
+      {
+        "label": "Note F",
+        "detail": "Synthetic-Scale-v2/Reference/Note F.md"
+      },
+      {
+        "label": "Note G",
+        "detail": "Synthetic-Scale-v2/Reference/Note G.md"
+      },
+      {
+        "label": "Note H",
+        "detail": "Synthetic-Scale-v2/Reference/Note H.md"
+      },
+      {
+        "label": "Note X",
+        "detail": "Synthetic-Scale-v2/Reference/Note X.md"
+      },
+      {
+        "label": "Note Y",
+        "detail": "Synthetic-Scale-v2/Reference/Note Y.md"
+      },
+      {
+        "label": "Section Tree",
+        "detail": "Synthetic-Scale-v2/Reference/Section Tree.md"
+      },
+      {
+        "label": "20260918",
+        "detail": "Synthetic-Scale-v2/Reference/Daily/2026/09/20260918.md"
+      },
+      {
+        "label": "20260919",
+        "detail": "Synthetic-Scale-v2/Reference/Daily/2026/09/20260919.md"
+      },
+      {
+        "label": "Synthetic alias 019900",
+        "detail": "Synthetic-Scale-v2/Nodes/199/Scale-019900.md"
+      },
+      {
+        "label": "Synthetic alias 019901",
+        "detail": "Synthetic-Scale-v2/Nodes/199/Scale-019901.md"
+      },
+      {
+        "label": "Synthetic alias 019902",
+        "detail": "Synthetic-Scale-v2/Nodes/199/Scale-019902.md"
+      },
+      {
+        "label": "Synthetic alias 019903",
+        "detail": "Synthetic-Scale-v2/Nodes/199/Scale-019903.md"
+      },
+      {
+        "label": "Synthetic alias 019904",
+        "detail": "Synthetic-Scale-v2/Nodes/199/Scale-019904.md"
+      },
+      {
+        "label": "Synthetic alias 019905",
+        "detail": "Synthetic-Scale-v2/Nodes/199/Scale-019905.md"
+      },
+      {
+        "label": "Synthetic alias 019906",
+        "detail": "Synthetic-Scale-v2/Nodes/199/Scale-019906.md"
+      },
+      {
+        "label": "Synthetic alias 019907",
+        "detail": "Synthetic-Scale-v2/Nodes/199/Scale-019907.md"
+      },
+      {
+        "label": "Synthetic alias 019908",
+        "detail": "Synthetic-Scale-v2/Nodes/199/Scale-019908.md"
+      }
+    ],
+    "nodes": 20701,
+    "status": {
+      "upToDate": true,
+      "label": "Index status: up to date"
+    },
+    "lastActivePath": "Synthetic-Scale-v2/Nodes/056/Scale-005600.md",
+    "hidden": false
+  },
+  "limits": [
+    "Desktop Electron search checks; no new physical-device or C00 performance evidence.",
+    "Displayed results compared with unchanged legacy ranking/title oracle, not a measured pre-C09 timing baseline.",
+    "Deletion retains legacy placeholders; removal asserted with placeholders hidden.",
+    "An explicit cleanup rebuild removes temporary placeholders; the production search port does not request rebuilds.",
+    "Metadata arrays are readonly shared references, valid per publication/presentation revision, not frozen snapshots."
+  ],
+  "manualAcceptanceChecks": []
+}

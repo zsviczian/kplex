@@ -1,19 +1,10 @@
 import type { TFile } from "obsidian";
+import { LinkDirection, RelationType, type Role, type RelationshipRole, type SemanticRelation } from "./core/graph/relations";
 
-export enum RelationType {
-  DEFINED = 1,
-  INFERRED = 2
-}
+export { LinkDirection, RelationType };
+export type { Role, RelationshipRole };
 
-export enum LinkDirection {
-  TO = 1,
-  FROM = 2,
-  BOTH = 3
-}
-
-export type Role = "parent" | "child" | "left" | "right" | "previous" | "next" | "sibling";
 export type GateRole = "parent" | "child" | "left" | "right";
-export type RelationshipRole = Exclude<Role, "sibling">;
 export type GateSide = "top" | "bottom" | "left" | "right";
 export type ScrollZone = "parent" | "child" | "left" | "right" | "sibling";
 export type StrokeStyle = "solid" | "dashed" | "dotted";
@@ -69,29 +60,7 @@ export type LinkStyle = {
   textColor?: string;
 };
 
-export type Relation = {
-  target: GraphPage;
-  direction: LinkDirection | null;
-  isHidden: boolean;
-  isParent: boolean;
-  parentType?: RelationType;
-  parentTypeDefinition?: string;
-  isChild: boolean;
-  childType?: RelationType;
-  childTypeDefinition?: string;
-  isLeftFriend: boolean;
-  leftFriendType?: RelationType;
-  leftFriendTypeDefinition?: string;
-  isRightFriend: boolean;
-  rightFriendType?: RelationType;
-  rightFriendTypeDefinition?: string;
-  isNextFriend: boolean;
-  nextFriendType?: RelationType;
-  nextFriendTypeDefinition?: string;
-  isPreviousFriend: boolean;
-  previousFriendType?: RelationType;
-  previousFriendTypeDefinition?: string;
-};
+export type Relation = SemanticRelation<GraphPage>;
 
 export type GraphPage = {
   path: string;

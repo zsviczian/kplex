@@ -1,0 +1,544 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "C08P",
+  "status": "passed",
+  "date": "2026-09-26",
+  "source": {
+    "revision": "04f04eb88776f3536e45dd1d9894414feef75d6c",
+    "dirty": true,
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0"
+  },
+  "target": {
+    "vaultName": "kplex-test",
+    "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+    "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+  },
+  "hostVersion": "1.14.2 (installer 1.14.0)",
+  "fixture": {
+    "name": "Synthetic-Scale-v2",
+    "hash": "cb616324209906b54d3bf370ecee755dfea7487e53e882ad4e7700463b839bc8",
+    "syntheticMarkdownFiles": 20013,
+    "largeFiles": 2001,
+    "largeFileBytes": 950000,
+    "wholeVaultRuntimeNodes": 20701,
+    "wholeVaultOriginalEvidenceDeclarations": 715030
+  },
+  "portable": {
+    "node": "v22.22.2",
+    "cleanInstall": "npm ci passed",
+    "commands": [
+      "npm run verify",
+      "npm run verify:obsidian"
+    ],
+    "result": "passed",
+    "architectureViolations": 0,
+    "lintErrors": 0,
+    "legacySentenceCaseWarnings": 24,
+    "browserExecution": "outside filesystem sandbox",
+    "earlierFailures": [
+      "Two unchanged 50-ms URL-heavy timer assertions exceeded budget during host churn; complete final runs passed without relaxing them.",
+      "Sandboxed Chrome could not launch; complete browser lane passed with execution allowed."
+    ]
+  },
+  "exactBuildHost": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "startedAt": "2026-09-26T05:32:51.617Z",
+    "source": {
+      "revision": "04f04eb88776f3536e45dd1d9894414feef75d6c",
+      "dirty": true,
+      "node": "v22.22.2",
+      "os": "darwin 23.5.0"
+    },
+    "target": {
+      "vaultName": "kplex-test",
+      "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+      "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+    },
+    "capabilities": {
+      "version": "1.14.2 (installer 1.14.0)",
+      "commands": [
+        "version",
+        "vault",
+        "plugin:disable",
+        "plugin:enable",
+        "commands",
+        "command",
+        "dev:dom",
+        "dev:errors"
+      ]
+    },
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "bfeac7bfd6d59a34f68bb9cf8e862b2bbe3ceba340cea081f38aa0cce5d0a058",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+      },
+      "pluginVersion": "0.0.5",
+      "stagedHashes": {
+        "main.js": "bfeac7bfd6d59a34f68bb9cf8e862b2bbe3ceba340cea081f38aa0cce5d0a058",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .excalibrain-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 1680
+      }
+    ],
+    "completedAt": "2026-09-26T05:33:12.863Z"
+  },
+  "comparisonBaseline": {
+    "revision": "04f04eb88776f3536e45dd1d9894414feef75d6c",
+    "artifactHashes": {
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084",
+      "main.js": "93adf6c131c8e16c27a050c46494b8dbcec48572c6e6c1277dbfe938795ade58",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62"
+    },
+    "warm": {
+      "done": true,
+      "runs": [
+        {
+          "ms": 6568.599999904633,
+          "partial": true,
+          "complete": {
+            "restored": true,
+            "fresh": true,
+            "createdAt": 1790398412829
+          },
+          "size": 20701
+        },
+        {
+          "ms": 5800.900000095367,
+          "partial": true,
+          "complete": {
+            "restored": true,
+            "fresh": true,
+            "createdAt": 1790398412829
+          },
+          "size": 20701
+        },
+        {
+          "ms": 4734.5,
+          "partial": true,
+          "complete": {
+            "restored": true,
+            "fresh": true,
+            "createdAt": 1790398412829
+          },
+          "size": 20701
+        }
+      ],
+      "reads": 0,
+      "full": 0,
+      "patch": 0,
+      "peakSampledJsHeapBytes": 1023325135
+    }
+  },
+  "finalBuildWarmAndNoopPatch": {
+    "done": true,
+    "runs": [
+      {
+        "ms": 6159.300000190735,
+        "partial": true,
+        "complete": {
+          "restored": true,
+          "fresh": true,
+          "createdAt": 1790401094451
+        },
+        "size": 20701,
+        "hidden": false,
+        "diagnostics": {
+          "run": 4,
+          "phase": "complete",
+          "lastActivePhase": "promote",
+          "startedAt": 1790401161440,
+          "phaseStartedAt": 1790401167598,
+          "lastProgressAt": 1790401167598,
+          "pages": 20701,
+          "relations": 20701,
+          "evidence": 715030,
+          "outcome": "complete"
+        }
+      },
+      {
+        "ms": 5744.699999809265,
+        "partial": true,
+        "complete": {
+          "restored": true,
+          "fresh": true,
+          "createdAt": 1790401094451
+        },
+        "size": 20701,
+        "hidden": false,
+        "diagnostics": {
+          "run": 5,
+          "phase": "complete",
+          "lastActivePhase": "promote",
+          "startedAt": 1790401167599,
+          "phaseStartedAt": 1790401173343,
+          "lastProgressAt": 1790401173343,
+          "pages": 20701,
+          "relations": 20701,
+          "evidence": 715030,
+          "outcome": "complete"
+        }
+      },
+      {
+        "ms": 5486.800000190735,
+        "partial": true,
+        "complete": {
+          "restored": true,
+          "fresh": true,
+          "createdAt": 1790401094451
+        },
+        "size": 20701,
+        "hidden": false,
+        "diagnostics": {
+          "run": 6,
+          "phase": "complete",
+          "lastActivePhase": "promote",
+          "startedAt": 1790401173343,
+          "phaseStartedAt": 1790401178830,
+          "lastProgressAt": 1790401178829,
+          "pages": 20701,
+          "relations": 20701,
+          "evidence": 715030,
+          "outcome": "complete"
+        }
+      }
+    ],
+    "reads": 1,
+    "full": 0,
+    "patch": 1,
+    "hidden": false,
+    "peakSampledJsHeapBytes": 2340027876,
+    "warmCounters": {
+      "reads": 0,
+      "full": 0,
+      "patch": 0
+    },
+    "noopPatch": {
+      "result": {
+        "outcome": "patched",
+        "count": 1
+      },
+      "ms": 279.7000000476837,
+      "events": 0
+    },
+    "status": {
+      "upToDate": true,
+      "label": "Index status: up to date"
+    }
+  },
+  "warmComparison": {
+    "procedure": "Three explicit warm snapshot restores after startup settled, same fixture/settings; call to full hydration, not app startup or paint.",
+    "baselineMedianMs": 5800.900000095367,
+    "finalMedianMs": 5744.699999809265,
+    "changePercent": -0.9688151887668917,
+    "normalWarmRegressionObserved": false,
+    "sampleCountEach": 3,
+    "limitations": "Small sequential sample; prior heap samples were not GC/visibility controlled. Do not infer retained-memory or native-device performance from them."
+  },
+  "finalBuildStalledRead": {
+    "done": true,
+    "startedAt": 1790400827199,
+    "reads": 0,
+    "full": 1,
+    "patch": 0,
+    "peakSampledJsHeapBytes": 1647552609,
+    "preview": {
+      "restored": true,
+      "fresh": true,
+      "createdAt": 1790400514095,
+      "partial": true
+    },
+    "blocked": true,
+    "hydration": {
+      "restored": false,
+      "fresh": false,
+      "createdAt": 1790400514095
+    },
+    "waitMs": 246407,
+    "terminal": {
+      "run": 2,
+      "phase": "timed-out",
+      "lastActivePhase": "evidence",
+      "startedAt": 1790400827290,
+      "phaseStartedAt": 1790401073729,
+      "lastProgressAt": 1790400979392,
+      "pages": 20701,
+      "relations": 20701,
+      "evidence": 0,
+      "outcome": "timed-out"
+    },
+    "fullMs": 15225.100000143051,
+    "afterMatches": true,
+    "size": 20701,
+    "declarations": 715030,
+    "status": {
+      "upToDate": true,
+      "label": "Index status: up to date"
+    },
+    "latePublishPrevented": true,
+    "terminalUnchanged": true,
+    "finishedAt": 1790401090436,
+    "hidden": false,
+    "phase": {
+      "run": 2,
+      "phase": "timed-out",
+      "lastActivePhase": "evidence",
+      "startedAt": 1790400827290,
+      "phaseStartedAt": 1790401073729,
+      "lastProgressAt": 1790400979392,
+      "pages": 20701,
+      "relations": 20701,
+      "evidence": 0,
+      "outcome": "timed-out"
+    }
+  },
+  "inactivityBeforeTimeoutMs": 94337,
+  "finalBuildReloadAndEmulation": {
+    "reloads": [
+      {
+        "old": {
+          "diagnostics": {
+            "run": 7,
+            "phase": "cancelled",
+            "lastActivePhase": "preview",
+            "startedAt": 1790401209669,
+            "phaseStartedAt": 1790401209770,
+            "lastProgressAt": 1790401209686,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "cancelled"
+          },
+          "pending": false
+        },
+        "new": {
+          "size": 20701,
+          "pending": false,
+          "diagnostics": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1790401209933,
+            "phaseStartedAt": 1790401216260,
+            "lastProgressAt": 1790401216260,
+            "pages": 20701,
+            "relations": 20701,
+            "evidence": 715030,
+            "outcome": "complete"
+          },
+          "status": {
+            "upToDate": true,
+            "label": "Index status: up to date"
+          },
+          "width": 996,
+          "height": 795,
+          "mobile": false,
+          "selectedProfileKey": "desktop:leaf",
+          "graphTab": true,
+          "popout": true
+        }
+      },
+      {
+        "old": {
+          "diagnostics": {
+            "run": 2,
+            "phase": "cancelled",
+            "lastActivePhase": "preview",
+            "startedAt": 1790401216513,
+            "phaseStartedAt": 1790401216571,
+            "lastProgressAt": 1790401216526,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "cancelled"
+          },
+          "pending": false
+        },
+        "new": {
+          "size": 20701,
+          "pending": false,
+          "diagnostics": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1790401216644,
+            "phaseStartedAt": 1790401223046,
+            "lastProgressAt": 1790401223046,
+            "pages": 20701,
+            "relations": 20701,
+            "evidence": 715030,
+            "outcome": "complete"
+          },
+          "status": {
+            "upToDate": true,
+            "label": "Index status: up to date"
+          },
+          "width": 996,
+          "height": 795,
+          "mobile": false,
+          "selectedProfileKey": "desktop:leaf",
+          "graphTab": true,
+          "popout": true
+        }
+      },
+      {
+        "old": {
+          "diagnostics": {
+            "run": 2,
+            "phase": "cancelled",
+            "lastActivePhase": "preview",
+            "startedAt": 1790401223922,
+            "phaseStartedAt": 1790401224015,
+            "lastProgressAt": 1790401223948,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "cancelled"
+          },
+          "pending": false
+        },
+        "new": {
+          "size": 20701,
+          "pending": false,
+          "diagnostics": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1790401224131,
+            "phaseStartedAt": 1790401230591,
+            "lastProgressAt": 1790401230591,
+            "pages": 20701,
+            "relations": 20701,
+            "evidence": 715030,
+            "outcome": "complete"
+          },
+          "status": {
+            "upToDate": true,
+            "label": "Index status: up to date"
+          },
+          "width": 996,
+          "height": 795,
+          "mobile": false,
+          "selectedProfileKey": "desktop:leaf",
+          "graphTab": true,
+          "popout": true
+        }
+      }
+    ],
+    "modes": [
+      {
+        "requested": "tablet",
+        "state": {
+          "size": 20701,
+          "pending": false,
+          "diagnostics": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1790401236919,
+            "phaseStartedAt": 1790401244841,
+            "lastProgressAt": 1790401244841,
+            "pages": 20701,
+            "relations": 20701,
+            "evidence": 715030,
+            "outcome": "complete"
+          },
+          "status": {
+            "upToDate": true,
+            "label": "Index status: up to date"
+          },
+          "width": 900,
+          "height": 875,
+          "mobile": true,
+          "selectedProfileKey": "tablet:leaf",
+          "graphTab": true,
+          "popout": false
+        }
+      },
+      {
+        "requested": "phone",
+        "state": {
+          "size": 20701,
+          "pending": false,
+          "diagnostics": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1790401236919,
+            "phaseStartedAt": 1790401244841,
+            "lastProgressAt": 1790401244841,
+            "pages": 20701,
+            "relations": 20701,
+            "evidence": 715030,
+            "outcome": "complete"
+          },
+          "status": {
+            "upToDate": true,
+            "label": "Index status: up to date"
+          },
+          "width": 390,
+          "height": 875,
+          "mobile": true,
+          "selectedProfileKey": "mobile:leaf",
+          "graphTab": false,
+          "popout": false
+        }
+      }
+    ],
+    "restored": {
+      "size": 20701,
+      "pending": false,
+      "diagnostics": {
+        "run": 1,
+        "phase": "complete",
+        "lastActivePhase": "promote",
+        "startedAt": 1790401250475,
+        "phaseStartedAt": 1790401257662,
+        "lastProgressAt": 1790401257662,
+        "pages": 20701,
+        "relations": 20701,
+        "evidence": 715030,
+        "outcome": "complete"
+      },
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "width": 996,
+      "height": 795,
+      "mobile": false,
+      "selectedProfileKey": "desktop:leaf",
+      "graphTab": true,
+      "popout": true
+    },
+    "errors": "No errors captured."
+  },
+  "limits": [
+    "Preliminary concurrent-startup baseline hung; excluded and host reset.",
+    "Final fault test renderer was hidden before evidence phase. Total public wait includes that pause; inactivity is measured separately. Timers run only when the event loop can run.",
+    "Fallback full build had warm parsed-body cache; no cold parse of 1.9 GB.",
+    "Heap is 50-ms sampled JS used heap, not process peak/RSS or leak proof.",
+    "C00 cold-cache and physical-device matrix remains pending.",
+    "Desktop mobile emulation is not physical iOS/Android performance, touch or keyboard validation."
+  ],
+  "manualAcceptanceRequired": false,
+  "prioritizedAdditionalManualCheck": "C00 native phone/tablet warm restart on the same scale fixture: open K-Plex, search the reference note, inspect relationship evidence; expect complete usable graph and eventual green readiness; capture hydration diagnostics if progress stalls.",
+  "next": {
+    "checkpoint": "C09",
+    "agentCandidate": "Strong without Obsidian access",
+    "handoff": "HANDOFF.md"
+  }
+}

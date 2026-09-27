@@ -1,0 +1,442 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "C12b",
+  "status": "passed",
+  "date": "2026-09-26",
+  "source": {
+    "revision": "65513730fa3429557fe71741131eab8f5b10e198",
+    "dirty": true,
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0"
+  },
+  "externalDelivery": {
+    "statusAtReceipt": "Review",
+    "node": "22.16.0",
+    "git": "ZIP without metadata",
+    "mandatoryInstallVerifyHost": "unavailable; reviewer reproduced locally"
+  },
+  "review": {
+    "fixes": [
+      "Preserve exact whitespace-bearing external Markdown target identities",
+      "Stream compatibility extraction instead of allocating reference array",
+      "Preserve accepted case-sensitive file kinds",
+      "Share immutable source fact/revision per host source map"
+    ],
+    "extraCoverage": [
+      "Frozen accepted property-extractor oracle against wrapper and collector",
+      "Ontology rejection/reentrancy/replay/file-mutation fences",
+      "Production duplicate configured-label/multiple-role declaration multiplicity"
+    ],
+    "ownership": "GraphBuilder/resolver retains semantics; adapters emit facts; no schema/settings/UI/scheduling/cache acquisition policy changes"
+  },
+  "portable": {
+    "node": "22.22.2",
+    "npmCi": "passed",
+    "verifyObsidian": "passed including full verify",
+    "architecture": {
+      "roots": 26,
+      "reachableFiles": 67,
+      "violations": 0
+    },
+    "coreTests": 17,
+    "aggregateTests": 49,
+    "browserTests": 4,
+    "indexing": "unchanged golden/watchdog/incremental checks passed",
+    "lintErrors": 0,
+    "existingWarnings": 24,
+    "browserSandboxFirstAttempt": "blocked; rerun with local Chrome access passed"
+  },
+  "artifacts": {
+    "sourceHashes": {
+      "main.js": "fd337217b219e58f324113b546b636d5eb1251db64a879c0687e23d2a7f6363c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+    },
+    "pluginVersion": "0.0.5",
+    "stagedHashes": {
+      "main.js": "fd337217b219e58f324113b546b636d5eb1251db64a879c0687e23d2a7f6363c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+    }
+  },
+  "host": {
+    "version": "1.14.2 (installer 1.14.0)",
+    "target": {
+      "vaultName": "kplex-test",
+      "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+      "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+    },
+    "runnerScenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .excalibrain-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 145
+      }
+    ],
+    "firstSameWindowComparison": {
+      "nodes": 20701,
+      "relations": 1225746,
+      "declarations": 715030,
+      "baselineNodeHash": "24d7e84fdc1f005ac7a5bb4dea2a32c474165b9ef5c0b2311bc6746002a3fa8b",
+      "C12bNodeHash": "24d7e84fdc1f005ac7a5bb4dea2a32c474165b9ef5c0b2311bc6746002a3fa8b",
+      "baselineDeclarationHash": "8ae4e642e86d23dd3f3de7fbc511c2a5aeefab7d21101b6a8db309429c93d829",
+      "C12bDeclarationHash": "8ae4e642e86d23dd3f3de7fbc511c2a5aeefab7d21101b6a8db309429c93d829",
+      "fieldsSearchExplanations": "matched"
+    },
+    "postReloadObservation": {
+      "nodeHash": "48b77630b52f3c5f3eb6961a66a3e2f14640554a11059ccd13cda12afce029e1",
+      "declarationHash": "8ae4e642e86d23dd3f3de7fbc511c2a5aeefab7d21101b6a8db309429c93d829",
+      "nodeHashAndSyntheticQueryOrdering": "differed across reload; not credited as equality; cause not established",
+      "countsFieldsAndRepresentativeProvenance": "matched"
+    },
+    "definitiveSameInputAcceptedBuilderAndParser": {
+      "nodes": 20701,
+      "currentNodes": 20701,
+      "oldDeclarations": 715030,
+      "currentDeclarations": 715030,
+      "oldDeclarationHash": "587e33e9a4eba5e6804f7348c39aa293dbe5ca0f7c8c1c4330520569be85bb57",
+      "currentDeclarationHash": "587e33e9a4eba5e6804f7348c39aa293dbe5ca0f7c8c1c4330520569be85bb57",
+      "differences": []
+    },
+    "unresolved": {
+      "ready": true,
+      "target": "C12b-Review-Target",
+      "materialized": false,
+      "decisions": [
+        {
+          "active": true,
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target",
+            "role": "child",
+            "relationType": 2,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target",
+            "declaredRole": "child",
+            "sourceKind": "unresolved-link"
+          }
+        },
+        {
+          "active": true,
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target",
+            "declaredRole": "parent",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "parent",
+            "fieldName": "Parent",
+            "rawValue": "[[C12b-Review-Target]]"
+          }
+        },
+        {
+          "active": false,
+          "suppressionReason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair.",
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target",
+            "role": "child",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target",
+            "declaredRole": "child",
+            "sourceKind": "inline-ontology",
+            "definition": "child",
+            "fieldName": "Child",
+            "rawValue": "[[C12b-Review-Target]]",
+            "line": 4,
+            "start": 41,
+            "end": 71
+          }
+        }
+      ]
+    },
+    "resolved": {
+      "ready": true,
+      "target": "C12b-Review-Target.md",
+      "materialized": true,
+      "decisions": [
+        {
+          "active": true,
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target.md",
+            "role": "child",
+            "relationType": 2,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target.md",
+            "declaredRole": "child",
+            "sourceKind": "obsidian-link"
+          }
+        },
+        {
+          "active": true,
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target.md",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target.md",
+            "declaredRole": "parent",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "parent",
+            "fieldName": "Parent",
+            "rawValue": "[[C12b-Review-Target]]"
+          }
+        },
+        {
+          "active": false,
+          "suppressionReason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair.",
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target.md",
+            "role": "child",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target.md",
+            "declaredRole": "child",
+            "sourceKind": "inline-ontology",
+            "definition": "child",
+            "fieldName": "Child",
+            "rawValue": "[[C12b-Review-Target]]",
+            "line": 4,
+            "start": 41,
+            "end": 71
+          }
+        }
+      ]
+    },
+    "incrementalEdit": {
+      "ready": true,
+      "target": "C12b-Review-Target.md",
+      "materialized": true,
+      "decisions": [
+        {
+          "active": true,
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target.md",
+            "role": "child",
+            "relationType": 2,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target.md",
+            "declaredRole": "child",
+            "sourceKind": "obsidian-link"
+          }
+        },
+        {
+          "active": false,
+          "suppressionReason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair.",
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target.md",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target.md",
+            "declaredRole": "parent",
+            "sourceKind": "inline-ontology",
+            "definition": "parent",
+            "fieldName": "Parent",
+            "rawValue": "[[C12b-Review-Target]]",
+            "line": 4,
+            "start": 43,
+            "end": 74
+          }
+        },
+        {
+          "active": true,
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target.md",
+            "role": "child",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target.md",
+            "declaredRole": "child",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "children",
+            "fieldName": "Children",
+            "rawValue": "[[C12b-Review-Target]]"
+          }
+        }
+      ],
+      "counts": {
+        "patches": 1,
+        "rebuilds": 0
+      }
+    },
+    "cleanRebuildEdit": {
+      "ready": true,
+      "target": "C12b-Review-Target.md",
+      "materialized": true,
+      "decisions": [
+        {
+          "active": true,
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target.md",
+            "role": "child",
+            "relationType": 2,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target.md",
+            "declaredRole": "child",
+            "sourceKind": "obsidian-link"
+          }
+        },
+        {
+          "active": false,
+          "suppressionReason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair.",
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target.md",
+            "role": "parent",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target.md",
+            "declaredRole": "parent",
+            "sourceKind": "inline-ontology",
+            "definition": "parent",
+            "fieldName": "Parent",
+            "rawValue": "[[C12b-Review-Target]]",
+            "line": 4,
+            "start": 43,
+            "end": 74
+          }
+        },
+        {
+          "active": true,
+          "evidence": {
+            "sourcePath": "C12b-Review-Source.md",
+            "targetPath": "C12b-Review-Target.md",
+            "role": "child",
+            "relationType": 1,
+            "direction": 2,
+            "declaredByPath": "C12b-Review-Source.md",
+            "declaredTargetPath": "C12b-Review-Target.md",
+            "declaredRole": "child",
+            "sourceKind": "frontmatter-ontology",
+            "definition": "children",
+            "fieldName": "Children",
+            "rawValue": "[[C12b-Review-Target]]"
+          }
+        }
+      ]
+    },
+    "editDecisionsEqual": true,
+    "warmFullBuild": {
+      "phase": "done",
+      "startedReady": true,
+      "startedHidden": false,
+      "hiddenSamples": 0,
+      "reads": 0,
+      "cachedReads": 0,
+      "parses": 0,
+      "cacheGets": 79,
+      "started": 30842.400000000373,
+      "heapBefore": 1279124370,
+      "elapsedMs": 8333.399999999441,
+      "finishedHidden": false,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "nodes": 20701,
+      "heapAfter": 1710396712,
+      "maxGapMs": 102.6000000005588,
+      "p95GapMs": 30.5,
+      "samples": 453,
+      "hidden": false
+    },
+    "priorC12aWarm": {
+      "phase": "done",
+      "startedReady": true,
+      "startedHidden": false,
+      "hiddenSamples": 0,
+      "reads": 0,
+      "cachedReads": 0,
+      "parses": 0,
+      "cacheGets": 79,
+      "started": 29164,
+      "heapBefore": 949228447,
+      "elapsedMs": 6598.5,
+      "finishedHidden": false,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "nodes": 20701,
+      "heapAfter": 1238800684,
+      "maxGapMs": 79.60000000009313,
+      "p95GapMs": 29.799999999813735,
+      "samples": 365,
+      "hidden": false
+    },
+    "cleanup": {
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "nodes": 20701,
+      "pendingHydration": false,
+      "temporaryAccessor": false,
+      "globals": [],
+      "files": [
+        {
+          "path": "C12b-Review-Source.md",
+          "present": false
+        },
+        {
+          "path": "C12b-Review-Target.md",
+          "present": false
+        }
+      ],
+      "backgroundThrottling": true
+    },
+    "errors": "none captured"
+  },
+  "limits": [
+    "Final foreground warm full build 8.333 s versus prior C12a 6.599 s (~26% slower in these observations); not performance parity or a statistical benchmark.",
+    "Both warm observations have zero body/cached-body reads/parser calls and 79 cache batch lookups; heartbeat is not paint, sampled heap is not peak memory.",
+    "Later diagnostic-only background-throttling override preserved/restored the original true setting; those runs excluded from performance evidence.",
+    "Custom disable/enable required reopening K-Plex to restore visible indexing demand.",
+    "An additional hash-poll CLI timed out; completed result retrieved. Cross-reload node/search assertions not credited as passes; same-input actual accepted compiler/parser comparison passed.",
+    "One temporary rebuilt-state expectation used the pre-edit role and was corrected; temporary harness paths/cooperative scheduling corrected without production changes.",
+    "256 records bounds count, not payload bytes. No second whole-vault normalized input array retained.",
+    "Family/source fences do not replace C14/C15 final publication/revision coordination.",
+    "C00 physical-device/cold/performance matrix remains open."
+  ],
+  "manual": {
+    "required": false,
+    "reason": "Collection-only change; exact actual accepted implementation comparison and native materialization/edit/full-rebuild parity cover affected behavior; interaction/platform policy unchanged."
+  },
+  "next": "C12c: Scoped offline-agent candidate; Date/URL/presentation/semantic-metadata/field-discovery facts and complete collector wiring; parent C12 incomplete",
+  "hashes": {
+    "src/adapters/obsidian/hostLinkSourceCollector.ts": "bb4d82679027ff70ff5da9cea9fa0a674599f4bc9e2405fcfa8ae6aa989e2e53",
+    "src/adapters/obsidian/ontologySourceCollector.ts": "1d8cd4a10aee8689b5045412b8fbf4d9a2c1a062cf86d1e94e932495bef137ed",
+    "src/index/GraphBuilder.ts": "21b0222a88822e9f9f94ef086443ecdf133e3dc49ff16be98a49e7961fedcbe4",
+    "src/index/fieldParser.ts": "e5c5b6b6982739d7ff8f091d157fc8d75022b040df85823a7023d6ea04e80032",
+    "src/core/graph/source.ts": "fcd6c1eae011d37a72c74246fefbcd1253d77d2aeaedf637aaaf7b5c25fa792c",
+    "package.json": "6a164c945941557a2b32eb3c78754675590cc851f6afb816e97eb82a0b966e5b"
+  }
+}

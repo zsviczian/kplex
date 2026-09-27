@@ -9,11 +9,16 @@ import { MaterializeGhostModal, type GhostMaterializationKind, type GhostMateria
 import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, type RemainingNodeReference } from "./ui/DeleteNodeModal";
 import { LinkDirection, type GateRole, type GraphPage, type RelationshipRole } from "./types";
 import { OntologySuggester } from "./editor/OntologySuggester";
-import { extractLinksFromValue, normalizeFieldName, parseBodyMetadata } from "./index/fieldParser";
+import { normalizeFieldName, parseBodyMetadata } from "./core/parser/metadata";
+import { extractLinksFromValue } from "./index/fieldParser";
 import type { RelationEvidence } from "./index/RelationEvidence";
 import { AddToOntologyModal, type OntologyAssignmentRole } from "./ui/AddToOntologyModal";
 import { NoteTypeModal } from "./ui/NoteTypeModal";
-import { activeLayoutProfile, currentDeviceClass, effectiveViewSettings, layoutProfileKey } from "./ui/viewProfile";
+import { activeLayoutProfile, effectiveViewSettings, layoutProfileKey } from "./ui/viewProfile";
+import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
+import { createObsidianTranslator } from "./adapters/obsidian/localization";
+import { createTranslator, type Translator } from "./lang";
+import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurface } from "./core/plex/viewPresentation";
 import { perfNow } from "./util/perf";
 
 type LoadAwareView = FileView & { _loaded?: boolean };
@@ -43,6 +48,7 @@ const MANAGED_CREATED_PATH_TTL_MS = 4_000;
 export default class ExcaliBrainPlugin extends Plugin {
   settings: ExcaliBrainSettings = DEFAULT_SETTINGS;
   index!: GraphIndex;
+  translator: Translator = createTranslator("en");
   private rebuildTimer: number | null = null;
   private indexDirty = true;
   private linkedDocumentLeaf: WorkspaceLeaf | null = null;
@@ -56,6 +62,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private readonly indexBacklogReasons = new Set<string>();
   private indexDirtyRevision = 0;
   private rebuildTask: Promise<void> | null = null;
+  private unloading = false;
   private initialIndexTask: Promise<void> | null = null;
   private initialIndexComplete = false;
   private snapshotRestoreTask: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> | null = null;
@@ -115,6 +122,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
+    this.translator = createObsidianTranslator();
     const ownData: unknown = await this.loadData();
     const ownRecord = ownData && typeof ownData === "object" ? ownData as Record<string, unknown> : null;
     const alreadyKplex = Boolean(
@@ -148,9 +156,9 @@ export default class ExcaliBrainPlugin extends Plugin {
     // false result keeps unavailable actions out of the list instead of merely disabling them.
     this.addCommand({
       id: "excalibrain-start",
-      name: "Open graph",
+      name: this.translator("command.openGraph"),
       checkCallback: (checking) => {
-        if (currentDeviceClass() === "mobile") return false;
+        if (!isGraphTabCommandAvailable(readObsidianPresentationEnvironment())) return false;
         if (!checking) void this.activateView();
         return true;
       },
@@ -160,7 +168,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       id: "kplex-open-popout",
       name: "Open in pop-out window",
       checkCallback: (checking) => {
-        if (currentDeviceClass() !== "desktop") return false;
+        if (!isPopoutCommandAvailable(readObsidianPresentationEnvironment())) return false;
         if (!checking) void this.activateViewInPopout();
         return true;
       },
@@ -289,16 +297,18 @@ export default class ExcaliBrainPlugin extends Plugin {
 
     this.app.workspace.onLayoutReady(() => {
       void (async () => {
+        if (this.unloading) return;
         if (!alreadyKplex) {
           const legacySettings = this.runningExcaliBrainSettings();
           if (legacySettings) {
             this.settings = migrateAndMergeSettings(legacySettings);
-            new Notice("Imported ExcaliBrain settings into K-Plex.", 2600);
+            new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
           }
           this.settings.kplexInitialized = true;
           await this.saveData(this.settings);
         }
 
+        if (this.unloading) return;
         this.layoutReady = true;
 
         // Re-associate a persisted sidecar before normal recent-tab synchronization is allowed to
@@ -314,6 +324,7 @@ export default class ExcaliBrainPlugin extends Plugin {
             }
           }
         }
+        if (this.unloading) return;
 
         // Keep the startup guard alive for a little longer than the sidecar polling window so
         // trailing file-open/active-leaf events from Obsidian cannot immediately undo the restored
@@ -332,9 +343,11 @@ export default class ExcaliBrainPlugin extends Plugin {
         const startupSeedPaths = this.startupGraphSeedPaths();
         this.snapshotRestoreTask ??= this.index.restorePersistedSnapshot(startupSeedPaths);
         const restored = await this.snapshotRestoreTask;
+        if (this.unloading) return;
         if (restored.restored) {
           await this.refreshBookmarkedEntryPoints();
         }
+        if (this.unloading) return;
         this.indexDirty = !restored.fresh;
         if (!restored.fresh) {
           this.indexDirtyRevision += 1;
@@ -400,6 +413,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.unloading = true;
     this.dismissKplexMenu();
     if (this.rebuildTimer !== null) window.clearTimeout(this.rebuildTimer);
     if (this.startupInitializationTimer !== null) window.clearTimeout(this.startupInitializationTimer);
@@ -667,6 +681,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   private async ensureInitialIndex(): Promise<void> {
+    if (this.unloading) return;
     if (this.initialIndexTask) {
       return this.initialIndexTask;
     }
@@ -681,12 +696,14 @@ export default class ExcaliBrainPlugin extends Plugin {
       // finishes. View rendering itself does not await this task.
       if (this.index.hasPendingSnapshotHydration()) {
         const hydrated = await this.index.waitForSnapshotHydration();
+        if (this.unloading) return;
         if (!hydrated.restored) {
           this.indexDirty = true;
           this.indexDirtyRevision += 1;
           this.indexBacklogReasons.add("startup:partial-restore-incomplete");
         } else {
           await this.refreshBookmarkedEntryPoints();
+          if (this.unloading) return;
           if (!hydrated.fresh) {
             this.indexDirty = true;
             this.indexBacklogReasons.add("startup:stale-snapshot");
@@ -711,6 +728,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (!this.metadataStabilized) {
         this.metadataStabilityPromise ??= this.waitForMetadataCacheStability();
         await this.metadataStabilityPromise;
+        if (this.unloading) return;
         this.metadataStabilized = true;
       }
 
@@ -721,6 +739,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (this.indexDirty && this.index.size > 0 && this.index.hasIncrementalRestorePatch()) {
         const patchRevision = this.indexDirtyRevision;
         const patched = await this.index.reconcileRestoredSnapshot();
+        if (this.unloading) return;
         if (patched.reconciled && patchRevision === this.indexDirtyRevision) {
           this.indexDirty = false;
           this.indexBacklogReasons.clear();
@@ -735,6 +754,8 @@ export default class ExcaliBrainPlugin extends Plugin {
         await new Promise<void>((resolve) => window.setTimeout(resolve, 450));
       }
 
+      if (this.unloading) return;
+
       // Large iOS cold start: prime parsed Markdown bodies in small transactional IndexedDB
       // checkpoints before allocating the complete semantic graph. The previous architecture read
       // ~12k files while retaining the growing graph and could push WebKit over its memory limit
@@ -743,7 +764,8 @@ export default class ExcaliBrainPlugin extends Plugin {
       const noteCount = this.app.vault.getMarkdownFiles().length;
       const needsIosBodyPrewarm = Platform.isIosApp && this.index.size === 0 && noteCount > 5000;
       if (needsIosBodyPrewarm) {
-        const warmed = await this.index.prewarmBodyCache(() => this.hasVisibleKplexSurface());
+        const warmed = await this.index.prewarmBodyCache(() => !this.unloading && this.hasVisibleKplexSurface());
+        if (this.unloading) return;
         if (!warmed && !this.hasVisibleKplexSurface()) {
           return;
         }
@@ -752,6 +774,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (this.indexDirty || this.index.size === 0) {
         await this.performRebuild(false, this.index.size === 0, "startup:initial-index", true);
       }
+      if (this.unloading) return;
       this.initialIndexComplete = this.index.size > 0;
       this.notifyIndexStatus();
 
@@ -769,6 +792,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   async ensureIndexReady(reason = "view-open"): Promise<void> {
     if (!this.layoutReady) return;
     await this.ensureInitialIndex();
+    if (this.unloading) return;
     await this.rebuildIndex(false, this.index.size === 0, reason);
   }
 
@@ -777,6 +801,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   private async performRebuild(showNotice: boolean, force: boolean, reason: string, allowClosed: boolean): Promise<void> {
+    if (this.unloading) return;
     const explicitlyRequested = showNotice;
     if (!this.hasVisibleKplexSurface() && !allowClosed && !explicitlyRequested) {
       return;
@@ -819,6 +844,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (canIncrementalPatch) {
         const paths = [...this.dirtyMarkdownPaths];
         const result = await this.index.patchMarkdownPaths(paths);
+        if (this.unloading) return;
         if (result.outcome === "patched") {
           if (this.indexDirtyRevision === startRevision) {
             for (const path of paths) this.dirtyMarkdownPaths.delete(path);
@@ -865,6 +891,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       }
       if (showNotice) new Notice("Rebuilding K-Plex index…", 1200);
       const published = await this.index.rebuild();
+      if (this.unloading) return;
       if (!published) {
         this.indexDirty = true;
         this.indexBacklogReasons.add(reason);
@@ -881,7 +908,7 @@ export default class ExcaliBrainPlugin extends Plugin {
         this.indexDirty = true;
       }
       await this.refreshBookmarkedEntryPoints();
-      if (showNotice) new Notice(`K-Plex indexed ${this.index.size} nodes.`, 1800);
+      if (showNotice) new Notice(this.translator("notice.indexedNodes", { count: this.index.size }), 1800);
     })();
     this.rebuildTask = task;
     this.notifyIndexStatus();
@@ -893,7 +920,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     }
 
 
-    if (this.indexDirty && this.initialIndexComplete && this.hasVisibleKplexSurface() && this.rebuildTimer === null) {
+    if (!this.unloading && this.indexDirty && this.initialIndexComplete && this.hasVisibleKplexSurface() && this.rebuildTimer === null) {
       this.rebuildTimer = window.setTimeout(() => {
         this.rebuildTimer = null;
         void this.rebuildIndex(false, false, "coalesced-backlog");
@@ -1556,6 +1583,11 @@ export default class ExcaliBrainPlugin extends Plugin {
     return true;
   }
 
+  /** Existing source-event revision; collection must not mistake a yielding rescan for an atomic read. */
+  getIndexSourceRevision(): number {
+    return this.indexDirtyRevision;
+  }
+
   getIndexStatus(): { upToDate: boolean; label: string } {
     const upToDate = this.initialIndexComplete
       && !this.indexDirty
@@ -2029,15 +2061,16 @@ export default class ExcaliBrainPlugin extends Plugin {
   async activateView(): Promise<void> {
     // Phones intentionally route the generic/open-ribbon action to the sidepanel. Tablets retain
     // the normal graph tab because there is enough screen real-estate to make that useful.
-    const device = currentDeviceClass();
-    if (device === "mobile") {
+    const environment = readObsidianPresentationEnvironment();
+    const target = primaryOpenSurface(environment, this.settings.startInPopout);
+    if (target === "sidepanel") {
       await this.activateSidepanel();
       return;
     }
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
     let leaf = this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE)[0];
     if (!leaf) {
-      if (this.settings.startInPopout && device === "desktop") {
+      if (target === "popout") {
         try { leaf = this.app.workspace.getLeaf("window"); }
         catch { leaf = this.app.workspace.getLeaf(true); }
       } else {
@@ -2144,16 +2177,17 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   getViewSettings(surface: KplexViewSurface): ExcaliBrainSettings {
-    return effectiveViewSettings(this.settings, surface);
+    return effectiveViewSettings(this.settings, surface, readObsidianPresentationEnvironment());
   }
 
   getActiveLayoutProfile(surface: KplexViewSurface): KplexLayoutProfile {
-    return activeLayoutProfile(this.settings, surface);
+    return activeLayoutProfile(this.settings, surface, readObsidianPresentationEnvironment());
   }
 
   async updateLayoutProfile(surface: KplexViewSurface, patch: Partial<KplexLayoutProfile>): Promise<void> {
-    const key = layoutProfileKey(surface, currentDeviceClass());
-    const current = this.getActiveLayoutProfile(surface);
+    const environment = readObsidianPresentationEnvironment();
+    const key = layoutProfileKey(surface, environment);
+    const current = activeLayoutProfile(this.settings, surface, environment);
     this.settings.layoutProfiles[key] = { ...current, ...patch };
     await this.saveSettings(false, false);
     this.index.notify();

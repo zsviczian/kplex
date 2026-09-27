@@ -11,8 +11,14 @@ import {
 import { Menu, type TFile, type WorkspaceLeaf } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import type { GraphPage } from "../types";
+import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
+import { isSearchFocusShortcut } from "../core/plex/shortcutPresentation";
+import type { Translator } from "../lang";
+import { searchFieldCopy } from "./features/searchPresentation";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarPosition } from "../settings";
-import { SearchBox } from "./SearchBox";
+import { SearchBox } from "./features/SearchBox";
+import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
+import { ActionButton } from "./components/ActionButton";
 import { PlexGraph } from "./PlexGraph";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { EMPTY_PLEX_FILTER, PlexFilter, type GraphFilterLayoutMode, type PlexFilterState, type PlexVisibilitySetting } from "./PlexFilter";
@@ -46,9 +52,16 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
   ><ObsidianIcon name={icon} size={17} /></button>;
 }
 
-export function ExcaliBrainApp({ plugin, surface, hostLeaf }: { plugin: ExcaliBrainPlugin; surface: KplexViewSurface; hostLeaf: WorkspaceLeaf }) {
+export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environment }: {
+  plugin: ExcaliBrainPlugin;
+  surface: KplexViewSurface;
+  hostLeaf: WorkspaceLeaf;
+  translate: Translator;
+  environment: PresentationEnvironment;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [renderRevision, forceRender] = useState(0);
+  const graphSearchRead = useMemo(() => createLegacyGraphSearchRead(plugin.index), [plugin.index]);
   const [plexFilter, setPlexFilter] = useState<PlexFilterState>(EMPTY_PLEX_FILTER);
   const [filterLayoutMode, setFilterLayoutMode] = useState<GraphFilterLayoutMode>("keep");
   const plexFilterPredicate = useMemo(() => compilePlexFilter(plexFilter), [plexFilter]);
@@ -140,22 +153,6 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf }: { plugin: ExcaliBr
   );
 
   useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    return installKplexLongPressTooltips(el.ownerDocument);
-  }, []);
-
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    const update = () => setHostWidth(el.getBoundingClientRect().width);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
     const followFile = (file: TFile | null) => {
       if (!plugin.isKplexLeafVisible(hostLeaf)) return;
       if (!file || !plugin.shouldFollowDocumentFile(file) || !plugin.index.get(file.path)) return;
@@ -180,6 +177,25 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf }: { plugin: ExcaliBr
   const page = exactPage
     ?? (fallbackPath ? plugin.index.get(fallbackPath) : undefined)
     ?? plugin.index.get("folder:/");
+  const hasPage = Boolean(page);
+
+  // The first render can show the empty indexing view, which has no rootRef. Attach once the
+  // graph root appears, and release the document-scoped listener if it disappears again.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    return installKplexLongPressTooltips(el.ownerDocument);
+  }, [hasPage]);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const update = () => setHostWidth(el.getBoundingClientRect().width);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasPage]);
 
   useEffect(() => {
     if (!page) return;
@@ -298,11 +314,10 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf }: { plugin: ExcaliBr
   };
 
   const activateSearch = () => setSearchFocusRequest((value) => value + 1);
+  const searchCopy = searchFieldCopy(translate, environment);
 
   const handlePlexKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const isF4 = event.key === "F4";
-    const isFindShortcut = event.key.toLocaleLowerCase() === "f" && (event.ctrlKey || event.metaKey) && !event.altKey;
-    if (!isF4 && !isFindShortcut) return;
+    if (!isSearchFocusShortcut(event)) return;
     event.preventDefault();
     event.stopPropagation();
     activateSearch();
@@ -383,9 +398,32 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf }: { plugin: ExcaliBr
         <header className="excalibrain-topbar">
           <IndexStatusIndicator plugin={plugin} />
           <div className="excalibrain-brand"><ObsidianIcon name="brain-circuit" size={20} className="excalibrain-brand-mark" /><strong>K-Plex</strong></div>
-          <ToolButton icon="arrow-big-left" title="Navigate back" onClick={() => goHistory(-1)} disabled={historyCursor <= 0} />
-          <ToolButton icon="arrow-big-right" title="Navigate forward" onClick={() => goHistory(1)} disabled={historyCursor >= plugin.settings.navigationHistory.length - 1} />
-          <SearchBox index={plugin.index} onActivate={activate} focusRequest={searchFocusRequest} />
+          <ActionButton
+            label={translate("toolbar.navigateBack")}
+            icon={<ObsidianIcon name="arrow-big-left" size={17} />}
+            onClick={() => goHistory(-1)}
+            disabled={historyCursor <= 0}
+          />
+          <ActionButton
+            label={translate("toolbar.navigateForward")}
+            icon={<ObsidianIcon name="arrow-big-right" size={17} />}
+            onClick={() => goHistory(1)}
+            disabled={historyCursor >= plugin.settings.navigationHistory.length - 1}
+          />
+          <SearchBox
+            graph={graphSearchRead}
+            icon={<ObsidianIcon name="search" size={16} />}
+            portalSelector=".excalibrain-app"
+            appTopbarSelector=".excalibrain-topbar"
+            revision={renderRevision}
+            onActivate={(id) => {
+              const target = plugin.index.get(id);
+              if (target) activate(target);
+            }}
+            focusRequest={searchFocusRequest}
+            placeholder={searchCopy.placeholder}
+            ariaLabel={searchCopy.ariaLabel}
+          />
           <PlexFilter
             index={plugin.index}
             center={page}

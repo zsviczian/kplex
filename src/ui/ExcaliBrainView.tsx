@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf } from "obsidian";
 import { createRoot, type Root } from "react-dom/client";
 import type ExcaliBrainPlugin from "../main";
 import type { KplexViewSurface } from "../settings";
+import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
 import { ExcaliBrainApp } from "./App";
 
 export const EXCALIBRAIN_VIEW_TYPE = "k-plex-react-view";
@@ -33,7 +34,13 @@ abstract class BaseKplexView extends ItemView {
   protected renderReact(): void {
     this.root?.unmount();
     this.root = createRoot(this.contentEl);
-    this.root.render(<ExcaliBrainApp plugin={this.plugin} surface={this.getSurface()} hostLeaf={this.leaf} />);
+    this.root.render(<ExcaliBrainApp
+      plugin={this.plugin}
+      surface={this.getSurface()}
+      hostLeaf={this.leaf}
+      translate={this.plugin.translator}
+      environment={readObsidianPresentationEnvironment(this.contentEl.ownerDocument.defaultView ?? undefined)}
+    />);
   }
 
   async onOpen(): Promise<void> {

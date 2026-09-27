@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "C12a",
+  "status": "passed",
+  "date": "2026-09-26",
+  "source": {
+    "revision": "e3feddde34308ea10d5f5f5f827906a1c2d2481f",
+    "dirty": true,
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0"
+  },
+  "portable": {
+    "cleanLockfileInstall": "passed",
+    "verifyObsidianIncludingFullVerify": "passed",
+    "architecture": {
+      "roots": 24,
+      "reachableFiles": 65,
+      "violations": 0
+    },
+    "restrictedCoreTests": 17,
+    "aggregateNodeTests": 47,
+    "browserTests": 4,
+    "indexingGoldenAndWatchdog": "passed unchanged",
+    "lintErrors": 0,
+    "existingLintWarnings": 24
+  },
+  "artifacts": {
+    "sourceHashes": {
+      "main.js": "6f3a5fa534cf46106e762ff2a5a5c16f1c237183df46e654b670d693f9fd0576",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+    },
+    "pluginVersion": "0.0.5",
+    "stagedHashes": {
+      "main.js": "6f3a5fa534cf46106e762ff2a5a5c16f1c237183df46e654b670d693f9fd0576",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+    }
+  },
+  "host": {
+    "version": "1.14.2 (installer 1.14.0)",
+    "vault": {
+      "vaultName": "kplex-test",
+      "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+      "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+    },
+    "runnerScenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .excalibrain-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 765
+      }
+    ],
+    "sameInputAcceptedBuilderComparison": {
+      "nodes": 20701,
+      "currentNodes": 20701,
+      "oldDeclarations": 715030,
+      "currentDeclarations": 715030,
+      "differences": []
+    },
+    "wholeDeclarationComparison": {
+      "nodes": 20701,
+      "relations": 1225746,
+      "declarations": 715030,
+      "baselineHash": "8ae4e642e86d23dd3f3de7fbc511c2a5aeefab7d21101b6a8db309429c93d829",
+      "finalHash": "8ae4e642e86d23dd3f3de7fbc511c2a5aeefab7d21101b6a8db309429c93d829"
+    },
+    "foregroundWarmFullBuild": {
+      "acceptedC11": {
+        "phase": "done",
+        "reads": 0,
+        "cachedReads": 0,
+        "parses": 0,
+        "cacheGets": 79,
+        "started": 438653.6000000001,
+        "heapBefore": 818281353,
+        "elapsedMs": 6271.899999999907,
+        "status": {
+          "upToDate": true,
+          "label": "Index status: up to date"
+        },
+        "nodes": 20701,
+        "heapAfter": 1207762721,
+        "maxGapMs": 99.29999999981374,
+        "p95GapMs": 30.399999999906868,
+        "samples": 337,
+        "hidden": false
+      },
+      "C12a": {
+        "phase": "done",
+        "startedReady": true,
+        "startedHidden": false,
+        "hiddenSamples": 0,
+        "reads": 0,
+        "cachedReads": 0,
+        "parses": 0,
+        "cacheGets": 79,
+        "started": 29164,
+        "heapBefore": 949228447,
+        "elapsedMs": 6598.5,
+        "finishedHidden": false,
+        "status": {
+          "upToDate": true,
+          "label": "Index status: up to date"
+        },
+        "nodes": 20701,
+        "heapAfter": 1238800684,
+        "maxGapMs": 79.60000000009313,
+        "p95GapMs": 29.799999999813735,
+        "samples": 365,
+        "hidden": false
+      }
+    },
+    "navigation": [
+      {
+        "path": "folder:Synthetic-Scale-v2/Reference/Daily/2026/09",
+        "center": "folder:Synthetic-Scale-v2/Reference/Daily/2026/09",
+        "children": [
+          "Synthetic-Scale-v2/Reference/Daily/2026/09/20260918.md",
+          "Synthetic-Scale-v2/Reference/Daily/2026/09/20260919.md"
+        ],
+        "rendered": [
+          "folder:Synthetic-Scale-v2/Reference/Daily/2026/09",
+          "folder:Synthetic-Scale-v2/Reference/Daily/2026",
+          "Synthetic-Scale-v2/Reference/Daily/2026/09/20260918.md",
+          "Synthetic-Scale-v2/Reference/Daily/2026/09/20260919.md"
+        ],
+        "status": {
+          "upToDate": true,
+          "label": "Index status: up to date"
+        }
+      },
+      {
+        "path": "tag:fixture",
+        "center": "tag:fixture",
+        "children": [
+          "Synthetic-Scale-v2/Reference/Note A.md",
+          "Synthetic-Scale-v2/Reference/Note B.md",
+          "Synthetic-Scale-v2/Reference/Note C.md",
+          "Synthetic-Scale-v2/Reference/Note D.md",
+          "Synthetic-Scale-v2/Reference/Note F.md",
+          "Synthetic-Scale-v2/Reference/Note X.md",
+          "Synthetic-Scale-v2/Reference/Note E.md",
+          "Synthetic-Scale-v2/Reference/Note Y.md",
+          "Synthetic-Scale-v2/Reference/Daily/2026/09/20260918.md",
+          "Synthetic-Scale-v2/Reference/Daily/2026/09/20260919.md",
+          "Synthetic-Scale-v2/Reference/Note G.md",
+          "Synthetic-Scale-v2/Reference/Note H.md"
+        ],
+        "rendered": [
+          "tag:fixture",
+          "Synthetic-Scale-v2/Reference/Note A.md",
+          "Synthetic-Scale-v2/Reference/Note B.md",
+          "Synthetic-Scale-v2/Reference/Note C.md",
+          "Synthetic-Scale-v2/Reference/Note D.md",
+          "Synthetic-Scale-v2/Reference/Note F.md",
+          "Synthetic-Scale-v2/Reference/Note X.md",
+          "Synthetic-Scale-v2/Reference/Note E.md",
+          "Synthetic-Scale-v2/Reference/Note Y.md",
+          "Synthetic-Scale-v2/Reference/Daily/2026/09/20260918.md",
+          "Synthetic-Scale-v2/Reference/Daily/2026/09/20260919.md",
+          "Synthetic-Scale-v2/Reference/Note G.md",
+          "Synthetic-Scale-v2/Reference/Note H.md"
+        ],
+        "status": {
+          "upToDate": true,
+          "label": "Index status: up to date"
+        }
+      },
+      {
+        "folderPresent": true,
+        "tagPresent": true,
+        "folderVisible": false,
+        "tagVisible": false
+      }
+    ],
+    "create": {
+      "ready": true,
+      "file": true,
+      "page": "C12a-Review.md",
+      "memberCount": 1,
+      "oldCount": 1,
+      "hierarchy": 1,
+      "nodes": 20705
+    },
+    "edit": {
+      "ready": true,
+      "file": true,
+      "page": "C12a-Review.md",
+      "memberCount": 1,
+      "oldCount": 0,
+      "hierarchy": 1,
+      "nodes": 20705
+    },
+    "delete": {
+      "ready": true,
+      "file": false,
+      "ghost": true,
+      "mtime": null,
+      "tags": [],
+      "neighbors": 0,
+      "evidence": 0,
+      "retainedTagPaths": [
+        "tag:c12a-review",
+        "tag:c12a-review/shared",
+        "tag:c12a-review/shared/changed"
+      ],
+      "nodes": 20705
+    },
+    "explanations": [
+      {
+        "a": "tag:fixture",
+        "b": "Synthetic-Scale-v2/Reference/Note A.md",
+        "present": true,
+        "decisions": [
+          {
+            "active": true,
+            "sourceKind": "tag-tree",
+            "declaredRole": "child"
+          }
+        ]
+      },
+      {
+        "a": "folder:Synthetic-Scale-v2/Reference",
+        "b": "Synthetic-Scale-v2/Reference/Note A.md",
+        "present": true,
+        "decisions": [
+          {
+            "active": true,
+            "sourceKind": "file-tree",
+            "declaredRole": "child"
+          }
+        ]
+      },
+      {
+        "a": "Synthetic-Scale-v2/Reference/Note X.md",
+        "b": "Synthetic-Scale-v2/Reference/Note Y.md",
+        "present": true,
+        "decisions": [
+          {
+            "active": true,
+            "sourceKind": "obsidian-link",
+            "declaredRole": "child"
+          },
+          {
+            "active": true,
+            "sourceKind": "frontmatter-ontology",
+            "declaredRole": "parent"
+          },
+          {
+            "active": false,
+            "sourceKind": "inline-ontology",
+            "declaredRole": "child"
+          }
+        ]
+      }
+    ],
+    "cleanup": {
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "nodes": 20701,
+      "reviewAccessor": false,
+      "globals": []
+    },
+    "errors": "none captured"
+  },
+  "harnessCorrectionsAndLimits": [
+    "Across-reload full-node hashes differed; this probe was not accepted as equality. Actual accepted e3feddd GraphBuilder privately rebuilt the same live inputs with the real SDK and all node/neighbor fields compared equal.",
+    "Initial explanation probes used nonexistent root note paths; excluded. Correct Reference paths subsequently passed.",
+    "One intermediate strict URL patch timer failed at 70.6 ms under load; final unchanged complete verification passed.",
+    "Deletion initially incorrectly required immediate page/tag removal. Existing unchanged dematerializeFile retains ghosts and tag hierarchy; corrected assertion passed. Full rebuild removed disposable nodes.",
+    "Initial CLI newline escaping failed before note creation; corrected harness without production changes.",
+    "Occluded/initializing/overlapping probe runs excluded from foreground performance comparison, including cleanup build with 19 hidden samples.",
+    "Two foreground observations are not a statistical performance benchmark. Sampled renderer heap is not peak/native/mobile memory; heartbeat is not paint.",
+    "256-record cap bounds count, not payload bytes. Second scan plus existing source-event revision is a structural boundary, not a complete atomic snapshot of other source families.",
+    "C00 physical-device/cold-performance matrix and C14/C15 incremental revision/publication work remain open."
+  ],
+  "manual": {
+    "required": false,
+    "reason": "Collection-only full-build extraction; unchanged UI/platform policy, exact semantics comparison, portable and native workflow coverage passed."
+  },
+  "next": "C12b: scoped offline-agent candidate; parent C12 remains incomplete until C12b/C12c acceptance"
+}

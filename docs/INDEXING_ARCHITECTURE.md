@@ -27,13 +27,16 @@ Vault tree / tag tree / Obsidian links / frontmatter / body fields / Date proper
 
 The main boundaries are:
 
-- `fieldParser.ts` — one canonical parser for legacy Dataview-style body fields and body URLs.
-- `MetadataParser.ts` — parsing abstraction used by the builder; no duplicated parser grammar.
-- `RelationEvidence.ts` — immutable relationship evidence and source provenance.
-- `RelationResolver.ts` — precedence and ExcaliBrain-compatible relationship classification.
+- `src/core/parser/metadata.ts` — host-free canonical grammar for legacy Dataview-style body fields, body URLs and property-value references, with explicit cooperative runtime capabilities.
+- `src/index/fieldParser.ts` — narrow Obsidian compatibility facade for metadata merge/linkpath resolution and the historical cooperative signature; it contains no duplicate grammar.
+- `MetadataParser.ts` — production worker/fallback boundary using the portable owner; the legacy `MetadataParseWorker` class delegates here and contains no parser copy.
+- `src/core/graph/evidence.ts` — host-free immutable relationship evidence, compact copy-on-write store, provenance and precedence; `src/index/RelationEvidence.ts` is the legacy re-export facade.
+- `src/core/graph/resolver.ts` — host-free ExcaliBrain-compatible classification/resolution/explanation owner with injected cooperative clock/yield/lifetime; `src/index/RelationResolver.ts` supplies the renderer runtime for the historical signature.
 - `GraphState.ts` — one graph snapshot.
 - `GraphBuilder.ts` — collects all vault evidence and builds a complete private snapshot.
 - `GraphIndex.ts` — publishes snapshots atomically and serves neighbourhood/search/explanation queries.
+
+C13b keeps explicit semantic paths as the compatibility key for evidence declarations and neighbour maps. These paths are not opaque IDs and core does not infer file/kind/basename semantics from them. Original declarations remain stored once; reverse/inverse perspectives are generated on read, hidden evidence remains directional, and declaration IDs/multiplicity survive forks, rename and compaction. C13c now compiles full semantics into portable nodes over normalized facts; its host adapter cooperatively binds legacy `GraphPage`/file targets. Publication remains outside the resolver and incremental preparation/publication remains C14a/C14b.
 
 ## Frontmatter precedence
 
@@ -113,9 +116,15 @@ The resolved semantic graph is persisted in **IndexedDB as a transactional, gene
 
 IndexedDB is always treated as an optimization. Opening the database has a short deadline and bounded retry backoff: if WebView storage is blocked or slow, startup proceeds using vault reads rather than waiting indefinitely, and a late stale connection is closed. Page/evidence hydration is chunked, time-sliced, and generation checked. Deferred snapshot/orphan maintenance is cancelled when there is no visible K-Plex demand.
 
+Progressive snapshot hydration is also bounded against a *stalled* asynchronous read. `GraphIndex` records its current restore phase (including metadata and targeted preview reads), last active phase, terminal outcome and sampled page/relation/evidence/search/resolver progress. Unload immediately settles the hydration wait and stops its watchdog; cancelled startup continuations do not rebuild. If a run makes no phase/progress for 90 seconds, an inactivity watchdog invalidates that hydration generation and releases startup as an unsuccessful restore; the existing coordinator then rebuilds authoritatively. The already-published preview may remain usable while this happens, but it is never considered the complete graph. If the abandoned IndexedDB operation later resumes, generation checks prevent it from publishing over newer state. This is deliberately an inactivity bound rather than a total-startup deadline so legitimately large snapshots may continue as long as they are making progress.
+
+Runtime inspection and fault-injection procedure: [Obsidian runtime testing](OBSIDIAN_RUNTIME_TESTING.md).
+
 A durable per-file body parse cache is keyed by file path + mtime. On large iOS cold starts K-Plex can prewarm that compact cache in bounded checkpoints before retaining the full graph, so an interrupted first run resumes rather than rereading every body. Desktop cold builds overlap a small, byte-capped number of native file reads; parsing remains bounded and publication is still atomic. Worker parsing is disabled on iOS to avoid structured-clone duplication.
 
 Semantic no-op detection uses a compact per-file fingerprint kept independently of the hot parsed-body LRU and persisted with page snapshot records. This allows prose-only or unrelated frontmatter edits to stay no-ops even after a warm restore or after the hot body entry has been evicted.
+
+Incremental publication has one synchronous repository boundary per committed Markdown source. Private staging may await parsing, portable preparation, evidence cleanup and cooperative binding, but once `GraphIndex` accepts a `PatchFileCommit` it applies the staged graph/fingerprint/cache state, patches affected search entries and invalidates affected presentation caches before subscriber callbacks run. The builder cannot continue to another awaited source until that boundary returns. Source revision fences include the exact path and current vault identity as well as mtime/size, so a file renamed or deleted during any await cancels the stale source instead of publishing it. Earlier committed sources remain published; cancellation does not itself request a full rebuild. Demand/backlog scheduling remains a separate `main.ts` concern for C15.
 
 
 ## Presentation predicates are not graph indexing
@@ -155,3 +164,17 @@ The golden fixture is `tests/fixtures/excalibrain-indexing`.
 The current automated baseline covers README assertions **1–33 plus P1–P6**, including parsing, explicit/inferred reconciliation, K-Plex frontmatter precedence, Previous/Next, Hidden, note type, folders, tags, URLs, Date → Daily Notes, placeholders, explanation provenance, malformed-delimiter parser regression, idempotent/shared-lifetime derived URL-origin patching, stale derived-node search cleanup, and tag-aware incremental patch equivalence.
 
 Assertions **34–50** cover the runtime-only central-note section outline, including nested heading structure, folding, projection of hidden descendant relationships to the nearest visible folded section, and restoration of the unchanged note-level persistent index after collapse.
+
+## Planned work avoidance (not implemented by C08P)
+
+The definitive checkpoint ledger is [Refactor plan.md](../Refactor%20plan.md), section C08P. Preserve these assigned opportunities through subsequent extractions:
+
+- C11/C12: compact per-file normalized semantic contributions; no new persistence yet.
+- Measured parser-worker benchmarking remains a separate follow-up after the C13 boundary work; C13a preserves the existing worker count and iOS fallback policy.
+- C14: latest-wins per-source compilation with atomic per-file commit; supersession does not imply a full rebuild.
+- C16: extract current snapshot/cache bytes and transactions first; evaluate semantic shards and checkpoint-plus-delta persistence separately with migration, compaction and fallback designs.
+- C17 (or measured C13 follow-up): maintained search/secondary indexes to avoid redundant whole-graph passes without sacrificing atomic publication or increasing retained memory unnecessarily.
+
+These are measured follow-up design opportunities, not shipped capabilities or permission to redesign the index before its boundaries are extracted.
+
+C13c full compilation is accepted with exact same-input accepted-compiler parity. The host owns physical file binding, body/cache acquisition and platform runtime selection; the portable owner has terminal read rejection, exact identity mapping and cooperative resolution. Source/legacy binding checks remain across awaits. C13W is a separate deferred worker experiment; C13 acceptance does not claim that experiment or physical/cold performance completion.

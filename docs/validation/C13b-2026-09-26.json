@@ -1,0 +1,393 @@
+{
+  "checkpoint": "C13b",
+  "status": "accepted",
+  "acceptedBaseline": "faca72df697682d4afca33d21f7abcb1b474063d",
+  "node": "v22.22.2",
+  "npm": "10.9.7",
+  "reviewFixes": [
+    "Corrected three store-test paths from Base/A.md and Base/Z.md to actual A.md and Z.md fixture paths.",
+    "Added all three portable graph modules to the existing indexing harness explicit compilation list."
+  ],
+  "portable": {
+    "cleanNpmCi": "passed, 317 packages",
+    "verify": "passed after indexing harness wiring fix",
+    "architecture": {
+      "roots": 31,
+      "reachable": 72,
+      "violations": 0
+    },
+    "architectureTests": 7,
+    "restrictedCoreTests": 34,
+    "aggregateNodeTests": 67,
+    "browserTests": 4,
+    "indexing": "Existing 1\u201368/P1\u2013P17, watchdog and placeholder checks unchanged",
+    "lint": {
+      "errors": 0,
+      "legacyWarnings": 24
+    },
+    "build": "Passed with real installed Obsidian 1.13.0 declarations",
+    "finalVerifyObsidianIncludesVerify": "passed",
+    "diffCheck": "passed"
+  },
+  "independentParity": {
+    "evidenceSource": "Identical to accepted HEAD except generic types/import",
+    "acceptedOracle": "Frozen fixture independently passed against actual accepted HEAD modules bundled separately",
+    "movedOracle": "Mandatory new registered suite passed"
+  },
+  "native": {
+    "cancel": {
+      "result": {
+        "ok": false,
+        "cancelled": true,
+        "touchedPagePaths": {},
+        "semanticChanges": 0,
+        "semanticNoops": 0
+      },
+      "forked": true,
+      "cancelYields": 1,
+      "unchanged": true,
+      "ready": true
+    },
+    "phases": {
+      "initial": {
+        "ready": true,
+        "body": 600,
+        "compared": 24,
+        "oldPathDeclarations": 605,
+        "declarationHash": "47e65d366ea73ba3bd3ff728e8d30841a7973dd9a5f3f3a6da4656c1e4fa3e7a"
+      },
+      "edited": {
+        "ready": true,
+        "body": 650,
+        "compared": 24,
+        "oldPathDeclarations": 655,
+        "declarationHash": "8d67f63931e67655277f4be35c3330ef52d05d075139c5059bcc23cdc80f63fd",
+        "counts": {
+          "patches": 1,
+          "rebuilds": 0
+        }
+      },
+      "renamed": {
+        "ready": true,
+        "body": 650,
+        "compared": 24,
+        "oldPathDeclarations": 0,
+        "declarationHash": "448750c04a03f409fd04ae89d7296f2ac3bc9429f97e1c45d07d285181f91335"
+      },
+      "rebuilt": {
+        "ready": true,
+        "body": 650,
+        "compared": 24,
+        "oldPathDeclarations": 0,
+        "declarationHash": "448750c04a03f409fd04ae89d7296f2ac3bc9429f97e1c45d07d285181f91335"
+      }
+    },
+    "incrementalCleanRebuildParity": "Renamed and clean rebuilt declarations are exactly equal; no generated IDs included.",
+    "hostReport": {
+      "schemaVersion": 1,
+      "status": "passed",
+      "startedAt": "2026-09-26T15:54:36.139Z",
+      "source": {
+        "revision": "faca72df697682d4afca33d21f7abcb1b474063d",
+        "dirty": true,
+        "node": "v22.22.2",
+        "os": "darwin 23.5.0"
+      },
+      "target": {
+        "vaultName": "kplex-test",
+        "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+        "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+      },
+      "capabilities": {
+        "version": "1.14.2 (installer 1.14.0)",
+        "commands": [
+          "version",
+          "vault",
+          "plugin:disable",
+          "plugin:enable",
+          "commands",
+          "command",
+          "dev:dom",
+          "dev:errors"
+        ]
+      },
+      "artifacts": {
+        "sourceHashes": {
+          "main.js": "3ac37bc949e9cc407c7999cd4ad8f46c2b7e54c7a37dca66d1c95a9e925517b0",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+        },
+        "pluginVersion": "0.0.5",
+        "stagedHashes": {
+          "main.js": "3ac37bc949e9cc407c7999cd4ad8f46c2b7e54c7a37dca66d1c95a9e925517b0",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "775e633b467b057ef8391d0c5a4e747d7813a4b74b19f3d4f1ed259262b1e084"
+        }
+      },
+      "scenarios": [
+        {
+          "id": "open-kplex",
+          "status": "passed",
+          "assertions": [
+            "plugin command registered",
+            "rendered .excalibrain-app contains K-Plex",
+            "no captured JavaScript errors"
+          ],
+          "elapsedMs": 1083
+        }
+      ],
+      "completedAt": "2026-09-26T15:54:59.167Z"
+    },
+    "finalGraph": {
+      "nodes": 20701,
+      "relations": 1225746,
+      "declarations": 715030,
+      "declarationHash": "587e33e9a4eba5e6804f7348c39aa293dbe5ca0f7c8c1c4330520569be85bb57",
+      "fields": [
+        [
+          "aliases",
+          {
+            "name": "aliases",
+            "count": 20002
+          }
+        ],
+        [
+          "challenger",
+          {
+            "name": "Challenger",
+            "count": 2
+          }
+        ],
+        [
+          "child",
+          {
+            "name": "Child",
+            "count": 20004
+          }
+        ],
+        [
+          "children",
+          {
+            "name": "Children",
+            "count": 1
+          }
+        ],
+        [
+          "date",
+          {
+            "name": "date",
+            "count": 1
+          }
+        ],
+        [
+          "follow-up-date",
+          {
+            "name": "follow-up-date",
+            "count": 1
+          }
+        ],
+        [
+          "friend",
+          {
+            "name": "Friend",
+            "count": 20003
+          }
+        ],
+        [
+          "hidden",
+          {
+            "name": "Hidden",
+            "count": 1
+          }
+        ],
+        [
+          "milestone-date",
+          {
+            "name": "milestone-date",
+            "count": 1
+          }
+        ],
+        [
+          "next",
+          {
+            "name": "Next",
+            "count": 20001
+          }
+        ],
+        [
+          "note-type",
+          {
+            "name": "Note type",
+            "count": 20003
+          }
+        ],
+        [
+          "opposes",
+          {
+            "name": "opposes",
+            "count": 20000
+          }
+        ],
+        [
+          "parent",
+          {
+            "name": "Parent",
+            "count": 20004
+          }
+        ],
+        [
+          "previous",
+          {
+            "name": "Previous",
+            "count": 2001
+          }
+        ],
+        [
+          "review-date",
+          {
+            "name": "review-date",
+            "count": 1
+          }
+        ],
+        [
+          "source",
+          {
+            "name": "source",
+            "count": 4
+          }
+        ],
+        [
+          "tags",
+          {
+            "name": "tags",
+            "count": 20012
+          }
+        ]
+      ],
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "throttling": true
+    },
+    "cleanup": {
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "nodes": 20701,
+      "pendingHydration": false,
+      "temporaryAccessor": false,
+      "globals": [],
+      "files": [
+        {
+          "path": "C13b-Review-Hub.md",
+          "present": false
+        },
+        {
+          "path": "C13b-Review-Renamed.md",
+          "present": false
+        }
+      ],
+      "backgroundThrottling": true
+    },
+    "freshForegroundWarm": {
+      "phase": "done",
+      "startedReady": true,
+      "startedHidden": false,
+      "hiddenSamples": 0,
+      "reads": 0,
+      "cachedReads": 0,
+      "parses": 0,
+      "cacheGets": 79,
+      "started": 33067.400000002235,
+      "heapBefore": 823694446,
+      "elapsedMs": 8561,
+      "finishedHidden": false,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "nodes": 20701,
+      "heapAfter": 1193356632,
+      "maxGapMs": 80.39999999850988,
+      "p95GapMs": 33.80000000074506,
+      "samples": 454,
+      "hidden": false
+    },
+    "retainedHeapWarmNotComparable": {
+      "phase": "done",
+      "startedReady": true,
+      "startedHidden": false,
+      "hiddenSamples": 0,
+      "reads": 0,
+      "cachedReads": 0,
+      "parses": 0,
+      "cacheGets": 79,
+      "started": 2477345.6000000015,
+      "heapBefore": 1445078531,
+      "elapsedMs": 21300.5,
+      "finishedHidden": false,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "nodes": 20701,
+      "heapAfter": 1615386782,
+      "maxGapMs": 1289.699999999255,
+      "p95GapMs": 101.19999999925494,
+      "samples": 532,
+      "hidden": false
+    },
+    "diagnosticWarmNotPerformanceEvidence": {
+      "phase": "done",
+      "startedReady": true,
+      "startedHidden": false,
+      "hiddenSamples": 0,
+      "reads": 0,
+      "cachedReads": 0,
+      "parses": 0,
+      "cacheGets": 79,
+      "started": 2281473.6999999993,
+      "heapBefore": 1597353638,
+      "elapsedMs": 23806.900000002235,
+      "finishedHidden": false,
+      "status": {
+        "upToDate": true,
+        "label": "Index status: up to date"
+      },
+      "nodes": 21353,
+      "heapAfter": 1358163227,
+      "maxGapMs": 749.3999999985099,
+      "p95GapMs": 289.4000000022352,
+      "samples": 484,
+      "hidden": false
+    }
+  },
+  "limits": [
+    "Initial native readiness timeout failed while hydration continued; not counted as a pass.",
+    "Temporary Electron background-throttling override saved/restored original true policy; semantic diagnostic timings are not performance acceptance.",
+    "Initial native driver incorrectly assumed root-level Note D/Note X paths; actual targets were source-resolved nested paths. Driver was corrected to use explicit declared target paths, and all phase assertions rerun passed.",
+    "Physical device/cold matrix remains C00; no native mobile or statistical performance claim.",
+    "Existing explanation copy remains unchanged English; L01 owns complete copy extraction/formatting.",
+    "Fresh foreground warm observation is a single run, not statistical parity or peak/device memory. Retained-heap and diagnostic runs are reported separately."
+  ],
+  "manualTests": "None required for this pure extraction; native edit/rename/cancel/parity and accepted-source comparisons passed. C00 physical/cold matrix remains pending.",
+  "next": "C13c, Strong offline-agent candidate; parent C13 Pending",
+  "sourceHashes": {
+    "package.json": "91bd7305edd8b849b090b490e7b87fb9d62cf70254ece717ce01ed66c436ec55",
+    "src/types.ts": "8a3275e9c29502867843c4a367b045454ee1756ed177a7d71bd1b359f895cdfb",
+    "src/core/graph/relations.ts": "815f60cc32ae47a8c5cbaf6c034e396e0e00178ca0e0223727c586ea288ac32f",
+    "src/core/graph/evidence.ts": "379404c517ff1898d4fc8a69c722521329e21fe8e970f67fbe7e24934be5efdb",
+    "src/core/graph/resolver.ts": "7798534ffe6499f742c996a9924554da0a4b0dde46903d1055d56dcb26865da2",
+    "src/index/RelationEvidence.ts": "b18c6320ea93ab39fead91069f646b6c05517a739a2b83c6a63965b73606d0d6",
+    "src/index/RelationResolver.ts": "8c3b1c6e09cf0d20db617a40636483f6ec0839ea556aa610b99c02b2a026af38",
+    "src/index/GraphBuilder.ts": "5cf2453e0acba3ce87cb095c2270c57ca61d483dbd4b891d7de6ca27cbf7fbab",
+    "src/index/GraphIndex.ts": "b0c5d0ff4136a21dcad06fb93dd2aa1e35723898d726267236542681796e2d85",
+    "src/main.ts": "89743d511719c26ee79214f7825c4ef14a41864619db86cf48488796ad54c52b",
+    "tests/relation-core.test.mjs": "41442a55af15450f5d0f69f6fa5c3efd1e210606cec1e8758f603ded003dcd2e",
+    "tests/indexing.test.mjs": "c07d80d103a83f70507bc1d45ea14c43f79a50996b18aef14be06a7ad16aac92",
+    "tests/fixtures/c13b-relation-oracle.json": "a2e0a66cba05060f8f38f54e05f38938f043d7e2fb1a8abd9465ba42e036e76b",
+    "tests/architecture.test.mjs": "b4cfbd7928edeb2e051bcc6295ac4af51eb6d15650440e7a0f7d977cffd3312b"
+  }
+}

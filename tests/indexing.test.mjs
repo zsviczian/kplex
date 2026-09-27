@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { canonicalGraph, canonicalNeighborhood, canonicalPair, canonicalScene } from "./support/canonicalGraph.mjs";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
@@ -25,6 +26,12 @@ const thoughtNodeSource = readFileSync(join(root, "src/ui/ThoughtNode.tsx"), "ut
 const plexFilterSource = readFileSync(join(root, "src/ui/PlexFilter.tsx"), "utf8");
 const simpleFilterSource = readFileSync(join(root, "src/lens/SimplePlexFilter.ts"), "utf8");
 const longPressTooltipSource = readFileSync(join(root, "src/ui/LongPressTooltip.ts"), "utf8");
+const graphBuilderSource = readFileSync(join(root, "src/index/GraphBuilder.ts"), "utf8");
+const graphIndexSource = readFileSync(join(root, "src/index/GraphIndex.ts"), "utf8");
+assert(graphBuilderSource.includes("path: file.path, mtime: file.stat.mtime, size: file.stat.size"), "Patch/full-build revision fences must capture the source path as well as stat data");
+assert(graphBuilderSource.includes("this.app.vault.getFileByPath(revision.path) === file"), "Awaited graph work must reject renamed/deleted TFile identities before publication");
+assert(graphBuilderSource.includes("publishFileCommit?: PatchFilePublisher"), "Incremental publication must expose one explicit synchronous per-file commit contract");
+assert(graphIndexSource.includes("private publishIncrementalFile: PatchFilePublisher"), "GraphIndex must own the coherent graph/fingerprint/search/cache observer boundary");
 assert(newRelatedSource.includes('"aria-label": "Create placeholder node"'), "Create-related UI must offer a placeholder-only action");
 assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(origin, role"), "Placeholder action must create only a relationship-backed virtual node");
 assert(newRelatedSource.includes("void createNew(defaultCreateType)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
@@ -233,7 +240,29 @@ function compile(relativePath) {
 }
 
 for (const file of [
+  "src/lang/en.ts",
+  "src/lang/index.ts",
   "src/types.ts",
+  "src/core/plex/viewPresentation.ts",
+  "src/core/contracts/fieldName.ts",
+  "src/core/graph/model.ts",
+  "src/core/parser/metadata.ts",
+  "src/core/graph/relations.ts",
+  "src/core/graph/evidence.ts",
+  "src/core/graph/resolver.ts",
+  "src/core/graph/source.ts",
+  "src/core/graph/settings.ts",
+  "src/core/graph/compiler.ts",
+  "src/core/graph/patch.ts",
+  "src/core/plex/predicate.ts",
+  "src/core/plex/predicateParser.ts",
+  "src/core/plex/lens.ts",
+  "src/adapters/obsidian/graphContracts.ts",
+  "src/adapters/obsidian/predicateContracts.ts",
+  "src/adapters/obsidian/structuralSourceCollector.ts",
+  "src/adapters/obsidian/hostLinkSourceCollector.ts",
+  "src/adapters/obsidian/ontologySourceCollector.ts",
+  "src/adapters/obsidian/metadataSourceCollector.ts",
   "src/util/perf.ts",
   "src/main.ts",
   "src/index/fieldParser.ts",
@@ -253,10 +282,6 @@ for (const file of [
   "src/lens/GraphLensSimple.ts",
   "src/lens/SimplePlexFilter.ts",
   "src/ui/layout.ts",
-  "src/ui/NewRelatedNoteModal.ts",
-  "src/ui/MaterializeGhostModal.ts",
-  "src/ui/CreateFolderNoteModal.ts",
-  "src/ui/DeleteNodeModal.ts",
 ]) compile(file);
 
 const obsidianModuleDir = join(temp, "node_modules/obsidian");
@@ -349,6 +374,7 @@ globalThis.window.moment = obsidianTestApi.moment;
 // performRebuild method. Its unrelated UI/settings dependencies are inert stubs in this fixture.
 function writeRuntimeStub(relativePath, source) {
   const path = join(temp, relativePath);
+  assert(!existsSync(path), `Runtime stub must not replace compiled behavior: ${relativePath}`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, source);
 }
@@ -368,7 +394,6 @@ for (const [path, name] of [
   ["src/ui/NewRelatedNoteModal.js", "NewRelatedNoteModal"],
   ["src/ui/MaterializeGhostModal.js", "MaterializeGhostModal"],
   ["src/ui/CreateFolderNoteModal.js", "CreateFolderNoteModal"],
-  ["src/ui/DeleteNodeModal.js", "DeleteNodeConfirmationModal"],
   ["src/editor/OntologySuggester.js", "OntologySuggester"],
   ["src/ui/AddToOntologyModal.js", "AddToOntologyModal"],
   ["src/ui/NoteTypeModal.js", "NoteTypeModal"],
@@ -376,14 +401,26 @@ for (const [path, name] of [
 writeRuntimeStub("src/ui/DeleteNodeModal.js", `exports.DeleteNodeConfirmationModal = class {}; exports.RemainingNodeReferencesModal = class {};`);
 writeRuntimeStub("src/ui/viewProfile.js", `
 exports.activeLayoutProfile = () => null;
-exports.currentDeviceClass = () => "desktop";
 exports.effectiveViewSettings = (_settings, view) => view ?? {};
 exports.layoutProfileKey = () => "desktop";
 `);
+writeRuntimeStub("src/adapters/obsidian/presentationEnvironment.js", `
+exports.readObsidianPresentationEnvironment = () => ({
+  device: "desktop",
+  keyConvention: "unknown",
+  inputModes: { keyboard: true, pointer: true, touch: false },
+  hostActions: { graphTab: true, sidepanel: true, popout: true },
+});
+`);
+writeRuntimeStub("src/adapters/obsidian/localization.js", `
+const { createTranslator } = require("../../lang");
+exports.createObsidianTranslator = () => createTranslator("en");
+`);
 
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
+const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
 const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
-const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedRelations, computeIndexSettingsSignature } = require(join(temp, "src/index/IndexSnapshot.js"));
+const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedRelations, computeIndexSettingsSignature, computeVaultSignature, persistedDeclarationFromEvidence } = require(join(temp, "src/index/IndexSnapshot.js"));
 const { createGraphState } = require(join(temp, "src/index/GraphState.js"));
 const { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion } = require(join(temp, "src/index/SectionExpansion.js"));
 const { parseBodyMetadata, parseBodyMetadataCore, parseBodyMetadataCooperative } = require(join(temp, "src/index/fieldParser.js"));
@@ -661,7 +698,7 @@ const settings = {
   newNodeDefaultType: "markdown",
 };
 
-const plugin = { app, settings, recordDiagnostic() {}, manifest: { dir: "" } };
+const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnostic() {}, manifest: { dir: "" } };
 const index = new GraphIndex(plugin, app);
 
 function expectRole(sourcePath, role, targetPath, type) {
@@ -751,6 +788,19 @@ try {
   assert(A);
   const neighborhoodA = index.getNeighborhood("Note A.md");
   assert(neighborhoodA);
+
+  // Capture published behavior before any of this suite's runtime edits. This fixture protects
+  // every graph page, original declaration, precedence decision and ordinary Plex scene when
+  // compilation and layout move into host-independent modules.
+  const baseline = {
+    graph: canonicalGraph(index),
+    neighborhoods: Object.fromEntries(["Note A.md", "folder:/", "tag:project"]
+      .map((path) => [path, canonicalNeighborhood(index, path)])),
+    scene: canonicalScene(buildScene(neighborhoodA, index, settings)),
+    searches: Object.fromEntries(["note a", "note b", "project", "folder", "https"]
+      .map((query) => [query, index.search(query, 12).map((page) => page.path)])),
+  };
+  assert.deepEqual(baseline, JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-indexing/graph-baseline.json"), "utf8")));
 
   // A custom style selected by the Style property is an explicit user choice. It must remain
   // visible on the central note instead of being masked by the generic central-node appearance.
@@ -1024,6 +1074,24 @@ try {
   assert(explainXY.decisions.some((d) => d.active && d.evidence.sourceKind === "obsidian-link"));
   assert.equal(explainXY.decisions.filter((d) => d.evidence.sourceKind === "obsidian-link").length, 1);
 
+  // Exact duplicate configured labels and assignments across roles retain legacy multiplicity.
+  const savedParents = [...plugin.settings.hierarchy.parents];
+  const savedChildren = [...plugin.settings.hierarchy.children];
+  const ontologyForXY = () => index.state.evidence.declarationsForPair("Note X.md", "Note Y.md")
+    .filter(item => item.sourceKind === "frontmatter-ontology" && item.definition === "parent" && !item.mirrored);
+  const countXY = ontologyForXY().length;
+  try {
+    plugin.settings.hierarchy.parents.push("Parent");
+    plugin.settings.hierarchy.children.push("Parent");
+    await index.rebuild();
+    assert.equal(ontologyForXY().length, countXY + 2, "Repeated configured field and competing role must both survive compilation");
+    assert(ontologyForXY().some(item => item.declaredRole === "child"));
+  } finally {
+    plugin.settings.hierarchy.parents = savedParents;
+    plugin.settings.hierarchy.children = savedChildren;
+    await index.rebuild();
+  }
+
   // The same precedence decision must survive the inverse perspective.
   expectRole("Note Y.md", "child", "Note X.md", RelationType.DEFINED);
   expectNoRole("Note Y.md", "parent", "Note X.md");
@@ -1063,6 +1131,48 @@ try {
 
   // Legacy Markdown link inside string-valued YAML ontology remains supported.
   expectRole("Note C.md", "left", "Note D.md", RelationType.DEFINED);
+
+  // Shared nested tags must reuse one hierarchy declaration rather than duplicating prefix edges.
+  const sharedNestedCache = caches.get("Note C.md");
+  const sharedNestedOriginalTags = [...(sharedNestedCache?.tags ?? [])];
+  assert(sharedNestedCache);
+  sharedNestedCache.tags = [...sharedNestedOriginalTags, { tag: "#taxonomy/body/leaf" }];
+  await index.rebuild();
+  expectRole("tag:taxonomy/body/leaf", "child", "Note A.md", RelationType.DEFINED);
+  expectRole("tag:taxonomy/body/leaf", "child", "Note C.md", RelationType.DEFINED);
+  assert.equal(
+    index.state.evidence.declarationsForPair("tag:taxonomy", "tag:taxonomy/body")
+      .filter((item) => item.sourceKind === "tag-tree").length,
+    1,
+    "Shared nested tags must not duplicate the parent hierarchy declaration",
+  );
+  assert.equal(
+    index.state.evidence.declarationsForPair("tag:taxonomy/body", "tag:taxonomy/body/leaf")
+      .filter((item) => item.sourceKind === "tag-tree").length,
+    1,
+    "Shared nested tags must not duplicate the leaf hierarchy declaration",
+  );
+  sharedNestedCache.tags = sharedNestedOriginalTags;
+  await index.rebuild();
+
+  // Real getAllTags can retain repeated body/frontmatter memberships; the default double dedups.
+  // Preserve membership multiplicity while keeping hierarchy deduplication in ensureTagPath.
+  const originalGetAllTags = obsidianTestApi.getAllTags;
+  const originalFixtureMemberships = index.state.evidence.declarationsForPair("tag:fixture", "Note C.md")
+    .filter((item) => item.sourceKind === "tag-tree").length;
+  try {
+    obsidianTestApi.getAllTags = (cache) => {
+      const tags = originalGetAllTags(cache);
+      return cache === sharedNestedCache ? [...tags, "#fixture"] : tags;
+    };
+    await index.rebuild();
+    assert.equal(index.state.evidence.declarationsForPair("tag:fixture", "Note C.md")
+      .filter((item) => item.sourceKind === "tag-tree").length, originalFixtureMemberships + 1,
+    "Repeated host tag memberships must retain original declaration multiplicity");
+  } finally {
+    obsidianTestApi.getAllTags = originalGetAllTags;
+    await index.rebuild();
+  }
 
   // Tags and hierarchical tag tree.
   expectRole("tag:body-tag", "child", "Note A.md", RelationType.DEFINED);
@@ -1235,6 +1345,175 @@ try {
   for (const saved of savedPages) addPersistedPageToState(warmState, saved, app);
   assert.equal(hydratePersistedRelations(warmState, savedPages), true);
   assert.equal(warmState.pages.get("Note A.md")?.neighbours.get("Note B.md")?.isParent, true);
+  // C08P exercises the production restore and startup coordinator with deterministic stalled I/O.
+  // Only the external cache and watchdog clock are controlled; graph semantics remain real.
+  const snapshotEvidence = [...index.state.evidence.declarations()].map(persistedDeclarationFromEvidence);
+  const snapshotMeta = {
+    schema: 3, generation: "test-generation", createdAt: 123,
+    settingsSignature: computeIndexSettingsSignature(settings), vaultSignature: computeVaultSignature(app),
+    discoveredFields: [...index.state.discoveredFields],
+  };
+  const realNow = Date.now, realSetTimeout = window.setTimeout, realClearTimeout = window.clearTimeout;
+  let clock = realNow(), timerId = -1;
+  const watchdogTimers = new Map();
+  Date.now = () => clock;
+  window.setTimeout = (callback, ms, ...args) => {
+    if (ms !== 5000) return realSetTimeout(callback, ms, ...args);
+    const id = timerId--;
+    watchdogTimers.set(id, callback);
+    return id;
+  };
+  window.clearTimeout = (id) => {
+    if (id < 0) watchdogTimers.delete(id);
+    else realClearTimeout(id);
+  };
+  const settle = async () => { for (let n = 0; n < 24; n++) await Promise.resolve(); };
+  const advanceWatchdog = async (ms) => {
+    clock += ms;
+    const callbacks = [...watchdogTimers.values()]; watchdogTimers.clear();
+    callbacks.forEach((callback) => callback());
+    await settle();
+  };
+  const controlledIndexes = [];
+  const makeRestoreIndex = () => {
+    const restored = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+    restored.indexedDb.readSnapshotMeta = async () => snapshotMeta;
+    restored.indexedDb.snapshotUsesChunks = () => true;
+    restored.indexedDb.getPages = async (_generation, paths) => new Map(savedPages.filter((page) => paths.includes(page.path)).map((page) => [page.path, page]));
+    restored.indexedDb.iterateSnapshotPages = async (_meta, onPage, current) => {
+      for (const page of savedPages) { if (!current()) return false; onPage(page); }
+      return current();
+    };
+    restored.indexedDb.iterateSnapshotEvidence = async (_meta, onEvidence, current) => {
+      for (const item of snapshotEvidence) { if (!current()) return false; onEvidence(item); }
+      return current();
+    };
+    restored.scheduleOrphanCleanup = () => {};
+    restored.scheduleSnapshotPersist = () => {};
+    controlledIndexes.push(restored);
+    return restored;
+  };
+  try {
+    const normal = makeRestoreIndex();
+    const normalResult = await normal.restoreIndexedDbSnapshot(["Note A.md"]);
+    assert.equal(normalResult.partial, true);
+    assert.equal((await normal.waitForSnapshotHydration()).restored, true);
+    assert.equal(normal.size, index.size);
+    assert.deepEqual(normal.search("Note A").map((page) => page.path), index.search("Note A").map((page) => page.path));
+    const evidenceShape = (items) => JSON.parse(JSON.stringify(items.map(({ id, ...item }) => item)));
+    assert.deepEqual(evidenceShape(normal.evidenceBetween("Note A.md", "Note B.md")), evidenceShape(index.evidenceBetween("Note A.md", "Note B.md")));
+    assert.equal(normal.getSnapshotHydrationDiagnostics().outcome, "complete");
+    assert.equal(normal.getSnapshotHydrationDiagnostics().pages, savedPages.length);
+    assert.equal(watchdogTimers.size, 0);
+    const copied = normal.getSnapshotHydrationDiagnostics(); copied.outcome = "failed";
+    assert.equal(normal.getSnapshotHydrationDiagnostics().outcome, "complete");
+
+    const failed = makeRestoreIndex();
+    failed.indexedDb.readSnapshotMeta = async () => null;
+    assert.equal((await failed.restoreIndexedDbSnapshot()).restored, false);
+    assert.equal(failed.getSnapshotHydrationDiagnostics().outcome, "failed");
+    assert.equal(failed.hasPendingSnapshotHydration(), false);
+    assert.equal(watchdogTimers.size, 0);
+
+    const legacy = makeRestoreIndex();
+    legacy.indexedDb.readSnapshotMeta = async () => ({ ...snapshotMeta, schema: 1 });
+    assert.equal((await legacy.restoreIndexedDbSnapshot()).restored, true);
+    assert.equal(legacy.size, index.size);
+    assert.equal(legacy.getSnapshotHydrationDiagnostics().outcome, "complete");
+    assert.deepEqual(evidenceShape(legacy.evidenceBetween("Note A.md", "Note B.md")), evidenceShape(index.evidenceBetween("Note A.md", "Note B.md")));
+
+    const replaced = makeRestoreIndex();
+    let releaseReplaced;
+    replaced.indexedDb.readSnapshotMeta = () => new Promise((resolve) => { releaseReplaced = resolve; });
+    const oldRestore = replaced.restoreIndexedDbSnapshot();
+    await settle();
+    replaced.indexedDb.readSnapshotMeta = async () => snapshotMeta;
+    const newRestore = await replaced.restoreIndexedDbSnapshot();
+    assert.equal((await oldRestore).restored, false);
+    assert.equal(newRestore.restored, true);
+    const replacementState = replaced.state, replacementDiagnostics = replaced.getSnapshotHydrationDiagnostics();
+    releaseReplaced(snapshotMeta); await settle();
+    assert.equal(replaced.state, replacementState);
+    assert.deepEqual(replaced.getSnapshotHydrationDiagnostics(), replacementDiagnostics);
+    assert.equal(watchdogTimers.size, 0);
+
+    for (const phase of ["metadata", "preview", "pages", "evidence", "preview-search"]) {
+      const stalled = makeRestoreIndex();
+      let release;
+      const blocked = new Promise((resolve) => { release = resolve; });
+      const method = { metadata: "readSnapshotMeta", preview: "getPages", pages: "iterateSnapshotPages", evidence: "iterateSnapshotEvidence", "preview-search": "prepareSearchIndex" }[phase];
+      const owner = phase === "preview-search" ? stalled : stalled.indexedDb;
+      const original = owner[method];
+      owner[method] = async (...args) => { await blocked; return original.apply(owner, args); };
+      const start = stalled.restoreIndexedDbSnapshot(["Note A.md"]);
+      await settle();
+      assert.equal(stalled.getSnapshotHydrationDiagnostics().phase, phase);
+      await advanceWatchdog(89999);
+      assert.equal(stalled.hasPendingSnapshotHydration(), true, "Watchdog must honor the inactivity window");
+      await advanceWatchdog(1);
+      await start;
+      assert.equal((await stalled.waitForSnapshotHydration()).restored, false);
+      assert.equal(stalled.hasPendingSnapshotHydration(), false);
+      assert.equal(stalled.isFullSnapshotHydrated(), false);
+      assert.equal(stalled.getSnapshotHydrationDiagnostics().outcome, "timed-out");
+      assert.equal(stalled.getSnapshotHydrationDiagnostics().lastActivePhase, phase);
+      assert.equal(watchdogTimers.size, 0);
+      owner[method] = original;
+      const coordinator = new ExcaliBrainPlugin();
+      coordinator.index = stalled; coordinator.app = app; coordinator.layoutReady = true;
+      coordinator.metadataStabilized = true; coordinator.initialIndexComplete = false;
+      coordinator.refreshBookmarkedEntryPoints = async () => {};
+      let rebuilds = 0;
+      coordinator.performRebuild = async () => {
+        rebuilds++;
+        assert(coordinator.indexBacklogReasons.has("startup:partial-restore-incomplete") || stalled.size === 0);
+        await stalled.rebuild();
+        coordinator.indexDirty = false; coordinator.indexBacklogReasons.clear();
+      };
+      await coordinator.ensureInitialIndex();
+      assert.equal(rebuilds, 1, "Timeout must route startup to an authoritative build");
+      assert.equal(stalled.size, index.size);
+      assert.equal(coordinator.getIndexStatus().upToDate, true);
+      const rebuiltState = stalled.state;
+      const terminal = stalled.getSnapshotHydrationDiagnostics();
+      release(); await settle();
+      assert.equal(stalled.state, rebuiltState, "Released old work must not publish over the rebuilt graph");
+      assert.deepEqual(stalled.getSnapshotHydrationDiagnostics(), terminal, "Late work must not rewrite terminal diagnostics");
+    }
+
+    const rejected = makeRestoreIndex();
+    let rejectRead;
+    rejected.indexedDb.readSnapshotMeta = () => new Promise((_resolve, reject) => { rejectRead = reject; });
+    const rejectRestore = rejected.restoreIndexedDbSnapshot();
+    await advanceWatchdog(90000); await rejectRestore;
+    rejectRead(new Error("Late cache failure")); await settle();
+    assert.equal(rejected.getSnapshotHydrationDiagnostics().outcome, "timed-out");
+
+    const cancelled = makeRestoreIndex();
+    let releaseCancelled;
+    cancelled.indexedDb.iterateSnapshotPages = () => new Promise((resolve) => { releaseCancelled = resolve; });
+    await cancelled.restoreIndexedDbSnapshot(["Note A.md"]);
+    const waiting = cancelled.waitForSnapshotHydration();
+    const unloaded = new ExcaliBrainPlugin();
+    unloaded.index = cancelled; unloaded.app = app; unloaded.layoutReady = true;
+    unloaded.metadataStabilized = true;
+    let unloadRebuilds = 0;
+    unloaded.performRebuild = async () => { unloadRebuilds++; };
+    const initialization = unloaded.ensureInitialIndex();
+    unloaded.onunload();
+    assert.equal((await waiting).restored, false);
+    await initialization;
+    assert.equal(unloadRebuilds, 0, "Unload cancellation must not start a replacement build");
+    assert.equal(cancelled.getSnapshotHydrationDiagnostics().outcome, "cancelled");
+    assert.equal(watchdogTimers.size, 0, "Unload must release the watchdog immediately");
+    releaseCancelled(true); await settle();
+    assert.equal(cancelled.getSnapshotHydrationDiagnostics().outcome, "cancelled");
+    console.log("C08P restore watchdog: warm equality, five stalled phases, late completion/rejection and unload PASS");
+  } finally {
+    controlledIndexes.forEach((item) => item.destroy());
+    controlledIndexes.length = 0;
+    Date.now = realNow; window.setTimeout = realSetTimeout; window.clearTimeout = realClearTimeout;
+  }
   const runtimePatch = await index.patchMarkdownPaths(["Note A.md"]);
   assert.deepEqual(runtimePatch, { outcome: "patched", count: 1 });
   expectRole("Note A.md", "parent", "Note B.md", RelationType.DEFINED);
@@ -1551,6 +1830,9 @@ try {
   for (const sample of grammarSamples) {
     assert.deepEqual(await workerParser.parse(sample), parseBodyMetadataCore(sample), `Worker parser differs for ${JSON.stringify(sample)}`);
   }
+  const workerCancelPromise = workerParser.parse("Parent:: [[cancel-worker]]");
+  workerParser.cancelPending();
+  await assert.rejects(workerCancelPromise, MetadataParseCancelledError, "Worker cancellation must reject pending parses with the production cancellation error");
   workerParser.destroy();
   if (originalWorker === undefined) delete globalThis.Worker; else globalThis.Worker = originalWorker;
 
@@ -1577,6 +1859,10 @@ try {
   contents.set("Note B.md", `${contents.get("Note B.md")}\n${repeatUrl}\n`);
   noteB.stat.mtime += 1000;
   assert.deepEqual(await index.patchMarkdownPaths(["Note B.md"]), { outcome: "patched", count: 1 });
+  expectRole(repeatUrl, "parent", "Note A.md", RelationType.INFERRED);
+  expectRole(repeatUrl, "parent", "Note B.md", RelationType.INFERRED);
+  const sharedUrlParents = new Set(index.getNeighborhood(repeatUrl).parents.map((item) => item.page.path));
+  assert(sharedUrlParents.has("Note A.md") && sharedUrlParents.has("Note B.md"), "A centered shared URL must expose both referrers in its neighborhood");
   contents.set("Note A.md", contents.get("Note A.md").replace(`\n${repeatUrl}\n`, "\n"));
   noteA.stat.mtime += 1000;
   assert.deepEqual(await index.patchMarkdownPaths(["Note A.md"]), { outcome: "patched", count: 1 });
@@ -1720,21 +2006,9 @@ try {
   const cleanIndex = new GraphIndex(plugin, app);
   try {
     assert.equal(await cleanIndex.rebuild(), true);
-    const relationShape = (candidate, sourcePath, targetPath) => {
-      const relation = candidate.get(sourcePath)?.neighbours.get(targetPath);
-      return relation ? {
-        isParent: relation.isParent, isChild: relation.isChild,
-        isLeftFriend: relation.isLeftFriend, isRightFriend: relation.isRightFriend,
-        isNextFriend: relation.isNextFriend, isPreviousFriend: relation.isPreviousFriend,
-        direction: relation.direction,
-      } : null;
-    };
     for (const [sourcePath, targetPath] of [["tag:runtime", "tag:runtime/perf"], ["tag:runtime/perf", "Note A.md"]]) {
-      assert.deepEqual(relationShape(index, sourcePath, targetPath), relationShape(cleanIndex, sourcePath, targetPath));
-      assert.equal(
-        index.evidenceBetween(sourcePath, targetPath).filter((item) => item.sourceKind === "tag-tree").length,
-        cleanIndex.evidenceBetween(sourcePath, targetPath).filter((item) => item.sourceKind === "tag-tree").length,
-      );
+      assert.deepEqual(canonicalPair(index, sourcePath, targetPath), canonicalPair(cleanIndex, sourcePath, targetPath),
+        `Incremental relation and provenance must match a full rebuild for ${sourcePath} -> ${targetPath}`);
     }
   } finally {
     cleanIndex.destroy();
@@ -1759,8 +2033,20 @@ try {
     if (file.path === "Note B.md") { sawB(); await bGate; }
     return contents.get(file.path) ?? "";
   };
+  const observedBatchCommits = [];
+  const stopBatchObserver = index.subscribe(() => {
+    const page = index.get("Note A.md");
+    if (!page?.aliases.includes(cancelAliasA)) return;
+    observedBatchCommits.push({
+      path: page.path,
+      searchPath: index.search(cancelAliasA.toLowerCase(), 5)[0]?.path ?? null,
+      canonical: [...page.neighbours.values()].every((relation) => relation.target === index.get(relation.target.path)),
+    });
+  });
   const cancelledBatchPromise = index.patchMarkdownPaths(["Note A.md", "Note B.md"]);
   await bStarted;
+  assert.deepEqual(observedBatchCommits, [{ path: "Note A.md", searchPath: "Note A.md", canonical: true }],
+    "A committed file must notify observers with graph/search/canonical targets coherent before the next awaited source");
   index.cancelRebuild();
   releaseB();
   const cancelledBatch = await cancelledBatchPromise;
@@ -1769,6 +2055,7 @@ try {
   assert.deepEqual(cancelledBatch.pendingPaths, ["Note B.md"], "Cancellation must retain only uncommitted files");
   assert.equal(index.search(cancelAliasA.toLowerCase(), 5)[0]?.path, "Note A.md", "Committed file A search entry must survive cancellation");
   assert.equal(index.snapshotPersistTimer ?? null, null, "Cancelled patch must not schedule a snapshot");
+  stopBatchObserver();
   app.vault.cachedRead = originalCachedReadForCancel;
   assert.deepEqual(await index.patchMarkdownPaths(["Note A.md", "Note B.md"]), { outcome: "patched", count: 2 });
   assert.equal(index.search(cancelAliasA.toLowerCase(), 5)[0]?.path, "Note A.md");
@@ -1805,6 +2092,134 @@ try {
     cleanCreatedIndex.destroy();
     settings.showFolderNodes = oldFolderVisibilityForCreate;
   }
+
+  // The synchronous publisher must not retain a callback that can publish after rejection or an
+  // exception. A private no-op patch makes the test independent of relationship fixture changes.
+  for (const throws of [false, true]) {
+    const builder = new GraphBuilder(plugin, app, new Map(index.fieldCache), index.metadataParser,
+      index.indexedDb, () => true, new Map(index.semanticFingerprints));
+    const privateState = builder.createPatchState(index.state, false);
+    const beforePages = privateState.pages;
+    const beforeEvidence = privateState.evidence;
+    let retainedPublish;
+    await assert.rejects(builder.patchMarkdownFiles(privateState, [managedFile], {
+      publishFileCommit(_commit, publish) {
+        retainedPublish = publish;
+        if (throws) throw new Error("Injected publisher failure");
+      },
+    }), throws ? /Injected publisher failure/ : /did not publish synchronously/);
+    assert.equal(typeof retainedPublish, "function");
+    assert.throws(() => retainedPublish(), /callback expired/);
+    assert.equal(privateState.pages, beforePages);
+    assert.equal(privateState.evidence, beforeEvidence);
+  }
+  {
+    const builder = new GraphBuilder(plugin, app, new Map(index.fieldCache), index.metadataParser,
+      index.indexedDb, () => true, new Map(index.semanticFingerprints));
+    const privateState = builder.createPatchState(index.state, false);
+    let retainedPublish;
+    const result = await builder.patchMarkdownFiles(privateState, [managedFile], {
+      publishFileCommit(_commit, publish) {
+        publish();
+        assert.throws(() => publish(), /more than once/);
+        retainedPublish = publish;
+      },
+    });
+    assert.equal(result.ok, true);
+    assert.throws(() => retainedPublish(), /callback expired/);
+  }
+
+  // C14b revision fences: a TFile renamed or deleted while an awaited body read is in flight must
+  // not publish stale source metadata. The renamed current path remains retryable without rebuild.
+  const raceFile = new TFile("Publication Race.md", managedFile.stat.mtime + 2000);
+  files.set(raceFile.path, raceFile);
+  contents.set(raceFile.path, "# Publication Race\n");
+  caches.set(raceFile.path, { frontmatter: {}, tags: [], links: [] });
+  resolvedLinks[raceFile.path] = {};
+  unresolvedLinks[raceFile.path] = {};
+  index.insertCreatedFile(raceFile);
+  assert.deepEqual(await index.patchMarkdownPaths([raceFile.path]), { outcome: "patched", count: 1 });
+
+  const oldRacePath = raceFile.path;
+  const renamedRacePath = "Publication Race Renamed.md";
+  const renameRaceAlias = "RenameRaceLatestAlias";
+  caches.get(oldRacePath).frontmatter.aliases = renameRaceAlias;
+  raceFile.stat.mtime += 1000;
+  const originalCachedReadForRevisionRace = app.vault.cachedRead;
+  let releaseRenameRace;
+  let sawRenameRace;
+  const renameRaceStarted = new Promise((resolve) => { sawRenameRace = resolve; });
+  const renameRaceGate = new Promise((resolve) => { releaseRenameRace = resolve; });
+  app.vault.cachedRead = async (file) => {
+    if (file === raceFile) {
+      const captured = contents.get(oldRacePath) ?? "";
+      sawRenameRace();
+      await renameRaceGate;
+      return captured;
+    }
+    return originalCachedReadForRevisionRace(file);
+  };
+  const staleRenamePatch = index.patchMarkdownPaths([oldRacePath]);
+  await renameRaceStarted;
+  const raceContent = contents.get(oldRacePath);
+  const raceCache = caches.get(oldRacePath);
+  files.delete(oldRacePath);
+  contents.delete(oldRacePath);
+  caches.delete(oldRacePath);
+  delete resolvedLinks[oldRacePath];
+  delete unresolvedLinks[oldRacePath];
+  raceFile.path = renamedRacePath;
+  raceFile.name = renamedRacePath;
+  raceFile.basename = "Publication Race Renamed";
+  files.set(renamedRacePath, raceFile);
+  contents.set(renamedRacePath, raceContent);
+  caches.set(renamedRacePath, raceCache);
+  resolvedLinks[renamedRacePath] = {};
+  unresolvedLinks[renamedRacePath] = {};
+  assert.equal(index.renameFile(oldRacePath, raceFile), true);
+  releaseRenameRace();
+  const renamedRaceResult = await staleRenamePatch;
+  assert.equal(renamedRaceResult.outcome, "cancelled");
+  assert.equal(renamedRaceResult.count, 0);
+  assert.deepEqual(renamedRaceResult.pendingPaths, [renamedRacePath]);
+  assert.equal(index.search(renameRaceAlias.toLowerCase(), 5).length, 0, "A pre-rename source revision must not publish after the path changes");
+  app.vault.cachedRead = originalCachedReadForRevisionRace;
+  assert.deepEqual(await index.patchMarkdownPaths([renamedRacePath]), { outcome: "patched", count: 1 });
+  assert.equal(index.search(renameRaceAlias.toLowerCase(), 5)[0]?.path, renamedRacePath, "The current renamed path must resume incrementally");
+
+  const deletedRaceAlias = "DeletedRaceStaleAlias";
+  caches.get(renamedRacePath).frontmatter.aliases = deletedRaceAlias;
+  raceFile.stat.mtime += 1000;
+  let releaseDeleteRace;
+  let sawDeleteRace;
+  const deleteRaceStarted = new Promise((resolve) => { sawDeleteRace = resolve; });
+  const deleteRaceGate = new Promise((resolve) => { releaseDeleteRace = resolve; });
+  app.vault.cachedRead = async (file) => {
+    if (file === raceFile) {
+      const captured = contents.get(renamedRacePath) ?? "";
+      sawDeleteRace();
+      await deleteRaceGate;
+      return captured;
+    }
+    return originalCachedReadForRevisionRace(file);
+  };
+  const staleDeletePatch = index.patchMarkdownPaths([renamedRacePath]);
+  await deleteRaceStarted;
+  files.delete(renamedRacePath);
+  contents.delete(renamedRacePath);
+  caches.delete(renamedRacePath);
+  delete resolvedLinks[renamedRacePath];
+  delete unresolvedLinks[renamedRacePath];
+  assert.equal(index.dematerializeFile(renamedRacePath)?.path, renamedRacePath);
+  releaseDeleteRace();
+  const deletedRaceResult = await staleDeletePatch;
+  assert.equal(deletedRaceResult.outcome, "cancelled");
+  assert.equal(deletedRaceResult.count, 0);
+  assert.deepEqual(deletedRaceResult.pendingPaths, [renamedRacePath]);
+  assert.equal(index.search(deletedRaceAlias.toLowerCase(), 5).length, 0, "A deleted source must not be resurrected by stale awaited work");
+  assert.equal(index.removeVirtualPageIfUnreferenced(renamedRacePath), true);
+  app.vault.cachedRead = originalCachedReadForRevisionRace;
+  index.cancelPendingPersistence();
 
   // P15: post-parse graph work for a URL-heavy note is staged and cooperatively sliced. Prime the
   // parsed-body hot cache so this measures signature/evidence/URL/resolution/commit work rather

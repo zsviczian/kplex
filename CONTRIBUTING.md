@@ -10,7 +10,7 @@ Use Node.js **22.22.2** where possible.
 
 ```bash
 npm i
-npm run build
+npm run verify
 ```
 
 For watch-mode development:
@@ -28,6 +28,23 @@ Build output must appear in `dist/` and contain:
 The plugin ID is `k-plex`.
 
 Do not consider a change complete until it builds against the real installed Obsidian typings. A local stub harness is useful for fast checks but is not authoritative.
+
+`npm run check:architecture` checks migrated-layer imports and its negative fixtures. `npm run check:core` type-checks the host-free core with no DOM/Node ambient types and runs clean-process core contract tests. `npm run lint:obsidian` runs the official Obsidian ESLint plugin. `npm run verify` runs the architecture and core lanes, Obsidian lint, all non-host tests, then the production build. No Obsidian installation is needed for these commands. The C03 button DOM test needs a local Chrome/Chromium-family executable; set `KPLEX_TEST_BROWSER` to its absolute path if discovery fails. The current legacy graph/UI is not yet portable; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the checkpoint ledger in [Refactor plan.md](Refactor%20plan.md). The lint setup currently reports sentence-case warnings in existing copy; avoid adding new warnings while L00/L01 establish the English localization catalog.
+
+For a desktop integration smoke test, enable **Settings → General → Command line interface** in Obsidian and use a disposable development vault with K-Plex installed. Set all three variables to that vault's actual identity and absolute paths:
+
+```bash
+export KPLEX_TEST_VAULT_NAME=kplex-test
+export KPLEX_TEST_VAULT_PATH=/absolute/path/to/kplex-test
+export KPLEX_TEST_CONFIG_DIR=/absolute/path/to/kplex-test/.obsidian
+npm run verify:obsidian
+```
+
+The strict host lane checks the CLI-reported vault path before changing anything, runs `verify`, then disables K-Plex, copies this build's three installable artifacts into the test vault, checks hashes, enables it and asserts a rendered K-Plex view with no captured JavaScript errors. It preserves plugin `data.json` and creates no bundle backup. It writes `report.json` in a printed temporary directory, or `KPLEX_HOST_REPORT_DIR` if set. A missing CLI, wrong vault, failed build or failed assertion returns nonzero. The portable `verify` lane never invokes Obsidian. CLI commands target the named vault explicitly; do not use a personal/default vault for test deployment.
+
+For live plugin/index diagnostics, CLI fault injection, reload-safe references and evidence capture, see [Obsidian runtime testing](docs/OBSIDIAN_RUNTIME_TESTING.md).
+
+To create a reproducible large synthetic input for performance work, run `npm run fixture:large -- --out /absolute/path/to/a/new-test-vault-folder --files 20000`. The generator copies the small indexing compatibility fixture and adds 20,000 deterministic notes. About 10% of all Markdown files are exactly 950,000 bytes, mixing very long paragraphs, large fenced code and dense real links; ordinary notes add shared note hubs and URLs. A default fixture is about 1.9 GB of Markdown, so allow adequate disk space and index time. The generator refuses to replace an existing folder. Check it with `npm run fixture:large -- --verify /absolute/path/to/that-folder`. Keep generated vault contents out of Git and use the same verified fixture and settings for before/after runs. Manifest link/declaration counts describe source input; measure actual K-Plex index counts separately.
 
 ## Documentation
 

@@ -1,5 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { GraphIndex } from "../index/GraphIndex";
 import type { GraphPage, Role } from "../types";
 import type { NodeSortOrder } from "../settings";
@@ -17,6 +16,7 @@ import {
 } from "../lens/GraphLensSimple";
 import { EMPTY_PLEX_FILTER, isPlexFilterActive, type PlexFilterState } from "../lens/SimplePlexFilter";
 import { ObsidianIcon } from "./ObsidianIcon";
+import { FloatingLayer, type FloatingLayerPositioning } from "./components/FloatingLayer";
 
 export type { PlexFilterState } from "../lens/SimplePlexFilter";
 export { EMPTY_PLEX_FILTER } from "../lens/SimplePlexFilter";
@@ -66,6 +66,18 @@ const EVIDENCE_SOURCE_CHOICES: Choice[] = [
 const BOOLEAN_CHOICES: Choice[] = [{ value: "true", label: "Active" }, { value: "false", label: "Suppressed" }];
 
 const openFilterPanels = new WeakMap<Document, number>();
+
+const FILTER_PANEL_POSITIONING: FloatingLayerPositioning = {
+  preferredWidth: 560,
+  minimumWidth: 300,
+  viewportMargin: 8,
+  anchorGap: 6,
+  minimumMaxHeight: 180,
+};
+
+function ownerDocumentBody(doc: Document): HTMLElement {
+  return doc.body;
+}
 
 function registerOpenFilterPanel(doc: Document): () => void {
   const count = (openFilterPanels.get(doc) ?? 0) + 1;
@@ -248,7 +260,6 @@ export function PlexFilter({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
   const [draft, setDraft] = useState<LensDraft | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
 
@@ -290,53 +301,12 @@ export function PlexFilter({
 
   const activeLensCount = lenses.filter((lens) => lens.enabled).length;
   const active = isPlexFilterActive(value) || !value.showCrossLinks || showSiblings || activeLensCount > 0;
-
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const doc = triggerRef.current.ownerDocument;
-    const view = doc.defaultView ?? window;
-    const update = () => {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const margin = 8;
-      const desiredWidth = Math.min(560, Math.max(300, view.innerWidth - margin * 2));
-      const left = Math.max(margin, Math.min(rect.left, view.innerWidth - desiredWidth - margin));
-      const top = rect.bottom + 6;
-      setPanelStyle({
-        position: "fixed",
-        left,
-        top,
-        width: desiredWidth,
-        maxHeight: Math.max(180, view.innerHeight - top - margin),
-      });
-    };
-    update();
-    view.addEventListener("resize", update);
-    doc.addEventListener("scroll", update, true);
-    return () => {
-      view.removeEventListener("resize", update);
-      doc.removeEventListener("scroll", update, true);
-    };
-  }, [open]);
+  const ownerDocument = triggerRef.current?.ownerDocument ?? null;
 
   useEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const doc = triggerRef.current.ownerDocument;
-    const releaseFilterLayer = registerOpenFilterPanel(doc);
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (target && (triggerRef.current?.contains(target) || panelRef.current?.contains(target))) return;
-      setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
-    doc.addEventListener("pointerdown", onPointerDown, true);
-    doc.addEventListener("keydown", onKeyDown, true);
-    return () => {
-      doc.removeEventListener("pointerdown", onPointerDown, true);
-      doc.removeEventListener("keydown", onKeyDown, true);
-      releaseFilterLayer();
-    };
-  }, [open]);
+    if (!open || !ownerDocument) return;
+    return registerOpenFilterPanel(ownerDocument);
+  }, [open, ownerDocument]);
 
   const editLens = (lens: GraphLensDefinition) => {
     let simple = tryParseGraphLensSimpleExpression(lens.expression);
@@ -493,7 +463,7 @@ export function PlexFilter({
     />;
   };
 
-  const panel = open ? <div
+  const panel = (panelStyle: CSSProperties) => <div
     ref={panelRef}
     className="kplex-filter-panel kplex-filter-portal"
     data-kplex-tooltip-scope
@@ -709,9 +679,7 @@ export function PlexFilter({
       </div>}
     </section>
 
-  </div> : null;
-
-  const portalTarget = triggerRef.current?.ownerDocument.body ?? (typeof document !== "undefined" ? document.body : null);
+  </div>;
 
   return <div className={`kplex-filter${active ? " is-active" : ""}${open ? " is-open" : ""}`}>
     <button
@@ -724,6 +692,16 @@ export function PlexFilter({
       <ObsidianIcon name="list-filter" size={16} />
       {activeLensCount > 0 && <span className="kplex-lens-count" aria-label={`${activeLensCount} active lenses`}>{activeLensCount}</span>}
     </button>
-    {portalTarget && panel ? createPortal(panel, portalTarget) : null}
+    <FloatingLayer
+      open={open}
+      anchorRef={triggerRef}
+      panelRef={panelRef}
+      insideRoots={() => [triggerRef.current, panelRef.current]}
+      onDismiss={() => setOpen(false)}
+      portalTarget={ownerDocumentBody}
+      positioning={FILTER_PANEL_POSITIONING}
+    >
+      {panel}
+    </FloatingLayer>
   </div>;
 }

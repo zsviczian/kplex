@@ -1,5 +1,5 @@
 import { Platform } from "obsidian";
-import type { ParsedBodyMetadata } from "./fieldParser";
+import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
 
 const DB_VERSION = 4;

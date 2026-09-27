@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2021"],
+    "types": []
+  },
+  "include": ["src/core/**/*.ts", "src/core/**/*.tsx"]
+}

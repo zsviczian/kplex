@@ -13,8 +13,9 @@ import {
   type Relation,
   type Role,
 } from "../types";
-import { GraphBuilder, type FieldCacheEntry } from "./GraphBuilder";
-import { extractLinksFromValue, normalizeFieldName, type ParsedBodyMetadata } from "./fieldParser";
+import { GraphBuilder, type FieldCacheEntry, type PatchFileCommit, type PatchFilePublisher } from "./GraphBuilder";
+import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
+import { extractLinksFromValue } from "./fieldParser";
 import { KplexIndexedDbCache, type IndexedDbSnapshotMeta } from "./IndexedDbCache";
 import { createGraphState, getGraphPage } from "./GraphState";
 import type { EvidenceRole, EvidenceSourceKind, RelationEvidence } from "./RelationEvidence";
@@ -91,6 +92,38 @@ const naturalCollator = new Intl.Collator(undefined, { numeric: true, sensitivit
 const naturalCompare = (a: string, b: string) => naturalCollator.compare(a, b);
 const SNAPSHOT_EDIT_IDLE_MS = 5 * 60 * 1000;
 const SNAPSHOT_MAINTENANCE_IDLE_MS = 5 * 60 * 1000;
+const SNAPSHOT_HYDRATION_STALL_MS = 90 * 1000;
+const SNAPSHOT_HYDRATION_WATCHDOG_POLL_MS = 5 * 1000;
+
+type SnapshotHydrationPhase =
+  | "idle"
+  | "metadata"
+  | "preview"
+  | "pages"
+  | "file-rebind"
+  | "relations"
+  | "preview-search"
+  | "evidence"
+  | "resolve"
+  | "authoritative-search"
+  | "promote"
+  | "complete"
+  | "failed"
+  | "timed-out"
+  | "cancelled";
+
+export type SnapshotHydrationDiagnostics = {
+  run: number;
+  phase: SnapshotHydrationPhase;
+  lastActivePhase: SnapshotHydrationPhase;
+  startedAt: number | null;
+  phaseStartedAt: number | null;
+  lastProgressAt: number | null;
+  pages: number;
+  relations: number;
+  evidence: number;
+  outcome: "idle" | "running" | "complete" | "failed" | "timed-out" | "cancelled";
+};
 
 function subsequenceScore(text: string, query: string): number | null {
   if (!query) return 0;
@@ -154,13 +187,16 @@ export class GraphIndex {
   private restoredPatchPlanAvailable = false;
   private snapshotHydrationTask: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }> | null = null;
   private snapshotHydrationRun = 0;
+  private cancelSnapshotHydration: (() => void) | null = null;
+  private snapshotHydrationDiagnostics: SnapshotHydrationDiagnostics = {
+    run: 0, phase: "idle", lastActivePhase: "idle", startedAt: null, phaseStartedAt: null, lastProgressAt: null,
+    pages: 0, relations: 0, evidence: 0, outcome: "idle",
+  };
   private fullSnapshotHydrated = false;
   private fullSnapshotFresh = false;
   private previewSnapshotPublished = false;
   private activeSnapshotGeneration: string | null = null;
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
-  private unpublishedPatchChanges = false;
-
   constructor(private plugin: ExcaliBrainPlugin, private app: App = plugin.app) {
     this.indexedDb = new KplexIndexedDbCache(app.vault.getName());
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
@@ -474,7 +510,9 @@ export class GraphIndex {
   }
 
   destroy(): void {
+    this.generation += 1;
     this.bodyWarmGeneration += 1;
+    this.cancelSnapshotHydration?.();
     this.snapshotHydrationRun += 1;
     this.snapshotPersistGeneration += 1;
     this.snapshotHydrationTask = null;
@@ -533,6 +571,7 @@ export class GraphIndex {
   private async prepareSearchIndex(
     state: ReturnType<typeof createGraphState>,
     isCurrent: () => boolean,
+    onProgress?: () => void,
   ): Promise<PreparedSearchIndex | null> {
     const entries: SearchEntry[] = [];
     const byPath = new Map<string, SearchEntry>();
@@ -547,17 +586,20 @@ export class GraphIndex {
       byPath.set(page.path, entry);
       processed += 1;
 
-      if ((processed & 255) === 0 && Date.now() - sliceStartedAt >= budgetMs) {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-        if (!isCurrent()) return null;
-        sliceStartedAt = Date.now();
+      if ((processed & 255) === 0) {
+        onProgress?.();
+        if (Date.now() - sliceStartedAt >= budgetMs) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+          if (!isCurrent()) return null;
+          sliceStartedAt = Date.now();
+        }
       }
     }
 
     return { entries, byPath };
   }
 
-  private async publishSnapshotPreview(meta: IndexedDbSnapshotMeta, seedPaths: readonly string[]): Promise<boolean> {
+  private async publishSnapshotPreview(meta: IndexedDbSnapshotMeta, seedPaths: readonly string[], isCurrent: () => boolean): Promise<boolean> {
     if (meta.schema < 2) return false;
     const seeds = [...new Set([
       ...seedPaths,
@@ -570,6 +612,7 @@ export class GraphIndex {
 
     const savedByPath = new Map<string, PersistedPage>();
     let frontier = [...(await this.indexedDb.getPages(meta.generation, seeds)).values()];
+    if (!isCurrent()) return false;
     for (const page of frontier) savedByPath.set(page.path, page);
     if (!frontier.length) {
       return false;
@@ -594,6 +637,7 @@ export class GraphIndex {
       }
       if (!wanted.length) break;
       const fetched = await this.indexedDb.getPages(meta.generation, wanted);
+      if (!isCurrent()) return false;
       frontier = [...fetched.values()];
       for (const page of frontier) savedByPath.set(page.path, page);
     }
@@ -625,7 +669,10 @@ export class GraphIndex {
     // so avoid retaining 100k+ duplicate serialized page objects in memory.
     const retainedPages: PersistedPage[] | null = !Platform.isMobile && !this.indexedDb.snapshotUsesChunks(meta) ? [] : null;
 
+    this.setSnapshotHydrationPhase(run, "pages");
     const pagesOk = await this.indexedDb.iterateSnapshotPages(meta, (page) => {
+      if (!isCurrent()) return;
+      this.noteSnapshotHydrationProgress(run, "pages");
       retainedPages?.push(page);
       addPersistedPageToState(next, page, this.app);
       if (page.semanticSignature) restoredFingerprints.set(page.path, page.semanticSignature);
@@ -640,10 +687,12 @@ export class GraphIndex {
     if (!pagesOk || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
 
     if (missingFileBindings.size) {
+      this.setSnapshotHydrationPhase(run, "file-rebind");
       const delays = Platform.isMobile ? [120, 320, 700] : [80];
       for (const delay of delays) {
         if (!missingFileBindings.size || !isCurrent()) break;
         await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+        if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
         for (const path of [...missingFileBindings]) {
           const page = next.pages.get(path);
           const file = this.app.vault.getAbstractFileByPath(path);
@@ -680,13 +729,17 @@ export class GraphIndex {
     // page snapshot is available. Evidence/provenance continues loading in the background.
     let relationsHydrated = meta.schema >= 2;
     if (relationsHydrated) {
+      this.setSnapshotHydrationPhase(run, "relations");
       let relationsComplete = true;
       if (retainedPages) {
         for (const saved of retainedPages) {
+          this.noteSnapshotHydrationProgress(run, "relations");
           if (!hydratePersistedPageRelations(next, saved)) relationsComplete = false;
         }
       } else {
         const relationPassOk = await this.indexedDb.iterateSnapshotPages(meta, (saved) => {
+          if (!isCurrent()) return;
+          this.noteSnapshotHydrationProgress(run, "relations");
           if (!hydratePersistedPageRelations(next, saved)) relationsComplete = false;
         }, isCurrent);
         relationsHydrated = relationPassOk && relationsComplete;
@@ -709,22 +762,30 @@ export class GraphIndex {
       this.fullSnapshotFresh = false;
       this.previewSnapshotPublished = true;
       this.restoredPatchPlanAvailable = false;
-      const previewSearch = await this.prepareSearchIndex(pagePreview, isCurrent);
-      if (!previewSearch) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      this.setSnapshotHydrationPhase(run, "preview-search");
+      const previewSearch = await this.prepareSearchIndex(pagePreview, isCurrent, () => this.touchSnapshotHydrationProgress(run));
+      if (!previewSearch || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
       this.publishRestoredState(pagePreview, previewSearch);
     }
 
-    const evidenceOk = await this.indexedDb.iterateSnapshotEvidence(meta, (item) => addPersistedEvidenceToState(next, item), isCurrent);
+    this.setSnapshotHydrationPhase(run, "evidence");
+    const evidenceOk = await this.indexedDb.iterateSnapshotEvidence(meta, (item) => {
+      if (!isCurrent()) return;
+      this.noteSnapshotHydrationProgress(run, "evidence");
+      addPersistedEvidenceToState(next, item);
+    }, isCurrent);
     if (!evidenceOk || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
     next.discoveredFields = new Map(meta.discoveredFields);
 
     // Schema-1/early schema-2 snapshots without cached relations still need the authoritative
     // resolver after evidence has loaded. New schema-3 snapshots take the fast relation path above.
     if (!relationsHydrated) {
+      this.setSnapshotHydrationPhase(run, "resolve");
       const resolved = await finalizeHydratedGraphStateCooperative(
         next,
         isCurrent,
         Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
+        () => this.touchSnapshotHydrationProgress(run),
       );
       if (!resolved) return { restored: false, fresh: false, createdAt: meta.createdAt };
     }
@@ -734,15 +795,18 @@ export class GraphIndex {
     // The earlier page-only publication uses this same `next.pages` map. Evidence hydration does
     // not alter searchable page metadata, so avoid allocating/sorting the 100k+ search index a
     // second time when promoting the fully hydrated state.
+    this.setSnapshotHydrationPhase(run, "promote");
     if (relationsHydrated) {
       this.publishRestoredState(next, null, true);
     } else {
-      const restoredSearch = await this.prepareSearchIndex(next, isCurrent);
-      if (!restoredSearch) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      this.setSnapshotHydrationPhase(run, "authoritative-search");
+      const restoredSearch = await this.prepareSearchIndex(next, isCurrent, () => this.touchSnapshotHydrationProgress(run));
+      if (!restoredSearch || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
       this.publishRestoredState(next, restoredSearch);
     }
     this.fullSnapshotHydrated = true;
     this.fullSnapshotFresh = authoritativeFresh;
+    this.finishSnapshotHydrationDiagnostics(run, "complete");
     this.semanticFingerprints = restoredFingerprints;
     this.previewSnapshotPublished = false;
     this.restoredModifiedMarkdownPaths = [...modifiedMarkdownPaths];
@@ -763,34 +827,126 @@ export class GraphIndex {
   }
 
   private async restoreIndexedDbSnapshot(seedPaths: readonly string[] = []): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
-    const meta = await this.indexedDb.readSnapshotMeta();
-    this.activeSnapshotGeneration = meta?.generation ?? null;
-    if (!meta) return { restored: false, fresh: false, createdAt: null };
-    if (meta.settingsSignature !== computeIndexSettingsSignature(this.plugin.settings)) {
-      return { restored: false, fresh: false, createdAt: meta.createdAt };
-    }
-
-    const currentVaultSignature = computeVaultSignature(this.app);
-    const fresh = meta.vaultSignature === currentVaultSignature;
-
-    const previewPublished = await this.publishSnapshotPreview(meta, seedPaths);
+    this.cancelSnapshotHydration?.();
     const run = ++this.snapshotHydrationRun;
+    const isCurrent = () => run === this.snapshotHydrationRun;
+    this.beginSnapshotHydrationDiagnostics(run);
     this.fullSnapshotHydrated = false;
     this.fullSnapshotFresh = false;
-    const task = this.restoreFullIndexedDbSnapshot(meta, fresh, run).catch((error) => {
-      return { restored: false, fresh: false, createdAt: meta.createdAt };
+    this.restoredPatchPlanAvailable = false;
+    let createdAt: number | null = null;
+    type RestoreResult = { restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean };
+    let reportPreview!: (result: RestoreResult) => void;
+    const preview = new Promise<RestoreResult>((resolve) => { reportPreview = resolve; });
+    // Guard metadata and targeted preview reads too: startup must never wait indefinitely before
+    // the public full-hydration task has even been installed.
+    const restoreTask = (async () => {
+      const meta = await this.indexedDb.readSnapshotMeta();
+      if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+      createdAt = meta?.createdAt ?? null;
+      this.activeSnapshotGeneration = meta?.generation ?? null;
+      if (!meta || meta.settingsSignature !== computeIndexSettingsSignature(this.plugin.settings)) {
+        return { restored: false, fresh: false, createdAt };
+      }
+      const fresh = meta.vaultSignature === computeVaultSignature(this.app);
+      this.setSnapshotHydrationPhase(run, "preview");
+      const previewPublished = await this.publishSnapshotPreview(meta, seedPaths, isCurrent);
+      if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+      if (previewPublished) reportPreview({ restored: true, fresh, createdAt, partial: true });
+      return this.restoreFullIndexedDbSnapshot(meta, fresh, run);
+    })().then((result) => {
+      if (!result.restored) this.finishSnapshotHydrationDiagnostics(run, "failed");
+      return result;
+    }).catch(() => {
+      this.finishSnapshotHydrationDiagnostics(run, "failed");
+      return { restored: false, fresh: false, createdAt };
     });
+    const task = this.watchSnapshotHydration(restoreTask, run, () => createdAt);
     this.snapshotHydrationTask = task;
-    void task.finally(() => {
-      if (run === this.snapshotHydrationRun && this.snapshotHydrationTask === task) this.snapshotHydrationTask = null;
-    }).catch(() => { /* task is normalized above; finalizer must never surface */ });
+    void task.then(() => {
+      if (this.snapshotHydrationTask === task) this.snapshotHydrationTask = null;
+    });
+    return Promise.race([preview, task]);
+  }
 
-    if (previewPublished) {
-      return { restored: true, fresh, createdAt: meta.createdAt, partial: true };
-    }
+  private beginSnapshotHydrationDiagnostics(run: number): void {
+    const now = Date.now();
+    this.snapshotHydrationDiagnostics = {
+      run, phase: "metadata", lastActivePhase: "metadata", startedAt: now, phaseStartedAt: now, lastProgressAt: now,
+      pages: 0, relations: 0, evidence: 0, outcome: "running",
+    };
+  }
 
-    const full = await task;
-    return full;
+  private isSnapshotHydrationRunning(run: number): boolean {
+    return this.snapshotHydrationRun === run && this.snapshotHydrationDiagnostics.run === run &&
+      this.snapshotHydrationDiagnostics.outcome === "running";
+  }
+
+  private setSnapshotHydrationPhase(run: number, phase: SnapshotHydrationPhase): void {
+    if (!this.isSnapshotHydrationRunning(run)) return;
+    const now = Date.now();
+    this.snapshotHydrationDiagnostics.phase = phase;
+    this.snapshotHydrationDiagnostics.lastActivePhase = phase;
+    this.snapshotHydrationDiagnostics.phaseStartedAt = now;
+    this.snapshotHydrationDiagnostics.lastProgressAt = now;
+  }
+
+  private touchSnapshotHydrationProgress(run: number): void {
+    if (this.isSnapshotHydrationRunning(run)) this.snapshotHydrationDiagnostics.lastProgressAt = Date.now();
+  }
+
+  private noteSnapshotHydrationProgress(run: number, kind: "pages" | "relations" | "evidence"): void {
+    if (!this.isSnapshotHydrationRunning(run)) return;
+    this.snapshotHydrationDiagnostics[kind] += 1;
+    // Sample time reads, not counters. Search/resolver loops also signal bounded real progress.
+    if ((this.snapshotHydrationDiagnostics[kind] & 255) === 0) this.touchSnapshotHydrationProgress(run);
+  }
+
+  private finishSnapshotHydrationDiagnostics(
+    run: number,
+    outcome: Exclude<SnapshotHydrationDiagnostics["outcome"], "idle" | "running">,
+  ): void {
+    if (!this.isSnapshotHydrationRunning(run)) return;
+    this.snapshotHydrationDiagnostics.phase = outcome;
+    this.snapshotHydrationDiagnostics.phaseStartedAt = Date.now();
+    // Preserve the actual last work timestamp and phase for diagnosing stalls. Terminal outcomes
+    // are immutable: a late callback/rejection from abandoned work cannot rewrite them.
+    this.snapshotHydrationDiagnostics.outcome = outcome;
+  }
+
+  getSnapshotHydrationDiagnostics(): SnapshotHydrationDiagnostics {
+    return { ...this.snapshotHydrationDiagnostics };
+  }
+
+  private watchSnapshotHydration(
+    task: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }>,
+    run: number,
+    createdAt: () => number | null,
+  ): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }> {
+    let timer: number | null = null;
+    let cancel!: () => void;
+    const stalled = new Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }>((resolve) => {
+      const stop = (outcome: "cancelled" | "timed-out"): void => {
+        if (timer !== null) window.clearTimeout(timer);
+        timer = null;
+        this.finishSnapshotHydrationDiagnostics(run, outcome);
+        if (run === this.snapshotHydrationRun) this.snapshotHydrationRun += 1;
+        resolve({ restored: false, fresh: false, createdAt: createdAt() });
+      };
+      cancel = () => stop("cancelled");
+      const check = (): void => {
+        if (run !== this.snapshotHydrationRun) { stop("cancelled"); return; }
+        const lastProgressAt = this.snapshotHydrationDiagnostics.lastProgressAt ?? Date.now();
+        if (Date.now() - lastProgressAt >= SNAPSHOT_HYDRATION_STALL_MS) { stop("timed-out"); return; }
+        timer = window.setTimeout(check, SNAPSHOT_HYDRATION_WATCHDOG_POLL_MS);
+      };
+      timer = window.setTimeout(check, SNAPSHOT_HYDRATION_WATCHDOG_POLL_MS);
+    });
+    this.cancelSnapshotHydration = cancel;
+    return Promise.race([task, stalled]).finally(() => {
+      if (timer !== null) window.clearTimeout(timer);
+      if (this.cancelSnapshotHydration === cancel) this.cancelSnapshotHydration = null;
+    });
   }
 
   hasPendingSnapshotHydration(): boolean {
@@ -810,6 +966,17 @@ export class GraphIndex {
   hasIncrementalRestorePatch(): boolean {
     return this.restoredPatchPlanAvailable && !this.restoredStructuralMismatch;
   }
+
+  /** Complete one incremental publication synchronously. Graph/fingerprint state is applied first,
+   * then all repository-owned derived views are refreshed before any subscriber can run. The
+   * publisher must not await or retain the prepared-state callback. */
+  private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
+    publishPreparedState();
+    this.invalidatePatchedPages(commit.touchedPagePaths);
+    this.patchSearchIndex(commit.touchedPagePaths);
+    this.suggestionCatalogCache = null;
+    if (commit.semanticChanged) this.emit();
+  };
 
   /** Patch modified Markdown sources into a restored snapshot without rebuilding the whole vault. */
   async reconcileRestoredSnapshot(): Promise<{ reconciled: boolean; patched: number }> {
@@ -840,20 +1007,12 @@ export class GraphIndex {
       const result = await builder.patchMarkdownFiles(this.state, files, {
         useDurableCache: true,
         awaitBodyWrite: false,
-        onFileCommitted: (commit) => {
-          this.invalidatePatchedPages(commit.touchedPagePaths);
-          this.patchSearchIndex(commit.touchedPagePaths);
-          if (commit.semanticChanged) this.unpublishedPatchChanges = true;
-        },
+        publishFileCommit: this.publishIncrementalFile,
       });
       if (!result.ok || run !== this.generation) return { reconciled: false, patched: 0 };
       this.suggestionCatalogCache = null;
       this.restoredModifiedMarkdownPaths = [];
       this.restoredPatchPlanAvailable = false;
-      if (result.semanticChanges > 0 || this.unpublishedPatchChanges) {
-        this.unpublishedPatchChanges = false;
-        this.emit();
-      }
       this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
       this.deferOrphanCleanup();
         return { reconciled: true, patched: files.length };
@@ -891,16 +1050,14 @@ export class GraphIndex {
       const result = await builder.patchMarkdownFiles(this.state, files, {
         useDurableCache: false,
         awaitBodyWrite: false,
-        onFileCommitted: (commit) => {
+        publishFileCommit: (commit, publishPreparedState) => {
+          this.publishIncrementalFile(commit, publishPreparedState);
           committed += 1;
           committedPaths.add(commit.sourcePath);
-          this.invalidatePatchedPages(commit.touchedPagePaths);
-          this.patchSearchIndex(commit.touchedPagePaths);
-          this.suggestionCatalogCache = null;
-          if (commit.semanticChanged) this.unpublishedPatchChanges = true;
         },
       });
       if (!result.ok || run !== this.generation) {
+        if (result.rebuildRequired && run === this.generation) return { outcome: "needs-rebuild", count: committed };
         return {
           outcome: "cancelled",
           count: committed,
@@ -908,10 +1065,6 @@ export class GraphIndex {
         };
       }
       this.suggestionCatalogCache = null;
-      if (result.semanticChanges > 0 || this.unpublishedPatchChanges) {
-        this.unpublishedPatchChanges = false;
-        this.emit();
-      }
       this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
       this.deferOrphanCleanup();
       return { outcome: "patched", count: files.length };
@@ -2117,9 +2270,9 @@ export class GraphIndex {
     // retaining the most recent dozen prefixes gives fast typing and backspacing without keeping
     // large candidate arrays forever.
     while (this.searchCandidateCache.size > 12) {
-      const oldest: string | undefined = this.searchCandidateCache.keys().next().value;
-      if (oldest === undefined) break;
-      this.searchCandidateCache.delete(oldest);
+      const oldest = this.searchCandidateCache.keys().next();
+      if (oldest.done) break;
+      this.searchCandidateCache.delete(oldest.value);
     }
 
     return best.map((item) => item.page);

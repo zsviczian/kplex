@@ -5,6 +5,7 @@ import type ExcaliBrainPlugin from "../main";
 import type { GraphPage, RelationshipRole } from "../types";
 import { FuzzySearchInput, fuzzyFilterStrings } from "./FuzzySearchInput";
 import { ObsidianIcon } from "./ObsidianIcon";
+import { fitMobileModalToViewport } from "./mobileModalViewport";
 
 const RELATIONSHIP_ROLES: Array<{ value: RelationshipRole; label: string }> = [
   { value: "child", label: "Child" },
@@ -402,6 +403,7 @@ function RelatedNoteComposer({
 
 export class NewRelatedNoteModal extends Modal {
   private root: Root | null = null;
+  private releaseMobileViewport: (() => void) | null = null;
 
   constructor(
     private plugin: ExcaliBrainPlugin,
@@ -464,6 +466,7 @@ export class NewRelatedNoteModal extends Modal {
       this.renderComposer();
     });
     this.modalEl.addClass("kplex-add-related-modal");
+    this.releaseMobileViewport = fitMobileModalToViewport(this.modalEl);
     this.modalEl.setAttr("data-kplex-tooltip-scope", "");
     this.contentEl.empty();
     this.root = createRoot(this.contentEl);
@@ -482,6 +485,8 @@ export class NewRelatedNoteModal extends Modal {
   }
 
   onClose(): void {
+    this.releaseMobileViewport?.();
+    this.releaseMobileViewport = null;
     this.root?.unmount();
     this.root = null;
     this.contentEl.empty();

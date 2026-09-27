@@ -1,5 +1,6 @@
 import { Platform } from "obsidian";
-import { parseBodyMetadataCooperative, parseBodyMetadataCore, type ParsedBodyMetadata } from "./fieldParser";
+import { parseBodyMetadataCore, type ParsedBodyMetadata } from "../core/parser/metadata";
+import { parseBodyMetadataCooperative } from "./fieldParser";
 
 type Pending = {
   resolve: (value: ParsedBodyMetadata) => void;
