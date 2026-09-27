@@ -598,6 +598,39 @@
 }
 .excalibrain-toolbar-divider { align-self: center; }
 
+/* Direct manipulation for the configured relationship-area heights. Frames are transient and
+   theme-native: hovering empty area space reveals the dashed boundary; the draggable edge is
+   promoted to the accent color when the pointer reaches it. */
+.kplex-area-frame {
+  position: absolute;
+  z-index: 6;
+  box-sizing: border-box;
+  pointer-events: none;
+  border: 1px dashed var(--background-modifier-border-hover);
+  border-radius: 10px;
+  opacity: .42;
+  transition: opacity 90ms ease, border-color 90ms ease;
+}
+.kplex-area-frame.is-active {
+  border-style: solid;
+  border-color: var(--interactive-accent);
+  opacity: .82;
+}
+.kplex-area-frame.is-resizing { opacity: 1; }
+.kplex-area-frame.is-active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--interactive-accent);
+}
+.kplex-area-frame.is-edge-top::after { top: -1px; }
+.kplex-area-frame.is-edge-bottom::after { bottom: -1px; }
+.excalibrain-plex.is-area-resize-ready,
+.excalibrain-plex.is-area-resizing { cursor: ns-resize; }
+
 /* Generic bounded graph zones (parents, children, friends and siblings). */
 .kplex-zone-panel {
   position: absolute;

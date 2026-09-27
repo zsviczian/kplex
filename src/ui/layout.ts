@@ -20,6 +20,15 @@ export type ZoneViewport = {
   initialScrollTop: number;
 };
 
+export type ZoneAreaBounds = {
+  key: ScrollZone;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  resizeEdge: "top" | "bottom";
+};
+
 export type SectionTreeEdge = {
   id: string;
   sourcePath: string;
@@ -30,6 +39,7 @@ export type PlexScene = {
   nodes: PositionedNode[];
   edges: PositionedEdge[];
   zoneViewports: Partial<Record<ScrollZone, ZoneViewport>>;
+  zoneAreas: Partial<Record<ScrollZone, ZoneAreaBounds>>;
   sectionTreeEdges?: SectionTreeEdge[];
 };
 
@@ -228,6 +238,39 @@ function fitVerticalStrip(
   for (const node of nodes) node.y += shift;
 }
 
+function areaBoundsFor(
+  key: ScrollZone,
+  nodes: PositionedNode[],
+  configuredHeight: number,
+  resizeEdge: "top" | "bottom",
+  bottomLimit?: number,
+  topLimit?: number,
+): ZoneAreaBounds | null {
+  if (!nodes.length) return null;
+  const padX = 24;
+  const padY = 16;
+  const minX = Math.min(...nodes.map((node) => node.x - node.width / 2));
+  const maxX = Math.max(...nodes.map((node) => node.x + node.width / 2));
+  const minY = Math.min(...nodes.map((node) => node.y - node.height / 2));
+  const maxY = Math.max(...nodes.map((node) => node.y + node.height / 2));
+  const height = topLimit !== undefined && bottomLimit !== undefined
+    ? Math.max(72, bottomLimit - topLimit)
+    : Math.max(72, configuredHeight);
+  const top = topLimit !== undefined && bottomLimit !== undefined
+    ? topLimit
+    : resizeEdge === "top"
+      ? maxY + padY - height
+      : minY - padY;
+  return {
+    key,
+    left: minX - padX,
+    top,
+    width: maxX - minX + padX * 2,
+    height,
+    resizeEdge,
+  };
+}
+
 function viewportFor(
   key: ScrollZone,
   nodes: PositionedNode[],
@@ -363,6 +406,21 @@ export function buildScene(neighborhood: Neighborhood, index: GraphIndex, settin
   if (rightViewport) zoneViewports.right = rightViewport;
   if (siblingViewport) zoneViewports.sibling = siblingViewport;
 
+  // The configured relationship areas exist independently of whether their contents currently
+  // overflow. Keeping these bounds separate from zoneViewports lets the Plex expose the existing
+  // max-height settings as direct-manipulation affordances even for sparse relationship lists.
+  const zoneAreas: Partial<Record<ScrollZone, ZoneAreaBounds>> = {};
+  const parentArea = areaBoundsFor("parent", parents, settings.parentMaxHeight, "top");
+  const childArea = areaBoundsFor("child", children, settings.childMaxHeight, "bottom");
+  const leftArea = areaBoundsFor("left", left, settings.friendMaxHeight, "top", sideBottom, sideTop);
+  const rightArea = areaBoundsFor("right", right, settings.friendMaxHeight, "top", sideBottom, sideTop);
+  const siblingArea = areaBoundsFor("sibling", siblings, settings.siblingMaxHeight, "top", siblingBottom, siblingTop);
+  if (parentArea) zoneAreas.parent = parentArea;
+  if (childArea) zoneAreas.child = childArea;
+  if (leftArea) zoneAreas.left = leftArea;
+  if (rightArea) zoneAreas.right = rightArea;
+  if (siblingArea) zoneAreas.sibling = siblingArea;
+
   const nodes = [center, ...parents, ...children, ...left, ...right, ...siblings];
   const edges: PositionedEdge[] = [];
   const from = (items: Neighbour[], role: Role) => {
@@ -388,7 +446,7 @@ export function buildScene(neighborhood: Neighborhood, index: GraphIndex, settin
   appendSiblingParentLinks(nodes, edges, index, settings, neighborhood.center.path);
   if (showCrossLinks) appendVisibleCrossLinks(nodes, edges, index, settings, neighborhood.center.path);
 
-  return { nodes, edges, zoneViewports };
+  return { nodes, edges, zoneViewports, zoneAreas };
 }
 
 function appendSiblingParentLinks(
