@@ -965,6 +965,37 @@ try {
       return [];
     },
   };
+  // Area-height controls exist even without content; overflow and semantic edges stay independent.
+  const emptyAreas = { center: fakeCenter, parents: [], children: [], leftFriends: [], rightFriends: [], siblings: [] };
+  const areaBefore = buildScene(emptyAreas, fakeCrossIndex, settings);
+  assert.deepEqual(Object.keys(areaBefore.zoneAreas).sort(), ["child", "left", "parent", "right", "sibling"]);
+  assert.deepEqual(areaBefore.zoneViewports, {}, "Empty editable regions must not become scroll panels");
+  const areaSettings = { ...settings, parentMaxHeight: 380, childMaxHeight: 410, friendMaxHeight: 310, siblingMaxHeight: 270 };
+  const areaAfter = buildScene(emptyAreas, fakeCrossIndex, areaSettings);
+  for (const [zone, key] of [["parent", "parentMaxHeight"], ["child", "childMaxHeight"], ["left", "friendMaxHeight"], ["right", "friendMaxHeight"], ["sibling", "siblingMaxHeight"]]) {
+    const before = areaBefore.zoneAreas[zone];
+    const after = areaAfter.zoneAreas[zone];
+    assert.equal(after.height, areaSettings[key], `${zone} must use its existing persisted height setting`);
+    assert.equal(after.resizeEdge, zone === "child" ? "bottom" : "top");
+    const fixedBefore = before.resizeEdge === "bottom" ? before.top : before.top + before.height;
+    const fixedAfter = after.resizeEdge === "bottom" ? after.top : after.top + after.height;
+    assert(Math.abs(fixedAfter - fixedBefore) < 1e-9, `${zone} fixed edge moved during resizing`);
+    assert(after.width > 0, "Empty regions need a usable horizontal target");
+  }
+  assert.deepEqual(areaAfter.nodes, areaBefore.nodes, "Empty-area resizing must not change the graph");
+  assert.deepEqual(areaAfter.edges, areaBefore.edges);
+  const crowdedAreas = { ...emptyAreas, parents: Array.from({length: 24}, (_, i) => fakeNeighbour(fakePage(`Area parent ${i}.md`), "parent")), children: Array.from({length: 24}, (_, i) => fakeNeighbour(fakePage(`Area child ${i}.md`), "child")) };
+  const crowdedBefore = buildScene(crowdedAreas, fakeCrossIndex, { ...settings, parentMaxHeight: 140, childMaxHeight: 160 });
+  const crowdedAfter = buildScene(crowdedAreas, fakeCrossIndex, { ...settings, parentMaxHeight: 800, childMaxHeight: 900 });
+  assert(crowdedBefore.zoneViewports.parent && crowdedBefore.zoneViewports.child, "Small regions must overflow");
+  for (const zone of ["parent", "child"]) {
+    const before = crowdedBefore.zoneAreas[zone];
+    const after = crowdedAfter.zoneAreas[zone];
+    const fixedBefore = zone === "child" ? before.top : before.top + before.height;
+    const fixedAfter = zone === "child" ? after.top : after.top + after.height;
+    assert(Math.abs(fixedAfter - fixedBefore) < 1e-9, "Overflow transitions must retain the fixed edge");
+  }
+
   const multiParentScene = buildScene({
     center: fakeCenter,
     parents: [fakeNeighbour(fakeParentOne, "parent"), fakeNeighbour(fakeParentTwo, "parent")],

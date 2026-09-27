@@ -1,5 +1,5 @@
 /**
- * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator.
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
@@ -11,6 +11,7 @@ import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle,
 import { LinkDirection, RelationType } from "../types";
 import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle } from "../index/style";
 import { buildScene, buildSectionExpandedScene, effectiveLabelLimit, expandedChildReserve, gateDiameter, siblingScale, type ZoneAreaBounds, type ZoneViewport } from "./layout";
+import { ResizableAreaFrame } from "./components/ResizableAreaFrame";
 import { ThoughtNode, type ConnectionDragState } from "./ThoughtNode";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { RelationshipExplanationModal } from "./RelationshipExplanationModal";
@@ -80,6 +81,7 @@ const AREA_HEIGHT_CONFIG: Record<ScrollZone, { key: AreaHeightKey; min: number; 
   sibling: { key: "siblingMaxHeight", min: 120, max: 700 },
 };
 const AREA_RESIZE_EDGE_PX = 7;
+const AREA_TOUCH_RESIZE_EDGE_PX = 22;
 const EMPTY_SCROLLS: ScrollValues = { parent: 0, child: 0, left: 0, right: 0, sibling: 0 };
 const GATE_GAP = 3;
 const MAX_ZOOM = 3;
@@ -648,7 +650,7 @@ function Edge({
 }
 
 /** Compose the deterministic Plex scene and interaction handlers, using localized UI copy without rebuilding semantic state for presentation changes. */
-export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, onActivate, onOpen }: {
+export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, areaSettingsMode, onAreaSettingsModeChange, onActivate, onOpen }: {
   plugin: ExcaliBrainPlugin;
   index: GraphIndex;
   settings: ExcaliBrainSettings;
@@ -661,6 +663,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   showCrossLinks: boolean;
   activePath: string;
   renderRevision: number;
+  areaSettingsMode: boolean;
+  onAreaSettingsModeChange: (enabled: boolean) => void;
   onActivate: (page: GraphPage) => void;
   onOpen: (page: GraphPage) => void;
 }) {
@@ -823,6 +827,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   const [resizingArea, setResizingArea] = useState<ScrollZone | null>(null);
   const areaResizeDrag = useRef<AreaResizeDrag | null>(null);
   const panDrag = useRef<{ pointerId: number; button: number; pointerType: string; x: number; y: number; cx: number; cy: number; moved: boolean } | null>(null);
+  const areaSettingsDismissPointer = useRef<{ pointerId: number; startClientX: number; startClientY: number } | null>(null);
   const touchPointers = useRef(new Map<number, Point>());
   const pinchGesture = useRef<{ startDistance: number; worldMidpoint: Point; startScale: number } | null>(null);
   const suppressActivateUntil = useRef(0);
@@ -1155,18 +1160,30 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     };
   };
 
+  /** Identify native controls whose pointer and keyboard behavior the canvas must preserve. */
+  const isAreaControlTarget = (target: Element | null): boolean => Boolean(target?.closest(
+    ".excalibrain-zoom-controls, .kplex-zone-tools, .kplex-layout-controls, .kplex-filter-panel, input, select, textarea, button",
+  ));
+
+  /** Distinguish empty canvas from graph content before revealing frames or dismissing edit mode. */
   const isEmptyAreaTarget = (target: Element | null): boolean => {
-    if (!target) return false;
-    return !target.closest(
-      ".excalibrain-thought, .excalibrain-edge-hit, [data-kplex-gate], .kplex-expanded-cluster, "
-      + ".excalibrain-zoom-controls, .kplex-zone-tools, .kplex-layout-controls, .kplex-filter-panel, input, select, textarea, button",
-    );
+    if (!target || isAreaControlTarget(target)) return false;
+    return !target.closest(".excalibrain-thought, .excalibrain-edge-hit, [data-kplex-gate], .kplex-expanded-cluster");
   };
 
-  const areaHoverAt = (clientX: number, clientY: number, target: Element | null): AreaHoverState => {
-    if (!isEmptyAreaTarget(target)) return null;
+  /** Resolve the nearest editable edge in screen pixels, or an empty area interior in world coordinates. */
+  const areaHoverAt = (
+    clientX: number,
+    clientY: number,
+    target: Element | null,
+    edgePixels = AREA_RESIZE_EDGE_PX,
+    allowCoveredEdge = false,
+  ): AreaHoverState => {
+    if (!target || isAreaControlTarget(target)) return null;
+    const emptyTarget = isEmptyAreaTarget(target);
+    if (!emptyTarget && !allowCoveredEdge) return null;
     const point = toWorld(clientX, clientY);
-    const threshold = AREA_RESIZE_EDGE_PX / Math.max(0.3, camera.current.scale);
+    const threshold = edgePixels / Math.max(0.01, camera.current.scale);
     let edgeMatch: { zone: ScrollZone; distance: number } | null = null;
     const interiorMatches: Array<{ zone: ScrollZone; score: number }> = [];
 
@@ -1180,7 +1197,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         const distance = Math.abs(point.y - resizeY);
         if (distance <= threshold && (!edgeMatch || distance < edgeMatch.distance)) edgeMatch = { zone, distance };
       }
-      if (point.x < area.left || point.x > right || point.y < area.top || point.y > bottom) continue;
+      if (!emptyTarget || point.x < area.left || point.x > right || point.y < area.top || point.y > bottom) continue;
       const horizontalDistance = Math.abs(point.x - (area.left + area.width / 2)) / Math.max(1, area.width);
       const verticalDistance = Math.abs(point.y - (area.top + area.height / 2)) / Math.max(1, area.height);
       interiorMatches.push({ zone, score: horizontalDistance + verticalDistance * 0.12 });
@@ -1191,10 +1208,12 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     return interiorMatches[0] ? { zone: interiorMatches[0].zone, edgeActive: false } : null;
   };
 
+  /** Avoid re-rendering the scene for pointer motion that stays on the same affordance. */
   const setAreaHoverIfChanged = (next: AreaHoverState): void => {
     setAreaHover((current) => current?.zone === next?.zone && current?.edgeActive === next?.edgeActive ? current : next);
   };
 
+  /** Clamp and update an existing presentation setting while retaining the current camera; persistence happens at gesture end. */
   const setAreaHeight = (zone: ScrollZone, height: number): boolean => {
     const config = AREA_HEIGHT_CONFIG[zone];
     const next = Math.max(config.min, Math.min(config.max, Math.round(height)));
@@ -1206,6 +1225,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     return true;
   };
 
+  /** Finish only the owning pointer and persist a changed height once, without scheduling a semantic rebuild. */
   const finishAreaResize = (pointerId: number): boolean => {
     const drag = areaResizeDrag.current;
     if (!drag || drag.pointerId !== pointerId) return false;
@@ -1214,6 +1234,49 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     if (drag.changed) void plugin.saveSettings(false);
     return true;
   };
+
+  /** Remember an empty-canvas press so a stationary release can exit area editing. */
+  const armAreaSettingsDismiss = (e: PointerEvent<HTMLDivElement>, target: Element): void => {
+    if (!areaSettingsMode || !isEmptyAreaTarget(target)) {
+      areaSettingsDismissPointer.current = null;
+      return;
+    }
+    areaSettingsDismissPointer.current = {
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+    };
+  };
+
+  /** Retain editing during pan gestures by cancelling the stationary-press candidate after movement. */
+  const updateAreaSettingsDismiss = (e: PointerEvent<HTMLDivElement>): void => {
+    const pending = areaSettingsDismissPointer.current;
+    if (!pending || pending.pointerId !== e.pointerId) return;
+    if (Math.hypot(e.clientX - pending.startClientX, e.clientY - pending.startClientY) > 7) {
+      areaSettingsDismissPointer.current = null;
+    }
+  };
+
+  /** Exit editing only after an unmoved empty-canvas press, leaving pan and resize sessions active. */
+  const finishAreaSettingsDismiss = (e: PointerEvent<HTMLDivElement>): void => {
+    const pending = areaSettingsDismissPointer.current;
+    if (!pending || pending.pointerId !== e.pointerId) return;
+    areaSettingsDismissPointer.current = null;
+    const panMoved = panDrag.current?.pointerId === e.pointerId && panDrag.current.moved;
+    if (!panMoved && Math.hypot(e.clientX - pending.startClientX, e.clientY - pending.startClientY) <= 7) {
+      onAreaSettingsModeChange(false);
+      setAreaHoverIfChanged(null);
+    }
+  };
+
+  useEffect(() => {
+    /** Persist an interrupted edit before navigation or surface teardown discards its pointer. */
+    return () => {
+      const drag = areaResizeDrag.current;
+      areaResizeDrag.current = null;
+      if (drag?.changed) void plugin.saveSettings(false);
+    };
+  }, [plugin, activePath]);
 
   useEffect(() => {
     // Zone scroll/filter state is navigation state. Reset it only when the central note changes,
@@ -1230,6 +1293,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     setAreaHover(null);
     setResizingArea(null);
     areaResizeDrag.current = null;
+    areaSettingsDismissPointer.current = null;
     panDrag.current = null;
 
     const resetTimer = window.setTimeout(() => {
@@ -1799,6 +1863,50 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     return button === 1 || (button === 0 && !overThought);
   };
 
+  /** Claim resize gestures before node/gate handlers can consume a covered edge.
+   * Other pointer input retains the existing graph and native-control routing.
+   */
+  const captureAreaResize = (e: PointerEvent<HTMLDivElement>): void => {
+    if (areaResizeDrag.current) {
+      // Additional fingers must not start a pinch or relink during a height edit.
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (connectDrag || nodeDrag || panDrag.current || touchPointers.current.size) return;
+    const target = e.target as Element;
+    if ((e.pointerType === "touch" || e.button === 0) && (e.pointerType !== "touch" || areaSettingsMode)) {
+      const areaHit = areaHoverAt(
+        e.clientX,
+        e.clientY,
+        target,
+        e.pointerType === "touch" ? AREA_TOUCH_RESIZE_EDGE_PX : AREA_RESIZE_EDGE_PX,
+        areaSettingsMode,
+      );
+      if (areaHit?.edgeActive) {
+        const config = AREA_HEIGHT_CONFIG[areaHit.zone];
+        clearHoverIntent(true);
+        panDrag.current = null;
+        areaSettingsDismissPointer.current = null;
+        areaResizeDrag.current = {
+          zone: areaHit.zone,
+          pointerId: e.pointerId,
+          startClientY: e.clientY,
+          startHeight: plugin.settings[config.key],
+          startScale: camera.current.scale,
+          changed: false,
+        };
+        setAreaHoverIfChanged(areaHit);
+        setResizingArea(areaHit.zone);
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+  };
+
+  /** Route canvas presses to pan/touch gestures after the resize capture phase. */
   const down = (e: PointerEvent<HTMLDivElement>) => {
     if (connectDrag) return;
     if (nodeDrag) {
@@ -1819,28 +1927,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     const target = e.target as Element;
     if (target.closest(".excalibrain-zoom-controls, .kplex-zone-tools, .kplex-layout-controls, .kplex-filter-panel, input, select, textarea, button")) return;
 
-    if (e.pointerType !== "touch" && e.button === 0) {
-      const areaHit = areaHoverAt(e.clientX, e.clientY, target);
-      if (areaHit?.edgeActive) {
-        const config = AREA_HEIGHT_CONFIG[areaHit.zone];
-        clearHoverIntent(true);
-        panDrag.current = null;
-        areaResizeDrag.current = {
-          zone: areaHit.zone,
-          pointerId: e.pointerId,
-          startClientY: e.clientY,
-          startHeight: plugin.settings[config.key],
-          startScale: camera.current.scale,
-          changed: false,
-        };
-        setAreaHoverIfChanged(areaHit);
-        setResizingArea(areaHit.zone);
-        e.preventDefault();
-        e.stopPropagation();
-        e.currentTarget.setPointerCapture(e.pointerId);
-        return;
-      }
-    }
+
+    armAreaSettingsDismiss(e, target);
 
     // Empty-canvas click/touch is an explicit escape hatch for hover intent. Pointer-leave events
     // can occasionally lag in Obsidian/WebView, leaving a node/gate/connector visually highlighted
@@ -1919,6 +2007,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
+  /** Update the owning resize, node/link drag or camera gesture; resize deltas use the scale captured at press time. */
   const move = (e: PointerEvent<HTMLDivElement>) => {
     const resizeDrag = areaResizeDrag.current;
     if (resizeDrag) {
@@ -1929,6 +2018,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       e.preventDefault();
       return;
     }
+    updateAreaSettingsDismiss(e);
     if (connectDrag) {
       if (e.pointerId !== connectDrag.pointerId) return;
       setConnectDrag((current) => current ? {
@@ -1989,7 +2079,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
     const drag = panDrag.current;
     if (!drag || e.pointerId !== drag.pointerId) {
-      if (e.pointerType !== "touch") setAreaHoverIfChanged(areaHoverAt(e.clientX, e.clientY, e.target as Element));
+      if (e.pointerType !== "touch") {
+        setAreaHoverIfChanged(areaHoverAt(e.clientX, e.clientY, e.target as Element, AREA_RESIZE_EDGE_PX, areaSettingsMode));
+      }
       return;
     }
     // Snapshot the ref before scheduling state. Never dereference panDrag.current from inside
@@ -2001,14 +2093,16 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     applyCamera((current) => ({ ...current, x, y }));
   };
 
+  /** Complete and persist an area edit before handling ordinary graph navigation or gesture release. */
   const up = (e: PointerEvent<HTMLDivElement>) => {
     if (areaResizeDrag.current?.pointerId === e.pointerId) {
       const ownerDocument = e.currentTarget.ownerDocument;
       const hitTarget = ownerDocument.elementFromPoint(e.clientX, e.clientY);
       finishAreaResize(e.pointerId);
-      setAreaHoverIfChanged(e.pointerType === "touch" ? null : areaHoverAt(e.clientX, e.clientY, hitTarget));
+      setAreaHoverIfChanged(e.pointerType === "touch" ? null : areaHoverAt(e.clientX, e.clientY, hitTarget, AREA_RESIZE_EDGE_PX, areaSettingsMode));
       return;
     }
+    finishAreaSettingsDismiss(e);
     if (pendingGateLongPress.current?.pointerId === e.pointerId) cancelPendingGateLongPress();
     if (connectDrag && e.pointerId === connectDrag.pointerId) {
       const drag = connectDrag;
@@ -2154,7 +2248,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     }
   };
 
+  /** Cancel transient pointer interaction while preserving a changed presentation height. */
   const cancel = (e: PointerEvent<HTMLDivElement>) => {
+    if (areaSettingsDismissPointer.current?.pointerId === e.pointerId) areaSettingsDismissPointer.current = null;
     if (areaResizeDrag.current?.pointerId === e.pointerId) {
       finishAreaResize(e.pointerId);
       setAreaHoverIfChanged(null);
@@ -2505,11 +2601,17 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     ? edgeGeometry(gatePoint(dragOrigin, connectDrag.gate), connectDrag.current, connectDrag.gate, oppositeGate(connectDrag.gate), settings.connectorStyle).d
     : null;
 
+  /** Compose the shared region affordance with localized names and the existing height-setting policy. */
   const renderAreaFrame = (zone: ScrollZone, area: ZoneAreaBounds) => {
     const edgeActive = resizingArea === zone || (areaHover?.zone === zone && areaHover.edgeActive);
-    return <div
-      className={`kplex-area-frame kplex-area-${zone} is-edge-${area.resizeEdge}${edgeActive ? " is-active" : ""}${resizingArea === zone ? " is-resizing" : ""}`}
-      style={{ left: area.left, top: area.top, width: area.width, height: area.height }}
+    const config = AREA_HEIGHT_CONFIG[zone];
+    return <ResizableAreaFrame
+      key={zone}
+      className={`kplex-area-frame kplex-area-${zone} is-edge-${area.resizeEdge}${areaSettingsMode ? " is-settings-mode" : ""}${edgeActive ? " is-active" : ""}${resizingArea === zone ? " is-resizing" : ""}`}
+      left={area.left} top={area.top} width={area.width} height={area.height}
+      edge={area.resizeEdge} editing={areaSettingsMode} label={zoneTitle(zone, translate)}
+      value={plugin.settings[config.key]} min={config.min} max={config.max}
+      onHeightChange={/** Persist keyboard height edits through the same presentation-only path as pointer edits. */ (height) => { if (setAreaHeight(zone, height)) void plugin.saveSettings(false); }}
     />;
   };
 
@@ -2643,16 +2745,20 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
   return <div
     ref={viewport}
-    className={`excalibrain-plex${sceneTransitioning || pathChangedThisRender ? " is-scene-transitioning" : ""}${sectionExpanded ? " is-section-expanded" : ""}${Platform.isIosApp ? " is-ios" : ""}${areaHover?.edgeActive ? " is-area-resize-ready" : ""}${resizingArea ? " is-area-resizing" : ""}`}
+    className={`excalibrain-plex${sceneTransitioning || pathChangedThisRender ? " is-scene-transitioning" : ""}${sectionExpanded ? " is-section-expanded" : ""}${Platform.isIosApp ? " is-ios" : ""}${areaSettingsMode ? " is-area-settings-mode" : ""}${areaHover?.edgeActive ? " is-area-resize-ready" : ""}${resizingArea ? " is-area-resizing" : ""}`}
     style={{
       background: alphaHexToCss(settings.backgroundColor, "#0c2233"),
       "--kplex-motion-scale": String(Math.max(0, Math.min(2, settings.animationSpeed))),
       "--kplex-motion-ms": settings.animationSpeed <= 0 ? "0ms" : `${Math.max(140, Math.round(520 / Math.max(.25, settings.animationSpeed)))}ms`,
     } as CSSProperties}
+    onPointerDownCapture={captureAreaResize}
     onPointerDown={down}
     onPointerMove={move}
     onPointerUp={up}
     onPointerCancel={cancel}
+    onLostPointerCapture={/** Persist an interrupted viewport resize without consuming child-owned captures. */ (event: PointerEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget && finishAreaResize(event.pointerId)) setAreaHoverIfChanged(null);
+    }}
     onPointerLeave={(event: PointerEvent<HTMLDivElement>) => {
       if (!areaResizeDrag.current && event.pointerType !== "touch") setAreaHoverIfChanged(null);
     }}
@@ -2728,7 +2834,12 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         {dragPath && <path className="kplex-drag-connector" d={dragPath} fill="none" vectorEffect="non-scaling-stroke" />}
       </svg>
 
-      {visibleAreaZone && visibleArea ? renderAreaFrame(visibleAreaZone, visibleArea) : null}
+      {areaSettingsMode
+        ? ZONES.map((zone) => {
+          const area = scene.zoneAreas[zone];
+          return area ? renderAreaFrame(zone, area) : null;
+        })
+        : visibleAreaZone && visibleArea ? renderAreaFrame(visibleAreaZone, visibleArea) : null}
 
       <div className="excalibrain-nodes">
         {standardNodes.filter((node) => nodeDrag?.path !== node.page.path && visibleNodePaths.has(node.page.path)).map((node) => renderNode(node, renderedNodeMap.get(node.page.path) ?? node))}

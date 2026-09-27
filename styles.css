@@ -603,13 +603,17 @@
    promoted to the accent color when the pointer reaches it. */
 .kplex-area-frame {
   position: absolute;
-  z-index: 6;
+  z-index: 14;
   box-sizing: border-box;
   pointer-events: none;
   border: 1px dashed var(--background-modifier-border-hover);
   border-radius: 10px;
-  opacity: .42;
+  opacity: .58;
   transition: opacity 90ms ease, border-color 90ms ease;
+}
+.kplex-area-frame.is-settings-mode {
+  border-color: var(--background-modifier-border-focus);
+  opacity: .78;
 }
 .kplex-area-frame.is-active {
   border-style: solid;
@@ -617,17 +621,33 @@
   opacity: .82;
 }
 .kplex-area-frame.is-resizing { opacity: 1; }
+.kplex-area-frame.is-settings-mode::after,
 .kplex-area-frame.is-active::after {
   content: "";
   position: absolute;
-  left: 8px;
-  right: 8px;
-  height: 2px;
-  border-radius: 2px;
+  left: 12px;
+  right: 12px;
+  height: 5px;
+  border-radius: 5px;
   background: var(--interactive-accent);
+  opacity: .82;
 }
+.kplex-area-frame.is-active::after,
+.kplex-area-frame.is-resizing::after { opacity: 1; }
 .kplex-area-frame.is-edge-top::after { top: -1px; }
 .kplex-area-frame.is-edge-bottom::after { bottom: -1px; }
+/* Keyboard access shares the visual resize edge; the canvas owns pointer hit testing. */
+.kplex-area-keyboard-handle {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 5px;
+  pointer-events: auto;
+  cursor: ns-resize;
+}
+.is-edge-top > .kplex-area-keyboard-handle { top: -1px; }
+.is-edge-bottom > .kplex-area-keyboard-handle { bottom: -1px; }
+.kplex-area-keyboard-handle:focus-visible { outline: 2px solid var(--text-accent); }
 .excalibrain-plex.is-area-resize-ready,
 .excalibrain-plex.is-area-resizing { cursor: ns-resize; }
 
