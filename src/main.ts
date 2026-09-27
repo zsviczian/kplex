@@ -70,7 +70,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private unloading = false;
   private initialIndexTask: Promise<void> | null = null;
   private initialIndexComplete = false;
-  /** Session-only gate so startup indexing guidance is shown once on the first visible Plex. */
+  /** In-memory guard against duplicate claims while the persisted one-time startup guidance flag saves. */
   private startupIndexInfoBubbleClaimed = false;
   private snapshotRestoreTask: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> | null = null;
   private readonly sidecarLeaves = new Map<WorkspaceLeaf, WorkspaceLeaf>();
@@ -1524,14 +1524,21 @@ export default class ExcaliBrainPlugin extends Plugin {
   isStartupInitializing(): boolean { return this.startupInitializing; }
 
   /**
-   * Claim the one-per-session startup indexing guidance bubble for the first visible Plex.
+   * Claim the one-time startup indexing guidance bubble for the first visible Plex.
    *
-   * @returns `true` exactly once while initial indexing is still non-authoritative; normal runtime
-   * re-indexing never reopens startup guidance.
+   * The claim is persisted immediately, so after the guidance has appeared once it never returns
+   * on later Obsidian sessions. Normal runtime re-indexing never opens startup guidance either.
    */
   claimStartupIndexInfoBubble(): boolean {
-    if (this.startupIndexInfoBubbleClaimed || this.initialIndexComplete || this.getIndexStatus().upToDate) return false;
+    if (
+      this.startupIndexInfoBubbleClaimed
+      || this.settings.startupIndexInfoBubbleSeen
+      || this.initialIndexComplete
+      || this.getIndexStatus().upToDate
+    ) return false;
     this.startupIndexInfoBubbleClaimed = true;
+    this.settings.startupIndexInfoBubbleSeen = true;
+    void this.saveSettings(false, false);
     return true;
   }
 
@@ -1736,12 +1743,19 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   /** Return current index readiness/progress facts plus localized status copy; this query does not schedule indexing. */
-  getIndexStatus(): { upToDate: boolean; label: string; indexedFiles: number; totalFiles: number } {
+  getIndexStatus(): {
+    upToDate: boolean;
+    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "updating";
+    label: string;
+    indexedFiles: number;
+    totalFiles: number;
+  } {
+    const loadingCache = this.index.hasPendingSnapshotHydration();
     const upToDate = this.initialIndexComplete
       && !this.indexDirty
       && this.rebuildTask === null
       && this.rebuildTimer === null
-      && !this.index.hasPendingSnapshotHydration();
+      && !loadingCache;
     // Progressive publication can notify frequently in large vaults. Cache the vault-wide total
     // between lifecycle changes so status rendering remains O(1) instead of repeatedly allocating
     // the complete Markdown-file list for every published batch.
@@ -1749,14 +1763,29 @@ export default class ExcaliBrainPlugin extends Plugin {
     const indexedFiles = upToDate
       ? totalFiles
       : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
-    return {
-      upToDate,
-      label: upToDate
-        ? this.translator("index.statusReady")
-        : this.translator("index.statusUpdating"),
-      indexedFiles,
-      totalFiles,
-    };
+    const phase = upToDate
+      ? "ready"
+      : loadingCache
+        ? "loading-cache"
+        : !this.initialIndexComplete && this.rebuildTask !== null
+          ? "indexing"
+          : !this.initialIndexComplete && this.index.size > 0 && this.index.hasIncrementalRestorePatch()
+            ? "checking-cache"
+            : !this.initialIndexComplete
+              ? "preparing"
+              : "updating";
+    const label = phase === "ready"
+      ? this.translator("index.statusReady")
+      : phase === "loading-cache"
+        ? this.translator("index.statusLoadingCache")
+        : phase === "preparing"
+          ? this.translator("index.statusPreparing")
+          : phase === "checking-cache"
+            ? this.translator("index.statusCheckingCache")
+            : phase === "indexing"
+              ? this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })
+              : this.translator("index.statusUpdating");
+    return { upToDate, phase, label, indexedFiles, totalFiles };
   }
 
   subscribeIndexStatus(listener: () => void): () => void {
@@ -1766,7 +1795,7 @@ export default class ExcaliBrainPlugin extends Plugin {
 
   private notifyIndexStatus(): void {
     const status = this.getIndexStatus();
-    const key = `${status.upToDate ? "1" : "0"}:${status.indexedFiles}:${status.totalFiles}:${status.label}`;
+    const key = `${status.upToDate ? "1" : "0"}:${status.phase}:${status.indexedFiles}:${status.totalFiles}:${status.label}`;
     if (key === this.lastIndexStatusKey) return;
     this.lastIndexStatusKey = key;
     for (const listener of this.indexStatusListeners) listener();

@@ -48,6 +48,7 @@ function useIndexStatus(plugin: ExcaliBrainPlugin, hostLeaf: WorkspaceLeaf): Ind
       const next = plugin.getIndexStatus();
       setStatus((current) => (
         current.upToDate === next.upToDate
+        && current.phase === next.phase
         && current.label === next.label
         && current.indexedFiles === next.indexedFiles
         && current.totalFiles === next.totalFiles
@@ -330,7 +331,9 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 
   const indexStatusInfoOpen = indexStatusInfoMode !== "closed";
   const indexStatusMessage = <div className="kplex-index-status-details">
-    <div>{translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })}</div>
+    {["indexing", "updating"].includes(indexStatus.phase) &&
+      <div>{translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })}</div>
+    }
     <div>{indexStatus.label}</div>
   </div>;
 
