@@ -98,12 +98,13 @@ function IndexStatusIndicator({
   />;
 }
 
+/** Render a labeled toolbar action and pass its owning-window click event to native menu callers. */
 function ToolButton({ icon, title, on, disabled, onClick }: {
   icon: string;
   title: string;
   on?: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return <button
     className={`excalibrain-icon-button${on ? " is-on" : ""}`}
@@ -138,6 +139,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   const [hostWidth, setHostWidth] = useState(0);
   const [sidecarRevision, setSidecarRevision] = useState(0);
   const [searchFocusRequest, setSearchFocusRequest] = useState(0);
+  const [areaSettingsMode, setAreaSettingsMode] = useState(false);
   const [initialWorkspaceFile] = useState<TFile | null>(() => plugin.app.workspace.getActiveFile());
   const [activePath, setActivePath] = useState(() => {
     const history = plugin.settings.navigationHistory;
@@ -474,6 +476,21 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     forceRender((value) => value + 1);
   };
 
+  /** Open the owning-window native settings menu; area editing remains transient to this surface. */
+  const showSettingsMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    const menu = new Menu();
+    menu.addItem((item) => item
+      .setTitle(translate("app.pluginSettings"))
+      .setIcon("settings")
+      .onClick(() => plugin.openSettings()));
+    menu.addItem((item) => item
+      .setTitle(translate("app.areaSettings"))
+      .setIcon("move-vertical")
+      .setChecked(areaSettingsMode)
+      .onClick(() => setAreaSettingsMode((enabled) => !enabled)));
+    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent);
+  };
+
   const activateSearch = () => setSearchFocusRequest((value) => value + 1);
   const searchCopy = searchFieldCopy(translate, environment);
 
@@ -688,7 +705,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
             <span className="excalibrain-toolbar-divider" />
             <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => void toggleExpandedView()} />
             <ToolButton icon="spline" title={translate(plugin.settings.connectorStyle === "bezier" ? "app.useStraightConnectors" : "app.useCurvedConnectors")} on={plugin.settings.connectorStyle === "bezier"} onClick={() => void toggleConnectorStyle()} />
-            <ToolButton icon="settings" title={translate("app.openSettings")} onClick={() => plugin.openSettings()} />
+            <ToolButton icon="settings" title={translate("app.settingsMenu")} on={areaSettingsMode} onClick={showSettingsMenu} />
           </div>
         </header>
 
@@ -709,7 +726,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
           <div className="excalibrain-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
           <div className="excalibrain-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="excalibrain-zone-label zone-child">{translate("app.zoneChildren")}</div>
-          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} onActivate={activate} onOpen={open} />
+          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode} onActivate={activate} onOpen={open} />
         </section>
       </main>
 

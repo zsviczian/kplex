@@ -815,6 +815,21 @@ export const englishCatalog = {
     context: "K-Plex host shell, command, toolbar, and status copy.",
     params: [],
   },
+  "app.settingsMenu": {
+    message: "Settings menu",
+    context: "Accessible label for the K-Plex toolbar button that opens plugin and area settings actions.",
+    params: [],
+  },
+  "app.pluginSettings": {
+    message: "Plugin settings",
+    context: "Toolbar settings menu item that opens the K-Plex plugin settings page.",
+    params: [],
+  },
+  "app.areaSettings": {
+    message: "Area settings",
+    context: "Toolbar settings menu item that toggles direct resizing controls for all Plex relationship areas.",
+    params: [],
+  },
   "app.pinnedNodes": {
     message: "Pinned nodes",
     context: "K-Plex host shell, command, toolbar, and status copy.",

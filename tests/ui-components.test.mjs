@@ -996,3 +996,39 @@ test("FuzzySuggester production browser behavior", () => {
 test("SearchBox plain read model and revision browser behavior", () => {
   runBrowserDom(graphSearchBrowserEntry(), "Graph search read consumer behavior passed");
 });
+
+/** Exercise the real portable area-height control without an Obsidian runtime. */
+function areaFrameBrowserEntry() {
+  return `
+import React from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { ResizableAreaFrame } from ${JSON.stringify(join(root, "src/ui/components/ResizableAreaFrame.tsx"))};
+const result = document.querySelector("#result");
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+try {
+  const container = document.body.appendChild(document.createElement("div"));
+  const root = createRoot(container);
+  const values = [];
+  const render = (edge, editing = true, value = 200) => flushSync(() => root.render(<ResizableAreaFrame className="test-frame" left={10} top={20} width={300} height={value} edge={edge} editing={editing} label="Localized region" value={value} min={140} max={800} onHeightChange={height => values.push(height)} />));
+  render("top");
+  let handle = container.querySelector('[role="separator"]');
+  check(handle.getAttribute("aria-label") === "Localized region" && handle.getAttribute("aria-valuenow") === "200", "height control lost its localized accessible value");
+  handle.focus();
+  check(document.activeElement === handle, "height control cannot receive keyboard focus");
+  const key = value => handle.dispatchEvent(new KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true }));
+  key("ArrowUp"); key("ArrowDown"); key("Home"); key("End"); key("Escape");
+  check(JSON.stringify(values) === "[210,190,140,800]", "top-edge direction or height limits changed");
+  render("bottom", true, 795); handle = container.querySelector('[role="separator"]');
+  key("ArrowDown"); check(values.at(-1) === 800, "bottom edge did not clamp outward motion");
+  render("bottom", false);
+  check(!container.querySelector('[role="separator"]'), "transient keyboard control survived edit-mode exit");
+  flushSync(() => root.unmount());
+  result.dataset.status = "passed"; result.textContent = "Area frame browser behavior passed";
+} catch (error) { result.dataset.status = "failed"; result.textContent = String(error?.stack ?? error); }
+`;
+}
+
+test("ResizableAreaFrame localized keyboard behavior", () => {
+  runBrowserDom(areaFrameBrowserEntry(), "Area frame browser behavior passed");
+});
