@@ -7,6 +7,8 @@ import { createRoot, type Root } from "react-dom/client";
 import type ExcaliBrainPlugin from "../main";
 import type { GraphPage, RelationshipRole } from "../types";
 import { FuzzySearchInput, fuzzyFilterStrings } from "./FuzzySearchInput";
+import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
+import { enableDraggableDialog } from "./components/DraggableDialog";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { fitMobileModalToViewport } from "./mobileModalViewport";
 
@@ -399,6 +401,7 @@ function RelatedNoteComposer({
 export class NewRelatedNoteModal extends Modal {
   private root: Root | null = null;
   private releaseMobileViewport: (() => void) | null = null;
+  private releaseDesktopDrag: (() => void) | null = null;
 
   constructor(
     private plugin: ExcaliBrainPlugin,
@@ -439,7 +442,7 @@ export class NewRelatedNoteModal extends Modal {
     this.close();
   }
 
-  /** Render the related-node creation composer with localized captions and feedback; the native Modal owns its open/close shell. */
+  /** Render the related-node composer and opt its native shell into desktop-only draggable positioning. */
   onOpen(): void {
     this.scope.register(["Mod"], "Enter", (event) => {
       if (!this.triggerPrimaryAction()) return false;
@@ -468,6 +471,10 @@ export class NewRelatedNoteModal extends Modal {
     });
     this.modalEl.addClass("kplex-add-related-modal");
     this.releaseMobileViewport = fitMobileModalToViewport(this.modalEl);
+    const environment = readObsidianPresentationEnvironment(this.modalEl.ownerDocument.defaultView ?? undefined);
+    if (environment.device === "desktop") {
+      this.releaseDesktopDrag = enableDraggableDialog({ modalEl: this.modalEl, handleEl: this.titleEl });
+    }
     this.modalEl.setAttr("data-kplex-tooltip-scope", "");
     this.contentEl.empty();
     this.root = createRoot(this.contentEl);
@@ -485,7 +492,10 @@ export class NewRelatedNoteModal extends Modal {
     }));
   }
 
+  /** Release drag/mobile shell resources before unmounting the related-node composer. */
   onClose(): void {
+    this.releaseDesktopDrag?.();
+    this.releaseDesktopDrag = null;
     this.releaseMobileViewport?.();
     this.releaseMobileViewport = null;
     this.root?.unmount();
