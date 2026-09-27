@@ -124,6 +124,8 @@ A durable per-file body parse cache is keyed by file path + mtime. On large iOS 
 
 Semantic no-op detection uses a compact per-file fingerprint kept independently of the hot parsed-body LRU and persisted with page snapshot records. This allows prose-only or unrelated frontmatter edits to stay no-ops even after a warm restore or after the hot body entry has been evicted.
 
+Incremental publication has one synchronous repository boundary per committed Markdown source. Private staging may await parsing, portable preparation, evidence cleanup and cooperative binding, but once `GraphIndex` accepts a `PatchFileCommit` it applies the staged graph/fingerprint/cache state, patches affected search entries and invalidates affected presentation caches before subscriber callbacks run. The builder cannot continue to another awaited source until that boundary returns. Source revision fences include the exact path and current vault identity as well as mtime/size, so a file renamed or deleted during any await cancels the stale source instead of publishing it. Earlier committed sources remain published; cancellation does not itself request a full rebuild. Demand/backlog scheduling remains a separate `main.ts` concern for C15.
+
 
 ## Presentation predicates are not graph indexing
 

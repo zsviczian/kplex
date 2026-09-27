@@ -13,7 +13,7 @@ import {
   type Relation,
   type Role,
 } from "../types";
-import { GraphBuilder, type FieldCacheEntry } from "./GraphBuilder";
+import { GraphBuilder, type FieldCacheEntry, type PatchFileCommit, type PatchFilePublisher } from "./GraphBuilder";
 import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
 import { extractLinksFromValue } from "./fieldParser";
 import { KplexIndexedDbCache, type IndexedDbSnapshotMeta } from "./IndexedDbCache";
@@ -197,8 +197,6 @@ export class GraphIndex {
   private previewSnapshotPublished = false;
   private activeSnapshotGeneration: string | null = null;
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
-  private unpublishedPatchChanges = false;
-
   constructor(private plugin: ExcaliBrainPlugin, private app: App = plugin.app) {
     this.indexedDb = new KplexIndexedDbCache(app.vault.getName());
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
@@ -969,6 +967,17 @@ export class GraphIndex {
     return this.restoredPatchPlanAvailable && !this.restoredStructuralMismatch;
   }
 
+  /** Complete one incremental publication synchronously. Graph/fingerprint state is applied first,
+   * then all repository-owned derived views are refreshed before any subscriber can run. The
+   * publisher must not await or retain the prepared-state callback. */
+  private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
+    publishPreparedState();
+    this.invalidatePatchedPages(commit.touchedPagePaths);
+    this.patchSearchIndex(commit.touchedPagePaths);
+    this.suggestionCatalogCache = null;
+    if (commit.semanticChanged) this.emit();
+  };
+
   /** Patch modified Markdown sources into a restored snapshot without rebuilding the whole vault. */
   async reconcileRestoredSnapshot(): Promise<{ reconciled: boolean; patched: number }> {
     if (!this.restoredPatchPlanAvailable || this.restoredStructuralMismatch) return { reconciled: false, patched: 0 };
@@ -998,20 +1007,12 @@ export class GraphIndex {
       const result = await builder.patchMarkdownFiles(this.state, files, {
         useDurableCache: true,
         awaitBodyWrite: false,
-        onFileCommitted: (commit) => {
-          this.invalidatePatchedPages(commit.touchedPagePaths);
-          this.patchSearchIndex(commit.touchedPagePaths);
-          if (commit.semanticChanged) this.unpublishedPatchChanges = true;
-        },
+        publishFileCommit: this.publishIncrementalFile,
       });
       if (!result.ok || run !== this.generation) return { reconciled: false, patched: 0 };
       this.suggestionCatalogCache = null;
       this.restoredModifiedMarkdownPaths = [];
       this.restoredPatchPlanAvailable = false;
-      if (result.semanticChanges > 0 || this.unpublishedPatchChanges) {
-        this.unpublishedPatchChanges = false;
-        this.emit();
-      }
       this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
       this.deferOrphanCleanup();
         return { reconciled: true, patched: files.length };
@@ -1049,13 +1050,10 @@ export class GraphIndex {
       const result = await builder.patchMarkdownFiles(this.state, files, {
         useDurableCache: false,
         awaitBodyWrite: false,
-        onFileCommitted: (commit) => {
+        publishFileCommit: (commit, publishPreparedState) => {
+          this.publishIncrementalFile(commit, publishPreparedState);
           committed += 1;
           committedPaths.add(commit.sourcePath);
-          this.invalidatePatchedPages(commit.touchedPagePaths);
-          this.patchSearchIndex(commit.touchedPagePaths);
-          this.suggestionCatalogCache = null;
-          if (commit.semanticChanged) this.unpublishedPatchChanges = true;
         },
       });
       if (!result.ok || run !== this.generation) {
@@ -1067,10 +1065,6 @@ export class GraphIndex {
         };
       }
       this.suggestionCatalogCache = null;
-      if (result.semanticChanges > 0 || this.unpublishedPatchChanges) {
-        this.unpublishedPatchChanges = false;
-        this.emit();
-      }
       this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
       this.deferOrphanCleanup();
       return { outcome: "patched", count: files.length };

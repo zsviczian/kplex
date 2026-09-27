@@ -26,6 +26,12 @@ const thoughtNodeSource = readFileSync(join(root, "src/ui/ThoughtNode.tsx"), "ut
 const plexFilterSource = readFileSync(join(root, "src/ui/PlexFilter.tsx"), "utf8");
 const simpleFilterSource = readFileSync(join(root, "src/lens/SimplePlexFilter.ts"), "utf8");
 const longPressTooltipSource = readFileSync(join(root, "src/ui/LongPressTooltip.ts"), "utf8");
+const graphBuilderSource = readFileSync(join(root, "src/index/GraphBuilder.ts"), "utf8");
+const graphIndexSource = readFileSync(join(root, "src/index/GraphIndex.ts"), "utf8");
+assert(graphBuilderSource.includes("path: file.path, mtime: file.stat.mtime, size: file.stat.size"), "Patch/full-build revision fences must capture the source path as well as stat data");
+assert(graphBuilderSource.includes("this.app.vault.getFileByPath(revision.path) === file"), "Awaited graph work must reject renamed/deleted TFile identities before publication");
+assert(graphBuilderSource.includes("publishFileCommit?: PatchFilePublisher"), "Incremental publication must expose one explicit synchronous per-file commit contract");
+assert(graphIndexSource.includes("private publishIncrementalFile: PatchFilePublisher"), "GraphIndex must own the coherent graph/fingerprint/search/cache observer boundary");
 assert(newRelatedSource.includes('"aria-label": "Create placeholder node"'), "Create-related UI must offer a placeholder-only action");
 assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(origin, role"), "Placeholder action must create only a relationship-backed virtual node");
 assert(newRelatedSource.includes("void createNew(defaultCreateType)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
@@ -412,6 +418,7 @@ exports.createObsidianTranslator = () => createTranslator("en");
 `);
 
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
+const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
 const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
 const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedRelations, computeIndexSettingsSignature, computeVaultSignature, persistedDeclarationFromEvidence } = require(join(temp, "src/index/IndexSnapshot.js"));
 const { createGraphState } = require(join(temp, "src/index/GraphState.js"));
@@ -2026,8 +2033,20 @@ try {
     if (file.path === "Note B.md") { sawB(); await bGate; }
     return contents.get(file.path) ?? "";
   };
+  const observedBatchCommits = [];
+  const stopBatchObserver = index.subscribe(() => {
+    const page = index.get("Note A.md");
+    if (!page?.aliases.includes(cancelAliasA)) return;
+    observedBatchCommits.push({
+      path: page.path,
+      searchPath: index.search(cancelAliasA.toLowerCase(), 5)[0]?.path ?? null,
+      canonical: [...page.neighbours.values()].every((relation) => relation.target === index.get(relation.target.path)),
+    });
+  });
   const cancelledBatchPromise = index.patchMarkdownPaths(["Note A.md", "Note B.md"]);
   await bStarted;
+  assert.deepEqual(observedBatchCommits, [{ path: "Note A.md", searchPath: "Note A.md", canonical: true }],
+    "A committed file must notify observers with graph/search/canonical targets coherent before the next awaited source");
   index.cancelRebuild();
   releaseB();
   const cancelledBatch = await cancelledBatchPromise;
@@ -2036,6 +2055,7 @@ try {
   assert.deepEqual(cancelledBatch.pendingPaths, ["Note B.md"], "Cancellation must retain only uncommitted files");
   assert.equal(index.search(cancelAliasA.toLowerCase(), 5)[0]?.path, "Note A.md", "Committed file A search entry must survive cancellation");
   assert.equal(index.snapshotPersistTimer ?? null, null, "Cancelled patch must not schedule a snapshot");
+  stopBatchObserver();
   app.vault.cachedRead = originalCachedReadForCancel;
   assert.deepEqual(await index.patchMarkdownPaths(["Note A.md", "Note B.md"]), { outcome: "patched", count: 2 });
   assert.equal(index.search(cancelAliasA.toLowerCase(), 5)[0]?.path, "Note A.md");
@@ -2072,6 +2092,134 @@ try {
     cleanCreatedIndex.destroy();
     settings.showFolderNodes = oldFolderVisibilityForCreate;
   }
+
+  // The synchronous publisher must not retain a callback that can publish after rejection or an
+  // exception. A private no-op patch makes the test independent of relationship fixture changes.
+  for (const throws of [false, true]) {
+    const builder = new GraphBuilder(plugin, app, new Map(index.fieldCache), index.metadataParser,
+      index.indexedDb, () => true, new Map(index.semanticFingerprints));
+    const privateState = builder.createPatchState(index.state, false);
+    const beforePages = privateState.pages;
+    const beforeEvidence = privateState.evidence;
+    let retainedPublish;
+    await assert.rejects(builder.patchMarkdownFiles(privateState, [managedFile], {
+      publishFileCommit(_commit, publish) {
+        retainedPublish = publish;
+        if (throws) throw new Error("Injected publisher failure");
+      },
+    }), throws ? /Injected publisher failure/ : /did not publish synchronously/);
+    assert.equal(typeof retainedPublish, "function");
+    assert.throws(() => retainedPublish(), /callback expired/);
+    assert.equal(privateState.pages, beforePages);
+    assert.equal(privateState.evidence, beforeEvidence);
+  }
+  {
+    const builder = new GraphBuilder(plugin, app, new Map(index.fieldCache), index.metadataParser,
+      index.indexedDb, () => true, new Map(index.semanticFingerprints));
+    const privateState = builder.createPatchState(index.state, false);
+    let retainedPublish;
+    const result = await builder.patchMarkdownFiles(privateState, [managedFile], {
+      publishFileCommit(_commit, publish) {
+        publish();
+        assert.throws(() => publish(), /more than once/);
+        retainedPublish = publish;
+      },
+    });
+    assert.equal(result.ok, true);
+    assert.throws(() => retainedPublish(), /callback expired/);
+  }
+
+  // C14b revision fences: a TFile renamed or deleted while an awaited body read is in flight must
+  // not publish stale source metadata. The renamed current path remains retryable without rebuild.
+  const raceFile = new TFile("Publication Race.md", managedFile.stat.mtime + 2000);
+  files.set(raceFile.path, raceFile);
+  contents.set(raceFile.path, "# Publication Race\n");
+  caches.set(raceFile.path, { frontmatter: {}, tags: [], links: [] });
+  resolvedLinks[raceFile.path] = {};
+  unresolvedLinks[raceFile.path] = {};
+  index.insertCreatedFile(raceFile);
+  assert.deepEqual(await index.patchMarkdownPaths([raceFile.path]), { outcome: "patched", count: 1 });
+
+  const oldRacePath = raceFile.path;
+  const renamedRacePath = "Publication Race Renamed.md";
+  const renameRaceAlias = "RenameRaceLatestAlias";
+  caches.get(oldRacePath).frontmatter.aliases = renameRaceAlias;
+  raceFile.stat.mtime += 1000;
+  const originalCachedReadForRevisionRace = app.vault.cachedRead;
+  let releaseRenameRace;
+  let sawRenameRace;
+  const renameRaceStarted = new Promise((resolve) => { sawRenameRace = resolve; });
+  const renameRaceGate = new Promise((resolve) => { releaseRenameRace = resolve; });
+  app.vault.cachedRead = async (file) => {
+    if (file === raceFile) {
+      const captured = contents.get(oldRacePath) ?? "";
+      sawRenameRace();
+      await renameRaceGate;
+      return captured;
+    }
+    return originalCachedReadForRevisionRace(file);
+  };
+  const staleRenamePatch = index.patchMarkdownPaths([oldRacePath]);
+  await renameRaceStarted;
+  const raceContent = contents.get(oldRacePath);
+  const raceCache = caches.get(oldRacePath);
+  files.delete(oldRacePath);
+  contents.delete(oldRacePath);
+  caches.delete(oldRacePath);
+  delete resolvedLinks[oldRacePath];
+  delete unresolvedLinks[oldRacePath];
+  raceFile.path = renamedRacePath;
+  raceFile.name = renamedRacePath;
+  raceFile.basename = "Publication Race Renamed";
+  files.set(renamedRacePath, raceFile);
+  contents.set(renamedRacePath, raceContent);
+  caches.set(renamedRacePath, raceCache);
+  resolvedLinks[renamedRacePath] = {};
+  unresolvedLinks[renamedRacePath] = {};
+  assert.equal(index.renameFile(oldRacePath, raceFile), true);
+  releaseRenameRace();
+  const renamedRaceResult = await staleRenamePatch;
+  assert.equal(renamedRaceResult.outcome, "cancelled");
+  assert.equal(renamedRaceResult.count, 0);
+  assert.deepEqual(renamedRaceResult.pendingPaths, [renamedRacePath]);
+  assert.equal(index.search(renameRaceAlias.toLowerCase(), 5).length, 0, "A pre-rename source revision must not publish after the path changes");
+  app.vault.cachedRead = originalCachedReadForRevisionRace;
+  assert.deepEqual(await index.patchMarkdownPaths([renamedRacePath]), { outcome: "patched", count: 1 });
+  assert.equal(index.search(renameRaceAlias.toLowerCase(), 5)[0]?.path, renamedRacePath, "The current renamed path must resume incrementally");
+
+  const deletedRaceAlias = "DeletedRaceStaleAlias";
+  caches.get(renamedRacePath).frontmatter.aliases = deletedRaceAlias;
+  raceFile.stat.mtime += 1000;
+  let releaseDeleteRace;
+  let sawDeleteRace;
+  const deleteRaceStarted = new Promise((resolve) => { sawDeleteRace = resolve; });
+  const deleteRaceGate = new Promise((resolve) => { releaseDeleteRace = resolve; });
+  app.vault.cachedRead = async (file) => {
+    if (file === raceFile) {
+      const captured = contents.get(renamedRacePath) ?? "";
+      sawDeleteRace();
+      await deleteRaceGate;
+      return captured;
+    }
+    return originalCachedReadForRevisionRace(file);
+  };
+  const staleDeletePatch = index.patchMarkdownPaths([renamedRacePath]);
+  await deleteRaceStarted;
+  files.delete(renamedRacePath);
+  contents.delete(renamedRacePath);
+  caches.delete(renamedRacePath);
+  delete resolvedLinks[renamedRacePath];
+  delete unresolvedLinks[renamedRacePath];
+  assert.equal(index.dematerializeFile(renamedRacePath)?.path, renamedRacePath);
+  releaseDeleteRace();
+  const deletedRaceResult = await staleDeletePatch;
+  assert.equal(deletedRaceResult.outcome, "cancelled");
+  assert.equal(deletedRaceResult.count, 0);
+  assert.deepEqual(deletedRaceResult.pendingPaths, [renamedRacePath]);
+  assert.equal(index.search(deletedRaceAlias.toLowerCase(), 5).length, 0, "A deleted source must not be resurrected by stale awaited work");
+  assert.equal(index.removeVirtualPageIfUnreferenced(renamedRacePath), true);
+  app.vault.cachedRead = originalCachedReadForRevisionRace;
+  index.cancelPendingPersistence();
 
   // P15: post-parse graph work for a URL-heavy note is staged and cooperatively sliced. Prime the
   // parsed-body hot cache so this measures signature/evidence/URL/resolution/commit work rather

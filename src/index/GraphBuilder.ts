@@ -50,13 +50,16 @@ export type PatchMarkdownResult = {
   semanticNoops: number;
 };
 
-export type PatchFileCommit = {
+export type PatchFileCommit = Readonly<{
   sourcePath: string;
-  touchedPagePaths: Set<string>;
+  touchedPagePaths: ReadonlySet<string>;
   semanticChanged: boolean;
-};
+}>;
+
+export type PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void) => void;
 
 type FileRevision = {
+  path: string;
   mtime: number;
   size: number;
 };
@@ -893,11 +896,12 @@ export class GraphBuilder {
   }
 
   private captureFileRevision(file: TFile): FileRevision {
-    return { mtime: file.stat.mtime, size: file.stat.size };
+    return { path: file.path, mtime: file.stat.mtime, size: file.stat.size };
   }
 
   private fileRevisionMatches(file: TFile, revision: FileRevision): boolean {
-    return file.stat.mtime === revision.mtime && file.stat.size === revision.size;
+    return file.path === revision.path && file.stat.mtime === revision.mtime && file.stat.size === revision.size &&
+      this.app.vault.getFileByPath(revision.path) === file;
   }
 
   private createPage(params: Partial<GraphPage> & Pick<GraphPage, "path" | "name">): GraphPage {
@@ -1109,21 +1113,21 @@ export class GraphBuilder {
     for (let batchStart = 0; batchStart < files.length; batchStart += lookupBatchSize) {
       if (!this.isCurrent()) return false;
       const batchFiles = files.slice(batchStart, batchStart + lookupBatchSize);
-      const revisions = new Map(batchFiles.map((file) => [file.path, this.captureFileRevision(file)] as const));
+      const revisions = new Map(batchFiles.map((file) => [file, this.captureFileRevision(file)] as const));
       const misses = batchFiles.filter((file) => {
-        const revision = revisions.get(file.path)!;
-        const hot = this.fieldCache.get(file.path);
+        const revision = revisions.get(file)!;
+        const hot = this.fieldCache.get(revision.path);
         return hot?.mtime !== revision.mtime;
       });
-      const durable = await this.bodyCache.getBodies(misses.map((file) => ({
-        path: file.path,
-        mtime: revisions.get(file.path)!.mtime,
-      })));
+      const durable = await this.bodyCache.getBodies(misses.map((file) => {
+        const revision = revisions.get(file)!;
+        return { path: revision.path, mtime: revision.mtime };
+      }));
       if (!this.isCurrent()) return false;
       // TFile.stat is mutable. Never let an old body read be committed under a newer revision.
       // Abort this private full build if a source changed while the durable lookup was in flight;
       // Main.ts retains the dirty backlog and coalesces the replacement build.
-      if (batchFiles.some((file) => !this.fileRevisionMatches(file, revisions.get(file.path)!))) return false;
+      if (batchFiles.some((file) => !this.fileRevisionMatches(file, revisions.get(file)!))) return false;
 
       const fresh = new Map<string, ParsedBodyMetadata>();
       const needsRead = misses.filter((file) => !durable.has(file.path));
@@ -1131,7 +1135,7 @@ export class GraphBuilder {
         if (!this.isCurrent()) return false;
         const contents = await Promise.all(group.map(async (file) => ({
           file,
-          revision: revisions.get(file.path)!,
+          revision: revisions.get(file)!,
           content: Platform.isMobile ? await this.app.vault.read(file) : await this.app.vault.cachedRead(file),
         })));
         if (!this.isCurrent()) return false;
@@ -1141,8 +1145,8 @@ export class GraphBuilder {
           if (!this.fileRevisionMatches(file, revision)) return false;
           const body = await this.parseBody(content);
           if (!body || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) return false;
-          fresh.set(file.path, body);
-          pendingWrites.push({ path: file.path, mtime: revision.mtime, body });
+          fresh.set(revision.path, body);
+          pendingWrites.push({ path: revision.path, mtime: revision.mtime, body });
           if (pendingWrites.length >= writeBatchSize && !(await flushWrites())) return false;
         }
         if (!(await this.yieldToHost())) return false;
@@ -1150,19 +1154,19 @@ export class GraphBuilder {
 
       for (const file of batchFiles) {
         if (!this.isCurrent()) return false;
-        const revision = revisions.get(file.path)!;
+        const revision = revisions.get(file)!;
         if (!this.fileRevisionMatches(file, revision)) return false;
-        let entry = this.fieldCache.get(file.path);
+        let entry = this.fieldCache.get(revision.path);
         if (!entry || entry.mtime !== revision.mtime) {
-          const body = durable.get(file.path) ?? fresh.get(file.path);
+          const body = durable.get(revision.path) ?? fresh.get(revision.path);
           if (!body) return false;
           entry = { mtime: revision.mtime, body };
-          this.rememberFieldCache(file.path, entry);
+          this.rememberFieldCache(revision.path, entry);
         }
 
         const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), entry.body);
         entry.semanticSignature = this.semanticSourceSignature(file, entry.body);
-        this.semanticFingerprints.set(file.path, entry.semanticSignature);
+        this.semanticFingerprints.set(revision.path, entry.semanticSignature);
         if (!(await this.collectMetadataSources(compiler, file, meta))) return false;
         if (!(await this.yieldToHost())) return false;
       }
@@ -1185,7 +1189,7 @@ export class GraphBuilder {
     options: {
       useDurableCache?: boolean;
       awaitBodyWrite?: boolean;
-      onFileCommitted?: (commit: PatchFileCommit) => void;
+      publishFileCommit?: PatchFilePublisher;
     } = {},
   ): Promise<PatchMarkdownResult> {
     const touchedPagePaths = new Set<string>();
@@ -1197,26 +1201,49 @@ export class GraphBuilder {
 
     for (const file of files) {
       if (!this.isCurrent()) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
+      const revision = this.captureFileRevision(file);
+      const sourcePath = revision.path;
       const fileTouchedPagePaths = new Set<string>();
       this.patchTouchedPagePaths = fileTouchedPagePaths;
-      const publishFileCommit = (semanticChanged: boolean): void => {
-        fileTouchedPagePaths.add(file.path);
+      const publishFileCommit = (semanticChanged: boolean, publishPreparedState: () => void): void => {
+        fileTouchedPagePaths.add(sourcePath);
+        const commit: PatchFileCommit = {
+          sourcePath,
+          touchedPagePaths: new Set(fileTouchedPagePaths),
+          semanticChanged,
+        };
         for (const path of fileTouchedPagePaths) touchedPagePaths.add(path);
-        options.onFileCommitted?.({ sourcePath: file.path, touchedPagePaths: new Set(fileTouchedPagePaths), semanticChanged });
+        if (!options.publishFileCommit) {
+          publishPreparedState();
+          return;
+        }
+        let published = false;
+        let acceptingPublication = true;
+        const publishOnce = (): void => {
+          if (!acceptingPublication) throw new Error(`Patch publisher callback expired: ${sourcePath}`);
+          if (published) throw new Error(`Patch commit published more than once: ${sourcePath}`);
+          published = true;
+          publishPreparedState();
+        };
+        try {
+          options.publishFileCommit(commit, publishOnce);
+        } finally {
+          acceptingPublication = false;
+        }
+        if (!published) throw new Error(`Patch publisher did not publish synchronously: ${sourcePath}`);
       };
-      const page = getGraphPage(state, file.path);
+      const page = getGraphPage(state, sourcePath);
       if (!page) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
-      const revision = this.captureFileRevision(file);
 
       // Live metadata events imply a new mtime, so a durable lookup is normally guaranteed to
       // miss and can be badly delayed by unrelated IndexedDB maintenance. Startup reconciliation
       // opts into durable lookup because it can legitimately hit a body written in the prior run.
-      const previousEntry = this.fieldCache.get(file.path);
+      const previousEntry = this.fieldCache.get(sourcePath);
       let body: ParsedBodyMetadata | null = null;
       if (previousEntry && previousEntry.mtime === revision.mtime) {
         body = previousEntry.body;
       } else if (useDurableCache) {
-        body = await this.bodyCache.getBody(file.path, revision.mtime);
+        body = await this.bodyCache.getBody(sourcePath, revision.mtime);
         if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         }
@@ -1234,12 +1261,12 @@ export class GraphBuilder {
         }
 
         if (awaitBodyWrite) {
-          await this.bodyCache.putBody(file.path, revision.mtime, body);
+          await this.bodyCache.putBody(sourcePath, revision.mtime, body);
           if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
             return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
           }
         } else {
-          this.bodyCache.queueBodyWrite(file.path, revision.mtime, body);
+          this.bodyCache.queueBodyWrite(sourcePath, revision.mtime, body);
         }
       }
 
@@ -1250,12 +1277,12 @@ export class GraphBuilder {
       if (!signature || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
-      const previousSignature = this.semanticFingerprints.get(file.path) ?? previousEntry?.semanticSignature;
+      const previousSignature = this.semanticFingerprints.get(sourcePath) ?? previousEntry?.semanticSignature;
       if (!(await this.compactPublishedPatchLayers(state)) || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
       const stagedState = this.createPatchState(state, previousSignature !== signature);
-      const stagedPage = getGraphPage(stagedState, file.path);
+      const stagedPage = getGraphPage(stagedState, sourcePath);
       if (!stagedPage) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
 
       if (previousSignature === signature) {
@@ -1272,11 +1299,12 @@ export class GraphBuilder {
         if (!(await this.yieldToHost(true)) || !this.fileRevisionMatches(file, revision)) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         }
-        this.commitPatchState(state, stagedState);
-        this.rememberFieldCache(file.path, { mtime: revision.mtime, body, semanticSignature: signature });
-        this.semanticFingerprints.set(file.path, signature);
+        publishFileCommit(false, () => {
+          this.commitPatchState(state, stagedState);
+          this.rememberFieldCache(sourcePath, { mtime: revision.mtime, body, semanticSignature: signature });
+          this.semanticFingerprints.set(sourcePath, signature);
+        });
         semanticNoops += 1;
-        publishFileCommit(false);
         if (!(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         continue;
       }
@@ -1286,7 +1314,7 @@ export class GraphBuilder {
       const oldTagPaths = new Set<string>();
       const oldUrlPaths = new Set<string>();
       const desiredUrlOrigins = new Map<string, string>();
-      touchedPagePaths.add(file.path);
+      touchedPagePaths.add(sourcePath);
       const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), body);
       const preparation = await this.prepareMarkdownSourcePatch(stagedState, file, meta);
       if (preparation.outcome === "rebuild-required") {
@@ -1298,9 +1326,9 @@ export class GraphBuilder {
       const preparedPatch = preparation.patch;
 
       let processed = 0;
-      for (const item of stagedState.evidence.declarationsTouchingIterator(file.path)) {
-        const ownedByFile = item.declaredByPath === file.path && FILE_OWNED_EVIDENCE.has(item.sourceKind);
-        const tagMembership = item.sourceKind === "tag-tree" && item.declaredTargetPath === file.path && item.declaredByPath.startsWith("tag:");
+      for (const item of stagedState.evidence.declarationsTouchingIterator(sourcePath)) {
+        const ownedByFile = item.declaredByPath === sourcePath && FILE_OWNED_EVIDENCE.has(item.sourceKind);
+        const tagMembership = item.sourceKind === "tag-tree" && item.declaredTargetPath === sourcePath && item.declaredByPath.startsWith("tag:");
         if (ownedByFile || tagMembership) {
           affected.add(item.declaredByPath);
           affected.add(item.declaredTargetPath);
@@ -1312,17 +1340,17 @@ export class GraphBuilder {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         }
       }
-      const removed = await stagedState.evidence.removeDeclarationsTouchingCooperative(file.path, (item) => {
-        if (item.declaredByPath === file.path && FILE_OWNED_EVIDENCE.has(item.sourceKind)) return true;
-        return item.sourceKind === "tag-tree" && item.declaredTargetPath === file.path && item.declaredByPath.startsWith("tag:");
+      const removed = await stagedState.evidence.removeDeclarationsTouchingCooperative(sourcePath, (item) => {
+        if (item.declaredByPath === sourcePath && FILE_OWNED_EVIDENCE.has(item.sourceKind)) return true;
+        return item.sourceKind === "tag-tree" && item.declaredTargetPath === sourcePath && item.declaredByPath.startsWith("tag:");
       }, () => this.yieldToHost());
       if (removed === null) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
 
-      if (!(await this.applyPreparedSourcePatch(stagedState, file.path, preparedPatch, affected, desiredUrlOrigins))) {
+      if (!(await this.applyPreparedSourcePatch(stagedState, sourcePath, preparedPatch, affected, desiredUrlOrigins))) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
       stagedPage.mtime = revision.mtime;
-      for (const item of stagedState.evidence.declarationsTouchingIterator(file.path)) {
+      for (const item of stagedState.evidence.declarationsTouchingIterator(sourcePath)) {
         affected.add(item.declaredByPath);
         affected.add(item.declaredTargetPath);
         if (item.sourceKind === "body-url") oldUrlPaths.add(item.declaredTargetPath);
@@ -1333,9 +1361,9 @@ export class GraphBuilder {
       if (!(await this.reconcilePreparedUrlOriginsCooperative(stagedState, oldUrlPaths, desiredUrlOrigins, affected))) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       for (const targetPath of affected) {
         fileTouchedPagePaths.add(targetPath);
-        if (targetPath !== file.path) {
-          this.resolvePatchEvidencePair(stagedState, file.path, targetPath);
-          this.resolvePatchEvidencePair(stagedState, targetPath, file.path);
+        if (targetPath !== sourcePath) {
+          this.resolvePatchEvidencePair(stagedState, sourcePath, targetPath);
+          this.resolvePatchEvidencePair(stagedState, targetPath, sourcePath);
         }
         processed += 1;
         if ((processed & 31) === 0 && !(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
@@ -1350,12 +1378,13 @@ export class GraphBuilder {
       if (!(await this.yieldToHost(true)) || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
-      this.commitPatchState(state, stagedState);
-      this.rememberFieldCache(file.path, { mtime: revision.mtime, body, semanticSignature: signature });
-      this.semanticFingerprints.set(file.path, signature);
+      publishFileCommit(topologyChanged, () => {
+        this.commitPatchState(state, stagedState);
+        this.rememberFieldCache(sourcePath, { mtime: revision.mtime, body, semanticSignature: signature });
+        this.semanticFingerprints.set(sourcePath, signature);
+      });
       if (topologyChanged) semanticChanges += 1;
       else semanticNoops += 1;
-      publishFileCommit(topologyChanged);
       if (!(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
     }
 
