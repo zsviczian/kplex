@@ -2,9 +2,7 @@
 
 ## Mission
 
-Develop **K-Plex (Knowledge Plex)** as a dedicated React application inside Obsidian while preserving the relationship semantics, ontology model and useful settings compatibility of classic ExcaliBrain.
-
-K-Plex is not an Excalidraw extension. Excalidraw and Dataview must not be runtime requirements.
+Develop **K-Plex (Knowledge Plex)** as a dedicated React application inside Obsidian based on the Proof of Concept project [ExcaliBrain](https://github.com/zsviczian/excalibrain) preserving the relationship semantics, ontology model and useful settings compatibility of its predessessor: ExcaliBrain. At the same time K-Plex offers additional features and is an independent, stand alone solution and has no dependency on ExcaliBrain, Excalidraw or Dataview.
 
 The plugin ID is **`k-plex`** so K-Plex can coexist with legacy ExcaliBrain during migration.
 
@@ -31,7 +29,7 @@ Do not claim a successful build from a stub-only/type-harness check. When Obsidi
 
 ## Code-scanner hygiene
 
-Treat Obsidian's code scanner as part of the compatibility contract. New or touched code should avoid known scanner warnings rather than relying on suppressions.
+Treat Obsidian's code scanner as part of the compatibility contract. New or touched code must avoid known scanner warnings rather than relying on suppressions.
 
 The repository installs the official `eslint-plugin-obsidianmd` in `eslint.config.mjs`. Run `npm run lint:obsidian`; `npm run verify` includes it. Existing sentence-case warnings are visible legacy work, not permission to add more. Fix touched code's scanner errors and review warnings instead of disabling the recommended rules.
 
@@ -44,6 +42,7 @@ The repository installs the official `eslint-plugin-obsidianmd` in `eslint.confi
 - Prefer Obsidian's own semantic CSS classes and CSS variables wherever practical (`--text-*`, `--background-*`, `--interactive-*`, `--color-*`, tab/modal variables, etc.) instead of hard-coded UI colors or surfaces. K-Plex must inherit community themes naturally; plugin-specific CSS should describe structure/state, while Obsidian theme variables provide the visual tokens.
 - Temporary attention/highlight states should be implemented by adding/removing a semantic CSS class and styling that class in `styles.css` with Obsidian theme variables. Do not inject one-off inline colors/borders for these states.
 - Do not silence scanner findings with `!important`, blanket casts, or compatibility suppressions unless the underlying issue cannot be solved cleanly and the exception is documented here.
+- Beware of the post build code in `esbuild.config.mjs` to remove `createElement('Script')` fron the final build as this triggers Obsidian code scanner failure. createElement('Script') originates from react DOM, which contains support for rendering/hoisting `<script>` resources. K-Plex never renders script elements, and community-plugin review rejects bundles that can create them and remove those release from community plugins store. Keep React for the UI, but make those unused internal branches inert in the shipped bundle.
 
 ## Obsidian API discipline
 
@@ -52,6 +51,8 @@ This project has already lost time to invented/assumed APIs. Do not guess Obsidi
 Rules:
 
 1. Check the installed Obsidian type declarations and current official documentation before using an unfamiliar API.
+  - Obsidian CSS: https://docs.obsidian.md/Reference/CSS+variables/CSS+variables
+  - Obsidian developer documentation: https://docs.obsidian.md/Home
 2. Prefer public typed APIs.
 3. Example: `MetadataCache.getFileCache(file)` is valid and `getAllTags(cache)` is exported; do **not** invent `metadataCache.getTags()`.
 4. Use Obsidian `Modal` for centered modal dialogs.
@@ -100,24 +101,53 @@ Rules:
 
 ## Architecture boundaries
 
-- `src/index/` owns graph construction, relationship semantics, search data, caches and compatibility.
-- `src/ui/` owns React presentation and interaction.
-- `src/settings.ts` owns settings schema/defaults, persistence compatibility and migration.
-- `src/main.ts` owns Obsidian lifecycle, commands, workspace/window/leaf integration and rebuild scheduling.
+**Current architecture refactoring milestone: C14 accepted; structural refactoring is paused.** Feature work may proceed within the established boundaries. Do not start C15–C26 or retire compatibility facades without an explicitly scoped task. Obsidian remains the only production host; a portable semantic engine does not mean the application and all UI are host-independent. The current ownership and retained seams are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and tracked in [Refactor plan.md](Refactor%20plan.md).
 
-Do not reimplement relationship classification inside React components. UI code should consume normalized index APIs.
+| Responsibility | Current owner and boundary |
+| --- | --- |
+| Markdown/property grammar and parser DTOs | `src/core/parser/metadata.ts`; inject clock/yield/cancellation. `src/index/fieldParser.ts` retains host merge/link-resolution/runtime compatibility. |
+| Normalized identities and source facts | `src/core/graph/model.ts`, `source.ts` and `settings.ts`; plain values with exact opaque IDs and independent semantic/file paths. |
+| Evidence, precedence and relationship classification | `src/core/graph/evidence.ts`, `relations.ts` and `resolver.ts`; legacy index modules delegate/re-export. |
+| Full and per-source semantic compilation | `src/core/graph/compiler.ts` and `patch.ts`; both production paths use the shared semantic owner. |
+| Host facts and file resolution | `src/adapters/obsidian/*SourceCollector.ts`; `GraphBuilder` retains bounded body/cache acquisition, private staging and canonical host binding. |
+| Live graph publication, search and caches | `src/index/GraphIndex.ts`; synchronous per-file graph/evidence/fingerprint/cache/search application and notification. Coordination/storage/search extraction remains C15–C17. |
+| Predicates, lens evaluation and environment presentation | `src/core/plex/`; lazy property/evidence capabilities and explicit host environment facts. Legacy lens adapters compose the current host. |
+| Shared interaction mechanics and migrated feature content | `src/ui/components/`, `src/ui/features/`; caller supplies icons, labels, data and actions. Legacy `src/ui/` still contains host-bound consumers. |
+| Settings, native workspace and lifecycle | `src/settings.ts`, `src/main.ts` and Obsidian adapters; preserve persisted compatibility and existing lifecycle/demand ownership. |
 
-Keep Obsidian-specific side effects behind clear boundaries. Presentational components should not reach deeply into workspace/vault APIs when plugin/index services can perform the operation.
+New application use cases and pure projection/layout strategies follow the dependency rules in the architecture guide; those folders do not imply the later extractions are complete. Define a narrow semantic port in the consuming layer and implement host effects in its adapter. Do not pass an App, plugin, complete settings object, TFile or mutable graph repository into portable code.
+
+### Rules for feature changes after C14
+
+- Extend the existing parser/compiler/resolver/predicate owners and their contract tests. Never add a second relationship classifier, Markdown grammar, lens evaluator, index scheduler or whole-vault DTO model in UI/adapters.
+- Source adapters report facts, exact targets, counts and genuine occurrence provenance; core decides roles, direction, precedence and materialization meaning. Preserve declaration multiplicity, incoming contributions and shared tag/URL lifetimes. Normalized batches are capped at 256 records; that is not a byte or total-memory bound. Stream dense input and retain byte-limited host reads.
+- Treat `NodeId` as opaque and case-sensitive. Do not parse it into a path or infer kind/materialization from it. Optional semantic and physical paths remain distinct; the legacy compatibility publication refuses pathless graphs. Readonly views share some metadata and are revision-scoped, not frozen snapshots; reacquire on publication/presentation change.
+- Preserve injected clock/yield/lifetime contracts, terminal source-read rejection, finality checks and canonical page identity. Graph/evidence preparation remains private and copy-on-write; never await after partially mutating live published state.
+- Preserve C14b's synchronous per-file boundary: apply prepared graph/evidence, hot field cache and fingerprint, invalidate affected caches/search, then notify before another await. Apply callbacks are exactly once, synchronous and expire on publisher return/throw. Semantic no-ops emit no semantic event. Cancellation retains earlier commits and only pending current work; it is not an automatic full rebuild.
+- After awaited source work, fence generation/demand plus captured path/mtime/size/current Vault identity. Rename/delete/supersession cannot publish stale data or resurrect materialized files. Keep full-build captured revisions keyed by file identity and preserve optimistic creation during reconciliation.
+- Arbitrary note properties and imagery stay lazy and outside persisted semantic state. Keep property reads field-scoped and evidence reads pair-scoped. Presentation-only filtering/styles/sorting/camera/folds do not rebuild semantics or scan the whole vault.
+- New condensed/expanded/rotated/mindmap modes belong to projection and layout policy: projection chooses semantic nodes/relationships, layout maps roles to positions and physical gates, rendering consumes the result. Sibling visibility is a projection choice. Preserve current defaults; do not change semantic roles or the index to implement a visual arrangement.
+- Compatibility facades keep a finite caller inventory and named retirement checkpoint. Add capabilities for a real consumer; do not enlarge legacy coupling or bypass an import guard to save an extraction. Persisted schema/settings/command changes require an explicit compatibility decision and migration where needed.
 
 ### Refactor migration guardrails
 
-The paths above describe the legacy runtime. New modules migrated under `src/core/`, `src/application/`, `src/ui/components/`, `src/ui/features/` and `src/adapters/obsidian/` follow [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and `npm run check:architecture`. Do not claim legacy modules are already portable. The checker follows type-only, aliased and transitive imports; a portable module must not pull Obsidian in through a helper, `window`, browser storage, Node APIs, patched Obsidian DOM helpers or a global plugin escape hatch. Adapter-to-core imports are allowed; core-to-adapter imports are not. Place a narrow port in the layer that needs it and implement it in the host adapter.
+Modules under `src/core/`, `src/application/`, `src/ui/components/`, `src/ui/features/`, `src/lang/` and `src/adapters/obsidian/` follow [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and `npm run check:architecture`. The checker follows type-only, aliased and transitive imports. Portable core/application/lang must not pull in Obsidian, DOM/browser globals, storage, timers, Node APIs or a global plugin escape hatch; inject required capabilities. Portable React components/features may use standard DOM through their owning document/window, but not Obsidian or legacy host modules. Shared components must remain domain-independent. Adapter-to-core imports are allowed; core-to-adapter imports are not. Do not introduce dependency cycles or nonliteral module loading to evade these rules.
 
-Keep relationship classification and evidence precedence in one graph-semantic owner. React components and adapters must not duplicate it. Do not weaken a source-text or golden behavior assertion merely to move code; add an equivalent behavioral test first and review any fixture difference. Record a temporary exception as an exact edge, reason, owner and removal checkpoint before introducing it. There are no migrated-edge exceptions at C02a. Run `npm run verify` (architecture checks, restricted host-free core checks, tests and real build) after changes. New core contracts must also remain green under `npm run check:core`, which intentionally excludes DOM, Node and Obsidian ambient types. When a configured test vault and CLI are available, run `npm run verify:obsidian` for applicable desktop checks; it requires the three explicit test-vault variables documented in `CONTRIBUTING.md`. The portable lane must remain usable without Obsidian.
+Keep relationship classification and evidence precedence in one graph-semantic owner. React components and adapters must not duplicate it. Do not weaken source-text/golden assertions, strict timing bounds, lint or boundary checks to finish a task. Characterize missing behavior before extraction; intentional feature changes need an explained fixture difference and focused behavior coverage. The checker currently has no migrated-edge exception mechanism: document any proposed exception's exact edge, reason, owner and retirement checkpoint for review; documentation alone does not authorize weakening the checker. Run `npm run verify` (architecture checks, restricted host-free core checks, tests and real build) for runtime changes. New core contracts must remain green under `npm run check:core`, which excludes DOM, Node and Obsidian ambient types. When a configured test vault and CLI are available, run `npm run verify:obsidian` for applicable desktop checks; it requires the three explicit test-vault variables documented in `CONTRIBUTING.md`. The portable lane must remain usable without Obsidian. Documentation-only changes need link/content/whitespace checks, not invented runtime test evidence.
 
 Close each refactor checkpoint with the automated commands/results and their limits, followed by at most three prioritized manual checks with the precise expected outcome. If no manual check is needed, say so. Do not call a screenshot or generated fixture a performance or interaction pass; keep unavailable host/device evidence pending in the plan ledger. See section 5 and the action-log template in `Refactor plan.md`.
 
 For CLI runtime inspection through the loaded `app.plugins.plugins["k-plex"]` instance, follow [docs/OBSIDIAN_RUNTIME_TESTING.md](docs/OBSIDIAN_RUNTIME_TESTING.md). This maintenance access is not a production dependency boundary. Reacquire instances after reload and remove temporary test controllers/wrappers.
+
+### Mixed agent development and handoffs
+
+The default workflow pairs an **offline development agent** (no Obsidian installation/CLI; dependencies or network may also be limited) with the **main validation agent** (full Node/dependency environment and Obsidian CLI). The offline agent does the bulk of scoped implementation and trace analysis. The main agent prepares the assignment, performs needed live investigations, independently reviews/fixes the return, runs host validation and manages Git/PRs. Neither agent's role is a reason to duplicate production behavior or claim unavailable tests passed. Follow [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md).
+
+- Preserve the standing header in the single root `HANDOFF.md`, overwrite its assignment/result body on each transfer and never archive handoffs. Record exact base/diff identity, scope, architecture owner, acceptance criteria, actual capabilities and direction of transfer. An inactive template does not authorize new work or resume refactoring.
+- Offline agents return reviewable uncommitted changes and actual command/results/limits in that file; do not commit/push/create PRs or mark final acceptance unless the maintainer explicitly assigns that authority. If dependencies or Git metadata are absent, say so and provide source hashes/patch identity and runnable reviewer checks; do not substitute stubs/global tooling for the real build.
+- When only the equipped environment can answer a question, send a precise bounded probe request. The main agent may gather minimized traces, reproduction steps and source/artifact identities, then hand substantial analysis back to the offline agent. Separate observations from hypotheses and account for scheduling/throttling and incomplete captures. Keep runtime globals/wrappers temporary and remove them independently of test success.
+- Main-agent review reruns affected portable checks on required Node and applicable exact-build/native checks, fixes defects, and reports automated evidence plus up to three prioritized manual tests (or none). Required unavailable checks remain pending unless the maintainer explicitly accepts a documented limitation. Changes after testing invalidate affected evidence. Commit/PR/merge/release actions require the applicable maintainer authorization; an earlier assignment's authority is not blanket authority for later handoffs.
+- Persist accepted architecture/checkpoint results and limitations in `Refactor plan.md`; preserve feature-specific review evidence in the relevant issue/PR or `docs/validation/` when warranted. Failed/rejected refactor returns also get a plan entry before overwriting. The handoff is never the durable tracker. Do not request manual tests merely because the offline agent cannot run them when the main agent can automate the same assertions.
 
 ### Localization readiness
 
@@ -129,7 +159,7 @@ Preserve Obsidian desktop, tablet and phone distinctions and existing profile/co
 
 User-facing shortcut text in tooltips, help, labels and notices must combine catalog copy with `src/core/plex/shortcutPresentation.ts` environment-aware formatting of the actual action. Do not hard-code `Ctrl/Cmd`, `Mod`, `Option`, `Alt` or platform-specific key sequences in new copy; show Command/Option on macOS and Control/Alt on Windows where those keys are relevant. Use the effective binding for host-configurable shortcuts when available; do not claim a fixed sequence when it is unknown. Omit hints for unavailable actions and provide the applicable touch instruction on touch-only surfaces. Test displayed hints against registration/handlers, including macOS/Windows, mobile key conventions and keyboard-equipped phones/tablets. See section 3.7 and E00/L00/L01 of `Refactor plan.md`.
 
-## Performance is a product requirement
+## Performance is a high priority product requirement
 
 The plugin must remain responsive in vaults with 20,000+ files and 100,000+ graph/search entries.
 

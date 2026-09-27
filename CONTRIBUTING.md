@@ -6,7 +6,7 @@ K-Plex is a deterministic spatial knowledge graph for Obsidian, not a generic fo
 
 ## Setup
 
-Use Node.js **22.22.2** where possible.
+Use Node.js **22.22.2** for acceptance checks. If your environment cannot provide it or install dependencies, record the limitation and return runnable checks for the validation agent; results from another runtime do not replace the required lane.
 
 ```bash
 npm i
@@ -29,7 +29,7 @@ The plugin ID is `k-plex`.
 
 Do not consider a change complete until it builds against the real installed Obsidian typings. A local stub harness is useful for fast checks but is not authoritative.
 
-`npm run check:architecture` checks migrated-layer imports and its negative fixtures. `npm run check:core` type-checks the host-free core with no DOM/Node ambient types and runs clean-process core contract tests. `npm run lint:obsidian` runs the official Obsidian ESLint plugin. `npm run verify` runs the architecture and core lanes, Obsidian lint, all non-host tests, then the production build. No Obsidian installation is needed for these commands. The C03 button DOM test needs a local Chrome/Chromium-family executable; set `KPLEX_TEST_BROWSER` to its absolute path if discovery fails. The current legacy graph/UI is not yet portable; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the checkpoint ledger in [Refactor plan.md](Refactor%20plan.md). The lint setup currently reports sentence-case warnings in existing copy; avoid adding new warnings while L00/L01 establish the English localization catalog.
+`npm run check:architecture` checks migrated-layer imports and its negative fixtures. `npm run check:core` type-checks the host-free core with no DOM/Node ambient types and runs clean-process core contract tests. `npm run lint:obsidian` runs the official Obsidian ESLint plugin. `npm run verify` runs the architecture and core lanes, Obsidian lint, all non-host tests, then the production build. No Obsidian installation is needed for these commands. The C03 button DOM test needs a local Chrome/Chromium-family executable; set `KPLEX_TEST_BROWSER` to its absolute path if discovery fails. The full/incremental semantic engine is portable, while legacy host binding and much of the application/UI remain migration seams; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the checkpoint ledger in [Refactor plan.md](Refactor%20plan.md). The lint setup currently reports sentence-case warnings in existing copy; avoid adding new warnings. L00 established the English catalog; L01 retains legacy-copy cleanup/enforcement.
 
 For a desktop integration smoke test, enable **Settings → General → Command line interface** in Obsidian and use a disposable development vault with K-Plex installed. Set all three variables to that vault's actual identity and absolute paths:
 
@@ -78,6 +78,39 @@ UI conventions:
 
 ## Design principles
 
+### Current architecture and feature placement
+
+**C14 is accepted and refactoring is paused.** The production full and incremental paths now share a portable semantic engine. Obsidian remains the production host; coordination, storage, search implementation and much of the graph-to-UI/application path still have named legacy seams. Do not start C15–C26 just to deliver a feature or claim those planned extractions already exist. Read [AGENTS.md](AGENTS.md), [architecture](docs/ARCHITECTURE.md) and the definitive [refactor tracker](Refactor%20plan.md) before changing ownership.
+
+| Change | Extend the current owner |
+| --- | --- |
+| Markdown/property grammar | `src/core/parser/metadata.ts`; host merge/resolution remains in adapters/legacy facades. |
+| A relationship source | Obsidian source collectors supply normalized facts; `src/core/graph/compiler.ts`, `patch.ts`, `evidence.ts` and `resolver.ts` own compilation, precedence and meaning. |
+| Graph reads or search | Narrow contracts in `src/core/graph/read.ts`; GraphIndex still implements production search and publication. Map only returned data, not the whole vault. |
+| Lens or predicate behavior | Existing `src/core/plex/predicate.ts`, `predicateParser.ts` and `lens.ts`; lazy field/pair providers, one AST/evaluator. |
+| A new view mode | Projection chooses semantic nodes/relationships, layout maps roles to positions and physical gates, rendering consumes that result. Keep current modes/defaults and sibling visibility separate from graph semantics. |
+| Shared UI behavior | Existing `ActionButton`, `FloatingLayer`, `FuzzySuggester` and collection helpers under `src/ui/components/`; caller supplies icons, text, results and actions. Feature content lives in `src/ui/features/` where migrated. |
+| Vault/workspace/native effects | Obsidian adapters and existing composition in `src/main.ts`/native shells. A new port is defined in its consuming layer, not by passing the plugin to portable code. |
+| Copy, shortcuts or device routing | `src/lang/`, `src/core/plex/shortcutPresentation.ts` and `PresentationEnvironment`; host adapters supply language/device/input/capability facts. |
+
+Portable core/application/lang cannot import Obsidian, legacy host modules, DOM/browser globals, storage or Node APIs; inject clock/yield/lifetime and other required capabilities. Portable React mechanics/features can use standard DOM in their owning document/window, but not Obsidian APIs or global plugin discovery. Shared components contain no graph policy. Adapter-to-core imports are allowed; core-to-adapter imports, cycles and transitive host leaks fail architecture checks. Preserve canonical owners and finite compatibility-facade caller lists rather than creating duplicate classifiers, parsers, evaluators or schedulers.
+
+Treat `NodeId` as exact opaque identity; never derive path, case rules, kind or materialization from it. Semantic and physical paths are separate optional facets. Readonly views can share revision-scoped metadata; they are not frozen snapshots. Normalized source batches retain exact target/occurrence/ownership facts and at most 256 records, with terminal rejection/finality/revision fences. Stream dense input: a record-count cap does not bound payload bytes or justify a second whole-vault DTO array. Preserve provenance multiplicity, incoming declarations and shared tag/URL lifetimes. See [normalized source contracts](docs/NORMALIZED_SOURCE_CONTRACT.md).
+
+### Mixed agent development
+
+Most implementation and substantial trace analysis is assigned to an **offline development agent without Obsidian CLI access**. The **main validation agent with CLI and full dependencies** prepares work, supplies live reproduction/debug evidence, reviews and fixes returned changes, performs applicable native validation and manages the repository. Limited dependency/network access is recorded separately from absence of Obsidian; `npm run verify` itself needs no running Obsidian.
+
+Follow [the mixed agent workflow](docs/AGENT_WORKFLOW.md). `HANDOFF.md` is the single transient bidirectional assignment/results document: preserve its standing header and overwrite its body for each transfer, never archive it or use it as an ongoing log. Each assignment includes base/diff identity, scope and acceptance criteria; an investigation can include minimized debug traces and requested analysis. The offline agent returns uncommitted changes, actual tests, failures and pending host checks. The main agent independently validates the exact returned code, fixes defects and reports automated results and up to three prioritized manual checks, or states none are needed.
+
+Missing host/device checks remain pending; a skip is not a pass. Any maintainer-accepted limitation must be explicit. Once required validation is confirmed, repository actions follow the maintainer's authorization; an offline implementation return does not authorize a commit, PR, merge or release. Refactor outcomes persist in `Refactor plan.md`; feature evidence belongs in the issue/PR or a reviewed validation report, with architecture decisions linked from the plan when relevant. No new assignment automatically resumes the paused refactor.
+
+### Localization and environment rules
+
+Every new or changed plugin-owned user-facing string must use the English catalog and typed translator: labels, commands, help, menus, placeholders, tooltips, ARIA names, notifications and visible errors. Console diagnostics stay English. Preserve stable keys/IDs and user-authored vault content; use named parameters and the established plural/fallback rules. Translations are outside the refactor and the remaining legacy-copy audit/enforcement remains L01. See [localization](docs/LOCALIZATION.md).
+
+Use `PresentationEnvironment` rather than new direct Platform/global checks in portable code. Desktop/tablet/phone, OS/key convention, hardware keyboard, pointer/touch and host-action availability are independent facts; unknown keyboard presence does not mean absent. Format catalog shortcut parameters from the actual available binding (Command/Option on macOS, Control/Alt on Windows where applicable), omit unknown/unavailable hints and preserve touch instructions. Desktop emulation tests layout/routing; physical touch, keyboard delivery and platform lifecycle still need their own evidence.
+
 ### Relationship semantics are spatial semantics
 
 The core layout is deterministic:
@@ -88,13 +121,13 @@ The core layout is deterministic:
 - challengers / next: east/right
 - siblings: separate peripheral region
 
-A contribution that changes where a relationship appears is a graph-contract change, not merely a visual tweak.
+Changing a relationship's semantic role or precedence is a graph-contract change. A deliberately selected rotated/mindmap layout can map the same roles to different positions and physical gates without changing graph meaning; preserve the existing views' spatial defaults and test the new layout contract independently.
 
 ### Preserve legacy compatibility
 
 Before changing settings, ontology or graph reconciliation:
 
-1. review `src/settings.ts`, `src/index/GraphBuilder.ts`, `src/index/RelationEvidence.ts`, `src/index/RelationResolver.ts` and `src/index/GraphIndex.ts`
+1. review the portable compiler/evidence/resolver owners, normalized source collectors, `src/settings.ts`, `src/index/GraphBuilder.ts` and `src/index/GraphIndex.ts`; legacy evidence/resolver files are compatibility facades
 2. assume users may have legacy ExcaliBrain data/settings
 3. prefer additive settings with defaults
 4. add explicit migration logic for renamed/reshaped data
@@ -102,17 +135,18 @@ Before changing settings, ontology or graph reconciliation:
 6. keep old ontology field names meaningful
 7. preserve K-Plex's deliberate rule that conflicting frontmatter ontology overrides body ontology for the same declaring note/target, while retaining the overridden evidence for explainability
 
-Folder and tag nodes may be central, but structural folder/tag connections are not editable with drag-linking.
+Folder and tag nodes may be central, but structural folder/tag connections are not editable with drag-linking. Dragging outward from a folder's child gate is the specific file-creation exception: create a real child file and its file-tree membership, not a note-to-note ontology link.
 
 ### Keep the UI on top of normalized graph APIs
 
 React components should not independently classify relationships or rescan the vault.
 
-- evidence collection belongs in `GraphBuilder`; precedence/classification belongs in `RelationResolver`; graph queries belong in `GraphIndex`
-- indexing/relationship logic belongs in `src/index/`
-- persistence/migration belongs in `src/settings.ts`
-- Obsidian lifecycle/workspace integration belongs in `src/main.ts`
-- React components render and interact with normalized data
+- adapters collect host facts; portable compiler/evidence/resolver modules own graph meaning
+- GraphBuilder acquires bodies and privately stages/binds results; GraphIndex owns publication, current search and affected-cache refresh
+- settings compatibility stays in `src/settings.ts`; existing snapshot/body-cache orchestration stays behind its current index/IndexedDB seams
+- Obsidian lifecycle/workspace integration remains host-owned; define narrow consuming-layer ports for new migrated use cases
+- React renders normalized read results and invokes supplied actions; arbitrary note properties and relationship evidence stay lazy, field- and pair-scoped respectively
+- filtering/styles/order/camera/fold state never trigger a semantic rebuild, whole-vault property scan or persisted frontmatter/image expansion
 
 ## Performance rules
 
@@ -138,6 +172,10 @@ Changes that touch indexing should preserve:
 - time-budgeted cooperative yielding on large collectors/resolvers; do not yield every note on iOS
 - deferred/coalesced snapshot writes, cancelled when the final K-Plex view closes
 - skipped periodic refresh when nothing changed
+
+Incremental preparation stays private and copy-on-write with canonical page identity preserved. C14b publication synchronously applies graph/evidence, hot field cache and fingerprint, refreshes affected caches/search, then notifies per committed file before another await. The prepared-state callback is exactly once and expires when its publisher returns or throws. Semantic no-ops retain zero semantic events. Cancellation preserves committed files and pending current work; it does not automatically request a full rebuild.
+
+Fence awaited work with generation/demand and captured path/mtime/size/current Vault file identity; full-build revisions are keyed by file identity. Supersession, rename and deletion cannot publish stale state or resurrect files. Preserve optimistic creation and incremental create/materialize/dematerialize/rename/deletion behavior. Keep restored previews non-authoritative, hydration progress/watchdog/late-work cancellation intact and demand loss resumable; never clear dirty work before publication. See [indexing architecture](docs/INDEXING_ARCHITECTURE.md).
 
 ### Reuse caches
 
@@ -210,8 +248,8 @@ Layout rules:
 - leave a small gap before children
 - when a friend/challenger strip fits within its lateral band, bottom-align it and let it grow upward; sparse lists must not be vertically centered or stranded near the top
 - overflowing lateral lists remain scrollable; if filtering reduces an overflowed friend/challenger zone to a result set that fits, bottom-align the filtered results too
-- siblings render at 85% normal scale and sit slightly higher
-- sibling expanded descendants inherit the 0.85 multiplier
+- siblings use the configured `siblingRelativeSize` (30%–85%, default 85%) and sit slightly higher
+- sibling expanded descendants inherit the same configured multiplier
 - density uses the same tight node interior padding at every setting
 
 When overflow requires a scroll zone, first-level zones expose a funnel/name filter. Filtering must repack matching nodes rather than hiding nonmatches in place.
@@ -219,11 +257,11 @@ When overflow requires a scroll zone, first-level zones expose a funnel/name fil
 
 ## Mobile and workspace-surface checks
 
-- Do not use undocumented `Platform.isPhone` / `Platform.isTablet`; use `Platform.isMobile` plus shortest-screen-side classification.
+- Use the centralized `readObsidianPresentationEnvironment()` boundary and its pure adapter-local classifier. It preserves available runtime phone/tablet facts before a shortest-side fallback; do not add direct Platform checks in portable code or duplicate classification elsewhere.
 - Phone command palette: only the K-Plex sidepanel opener is offered among surface-opening commands. Generic/ribbon open also routes to sidepanel.
 - Tablet: normal graph tab and sidepanel are both available; pop-out is desktop-only.
 - A touch tap is handled from the pointer stream directly because preventDefault/pan ownership can suppress synthesized click events. Verify tap navigation, one-finger pan, two-finger pinch and long-press context menus together.
-- Sidecar is a real adjacent Obsidian `WorkspaceLeaf`; never mount a faux workspace leaf inside React. Sidecar controls are derived from **pinned-tab adjacency**, not only from whether K-Plex originally created the leaf. Moving an attached pinned tab away must not clear the pin. Closing K-Plex must leave the companion document leaf open. Sidecar fold hides only the K-Plex tab group and must leave an unfold control on the companion group's relevant edge.
+- Sidecar is a real adjacent, K-Plex-owned Obsidian `WorkspaceLeaf`; never adopt an arbitrary pinned/recent/user tab because it is nearby. During startup only re-associate eligible restored remembered-side/content ownership; do not manufacture a split. Moving the managed document away releases ownership and leaves it open. Closing K-Plex leaves the companion document open; Sidecar fold hides only the K-Plex tab group and leaves the recovery control on the companion edge. Preserve combined workspace allocation on moves and keep Sidecar unavailable inside the sidepanel. See the detailed ownership/restoration invariants in `AGENTS.md`.
 
 ## Section-outline checks
 
@@ -232,8 +270,8 @@ When overflow requires a scroll zone, first-level zones expose a funnel/name fil
 - section nodes and outline connectors are visually distinct from semantic graph relations; structural connectors use vertical-spine + horizontal L branches that enter the child at its left-center edge, never the semantic top gate; density 4 should collapse these branches/gaps aggressively rather than merely scaling the ordinary graph spacing
 - Markdown central nodes expose the same lower-left fold square even before section expansion; non-Markdown central nodes do not
 - delayed metadata/index updates may move/add nodes but must preserve graph camera and bounded-list scroll positions; only explicit navigation/initial display may recenter
-- relationship creation uses the shared fuzzy-search component, with both suggesters closed until typing; selecting an existing note must leave ontology editable and commit through a stable-width Link action; new-note actions require a valid globally-unused filename, Markdown is the default Ctrl/Cmd+Enter action, user-hotkeyable Add parent/child/friend/challenger commands are active only while K-Plex is running, new files honor Obsidian `FileManager.getNewFileParent(...)`, and custom ontology values become persisted hierarchy fields/defaults
-- connector unlinking must remain provenance-safe: direct removal is limited to a single frontmatter ontology declaration plus mirrored resolved-link cache entries whose positions are inside that same YAML property block (including block-list items); because Obsidian may omit source positions for YAML links, a positionless generic resolved-link entry may count as the same declaration only after the YAML property block itself is verified to resolve to that target; body links, links in other properties, or other ambiguous cases route through Explain relationship, whose Markdown-backed evidence rows navigate in a new Markdown tab using ephemeral line state
+- relationship creation uses the shared fuzzy-search component, with both suggesters closed until typing; selecting an existing note leaves ontology editable and commits through a stable-width Link action. New-note actions require a valid globally-unused filename; the last successfully used Markdown/available Excalidraw action supplies the primary shortcut (Markdown fallback, never Placeholder). User-hotkeyable Add parent/child/friend/challenger commands require a running K-Plex view; new files honor `FileManager.getNewFileParent(...)`, and custom ontology values persist as hierarchy fields/defaults. Format visible shortcut text through the environment/catalog seam.
+- connector unlinking remains provenance-safe: direct removal is limited to a sole editable frontmatter ontology declaration plus mirrored resolved-link entries inside its YAML block (including lists). A positionless generic cache entry is a mirror only after verifying the block resolves to the same target. Other body/property/inline or competing evidence opens **Connection details**. Its source navigation uses ephemeral line state, prefers the originating view's owned Sidecar, and never recenters the Plex or mutates unrelated leaves; fall back to a Markdown tab.
 - fold/unfold is view state only
 - folded descendants' semantic relations project upward to the visible folded ancestor
 - explanation provenance still identifies the actual hidden declaring section
@@ -380,8 +418,12 @@ Include:
 - what changed
 - whether legacy compatibility is affected
 - whether indexing/search/rendering performance is affected
-- manual test steps
-- confirmation that `npm run build` succeeds
+- actual automated commands, runtime/dependency versions, outcomes and coverage limits; distinguish portable, browser, native and physical-device evidence
+- at most three prioritized outstanding manual tests with workflow/target/expected result and why automation cannot cover them, or state that none are needed
+- confirmation that `npm run verify` and the real build succeed, plus applicable exact-build host checks by the validation agent; unavailable checks remain named and pending
+- architecture ownership, invalidation/lifetime effects, compatibility/migration decisions, cleanup and relevant contract documentation
+
+Keep accepted goldens, timing bounds, import checks and lint rules strict. Intentional product behavior changes require an explained expected-output difference and appropriate regression coverage, not blanket fixture regeneration. Documentation-only contributions use content/link/whitespace checks; do not report unrun runtime suites as evidence. Host validation is tied to exact source/artifact identities and must be rerun when affected code changes.
 
 If the requested deliverable is a patch ZIP, include **only modified/new files** in their repository-relative paths.
 
