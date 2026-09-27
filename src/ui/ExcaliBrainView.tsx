@@ -1,3 +1,6 @@
+/**
+ * Native Obsidian view shells and React-root lifecycle for K-Plex surfaces. View registration IDs stay stable; display titles use the plugin translator.
+ */
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import { createRoot, type Root } from "react-dom/client";
 import type ExcaliBrainPlugin from "../main";
@@ -16,7 +19,8 @@ abstract class BaseKplexView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf, protected plugin: ExcaliBrainPlugin) { super(leaf); }
 
-  getDisplayText(): string { return "K-Plex"; }
+  /** Return the localized native-view title without changing the view registration ID. */
+  getDisplayText(): string { return this.plugin.translator("view.displayName"); }
   getIcon(): string { return "brain-circuit"; }
   protected abstract getSurface(): KplexViewSurface;
 

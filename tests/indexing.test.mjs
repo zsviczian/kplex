@@ -32,15 +32,15 @@ assert(graphBuilderSource.includes("path: file.path, mtime: file.stat.mtime, siz
 assert(graphBuilderSource.includes("this.app.vault.getFileByPath(revision.path) === file"), "Awaited graph work must reject renamed/deleted TFile identities before publication");
 assert(graphBuilderSource.includes("publishFileCommit?: PatchFilePublisher"), "Incremental publication must expose one explicit synchronous per-file commit contract");
 assert(graphIndexSource.includes("private publishIncrementalFile: PatchFilePublisher"), "GraphIndex must own the coherent graph/fingerprint/search/cache observer boundary");
-assert(newRelatedSource.includes('"aria-label": "Create placeholder node"'), "Create-related UI must offer a placeholder-only action");
+assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");
 assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(origin, role"), "Placeholder action must create only a relationship-backed virtual node");
 assert(newRelatedSource.includes("void createNew(defaultCreateType)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
 assert(ghostModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Ghost materialization must support the same Ctrl/Cmd+Enter default action as create-related");
-assert(ghostModalSource.includes('setName("Location")'), "Ambiguous ghost destinations must expose a location dropdown");
-assert(ghostModalSource.includes('setButtonText("Excalidraw")'), "Ghost materialization must offer Excalidraw when the integration is available");
+assert(ghostModalSource.includes('setName(this.translate("common.location"))'), "Ambiguous ghost destinations must expose a localized location dropdown");
+assert(ghostModalSource.includes('setButtonText(this.translate("common.excalidraw"))'), "Ghost materialization must offer localized Excalidraw copy when the integration is available");
 assert(!appSource.includes('void plugin.openSidecar(hostLeaf, page);'), "React mount must not create a sidecar during startup restore; plugin-level restore owns re-association");
 assert(appSource.includes("plugin.isStartupInitializing() && plugin.settings.lastActivePath"), "A restored K-Plex view must keep its persisted center while Obsidian startup tab ordering is unstable");
-assert(appSource.includes('setTitle("Show linked/pinned tab")'), "The pin/link menu must provide an explicit way to reveal the linked document tab");
+assert(appSource.includes('setTitle(translate("app.showLinkedTab"))'), "The pin/link menu must provide an explicit localized way to reveal the linked document tab");
 assert(appSource.includes("plugin.showLinkedDocumentLeaf()"), "Show linked/pinned tab must reveal the actual resolved sync target");
 const ensureSidecarStart = mainSource.indexOf("  private ensureSidecarLeaf(");
 const ensureSidecarEnd = mainSource.indexOf("  async openMarkdownInSidecar(", ensureSidecarStart);
@@ -69,30 +69,30 @@ const settingDefinitionsStart = settingsSource.indexOf("  getSettingDefinitions(
 const settingDefinitionsEnd = settingsSource.indexOf("  getControlValue(", settingDefinitionsStart);
 const settingDefinitionsSource = settingsSource.slice(settingDefinitionsStart, settingDefinitionsEnd);
 assert(!settingDefinitionsSource.includes('name: "Note tab link"'), "Live note-tab synchronization state must not be duplicated in Settings");
-assert(settingDefinitionsSource.includes('name: "Sibling relative size (%)"'));
-assert(settingDefinitionsSource.includes('name: "Cross-link opacity (%)"'));
-assert(settingDefinitionsSource.includes('name: "Node styling"'), "Node styling must be a Visual styling subpage");
-assert(settingDefinitionsSource.includes('name: "Link styling"'), "Link styling must be a Visual styling subpage");
-assert(settingDefinitionsSource.includes('name: "Style property"'), "K-Plex must expose one clear property-value style selector");
-assert(settingDefinitionsSource.includes('name: "Name fields"'), "Display-name field precedence must be configurable");
+assert(settingDefinitionsSource.includes('name: translate("settings.ui.sibling.relative.size")'));
+assert(settingDefinitionsSource.includes('name: translate("settings.ui.cross.link.opacity")'));
+assert(settingDefinitionsSource.includes('name: translate("settings.ui.node.styling")'), "Node styling must be a localized Visual styling subpage");
+assert(settingDefinitionsSource.includes('name: translate("settings.ui.link.styling")'), "Link styling must be a localized Visual styling subpage");
+assert(settingDefinitionsSource.includes('name: translate("settings.ui.style.property")'), "K-Plex must expose one clear localized property-value style selector");
+assert(settingDefinitionsSource.includes('name: translate("settings.ui.name.fields")'), "Display-name field precedence must be configurable through localized UI");
 assert(settingsSource.includes('nameFields: "aliases"'), "Aliases must remain the default display-name field for backward compatibility");
 assert(!settingDefinitionsSource.includes('name: "Primary tag field"'), "Legacy primaryTagField must remain migration-only instead of appearing as a second style selector");
 assert(settingDefinitionsSource.includes('name: translate("styles.nodeTitle")'), "Combined property and imported-tag styles must open through the localized searchable manager");
-assert(settingDefinitionsSource.includes('name: "Relationship-specific styles"'), "Relationship-specific link appearance must open through the searchable manager");
+assert(settingDefinitionsSource.includes('name: translate("settings.ui.relationship.specific.styles")'), "Relationship-specific link appearance must open through the localized searchable manager");
 assert(!settingDefinitionsSource.includes('heading: "Connector styles by ontology"'), "Ontology must not expand one connector-style row per relationship field");
-const ontologyPageStart = settingDefinitionsSource.indexOf('name: "Ontology"');
-const visualStylingPageStart = settingDefinitionsSource.indexOf('name: "Visual styling"');
+const ontologyPageStart = settingDefinitionsSource.indexOf('name: translate("settings.ui.ontology")');
+const visualStylingPageStart = settingDefinitionsSource.indexOf('name: translate("settings.ui.visual.styling")');
 assert(ontologyPageStart >= 0 && visualStylingPageStart > ontologyPageStart);
 const ontologyPageSource = settingDefinitionsSource.slice(ontologyPageStart, visualStylingPageStart);
-assert(!ontologyPageSource.includes('Relationship-specific styles'), "Ontology semantics and visual link styling must stay separate");
-assert(settingsSource.includes('text: "Custom styles"'), "Relationship link styles must default to a compact custom-only view");
-assert(settingsSource.includes('placeholder: "Search relationship properties…"'), "Ontology link styles must be searchable");
-assert(settingsSource.includes('placeholder: "Search node styles…"'), "Property-value node styles must be searchable");
+assert(!ontologyPageSource.includes('settings.ui.relationship.specific.styles'), "Ontology semantics and visual link styling must stay separate");
+assert(settingsSource.includes('text: this.translate("styles.customStyles")'), "Relationship link styles must default to a compact localized custom-only view");
+assert(settingsSource.includes('placeholder: this.translate("styles.searchRelationshipPlaceholder")'), "Ontology link styles must use a localized search placeholder");
+assert(settingsSource.includes('placeholder: this.translate("styles.searchNodePlaceholder")'), "Property-value node styles must use a localized search placeholder");
 assert(settingsSource.includes("class NodeStyleValueSuggest extends AbstractInputSuggest"), "Node style values must use an Obsidian input suggester");
 assert(settingsSource.includes("getIconIds()"), "Lucide icon names must come from Obsidian's live icon registry");
 assert(settingsSource.includes('private displayScope: "custom" | "all"'), "Ontology style filtering must not shadow Modal.scope");
-assert(settingDefinitionsSource.includes('name: "Discovered fields"'), "Ontology discovery must live on a compact subpage");
-assert(settingDefinitionsSource.includes('name: "Review unassigned fields"'), "Unassigned ontology fields must open in a searchable manager");
+assert(settingDefinitionsSource.includes('name: translate("settings.ui.discovered.fields")'), "Ontology discovery must live on a localized compact subpage");
+assert(settingDefinitionsSource.includes('name: translate("settings.ui.review.unassigned.fields")'), "Unassigned ontology fields must open in a localized searchable manager");
 assert(!settingDefinitionsSource.includes('occurrence · assign this discovered property'), "Settings must not dump every unassigned field into the page");
 assert(settingsSource.includes('class UnassignedOntologyManagerModal'), "Unassigned ontology fields need a dedicated manager");
 assert(!settingsSource.includes('instead of expanding the entire collection'), "Settings UI must not contain implementation-facing copy");
@@ -153,7 +153,7 @@ assert(mainSource.includes("this.settlePatchOnlyBacklogIfIdle()"), "Deleting a n
 assert(appSource.includes("plugin.resolveNavigationFallbackPath(activePath)"), "A missing persisted center must fall back through navigation history before the vault root");
 assert(mainSource.includes("this.settings.navigationHistory.length - 1"), "Navigation fallback must walk history newest-to-oldest");
 assert(!appSource.includes("plugin.app.vault.getMarkdownFiles()[0]?.path"), "Startup must not choose an arbitrary first Markdown note when navigation history is exhausted");
-assert(plexGraphSource.includes('setTitle(persistent.file ? "Delete note…" : "Delete placeholder…")'), "Every Markdown/placeholder node context menu must expose deletion");
+assert(plexGraphSource.includes('setTitle(translate(persistent.file ? "graph.deleteNote" : "graph.deletePlaceholder"))'), "Every Markdown/placeholder node context menu must expose localized deletion copy");
 assert(plexGraphSource.includes("plugin.deleteNode(persistent, hostLeaf, isCenter)"), "Node deletion must tell the workflow whether the deleted node is the active center");
 assert(mainSource.includes("this.removeFromNavigationHistory(path)"), "Every deleted node must be removed from navigation history immediately");
 assert(mainSource.includes("const fallback = this.deletionFallbackPath(path)"), "Deleting the active center must choose its replacement from remaining navigation history");
@@ -163,18 +163,18 @@ assert(mainSource.includes("removePropertyReferencesToNode"), "Node deletion mus
 assert(mainSource.includes("normalizedNoteReferenceMatches"), "Property cleanup must still recognize a note link after deleting its backing file makes Obsidian resolution unavailable");
 assert(mainSource.includes("remainingBodyReferences"), "Deletion review must include parser-backed inline body relationships that may not appear in Obsidian's link cache");
 assert(mainSource.includes("new RemainingNodeReferencesModal("), "Body references must be surfaced for manual cleanup rather than rewritten automatically");
-assert(deleteNodeModalSource.includes("Always confirm before deleting files"), "The first delete prompt must capture the persistent file-delete confirmation preference");
-assert(deleteNodeModalSource.includes("I understand, don\'t ask me again"), "Real-file delete confirmations must let the user disable future prompts from the dialog itself");
+assert(deleteNodeModalSource.includes('this.translate("delete.alwaysConfirm")'), "The first delete prompt must use localized copy for the persistent file-delete confirmation preference");
+assert(deleteNodeModalSource.includes('this.translate("delete.dontAskAgain")'), "Real-file delete confirmations must localize the option to disable future prompts");
 assert(mainSource.includes("const preferenceChanged = this.settings.confirmFileDelete !== confirmFileDelete"), "Delete confirmation preferences changed from the dialog must persist even after first use");
 assert(settingsSource.includes("confirmFileDelete: boolean"), "File-delete confirmation preference must be persisted");
 assert(createFolderNoteModalSource.includes('this.modalEl.addClass("kplex-create-folder-note-modal")'), "Folder creation must expose a scoped modal class for responsive layout styling");
 assert(createFolderNoteModalSource.includes('nameSetting.settingEl.addClass("kplex-create-folder-note-name-setting")'), "Folder creation must mark the filename row so the input can use the full modal width");
 assert(createFolderNoteModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Folder creation must use the shared Ctrl/Cmd+Enter create default");
 assert(createFolderNoteModalSource.includes('this.plugin.settings.newNodeDefaultType'), "Folder creation must share the create-child Markdown/Excalidraw default");
-assert(!createFolderNoteModalSource.includes("Create placeholder"), "Folder creation must not offer a placeholder because folders require real files");
+assert(!createFolderNoteModalSource.includes("addRelated.createPlaceholder"), "Folder creation must not offer a placeholder because folders require real files");
 assert(plexGraphSource.includes('const folderChildCreation = node.page.isFolder && gate === "bottom"'), "A folder child gate must be a valid creation drag origin");
 assert(plexGraphSource.includes('if (origin?.isFolder && drag.gate === "bottom")'), "Releasing a dragged folder child gate must open file-only folder creation");
-assert(thoughtNodeSource.includes('"child gate · drag to create a note in this folder"'), "Folder child gates must explain their creation gesture");
+assert(thoughtNodeSource.includes('translate("node.gateFolderChild")'), "Folder child gates must explain their creation gesture through localized copy");
 assert(plexGraphSource.includes("plugin.openCreateInFolderModal(target, hostLeaf)"), "Dropping a regular note gate on a folder may continue to start the secondary file-only folder flow");
 assert(mainSource.includes("createNewNodeInFolder(folder: GraphPage"), "Folder creation must materialize directly in the selected folder");
 assert(newRelatedSource.includes('className: "kplex-add-related-control-row"'), "Ontology and open-for-editing controls must share the first responsive row");
@@ -190,17 +190,17 @@ assert(!appSource.includes("plugin.settings.toolbarExpanded ?"), "Visibility con
 assert(plexFilterSource.includes("kplex-filter-visibility-grid"), "Node-type visibility controls must live in the Filter / Graph Lenses popover");
 assert(plexFilterSource.includes('option value="connections-desc"'), "Filter panel must expose connection-count sorting");
 assert(simpleFilterSource.includes("buildGraphLensSimpleConditionExpression"), "Quick filter must compile through the same field/operator model as Graph Lenses");
-assert(plexFilterSource.includes('label: "does not have tag"'), "Quick lens must expose an explicit negative tag filter");
-assert(!appSource.includes('title="Refresh K-Plex"'), "Manual full-index rebuild must stay out of the always-visible toolbar");
+assert(plexFilterSource.includes('label: translate("filter.operatorDoesNotHaveTag")'), "Quick lens must expose an explicit localized negative tag filter");
+assert(!appSource.includes('translate("toolbar.refreshKplex")'), "Manual full-index rebuild must stay out of the always-visible toolbar");
 assert(!appSource.includes('icon={isPinned ? "bookmark-check" : "bookmark"}'), "Pinning belongs in node context menus, not the toolbar");
 assert(appSource.includes('toggleToolbarSetting("renderAlias")'), "Display aliases must be an always-visible presentation toggle");
-assert(!plexFilterSource.includes('["renderAlias", "Aliases"]'), "Display aliases is presentation state, not a graph filter");
-assert(plexFilterSource.indexOf('>Node order<') < plexFilterSource.indexOf('>Quick lens<'), "Node order must precede Quick lens");
-assert(plexFilterSource.indexOf('>Quick lens<') < plexFilterSource.indexOf('>Graph lenses<'), "Quick lens must precede Graph lenses");
+assert(!plexFilterSource.includes('"renderAlias"'), "Display aliases is presentation state, not a graph filter");
+assert(plexFilterSource.indexOf('translate("filter.nodeOrder")') < plexFilterSource.indexOf('translate("filter.quickLens")'), "Node order must precede Quick lens");
+assert(plexFilterSource.indexOf('translate("filter.quickLens")') < plexFilterSource.indexOf('translate("filter.graphLenses")'), "Quick lens must precede Graph lenses");
 assert(plexFilterSource.includes("data-kplex-long-press-tooltip"), "Filter toggles must expose touch-friendly tooltips");
-assert(newRelatedSource.includes('{ value: "previous", label: "Previous" }') && newRelatedSource.includes('{ value: "next", label: "Next" }'), "Add-note relationship dropdown must include previous and next");
+assert(newRelatedSource.includes('{ value: "previous", label: this.plugin.translator("role.previous") }') && newRelatedSource.includes('{ value: "next", label: this.plugin.translator("role.next") }'), "Add-note relationship dropdown must include localized previous and next labels");
 assert(newRelatedSource.includes('className: "kplex-create-alias-input"'), "Add-note dialog must retain its optional alias editor");
-assert(plexGraphSource.includes('.setTitle("Add note…")'), "Node context menus must expose Add note");
+assert(plexGraphSource.includes('.setTitle(translate("graph.addNote"))'), "Node context menus must expose localized Add note copy");
 assert(plexGraphSource.includes("TOUCH_GATE_LONG_PRESS_MS"), "Touch gate long-press must enter relationship drag mode");
 assert(plexGraphSource.includes("Keep a deliberate gate hold stationary"), "A gate hold must not pan the canvas before becoming a relationship drag");
 assert(plexGraphSource.includes("NODE_RELINK_MIN_DRAG_PX"), "Small accidental node nudges must not trigger relationship relinking");
@@ -978,8 +978,8 @@ try {
   assert.equal(currentTargetExpression, "evidence.declaredTargetPath == this.path");
   assert.equal(tryParseGraphLensSimpleExpression(currentTargetExpression).conditions[0].value, "$this");
 
-  assert.match(validateGraphLensExpression('"working-on"') ?? "", /must reference/i, "A bare string selector must not silently hide the Plex");
-  assert.match(validateGraphLensExpression('edge.role == "working-on"') ?? "", /relationship property/i, "Invalid edge.role values should point users toward edge.definition");
+  assert.deepEqual(validateGraphLensExpression('"working-on"'), { code: "selector-reference-required" }, "A bare string selector must not silently hide the Plex");
+  assert.deepEqual(validateGraphLensExpression('edge.role == "working-on"'), { code: "unknown-edge-role", value: "working-on" }, "Invalid edge.role values should point users toward edge.definition");
 
   assert.equal(sanitizeGraphLensDefinitions([{ id: "legacy", name: "Working-on", enabled: true, scope: "edge", mode: "include", expression: '"working-on"' }])[0].expression, 'edge.definition.equals("working-on")');
   assert.equal(sanitizeGraphLensDefinitions([{ id: "legacy-role", name: "Working-on", enabled: true, scope: "edge", mode: "include", expression: 'edge.role == "working-on"' }])[0].expression, 'edge.definition.equals("working-on")');
@@ -1068,7 +1068,7 @@ try {
   expectNoRole("Note X.md", "child", "Note Y.md");
   const explainXY = index.explainRelationship("Note X.md", "Note Y.md");
   assert(explainXY);
-  assert.match(explainXY.summary, /Frontmatter ontology takes precedence/i);
+  assert.equal(explainXY.summary, "ontology-precedence");
   assert(explainXY.decisions.some((d) => d.active && d.evidence.sourceKind === "frontmatter-ontology" && d.evidence.declaredRole === "parent"));
   assert(explainXY.decisions.some((d) => !d.active && d.evidence.sourceKind === "inline-ontology" && d.evidence.declaredRole === "child"));
   assert(explainXY.decisions.some((d) => d.active && d.evidence.sourceKind === "obsidian-link"));
@@ -1097,7 +1097,7 @@ try {
   expectNoRole("Note Y.md", "parent", "Note X.md");
   const explainYX = index.explainRelationship("Note Y.md", "Note X.md");
   assert(explainYX);
-  assert.match(explainYX.summary, /Frontmatter ontology takes precedence/i);
+  assert.equal(explainYX.summary, "ontology-precedence");
   assert(explainYX.decisions.some((d) => d.active && d.evidence.sourceKind === "frontmatter-ontology" && d.evidence.declaredRole === "parent"));
   assert(explainYX.decisions.some((d) => !d.active && d.evidence.sourceKind === "inline-ontology" && d.evidence.declaredRole === "child"));
 
@@ -1105,7 +1105,7 @@ try {
   expectRole("Note A.md", "left", "Note G.md", RelationType.DEFINED);
   const explainAG = index.explainRelationship("Note A.md", "Note G.md");
   assert(explainAG);
-  assert.match(explainAG.summary, /Multiple active defined ontology roles conflict/i);
+  assert.equal(explainAG.summary, "conflicting-defined-roles");
   assert.equal(explainAG.decisions.filter((d) => !d.active).length, 0);
 
   // Reciprocal ordinary links become inferred friends.
@@ -1207,7 +1207,7 @@ try {
   assert.equal(index.get("2026-09-20"), undefined, "Raw ISO Date property values are not graph filenames");
   const explainDate = index.explainRelationship("Note B.md", "Daily/2026/09/20260920.md");
   assert(explainDate?.decisions.some((d) => d.evidence.sourceKind === "date-property" && d.evidence.fieldName === "follow-up-date"));
-  assert.match(explainDate?.summary ?? "", /Date property/i);
+  assert.equal(explainDate?.summary, "date-property");
 
   // URL frontmatter ontology and reverse/secondary cases.
   expectRole("Note B.md", "parent", "https://source.com/frontmatter", RelationType.DEFINED);

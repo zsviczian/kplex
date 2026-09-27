@@ -1,3 +1,6 @@
+/**
+ * Host-free, typed localization lookup with validated parameters, plural forms and locale fallback. Developer diagnostics remain English; consumers inject the translator into presentation.
+ */
 import { englishCatalog, type EnglishCatalog } from "./en";
 
 type PrimitiveParam = string | number;
@@ -20,6 +23,11 @@ type TranslationArgs<K extends TranslationKey> = [ParamName<K>] extends [never]
 
 export type Translator = <K extends TranslationKey>(key: K, ...args: TranslationArgs<K>) => string;
 export type { TranslationKey };
+
+/** Catalog keys that can safely appear in label tables without interpolation parameters. */
+export type PlainTranslationKey = {
+  [K in TranslationKey]: [ParamName<K>] extends [never] ? K : never;
+}[TranslationKey];
 
 const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
 const PLURAL_CATEGORIES = new Set(["zero", "one", "two", "few", "many", "other"]);

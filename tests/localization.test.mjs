@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { auditUserCopy } from "./support/localizationAudit.mjs";
 import { createRequire } from "node:module";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -42,12 +43,23 @@ const portableTemp = compileModules([
   "src/lang/index.ts",
   "src/core/contracts/presentationEnvironment.ts",
   "src/core/plex/shortcutPresentation.ts",
+  "src/core/plex/predicate.ts",
+  "src/core/plex/predicateParser.ts",
   "src/ui/features/searchPresentation.ts",
+  "src/ui/features/positionPresentation.ts",
 ]);
 process.on("exit", () => rmSync(portableTemp, { recursive: true, force: true }));
 const localization = require(join(portableTemp, "src/lang/index.js"));
 const shortcut = require(join(portableTemp, "src/core/plex/shortcutPresentation.js"));
 const searchPresentation = require(join(portableTemp, "src/ui/features/searchPresentation.js"));
+
+const shortcutLabels = {
+  shift: "Shift",
+  command: "Command",
+  control: "Control",
+  option: "Option",
+  alt: "Alt",
+};
 
 function environment({ keyConvention = "macos", keyboard = true, pointer = true, touch = false } = {}) {
   return {
@@ -145,19 +157,19 @@ test("future locales use their own plural categories rather than English count e
 
 test("shortcut formatter is deterministic across desktop and explicit mobile keyboard conventions", () => {
   const modF = { key: "F", modifiers: ["mod"] };
-  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "macos" })), "Command+F");
-  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "windows" })), "Control+F");
-  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "ios" })), "Command+F");
-  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "android" })), "Control+F");
-  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "unknown" })), null);
-  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment({ keyConvention: "macos" })), "F4");
-  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment({ keyConvention: "windows" })), "F4");
+  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "macos" }), shortcutLabels), "Command+F");
+  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "windows" }), shortcutLabels), "Control+F");
+  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "ios" }), shortcutLabels), "Command+F");
+  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "android" }), shortcutLabels), "Control+F");
+  assert.equal(shortcut.formatShortcut(modF, environment({ keyConvention: "unknown" }), shortcutLabels), null);
+  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment({ keyConvention: "macos" }), shortcutLabels), "F4");
+  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment({ keyConvention: "windows" }), shortcutLabels), "F4");
 });
 
 test("shortcut hints are omitted for unavailable, touch-only and unknown-keyboard actions", () => {
-  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment(), false), null);
-  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment({ keyboard: false, pointer: false, touch: true })), null);
-  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment({ keyConvention: "ios", keyboard: "unknown", pointer: false, touch: true })), null);
+  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment(), shortcutLabels, false), null);
+  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment({ keyboard: false, pointer: false, touch: true }), shortcutLabels), null);
+  assert.equal(shortcut.formatShortcut(shortcut.SEARCH_FOCUS_SHORTCUT, environment({ keyConvention: "ios", keyboard: "unknown", pointer: false, touch: true }), shortcutLabels), null);
 });
 
 test("displayed search hint matches a gesture the production handler accepts", () => {
@@ -246,6 +258,23 @@ test("Obsidian language adapter calls the host getLanguage export and retains En
   }
 });
 
+test("production UI sinks reject literal user-facing copy outside the English catalog", () => {
+  const sourceRoot = join(root, "src");
+  const files = [];
+  const visitDirectory = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) visitDirectory(path);
+      else if (/\.tsx?$/.test(entry.name) && path !== join(sourceRoot, "lang/en.ts")) files.push(path);
+    }
+  };
+  visitDirectory(sourceRoot);
+
+  const violations = files.flatMap((sourcePath) => auditUserCopy(readFileSync(sourcePath, "utf8"), relative(root, sourcePath)));
+
+  assert.deepEqual(violations, [], `User-facing literals must live in src/lang/en.ts:\n${violations.join("\n")}`);
+});
+
 test("representative production consumers preserve command ids and existing English copy", () => {
   const main = readFileSync(join(root, "src/main.ts"), "utf8");
   const app = readFileSync(join(root, "src/ui/App.tsx"), "utf8");
@@ -268,4 +297,87 @@ test("representative production consumers preserve command ids and existing Engl
     "Search nodes",
     "K-Plex indexed {count} nodes.",
   ]) assert(catalog.includes(exact), `catalog lost existing English wording: ${exact}`);
+});
+
+
+test("localization gate catches nested UI literals but preserves diagnostics and stable tokens", () => {
+  for (const source of [
+    'new Notice(ok ? "Saved" : "Failed");',
+    'button.setText(value ?? "Fallback");',
+    '<button aria-label={enabled ? "Enable" : "Disable"} />;',
+    '<span>{`Updated ${count} notes`}</span>;',
+    'element.textContent = "Missing file";',
+    'element.setAttribute("aria-label", "Open graph");',
+    'dropdown.addOption("stable-id", "Option label");',
+    'dropdown.addOptions({ stable: "Visible option" });',
+    'React.createElement("span", null, "Visible child");',
+    'const settings = { control: () => {}, name: "Setting name", desc: "Setting help" };',
+    'const page = { type: "page", name: "Settings page", items: [] };',
+    'plugin.addCommand({ id: "stable-id", name: "Visible command", callback: () => {} });',
+  ]) assert(auditUserCopy(source).length > 0, `missed user copy: ${source}`);
+  assert.deepEqual(auditUserCopy(`
+    console.error("English diagnostic");
+    throw new Error("Developer invariant");
+    const persisted = { name: "Vault property", id: "stable-id" };
+    new Notice(translate("notice.indexedNodes", { count: size }));
+    <span>{kind === "folder" ? translate("role.parent") : userName}</span>;
+    element.setAttribute("data-id", "stable-id");
+    dropdown.addOption("stable-id", translate("role.parent"));
+  `), []);
+});
+
+test("physical positions embedded in sentences use catalog labels", () => {
+  const positions = require(join(portableTemp, "src/ui/features/positionPresentation.js"));
+  const translate = localization.createTranslator("xx", { xx: {
+    "position.physicalLeft": { message: "LEFT_TRANSLATED", context: "Synthetic localized physical side.", params: [] },
+  } });
+  assert.equal(positions.physicalPositionLabel("left", translate), "LEFT_TRANSLATED");
+  assert.equal(localization.createTranslator("en")("node.gateEmpty", { gate: positions.physicalPositionLabel("left", localization.createTranslator("en")) }), "left gate · no relationships");
+});
+
+
+test("structured parser failures preserve accepted English and support future localized feedback", () => {
+  const sourcePath = join(root, "src/ui/PlexFilter.tsx");
+  const file = ts.createSourceFile(sourcePath, readFileSync(sourcePath, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const declarations = file.statements.filter((node) => ts.isFunctionDeclaration(node) &&
+    ["graphLensExpectedTokenLabel", "graphLensValidationMessage"].includes(node.name?.text));
+  assert.equal(declarations.length, 2, "the production formatters must remain available for contract validation");
+  const output = ts.transpileModule(declarations.map((node) => node.getText(file)).join("\n") +
+    "\nexport { graphLensValidationMessage };", { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } });
+  const formatterPath = join(portableTemp, "validationPresentation.js");
+  writeFileSync(formatterPath, output.outputText);
+  const { graphLensValidationMessage: format } = require(formatterPath);
+  const parser = require(join(portableTemp, "src/core/plex/predicateParser.js"));
+  const accepted = JSON.parse(readFileSync(join(root, "tests/fixtures/l01-parser-errors.json"), "utf8"));
+  for (const { source, message } of accepted) {
+    const result = parser.tryParseGraphPredicateExpression(source);
+    assert.equal(typeof result.error, "object");
+    assert.equal(format({ code: "parse", issue: result.error }, localization.createTranslator("en")), message, source);
+  }
+  const future = localization.createTranslator("xx", { xx: {
+    "filter.validationEmptyExpression": { message: "EMPTY_TRANSLATED {position}", context: "Synthetic parser feedback.", params: ["position"] },
+  } });
+  assert.equal(format({ code: "parse", issue: parser.tryParseGraphPredicateExpression("").error }, future), "EMPTY_TRANSLATED 1");
+  assert.equal(format({ code: "unknown-edge-role", value: "custom-role" }, localization.createTranslator("en")),
+    'Unknown Plex position “custom-role”. To match a relationship property such as working-on, use Relationship property in Simple view (edge.definition in Code view).');
+});
+
+
+test("semantic relationship reasons preserve accepted explanation wording at the UI boundary", () => {
+  const path = join(root, "src/ui/RelationshipExplanationModal.ts");
+  const file = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
+  const formatters = file.statements.filter((node) => ts.isFunctionDeclaration(node) &&
+    ["relationshipSummaryLabel", "suppressionReasonLabel"].includes(node.name?.text));
+  assert.equal(formatters.length, 2);
+  const output = ts.transpileModule('const ONTOLOGY_PRECEDENCE_SUPPRESSION = "frontmatter-overrides-body-ontology";\n' +
+    formatters.map((node) => node.getText(file)).join("\n") +
+    "\nexport { relationshipSummaryLabel, suppressionReasonLabel };", { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021 } });
+  const outputPath = join(portableTemp, "relationshipPresentation.js");
+  writeFileSync(outputPath, output.outputText);
+  const { relationshipSummaryLabel, suppressionReasonLabel } = require(outputPath);
+  const accepted = JSON.parse(readFileSync(join(root, "tests/fixtures/l01-relationship-summaries.json"), "utf8"));
+  const translate = localization.createTranslator("en");
+  for (const [code, sentence] of Object.entries(accepted)) assert.equal(relationshipSummaryLabel(code, translate), sentence, code);
+  assert.equal(suppressionReasonLabel("frontmatter-overrides-body-ontology", translate),
+    "Conflicting body ontology is overridden by frontmatter ontology for this note pair.");
 });

@@ -1,3 +1,6 @@
+/**
+ * Legacy host composition for persisted Graph Lenses, sanitation and portable predicate compilation. Validation returns structured issues; UI consumers own names and error copy.
+ */
 import type { GraphPage, LinkStyle, NodeStyle, StrokeStyle, FillStyle } from "../types";
 import { createLegacyEvidenceProvider, lensCandidateFromLegacy, type LegacyEvidenceSource } from "../adapters/obsidian/predicateContracts";
 import { matchesPortableLenses, portableLensStyle } from "../core/plex/lens";
@@ -9,7 +12,7 @@ import {
   type GraphPredicateExpression,
   type GraphPredicateValue,
 } from "./GraphPredicate";
-import { tryParseGraphPredicateExpression } from "./GraphPredicateParser";
+import { tryParseGraphPredicateExpression, type PredicateParseIssue } from "./GraphPredicateParser";
 
 export type GraphLensScope = "node" | "edge" | "evidence";
 export type GraphLensMode = "include" | "exclude" | "style";
@@ -35,7 +38,14 @@ export type CompiledGraphLens = GraphLensDefinition & {
   predicate: CompiledGraphPredicate;
 };
 
-export type GraphLensCompileError = { id: string; name: string; error: string };
+export type GraphLensValidationIssue =
+  | { code: "parse"; issue: PredicateParseIssue }
+  | { code: "selector-reference-required" }
+  | { code: "unknown-edge-role"; value: string }
+  | { code: "unknown-edge-kind"; value: string }
+  | { code: "unknown-edge-direction"; value: string };
+
+export type GraphLensCompileError = { id: string; name: string; error: GraphLensValidationIssue };
 
 export type CompiledGraphLensSet = {
   lenses: CompiledGraphLens[];
@@ -77,8 +87,9 @@ function migrateEarlyCheckpointLensExpression(scope: GraphLensScope, source: str
   return `edge.definition.equals(${JSON.stringify(value)})`;
 }
 
-function graphLensSemanticError(expression: GraphPredicateExpression): string | null {
-  const inspect = (item: GraphPredicateExpression): string | null => {
+/** Validate enum-valued relationship selectors recursively and return the first structured issue without formatting English. */
+function graphLensSemanticError(expression: GraphPredicateExpression): GraphLensValidationIssue | null {
+  const inspect = (item: GraphPredicateExpression): GraphLensValidationIssue | null => {
     if (item.kind === "all" || item.kind === "any") {
       for (const child of item.expressions) {
         const error = inspect(child);
@@ -99,10 +110,10 @@ function graphLensSemanticError(expression: GraphPredicateExpression): string | 
     if (!property || value === null) return null;
     const normalized = value.trim().toLocaleLowerCase();
     if (property === "edge.role" && !VALID_EDGE_ROLES.has(normalized)) {
-      return `Unknown Plex position “${value}”. To match a relationship property such as working-on, use Relationship property in Simple view (edge.definition in Code view).`;
+      return { code: "unknown-edge-role", value };
     }
-    if (property === "edge.kind" && !VALID_EDGE_KINDS.has(normalized)) return `Unknown relationship kind “${value}”. Use defined or inferred.`;
-    if (property === "edge.direction" && !VALID_EDGE_DIRECTIONS.has(normalized)) return `Unknown relationship direction “${value}”. Use from, to, or both.`;
+    if (property === "edge.kind" && !VALID_EDGE_KINDS.has(normalized)) return { code: "unknown-edge-kind", value };
+    if (property === "edge.direction" && !VALID_EDGE_DIRECTIONS.has(normalized)) return { code: "unknown-edge-direction", value };
     return null;
   };
   return inspect(expression);
@@ -157,6 +168,7 @@ export function createGraphLensId(): string {
   return `lens-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Validate persisted lens records and retain their stable keys/expressions; blank names stay data, with the display fallback owned by UI. */
 export function sanitizeGraphLensDefinitions(value: unknown): GraphLensDefinition[] {
   if (!Array.isArray(value)) return [];
   const output: GraphLensDefinition[] = [];
@@ -173,7 +185,7 @@ export function sanitizeGraphLensDefinitions(value: unknown): GraphLensDefinitio
     ids.add(id);
     output.push({
       id,
-      name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : "Untitled lens",
+      name: typeof raw.name === "string" ? raw.name.trim() : "",
       enabled: raw.enabled === true,
       scope,
       mode: raw.mode === "exclude" ? "exclude" : raw.mode === "style" ? "style" : "include",
@@ -184,6 +196,7 @@ export function sanitizeGraphLensDefinitions(value: unknown): GraphLensDefinitio
   return output;
 }
 
+/** Compile enabled lenses through the shared parser/evaluator and collect structured failures and lazy property dependencies. */
 export function compileGraphLensDefinitions(definitions: readonly GraphLensDefinition[]): CompiledGraphLensSet {
   const lenses: CompiledGraphLens[] = [];
   const errors: GraphLensCompileError[] = [];
@@ -193,12 +206,12 @@ export function compileGraphLensDefinitions(definitions: readonly GraphLensDefin
     if (!lens.enabled) continue;
     const parsed = tryParseGraphPredicateExpression(lens.expression);
     if (!parsed.expression) {
-      errors.push({ id: lens.id, name: lens.name, error: parsed.error ?? "Invalid expression" });
+      errors.push({ id: lens.id, name: lens.name, error: { code: "parse", issue: parsed.error ?? { code: "invalid-expression", position: 1 } } });
       continue;
     }
     const predicate = compileGraphPredicate(parsed.expression);
     if (predicate.dependencies.namespaces.size === 0) {
-      errors.push({ id: lens.id, name: lens.name, error: "The selector must reference a note, relationship, evidence, file, or this." });
+      errors.push({ id: lens.id, name: lens.name, error: { code: "selector-reference-required" } });
       continue;
     }
     const semanticError = graphLensSemanticError(parsed.expression);
@@ -213,11 +226,12 @@ export function compileGraphLensDefinitions(definitions: readonly GraphLensDefin
   return { lenses, errors, usesFrontmatter, noteProperties };
 }
 
-export function validateGraphLensExpression(expression: string): string | null {
+/** Validate syntax, selector dependencies and relationship enum values for editor feedback without producing UI text. */
+export function validateGraphLensExpression(expression: string): GraphLensValidationIssue | null {
   const parsed = tryParseGraphPredicateExpression(expression);
-  if (!parsed.expression) return parsed.error ?? "Invalid expression";
+  if (!parsed.expression) return { code: "parse", issue: parsed.error ?? { code: "invalid-expression", position: 1 } };
   const predicate = compileGraphPredicate(parsed.expression);
-  if (predicate.dependencies.namespaces.size === 0) return "The selector must reference a note, relationship, evidence, file, or this.";
+  if (predicate.dependencies.namespaces.size === 0) return { code: "selector-reference-required" };
   return graphLensSemanticError(parsed.expression);
 }
 
