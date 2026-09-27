@@ -16,49 +16,41 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
+
 ### Current transfer
 
-**State: main-agent review and native validation complete; ready for maintainer review / authorization. Changes remain uncommitted.**
+**State: main-agent review and automated/CLI validation complete; one native File Explorer drag check remains for maintainer confirmation. Changes remain uncommitted.**
 
-- Sender → recipient: main validation agent → maintainer.
-- Kind: validation report / maintainer acceptance request.
-- Objective: add complete bundled German, French, Spanish, Dutch, Japanese, Traditional Chinese and Russian translations for the existing K-Plex localization catalog without changing persisted identifiers, vault content or English fallback behavior.
-- Base commit/branch: `translations` at `aa8ffbe3eb2b64b92aaf0f8abf96a92cdcd264b2`.
-- Environment & capabilities: Node v22.22.2, npm 10.9.7, global TypeScript 5.8.3, Obsidian CLI 1.14.2 (installer 1.14.0), native test vault `/Users/zsviczian/Obsidian/kplex-test`.
+- Sender → recipient: offline development agent → main validation agent → maintainer.
+- Kind: issue #30 feature implementation / return review.
+- Objective: dragging one Markdown note from Obsidian File Explorer onto K-Plex makes that note central in the same surface. The maintainer clarified this is an Obsidian-internal File Explorer gesture, not an operating-system file drop.
+- Base branch/commit: `drop-to-open-file` at `54c539f` (`54c539ffa00117ae39fe652fd2376bca3729d049`). Incoming changes were uncommitted in `HANDOFF.md`, `src/ui/App.tsx`, `tests/indexing.test.mjs`, `tests/presentation-environment.test.mjs`, and new `src/adapters/obsidian/fileExplorerDrag.ts`.
+- Main-agent environment: Node v22.22.2, npm dependencies installed with `npm ci`, Obsidian CLI 1.14.2 (installer 1.14.0), installed `obsidian` types 1.13.0, macOS 14.5, explicit disposable vault `kplex-test` at `/Users/zsviczian/Obsidian/kplex-test`.
 
-### Scope and implementation reviewed
+### Implementation and review
 
-- Added exhaustive locale catalogs under `src/lang/` for `de`, `fr`, `es`, `nl`, `ja`, `zh-TW` and `ru`. Each catalog covers all 813 keys in the English source catalog.
-- Added `src/lang/catalog.ts`, a host-free typed catalog builder that retains the English source entry's translator context, interpolation parameter list and plural `countParam` while locale files provide only translated display text.
-- Registered all seven catalogs as bundled defaults in `src/lang/index.ts`. Exact-locale → base-language → English fallback remains intact (e.g. `de-DE` resolves via `de`, `zh-TW` via Traditional Chinese catalog, and unknown locales fall back to English).
-- Locale plural forms cover the categories required by `Intl.PluralRules`: German/Dutch `one, other`; French/Spanish `one, many, other`; Japanese/Traditional Chinese `other`; Russian `one, few, many, other`.
-- Preserved technical/product names (`K-Plex`, `Obsidian`, `Excalidraw`, `Markdown`, `Sidecar`, persisted IDs/keys).
-- Updated `docs/LOCALIZATION.md` and `docs/ARCHITECTURE.md` to document the bundled language catalogs, shared builder, and plural requirements.
-- Updated `tests/localization.test.mjs` to test bundled catalog completeness, representative localized lookup, and exact/base/English fallback.
-- **Review fix applied**: Added the 8 new lang modules (`catalog.ts`, `de.ts`, `es.ts`, `fr.ts`, `ja.ts`, `nl.ts`, `ru.ts`, `zh-TW.ts`) to `tests/indexing.test.mjs` compilation list so that `node scripts/run-indexing-tests.mjs` resolves `src/lang/index.ts` imports during testing.
+- The new `src/adapters/obsidian/fileExplorerDrag.ts` isolates Obsidian's untyped `app.dragManager.draggable` payload. It accepts only `type: "file"` or a one-element `type: "files"` payload, resolves the current Vault file by path, and returns only Markdown files. This follows the existing internal drag-manager pattern in the sibling Excalidraw plugin and fails closed for unsupported payloads.
+- `src/ui/App.tsx` handles the supported drop on both the normal graph surface and initial empty/indexing surface. Indexed files use the existing `activate()` path. An unindexed file is held by `TFile` identity until a later index publication; deletion/replacement clears it, while rename/move can follow the updated file path.
+- Review found that a queued unindexed drop could override a later user navigation. `activate()` now clears the pending drop whenever a newer explicit navigation occurs. A live-host probe covers that ordering.
+- The incoming test change had removed unrelated assertions for the desktop draggable-dialog behavior. The review restored those regression guards. Adapter cases and the new surface/pending/cancellation guards remain in `tests/presentation-environment.test.mjs` and `tests/indexing.test.mjs`.
+- No persisted schema, settings, command IDs, UI copy, styles, or vault content changed. Pending state is view-local and is not persisted.
 
-### Main-agent validation results
+### Validation performed by the main agent
 
-1. **`npm run verify` on Node v22.22.2**:
-   - `check:architecture`: PASS (7/7 tests, 44 migrated roots, 85 reachable files, 0 violations).
-   - `check:core`: PASS (58/58 tests).
-   - `lint:obsidian`: PASS (eslint `src/**/*.{ts,tsx}` with 0 errors and 0 warnings).
-   - `test`: PASS. `run-indexing-tests.mjs` passed all assertion sets (1–33, P1–P17, 34–50, 51–59, 60–66, 67–68, placeholder/ghost); 102/102 unit/collector/contract tests passed (including 18/18 localization tests); 5/5 browser behavior tests in `tests/ui-components.test.mjs` passed.
-   - `build`: PASS (`tsc --noEmit --skipLibCheck && node esbuild.config.mjs production`).
+- `npm ci` under Node v22.22.2 → PASS; 317 packages installed, no reported vulnerabilities.
+- `npm run verify` → PASS on the reviewed source: architecture checker (45 migrated roots, 86 reachable files, 0 violations), core suite (58/58), lint, indexing fixture, aggregate Node suite (103/103), browser DOM suite (5/5), and production build/type check.
+- `npm run verify:obsidian` → PASS against the explicit `kplex-test` vault using the exact final build. Artifact SHA-256 values matched between `dist/` and the staged plugin bundle; plugin command registration and rendered `.excalibrain-app` containing K-Plex passed with no captured JavaScript errors. Report: `/private/tmp/kplex-drop-final/report.json`.
+- Live CLI/React-host event probes: a single current Markdown `type: "file"` payload was accepted, selected the requested center and added it to navigation history; `type: "link"` and multi-file payloads were ignored without navigation; a temporarily withheld index lookup queued the note and `index.notify()` activated it once available; a subsequent explicit navigation canceled the pending drop. Each probe restored the original center/history and cleared the temporary drag payload.
+- `git diff --check` → PASS. No generated `dist/` output is tracked or part of the change.
+- An initial native runner attempt stopped responding at `dev:errors` after opening K-Plex. The CLI endpoint responded independently, and a complete subsequent `npm run verify:obsidian` passed.
 
-2. **`npm run verify:obsidian` in native test vault `kplex-test`**:
-   - PASS. Artifact hashes verified and staged (`dist/main.js`, `dist/manifest.json`, `dist/styles.css`).
-   - Plugin reload, command registration, rendered `.excalibrain-app` K-Plex view verified with 0 JavaScript errors.
+### Maintainer check still required
 
-3. **Exhaustive translation & plural verification**:
-   - Ran automated validation across all 813 keys in all 8 locales (`en`, `de`, `fr`, `es`, `nl`, `ja`, `zh-TW`, `ru`) with sample parameter values: 6,504 key evaluations verified non-empty with 0 unreplaced placeholders.
-   - Ran plural count validation across counts `[0, 1, 2, 5, 21]` for all plural keys in all 8 locales: 160 plural checks verified non-empty with 0 unreplaced placeholders.
-   - Verified that exact locale normalizations (e.g. `de-DE` -> `de`, `zh_TW` -> `zh-tw`) and unsupported locales (e.g. `zz-ZZ` -> English) resolve correctly.
+1. In Obsidian desktop, perform one real drag from File Explorer: drag a single Markdown note onto the graph area of K-Plex. Confirm that this same K-Plex surface centers on the note once. The CLI probe dispatched the mounted drop handler with Obsidian's drag-manager payload, but did not reproduce an actual pointer drag from File Explorer, so that host gesture remains unverified.
+2. If convenient, verify that dropping a folder, attachment, multiple selected files, or an editor link does not navigate K-Plex. Automated adapter/host probes cover link and multi-file rejection; folder and attachment rejection are adapter-tested. A manual repeat in Sidepanel/popout is only needed if those surfaces are in the intended feature scope.
 
-### Recommended manual check
+Cold/partial indexing was validated by withholding a target from the live index read and publishing an index notification, not by racing a real cold-start index. No manual timing test is required unless the real File Explorer check exposes an issue.
 
-1. Open Obsidian **Settings → About → Language**, select one of the supported languages (e.g., German, French, Spanish, Japanese, Traditional Chinese, or Russian), and reload Obsidian. Open K-Plex settings and K-Plex view to confirm captions, settings labels, and buttons render in the selected language.
+### Remaining risk and next action
 
-### Next action
-
-Awaiting maintainer review and authorization to commit/push the uncommitted changes.
+The sole host-specific dependency is Obsidian's private `dragManager.draggable` shape. If it changes, the adapter rejects the payload and the gesture has no effect. After the prioritized real File Explorer drag check, record the result here for maintainer review; commit/PR actions were not requested in this handoff.

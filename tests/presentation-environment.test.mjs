@@ -40,6 +40,9 @@ process.on("exit", () => rmSync(compiled.temp, { recursive: true, force: true })
 const classified = compilePureModule("src/adapters/obsidian/presentationEnvironmentFacts.ts");
 const obsidianFacts = classified.exports;
 process.on("exit", () => rmSync(classified.temp, { recursive: true, force: true }));
+const fileDragCompiled = compilePureModule("src/adapters/obsidian/fileExplorerDrag.ts");
+const fileExplorerDrag = fileDragCompiled.exports;
+process.on("exit", () => rmSync(fileDragCompiled.temp, { recursive: true, force: true }));
 
 function compileObsidianAdapter() {
   const temp = mkdtempSync(join(tmpdir(), "kplex-obsidian-environment-test-"));
@@ -83,6 +86,38 @@ function environment({
     hostActions: { graphTab, sidepanel, popout },
   };
 }
+
+test("File Explorer drag adapter accepts one current Markdown file and rejects unrelated drags", () => {
+  const note = { path: "Projects/Alpha.md", extension: "md" };
+  const second = { path: "Projects/Beta.md", extension: "md" };
+  const image = { path: "Assets/diagram.png", extension: "png" };
+  const files = new Map([[note.path, note], [second.path, second], [image.path, image]]);
+  const app = {
+    dragManager: { draggable: { type: "file", file: note } },
+    vault: { getFileByPath: (path) => files.get(path) ?? null },
+  };
+
+  assert.equal(fileExplorerDrag.singleFileExplorerDragCandidate(app.dragManager.draggable), note);
+  assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), note);
+
+  app.dragManager.draggable = { type: "files", files: [note] };
+  assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), note, "single selection File Explorer drags should work");
+
+  app.dragManager.draggable = { type: "files", files: [note, second] };
+  assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "multi-file drags must not choose an arbitrary center");
+
+  app.dragManager.draggable = { type: "file", file: image };
+  assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "attachments are not note-navigation drops");
+
+  app.dragManager.draggable = { type: "link", file: note };
+  assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "editor/internal link drags are outside the File Explorer scope");
+
+  app.dragManager.draggable = { type: "file", file: { path: note.path } };
+  assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), note, "the adapter should resolve the current Vault file by path");
+
+  files.delete(note.path);
+  assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "stale drag payloads must not return deleted files");
+});
 
 test("device classifier preserves desktop, explicit phone/tablet flags and shortest-side fallback", () => {
   assert.equal(obsidianFacts.classifyDeviceClass({ isMobile: false, isPhone: true, isTablet: true, screenWidth: 390, screenHeight: 844 }), "desktop");
