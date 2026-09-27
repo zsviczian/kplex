@@ -15,54 +15,50 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
+
 ### Current transfer
 
-**State: accepted and validated; committed for pull request to close issue #36.**
+**State: main-agent review and native validation complete; ready for maintainer review / authorization. Changes remain uncommitted.**
 
 - Sender → recipient: main validation agent → maintainer.
-- Kind: validation report / pull request.
-- Objective: implement GitHub issue #36, “Draggable desktop dialogs to reveal the Plex behind forms,” starting with the Add Link / Add Child (`NewRelatedNoteModal`) flow while preserving native Obsidian modal lifecycle and all existing mobile/tablet behavior.
-- Base commit/branch: `main` at `4d4e0e103d0421298df2146015d21df05758fb0c`.
+- Kind: validation report / maintainer acceptance request.
+- Objective: add complete bundled German, French, Spanish, Dutch, Japanese, Traditional Chinese and Russian translations for the existing K-Plex localization catalog without changing persisted identifiers, vault content or English fallback behavior.
+- Base commit/branch: `translations` at `aa8ffbe3eb2b64b92aaf0f8abf96a92cdcd264b2`.
 - Environment & capabilities: Node v22.22.2, npm 10.9.7, global TypeScript 5.8.3, Obsidian CLI 1.14.2 (installer 1.14.0), native test vault `/Users/zsviczian/Obsidian/kplex-test`.
 
 ### Scope and implementation reviewed
 
-- `src/ui/components/DraggableDialog.ts`: host-free owner-document drag mechanic. It accepts only dialog/handle DOM elements and owns pointer geometry, edge clamping, resize re-clamping, and cleanup; no Obsidian/plugin dependency or global state.
-- `src/ui/NewRelatedNoteModal.ts` and legacy compatibility copy `src/ui/NewRelatedNoteModal.tsx`: opts into dragging through the native title shell only when `readObsidianPresentationEnvironment(...).device === "desktop"`. Byte identity is preserved between the two files.
-- `styles.css`: theme-neutral CSS hooks for `.kplex-draggable-dialog.is-positioned`, grab/grabbing cursors, and cursor reset for interactive children. No hard-coded colors or `!important` rules.
-- `tests/indexing.test.mjs`: source-regression assertions for desktop-only gating, title-shell integration, owner-document pointer capture, and window-teardown cleanup.
-- `tests/ui-components.test.mjs`: headless browser test for form focus preservation, background pointer event isolation, edge clamping, resize clamping, interactive title control exclusion, reopen cleanup, and pop-out document boundary isolation.
+- Added exhaustive locale catalogs under `src/lang/` for `de`, `fr`, `es`, `nl`, `ja`, `zh-TW` and `ru`. Each catalog covers all 813 keys in the English source catalog.
+- Added `src/lang/catalog.ts`, a host-free typed catalog builder that retains the English source entry's translator context, interpolation parameter list and plural `countParam` while locale files provide only translated display text.
+- Registered all seven catalogs as bundled defaults in `src/lang/index.ts`. Exact-locale → base-language → English fallback remains intact (e.g. `de-DE` resolves via `de`, `zh-TW` via Traditional Chinese catalog, and unknown locales fall back to English).
+- Locale plural forms cover the categories required by `Intl.PluralRules`: German/Dutch `one, other`; French/Spanish `one, many, other`; Japanese/Traditional Chinese `other`; Russian `one, few, many, other`.
+- Preserved technical/product names (`K-Plex`, `Obsidian`, `Excalidraw`, `Markdown`, `Sidecar`, persisted IDs/keys).
+- Updated `docs/LOCALIZATION.md` and `docs/ARCHITECTURE.md` to document the bundled language catalogs, shared builder, and plural requirements.
+- Updated `tests/localization.test.mjs` to test bundled catalog completeness, representative localized lookup, and exact/base/English fallback.
+- **Review fix applied**: Added the 8 new lang modules (`catalog.ts`, `de.ts`, `es.ts`, `fr.ts`, `ja.ts`, `nl.ts`, `ru.ts`, `zh-TW.ts`) to `tests/indexing.test.mjs` compilation list so that `node scripts/run-indexing-tests.mjs` resolves `src/lang/index.ts` imports during testing.
 
 ### Main-agent validation results
 
 1. **`npm run verify` on Node v22.22.2**:
-   - `check:architecture`: PASS (7/7 tests, 36 migrated roots, 77 reachable files, 0 violations).
+   - `check:architecture`: PASS (7/7 tests, 44 migrated roots, 85 reachable files, 0 violations).
    - `check:core`: PASS (58/58 tests).
    - `lint:obsidian`: PASS (eslint `src/**/*.{ts,tsx}` with 0 errors and 0 warnings).
-   - `test`: PASS. `run-indexing-tests.mjs` passed all assertion sets without tripping cooperative timing guards on this environment; 101/101 unit/collector/contract tests passed; 5/5 browser behavior tests in `ui-components.test.mjs` passed (including `DraggableDialog owner-document browser behavior` in ~888ms).
+   - `test`: PASS. `run-indexing-tests.mjs` passed all assertion sets (1–33, P1–P17, 34–50, 51–59, 60–66, 67–68, placeholder/ghost); 102/102 unit/collector/contract tests passed (including 18/18 localization tests); 5/5 browser behavior tests in `tests/ui-components.test.mjs` passed.
    - `build`: PASS (`tsc --noEmit --skipLibCheck && node esbuild.config.mjs production`).
 
 2. **`npm run verify:obsidian` in native test vault `kplex-test`**:
    - PASS. Artifact hashes verified and staged (`dist/main.js`, `dist/manifest.json`, `dist/styles.css`).
-   - Plugin reload, command registration, rendered `.excalibrain-app` K-Plex view verified with no captured JavaScript errors.
+   - Plugin reload, command registration, rendered `.excalibrain-app` K-Plex view verified with 0 JavaScript errors.
 
-3. **Live Obsidian pointer & modal runtime verification**:
-   - Opening Add Child modal starts in native centered layout (`is-positioned: false`, no inline `--kplex-dialog-*` coordinates).
-   - Pointerdown on title without movement does not activate positioning.
-   - Pointer drag past 3px threshold moves dialog, sets `--kplex-dialog-left` / `--kplex-dialog-top`, and preserves input focus and typed text.
-   - Interactive controls in title (`select` role dropdown) are excluded from drag initiation and remain operable without moving the modal.
-   - Viewport edge clamping verified against 8px margin (`left: 8px, top: 8px` at top-left; `left: 308px, top: 687px` at bottom-right in 996x795 viewport).
-   - Window resize re-clamps dialog within visible viewport.
-   - Escape closes the modal cleanly.
-   - Reopening returns to native centered positioning with no stale drag coordinates (`leftVar: "", topVar: ""`).
-
-4. **Dialog-scope review for future rollout**:
-   - Inspected `RelationModal` and `RelationshipExplanationModal`. Both use native Obsidian `Modal` with plain text titles and standard lifecycle. Both are confirmed as strong candidates for the next rollout step once the maintainer accepts the current baseline.
+3. **Exhaustive translation & plural verification**:
+   - Ran automated validation across all 813 keys in all 8 locales (`en`, `de`, `fr`, `es`, `nl`, `ja`, `zh-TW`, `ru`) with sample parameter values: 6,504 key evaluations verified non-empty with 0 unreplaced placeholders.
+   - Ran plural count validation across counts `[0, 1, 2, 5, 21]` for all plural keys in all 8 locales: 160 plural checks verified non-empty with 0 unreplaced placeholders.
+   - Verified that exact locale normalizations (e.g. `de-DE` -> `de`, `zh_TW` -> `zh-tw`) and unsupported locales (e.g. `zz-ZZ` -> English) resolve correctly.
 
 ### Recommended manual check
 
-1. Open K-Plex in desktop Obsidian, trigger **Add child** (or **Add parent/friend/challenger**), drag the dialog by its header text to inspect the canvas behind it, change the relationship role dropdown in the title, and close the dialog via Escape or confirm. Expected: smooth dragging, operable role dropdown, and centered layout upon reopen.
+1. Open Obsidian **Settings → About → Language**, select one of the supported languages (e.g., German, French, Spanish, Japanese, Traditional Chinese, or Russian), and reload Obsidian. Open K-Plex settings and K-Plex view to confirm captions, settings labels, and buttons render in the selected language.
 
 ### Next action
 
-Pull request submitted to close issue #36. Ready for maintainer merge.
+Awaiting maintainer review and authorization to commit/push the uncommitted changes.

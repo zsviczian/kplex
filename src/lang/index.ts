@@ -1,7 +1,16 @@
 /**
- * Host-free, typed localization lookup with validated parameters, plural forms and locale fallback. Developer diagnostics remain English; consumers inject the translator into presentation.
+ * Host-free, typed localization lookup with bundled locale catalogs, validated parameters, plural
+ * forms and exact/base/English fallback. Developer diagnostics remain English; presentation receives
+ * the translator through dependency injection rather than reading host language state directly.
  */
 import { englishCatalog, type EnglishCatalog } from "./en";
+import { germanCatalog } from "./de";
+import { spanishCatalog } from "./es";
+import { frenchCatalog } from "./fr";
+import { japaneseCatalog } from "./ja";
+import { dutchCatalog } from "./nl";
+import { russianCatalog } from "./ru";
+import { traditionalChineseCatalog } from "./zh-TW";
 
 type PrimitiveParam = string | number;
 type CatalogEntry = Readonly<{
@@ -31,6 +40,16 @@ export type PlainTranslationKey = {
 
 const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
 const PLURAL_CATEGORIES = new Set(["zero", "one", "two", "few", "many", "other"]);
+
+const bundledLocaleCatalogs: RuntimeLocaleCatalogs = {
+  de: germanCatalog,
+  es: spanishCatalog,
+  fr: frenchCatalog,
+  ja: japaneseCatalog,
+  nl: dutchCatalog,
+  ru: russianCatalog,
+  "zh-tw": traditionalChineseCatalog,
+};
 
 function placeholders(template: string): Set<string> {
   return new Set([...template.matchAll(PLACEHOLDER)].map((match) => match[1]));
@@ -164,10 +183,10 @@ for (const [key, rawEntry] of Object.entries(englishCatalog)) {
 }
 
 /**
- * Create a typed translator for the requested host language. Locale catalogs are optional so L00
- * can ship English only; missing locales/keys fall back to the English source catalog.
+ * Create a typed translator for the requested host language. Bundled locale catalogs are used by
+ * default; callers may inject catalogs for validation/tests. Missing locales/keys fall back to English.
  */
-export function createTranslator(language: string, localeCatalogs: RuntimeLocaleCatalogs = {}): Translator {
+export function createTranslator(language: string, localeCatalogs: RuntimeLocaleCatalogs = bundledLocaleCatalogs): Translator {
   const normalizedCatalogs: Record<string, RuntimeCatalog | undefined> = {};
   for (const [locale, catalog] of Object.entries(localeCatalogs)) {
     if (!catalog) continue;
