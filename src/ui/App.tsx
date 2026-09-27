@@ -1,5 +1,5 @@
 /**
- * Host-bound React shell for K-Plex navigation, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects.
+ * Host-bound React shell for K-Plex navigation, startup guidance, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects.
  */
 import {
   useCallback,
@@ -11,6 +11,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type RefObject,
 } from "react";
 import { Menu, type TFile, type WorkspaceLeaf } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
@@ -25,6 +26,7 @@ import { SearchBox } from "./features/SearchBox";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { getDraggedMarkdownFile } from "../adapters/obsidian/fileExplorerDrag";
 import { ActionButton } from "./components/ActionButton";
+import { InfoBubble } from "./components/InfoBubble";
 import { PlexGraph } from "./PlexGraph";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { EMPTY_PLEX_FILTER, PlexFilter, type GraphFilterLayoutMode, type PlexFilterState, type PlexVisibilitySetting } from "./PlexFilter";
@@ -33,13 +35,32 @@ import { compileGraphLensDefinitions, type GraphLensDefinition } from "../lens/G
 import { installKplexLongPressTooltips } from "./LongPressTooltip";
 
 type BooleanToolbarSetting = PlexVisibilitySetting | "renderAlias";
+type IndexStatus = ReturnType<ExcaliBrainPlugin["getIndexStatus"]>;
 
-function IndexStatusIndicator({ plugin }: { plugin: ExcaliBrainPlugin }) {
+/** Subscribe a mounted K-Plex surface to the host-owned index readiness status. */
+function useIndexStatus(plugin: ExcaliBrainPlugin): IndexStatus {
   const [status, setStatus] = useState(() => plugin.getIndexStatus());
-  useEffect(() => plugin.subscribeIndexStatus(() => setStatus(plugin.getIndexStatus())), [plugin]);
+  useEffect(
+    /** Subscribe through the plugin lifecycle and always read its latest composite status. */
+    () => plugin.subscribeIndexStatus(
+      /** Refresh this surface after the host coordinator changes readiness or activity. */
+      () => setStatus(plugin.getIndexStatus()),
+    ),
+    [plugin],
+  );
+  return status;
+}
+
+/** Render the compact colored index state marker, optionally exposing its node as a callout target. */
+function IndexStatusIndicator({ status, indicatorRef }: {
+  status: IndexStatus;
+  indicatorRef?: RefObject<HTMLSpanElement | null>;
+}) {
   return <span
+    ref={indicatorRef}
     className={`kplex-index-status${status.upToDate ? " is-ready" : " is-updating"}`}
     aria-label={status.label}
+    tabIndex={-1}
   />;
 }
 
@@ -67,6 +88,9 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   environment: PresentationEnvironment;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const indexStatusRef = useRef<HTMLSpanElement>(null);
+  const indexStatus = useIndexStatus(plugin);
+  const [showStartupIndexBubble, setShowStartupIndexBubble] = useState(false);
   const [renderRevision, forceRender] = useState(0);
   const graphSearchRead = useMemo(() => createLegacyGraphSearchRead(plugin.index), [plugin.index]);
   const [plexFilter, setPlexFilter] = useState<PlexFilterState>(EMPTY_PLEX_FILTER);
@@ -210,6 +234,20 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     ?? (fallbackPath ? plugin.index.get(fallbackPath) : undefined)
     ?? plugin.index.get("folder:/");
   const hasPage = Boolean(page);
+
+  useEffect(/** Claim startup guidance after the first useful page, and permanently close it on readiness. */ () => {
+    if (indexStatus.upToDate) {
+      setShowStartupIndexBubble(false);
+      return;
+    }
+    if (!page || !plugin.isKplexLeafVisible(hostLeaf)) return;
+    if (plugin.claimStartupIndexInfoBubble()) setShowStartupIndexBubble(true);
+  }, [plugin, hostLeaf, page?.path, indexStatus.upToDate, renderRevision]);
+
+  /** Keep explicit and outside-pointer/Escape dismissal on the same caller-owned state transition. */
+  const dismissStartupIndexBubble = useCallback((): void => {
+    setShowStartupIndexBubble(false);
+  }, []);
 
   // The first render can show the empty indexing view, which has no rootRef. Attach once the
   // graph root appears, and release the document-scoped listener if it disappears again.
@@ -389,7 +427,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
   >
-    <div className="kplex-index-status-empty"><IndexStatusIndicator plugin={plugin} /></div>
+    <div className="kplex-index-status-empty"><IndexStatusIndicator status={indexStatus} /></div>
     <span>{translate("app.buildingIndex")}</span>
   </div>;
 
@@ -455,7 +493,14 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     <div className="excalibrain-main-column">
       <div className="excalibrain-top-stack">
         <header className="excalibrain-topbar">
-          <IndexStatusIndicator plugin={plugin} />
+          <IndexStatusIndicator status={indexStatus} indicatorRef={indexStatusRef} />
+          <InfoBubble
+            open={showStartupIndexBubble && !indexStatus.upToDate}
+            targetRef={indexStatusRef}
+            message={translate("index.incompleteBubble")}
+            dismissLabel={translate("infoBubble.dismiss")}
+            onDismiss={dismissStartupIndexBubble}
+          />
           <div className="excalibrain-brand"><ObsidianIcon name="brain-circuit" size={20} className="excalibrain-brand-mark" /><strong>{translate("view.displayName")}</strong></div>
           <ActionButton
             label={translate("toolbar.navigateBack")}

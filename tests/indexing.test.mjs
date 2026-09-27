@@ -29,10 +29,22 @@ const simpleFilterSource = readFileSync(join(root, "src/lens/SimplePlexFilter.ts
 const longPressTooltipSource = readFileSync(join(root, "src/ui/LongPressTooltip.ts"), "utf8");
 const graphBuilderSource = readFileSync(join(root, "src/index/GraphBuilder.ts"), "utf8");
 const graphIndexSource = readFileSync(join(root, "src/index/GraphIndex.ts"), "utf8");
+const infoBubbleSource = readFileSync(join(root, "src/ui/components/InfoBubble.tsx"), "utf8");
 assert(graphBuilderSource.includes("path: file.path, mtime: file.stat.mtime, size: file.stat.size"), "Patch/full-build revision fences must capture the source path as well as stat data");
 assert(graphBuilderSource.includes("this.app.vault.getFileByPath(revision.path) === file"), "Awaited graph work must reject renamed/deleted TFile identities before publication");
 assert(graphBuilderSource.includes("publishFileCommit?: PatchFilePublisher"), "Incremental publication must expose one explicit synchronous per-file commit contract");
 assert(graphIndexSource.includes("private publishIncrementalFile: PatchFilePublisher"), "GraphIndex must own the coherent graph/fingerprint/search/cache observer boundary");
+assert(graphBuilderSource.includes("async buildStructuralBaseline()"), "Cold startup must have a low-cost structure/link baseline before Markdown ingestion");
+assert(graphIndexSource.includes("async rebuildProgressively("), "GraphIndex must own progressive cold-start publication");
+assert(mainSource.includes("this.index.rebuildProgressively(this.startupGraphSeedPaths()"), "Initial cold startup must use the progressive index path");
+assert(mainSource.includes('this.performRebuild(false, false, "startup:initial-index", true)'), "Cold startup must not accidentally set the force flag that bypasses progressive publication");
+assert(mainSource.includes("this.index.size > 0 && !structuralDirty && this.dirtyMarkdownPaths.size === 0"), "An empty cold index must not take the clean-index early return");
+const startupSeedSource = mainSource.slice(mainSource.indexOf("  private startupGraphSeedPaths()"), mainSource.indexOf("  /** Resolve a missing center", mainSource.indexOf("  private startupGraphSeedPaths()")));
+assert(startupSeedSource.indexOf("this.settings.lastActivePath") < startupSeedSource.indexOf("this.app.workspace.getActiveFile()"), "Warm/cold previews must prioritize the persisted K-Plex center over transient Obsidian startup focus");
+assert(appSource.includes('translate("index.incompleteBubble")'), "Startup indexing guidance must be localized and anchored from the K-Plex shell");
+assert(appSource.includes("setShowStartupIndexBubble(false)"), "Ready startup must clear bubble state so an ordinary later update cannot reopen it");
+assert(appSource.includes("tabIndex={-1}"), "The startup bubble anchor must accept programmatic focus restoration after Escape");
+assert(infoBubbleSource.includes("onAdvance?: () => void"), "Reusable info bubbles must expose caller-owned sequence advancement for future onboarding/help flows");
 assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");
 assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(origin, role"), "Placeholder action must create only a relationship-backed virtual node");
 assert(newRelatedSource.includes("void createNew(defaultCreateType)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
@@ -471,6 +483,15 @@ const { MetadataParser, MetadataParseCancelledError } = require(join(temp, "src/
 const { RelationType, LinkDirection } = require(join(temp, "src/types.js"));
 const { resolveNodeStyle } = require(join(temp, "src/index/style.js"));
 const { RelationEvidenceStore } = require(join(temp, "src/index/RelationEvidence.js"));
+
+let partialSnapshotWrites = 0;
+await GraphIndex.prototype.persistIndexedDbSnapshot.call({
+  snapshotPersistGeneration: 7,
+  fullSnapshotHydrated: false,
+  state: { pages: new Map([["partial.md", {}]]) },
+  indexedDb: { writeSnapshot: async () => { partialSnapshotWrites += 1; return true; } },
+}, 7);
+assert.equal(partialSnapshotWrites, 0, "A non-authoritative startup preview must never enter snapshot persistence");
 const { buildScene, buildSectionExpandedScene } = require(join(temp, "src/ui/layout.js"));
 const {
   GraphPredicateEngine,
@@ -844,6 +865,39 @@ try {
       .map((query) => [query, index.search(query, 12).map((page) => page.path)])),
   };
   assert.deepEqual(baseline, JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-indexing/graph-baseline.json"), "utf8")));
+
+  // Cold startup publishes a useful center neighborhood before completing the vault, while still
+  // converging exactly on the authoritative full-build graph/search/discovered-field behavior.
+  const progressiveIndex = new GraphIndex(plugin, app);
+  let firstProgressivePublication = null;
+  const unsubscribeProgressive = progressiveIndex.subscribe(() => {
+    if (firstProgressivePublication) return;
+    const center = progressiveIndex.get("Note A.md");
+    firstProgressivePublication = {
+      full: progressiveIndex.isFullSnapshotHydrated(),
+      searchEntryCount: progressiveIndex.searchEntries.length,
+      noteCSearch: progressiveIndex.search("note c", 12).map((page) => page.path),
+      children: center ? progressiveIndex.neighbours(center, "child").map((item) => item.page.path) : [],
+    };
+  });
+  try {
+    assert.equal(await progressiveIndex.rebuildProgressively(["Note A.md"]), true, "Progressive cold build must complete on the fixture");
+    assert(firstProgressivePublication, "Progressive cold build must publish before authoritative completion");
+    assert.equal(firstProgressivePublication.full, false, "First progressive publication must remain explicitly non-authoritative");
+    assert(firstProgressivePublication.children.includes("Note C.md"), "Center body semantics and linked child notes must be available in the first publication");
+    assert(firstProgressivePublication.noteCSearch.includes("Note C.md"), "Search must work against the first published center neighborhood");
+    assert(firstProgressivePublication.searchEntryCount > 0, "Partial startup must install a working search index");
+    assert(firstProgressivePublication.searchEntryCount < progressiveIndex.searchEntries.length, "Search coverage must grow as progressive ingestion completes");
+    assert.equal(progressiveIndex.isFullSnapshotHydrated(), true, "Progressive completion must become authoritative");
+    assert.deepEqual(canonicalGraph(progressiveIndex), baseline.graph, "Progressive cold startup must converge on full-build graph semantics");
+    for (const [query, expected] of Object.entries(baseline.searches)) {
+      assert.deepEqual(progressiveIndex.search(query, 12).map((page) => page.path), expected, `Progressive search parity for ${query}`);
+    }
+    assert.deepEqual(progressiveIndex.discoveredFields(), index.discoveredFields(), "Progressive cold startup must preserve exact discovered-field counts");
+  } finally {
+    unsubscribeProgressive();
+    progressiveIndex.destroy();
+  }
 
   // A custom style selected by the Style property is an explicit user choice. It must remain
   // visible on the central note instead of being masked by the generic central-node appearance.
@@ -1438,8 +1492,23 @@ try {
   };
   try {
     const normal = makeRestoreIndex();
+    let firstWarmPublication = null;
+    const unsubscribeWarmPreview = normal.subscribe(() => {
+      if (firstWarmPublication) return;
+      const center = normal.get("Note A.md");
+      firstWarmPublication = {
+        full: normal.isFullSnapshotHydrated(),
+        noteCSearch: normal.search("note c", 12).map((page) => page.path),
+        children: center ? normal.neighbours(center, "child").map((item) => item.page.path) : [],
+      };
+    });
     const normalResult = await normal.restoreIndexedDbSnapshot(["Note A.md"]);
     assert.equal(normalResult.partial, true);
+    assert(firstWarmPublication, "Warm restore must publish its center neighborhood before full hydration");
+    assert.equal(firstWarmPublication.full, false);
+    assert(firstWarmPublication.children.includes("Note C.md"), "Warm preview must include linked child relationships");
+    assert(firstWarmPublication.noteCSearch.includes("Note C.md"), "Warm preview search must work before full hydration");
+    unsubscribeWarmPreview();
     assert.equal((await normal.waitForSnapshotHydration()).restored, true);
     assert.equal(normal.size, index.size);
     assert.deepEqual(normal.search("Note A").map((page) => page.path), index.search("Note A").map((page) => page.path));

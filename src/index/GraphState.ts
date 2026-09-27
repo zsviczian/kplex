@@ -1,8 +1,9 @@
 import type { GraphPage } from "../types";
 import { RelationEvidenceStore } from "./RelationEvidence";
 
-/** Immutable-at-publication graph snapshot. A builder may mutate a private instance, but GraphIndex
- * only exposes a state after the complete evidence graph has been resolved. */
+/** Published graph repository state. Full replacements are built privately, while runtime patches
+ * and cold progressive startup mutate only through synchronous per-source commit boundaries. A
+ * startup state may therefore be useful before every Markdown source has been ingested. */
 export type GraphState = {
   pages: Map<string, GraphPage>;
   lowercasePathMap: Map<string, string>;

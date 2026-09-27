@@ -69,6 +69,8 @@ export default class ExcaliBrainPlugin extends Plugin {
   private unloading = false;
   private initialIndexTask: Promise<void> | null = null;
   private initialIndexComplete = false;
+  /** Session-only gate so startup indexing guidance is shown once on the first visible Plex. */
+  private startupIndexInfoBubbleClaimed = false;
   private snapshotRestoreTask: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> | null = null;
   private readonly sidecarLeaves = new Map<WorkspaceLeaf, WorkspaceLeaf>();
   private sidecarRestoreTask: Promise<void> | null = null;
@@ -374,14 +376,20 @@ export default class ExcaliBrainPlugin extends Plugin {
     });
   }
 
+  /**
+   * Order startup graph candidates by the center K-Plex itself is expected to restore first.
+   *
+   * @returns Deduplicated graph paths suitable for both persisted-snapshot preview and cold-build
+   * prioritization. The persisted K-Plex center wins over transient workspace focus during restore.
+   */
   private startupGraphSeedPaths(): string[] {
     const paths: string[] = [];
+    if (this.settings.lastActivePath) paths.push(this.settings.lastActivePath);
     const active = this.app.workspace.getActiveFile();
     if (active) paths.push(active.path);
     const recentLeaf = this.findRecentDocumentLeaf();
     const recentFile = this.fileForLeaf(recentLeaf);
     if (recentFile) paths.push(recentFile.path);
-    if (this.settings.lastActivePath) paths.push(this.settings.lastActivePath);
     // Seed recent graph history too. If the last active node disappeared while Obsidian was
     // closed, the preview can immediately recover the previous valid center instead of waiting
     // for the complete snapshot before discovering a usable fallback.
@@ -761,26 +769,15 @@ export default class ExcaliBrainPlugin extends Plugin {
 
       if (this.unloading) return;
 
-      // Large iOS cold start: prime parsed Markdown bodies in small transactional IndexedDB
-      // checkpoints before allocating the complete semantic graph. The previous architecture read
-      // ~12k files while retaining the growing graph and could push WebKit over its memory limit
-      // near the end of the pass. Prewarming keeps that phase low-memory, survives interruption,
-      // and makes the subsequent authoritative GraphBuilder run almost entirely durable-cache hits.
-      const noteCount = this.app.vault.getMarkdownFiles().length;
-      const needsIosBodyPrewarm = Platform.isIosApp && this.index.size === 0 && noteCount > 5000;
-      if (needsIosBodyPrewarm) {
-        const warmed = await this.index.prewarmBodyCache(() => !this.unloading && this.hasVisibleKplexSurface());
-        if (this.unloading) return;
-        if (!warmed && !this.hasVisibleKplexSurface()) {
-          return;
-        }
-      }
-
       if (this.indexDirty || this.index.size === 0) {
-        await this.performRebuild(false, this.index.size === 0, "startup:initial-index", true);
+        // Startup itself is already an allow-closed demand lane; do not mark an empty cold start as
+        // an explicit forced rebuild, because that would bypass progressive first publication.
+        await this.performRebuild(false, false, "startup:initial-index", true);
       }
       if (this.unloading) return;
-      this.initialIndexComplete = this.index.size > 0;
+      // A progressive cold build may have published a useful neighborhood before cancellation.
+      // Keep that graph navigable, but do not mistake partial publication for startup completion.
+      this.initialIndexComplete = this.index.isFullSnapshotHydrated();
       this.notifyIndexStatus();
 
       // Changes that arrived while the initial build was running are coalesced. Only reconcile
@@ -839,7 +836,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       // prune such paths before deciding whether an incremental patch must escalate.
       this.pruneMissingDirtyMarkdownPaths();
       const structuralDirty = [...this.indexBacklogReasons].some((item) => item !== "metadata:changed" && item !== "coalesced-backlog" && item !== "interval");
-      if (!force && !showNotice && !structuralDirty && this.dirtyMarkdownPaths.size === 0) {
+      if (!force && !showNotice && this.index.size > 0 && !structuralDirty && this.dirtyMarkdownPaths.size === 0) {
         this.indexDirty = false;
         this.indexBacklogReasons.clear();
         this.notifyIndexStatus();
@@ -896,7 +893,14 @@ export default class ExcaliBrainPlugin extends Plugin {
         return;
       }
       if (showNotice) new Notice(this.translator("notice.rebuildingIndex"), 1200);
-      const published = await this.index.rebuild();
+      const progressiveStartup = allowClosed && !showNotice && !force && !this.initialIndexComplete && !this.index.isFullSnapshotHydrated();
+      const published = progressiveStartup
+        ? await this.index.rebuildProgressively(this.startupGraphSeedPaths(), {
+          // Keep the large-iOS low-memory checkpoint strategy, but only after the useful center
+          // neighborhood has been published so first paint is no longer blocked by vault prewarm.
+          prewarmBodyCache: Platform.isIosApp && this.app.vault.getMarkdownFiles().length > 5000,
+        })
+        : await this.index.rebuild();
       if (this.unloading) return;
       if (!published) {
         this.indexDirty = true;
@@ -1498,6 +1502,18 @@ export default class ExcaliBrainPlugin extends Plugin {
   getDocumentSyncMode(): DocumentSyncMode { return this.settings.documentSyncMode; }
 
   isStartupInitializing(): boolean { return this.startupInitializing; }
+
+  /**
+   * Claim the one-per-session startup indexing guidance bubble for the first visible Plex.
+   *
+   * @returns `true` exactly once while initial indexing is still non-authoritative; normal runtime
+   * re-indexing never reopens startup guidance.
+   */
+  claimStartupIndexInfoBubble(): boolean {
+    if (this.startupIndexInfoBubbleClaimed || this.initialIndexComplete || this.getIndexStatus().upToDate) return false;
+    this.startupIndexInfoBubbleClaimed = true;
+    return true;
+  }
 
   private documentSyncTargetLeaf(): WorkspaceLeaf | null {
     this.validateLinkedDocumentLeaf();
