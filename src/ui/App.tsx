@@ -286,7 +286,10 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     void plugin.saveSettings(false, false);
   }, [page?.path, activePath, plugin]);
 
-  const open = useCallback((target: GraphPage) => { void plugin.openPage(target); }, [plugin]);
+  /** Open the target through the host while preserving this surface's document for external-link routing. */
+  const open = useCallback((target: GraphPage) => {
+    void plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument);
+  }, [plugin, hostLeaf]);
 
   const updateGraphLenses = useCallback((next: GraphLensDefinition[]) => {
     setGraphLensesState(next);

@@ -288,6 +288,7 @@ for (const file of [
   "src/core/plex/lens.ts",
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/adjacentFileLeaf.ts",
+  "src/adapters/obsidian/externalUrl.ts",
   "src/adapters/obsidian/predicateContracts.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts",
   "src/adapters/obsidian/hostLinkSourceCollector.ts",
@@ -450,6 +451,26 @@ exports.createObsidianTranslator = () => createTranslator("en");
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
 const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
 const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
+
+// URL selection must not replace a companion with Obsidian's missing-plugin placeholder.
+{
+  const context = {
+    app: {},
+    settings: { sidecarLastUrl: "", sidecarLastFilePath: "Existing.md" },
+    translator: () => "Web Viewer unavailable",
+  };
+  let assignments = 0;
+  const leaf = { async setViewState() { assignments += 1; } };
+  await ExcaliBrainPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  assert.equal(assignments, 0, "Unavailable Web Viewer must not be assigned to a native leaf");
+  assert.equal(context.settings.sidecarLastFilePath, "Existing.md");
+  assert.equal(context.settings.sidecarLastUrl, "");
+  context.app.viewRegistry = { getViewCreatorByType: () => () => {} };
+  await ExcaliBrainPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  assert.equal(assignments, 1, "An available Web Viewer must retain explicit Sidecar preview support");
+  assert.equal(context.settings.sidecarLastFilePath, "");
+  assert.equal(context.settings.sidecarLastUrl, "https://example.com");
+}
 
 // Native split regression: persisted pixel bases may consume the entire split,
 // leaving a newly inserted pane at zero width/height despite correct ordering.

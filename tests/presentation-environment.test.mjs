@@ -43,6 +43,12 @@ process.on("exit", () => rmSync(classified.temp, { recursive: true, force: true 
 const fileDragCompiled = compilePureModule("src/adapters/obsidian/fileExplorerDrag.ts");
 const fileExplorerDrag = fileDragCompiled.exports;
 process.on("exit", () => rmSync(fileDragCompiled.temp, { recursive: true, force: true }));
+const externalUrlCompiled = compilePureModule("src/adapters/obsidian/externalUrl.ts");
+const externalUrl = externalUrlCompiled.exports;
+process.on("exit", () => rmSync(externalUrlCompiled.temp, { recursive: true, force: true }));
+const doubleTapCompiled = compilePureModule("src/ui/components/DoubleTapGesture.ts");
+const { DoubleTapGesture } = doubleTapCompiled.exports;
+process.on("exit", () => rmSync(doubleTapCompiled.temp, { recursive: true, force: true }));
 
 function compileObsidianAdapter() {
   const temp = mkdtempSync(join(tmpdir(), "kplex-obsidian-environment-test-"));
@@ -86,6 +92,63 @@ function environment({
     hostActions: { graphTab, sidepanel, popout },
   };
 }
+
+test("touch tap pairs require the same nearby target and reset after opening or cancellation", () => {
+  const gesture = new DoubleTapGesture();
+  assert.equal(gesture.complete("URL-A", 100, 20, 20), false);
+  assert.equal(gesture.complete("URL-A", 300, 22, 20), true);
+  assert.equal(gesture.complete("URL-A", 400, 22, 20), false, "third tap must not reopen");
+  gesture.reset();
+  assert.equal(gesture.complete("URL-A", 500, 22, 20), false, "cancelled gestures must not complete a pair");
+  assert.equal(gesture.complete("URL-B", 600, 22, 20), false, "different nodes cannot form a pair");
+  assert.equal(gesture.complete("URL-B", 1100, 22, 20), false, "slow taps stay separate");
+  assert.equal(gesture.complete("URL-B", 1200, 80, 20), false, "distant taps stay separate");
+  assert.equal(gesture.complete("URL-B", 1000, 80, 20), false, "clock reversal cannot form a pair");
+});
+
+test("external URL adapter activates an Obsidian external-link anchor and cleans it up", () => {
+  const bodyChildren = [];
+  let clickedWhileAttached = false;
+  const link = {
+    classList: { values: [], add(value) { this.values.push(value); } },
+    href: "", target: "", rel: "",
+    click() { clickedWhileAttached = bodyChildren.includes(this); },
+    remove() {
+      const index = bodyChildren.indexOf(this);
+      if (index >= 0) bodyChildren.splice(index, 1);
+    },
+  };
+  const ownerDocument = {
+    body: { createEl(tagName) {
+      assert.equal(tagName, "a");
+      bodyChildren.push(link);
+      return link;
+    } },
+  };
+
+  externalUrl.openExternalUrl("https://example.com/path?q=1", ownerDocument);
+
+  assert.deepEqual(link.classList.values, ["external-link"]);
+  assert.equal(link.href, "https://example.com/path?q=1");
+  assert.equal(link.target, "_blank");
+  assert.equal(link.rel, "noopener");
+  assert.equal(clickedWhileAttached, true, "the click must bubble from a document-attached external link");
+  assert.deepEqual(bodyChildren, [], "the temporary routing anchor must always be removed");
+
+  link.click = () => { throw new Error("host activation failed"); };
+  assert.throws(() => externalUrl.openExternalUrl("https://example.com", ownerDocument), /host activation failed/);
+  assert.deepEqual(bodyChildren, [], "a failed activation must also remove the routing anchor");
+});
+
+test("Web Viewer capability rejects disabled or unavailable native views", () => {
+  assert.equal(externalUrl.isWebViewerAvailable({}), false);
+  assert.equal(externalUrl.isWebViewerAvailable({ viewRegistry: {} }), false);
+  assert.equal(externalUrl.isWebViewerAvailable({ viewRegistry: { getViewCreatorByType: () => undefined } }), false);
+  assert.equal(externalUrl.isWebViewerAvailable({ viewRegistry: { getViewCreatorByType(type) {
+    assert.equal(type, "webviewer");
+    return () => {};
+  } } }), true);
+});
 
 test("File Explorer drag adapter accepts one current Markdown file and rejects unrelated drags", () => {
   const note = { path: "Projects/Alpha.md", extension: "md" };
