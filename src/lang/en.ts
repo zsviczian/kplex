@@ -6,6 +6,77 @@
  * every `{placeholder}` used by the message. Do not put vault/user data into keys.
  */
 export const englishCatalog = {
+  "styles.nodeTitle": {
+    message: "Node styles",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.editNode": {
+    message: "Edit node style",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.addNode": {
+    message: "Add node style",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.legacyTagHelp": {
+    message: "Style notes whose primary style tag starts with this prefix. Imported tag styles keep their original matching order.",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.propertyHelp": {
+    message: "Style notes where “{property}” matches this value. Existing values and vault tags are suggested as you type.",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: ["property"],
+  },
+  "styles.tagPrefix": {
+    message: "Tag prefix",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.labelPrefix": {
+    message: "Label prefix",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.legacyTag": {
+    message: "Imported tag style",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.propertyValue": {
+    message: "Property value",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.managerHelp": {
+    message: "Manage styles for values of “{property}” and imported tag styles.",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: ["property"],
+  },
+  "styles.resultCount": {
+    message: "{count} styles · {results} results",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: ["count", "results"],
+  },
+  "styles.noMatches": {
+    message: "No node styles match this search.",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.noneConfigured": {
+    message: "No custom node styles configured yet.",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: [],
+  },
+  "styles.settingsSummary": {
+    message: "{count} custom styles. Search and edit property-value and imported tag styles.",
+    context: "Node style settings and legacy ExcaliBrain style management.",
+    params: ["count"],
+  },
+
   "collection.showMore": {
     message: "Show {count} more",
     context: "Button that renders the next bounded batch in a settings manager list.",

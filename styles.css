@@ -2567,6 +2567,7 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
   background: var(--background-modifier-hover);
 }
 .kplex-style-manager-row > .kplex-lucide { order: 3; flex: 0 0 auto; color: var(--text-muted); }
+button.kplex-style-manager-row { height: fit-content; }
 .kplex-style-manager-copy { flex: 1 1 auto; min-width: 0; max-width: 100%; display: grid; gap: 2px; overflow: hidden; }
 .kplex-style-manager-heading { min-width: 0; max-width: 100%; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; overflow: hidden; }
 .kplex-style-manager-name { min-width: 0; max-width: 100%; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

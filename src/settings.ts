@@ -516,6 +516,7 @@ function appendIcon(button: HTMLElement, name: string): void {
 }
 
 type OntologyStyleField = { name: string; roles: string[] };
+type NodeStyleEntry = { name: string; kind: "property" | "tag" };
 type NodeStyleValueSuggestion = { value: string; display: string; kind: "property" | "tag" | "configured" };
 
 class NodeStyleValueSuggest extends AbstractInputSuggest<NodeStyleValueSuggestion> {
@@ -639,6 +640,8 @@ const describeNodeStyle = (style: NodeStyle): string => {
 };
 
 class NoteTypeStyleModal extends Modal {
+  private readonly translate = createObsidianTranslator();
+
   constructor(
     app: App,
     private initialName: string | null,
@@ -647,16 +650,19 @@ class NoteTypeStyleModal extends Modal {
     private valueSuggestions: NodeStyleValueSuggestion[],
     private onSave: (name: string, style: NodeStyle, previousName: string | null) => Promise<void>,
     private onDelete?: (name: string) => Promise<void>,
+    private legacyTag = false,
   ) {
     super(app);
   }
 
   onOpen(): void {
-    this.titleEl.setText(this.initialName ? "Edit node style" : "Add node style");
+    this.titleEl.setText(this.translate(this.initialName ? "styles.editNode" : "styles.addNode"));
     this.modalEl.addClass("kplex-style-editor-modal");
     this.contentEl.addClass("kplex-style-editor");
     this.contentEl.createEl("p", {
-      text: `Style notes where “${this.styleProperty || "Note type"}” matches this value. Existing values and vault tags are suggested as you type.`,
+      text: this.legacyTag
+        ? this.translate("styles.legacyTagHelp")
+        : this.translate("styles.propertyHelp", { property: this.styleProperty || "Note type" }),
     });
 
     const form = this.contentEl.createDiv({ cls: "kplex-style-form" });
@@ -670,8 +676,15 @@ class NoteTypeStyleModal extends Modal {
     nameInput.type = "text";
     nameInput.value = this.initialName ?? "";
     nameInput.placeholder = "project";
-    field("Property value", nameInput);
+    field(this.translate(this.legacyTag ? "styles.tagPrefix" : "styles.propertyValue"), nameInput);
     new NodeStyleValueSuggest(this.app, nameInput, this.valueSuggestions);
+
+    const prefixInput = this.legacyTag ? form.createEl("input") : null;
+    if (prefixInput) {
+      prefixInput.type = "text";
+      prefixInput.value = this.initialStyle.prefix ?? "";
+      field(this.translate("styles.labelPrefix"), prefixInput);
+    }
 
     const iconInput = form.createEl("input");
     iconInput.type = "text";
@@ -718,7 +731,7 @@ class NoteTypeStyleModal extends Modal {
     const save = actions.createEl("button", { cls: "mod-cta", text: "Save" });
     appendIcon(save, "check");
     save.addEventListener("click", () => {
-      const name = normalizeNodeStyleValue(nameInput.value);
+      const name = this.legacyTag ? nameInput.value.trim() : normalizeNodeStyleValue(nameInput.value);
       if (!name) {
         nameInput.focus();
         nameInput.classList.add("is-invalid");
@@ -727,10 +740,11 @@ class NoteTypeStyleModal extends Modal {
       const style: NodeStyle = {
         ...this.initialStyle,
         icon: iconInput.value.trim() || undefined,
-        backgroundColor: eightHex(background.value),
-        textColor: eightHex(text.value),
-        borderColor: eightHex(border.value),
-        fontSize: Math.max(8, Math.min(40, Number(fontSize.value) || 18)),
+        backgroundColor: background.value === sixHex(this.initialStyle.backgroundColor, "#182433") ? this.initialStyle.backgroundColor : eightHex(background.value),
+        textColor: text.value === sixHex(this.initialStyle.textColor, "#ffffff") ? this.initialStyle.textColor : eightHex(text.value),
+        borderColor: border.value === sixHex(this.initialStyle.borderColor, "#6f849a") ? this.initialStyle.borderColor : eightHex(border.value),
+        fontSize: fontSize.value === String(this.initialStyle.fontSize ?? 18) ? this.initialStyle.fontSize : Math.max(8, Math.min(40, Number(fontSize.value) || 18)),
+        ...(prefixInput ? { prefix: prefixInput.value } : {}),
       };
       void this.onSave(name, style, this.initialName).then(() => this.close());
     });
@@ -1004,19 +1018,19 @@ class NoteTypeStylesManagerModal extends Modal {
   constructor(
     app: App,
     private styleProperty: string,
-    private getNames: () => string[],
-    private getStyle: (name: string) => NodeStyle,
-    private onEdit: (name: string | null, afterChange: () => void) => void,
+    private getEntries: () => NodeStyleEntry[],
+    private getStyle: (entry: NodeStyleEntry) => NodeStyle,
+    private onEdit: (entry: NodeStyleEntry | null, afterChange: () => void) => void,
   ) {
     super(app);
   }
 
   onOpen(): void {
-    this.titleEl.setText("Node styles");
+    this.titleEl.setText(this.translate("styles.nodeTitle"));
     this.modalEl.addClass("kplex-style-manager-modal");
     this.contentEl.addClass("kplex-style-manager");
     this.contentEl.createEl("p", {
-      text: `Choose how notes look for different values of “${this.styleProperty || "Note type"}”.`,
+      text: this.translate("styles.managerHelp", { property: this.styleProperty || "Note type" }),
     });
 
     const controls = this.contentEl.createDiv({ cls: "kplex-style-manager-controls" });
@@ -1042,21 +1056,21 @@ class NoteTypeStylesManagerModal extends Modal {
   private renderList(): void {
     if (!this.listEl || !this.statusEl) return;
     this.listEl.empty();
-    const names = this.getNames();
-    const matches = names.filter((name) => !this.search || name.toLowerCase().includes(this.search));
-    this.statusEl.setText(`${names.length} style${names.length === 1 ? "" : "s"} · ${matches.length} result${matches.length === 1 ? "" : "s"}`);
+    const entries = this.getEntries();
+    const matches = entries.filter((entry) => !this.search || entry.name.toLowerCase().includes(this.search));
+    this.statusEl.setText(this.translate("styles.resultCount", { count: entries.length, results: matches.length }));
 
     if (!matches.length) {
       this.listEl.createDiv({
         cls: "kplex-style-manager-empty",
-        text: names.length ? "No node styles match this search." : "No property-value node styles configured yet.",
+        text: this.translate(entries.length ? "styles.noMatches" : "styles.noneConfigured"),
       });
       return;
     }
 
     const windowed = collectionWindow(matches, this.visibleLimit, 20);
-    for (const name of windowed.visible) {
-      const style = this.getStyle(name);
+    for (const entry of windowed.visible) {
+      const style = this.getStyle(entry);
       const row = this.listEl.createEl("button", { cls: "kplex-style-manager-row" });
       row.type = "button";
       const swatch = row.createSpan({ cls: "kplex-style-manager-node-swatch" });
@@ -1065,10 +1079,11 @@ class NoteTypeStylesManagerModal extends Modal {
         "--kplex-style-node-border": sixHex(style.borderColor, "#6f849a"),
       });
       const copy = row.createDiv({ cls: "kplex-style-manager-copy" });
-      copy.createDiv({ text: name, cls: "kplex-style-manager-name" });
+      copy.createDiv({ text: entry.name, cls: "kplex-style-manager-name" });
+      copy.createDiv({ text: this.translate(entry.kind === "tag" ? "styles.legacyTag" : "styles.propertyValue"), cls: "kplex-style-manager-badge" });
       copy.createDiv({ text: describeNodeStyle(style), cls: "kplex-style-manager-summary" });
       appendIcon(row, "chevron-right");
-      row.addEventListener("click", () => this.onEdit(name, () => this.renderList()));
+      row.addEventListener("click", () => this.onEdit(entry, () => this.renderList()));
     }
     if (windowed.remaining > 0) {
       const more = this.listEl.createEl("button", {
@@ -1370,6 +1385,32 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
     ).open();
   }
 
+  private openLegacyTagStyleEditor(name: string, afterChange?: () => void): void {
+    new NoteTypeStyleModal(
+      this.app, name, this.ebPlugin.settings.tagNodeStyles[name] ?? {},
+      this.ebPlugin.settings.primaryTagField, [],
+      async (nextName, nextStyle, previousName) => {
+        const settings = this.ebPlugin.settings;
+        if (previousName && previousName !== nextName) delete settings.tagNodeStyles[previousName];
+        settings.tagNodeStyles[nextName] = nextStyle;
+        // Preserve first-match priority when renaming, including overlapping tag prefixes.
+        settings.tagStyleList = settings.tagStyleList.map((key) => key === previousName ? nextName : key);
+        if (!settings.tagStyleList.includes(nextName)) settings.tagStyleList.push(nextName);
+        await this.ebPlugin.saveSettings(false);
+        afterChange?.();
+        this.update();
+      },
+      async (removeName) => {
+        delete this.ebPlugin.settings.tagNodeStyles[removeName];
+        this.ebPlugin.settings.tagStyleList = this.ebPlugin.settings.tagStyleList.filter((key) => key !== removeName);
+        await this.ebPlugin.saveSettings(false);
+        afterChange?.();
+        this.update();
+      },
+      true,
+    ).open();
+  }
+
   private nodeStyleValueSuggestions(): NodeStyleValueSuggestion[] {
     const values = new Map<string, NodeStyleValueSuggestion>();
     const put = (value: string, display: string, kind: NodeStyleValueSuggestion["kind"]) => {
@@ -1391,18 +1432,22 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
     return [...values.values()].sort((a, b) => a.display.localeCompare(b.display, undefined, { sensitivity: "base" }));
   }
 
-  private noteTypeStyleNames(): string[] {
-    return Object.keys(this.ebPlugin.settings.noteTypeStyles)
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  private nodeStyleEntries(): NodeStyleEntry[] {
+    return [
+      ...Object.keys(this.ebPlugin.settings.noteTypeStyles).map((name): NodeStyleEntry => ({ name, kind: "property" })),
+      ...Object.keys(this.ebPlugin.settings.tagNodeStyles).map((name): NodeStyleEntry => ({ name, kind: "tag" })),
+    ].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }
 
   private openNoteTypeStylesManager(): void {
     new NoteTypeStylesManagerModal(
       this.app,
       this.ebPlugin.settings.noteTypeField,
-      () => this.noteTypeStyleNames(),
-      (name) => this.ebPlugin.settings.noteTypeStyles[name] ?? {},
-      (name, afterChange) => this.openNoteTypeStyleEditor(name, afterChange),
+      () => this.nodeStyleEntries(),
+      (entry) => (entry.kind === "tag" ? this.ebPlugin.settings.tagNodeStyles : this.ebPlugin.settings.noteTypeStyles)[entry.name] ?? {},
+      (entry, afterChange) => entry?.kind === "tag"
+        ? this.openLegacyTagStyleEditor(entry.name, afterChange)
+        : this.openNoteTypeStyleEditor(entry?.name ?? null, afterChange),
     ).open();
   }
 
@@ -1428,6 +1473,11 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
           fields.set(key, { name, roles: [role] });
         }
       }
+    }
+    // Imported overrides may outlive their ontology assignment; keep them inspectable/editable.
+    for (const name of Object.keys(this.ebPlugin.settings.hierarchyLinkStyles)) {
+      const key = normalizeOntologyStyleKey(name);
+      if (key && !fields.has(key)) fields.set(key, { name, roles: [] });
     }
     return [...fields.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }
@@ -1490,7 +1540,8 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
   }
 
   getSettingDefinitions(): SettingDefinitionItem<DeclarativeSettingKey>[] {
-    const noteTypes = this.noteTypeStyleNames();
+    const translate = createObsidianTranslator();
+    const nodeStyles = this.nodeStyleEntries();
     const unassignedFields = this.ebPlugin.index.unassignedOntologyFields();
     const ontologyStyleFields = this.ontologyStyleFields();
     const customOntologyStyleCount = ontologyStyleFields.filter((field) =>
@@ -1671,10 +1722,8 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
                   { name: "Gate radius", desc: "Radius of the relationship gates around nodes, in pixels.", control: { type: "slider", key: "baseNodeStyle.gateRadius", min: 2, max: 8, step: 0.5 } },
                   { name: "Style property", desc: "A YAML or Dataview-style property whose value can select a custom node style. Default: Note type.", control: { type: "text", key: "noteTypeField" } },
                   {
-                    name: "Property-value styles",
-                    desc: noteTypes.length
-                      ? `${noteTypes.length} custom style${noteTypes.length === 1 ? "" : "s"}. Search, edit or add styles for values of “${this.ebPlugin.settings.noteTypeField || "Note type"}”.`
-                      : `No custom styles yet. Add styles for values of “${this.ebPlugin.settings.noteTypeField || "Note type"}”.`,
+                    name: translate("styles.nodeTitle"),
+                    desc: translate("styles.settingsSummary", { count: nodeStyles.length }),
                     action: () => this.openNoteTypeStylesManager(),
                   },
                 ],
