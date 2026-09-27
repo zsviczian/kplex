@@ -45,8 +45,10 @@ assert(appSource.includes('translate("index.incompleteBubble")'), "Startup index
 assert(appSource.includes("setShowStartupIndexBubble(false)"), "Ready startup must clear bubble state so an ordinary later update cannot reopen it");
 assert(appSource.includes('type="button"') && appSource.includes("aria-expanded={open}"), "The index status marker must be a semantic interactive control for click/touch and keyboard access");
 assert(appSource.includes("onMouseEnter={onHoverStart}") && appSource.includes("onClick={onToggle}"), "Index status details must open from hover and click/touch interaction");
-assert(appSource.includes('translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })'), "Index status details must show localized indexed-file progress");
+assert(mainSource.includes('this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })'), "Progressive indexing status must show localized indexed-file progress");
 assert(mainSource.includes("this.index.indexedMarkdownFileCount()"), "Index status progress must come from published Markdown sources rather than graph node count");
+assert(mainSource.includes("this.settings.startupIndexInfoBubbleSeen = true") && mainSource.includes("void this.saveSettings(false, false)"), "Startup indexing guidance must persist its one-time seen state when claimed");
+assert(appSource.includes('["indexing", "updating"].includes(indexStatus.phase)') && appSource.includes('translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })') && appSource.includes("indexStatus.label"), "Indexing and updating status details must show indexed-file progress while preserving the phase label");
 assert(infoBubbleSource.includes("onAdvance?: () => void"), "Reusable info bubbles must expose caller-owned sequence advancement for future onboarding/help flows");
 assert(infoBubbleSource.includes("dismissLabel?: string"), "Informational status bubbles must be able to omit an unnecessary action row");
 assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");
@@ -478,7 +480,7 @@ const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
 const indexingStatusContext = {
   initialIndexComplete: false,
   indexDirty: true,
-  rebuildTask: null,
+  rebuildTask: Promise.resolve(),
   rebuildTimer: null,
   app: { vault: { getMarkdownFiles: () => {
     indexingStatusContext.markdownFileCountReads += 1;
@@ -487,30 +489,69 @@ const indexingStatusContext = {
   cachedMarkdownFileCount: null,
   markdownFileCountReads: 0,
   index: {
+    size: 3,
     hasPendingSnapshotHydration: () => false,
+    hasIncrementalRestorePatch: () => false,
     indexedMarkdownFileCount: () => 3,
   },
-  translator: (key) => key === "index.statusReady" ? "Status: index ready" : "Status: indexing",
+  translator: (key, params) => {
+    if (key === "index.statusReady") return "Status: index ready";
+    if (key === "index.statusLoadingCache") return "Status: loading index from cache";
+    if (key === "index.statusPreparing") return "Status: preparing index";
+    if (key === "index.statusCheckingCache") return "Status: checking cached index for changes";
+    if (key === "index.statusIndexingProgress") return `Status: indexing ${params.indexed} of ${params.total} files`;
+    return "Status: updating index";
+  },
 };
 assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
   upToDate: false,
-  label: "Status: indexing",
+  phase: "indexing",
+  label: "Status: indexing 3 of 5 files",
   indexedFiles: 3,
   totalFiles: 5,
-}, "Updating status must report currently published Markdown-file progress");
+}, "Progressive indexing status must report currently published Markdown-file progress");
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "First status read must capture the Markdown total once");
 ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext);
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publications must reuse the cached Markdown total");
 assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
+  rebuildTask: null,
+  index: { ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 0 },
+}), {
+  upToDate: false,
+  phase: "loading-cache",
+  label: "Status: loading index from cache",
+  indexedFiles: 0,
+  totalFiles: 5,
+}, "Snapshot hydration must identify cache loading instead of presenting a misleading 0-of-total indexing status");
+assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
+  ...indexingStatusContext,
+  rebuildTask: null,
   initialIndexComplete: true,
   indexDirty: false,
 }), {
   upToDate: true,
+  phase: "ready",
   label: "Status: index ready",
   indexedFiles: 5,
   totalFiles: 5,
 }, "Ready status must report the complete Markdown-file total");
+let startupBubbleSaves = 0;
+const startupBubbleContext = {
+  startupIndexInfoBubbleClaimed: false,
+  initialIndexComplete: false,
+  settings: { startupIndexInfoBubbleSeen: false },
+  getIndexStatus: () => ({ upToDate: false }),
+  saveSettings: () => { startupBubbleSaves += 1; return Promise.resolve(); },
+};
+assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), true, "First incomplete startup must claim the one-time guidance bubble");
+assert.equal(startupBubbleContext.settings.startupIndexInfoBubbleSeen, true, "Claiming startup guidance must persist its seen state in settings");
+assert.equal(startupBubbleSaves, 1, "Claiming startup guidance must save the one-time state exactly once");
+assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), false, "The same session must not reclaim startup guidance");
+assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call({
+  ...startupBubbleContext,
+  startupIndexInfoBubbleClaimed: false,
+}), false, "A persisted seen flag must prevent startup guidance from returning after restart");
 
 // Native split regression: persisted pixel bases may consume the entire split,
 // leaving a newly inserted pane at zero width/height despite correct ordering.
