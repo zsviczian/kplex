@@ -214,7 +214,7 @@ test("phone maps explicitly to persisted mobile layout profiles and keeps every 
   assert.deepEqual(presentation.selectLayoutProfile(settings, "leaf", desktop), { compactingFactor: 9, parentColumns: 9, childColumns: 9 });
 });
 
-test("persisted layout keys and stable command ids remain unchanged in production sources", () => {
+test("persisted layout keys, stable command ids and explicit node-open leaf modes remain unchanged in production sources", () => {
   const settingsSource = readFileSync(join(root, "src/settings.ts"), "utf8");
   for (const key of ["mobile:leaf", "mobile:sidepanel", "mobile:popout", "tablet:leaf", "desktop:leaf"]) {
     assert(settingsSource.includes(`"${key}"`), `missing persisted layout profile ${key}`);
@@ -230,6 +230,21 @@ test("persisted layout keys and stable command ids remain unchanged in productio
   assert(mainSource.includes("primaryOpenSurface(environment, this.settings.startInPopout)"));
   assert(mainSource.includes("isGraphTabCommandAvailable(readObsidianPresentationEnvironment())"));
   assert(mainSource.includes("isPopoutCommandAvailable(readObsidianPresentationEnvironment())"));
+  assert(mainSource.includes("async openFileInNewTab(file: TFile)"));
+  assert(mainSource.includes('getLeaf("tab")'), "node Open menu must create an explicit new tab");
+  assert(mainSource.includes("async openFileInAdjacentPane(file: TFile, hostLeaf: WorkspaceLeaf)"));
+  assert(mainSource.includes("createAdjacentFileLeaf(this.app.workspace, hostLeaf, sidecar, position)"));
+  assert(mainSource.includes("async openFileInPopout(file: TFile)"));
+  assert(mainSource.includes('getLeaf("window")'), "node Open menu must create desktop pop-outs through Obsidian's window leaf mode");
+
+  const plexSource = readFileSync(join(root, "src/ui/PlexGraph.tsx"), "utf8");
+  assert(plexSource.includes('translate("graph.openMenu")'), "node context menu must expose the localized Open submenu");
+  assert(plexSource.includes('addNativeSubmenu(menu, translate("graph.openMenu")'));
+  assert(plexSource.includes('plugin.openFileInAdjacentPane(persistentFile, hostLeaf)'));
+  assert(plexSource.includes("openState.focusOpenTab"), "focus-open action must remain conditional on an already-open file leaf");
+  assert(plexSource.includes("openState.adjacentPane"), "adjacent-pane action must follow presentation availability");
+  assert(plexSource.includes("openState.popoutWindow"), "pop-out action must follow presentation availability");
+  assert(mainSource.includes("type !== EXCALIBRAIN_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE"), "Focus open tab excludes graph surfaces but includes actual file tabs such as Sidecars");
 });
 
 test("portable presentation code has no Obsidian or window dependency", () => {
@@ -239,4 +254,42 @@ test("portable presentation code has no Obsidian or window dependency", () => {
   assert(!combined.includes('from "obsidian"'));
   assert(!/\bPlatform\b/.test(combined));
   assert(!/\bwindow\b/.test(combined));
+});
+
+
+test("native submenu uses host navigation and falls back to flat actions only when unavailable", () => {
+  const compiled = compilePureModule("src/adapters/obsidian/nativeSubmenu.ts");
+  try {
+    const child = {};
+    let receiver;
+    const item = { setTitle() { return this; }, setIcon() { return this; }, setSubmenu() { receiver = this; return child; } };
+    const menu = { addItem(callback) { callback(item); } };
+    let target;
+    compiled.exports.addNativeSubmenu(menu, "Open", "external-link", (submenu) => { target = submenu; });
+    assert.equal(target, child);
+    assert.equal(receiver, item);
+    delete item.setSubmenu;
+    let label = false;
+    item.setIsLabel = () => { label = true; return item; };
+    compiled.exports.addNativeSubmenu(menu, "Open", "external-link", (submenu) => { target = submenu; });
+    assert.equal(target, menu);
+    assert.equal(label, true);
+  } finally { rmSync(compiled.temp, { recursive: true, force: true }); }
+});
+
+test("adjacent file panes split beyond the Plex/Sidecar pair on every side", () => {
+  const compiled = compilePureModule("src/adapters/obsidian/adjacentFileLeaf.ts");
+  try {
+    const host = {}, sidecar = {}, result = {};
+    let actual;
+    const workspace = { createLeafBySplit(...args) { actual = args; return result; } };
+    for (const [position, anchor, direction] of [
+      ["right", sidecar, "vertical"], ["left", host, "vertical"],
+      ["below", sidecar, "horizontal"], ["above", host, "horizontal"],
+      [null, host, "vertical"],
+    ]) {
+      assert.equal(compiled.exports.createAdjacentFileLeaf(workspace, host, position ? sidecar : null, position), result);
+      assert.deepEqual(actual, [anchor, direction, false]);
+    }
+  } finally { rmSync(compiled.temp, { recursive: true, force: true }); }
 });

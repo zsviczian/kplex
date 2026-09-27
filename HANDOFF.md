@@ -18,65 +18,58 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ### Current transfer
 
-**State: main-agent review and automated/native validation complete; changes remain uncommitted.**
+**State: main-agent review and local validation complete; changes remain uncommitted. Physical-device checks listed below remain pending.**
 
-- Sender → recipient: offline development agent → main validation agent.
-- Kind: implementation / return review.
-- Objective: migrate all plugin-owned user-facing English copy to `src/lang/en.ts` without changing displayed English wording, while preserving vault content, persisted keys/IDs, machine-readable shortcut tokens and developer-console diagnostics. Add the L01 whole-source localization enforcement gate.
-- Base commit/branch: unavailable; the supplied repository ZIP contains no Git metadata. The preserved input tree is `/mnt/data/original_repo`; the implementation tree is `/mnt/data/work_repo`.
-- Input identity: `repository(20260927-075426).zip` supplied by the maintainer in this conversation.
-- Actual capabilities: Node v22.16.0, npm 10.9.2, global TypeScript 5.8.3, Git 2.47.3 and Chromium are present. Project `node_modules` is absent. Network/package cache is insufficient for an offline install. Obsidian CLI/runtime is unavailable by assignment.
+- Objective: GitHub feature request #32, file-backed node **Open** submenu, plus the maintainer's pair-preserving adjacent-pane requirement.
+- Branch/base: `open-from-context-menu`, `4d4e0e103d0421298df2146015d21df05758fb0c`.
+- Environment: macOS, Node 22.22.2, installed Obsidian API package 1.13.0, Obsidian CLI/runtime 1.14.2 (installer 1.14.0), disposable `kplex-test` vault.
+- Main agent reviewed the complete change against AGENTS.md, CONTRIBUTING.md, docs/ARCHITECTURE.md and docs/AGENT_WORKFLOW.md. No commit/push/PR was performed.
 
-### Scope and implementation
+### Review findings and corrections
 
-- `src/lang/en.ts` is now the single source for plugin-owned commands, menus, settings, help, placeholders, tooltips, ARIA labels, notices and user-visible errors migrated in this pass.
-- Settings, host commands/notices, React UI, native Obsidian modals, content panes, graph/filter controls, relationship dialogs and accessibility copy now consume the injected translator rather than hard-coded English.
-- Shortcut modifier presentation now receives localized labels (`Shift`, `Command`, `Control`, `Option`, `Alt`) while machine-readable shortcut syntax and host registration tokens remain unchanged.
-- Relationship explanations and ontology-precedence suppression reasons are stable semantic codes in portable core; the UI maps those codes to localized English. The relation fixtures were updated to assert the stable reason data.
-- Graph Lens parser/semantic validation now returns structured issues rather than portable-core English error sentences; the UI maps those issues through the English catalog. End-of-expression uses a locale-neutral `null` sentinel.
-- Blank/malformed persisted Graph Lens names stay blank in sanitized data and use the localized `filter.untitledLens` display fallback at the UI boundary.
-- Persisted/vault-facing ontology field defaults such as `Parent`, `Child` and `Note type`, stable IDs/keys, URLs/paths, user/vault content and developer console diagnostics intentionally remain untranslated per `AGENTS.md`.
-- `tests/localization.test.mjs` now recursively scans production TS/TSX UI sinks and fails if literal user-facing copy is reintroduced outside `src/lang/en.ts`. Existing source-regression assertions in `tests/indexing.test.mjs` were updated to require localization keys instead of hard-coded English.
-- Canonical `src/ui/NewRelatedNoteModal.ts` and legacy `.tsx` compatibility copy remain byte-identical.
+1. The original untyped `MenuItem.setSubmenu()` failed real lint/build validation. The subsequent click-to-replace-menu workaround compiled but broke the requested hover interaction. Runtime inspection confirmed `setSubmenu` exists in Obsidian 1.14.2. `src/adapters/obsidian/nativeSubmenu.ts` now isolates its narrow optional declaration and delegates hover, keyboard/touch navigation and cleanup to native Obsidian. If the capability is absent, localized actions appear as a flat group; no misleading click-to-replace submenu is used.
+2. `getLeaf("split")` used global active-leaf state and could insert between Plex and its Sidecar. Adjacent opening now receives the originating `hostLeaf`. `src/adapters/obsidian/adjacentFileLeaf.ts` splits beyond the pair on its existing axis: right of a horizontal pair, below a vertical pair. With no Sidecar it splits to the right of the originating Plex. Temporary split geometry is fenced by the existing Sidecar ownership guard until layout settles. A follow-up maintainer check exposed a zero-width pane with a left Sidecar: pixel flex bases retained by Sidecar movement consumed the full split. `ensureAdjacentFileLeafSize` now shares the outer anchor's existing allocation only when the new pane has no usable extent, using the existing native sizing helper and leaving nonzero allocations/other panes alone.
+3. **Focus open tab** excludes graph surfaces but includes actual native file tabs, including Sidecars and deferred file tabs. It reveals an existing matching leaf without creating a duplicate.
+4. Added executable adapter regression tests for native submenu delegation/fallback and all four split-anchor choices. The indexing harness also executes the actual main.ts sizing method for collapsed width/height, unchanged nonzero sizes and unrelated split boundaries. Updated production wiring guards and the indexing test harness's real-module inventory.
 
-### Offline validation performed
+### Final implementation and architecture review
 
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node --test tests/localization.test.mjs` → PASS, 13/13. Includes strict catalog/fallback/interpolation checks, shortcut presentation checks, host adapter check and the new whole-source user-copy gate.
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node tests/indexing.test.mjs` → PASS on rerun: indexing assertions 1–68, P1–P17, section expansion, predicate/lens, incremental runtime patch, creation/imagery and placeholder/ghost materialization all pass. One earlier run hit the existing cooperative-parser timing guard at 47.9 ms; the immediate rerun passed unchanged.
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node --test tests/presentation-environment.test.mjs tests/parser-core.test.mjs` → PASS, 14/14.
-- With a temporary local symlink exposing the already-installed global TypeScript package as `node_modules/typescript` (removed immediately after): `node --test tests/architecture.test.mjs` → PASS, 7/7; `node scripts/check-architecture.mjs` → PASS, 34 migrated roots / 75 reachable files / 0 violations; global `tsc -p tsconfig.core.json` → PASS.
-- Global TypeScript `transpileModule` syntax validation over all 29 modified `.ts`/`.tsx` files → PASS.
-- Static translator-key reference audit → PASS: 807 English catalog keys and no unknown literal key passed to `translate`/`translator` calls.
-- Direct UI-literal audit (`setText`, `setTitle`, `setName`, `setDesc`, `setButtonText`, `setPlaceholder`, `setTooltip`, `Notice`, visible object labels/text/placeholders/titles, JSX text/ARIA/title/placeholder) → zero production literals outside `src/lang/en.ts`; this logic is now covered by the committed localization test.
-- Temporary validation symlink/node_modules directory was removed. No generated build artifacts or temporary diagnostics remain in the project tree.
+- `PlexGraph.tsx` builds the localized menu and delegates workspace effects. Reusable native submenu/split helpers live at the Obsidian adapter boundary; main.ts owns native file-opening effects and Sidecar lifetime.
+- Phone: new tab and conditional existing-tab focus. Tablet: adds adjacent pane. Desktop: additionally permits pop-out. Existing environment policy determines capabilities.
+- New strings are catalogued in `src/lang/en.ts`; no settings schema, stable commands, semantic index/parser/compiler rules or durable user data changed.
+- New modules and affected functions/callbacks have TSDoc. Native menus use the existing owning-document display/dismissal path. No custom DOM/CSS menu implementation, permanent global test API or lifecycle resources were added.
 
-### Unavailable / pending validation
+### Automated validation
 
-- Required engine is Node `>=22.22.2 <23`; this agent has Node 22.16.0. Do not treat local engine-sensitive results as the exact-build acceptance lane.
-- `npm ci --offline --ignore-scripts` was attempted and failed. npm reported the engine mismatch and `ENOTCACHED` because `yocto-queue-0.1.0.tgz` is not available in the local cache. No dependency tree was left behind.
-- Consequently full `npm run verify`, ESLint with the repository plugin, real Obsidian typings/build/esbuild lanes, and the production Obsidian runner were not available here and remain pending, not skipped/passed.
-- Obsidian CLI/runtime validation was not performed, per the maintainer's explicit offline-agent constraint.
-- Git commit/branch identity and `git diff --check` against a repository index are unavailable because the supplied ZIP has no `.git` metadata.
+- `npm ci` on Node 22.22.2: passed with real project dependencies.
+- `npm run verify:obsidian`: passed. This runs the full `npm run verify` before staging the exact build and checking native startup.
+  - Architecture: 7/7 tests; 35 migrated roots, 76 reachable files, zero violations.
+  - Core lane: 58/58.
+  - Official Obsidian ESLint and production TypeScript/bundle build: passed.
+  - Indexing fixture groups: passed.
+  - Aggregate Node tests: 103/103; browser UI tests: 4/4.
+  - Exact dist artifacts installed/reloaded in `kplex-test`; registered command, rendered graph and no captured JavaScript errors: passed.
+- Host runner evidence: `/private/tmp/kplex-open-width/report.json`; full lane output: `/private/tmp/kplex-open-width.log`. These are local transient artifacts, not included in repository exports. The report contains exact source/staged bundle hashes.
+- Follow-up sizing change: full `verify:obsidian` passed on the exact updated build. Newly added sizing regression cases additionally passed in `node scripts/run-indexing-tests.mjs` after the full lane.
+- `git diff --check`: passed.
 
-### Main-agent validation tasks
+### Focused Obsidian runtime validation
 
-1. Use exact Node 22.22.2 with a clean dependency install (`npm ci` or the repository-prescribed clean install), then run `npm run verify`. Expected: architecture/core/lint/tests/build all pass, including `tests/localization.test.mjs` and the updated indexing fixtures.
-2. Run the repository's Obsidian validation lane (`npm run verify:obsidian`) in the equipped environment. Expected: no command/menu/settings/dialog rendering regression and no runtime localization-key failures.
-3. Perform a focused native UI smoke across commands, Settings (including node/link style managers and ontology discovery), Filter / Graph Lenses (including invalid-expression feedback), create/link/delete/materialize/rename dialogs, relationship explanations, notices, tooltips and ARIA-visible controls. Expected: displayed English wording remains equivalent to the pre-migration UI, with no raw catalog keys, blank labels, or English emitted from portable semantic code.
-4. Confirm platform shortcut copy on macOS and Windows conventions (and, where available, mobile/hardware-keyboard surfaces). Expected: localized modifier names match the effective convention; machine shortcut registration remains unchanged.
-5. Review the structured reason/validation DTO changes (`RelationshipSummary`, `EvidenceSuppressionReason`, `PredicateParseIssue`, `GraphLensValidationIssue`) for any external caller not represented by the supplied source/tests. Expected: all presentation formatting remains at the UI/localization boundary.
+- Desktop native submenu model contains a genuine submenu. For observable hover assertions only, native menus were temporarily switched to Obsidian's DOM-menu mode on those ephemeral menu instances. Trusted CDP pointer movement opened the child while the parent remained connected, showing focus/new-tab/adjacent/pop-out choices. Selecting **Open** retained the parent; selecting **Open in new tab** created one file tab and dismissed the menus.
+- Closed-file availability changed from focus=false to focus=true after opening it in a Sidecar. Focus revealed that exact Sidecar and did not increase file-tab count.
+- Pop-out action opened the requested file in a different owning document. Test-created window/leaf was closed.
+- Right Sidecar: actual workspace order was Plex → same Sidecar → new file pane; managed identity, linked leaf and pinned synchronization remained intact.
+- Follow-up size validation: reproduced pre-fix left Sidecar → Plex → new pane widths of 326/326/0 px. After the fix, all four positions had nonzero dimensions and retained ownership. Repeating right→left movement with explicit pixel bases gave a new pane width of 85.6 px within a deliberately crowded three-group test workspace; it shared the 166.3 px outer anchor allocation rather than remaining collapsed. Normal native allocations were left unchanged.
+- Left/above/below Sidecars: each retained the same managed and linked leaf, original adjacent position and pinned synchronization after opening the outer file pane. Test panes were detached.
+- Tablet emulation at 900×875: native child menu contained new-tab + adjacent-pane and retained its parent; no pop-out.
+- Phone emulation at 390×875: native selection navigated within the phone menu to **Open in new tab**, with native **Open** back navigation. Child scroll was attached and the parent menu remained connected; no adjacent/pop-out actions.
+- Sizing harness: background throttling was temporarily disabled to let main-window animation frames settle while a pop-out was present, then restored. Between repeated scenarios, test-created pixel bases were cleared to establish fresh native allocation; no production sizing policy was overridden during the measured operation. Test-created leaves were removed. The earlier placement/linkage tests did not assert width; the follow-up explicitly measures dimensions.
+- Harness caveat: reusing a hidden phone Menu instance produced an invalid probe, so that result was discarded and the real context-menu event was repeated on a fresh instance. The fresh-instance result passed. Desktop emulation is not physical touch/WebView proof.
+- Cleanup: test leaves/Sidecars/pop-out removed, temporary wrapper/global removed, original graph center restored, mobile emulation disabled, CDP viewport override cleared, native desktop window restored to 996×795. Final `dev:errors`: no errors captured.
 
-### Cleanup / remaining risk
+### Prioritized remaining manual checks
 
-- No schema, settings key/default, command ID, cache/storage format, network behavior or vault-content migration was intentionally changed.
-- No non-English locale was added; English remains the source/fallback catalog.
-- No Obsidian-host-only probes or temporary instrumentation were added.
-- Main validation agent should review and validate the returned uncommitted diff before any commit/PR action.
+1. **Desktop, quick confirmation:** hover **Open**, select **Open in adjacent pane** with a left Sidecar after moving it from the right, and confirm the new right-hand pane is visible and the pair stays together and Sidecar follows subsequent graph navigation. Automated host assertions passed; this confirms the maintainer's visible native-menu experience.
+2. **Physical phone/tablet:** long-press a file node, enter **Open**, select an action, and dismiss/back out. Confirm touch selection works once and does not close the parent prematurely. Phone must omit adjacent/pop-out; tablet must omit pop-out. Desktop mobile emulation passed but cannot establish native touch/WebView behavior.
 
-## Main-agent acceptance
-
-Reviewed on Node **22.22.2 / npm 10.9.7** with clean dependencies and real Obsidian **1.14.2**. The main agent corrected the label-table type errors, localized physical position parameters, strengthened the sink gate with negative fixtures, required caller-owned suggestion copy, documented touched module/function responsibilities and preserved saved suppression-reason predicates at the host compatibility boundary. Accepted-English parser/explanation comparisons and saved-lens evaluation regressions were added.
-
-Required portable checks/build and exact-build native install/open passed. Native desktop/tablet/phone copy checks and the complete fixture-import/style-manager/persistence/reload lane passed. Baseline device/window state and test settings were restored; test-owned notes/controller were removed; the index settled. No required manual test remains for this unchanged-English localization scope. An optional physical-phone keyboard/visual smoke is described in the review report; emulation is not a physical touch/WebView pass.
-
-See [durable review evidence](docs/validation/L01-2026-09-27.md) and [machine-readable results](docs/validation/L01-2026-09-27.json). Structural refactoring remains paused after C14. No commit, PR or subsequent assignment was requested or performed.
+No further manual indexing/performance tests are needed for this workspace-only change. Retain the private submenu bridge as the single owner rather than duplicating casts or replacing native hover with a separate menu. Commit/PR actions await maintainer instructions.
