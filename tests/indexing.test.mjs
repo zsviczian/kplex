@@ -18,6 +18,7 @@ const mainSource = readFileSync(join(root, "src/main.ts"), "utf8");
 
 const appSource = readFileSync(join(root, "src/ui/App.tsx"), "utf8");
 const newRelatedSource = readFileSync(join(root, "src/ui/NewRelatedNoteModal.ts"), "utf8");
+const draggableDialogSource = readFileSync(join(root, "src/ui/components/DraggableDialog.ts"), "utf8");
 const ghostModalSource = readFileSync(join(root, "src/ui/MaterializeGhostModal.ts"), "utf8");
 const plexGraphSource = readFileSync(join(root, "src/ui/PlexGraph.tsx"), "utf8");
 const deleteNodeModalSource = readFileSync(join(root, "src/ui/DeleteNodeModal.ts"), "utf8");
@@ -35,6 +36,11 @@ assert(graphIndexSource.includes("private publishIncrementalFile: PatchFilePubli
 assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");
 assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(origin, role"), "Placeholder action must create only a relationship-backed virtual node");
 assert(newRelatedSource.includes("void createNew(defaultCreateType)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
+assert(newRelatedSource.includes('if (environment.device === "desktop")'), "Add-related drag affordance must stay desktop-only so phone/tablet modal policy remains unchanged");
+assert(newRelatedSource.includes("enableDraggableDialog({ modalEl: this.modalEl, handleEl: this.titleEl })"), "Add-related must drag through the native modal title shell rather than portable form content");
+assert(newRelatedSource.includes("this.releaseDesktopDrag?.()"), "Add-related modal close must release draggable shell resources");
+assert(draggableDialogSource.includes('ownerDocument.addEventListener("pointermove", onPointerMove, true)'), "Dialog drag must capture active pointer moves in the owning document before the Plex can pan");
+assert(draggableDialogSource.includes('ownerWindow.addEventListener("pagehide", cleanup)'), "Dialog drag must clean itself up when its owning desktop/pop-out window tears down");
 assert(ghostModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Ghost materialization must support the same Ctrl/Cmd+Enter default action as create-related");
 assert(ghostModalSource.includes('setName(this.translate("common.location"))'), "Ambiguous ghost destinations must expose a localized location dropdown");
 assert(ghostModalSource.includes('setButtonText(this.translate("common.excalidraw"))'), "Ghost materialization must offer localized Excalidraw copy when the integration is available");

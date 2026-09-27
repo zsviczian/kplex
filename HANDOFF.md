@@ -15,68 +15,54 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-
 ### Current transfer
 
-**State: main-agent review and automated/native validation complete; changes remain uncommitted.**
+**State: accepted and validated; committed for pull request to close issue #36.**
 
-- Sender → recipient: offline development agent → main validation agent.
-- Kind: implementation / return review.
-- Objective: migrate all plugin-owned user-facing English copy to `src/lang/en.ts` without changing displayed English wording, while preserving vault content, persisted keys/IDs, machine-readable shortcut tokens and developer-console diagnostics. Add the L01 whole-source localization enforcement gate.
-- Base commit/branch: unavailable; the supplied repository ZIP contains no Git metadata. The preserved input tree is `/mnt/data/original_repo`; the implementation tree is `/mnt/data/work_repo`.
-- Input identity: `repository(20260927-075426).zip` supplied by the maintainer in this conversation.
-- Actual capabilities: Node v22.16.0, npm 10.9.2, global TypeScript 5.8.3, Git 2.47.3 and Chromium are present. Project `node_modules` is absent. Network/package cache is insufficient for an offline install. Obsidian CLI/runtime is unavailable by assignment.
+- Sender → recipient: main validation agent → maintainer.
+- Kind: validation report / pull request.
+- Objective: implement GitHub issue #36, “Draggable desktop dialogs to reveal the Plex behind forms,” starting with the Add Link / Add Child (`NewRelatedNoteModal`) flow while preserving native Obsidian modal lifecycle and all existing mobile/tablet behavior.
+- Base commit/branch: `main` at `4d4e0e103d0421298df2146015d21df05758fb0c`.
+- Environment & capabilities: Node v22.22.2, npm 10.9.7, global TypeScript 5.8.3, Obsidian CLI 1.14.2 (installer 1.14.0), native test vault `/Users/zsviczian/Obsidian/kplex-test`.
 
-### Scope and implementation
+### Scope and implementation reviewed
 
-- `src/lang/en.ts` is now the single source for plugin-owned commands, menus, settings, help, placeholders, tooltips, ARIA labels, notices and user-visible errors migrated in this pass.
-- Settings, host commands/notices, React UI, native Obsidian modals, content panes, graph/filter controls, relationship dialogs and accessibility copy now consume the injected translator rather than hard-coded English.
-- Shortcut modifier presentation now receives localized labels (`Shift`, `Command`, `Control`, `Option`, `Alt`) while machine-readable shortcut syntax and host registration tokens remain unchanged.
-- Relationship explanations and ontology-precedence suppression reasons are stable semantic codes in portable core; the UI maps those codes to localized English. The relation fixtures were updated to assert the stable reason data.
-- Graph Lens parser/semantic validation now returns structured issues rather than portable-core English error sentences; the UI maps those issues through the English catalog. End-of-expression uses a locale-neutral `null` sentinel.
-- Blank/malformed persisted Graph Lens names stay blank in sanitized data and use the localized `filter.untitledLens` display fallback at the UI boundary.
-- Persisted/vault-facing ontology field defaults such as `Parent`, `Child` and `Note type`, stable IDs/keys, URLs/paths, user/vault content and developer console diagnostics intentionally remain untranslated per `AGENTS.md`.
-- `tests/localization.test.mjs` now recursively scans production TS/TSX UI sinks and fails if literal user-facing copy is reintroduced outside `src/lang/en.ts`. Existing source-regression assertions in `tests/indexing.test.mjs` were updated to require localization keys instead of hard-coded English.
-- Canonical `src/ui/NewRelatedNoteModal.ts` and legacy `.tsx` compatibility copy remain byte-identical.
+- `src/ui/components/DraggableDialog.ts`: host-free owner-document drag mechanic. It accepts only dialog/handle DOM elements and owns pointer geometry, edge clamping, resize re-clamping, and cleanup; no Obsidian/plugin dependency or global state.
+- `src/ui/NewRelatedNoteModal.ts` and legacy compatibility copy `src/ui/NewRelatedNoteModal.tsx`: opts into dragging through the native title shell only when `readObsidianPresentationEnvironment(...).device === "desktop"`. Byte identity is preserved between the two files.
+- `styles.css`: theme-neutral CSS hooks for `.kplex-draggable-dialog.is-positioned`, grab/grabbing cursors, and cursor reset for interactive children. No hard-coded colors or `!important` rules.
+- `tests/indexing.test.mjs`: source-regression assertions for desktop-only gating, title-shell integration, owner-document pointer capture, and window-teardown cleanup.
+- `tests/ui-components.test.mjs`: headless browser test for form focus preservation, background pointer event isolation, edge clamping, resize clamping, interactive title control exclusion, reopen cleanup, and pop-out document boundary isolation.
 
-### Offline validation performed
+### Main-agent validation results
 
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node --test tests/localization.test.mjs` → PASS, 13/13. Includes strict catalog/fallback/interpolation checks, shortcut presentation checks, host adapter check and the new whole-source user-copy gate.
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node tests/indexing.test.mjs` → PASS on rerun: indexing assertions 1–68, P1–P17, section expansion, predicate/lens, incremental runtime patch, creation/imagery and placeholder/ghost materialization all pass. One earlier run hit the existing cooperative-parser timing guard at 47.9 ms; the immediate rerun passed unchanged.
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node --test tests/presentation-environment.test.mjs tests/parser-core.test.mjs` → PASS, 14/14.
-- With a temporary local symlink exposing the already-installed global TypeScript package as `node_modules/typescript` (removed immediately after): `node --test tests/architecture.test.mjs` → PASS, 7/7; `node scripts/check-architecture.mjs` → PASS, 34 migrated roots / 75 reachable files / 0 violations; global `tsc -p tsconfig.core.json` → PASS.
-- Global TypeScript `transpileModule` syntax validation over all 29 modified `.ts`/`.tsx` files → PASS.
-- Static translator-key reference audit → PASS: 807 English catalog keys and no unknown literal key passed to `translate`/`translator` calls.
-- Direct UI-literal audit (`setText`, `setTitle`, `setName`, `setDesc`, `setButtonText`, `setPlaceholder`, `setTooltip`, `Notice`, visible object labels/text/placeholders/titles, JSX text/ARIA/title/placeholder) → zero production literals outside `src/lang/en.ts`; this logic is now covered by the committed localization test.
-- Temporary validation symlink/node_modules directory was removed. No generated build artifacts or temporary diagnostics remain in the project tree.
+1. **`npm run verify` on Node v22.22.2**:
+   - `check:architecture`: PASS (7/7 tests, 36 migrated roots, 77 reachable files, 0 violations).
+   - `check:core`: PASS (58/58 tests).
+   - `lint:obsidian`: PASS (eslint `src/**/*.{ts,tsx}` with 0 errors and 0 warnings).
+   - `test`: PASS. `run-indexing-tests.mjs` passed all assertion sets without tripping cooperative timing guards on this environment; 101/101 unit/collector/contract tests passed; 5/5 browser behavior tests in `ui-components.test.mjs` passed (including `DraggableDialog owner-document browser behavior` in ~888ms).
+   - `build`: PASS (`tsc --noEmit --skipLibCheck && node esbuild.config.mjs production`).
 
-### Unavailable / pending validation
+2. **`npm run verify:obsidian` in native test vault `kplex-test`**:
+   - PASS. Artifact hashes verified and staged (`dist/main.js`, `dist/manifest.json`, `dist/styles.css`).
+   - Plugin reload, command registration, rendered `.excalibrain-app` K-Plex view verified with no captured JavaScript errors.
 
-- Required engine is Node `>=22.22.2 <23`; this agent has Node 22.16.0. Do not treat local engine-sensitive results as the exact-build acceptance lane.
-- `npm ci --offline --ignore-scripts` was attempted and failed. npm reported the engine mismatch and `ENOTCACHED` because `yocto-queue-0.1.0.tgz` is not available in the local cache. No dependency tree was left behind.
-- Consequently full `npm run verify`, ESLint with the repository plugin, real Obsidian typings/build/esbuild lanes, and the production Obsidian runner were not available here and remain pending, not skipped/passed.
-- Obsidian CLI/runtime validation was not performed, per the maintainer's explicit offline-agent constraint.
-- Git commit/branch identity and `git diff --check` against a repository index are unavailable because the supplied ZIP has no `.git` metadata.
+3. **Live Obsidian pointer & modal runtime verification**:
+   - Opening Add Child modal starts in native centered layout (`is-positioned: false`, no inline `--kplex-dialog-*` coordinates).
+   - Pointerdown on title without movement does not activate positioning.
+   - Pointer drag past 3px threshold moves dialog, sets `--kplex-dialog-left` / `--kplex-dialog-top`, and preserves input focus and typed text.
+   - Interactive controls in title (`select` role dropdown) are excluded from drag initiation and remain operable without moving the modal.
+   - Viewport edge clamping verified against 8px margin (`left: 8px, top: 8px` at top-left; `left: 308px, top: 687px` at bottom-right in 996x795 viewport).
+   - Window resize re-clamps dialog within visible viewport.
+   - Escape closes the modal cleanly.
+   - Reopening returns to native centered positioning with no stale drag coordinates (`leftVar: "", topVar: ""`).
 
-### Main-agent validation tasks
+4. **Dialog-scope review for future rollout**:
+   - Inspected `RelationModal` and `RelationshipExplanationModal`. Both use native Obsidian `Modal` with plain text titles and standard lifecycle. Both are confirmed as strong candidates for the next rollout step once the maintainer accepts the current baseline.
 
-1. Use exact Node 22.22.2 with a clean dependency install (`npm ci` or the repository-prescribed clean install), then run `npm run verify`. Expected: architecture/core/lint/tests/build all pass, including `tests/localization.test.mjs` and the updated indexing fixtures.
-2. Run the repository's Obsidian validation lane (`npm run verify:obsidian`) in the equipped environment. Expected: no command/menu/settings/dialog rendering regression and no runtime localization-key failures.
-3. Perform a focused native UI smoke across commands, Settings (including node/link style managers and ontology discovery), Filter / Graph Lenses (including invalid-expression feedback), create/link/delete/materialize/rename dialogs, relationship explanations, notices, tooltips and ARIA-visible controls. Expected: displayed English wording remains equivalent to the pre-migration UI, with no raw catalog keys, blank labels, or English emitted from portable semantic code.
-4. Confirm platform shortcut copy on macOS and Windows conventions (and, where available, mobile/hardware-keyboard surfaces). Expected: localized modifier names match the effective convention; machine shortcut registration remains unchanged.
-5. Review the structured reason/validation DTO changes (`RelationshipSummary`, `EvidenceSuppressionReason`, `PredicateParseIssue`, `GraphLensValidationIssue`) for any external caller not represented by the supplied source/tests. Expected: all presentation formatting remains at the UI/localization boundary.
+### Recommended manual check
 
-### Cleanup / remaining risk
+1. Open K-Plex in desktop Obsidian, trigger **Add child** (or **Add parent/friend/challenger**), drag the dialog by its header text to inspect the canvas behind it, change the relationship role dropdown in the title, and close the dialog via Escape or confirm. Expected: smooth dragging, operable role dropdown, and centered layout upon reopen.
 
-- No schema, settings key/default, command ID, cache/storage format, network behavior or vault-content migration was intentionally changed.
-- No non-English locale was added; English remains the source/fallback catalog.
-- No Obsidian-host-only probes or temporary instrumentation were added.
-- Main validation agent should review and validate the returned uncommitted diff before any commit/PR action.
+### Next action
 
-## Main-agent acceptance
-
-Reviewed on Node **22.22.2 / npm 10.9.7** with clean dependencies and real Obsidian **1.14.2**. The main agent corrected the label-table type errors, localized physical position parameters, strengthened the sink gate with negative fixtures, required caller-owned suggestion copy, documented touched module/function responsibilities and preserved saved suppression-reason predicates at the host compatibility boundary. Accepted-English parser/explanation comparisons and saved-lens evaluation regressions were added.
-
-Required portable checks/build and exact-build native install/open passed. Native desktop/tablet/phone copy checks and the complete fixture-import/style-manager/persistence/reload lane passed. Baseline device/window state and test settings were restored; test-owned notes/controller were removed; the index settled. No required manual test remains for this unchanged-English localization scope. An optional physical-phone keyboard/visual smoke is described in the review report; emulation is not a physical touch/WebView pass.
-
-See [durable review evidence](docs/validation/L01-2026-09-27.md) and [machine-readable results](docs/validation/L01-2026-09-27.json). Structural refactoring remains paused after C14. No commit, PR or subsequent assignment was requested or performed.
+Pull request submitted to close issue #36. Ready for maintainer merge.
