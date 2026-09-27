@@ -93,6 +93,8 @@ export default class ExcaliBrainPlugin extends Plugin {
   private readonly searchFocusListeners = new Map<WorkspaceLeaf, () => void>();
   private readonly relationshipFlairListeners = new Set<(path: string) => void>();
   private readonly indexStatusListeners = new Set<() => void>();
+  /** Lazily cached Markdown total; vault lifecycle events invalidate it before status publication. */
+  private cachedMarkdownFileCount: number | null = null;
   private readonly kplexVisibilityListeners = new Set<() => void>();
   private visibleKplexLeaves = new Set<WorkspaceLeaf>();
   private lastIndexStatusKey = "";
@@ -500,74 +502,91 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.notifyIndexStatus();
   }
 
+  /** Register post-restore vault/metadata listeners and refresh cached vault-wide status facts. */
   private registerReactiveIndexListeners(): void {
     if (this.reactiveIndexListenersRegistered) return;
     this.reactiveIndexListenersRegistered = true;
+    this.cachedMarkdownFileCount = null;
 
-    this.registerEvent(this.app.vault.on("create", (created) => {
-      this.pruneManagedMetadataWrites();
-      if (created instanceof TFile && (this.managedCreatedPaths.get(created.path) ?? 0) > Date.now()) return;
-      this.scheduleRebuild("vault:create");
-    }));
-    this.registerEvent(this.app.vault.on("delete", (deleted) => {
-      if (deleted instanceof TFile && deleted.extension === "md") {
-        // Deleting Markdown changes materialization, not the identity of the graph endpoint. Keep
-        // the same GraphPage alive as a ghost so an active central note does not fall back to the
-        // vault root. Only declarations owned by the deleted file are removed locally.
-        this.dirtyMarkdownPaths.delete(deleted.path);
-        this.managedMetadataWrites.delete(deleted.path);
-        this.managedCreatedPaths.delete(deleted.path);
-        this.managedCreatedFiles.delete(deleted);
-        this.renameMetadataSuppressions.delete(deleted.path);
-        this.index?.dematerializeFile(deleted.path);
-        // A metadata event may already have queued an incremental patch for this file. Once the
-        // file is gone that patch is meaningless; do not let an empty patch backlog escalate into
-        // an authoritative full-vault rebuild a moment after dematerialization.
-        this.settlePatchOnlyBacklogIfIdle();
-        return;
-      }
-      // Folder and non-Markdown deletions can affect topology/attachment visibility more broadly.
-      this.scheduleRebuild("vault:delete");
-    }));
-    this.registerEvent(this.app.vault.on("rename", (renamed, oldPath) => {
-      if (!(renamed instanceof TFile)) {
-        // Folder renames can rewrite many canonical file paths at once and remain structural.
-        this.scheduleRebuild("vault:rename-folder");
-        return;
-      }
+    this.registerEvent(this.app.vault.on("create",
+      /** Invalidate the progress denominator before publishing a newly created Markdown source. */
+      (created) => {
+        this.pruneManagedMetadataWrites();
+        if (created instanceof TFile && created.extension === "md") {
+          this.cachedMarkdownFileCount = null;
+          this.notifyIndexStatus();
+        }
+        if (created instanceof TFile && (this.managedCreatedPaths.get(created.path) ?? 0) > Date.now()) return;
+        this.scheduleRebuild("vault:create");
+      }));
+    this.registerEvent(this.app.vault.on("delete",
+      /** Remove deleted Markdown sources from both semantic progress and its cached denominator. */
+      (deleted) => {
+        if (deleted instanceof TFile && deleted.extension === "md") {
+          this.cachedMarkdownFileCount = null;
+          // Deleting Markdown changes materialization, not the identity of the graph endpoint. Keep
+          // the same GraphPage alive as a ghost so an active central note does not fall back to the
+          // vault root. Only declarations owned by the deleted file are removed locally.
+          this.dirtyMarkdownPaths.delete(deleted.path);
+          this.managedMetadataWrites.delete(deleted.path);
+          this.managedCreatedPaths.delete(deleted.path);
+          this.managedCreatedFiles.delete(deleted);
+          this.renameMetadataSuppressions.delete(deleted.path);
+          this.index?.dematerializeFile(deleted.path);
+          // A metadata event may already have queued an incremental patch for this file. Once the
+          // file is gone that patch is meaningless; do not let an empty patch backlog escalate into
+          // an authoritative full-vault rebuild a moment after dematerialization.
+          this.settlePatchOnlyBacklogIfIdle();
+          return;
+        }
+        // Folder and non-Markdown deletions can affect topology/attachment visibility more broadly.
+        this.scheduleRebuild("vault:delete");
+      }));
+    this.registerEvent(this.app.vault.on("rename",
+      /** Preserve path-owned state and refresh totals when a rename changes Markdown membership. */
+      (renamed, oldPath) => {
+        if (!(renamed instanceof TFile)) {
+          // Folder renames can rewrite many canonical file paths at once and remain structural.
+          this.scheduleRebuild("vault:rename-folder");
+          return;
+        }
 
-      const newPath = renamed.path;
-      let changed = false;
-      if (this.settings.lastActivePath === oldPath) {
-        this.settings.lastActivePath = newPath;
-        changed = true;
-      }
-      if (this.settings.sidecarLastFilePath === oldPath) {
-        this.settings.sidecarLastFilePath = newPath;
-        changed = true;
-      }
-      const history = this.settings.navigationHistory.map((path) => path === oldPath ? newPath : path);
-      if (history.some((path, index) => path !== this.settings.navigationHistory[index])) {
-        this.settings.navigationHistory = [...new Set(history)];
-        changed = true;
-      }
-      const pinned = this.settings.pinnedNodes.map((path) => path === oldPath ? newPath : path);
-      if (pinned.some((path, index) => path !== this.settings.pinnedNodes[index])) {
-        this.settings.pinnedNodes = [...new Set(pinned)];
-        changed = true;
-      }
+        const newPath = renamed.path;
+        if (oldPath.toLowerCase().endsWith(".md") !== (renamed.extension === "md")) {
+          this.cachedMarkdownFileCount = null;
+          this.notifyIndexStatus();
+        }
+        let changed = false;
+        if (this.settings.lastActivePath === oldPath) {
+          this.settings.lastActivePath = newPath;
+          changed = true;
+        }
+        if (this.settings.sidecarLastFilePath === oldPath) {
+          this.settings.sidecarLastFilePath = newPath;
+          changed = true;
+        }
+        const history = this.settings.navigationHistory.map((path) => path === oldPath ? newPath : path);
+        if (history.some((path, index) => path !== this.settings.navigationHistory[index])) {
+          this.settings.navigationHistory = [...new Set(history)];
+          changed = true;
+        }
+        const pinned = this.settings.pinnedNodes.map((path) => path === oldPath ? newPath : path);
+        if (pinned.some((path, index) => path !== this.settings.pinnedNodes[index])) {
+          this.settings.pinnedNodes = [...new Set(pinned)];
+          changed = true;
+        }
 
-      // Preserve a genuinely dirty file across the path change, but a clean rename is not itself a
-      // re-index trigger. GraphIndex remaps path-keyed graph/evidence/search state in O(degree).
-      if (this.dirtyMarkdownPaths.delete(oldPath)) this.dirtyMarkdownPaths.add(newPath);
-      this.index?.renameFile(oldPath, renamed);
-      this.renameMetadataSuppressions.set(newPath, {
-        mtime: renamed.stat.mtime,
-        size: renamed.stat.size,
-        until: Date.now() + 5000,
-      });
-      if (changed) void this.saveSettings(false, false);
-    }));
+        // Preserve a genuinely dirty file across the path change, but a clean rename is not itself a
+        // re-index trigger. GraphIndex remaps path-keyed graph/evidence/search state in O(degree).
+        if (this.dirtyMarkdownPaths.delete(oldPath)) this.dirtyMarkdownPaths.add(newPath);
+        this.index?.renameFile(oldPath, renamed);
+        this.renameMetadataSuppressions.set(newPath, {
+          mtime: renamed.stat.mtime,
+          size: renamed.stat.size,
+          until: Date.now() + 5000,
+        });
+        if (changed) void this.saveSettings(false, false);
+      }));
     this.registerEvent(this.app.metadataCache.on("changed", (file) => {
       this.pruneManagedMetadataWrites();
       // MetadataCache can emit one final `changed` notification for a TFile that Vault has already
@@ -1716,18 +1735,27 @@ export default class ExcaliBrainPlugin extends Plugin {
     return this.indexDirtyRevision;
   }
 
-  /** Return the current index readiness facts plus localized user-facing status copy; this query does not schedule indexing. */
-  getIndexStatus(): { upToDate: boolean; label: string } {
+  /** Return current index readiness/progress facts plus localized status copy; this query does not schedule indexing. */
+  getIndexStatus(): { upToDate: boolean; label: string; indexedFiles: number; totalFiles: number } {
     const upToDate = this.initialIndexComplete
       && !this.indexDirty
       && this.rebuildTask === null
       && this.rebuildTimer === null
       && !this.index.hasPendingSnapshotHydration();
+    // Progressive publication can notify frequently in large vaults. Cache the vault-wide total
+    // between lifecycle changes so status rendering remains O(1) instead of repeatedly allocating
+    // the complete Markdown-file list for every published batch.
+    const totalFiles = this.cachedMarkdownFileCount ??= this.app.vault.getMarkdownFiles().length;
+    const indexedFiles = upToDate
+      ? totalFiles
+      : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
     return {
       upToDate,
       label: upToDate
         ? this.translator("index.statusReady")
         : this.translator("index.statusUpdating"),
+      indexedFiles,
+      totalFiles,
     };
   }
 
@@ -1738,7 +1766,7 @@ export default class ExcaliBrainPlugin extends Plugin {
 
   private notifyIndexStatus(): void {
     const status = this.getIndexStatus();
-    const key = `${status.upToDate ? "1" : "0"}:${status.label}`;
+    const key = `${status.upToDate ? "1" : "0"}:${status.indexedFiles}:${status.totalFiles}:${status.label}`;
     if (key === this.lastIndexStatusKey) return;
     this.lastIndexStatusKey = key;
     for (const listener of this.indexStatusListeners) listener();
