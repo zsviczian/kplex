@@ -671,18 +671,43 @@ export const englishCatalog = {
     params: [],
   },
   "index.statusReady": {
-    message: "Index status: up to date",
-    context: "K-Plex host shell, command, toolbar, and status copy.",
+    message: "Status: index ready",
+    context: "K-Plex index indicator detail shown when the published index is authoritative.",
     params: [],
+  },
+  "index.statusLoadingCache": {
+    message: "Status: loading index from cache",
+    context: "K-Plex index indicator detail shown while the persisted IndexedDB graph is being hydrated.",
+    params: [],
+  },
+  "index.statusPreparing": {
+    message: "Status: preparing index",
+    context: "K-Plex index indicator detail shown while startup prerequisites are being prepared before file indexing begins.",
+    params: [],
+  },
+  "index.statusCheckingCache": {
+    message: "Status: checking cached index for changes",
+    context: "K-Plex index indicator detail shown while a restored cache is being reconciled with changed Markdown files.",
+    params: [],
+  },
+  "index.statusIndexingProgress": {
+    message: "Status: indexing {indexed} of {total} files",
+    context: "K-Plex index indicator detail showing actual progressive Markdown indexing progress.",
+    params: ["indexed", "total"],
   },
   "index.statusUpdating": {
-    message: "Index status: updating — the graph may be temporarily incomplete",
-    context: "K-Plex host shell, command, toolbar, and status copy.",
+    message: "Status: updating index",
+    context: "K-Plex index indicator detail shown while an already usable index is being updated.",
     params: [],
   },
+  "index.filesIndexed": {
+    message: "{indexed} of {total} files indexed.",
+    context: "K-Plex index indicator detail showing published Markdown source progress.",
+    params: ["indexed", "total"],
+  },
   "index.incompleteBubble": {
-    message: "Indexing in progress. Graph and search results are incomplete.",
-    context: "Startup info bubble shown beside the updating index indicator while K-Plex is still building or hydrating its authoritative graph.",
+    message: "Indexing in progress. Graph and search results are incomplete. Hover the index indicator to see current status.",
+    context: "One-time startup info bubble shown beside the updating index indicator while K-Plex is still building or hydrating its authoritative graph.",
     params: [],
   },
   "infoBubble.dismiss": {

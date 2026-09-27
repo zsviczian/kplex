@@ -436,7 +436,7 @@ try {
   let advances = 0;
   let dismissals = 0;
 
-  function Consumer() {
+  function Consumer({ actionless = false }) {
     const [open, setOpen] = useState(true);
     const targetRef = useRef(null);
     return React.createElement(React.Fragment, null,
@@ -445,9 +445,9 @@ try {
         open,
         targetRef,
         message: "Indexing in progress.",
-        dismissLabel: "Dismiss",
-        advanceLabel: "Next",
-        onAdvance: () => { advances += 1; },
+        dismissLabel: actionless ? undefined : "Dismiss",
+        advanceLabel: actionless ? undefined : "Next",
+        onAdvance: actionless ? undefined : () => { advances += 1; },
         onDismiss: () => { dismissals += 1; setOpen(false); },
       }),
     );
@@ -475,6 +475,12 @@ try {
   flushSync(() => buttons[1].click());
   check(dismissals === 1, "InfoBubble dismiss action must delegate exactly once");
   check(!document.body.querySelector(".kplex-info-bubble"), "InfoBubble remained after explicit dismissal");
+
+  flushSync(() => root.render(React.createElement(Consumer, { actionless: true, key: "actionless" })));
+  const informationalBubble = document.body.querySelector(".kplex-info-bubble");
+  check(informationalBubble, "Actionless InfoBubble did not render");
+  check(!informationalBubble.querySelector(".kplex-info-bubble-actions"), "Actionless InfoBubble rendered an empty action row");
+  check(informationalBubble.querySelectorAll("button").length === 0, "Actionless InfoBubble rendered an unexpected button");
 
   flushSync(() => root.unmount());
   container.remove();

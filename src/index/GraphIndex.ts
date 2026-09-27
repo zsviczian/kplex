@@ -231,6 +231,8 @@ export class GraphIndex {
   }
 
   get size(): number { return this.state.pages.size; }
+  /** Markdown sources represented by the currently published semantic index. */
+  indexedMarkdownFileCount(): number { return this.semanticFingerprints.size; }
   get(path: string): GraphPage | undefined { return getGraphPage(this.state, path); }
   allPages(): GraphPage[] { return [...this.state.pages.values()]; }
 
@@ -870,7 +872,11 @@ export class GraphIndex {
     const task = this.watchSnapshotHydration(restoreTask, run, () => createdAt);
     this.snapshotHydrationTask = task;
     void task.then(() => {
-      if (this.snapshotHydrationTask === task) this.snapshotHydrationTask = null;
+      if (this.snapshotHydrationTask !== task) return;
+      this.snapshotHydrationTask = null;
+      // Status consumers distinguish cache hydration from later reconciliation/indexing. Publish
+      // that phase boundary even when the graph itself did not change at task completion.
+      this.emit();
     });
     return Promise.race([preview, task]);
   }

@@ -230,6 +230,8 @@ export interface ExcaliBrainSettings {
   editNewNodeAfterCreate: boolean;
   /** Remember which create button Ctrl/Cmd+Enter should invoke next time. */
   newNodeDefaultType: NewNodeType;
+  /** Whether the one-time startup indexing guidance bubble has already been shown. */
+  startupIndexInfoBubbleSeen: boolean;
   /** Whether K-Plex has already shown the first-use delete confirmation/preferences prompt. */
   deletePromptInitialized: boolean;
   /** Ask for confirmation before deleting a real note file from the node context menu. */
@@ -339,6 +341,7 @@ export const DEFAULT_SETTINGS: ExcaliBrainSettings = {
   attachmentImageDisplay: "thumbnail-label",
   editNewNodeAfterCreate: false,
   newNodeDefaultType: "markdown",
+  startupIndexInfoBubbleSeen: false,
   deletePromptInitialized: false,
   confirmFileDelete: true
 };
@@ -490,6 +493,7 @@ export function migrateAndMergeSettings(raw: unknown): ExcaliBrainSettings {
     attachmentImageDisplay: old.attachmentImageDisplay === "label" || old.attachmentImageDisplay === "image" ? old.attachmentImageDisplay : "thumbnail-label",
     editNewNodeAfterCreate: Boolean(old.editNewNodeAfterCreate),
     newNodeDefaultType: old.newNodeDefaultType === "excalidraw" ? "excalidraw" : "markdown",
+    startupIndexInfoBubbleSeen: Boolean(old.startupIndexInfoBubbleSeen),
     deletePromptInitialized: Boolean(old.deletePromptInitialized),
     confirmFileDelete: old.confirmFileDelete !== false,
     // Keep legacy flags coherent for imported settings and older code paths.

@@ -12,6 +12,7 @@ import { MaterializeGhostModal, type GhostMaterializationKind, type GhostMateria
 import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, type RemainingNodeReference } from "./ui/DeleteNodeModal";
 import { LinkDirection, type GateRole, type GraphPage, type RelationshipRole } from "./types";
 import { OntologySuggester } from "./editor/OntologySuggester";
+import { isWebViewerAvailable, openExternalUrl } from "./adapters/obsidian/externalUrl";
 import { normalizeFieldName, parseBodyMetadata } from "./core/parser/metadata";
 import { extractLinksFromValue } from "./index/fieldParser";
 import type { RelationEvidence } from "./index/RelationEvidence";
@@ -69,7 +70,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private unloading = false;
   private initialIndexTask: Promise<void> | null = null;
   private initialIndexComplete = false;
-  /** Session-only gate so startup indexing guidance is shown once on the first visible Plex. */
+  /** In-memory guard against duplicate claims while the persisted one-time startup guidance flag saves. */
   private startupIndexInfoBubbleClaimed = false;
   private snapshotRestoreTask: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> | null = null;
   private readonly sidecarLeaves = new Map<WorkspaceLeaf, WorkspaceLeaf>();
@@ -92,6 +93,8 @@ export default class ExcaliBrainPlugin extends Plugin {
   private readonly searchFocusListeners = new Map<WorkspaceLeaf, () => void>();
   private readonly relationshipFlairListeners = new Set<(path: string) => void>();
   private readonly indexStatusListeners = new Set<() => void>();
+  /** Lazily cached Markdown total; vault lifecycle events invalidate it before status publication. */
+  private cachedMarkdownFileCount: number | null = null;
   private readonly kplexVisibilityListeners = new Set<() => void>();
   private visibleKplexLeaves = new Set<WorkspaceLeaf>();
   private lastIndexStatusKey = "";
@@ -499,74 +502,91 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.notifyIndexStatus();
   }
 
+  /** Register post-restore vault/metadata listeners and refresh cached vault-wide status facts. */
   private registerReactiveIndexListeners(): void {
     if (this.reactiveIndexListenersRegistered) return;
     this.reactiveIndexListenersRegistered = true;
+    this.cachedMarkdownFileCount = null;
 
-    this.registerEvent(this.app.vault.on("create", (created) => {
-      this.pruneManagedMetadataWrites();
-      if (created instanceof TFile && (this.managedCreatedPaths.get(created.path) ?? 0) > Date.now()) return;
-      this.scheduleRebuild("vault:create");
-    }));
-    this.registerEvent(this.app.vault.on("delete", (deleted) => {
-      if (deleted instanceof TFile && deleted.extension === "md") {
-        // Deleting Markdown changes materialization, not the identity of the graph endpoint. Keep
-        // the same GraphPage alive as a ghost so an active central note does not fall back to the
-        // vault root. Only declarations owned by the deleted file are removed locally.
-        this.dirtyMarkdownPaths.delete(deleted.path);
-        this.managedMetadataWrites.delete(deleted.path);
-        this.managedCreatedPaths.delete(deleted.path);
-        this.managedCreatedFiles.delete(deleted);
-        this.renameMetadataSuppressions.delete(deleted.path);
-        this.index?.dematerializeFile(deleted.path);
-        // A metadata event may already have queued an incremental patch for this file. Once the
-        // file is gone that patch is meaningless; do not let an empty patch backlog escalate into
-        // an authoritative full-vault rebuild a moment after dematerialization.
-        this.settlePatchOnlyBacklogIfIdle();
-        return;
-      }
-      // Folder and non-Markdown deletions can affect topology/attachment visibility more broadly.
-      this.scheduleRebuild("vault:delete");
-    }));
-    this.registerEvent(this.app.vault.on("rename", (renamed, oldPath) => {
-      if (!(renamed instanceof TFile)) {
-        // Folder renames can rewrite many canonical file paths at once and remain structural.
-        this.scheduleRebuild("vault:rename-folder");
-        return;
-      }
+    this.registerEvent(this.app.vault.on("create",
+      /** Invalidate the progress denominator before publishing a newly created Markdown source. */
+      (created) => {
+        this.pruneManagedMetadataWrites();
+        if (created instanceof TFile && created.extension === "md") {
+          this.cachedMarkdownFileCount = null;
+          this.notifyIndexStatus();
+        }
+        if (created instanceof TFile && (this.managedCreatedPaths.get(created.path) ?? 0) > Date.now()) return;
+        this.scheduleRebuild("vault:create");
+      }));
+    this.registerEvent(this.app.vault.on("delete",
+      /** Remove deleted Markdown sources from both semantic progress and its cached denominator. */
+      (deleted) => {
+        if (deleted instanceof TFile && deleted.extension === "md") {
+          this.cachedMarkdownFileCount = null;
+          // Deleting Markdown changes materialization, not the identity of the graph endpoint. Keep
+          // the same GraphPage alive as a ghost so an active central note does not fall back to the
+          // vault root. Only declarations owned by the deleted file are removed locally.
+          this.dirtyMarkdownPaths.delete(deleted.path);
+          this.managedMetadataWrites.delete(deleted.path);
+          this.managedCreatedPaths.delete(deleted.path);
+          this.managedCreatedFiles.delete(deleted);
+          this.renameMetadataSuppressions.delete(deleted.path);
+          this.index?.dematerializeFile(deleted.path);
+          // A metadata event may already have queued an incremental patch for this file. Once the
+          // file is gone that patch is meaningless; do not let an empty patch backlog escalate into
+          // an authoritative full-vault rebuild a moment after dematerialization.
+          this.settlePatchOnlyBacklogIfIdle();
+          return;
+        }
+        // Folder and non-Markdown deletions can affect topology/attachment visibility more broadly.
+        this.scheduleRebuild("vault:delete");
+      }));
+    this.registerEvent(this.app.vault.on("rename",
+      /** Preserve path-owned state and refresh totals when a rename changes Markdown membership. */
+      (renamed, oldPath) => {
+        if (!(renamed instanceof TFile)) {
+          // Folder renames can rewrite many canonical file paths at once and remain structural.
+          this.scheduleRebuild("vault:rename-folder");
+          return;
+        }
 
-      const newPath = renamed.path;
-      let changed = false;
-      if (this.settings.lastActivePath === oldPath) {
-        this.settings.lastActivePath = newPath;
-        changed = true;
-      }
-      if (this.settings.sidecarLastFilePath === oldPath) {
-        this.settings.sidecarLastFilePath = newPath;
-        changed = true;
-      }
-      const history = this.settings.navigationHistory.map((path) => path === oldPath ? newPath : path);
-      if (history.some((path, index) => path !== this.settings.navigationHistory[index])) {
-        this.settings.navigationHistory = [...new Set(history)];
-        changed = true;
-      }
-      const pinned = this.settings.pinnedNodes.map((path) => path === oldPath ? newPath : path);
-      if (pinned.some((path, index) => path !== this.settings.pinnedNodes[index])) {
-        this.settings.pinnedNodes = [...new Set(pinned)];
-        changed = true;
-      }
+        const newPath = renamed.path;
+        if (oldPath.toLowerCase().endsWith(".md") !== (renamed.extension === "md")) {
+          this.cachedMarkdownFileCount = null;
+          this.notifyIndexStatus();
+        }
+        let changed = false;
+        if (this.settings.lastActivePath === oldPath) {
+          this.settings.lastActivePath = newPath;
+          changed = true;
+        }
+        if (this.settings.sidecarLastFilePath === oldPath) {
+          this.settings.sidecarLastFilePath = newPath;
+          changed = true;
+        }
+        const history = this.settings.navigationHistory.map((path) => path === oldPath ? newPath : path);
+        if (history.some((path, index) => path !== this.settings.navigationHistory[index])) {
+          this.settings.navigationHistory = [...new Set(history)];
+          changed = true;
+        }
+        const pinned = this.settings.pinnedNodes.map((path) => path === oldPath ? newPath : path);
+        if (pinned.some((path, index) => path !== this.settings.pinnedNodes[index])) {
+          this.settings.pinnedNodes = [...new Set(pinned)];
+          changed = true;
+        }
 
-      // Preserve a genuinely dirty file across the path change, but a clean rename is not itself a
-      // re-index trigger. GraphIndex remaps path-keyed graph/evidence/search state in O(degree).
-      if (this.dirtyMarkdownPaths.delete(oldPath)) this.dirtyMarkdownPaths.add(newPath);
-      this.index?.renameFile(oldPath, renamed);
-      this.renameMetadataSuppressions.set(newPath, {
-        mtime: renamed.stat.mtime,
-        size: renamed.stat.size,
-        until: Date.now() + 5000,
-      });
-      if (changed) void this.saveSettings(false, false);
-    }));
+        // Preserve a genuinely dirty file across the path change, but a clean rename is not itself a
+        // re-index trigger. GraphIndex remaps path-keyed graph/evidence/search state in O(degree).
+        if (this.dirtyMarkdownPaths.delete(oldPath)) this.dirtyMarkdownPaths.add(newPath);
+        this.index?.renameFile(oldPath, renamed);
+        this.renameMetadataSuppressions.set(newPath, {
+          mtime: renamed.stat.mtime,
+          size: renamed.stat.size,
+          until: Date.now() + 5000,
+        });
+        if (changed) void this.saveSettings(false, false);
+      }));
     this.registerEvent(this.app.metadataCache.on("changed", (file) => {
       this.pruneManagedMetadataWrites();
       // MetadataCache can emit one final `changed` notification for a TFile that Vault has already
@@ -1504,14 +1524,21 @@ export default class ExcaliBrainPlugin extends Plugin {
   isStartupInitializing(): boolean { return this.startupInitializing; }
 
   /**
-   * Claim the one-per-session startup indexing guidance bubble for the first visible Plex.
+   * Claim the one-time startup indexing guidance bubble for the first visible Plex.
    *
-   * @returns `true` exactly once while initial indexing is still non-authoritative; normal runtime
-   * re-indexing never reopens startup guidance.
+   * The claim is persisted immediately, so after the guidance has appeared once it never returns
+   * on later Obsidian sessions. Normal runtime re-indexing never opens startup guidance either.
    */
   claimStartupIndexInfoBubble(): boolean {
-    if (this.startupIndexInfoBubbleClaimed || this.initialIndexComplete || this.getIndexStatus().upToDate) return false;
+    if (
+      this.startupIndexInfoBubbleClaimed
+      || this.settings.startupIndexInfoBubbleSeen
+      || this.initialIndexComplete
+      || this.getIndexStatus().upToDate
+    ) return false;
     this.startupIndexInfoBubbleClaimed = true;
+    this.settings.startupIndexInfoBubbleSeen = true;
+    void this.saveSettings(false, false);
     return true;
   }
 
@@ -1715,19 +1742,50 @@ export default class ExcaliBrainPlugin extends Plugin {
     return this.indexDirtyRevision;
   }
 
-  /** Return the current index readiness facts plus localized user-facing status copy; this query does not schedule indexing. */
-  getIndexStatus(): { upToDate: boolean; label: string } {
+  /** Return current index readiness/progress facts plus localized status copy; this query does not schedule indexing. */
+  getIndexStatus(): {
+    upToDate: boolean;
+    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "updating";
+    label: string;
+    indexedFiles: number;
+    totalFiles: number;
+  } {
+    const loadingCache = this.index.hasPendingSnapshotHydration();
     const upToDate = this.initialIndexComplete
       && !this.indexDirty
       && this.rebuildTask === null
       && this.rebuildTimer === null
-      && !this.index.hasPendingSnapshotHydration();
-    return {
-      upToDate,
-      label: upToDate
-        ? this.translator("index.statusReady")
-        : this.translator("index.statusUpdating"),
-    };
+      && !loadingCache;
+    // Progressive publication can notify frequently in large vaults. Cache the vault-wide total
+    // between lifecycle changes so status rendering remains O(1) instead of repeatedly allocating
+    // the complete Markdown-file list for every published batch.
+    const totalFiles = this.cachedMarkdownFileCount ??= this.app.vault.getMarkdownFiles().length;
+    const indexedFiles = upToDate
+      ? totalFiles
+      : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
+    const phase = upToDate
+      ? "ready"
+      : loadingCache
+        ? "loading-cache"
+        : !this.initialIndexComplete && this.rebuildTask !== null
+          ? "indexing"
+          : !this.initialIndexComplete && this.index.size > 0 && this.index.hasIncrementalRestorePatch()
+            ? "checking-cache"
+            : !this.initialIndexComplete
+              ? "preparing"
+              : "updating";
+    const label = phase === "ready"
+      ? this.translator("index.statusReady")
+      : phase === "loading-cache"
+        ? this.translator("index.statusLoadingCache")
+        : phase === "preparing"
+          ? this.translator("index.statusPreparing")
+          : phase === "checking-cache"
+            ? this.translator("index.statusCheckingCache")
+            : phase === "indexing"
+              ? this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })
+              : this.translator("index.statusUpdating");
+    return { upToDate, phase, label, indexedFiles, totalFiles };
   }
 
   subscribeIndexStatus(listener: () => void): () => void {
@@ -1737,7 +1795,7 @@ export default class ExcaliBrainPlugin extends Plugin {
 
   private notifyIndexStatus(): void {
     const status = this.getIndexStatus();
-    const key = `${status.upToDate ? "1" : "0"}:${status.label}`;
+    const key = `${status.upToDate ? "1" : "0"}:${status.phase}:${status.indexedFiles}:${status.totalFiles}:${status.label}`;
     if (key === this.lastIndexStatusKey) return;
     this.lastIndexStatusKey = key;
     for (const listener of this.indexStatusListeners) listener();
@@ -2020,6 +2078,12 @@ export default class ExcaliBrainPlugin extends Plugin {
   /** Open the selected page in the supplied native Sidecar leaf, preserving host navigation and localized failure feedback. */
   private async openPageInSidecarLeaf(leaf: WorkspaceLeaf, page: GraphPage): Promise<void> {
     if (page.url) {
+      // setViewState resolves to a missing-plugin placeholder rather than rejecting an unavailable view.
+      // Keep the companion's actual content/restore identity; explicit Open still uses host URL routing.
+      if (!isWebViewerAvailable(this.app)) {
+        new Notice(this.translator("notice.webViewerUnavailable"), 2600);
+        return;
+      }
       this.settings.sidecarLastUrl = page.url;
       this.settings.sidecarLastFilePath = "";
       try {
@@ -2292,9 +2356,9 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   /** Open a graph page through its supported host target and localize product feedback; semantic identities remain unchanged. */
-  async openPage(page: GraphPage): Promise<void> {
+  async openPage(page: GraphPage, ownerDocument = this.app.workspace.containerEl.ownerDocument): Promise<void> {
     if (page.url) {
-      window.open(page.url, "_blank", "noopener,noreferrer");
+      openExternalUrl(page.url, ownerDocument);
       return;
     }
     if (page.file) {

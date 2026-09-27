@@ -13,6 +13,7 @@ import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle } from "../index/styl
 import { buildScene, buildSectionExpandedScene, effectiveLabelLimit, expandedChildReserve, gateDiameter, siblingScale, type ZoneAreaBounds, type ZoneViewport } from "./layout";
 import { ResizableAreaFrame } from "./components/ResizableAreaFrame";
 import { ThoughtNode, type ConnectionDragState } from "./ThoughtNode";
+import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { RelationshipExplanationModal } from "./RelationshipExplanationModal";
 import { RenameNoteModal } from "./RenameNoteModal";
@@ -831,6 +832,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   const touchPointers = useRef(new Map<number, Point>());
   const pinchGesture = useRef<{ startDistance: number; worldMidpoint: Point; startScale: number } | null>(null);
   const suppressActivateUntil = useRef(0);
+  const suppressSyntheticClickUntil = useRef(0);
+  const suppressNativeDoubleClickUntil = useRef(0);
+  const touchDoubleTap = useRef(new DoubleTapGesture());
   const layoutSaveTimer = useRef<number | null>(null);
   const preserveCameraOnNextLayout = useRef(false);
   const suppressAutoFitUntil = useRef(0);
@@ -1353,6 +1357,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   useEffect(() => {
     const el = viewport.current;
     if (!el) return;
+    /** Keep graph touch gestures local while preserving native scrolling in empty bounded lists. */
     const protectTouchGesture = (event: TouchEvent) => {
       // K-Plex owns touch gestures inside its canvas. Stop Obsidian Mobile's edge/top swipe
       // recognizers from interpreting graph pans as sidebar/command-palette gestures. Native
@@ -1361,7 +1366,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       const target = event.target as Element | null;
       if (target?.closest?.(".modal-container, input, select, textarea, button")) return;
       const scrollSurface = target?.closest?.(".kplex-zone-scroll, .kplex-expanded-scroll");
-      const graphTarget = target?.closest?.(".excalibrain-thought, .excalibrain-edge-hit");
+      const graphTarget = target?.closest?.("[data-kplex-path], .excalibrain-edge-hit");
       // Empty bounded relationship lists keep native one-finger scrolling. A touch that starts on
       // a thought/connector belongs to the Plex, so two-finger pinch works even when the Plex is
       // visually full of thoughts (important on iPad where there may be almost no bare canvas).
@@ -1736,11 +1741,13 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     return ids;
   }, [connectDrag, visibleEdges]);
 
+  /** Begin gate connection ownership; touch gate gestures cancel a pending node double-tap. */
   const startGateDrag = (node: PositionedNode, gate: GateSide, event: PointerEvent<HTMLSpanElement>) => {
     const folderChildCreation = node.page.isFolder && gate === "bottom";
     if (event.button !== 0 || node.page.isTag || node.page.transient || (node.page.isFolder && !folderChildCreation)) return;
 
     if (event.pointerType === "touch") {
+      touchDoubleTap.current.reset();
       cancelPendingGateLongPress();
       const element = event.currentTarget;
       const pointerId = event.pointerId;
@@ -1788,7 +1795,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
+  /** Prepare relinking or a stationary node tap, with touch long-press context-menu ownership. */
   const startNodeDrag = (node: PositionedNode, event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") touchDoubleTap.current.reset();
     const target = event.target as Element;
     if (target.closest("[data-kplex-gate], button")) return;
     if (event.button !== 0 || !normalizedRole(node.role) || node.page.isFolder || node.page.isTag || node.page.transient || neighborhood?.center.isFolder || neighborhood?.center.isTag) return;
@@ -1833,7 +1842,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     }
   };
 
+  /** Transfer multiple touch pointers to camera zoom and discard pending node tap pairs. */
   const beginPinch = () => {
+    touchDoubleTap.current.reset();
     const points = [...touchPointers.current.values()];
     if (points.length < 2) { pinchGesture.current = null; return; }
     const a = points[0];
@@ -1885,6 +1896,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       );
       if (areaHit?.edgeActive) {
         const config = AREA_HEIGHT_CONFIG[areaHit.zone];
+        touchDoubleTap.current.reset();
         clearHoverIntent(true);
         panDrag.current = null;
         areaSettingsDismissPointer.current = null;
@@ -1906,7 +1918,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     }
   };
 
-  /** Route canvas presses to pan/touch gestures after the resize capture phase. */
+  /** Route canvas presses to pan, pinch, tap or context-menu gestures after resize capture. */
   const down = (e: PointerEvent<HTMLDivElement>) => {
     if (connectDrag) return;
     if (nodeDrag) {
@@ -1939,7 +1951,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       // Empty bounded lists own one-finger vertical scrolling. A thought/edge inside such a list
       // still belongs to the graph so pinch can begin over visible content, not only bare canvas.
       const scrollSurface = target.closest(".kplex-zone-scroll, .kplex-expanded-scroll");
-      const graphTarget = target.closest(".excalibrain-thought, .excalibrain-edge-hit");
+      const graphTarget = target.closest("[data-kplex-path], .excalibrain-edge-hit");
       if (scrollSurface && !graphTarget) return;
       e.preventDefault();
       e.stopPropagation();
@@ -1993,6 +2005,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       return;
     }
 
+    touchDoubleTap.current.reset();
     if (![0, 1, 2].includes(e.button)) return;
     const overThought = Boolean(target.closest(".excalibrain-thought"));
     if (!mouseButtonCanPan(e.button, overThought)) return;
@@ -2093,7 +2106,29 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     applyCamera((current) => ({ ...current, x, y }));
   };
 
-  /** Complete and persist an area edit before handling ordinary graph navigation or gesture release. */
+  /** Complete a stationary touch synchronously; two taps open without waiting for a native dblclick. */
+  const completeTouchTap = (page: GraphPage, event: PointerEvent<HTMLDivElement>): void => {
+    suppressSyntheticClickUntil.current = Date.now() + 350;
+    if (page.transient?.kind === "section") {
+      touchDoubleTap.current.reset();
+      void plugin.openSection(page);
+      return;
+    }
+    const target = index.get(page.transient?.actualPath ?? page.path);
+    if (!target) {
+      touchDoubleTap.current.reset();
+      return;
+    }
+    if (touchDoubleTap.current.complete(target.path, event.timeStamp, event.clientX, event.clientY)) {
+      // Android may also synthesize dblclick; consume that duplicate while retaining desktop mouse opening.
+      suppressNativeDoubleClickUntil.current = Date.now() + 500;
+      onOpen(target);
+    } else {
+      onActivate(target);
+    }
+  };
+
+  /** Finish resize, drag, pan or touch activation with one owner; movement cannot complete a tap pair. */
   const up = (e: PointerEvent<HTMLDivElement>) => {
     if (areaResizeDrag.current?.pointerId === e.pointerId) {
       const ownerDocument = e.currentTarget.ownerDocument;
@@ -2151,6 +2186,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       const original = scene.nodes.find((node) => node.page.path === drag.path);
       const dragDistance = Math.hypot(e.clientX - drag.startClientX, e.clientY - drag.startClientY);
       if (drag.moved) {
+        touchDoubleTap.current.reset();
         suppressActivateUntil.current = Date.now() + 220;
         const draggedNode = renderedNodeMap.get(drag.path);
         const center = neighborhood?.center;
@@ -2190,8 +2226,12 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       } else if (original) {
         // Starting a potential relationship-relink drag uses pointer capture. Some Chromium/React
         // combinations then suppress the synthetic click, so make a tap explicitly navigate.
-        suppressActivateUntil.current = Date.now() + 180;
-        onActivate(original.page);
+        if (e.pointerType === "touch") {
+          completeTouchTap(original.page, e);
+        } else {
+          suppressActivateUntil.current = Date.now() + 180;
+          onActivate(original.page);
+        }
       }
       setNodeDrag(null);
       if (e.pointerType === "touch") {
@@ -2216,16 +2256,15 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         const nodeEl = !gate ? hit?.closest<HTMLElement>("[data-kplex-path]") : null;
         const nodePath = nodeEl?.dataset.kplexPath;
         const node = nodePath ? (renderedNodeMap.get(nodePath) ?? scene.nodes.find((candidate) => candidate.page.path === nodePath)) : undefined;
-        if (node) {
-          suppressActivateUntil.current = Date.now() + 350;
-          if (node.page.transient?.kind === "section") {
-            void plugin.openSection(node.page);
-          } else {
-            const actualPath = node.page.transient?.actualPath ?? node.page.path;
-            const target = index.get(actualPath);
-            if (target) onActivate(target);
-          }
+        // Expanded mini nodes share this gesture owner without belonging to the primary scene map.
+        const page = node?.page ?? (nodePath ? index.get(nodePath) : undefined);
+        if (page) {
+          completeTouchTap(page, e);
+        } else {
+          touchDoubleTap.current.reset();
         }
+      } else {
+        touchDoubleTap.current.reset();
       }
 
       touchPointers.current.delete(e.pointerId);
@@ -2248,8 +2287,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     }
   };
 
-  /** Cancel transient pointer interaction while preserving a changed presentation height. */
+  /** Release cancelled pointer ownership, persist area changes and discard pending touch taps. */
   const cancel = (e: PointerEvent<HTMLDivElement>) => {
+    touchDoubleTap.current.reset();
     if (areaSettingsDismissPointer.current?.pointerId === e.pointerId) areaSettingsDismissPointer.current = null;
     if (areaResizeDrag.current?.pointerId === e.pointerId) {
       finishAreaResize(e.pointerId);
@@ -2288,13 +2328,16 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     return index.get(actualPath) ?? null;
   };
 
+  /** Navigate through click-based input while ignoring compatibility clicks already handled by pointer-up. */
   const activateNode = (page: GraphPage): void => {
     if (page.transient?.kind === "section") return;
     const target = persistentPageFor(page);
-    if (target && Date.now() >= suppressActivateUntil.current) onActivate(target);
+    if (target && Date.now() >= Math.max(suppressActivateUntil.current, suppressSyntheticClickUntil.current)) onActivate(target);
   };
 
+  /** Open through mouse double-click unless a completed touch pair already performed the same action. */
   const openNode = (page: GraphPage): void => {
+    if (Date.now() < suppressNativeDoubleClickUntil.current) return;
     if (page.transient?.kind === "section") {
       void plugin.openSection(page);
       return;
@@ -2305,6 +2348,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
   /** Build the node context menu at a viewport point, including host-aware file opening targets and node-specific graph actions. */
   const showNodeContextMenuAt = (node: PositionedNode, clientX: number, clientY: number): void => {
+    touchDoubleTap.current.reset();
     const page = node.page;
     const persistent = persistentPageFor(page);
     const isCenter = node.role === "center" && page.path === neighborhood?.center.path;
@@ -2463,7 +2507,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     showNodeContextMenuAt(node, event.clientX, event.clientY);
   };
 
+  /** Show host connection actions at the pointer position and end any pending node tap sequence. */
   const showEdgeContextMenuAt = (edge: PositionedEdge, clientX: number, clientY: number): void => {
+    touchDoubleTap.current.reset();
     const explanationSourcePath = edge.explanationSourcePath ?? edge.sourcePath;
     const explanationTargetPath = edge.explanationTargetPath ?? edge.targetPath;
     const explanation = sectionExpansion?.explanations.get(`${explanationSourcePath}\u0000${explanationTargetPath}`)
@@ -2703,6 +2749,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
             return <div
               key={child.key}
               className={`kplex-expanded-mini-thought${cluster.parent.role === "sibling" ? " is-sibling-descendant" : ""}`}
+              data-kplex-path={child.relation.page.path}
               style={{
                 left: child.localX - child.width / 2,
                 top: child.localY - child.height / 2,
@@ -2714,8 +2761,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
                 fontSize: cluster.parent.role === "sibling" ? 8 * siblingScale(settings) : 8,
               }}
               title={translate("graph.relatedNotePath", { label: child.label, path: child.relation.page.path })}
-              onClick={(event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); onActivate(child.relation.page); }}
-              onDoubleClick={(event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); onOpen(child.relation.page); }}
+              onClick={(event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); activateNode(child.relation.page); }}
+              onDoubleClick={(event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); openNode(child.relation.page); }}
               onPointerEnter={(event: PointerEvent<HTMLDivElement>) => {
                 if (event.nativeEvent.ctrlKey || event.nativeEvent.metaKey) {
                   plugin.triggerHoverPreview(child.relation.page, event.currentTarget, event.nativeEvent, neighborhood?.center.file?.path ?? "");
