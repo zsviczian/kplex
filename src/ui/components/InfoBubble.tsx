@@ -10,8 +10,8 @@ export interface InfoBubbleProps {
   open: boolean;
   targetRef: RefObject<HTMLElement | null>;
   message: ReactNode;
-  dismissLabel: string;
-  onDismiss: () => void;
+  dismissLabel?: string;
+  onDismiss: (reason?: FloatingLayerDismissReason) => void;
   advanceLabel?: string;
   onAdvance?: () => void;
   className?: string;
@@ -56,7 +56,12 @@ export function InfoBubble({
   );
 
   /** Collapse layer-specific dismissal reasons into the component's caller-owned dismiss action. */
-  const dismissFromLayer = useCallback((_reason: FloatingLayerDismissReason): void => {
+  const dismissFromLayer = useCallback((reason: FloatingLayerDismissReason): void => {
+    onDismiss(reason);
+  }, [onDismiss]);
+
+  /** Dismiss from the optional visible action without fabricating a layer-level reason. */
+  const dismissFromAction = useCallback((): void => {
     onDismiss();
   }, [onDismiss]);
 
@@ -78,12 +83,12 @@ export function InfoBubble({
     >
       <span className="kplex-info-bubble-pointer" aria-hidden="true" />
       <div id={messageId} className="kplex-info-bubble-message" aria-live="polite">{message}</div>
-      <div className="kplex-info-bubble-actions">
+      {((onAdvance && advanceLabel) || dismissLabel) ? <div className="kplex-info-bubble-actions">
         {onAdvance && advanceLabel
           ? <button type="button" className="mod-cta" onClick={onAdvance}>{advanceLabel}</button>
           : null}
-        <button type="button" onClick={onDismiss}>{dismissLabel}</button>
-      </div>
+        {dismissLabel ? <button type="button" onClick={dismissFromAction}>{dismissLabel}</button> : null}
+      </div> : null}
     </div>}
   </FloatingLayer>;
 }

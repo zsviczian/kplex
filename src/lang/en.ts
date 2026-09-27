@@ -671,14 +671,19 @@ export const englishCatalog = {
     params: [],
   },
   "index.statusReady": {
-    message: "Index status: up to date",
-    context: "K-Plex host shell, command, toolbar, and status copy.",
+    message: "Status: index ready",
+    context: "K-Plex index indicator detail shown when the published index is authoritative.",
     params: [],
   },
   "index.statusUpdating": {
-    message: "Index status: updating — the graph may be temporarily incomplete",
-    context: "K-Plex host shell, command, toolbar, and status copy.",
+    message: "Status: indexing",
+    context: "K-Plex index indicator detail shown while indexing or snapshot hydration is active.",
     params: [],
+  },
+  "index.filesIndexed": {
+    message: "{indexed} of {total} files indexed.",
+    context: "K-Plex index indicator detail showing published Markdown source progress.",
+    params: ["indexed", "total"],
   },
   "index.incompleteBubble": {
     message: "Indexing in progress. Graph and search results are incomplete.",
