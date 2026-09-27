@@ -275,6 +275,7 @@ for (const file of [
   "src/core/plex/predicateParser.ts",
   "src/core/plex/lens.ts",
   "src/adapters/obsidian/graphContracts.ts",
+  "src/adapters/obsidian/adjacentFileLeaf.ts",
   "src/adapters/obsidian/predicateContracts.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts",
   "src/adapters/obsidian/hostLinkSourceCollector.ts",
@@ -437,6 +438,31 @@ exports.createObsidianTranslator = () => createTranslator("en");
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
 const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
 const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
+
+// Native split regression: persisted pixel bases may consume the entire split,
+// leaving a newly inserted pane at zero width/height despite correct ordering.
+for (const axis of ["width", "height"]) {
+  const split = {};
+  const anchor = { parentElement: split, getBoundingClientRect: () => ({ [axis]: 400 }) };
+  let paneExtent = 0;
+  const pane = { parentElement: split, getBoundingClientRect: () => ({ [axis]: paneExtent }) };
+  const writes = [];
+  const context = {
+    leafGroupElement: (leaf) => leaf,
+    splitAxis: () => axis,
+    setWorkspaceBasis: (element, extent) => writes.push([element, extent]),
+  };
+  ExcaliBrainPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
+  assert.deepEqual(writes, [[anchor, 200], [pane, 200]], "Collapsed native pane must share its anchor's allocation");
+  writes.length = 0;
+  paneExtent = 200;
+  ExcaliBrainPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
+  assert.deepEqual(writes, [], "Usable native allocations must remain unchanged");
+  paneExtent = 0;
+  pane.parentElement = {};
+  ExcaliBrainPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
+  assert.deepEqual(writes, [], "Sizing must not cross unrelated workspace splits");
+}
 const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedRelations, computeIndexSettingsSignature, computeVaultSignature, persistedDeclarationFromEvidence } = require(join(temp, "src/index/IndexSnapshot.js"));
 const { createGraphState } = require(join(temp, "src/index/GraphState.js"));
 const { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion } = require(join(temp, "src/index/SectionExpansion.js"));

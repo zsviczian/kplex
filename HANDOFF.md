@@ -16,41 +16,60 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-
 ### Current transfer
 
-**State: main-agent review and automated/CLI validation complete; one native File Explorer drag check remains for maintainer confirmation. Changes remain uncommitted.**
+**State: main-agent review and local validation complete; changes remain uncommitted. Physical-device checks listed below remain pending.**
 
-- Sender → recipient: offline development agent → main validation agent → maintainer.
-- Kind: issue #30 feature implementation / return review.
-- Objective: dragging one Markdown note from Obsidian File Explorer onto K-Plex makes that note central in the same surface. The maintainer clarified this is an Obsidian-internal File Explorer gesture, not an operating-system file drop.
-- Base branch/commit: `drop-to-open-file` at `54c539f` (`54c539ffa00117ae39fe652fd2376bca3729d049`). Incoming changes were uncommitted in `HANDOFF.md`, `src/ui/App.tsx`, `tests/indexing.test.mjs`, `tests/presentation-environment.test.mjs`, and new `src/adapters/obsidian/fileExplorerDrag.ts`.
-- Main-agent environment: Node v22.22.2, npm dependencies installed with `npm ci`, Obsidian CLI 1.14.2 (installer 1.14.0), installed `obsidian` types 1.13.0, macOS 14.5, explicit disposable vault `kplex-test` at `/Users/zsviczian/Obsidian/kplex-test`.
+- Objective: GitHub feature request #32, file-backed node **Open** submenu, plus the maintainer's pair-preserving adjacent-pane requirement.
+- Branch/base: `open-from-context-menu`, `4d4e0e103d0421298df2146015d21df05758fb0c`.
+- Environment: macOS, Node 22.22.2, installed Obsidian API package 1.13.0, Obsidian CLI/runtime 1.14.2 (installer 1.14.0), disposable `kplex-test` vault.
+- Main agent reviewed the complete change against AGENTS.md, CONTRIBUTING.md, docs/ARCHITECTURE.md and docs/AGENT_WORKFLOW.md. No commit/push/PR was performed.
 
-### Implementation and review
+### Review findings and corrections
 
-- The new `src/adapters/obsidian/fileExplorerDrag.ts` isolates Obsidian's untyped `app.dragManager.draggable` payload. It accepts only `type: "file"` or a one-element `type: "files"` payload, resolves the current Vault file by path, and returns only Markdown files. This follows the existing internal drag-manager pattern in the sibling Excalidraw plugin and fails closed for unsupported payloads.
-- `src/ui/App.tsx` handles the supported drop on both the normal graph surface and initial empty/indexing surface. Indexed files use the existing `activate()` path. An unindexed file is held by `TFile` identity until a later index publication; deletion/replacement clears it, while rename/move can follow the updated file path.
-- Review found that a queued unindexed drop could override a later user navigation. `activate()` now clears the pending drop whenever a newer explicit navigation occurs. A live-host probe covers that ordering.
-- The incoming test change had removed unrelated assertions for the desktop draggable-dialog behavior. The review restored those regression guards. Adapter cases and the new surface/pending/cancellation guards remain in `tests/presentation-environment.test.mjs` and `tests/indexing.test.mjs`.
-- No persisted schema, settings, command IDs, UI copy, styles, or vault content changed. Pending state is view-local and is not persisted.
+1. The original untyped `MenuItem.setSubmenu()` failed real lint/build validation. The subsequent click-to-replace-menu workaround compiled but broke the requested hover interaction. Runtime inspection confirmed `setSubmenu` exists in Obsidian 1.14.2. `src/adapters/obsidian/nativeSubmenu.ts` now isolates its narrow optional declaration and delegates hover, keyboard/touch navigation and cleanup to native Obsidian. If the capability is absent, localized actions appear as a flat group; no misleading click-to-replace submenu is used.
+2. `getLeaf("split")` used global active-leaf state and could insert between Plex and its Sidecar. Adjacent opening now receives the originating `hostLeaf`. `src/adapters/obsidian/adjacentFileLeaf.ts` splits beyond the pair on its existing axis: right of a horizontal pair, below a vertical pair. With no Sidecar it splits to the right of the originating Plex. Temporary split geometry is fenced by the existing Sidecar ownership guard until layout settles. A follow-up maintainer check exposed a zero-width pane with a left Sidecar: pixel flex bases retained by Sidecar movement consumed the full split. `ensureAdjacentFileLeafSize` now shares the outer anchor's existing allocation only when the new pane has no usable extent, using the existing native sizing helper and leaving nonzero allocations/other panes alone.
+3. **Focus open tab** excludes graph surfaces but includes actual native file tabs, including Sidecars and deferred file tabs. It reveals an existing matching leaf without creating a duplicate.
+4. Added executable adapter regression tests for native submenu delegation/fallback and all four split-anchor choices. The indexing harness also executes the actual main.ts sizing method for collapsed width/height, unchanged nonzero sizes and unrelated split boundaries. Updated production wiring guards and the indexing test harness's real-module inventory.
 
-### Validation performed by the main agent
+### Final implementation and architecture review
 
-- `npm ci` under Node v22.22.2 → PASS; 317 packages installed, no reported vulnerabilities.
-- `npm run verify` → PASS on the reviewed source: architecture checker (45 migrated roots, 86 reachable files, 0 violations), core suite (58/58), lint, indexing fixture, aggregate Node suite (103/103), browser DOM suite (5/5), and production build/type check.
-- `npm run verify:obsidian` → PASS against the explicit `kplex-test` vault using the exact final build. Artifact SHA-256 values matched between `dist/` and the staged plugin bundle; plugin command registration and rendered `.excalibrain-app` containing K-Plex passed with no captured JavaScript errors. Report: `/private/tmp/kplex-drop-final/report.json`.
-- Live CLI/React-host event probes: a single current Markdown `type: "file"` payload was accepted, selected the requested center and added it to navigation history; `type: "link"` and multi-file payloads were ignored without navigation; a temporarily withheld index lookup queued the note and `index.notify()` activated it once available; a subsequent explicit navigation canceled the pending drop. Each probe restored the original center/history and cleared the temporary drag payload.
-- `git diff --check` → PASS. No generated `dist/` output is tracked or part of the change.
-- An initial native runner attempt stopped responding at `dev:errors` after opening K-Plex. The CLI endpoint responded independently, and a complete subsequent `npm run verify:obsidian` passed.
+- `PlexGraph.tsx` builds the localized menu and delegates workspace effects. Reusable native submenu/split helpers live at the Obsidian adapter boundary; main.ts owns native file-opening effects and Sidecar lifetime.
+- Phone: new tab and conditional existing-tab focus. Tablet: adds adjacent pane. Desktop: additionally permits pop-out. Existing environment policy determines capabilities.
+- New strings are catalogued in `src/lang/en.ts`; no settings schema, stable commands, semantic index/parser/compiler rules or durable user data changed.
+- New modules and affected functions/callbacks have TSDoc. Native menus use the existing owning-document display/dismissal path. No custom DOM/CSS menu implementation, permanent global test API or lifecycle resources were added.
 
-### Maintainer check still required
+### Automated validation
 
-1. In Obsidian desktop, perform one real drag from File Explorer: drag a single Markdown note onto the graph area of K-Plex. Confirm that this same K-Plex surface centers on the note once. The CLI probe dispatched the mounted drop handler with Obsidian's drag-manager payload, but did not reproduce an actual pointer drag from File Explorer, so that host gesture remains unverified.
-2. If convenient, verify that dropping a folder, attachment, multiple selected files, or an editor link does not navigate K-Plex. Automated adapter/host probes cover link and multi-file rejection; folder and attachment rejection are adapter-tested. A manual repeat in Sidepanel/popout is only needed if those surfaces are in the intended feature scope.
+- `npm ci` on Node 22.22.2: passed with real project dependencies.
+- `npm run verify:obsidian`: passed. This runs the full `npm run verify` before staging the exact build and checking native startup.
+  - Architecture: 7/7 tests; 35 migrated roots, 76 reachable files, zero violations.
+  - Core lane: 58/58.
+  - Official Obsidian ESLint and production TypeScript/bundle build: passed.
+  - Indexing fixture groups: passed.
+  - Aggregate Node tests: 103/103; browser UI tests: 4/4.
+  - Exact dist artifacts installed/reloaded in `kplex-test`; registered command, rendered graph and no captured JavaScript errors: passed.
+- Host runner evidence: `/private/tmp/kplex-open-width/report.json`; full lane output: `/private/tmp/kplex-open-width.log`. These are local transient artifacts, not included in repository exports. The report contains exact source/staged bundle hashes.
+- Follow-up sizing change: full `verify:obsidian` passed on the exact updated build. Newly added sizing regression cases additionally passed in `node scripts/run-indexing-tests.mjs` after the full lane.
+- `git diff --check`: passed.
 
-Cold/partial indexing was validated by withholding a target from the live index read and publishing an index notification, not by racing a real cold-start index. No manual timing test is required unless the real File Explorer check exposes an issue.
+### Focused Obsidian runtime validation
 
-### Remaining risk and next action
+- Desktop native submenu model contains a genuine submenu. For observable hover assertions only, native menus were temporarily switched to Obsidian's DOM-menu mode on those ephemeral menu instances. Trusted CDP pointer movement opened the child while the parent remained connected, showing focus/new-tab/adjacent/pop-out choices. Selecting **Open** retained the parent; selecting **Open in new tab** created one file tab and dismissed the menus.
+- Closed-file availability changed from focus=false to focus=true after opening it in a Sidecar. Focus revealed that exact Sidecar and did not increase file-tab count.
+- Pop-out action opened the requested file in a different owning document. Test-created window/leaf was closed.
+- Right Sidecar: actual workspace order was Plex → same Sidecar → new file pane; managed identity, linked leaf and pinned synchronization remained intact.
+- Follow-up size validation: reproduced pre-fix left Sidecar → Plex → new pane widths of 326/326/0 px. After the fix, all four positions had nonzero dimensions and retained ownership. Repeating right→left movement with explicit pixel bases gave a new pane width of 85.6 px within a deliberately crowded three-group test workspace; it shared the 166.3 px outer anchor allocation rather than remaining collapsed. Normal native allocations were left unchanged.
+- Left/above/below Sidecars: each retained the same managed and linked leaf, original adjacent position and pinned synchronization after opening the outer file pane. Test panes were detached.
+- Tablet emulation at 900×875: native child menu contained new-tab + adjacent-pane and retained its parent; no pop-out.
+- Phone emulation at 390×875: native selection navigated within the phone menu to **Open in new tab**, with native **Open** back navigation. Child scroll was attached and the parent menu remained connected; no adjacent/pop-out actions.
+- Sizing harness: background throttling was temporarily disabled to let main-window animation frames settle while a pop-out was present, then restored. Between repeated scenarios, test-created pixel bases were cleared to establish fresh native allocation; no production sizing policy was overridden during the measured operation. Test-created leaves were removed. The earlier placement/linkage tests did not assert width; the follow-up explicitly measures dimensions.
+- Harness caveat: reusing a hidden phone Menu instance produced an invalid probe, so that result was discarded and the real context-menu event was repeated on a fresh instance. The fresh-instance result passed. Desktop emulation is not physical touch/WebView proof.
+- Cleanup: test leaves/Sidecars/pop-out removed, temporary wrapper/global removed, original graph center restored, mobile emulation disabled, CDP viewport override cleared, native desktop window restored to 996×795. Final `dev:errors`: no errors captured.
 
-The sole host-specific dependency is Obsidian's private `dragManager.draggable` shape. If it changes, the adapter rejects the payload and the gesture has no effect. After the prioritized real File Explorer drag check, record the result here for maintainer review; commit/PR actions were not requested in this handoff.
+### Prioritized remaining manual checks
+
+1. **Desktop, quick confirmation:** hover **Open**, select **Open in adjacent pane** with a left Sidecar after moving it from the right, and confirm the new right-hand pane is visible and the pair stays together and Sidecar follows subsequent graph navigation. Automated host assertions passed; this confirms the maintainer's visible native-menu experience.
+2. **Physical phone/tablet:** long-press a file node, enter **Open**, select an action, and dismiss/back out. Confirm touch selection works once and does not close the parent prematurely. Phone must omit adjacent/pop-out; tablet must omit pop-out. Desktop mobile emulation passed but cannot establish native touch/WebView behavior.
+
+No further manual indexing/performance tests are needed for this workspace-only change. Retain the private submenu bridge as the single owner rather than duplicating casts or replacing native hover with a separate menu. Commit/PR actions await maintainer instructions.
