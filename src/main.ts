@@ -12,6 +12,7 @@ import { MaterializeGhostModal, type GhostMaterializationKind, type GhostMateria
 import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, type RemainingNodeReference } from "./ui/DeleteNodeModal";
 import { LinkDirection, type GateRole, type GraphPage, type RelationshipRole } from "./types";
 import { OntologySuggester } from "./editor/OntologySuggester";
+import { isWebViewerAvailable, openExternalUrl } from "./adapters/obsidian/externalUrl";
 import { normalizeFieldName, parseBodyMetadata } from "./core/parser/metadata";
 import { extractLinksFromValue } from "./index/fieldParser";
 import type { RelationEvidence } from "./index/RelationEvidence";
@@ -2048,6 +2049,12 @@ export default class ExcaliBrainPlugin extends Plugin {
   /** Open the selected page in the supplied native Sidecar leaf, preserving host navigation and localized failure feedback. */
   private async openPageInSidecarLeaf(leaf: WorkspaceLeaf, page: GraphPage): Promise<void> {
     if (page.url) {
+      // setViewState resolves to a missing-plugin placeholder rather than rejecting an unavailable view.
+      // Keep the companion's actual content/restore identity; explicit Open still uses host URL routing.
+      if (!isWebViewerAvailable(this.app)) {
+        new Notice(this.translator("notice.webViewerUnavailable"), 2600);
+        return;
+      }
       this.settings.sidecarLastUrl = page.url;
       this.settings.sidecarLastFilePath = "";
       try {
@@ -2320,9 +2327,9 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   /** Open a graph page through its supported host target and localize product feedback; semantic identities remain unchanged. */
-  async openPage(page: GraphPage): Promise<void> {
+  async openPage(page: GraphPage, ownerDocument = this.app.workspace.containerEl.ownerDocument): Promise<void> {
     if (page.url) {
-      window.open(page.url, "_blank", "noopener,noreferrer");
+      openExternalUrl(page.url, ownerDocument);
       return;
     }
     if (page.file) {

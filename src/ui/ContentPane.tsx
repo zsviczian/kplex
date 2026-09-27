@@ -72,7 +72,7 @@ export function ContentPane({ plugin, index, page, owner, onOpen, onActivate }: 
     </header>
 
     <div className="excalibrain-content-scroll">
-      {page.url && <div className="excalibrain-special-content"><div className="excalibrain-special-icon"><ObsidianIcon name="globe" size={32} /></div><a href={page.url}>{page.url}</a></div>}
+      {page.url && <div className="excalibrain-special-content"><div className="excalibrain-special-icon"><ObsidianIcon name="globe" size={32} /></div><a className="external-link" href={page.url} target="_blank" rel="noopener">{page.url}</a></div>}
       {page.isFolder && <div className="excalibrain-special-content"><div className="excalibrain-special-icon"><ObsidianIcon name="folder" size={32} /></div><p>{plugin.translator("content.folderThought")}</p></div>}
       {page.isTag && <div className="excalibrain-special-content"><div className="excalibrain-special-icon"><ObsidianIcon name="tag" size={32} /></div><p>{plugin.translator("content.tagThought")}</p></div>}
       {page.file && page.file.extension !== "md" && <div className="excalibrain-special-content"><div className="excalibrain-special-icon"><ObsidianIcon name="paperclip" size={32} /></div><p>{page.file.name}</p></div>}
