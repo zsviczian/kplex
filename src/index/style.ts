@@ -77,9 +77,15 @@ export function resolveLinkStyle(neighbour: Neighbour, settings: ExcaliBrainSett
     if (definition === "file-tree") layered = { ...layered, ...settings.folderLinkStyle };
     else if (definition === "tag-tree") layered = { ...layered, ...settings.tagLinkStyle };
     const normalized = definition.toLowerCase().replaceAll(" ", "-");
+    // The index publishes normalized names; legacy ExcaliBrain overrides may retain
+    // their original display spelling. Preserve exact-key precedence and stored data.
+    const importedKey = settings.hierarchyLinkStyles[definition] || settings.hierarchyLinkStyles[normalized]
+      ? undefined
+      : Object.keys(settings.hierarchyLinkStyles).find((key) => key.toLowerCase().replaceAll(" ", "-") === normalized);
     layered = {
       ...layered,
-      ...(settings.hierarchyLinkStyles[definition] ?? settings.hierarchyLinkStyles[normalized] ?? {})
+      ...(settings.hierarchyLinkStyles[definition] ?? settings.hierarchyLinkStyles[normalized]
+        ?? (importedKey ? settings.hierarchyLinkStyles[importedKey] : undefined) ?? {})
     };
   }
   return {

@@ -77,7 +77,7 @@ assert(settingDefinitionsSource.includes('name: "Style property"'), "K-Plex must
 assert(settingDefinitionsSource.includes('name: "Name fields"'), "Display-name field precedence must be configurable");
 assert(settingsSource.includes('nameFields: "aliases"'), "Aliases must remain the default display-name field for backward compatibility");
 assert(!settingDefinitionsSource.includes('name: "Primary tag field"'), "Legacy primaryTagField must remain migration-only instead of appearing as a second style selector");
-assert(settingDefinitionsSource.includes('name: "Property-value styles"'), "Large node-style collections must open through the searchable manager");
+assert(settingDefinitionsSource.includes('name: translate("styles.nodeTitle")'), "Combined property and imported-tag styles must open through the localized searchable manager");
 assert(settingDefinitionsSource.includes('name: "Relationship-specific styles"'), "Relationship-specific link appearance must open through the searchable manager");
 assert(!settingDefinitionsSource.includes('heading: "Connector styles by ontology"'), "Ontology must not expand one connector-style row per relationship field");
 const ontologyPageStart = settingDefinitionsSource.indexOf('name: "Ontology"');
