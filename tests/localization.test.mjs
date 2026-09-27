@@ -1,3 +1,7 @@
+/**
+ * Validates K-Plex localization catalog contracts, bundled locale coverage, host-language fallback,
+ * shortcut presentation and the source-wide user-facing literal ownership gate.
+ */
 import assert from "node:assert/strict";
 import { auditUserCopy } from "./support/localizationAudit.mjs";
 import { createRequire } from "node:module";
@@ -38,9 +42,21 @@ function compileModules(relativePaths, prefix = "kplex-localization-test-") {
   return temp;
 }
 
-const portableTemp = compileModules([
+const localizationModulePaths = [
   "src/lang/en.ts",
+  "src/lang/catalog.ts",
+  "src/lang/de.ts",
+  "src/lang/es.ts",
+  "src/lang/fr.ts",
+  "src/lang/ja.ts",
+  "src/lang/nl.ts",
+  "src/lang/ru.ts",
+  "src/lang/zh-TW.ts",
   "src/lang/index.ts",
+];
+
+const portableTemp = compileModules([
+  ...localizationModulePaths,
   "src/core/contracts/presentationEnvironment.ts",
   "src/core/plex/shortcutPresentation.ts",
   "src/core/plex/predicate.ts",
@@ -70,7 +86,7 @@ function environment({ keyConvention = "macos", keyboard = true, pointer = true,
   };
 }
 
-test("English catalog is strict, typed at source, and falls back from future locales", () => {
+test("English catalog is strict, typed at source, and remains the fallback", () => {
   const english = localization.createTranslator("en");
   assert.equal(english("command.openGraph"), "Open graph");
   assert.equal(english("toolbar.navigateBack"), "Navigate back");
@@ -88,7 +104,28 @@ test("English catalog is strict, typed at source, and falls back from future loc
   assert.equal(futureGerman("search.ariaLabel"), "Suchen (DE)", "locale identifiers must normalize before exact matching");
   assert.equal(futureGerman("search.placeholder"), "Suchen…", "missing exact-locale keys must fall back to the base locale");
   assert.equal(futureGerman("command.openGraph"), "Open graph", "missing locale keys must fall back to English");
-  assert.equal(localization.createTranslator("fr")("command.openGraph"), "Open graph", "missing locale must fall back to English");
+  assert.equal(localization.createTranslator("zz-ZZ")("command.openGraph"), "Open graph", "unknown locale must fall back to English");
+});
+
+test("bundled locale catalogs are complete and provide translated copy", () => {
+  const englishKeys = Object.keys(require(join(portableTemp, "src/lang/en.js")).englishCatalog).sort();
+  const catalogs = [
+    ["de", "de.js", "germanCatalog", "Graph öffnen"],
+    ["fr", "fr.js", "frenchCatalog", "Ouvrir le graphe"],
+    ["es", "es.js", "spanishCatalog", "Abrir gráfico"],
+    ["nl", "nl.js", "dutchCatalog", "Graph openen"],
+    ["ja", "ja.js", "japaneseCatalog", "グラフを開く"],
+    ["zh-TW", "zh-TW.js", "traditionalChineseCatalog", "開啟圖譜"],
+    ["ru", "ru.js", "russianCatalog", "Открыть граф"],
+  ];
+
+  for (const [locale, file, exportName, expected] of catalogs) {
+    const catalog = require(join(portableTemp, `src/lang/${file}`))[exportName];
+    assert.deepEqual(Object.keys(catalog).sort(), englishKeys, `${locale} must translate every English catalog key`);
+    assert.equal(localization.createTranslator(locale)("command.openGraph"), expected);
+  }
+  assert.equal(localization.createTranslator("de-DE")("command.openGraph"), "Graph öffnen");
+  assert.equal(localization.createTranslator("zh_TW")("command.openGraph"), "開啟圖譜");
 });
 
 test("unknown keys and bad interpolation fail instead of leaking raw/blank UI", () => {
@@ -240,8 +277,7 @@ exports.Fragment = Symbol.for("react.fragment");
 
 test("Obsidian language adapter calls the host getLanguage export and retains English fallback", () => {
   const temp = compileModules([
-    "src/lang/en.ts",
-    "src/lang/index.ts",
+    ...localizationModulePaths,
     "src/adapters/obsidian/localization.ts",
   ], "kplex-localization-host-test-");
   try {
@@ -258,21 +294,23 @@ test("Obsidian language adapter calls the host getLanguage export and retains En
   }
 });
 
-test("production UI sinks reject literal user-facing copy outside the English catalog", () => {
+test("production UI sinks reject literal user-facing copy outside localization catalogs", () => {
   const sourceRoot = join(root, "src");
+  const languageRoot = join(sourceRoot, "lang");
   const files = [];
   const visitDirectory = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
-      if (entry.isDirectory()) visitDirectory(path);
-      else if (/\.tsx?$/.test(entry.name) && path !== join(sourceRoot, "lang/en.ts")) files.push(path);
+      if (entry.isDirectory()) {
+        if (path !== languageRoot) visitDirectory(path);
+      } else if (/\.tsx?$/.test(entry.name)) files.push(path);
     }
   };
   visitDirectory(sourceRoot);
 
   const violations = files.flatMap((sourcePath) => auditUserCopy(readFileSync(sourcePath, "utf8"), relative(root, sourcePath)));
 
-  assert.deepEqual(violations, [], `User-facing literals must live in src/lang/en.ts:\n${violations.join("\n")}`);
+  assert.deepEqual(violations, [], `User-facing literals must live in src/lang/:\n${violations.join("\n")}`);
 });
 
 test("representative production consumers preserve command ids and existing English copy", () => {

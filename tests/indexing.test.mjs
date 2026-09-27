@@ -247,6 +247,14 @@ function compile(relativePath) {
 
 for (const file of [
   "src/lang/en.ts",
+  "src/lang/catalog.ts",
+  "src/lang/de.ts",
+  "src/lang/es.ts",
+  "src/lang/fr.ts",
+  "src/lang/ja.ts",
+  "src/lang/nl.ts",
+  "src/lang/ru.ts",
+  "src/lang/zh-TW.ts",
   "src/lang/index.ts",
   "src/types.ts",
   "src/core/plex/viewPresentation.ts",
