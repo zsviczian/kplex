@@ -4088,7 +4088,7 @@
         "sourcePath": "Daily/2026/09/20260918.md",
         "targetPath": "Note B.md",
         "hidden": false,
-        "summary": "An Obsidian Date property maps to a Daily Notes target and is treated as an inferred outgoing relationship.",
+        "summary": "date-property",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -4119,7 +4119,7 @@
         "sourcePath": "Daily/2026/09/20260918.md",
         "targetPath": "folder:Daily/2026/09",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4148,7 +4148,7 @@
         "sourcePath": "Daily/2026/09/20260918.md",
         "targetPath": "tag:daily-note",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4177,7 +4177,7 @@
         "sourcePath": "Daily/2026/09/20260918.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4206,7 +4206,7 @@
         "sourcePath": "Daily/2026/09/20260919.md",
         "targetPath": "Note B.md",
         "hidden": false,
-        "summary": "An Obsidian Date property maps to a Daily Notes target and is treated as an inferred outgoing relationship.",
+        "summary": "date-property",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -4237,7 +4237,7 @@
         "sourcePath": "Daily/2026/09/20260919.md",
         "targetPath": "folder:Daily/2026/09",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4266,7 +4266,7 @@
         "sourcePath": "Daily/2026/09/20260919.md",
         "targetPath": "tag:daily-note",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4295,7 +4295,7 @@
         "sourcePath": "Daily/2026/09/20260919.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4324,7 +4324,7 @@
         "sourcePath": "Daily/2026/09/20260920.md",
         "targetPath": "Note B.md",
         "hidden": false,
-        "summary": "An Obsidian Date property maps to a Daily Notes target and is treated as an inferred outgoing relationship.",
+        "summary": "date-property",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -4355,7 +4355,7 @@
         "sourcePath": "Daily/2026/10/20261001.md",
         "targetPath": "Note C.md",
         "hidden": false,
-        "summary": "An Obsidian Date property maps to a Daily Notes target and is treated as an inferred outgoing relationship.",
+        "summary": "date-property",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -4386,7 +4386,7 @@
         "sourcePath": "Nested Challenger",
         "targetPath": "Section Tree.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4434,7 +4434,7 @@
         "sourcePath": "Nested Child",
         "targetPath": "Section Tree.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4482,7 +4482,7 @@
         "sourcePath": "Nested Friend",
         "targetPath": "Section Tree.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4530,7 +4530,7 @@
         "sourcePath": "Nested Parent",
         "targetPath": "Section Tree.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4578,7 +4578,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "Note B.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4623,7 +4623,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "Note C.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4671,7 +4671,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "Note D.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4719,7 +4719,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "Note E.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4767,7 +4767,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "Note F.md",
         "hidden": false,
-        "summary": "The visible relationship is derived from resolved note link evidence.",
+        "summary": "source:obsidian-link",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -4795,7 +4795,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "Note G.md",
         "hidden": false,
-        "summary": "Multiple active defined ontology roles conflict, so the pair is presented laterally as a friend relationship.",
+        "summary": "conflicting-defined-roles",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4863,7 +4863,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "Note H.md",
         "hidden": false,
-        "summary": "Ordinary links provide evidence in both directions, so the pair resolves to an inferred friend relationship.",
+        "summary": "bidirectional-inferred",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -4905,7 +4905,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "Note X.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -4953,7 +4953,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "Note Y.md",
         "hidden": false,
-        "summary": "The visible relationship is derived from resolved note link evidence.",
+        "summary": "source:obsidian-link",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -4981,7 +4981,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5010,7 +5010,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "https://source.com/inferred",
         "hidden": false,
-        "summary": "The visible relationship is derived from body URL evidence.",
+        "summary": "source:body-url",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -5039,7 +5039,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "https://source.com/ontology-full-line",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5088,7 +5088,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "https://source.com/ontology-inline",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5137,7 +5137,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "https://youtu.be/excalibrain-fixture-video",
         "hidden": false,
-        "summary": "The visible relationship is derived from body URL evidence.",
+        "summary": "source:body-url",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -5166,7 +5166,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "tag:body-tag",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5195,7 +5195,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5224,7 +5224,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "tag:project",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5253,7 +5253,7 @@
         "sourcePath": "Note A.md",
         "targetPath": "tag:taxonomy/body/leaf",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5282,7 +5282,7 @@
         "sourcePath": "Note B.md",
         "targetPath": "Note C.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5327,7 +5327,7 @@
         "sourcePath": "Note B.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5356,7 +5356,7 @@
         "sourcePath": "Note B.md",
         "targetPath": "https://source.com/frontmatter",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5387,7 +5387,7 @@
         "sourcePath": "Note B.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5416,7 +5416,7 @@
         "sourcePath": "Note B.md",
         "targetPath": "tag:person",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5445,7 +5445,7 @@
         "sourcePath": "Note C.md",
         "targetPath": "Note D.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5490,7 +5490,7 @@
         "sourcePath": "Note C.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5519,7 +5519,7 @@
         "sourcePath": "Note C.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5548,7 +5548,7 @@
         "sourcePath": "Note C.md",
         "targetPath": "tag:project",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5577,7 +5577,7 @@
         "sourcePath": "Note D.md",
         "targetPath": "Note F.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5625,7 +5625,7 @@
         "sourcePath": "Note D.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5654,7 +5654,7 @@
         "sourcePath": "Note D.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5683,7 +5683,7 @@
         "sourcePath": "Note D.md",
         "targetPath": "tag:taxonomy/frontmatter/leaf",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5712,7 +5712,7 @@
         "sourcePath": "Note E.md",
         "targetPath": "Note F.md",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5760,7 +5760,7 @@
         "sourcePath": "Note E.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5789,7 +5789,7 @@
         "sourcePath": "Note E.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5818,7 +5818,7 @@
         "sourcePath": "Note F.md",
         "targetPath": "Note X.md",
         "hidden": true,
-        "summary": "The visible relationship is derived from resolved note link evidence.",
+        "summary": "source:obsidian-link",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -5866,7 +5866,7 @@
         "sourcePath": "Note F.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5895,7 +5895,7 @@
         "sourcePath": "Note F.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5924,7 +5924,7 @@
         "sourcePath": "Note G.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5953,7 +5953,7 @@
         "sourcePath": "Note G.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -5982,7 +5982,7 @@
         "sourcePath": "Note H.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6011,7 +6011,7 @@
         "sourcePath": "Note H.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6040,7 +6040,7 @@
         "sourcePath": "Note X.md",
         "targetPath": "Note Y.md",
         "hidden": false,
-        "summary": "Frontmatter ontology takes precedence over conflicting body ontology; the overridden body evidence is retained for explanation.",
+        "summary": "ontology-precedence",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6067,7 +6067,7 @@
               "start": 160,
               "targetPath": "Note Y.md"
             },
-            "suppressionReason": "Conflicting body ontology is overridden by frontmatter ontology for this note pair."
+            "suppressionReason": "frontmatter-overrides-body-ontology"
           },
           {
             "active": true,
@@ -6106,7 +6106,7 @@
         "sourcePath": "Note X.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6135,7 +6135,7 @@
         "sourcePath": "Note X.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6164,7 +6164,7 @@
         "sourcePath": "Note Y.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6193,7 +6193,7 @@
         "sourcePath": "Note Y.md",
         "targetPath": "tag:fixture",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6222,7 +6222,7 @@
         "sourcePath": "Section Tree.md",
         "targetPath": "folder:/",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6251,7 +6251,7 @@
         "sourcePath": "Section Tree.md",
         "targetPath": "https://nested.example/source",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6300,7 +6300,7 @@
         "sourcePath": "folder:/",
         "targetPath": "folder:Daily",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6329,7 +6329,7 @@
         "sourcePath": "folder:Daily",
         "targetPath": "folder:Daily/2026",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6358,7 +6358,7 @@
         "sourcePath": "folder:Daily/2026",
         "targetPath": "folder:Daily/2026/09",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6387,7 +6387,7 @@
         "sourcePath": "https://nested.example",
         "targetPath": "https://nested.example/source",
         "hidden": false,
-        "summary": "The visible relationship is derived from URL origin hierarchy evidence.",
+        "summary": "source:url-origin",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -6416,7 +6416,7 @@
         "sourcePath": "https://source.com",
         "targetPath": "https://source.com/inferred",
         "hidden": false,
-        "summary": "The visible relationship is derived from URL origin hierarchy evidence.",
+        "summary": "source:url-origin",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -6445,7 +6445,7 @@
         "sourcePath": "https://source.com",
         "targetPath": "https://source.com/ontology-full-line",
         "hidden": false,
-        "summary": "The visible relationship is derived from URL origin hierarchy evidence.",
+        "summary": "source:url-origin",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -6474,7 +6474,7 @@
         "sourcePath": "https://source.com",
         "targetPath": "https://source.com/ontology-inline",
         "hidden": false,
-        "summary": "The visible relationship is derived from URL origin hierarchy evidence.",
+        "summary": "source:url-origin",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -6503,7 +6503,7 @@
         "sourcePath": "https://youtu.be",
         "targetPath": "https://youtu.be/excalibrain-fixture-video",
         "hidden": false,
-        "summary": "The visible relationship is derived from URL origin hierarchy evidence.",
+        "summary": "source:url-origin",
         "resolvedRoles": [
           {
             "relationType": 2,
@@ -6532,7 +6532,7 @@
         "sourcePath": "tag:taxonomy",
         "targetPath": "tag:taxonomy/body",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6561,7 +6561,7 @@
         "sourcePath": "tag:taxonomy",
         "targetPath": "tag:taxonomy/frontmatter",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6590,7 +6590,7 @@
         "sourcePath": "tag:taxonomy/body",
         "targetPath": "tag:taxonomy/body/leaf",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,
@@ -6619,7 +6619,7 @@
         "sourcePath": "tag:taxonomy/frontmatter",
         "targetPath": "tag:taxonomy/frontmatter/leaf",
         "hidden": false,
-        "summary": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
+        "summary": "defined-ontology",
         "resolvedRoles": [
           {
             "relationType": 1,

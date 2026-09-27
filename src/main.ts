@@ -1,3 +1,6 @@
+/**
+ * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback.
+ */
 import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { GraphIndex } from "./index/GraphIndex";
 import { DEFAULT_SETTINGS, ExcaliBrainSettingTab, migrateAndMergeSettings, type DocumentSyncMode, type ExcaliBrainSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
@@ -121,6 +124,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return legacy.settings ?? null;
   }
 
+  /** Register plugin lifecycle resources, commands and host integrations. Product command/notice copy uses the translator; persisted command IDs remain stable. */
   async onload(): Promise<void> {
     this.translator = createObsidianTranslator();
     const ownData: unknown = await this.loadData();
@@ -147,7 +151,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.registerHoverLinkSource(KPLEX_SIDEPANEL_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
     this.addSettingTab(new ExcaliBrainSettingTab(this.app, this));
     this.registerEditorSuggest(new OntologySuggester(this));
-    this.addRibbonIcon("brain-circuit", "Open K-Plex", () => void this.activateView());
+    this.addRibbonIcon("brain-circuit", this.translator("ribbon.open"), () => void this.activateView());
 
     // Keep legacy command IDs so existing hotkeys continue to work, but expose only actions that
     // make sense for the current form factor. Phones use the sidepanel as their primary K-Plex
@@ -163,20 +167,20 @@ export default class ExcaliBrainPlugin extends Plugin {
         return true;
       },
     });
-    this.addCommand({ id: "excalibrain-rebuild-index", name: "Rebuild index", callback: () => void this.rebuildIndex(true) });
+    this.addCommand({ id: "excalibrain-rebuild-index", name: this.translator("command.rebuildIndex"), callback: () => void this.rebuildIndex(true) });
     this.addCommand({
       id: "kplex-open-popout",
-      name: "Open in pop-out window",
+      name: this.translator("command.openPopout"),
       checkCallback: (checking) => {
         if (!isPopoutCommandAvailable(readObsidianPresentationEnvironment())) return false;
         if (!checking) void this.activateViewInPopout();
         return true;
       },
     });
-    this.addCommand({ id: "kplex-open-sidepanel", name: "Open in side panel", callback: () => void this.activateSidepanel() });
+    this.addCommand({ id: "kplex-open-sidepanel", name: this.translator("command.openSidepanel"), callback: () => void this.activateSidepanel() });
     this.addCommand({
       id: "kplex-search",
-      name: "Search",
+      name: this.translator("command.search"),
       checkCallback: (checking) => {
         const leaf = this.searchTargetLeaf();
         if (!leaf) return false;
@@ -194,13 +198,13 @@ export default class ExcaliBrainPlugin extends Plugin {
         return true;
       },
     });
-    addRelationshipCommand("kplex-add-child", "Add child", "child");
-    addRelationshipCommand("kplex-add-parent", "Add parent", "parent");
-    addRelationshipCommand("kplex-add-friend", "Add friend", "left");
-    addRelationshipCommand("kplex-add-challenger", "Add challenger", "right");
+    addRelationshipCommand("kplex-add-child", this.translator("command.addChild"), "child");
+    addRelationshipCommand("kplex-add-parent", this.translator("command.addParent"), "parent");
+    addRelationshipCommand("kplex-add-friend", this.translator("command.addFriend"), "left");
+    addRelationshipCommand("kplex-add-challenger", this.translator("command.addChallenger"), "right");
     this.addCommand({
       id: "kplex-sync-tab-from-plex",
-      name: "Sync most recent note tab with current node",
+      name: this.translator("command.syncRecentTabFromNode"),
       callback: () => {
         const page = this.index.get(this.settings.lastActivePath);
         if (page) void this.syncMostRecentTabWithKplex(page);
@@ -208,13 +212,13 @@ export default class ExcaliBrainPlugin extends Plugin {
     });
     this.addCommand({
       id: "kplex-sync-plex-from-tab",
-      name: "Sync current node with most recent note tab",
+      name: this.translator("command.syncNodeFromRecentTab"),
       callback: () => void this.syncKplexWithMostRecentTab(),
     });
     this.registerOntologyCommands();
     this.addCommand({
       id: "excalibrain-focus-active-note",
-      name: "Focus active note",
+      name: this.translator("command.focusActiveNote"),
       checkCallback: (checking: boolean) => {
         const file = this.app.workspace.getActiveFile();
         if (!file) return false;
@@ -800,6 +804,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     await this.performRebuild(showNotice, force, reason, false);
   }
 
+  /** Run the host rebuild workflow and report localized progress/completion while retaining the existing semantic publication and cancellation ownership. */
   private async performRebuild(showNotice: boolean, force: boolean, reason: string, allowClosed: boolean): Promise<void> {
     if (this.unloading) return;
     const explicitlyRequested = showNotice;
@@ -889,7 +894,7 @@ export default class ExcaliBrainPlugin extends Plugin {
         this.indexDirty = true;
         return;
       }
-      if (showNotice) new Notice("Rebuilding K-Plex index…", 1200);
+      if (showNotice) new Notice(this.translator("notice.rebuildingIndex"), 1200);
       const published = await this.index.rebuild();
       if (this.unloading) return;
       if (!published) {
@@ -1155,6 +1160,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return this.collapsedPlexHosts.has(hostLeaf);
   }
 
+  /** Fold the current K-Plex surface for its native Sidecar and retain the localized control needed to expand it again. */
   async collapsePlexForSidecar(hostLeaf: WorkspaceLeaf): Promise<void> {
     if (this.collapsedPlexHosts.has(hostLeaf)) return;
     const position = this.getSidecarPosition(hostLeaf);
@@ -1172,7 +1178,7 @@ export default class ExcaliBrainPlugin extends Plugin {
         : unfoldSide === "top" ? "panel-top-open"
           : "panel-bottom-open";
     button.className = `kplex-sidecar-unfold-plex is-${unfoldSide}`;
-    button.setAttribute("aria-label", "Unfold K-Plex");
+    button.setAttribute("aria-label", this.translator("sidecar.unfoldPlex"));
     setIcon(button, unfoldIcon);
     button.addEventListener("click", () => void this.expandPlexFromSidecar(hostLeaf));
     sidecarGroup.appendChild(button);
@@ -1588,6 +1594,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return this.indexDirtyRevision;
   }
 
+  /** Return the current index readiness facts plus localized user-facing status copy; this query does not schedule indexing. */
   getIndexStatus(): { upToDate: boolean; label: string } {
     const upToDate = this.initialIndexComplete
       && !this.indexDirty
@@ -1597,8 +1604,8 @@ export default class ExcaliBrainPlugin extends Plugin {
     return {
       upToDate,
       label: upToDate
-        ? "Index status: up to date"
-        : "Index status: updating — the graph may be temporarily incomplete",
+        ? this.translator("index.statusReady")
+        : this.translator("index.statusUpdating"),
     };
   }
 
@@ -1889,6 +1896,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.notifySidecar();
   }
 
+  /** Open the selected page in the supplied native Sidecar leaf, preserving host navigation and localized failure feedback. */
   private async openPageInSidecarLeaf(leaf: WorkspaceLeaf, page: GraphPage): Promise<void> {
     if (page.url) {
       this.settings.sidecarLastUrl = page.url;
@@ -1896,7 +1904,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       try {
         await leaf.setViewState({ type: "webviewer", state: { url: page.url, navigate: true }, active: false });
       } catch {
-        new Notice("Obsidian's Web viewer is not available. Open the link from the node instead.", 2600);
+        new Notice(this.translator("notice.webViewerUnavailable"), 2600);
       }
       return;
     }
@@ -2081,13 +2089,14 @@ export default class ExcaliBrainPlugin extends Plugin {
     await this.app.workspace.revealLeaf(leaf);
   }
 
+  /** Activate the native K-Plex sidepanel and report host-opening failures through localized notices. */
   async activateSidepanel(): Promise<void> {
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
     let leaf: WorkspaceLeaf | null = this.app.workspace.getLeavesOfType(KPLEX_SIDEPANEL_VIEW_TYPE)[0] ?? null;
     if (!leaf) {
       leaf = this.app.workspace.getRightLeaf(false);
       if (!leaf) {
-        new Notice("The Obsidian sidepanel is not available in this workspace.", 2200);
+        new Notice(this.translator("notice.sidepanelUnavailable"), 2200);
         return;
       }
       await leaf.setViewState({ type: KPLEX_SIDEPANEL_VIEW_TYPE, active: true });
@@ -2118,6 +2127,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     if (view instanceof KplexSidepanelView) await view.waitUntilReady();
   }
 
+  /** Activate K-Plex in a supported native popout and localize failure feedback without changing platform availability policy. */
   async activateViewInPopout(): Promise<void> {
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
     try {
@@ -2125,7 +2135,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       await leaf.setViewState({ type: EXCALIBRAIN_VIEW_TYPE, active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch {
-      new Notice("Pop-out windows are not available on this platform.", 2200);
+      new Notice(this.translator("notice.popoutUnavailable"), 2200);
     }
   }
 
@@ -2160,6 +2170,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     await this.app.workspace.revealLeaf(leaf);
   }
 
+  /** Open a graph page through its supported host target and localize product feedback; semantic identities remain unchanged. */
   async openPage(page: GraphPage): Promise<void> {
     if (page.url) {
       window.open(page.url, "_blank", "noopener,noreferrer");
@@ -2170,7 +2181,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       return;
     }
     if (page.isFolder || page.isTag) {
-      new Notice(page.isFolder ? `Folder: ${page.name}` : `Tag: #${page.name}`, 1600);
+      new Notice(this.translator(page.isFolder ? "notice.folder" : "notice.tag", { name: page.name }), 1600);
       return;
     }
     await this.createGhostNote(page);
@@ -2256,29 +2267,31 @@ export default class ExcaliBrainPlugin extends Plugin {
     return yaml?.[1]?.trim() ?? null;
   }
 
+  /** Register editor ontology actions with localized captions while preserving field values and action semantics. */
   private registerOntologyContextMenu(): void {
     this.registerEvent(this.app.workspace.on("editor-menu", (menu: Menu, editor: Editor, view: MarkdownView) => {
       if (!(view instanceof MarkdownView)) return;
       const field = this.fieldAtEditorCursor(editor);
       if (!field) return;
       menu.addItem((item) => item
-        .setTitle(`Add/change “${field}” in K-Plex ontology`)
+        .setTitle(this.translator("ontology.contextMenu", { field }))
         .setIcon("network")
         .onClick(() => this.openAddToOntologyModal(field)));
     }));
   }
 
+  /** Register stable ontology command IDs and localized names; callbacks operate on the field at the editor cursor. */
   private registerOntologyCommands(): void {
     const roles: Array<[string, string, OntologyAssignmentRole | "select"]> = [
-      ["kplex-ontology-select", "Assign field to K-Plex ontology…", "select"],
-      ["kplex-ontology-parent", "Assign field as Parent ontology", "parent"],
-      ["kplex-ontology-child", "Assign field as Child ontology", "child"],
-      ["kplex-ontology-left", "Assign field as Friend / left ontology", "left"],
-      ["kplex-ontology-right", "Assign field as Challenger / right ontology", "right"],
-      ["kplex-ontology-previous", "Assign field as Previous ontology", "previous"],
-      ["kplex-ontology-next", "Assign field as Next ontology", "next"],
-      ["kplex-ontology-hidden", "Assign field as Hidden ontology", "hidden"],
-      ["kplex-ontology-excluded", "Assign field as Excluded / metadata-only ontology", "excluded"],
+      ["kplex-ontology-select", this.translator("command.ontologySelect"), "select"],
+      ["kplex-ontology-parent", this.translator("command.ontologyParent"), "parent"],
+      ["kplex-ontology-child", this.translator("command.ontologyChild"), "child"],
+      ["kplex-ontology-left", this.translator("command.ontologyFriend"), "left"],
+      ["kplex-ontology-right", this.translator("command.ontologyChallenger"), "right"],
+      ["kplex-ontology-previous", this.translator("command.ontologyPrevious"), "previous"],
+      ["kplex-ontology-next", this.translator("command.ontologyNext"), "next"],
+      ["kplex-ontology-hidden", this.translator("command.ontologyHidden"), "hidden"],
+      ["kplex-ontology-excluded", this.translator("command.ontologyExcluded"), "excluded"],
     ];
     for (const [id, name, role] of roles) {
       this.addCommand({
@@ -2369,6 +2382,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     menu.showAtPosition(position, ownerDocument);
   }
 
+  /** Open the native plugin settings tab, or display localized guidance when the host controller is unavailable. */
   openSettings(): void {
     // Obsidian currently has no public Plugin API method for programmatically opening a
     // specific settings tab. Keep the internal bridge isolated and guarded so the rest of
@@ -2380,7 +2394,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       controller.openTabById(this.manifest.id);
       return;
     }
-    new Notice("Open Settings → Community plugins → K-Plex.", 3000);
+    new Notice(this.translator("notice.openPluginSettings"), 3000);
   }
 
   openRelationModal(options: RelationModalOptions): void {
@@ -2670,20 +2684,22 @@ export default class ExcaliBrainPlugin extends Plugin {
     });
   }
 
+  /** Create a relationship from a physical gate using the existing semantic-role and endpoint policy; localize user-visible validation. */
   async createRelationFromGate(origin: GraphPage, semanticRole: GateRole, selectedFile: TFile, selectedField: string): Promise<void> {
     const selectedPage = this.index.get(selectedFile.path);
     if (!selectedPage) {
-      new Notice("The selected note is not in the K-Plex index yet.", 2200);
+      new Notice(this.translator("notice.selectedNoteNotIndexed"), 2200);
       return;
     }
     await this.createRelationToPage(origin, semanticRole, selectedPage, selectedField);
   }
 
+  /** Create the requested relationship to an existing graph page through the current persistence path with localized feedback. */
   async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string): Promise<void> {
     if (origin.path === target.path) return;
     const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
     if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
-      new Notice("These nodes are already connected through this gate.", 1800);
+      new Notice(this.translator("notice.alreadyConnected"), 1800);
       return;
     }
 
@@ -2703,11 +2719,12 @@ export default class ExcaliBrainPlugin extends Plugin {
       await this.writeRelationship(target.file, origin, inverseField);
       this.index.applyRelationshipEdit(target.path, origin.path, inverseRole, inverseField);
     } else {
-      new Notice("When the drag origin is not a Markdown note, the target must be a Markdown note.", 2800);
+      new Notice(this.translator("notice.dragOriginRequiresMarkdownTarget"), 2800);
       return;
     }
   }
 
+  /** Append ontology evidence to a connection while preserving its existing sources and localizing validation/confirmation feedback. */
   async addOntologyToConnection(
     center: GraphPage,
     neighbour: GraphPage,
@@ -2718,7 +2735,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     const centerFile = center.file?.extension === "md" ? center.file : null;
     const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
     if (!centerFile && !neighbourFile) {
-      new Notice("At least one side of the relationship must be a Markdown note.", 2600);
+      new Notice(this.translator("notice.relationshipNeedsMarkdown"), 2600);
       return;
     }
 
@@ -2747,6 +2764,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     }
   }
 
+  /** Move the selected central relationship through its existing ontology persistence path and localize user-visible validation. */
   async relinkCentralNeighbour(
     center: GraphPage,
     neighbour: GraphPage,
@@ -2758,7 +2776,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     const centerFile = center.file?.extension === "md" ? center.file : null;
     const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
     if (!centerFile && !neighbourFile) {
-      new Notice("At least one side of the relationship must be a Markdown note.", 2600);
+      new Notice(this.translator("notice.relationshipNeedsMarkdown"), 2600);
       return;
     }
 
@@ -2805,10 +2823,11 @@ export default class ExcaliBrainPlugin extends Plugin {
     }
   }
 
+  /** Validate a proposed note name and return localized user feedback; filename rules and collision behavior remain unchanged. */
   validateRelatedNoteName(rawName: string): { stem: string; valid: boolean; error: string | null; existing: TFile | null } {
     let stem = rawName.trim();
     stem = stem.replace(/\.excalidraw(?:\.md)?$/i, "").replace(/\.md$/i, "").trim();
-    if (!stem) return { stem: "", valid: false, error: "Type a note name.", existing: null };
+    if (!stem) return { stem: "", valid: false, error: this.translator("note.validation.type"), existing: null };
 
     // Keep creation portable across desktop/mobile vaults and synced filesystems. These are the
     // characters Windows/macOS/Obsidian users most commonly cannot safely use in a filename.
@@ -2817,16 +2836,16 @@ export default class ExcaliBrainPlugin extends Plugin {
       return codePoint < 0x20 || '<>:"/\\|?*'.includes(character);
     });
     if (hasProhibitedCharacter) {
-      return { stem, valid: false, error: 'The note name contains a prohibited filename character: < > : " / \\ | ? *', existing: null };
+      return { stem, valid: false, error: this.translator("note.validation.prohibitedCharacters"), existing: null };
     }
     if (/[. ]$/.test(stem)) {
-      return { stem, valid: false, error: "A note name cannot end with a period or space.", existing: null };
+      return { stem, valid: false, error: this.translator("note.validation.trailingPeriodSpace"), existing: null };
     }
     if (stem === "." || stem === "..") {
-      return { stem, valid: false, error: "Choose a different note name.", existing: null };
+      return { stem, valid: false, error: this.translator("note.validation.chooseDifferent"), existing: null };
     }
     if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(stem)) {
-      return { stem, valid: false, error: "That note name is reserved by the filesystem.", existing: null };
+      return { stem, valid: false, error: this.translator("note.validation.reserved"), existing: null };
     }
 
     const normalized = stem.toLocaleLowerCase();
@@ -2886,6 +2905,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return [...lines].sort((a, b) => a - b);
   }
 
+  /** Collect remaining body references to the target after deletion, retaining source content and localizing only the missing-file display fallback. */
   private remainingBodyReferences(file: TFile, target: GraphPage, markdownLinkLines: readonly number[]): RemainingNodeReference[] {
     const references = new Map<number, RemainingNodeReference>();
 
@@ -2899,7 +2919,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       references.set(line, {
         path: file.path,
         line,
-        label: evidence.fieldName ? `${evidence.fieldName} at line ${line + 1}` : `Inline relationship at line ${line + 1}`,
+        label: evidence.fieldName ? this.translator("explain.fieldAtLine", { field: evidence.fieldName, line: line + 1 }) : this.translator("explain.inlineRelationshipAtLine", { line: line + 1 }),
         sourceKind: evidence.sourceKind,
       });
     }
@@ -2912,7 +2932,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       references.set(line, {
         path: file.path,
         line,
-        label: `Link at line ${line + 1}`,
+        label: this.translator("explain.linkAtLine", { line: line + 1 }),
         sourceKind: "obsidian-link",
       });
     }
@@ -3165,6 +3185,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return true;
   }
 
+  /** Resolve source locations for pair evidence while keeping actual note content untouched and localizing unavailable-source feedback. */
   async relationshipEvidenceLocations(evidence: RelationEvidence): Promise<Array<{ path: string; line: number; label: string }>> {
     const file = this.app.vault.getFileByPath(evidence.declaredByPath);
     if (!file || file.extension !== "md") return [];
@@ -3177,7 +3198,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     };
 
     if (evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url") {
-      if (evidence.line) add(evidence.line - 1, `Navigate to line ${evidence.line}`);
+      if (evidence.line) add(evidence.line - 1, this.translator("evidence.navigateLine", { line: evidence.line }));
       return positions;
     }
 
@@ -3198,7 +3219,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       }
       matchingLines.forEach((line, index) => add(
         line,
-        matchingLines.length > 1 ? `Navigate to link ${index + 1}` : "Navigate to link",
+        matchingLines.length > 1 ? this.translator("evidence.navigateLinkNumber", { index: index + 1 }) : this.translator("evidence.navigateLink"),
       ));
       return positions;
     }
@@ -3207,12 +3228,13 @@ export default class ExcaliBrainPlugin extends Plugin {
       const fieldName = evidence.fieldName;
       if (!fieldName) return positions;
       const propertyRange = await this.frontmatterPropertyLineRange(file, fieldName);
-      if (propertyRange) add(propertyRange.start, `Navigate to property “${fieldName}”`);
+      if (propertyRange) add(propertyRange.start, this.translator("evidence.navigateProperty", { field: fieldName }));
     }
 
     return positions;
   }
 
+  /** Acquire source sections for the requested evidence batch and preserve provenance; localize only plugin-owned fallback copy. */
   async relationshipEvidenceSectionsBatch(evidences: readonly RelationEvidence[]): Promise<Map<string, RelationshipSourceSection[]>> {
     const result = new Map<string, RelationshipSourceSection[]>();
     for (const evidence of evidences) result.set(evidence.id, []);
@@ -3288,10 +3310,10 @@ export default class ExcaliBrainPlugin extends Plugin {
         let sections: RelationshipSourceSection[] = [];
         if ((evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "date-property") && evidence.fieldName) {
           const range = propertyRange(evidence.fieldName);
-          sections = range ? [make(range.start, range.end, `Property “${evidence.fieldName}”`)] : [];
+          sections = range ? [make(range.start, range.end, this.translator("evidence.property", { field: evidence.fieldName }))] : [];
         } else if ((evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url") && evidence.line) {
           const range = paragraphRange(evidence.line - 1);
-          sections = [make(range.start, range.end, `Paragraph around line ${evidence.line}`)];
+          sections = [make(range.start, range.end, this.translator("evidence.paragraphAroundLine", { line: evidence.line }))];
         } else if (evidence.sourceKind === "obsidian-link" || evidence.sourceKind === "unresolved-link") {
           const locations = await this.relationshipEvidenceLocations(evidence);
           const seen = new Set<string>();
@@ -3300,7 +3322,7 @@ export default class ExcaliBrainPlugin extends Plugin {
             const key = `${range.start}:${range.end}`;
             if (seen.has(key)) continue;
             seen.add(key);
-            sections.push(make(range.start, range.end, locations.length > 1 ? `Link occurrence · line ${location.line + 1}` : `Link · line ${location.line + 1}`));
+            sections.push(make(range.start, range.end, locations.length > 1 ? this.translator("evidence.linkOccurrenceLine", { line: location.line + 1 }) : this.translator("evidence.linkLine", { line: location.line + 1 })));
           }
         }
         result.set(evidence.id, sections);
@@ -3353,6 +3375,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     }
   }
 
+  /** Create the requested physical note in its target folder and localize user-visible errors without changing vault path semantics. */
   private async createNewFileInFolder(leafName: string, kind: GhostMaterializationKind, configuredFolder: string): Promise<TFile | null> {
     const normalizedFolder = configuredFolder ? normalizePath(configuredFolder) : "";
     await this.ensureFolderPath(normalizedFolder);
@@ -3360,7 +3383,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     const proposedName = kind === "excalidraw" ? `${leafName}.excalidraw.md` : `${leafName}.md`;
     const destination = normalizePath(normalizedFolder ? `${normalizedFolder}/${proposedName}` : proposedName);
     if (this.app.vault.getAbstractFileByPath(destination)) {
-      new Notice(`A file already exists at ${destination}.`, 3000);
+      new Notice(this.translator("file.existsAt", { path: destination }), 3000);
       return null;
     }
 
@@ -3391,12 +3414,12 @@ export default class ExcaliBrainPlugin extends Plugin {
             silent: true,
           }));
           const created = this.app.vault.getAbstractFileByPath(createdPath);
-          if (!(created instanceof TFile)) throw new Error("Excalidraw did not return a created file.");
+          if (!(created instanceof TFile)) throw new Error(this.translator("error.excalidrawCreatedFileMissing"));
           this.managedCreatedPaths.set(created.path, Date.now() + MANAGED_CREATED_PATH_TTL_MS);
           if (created.extension !== "md") {
             this.managedCreatedPaths.delete(destination);
             if (alternateExcalidrawPath) this.managedCreatedPaths.delete(alternateExcalidrawPath);
-            new Notice("Excalidraw created a legacy non-Markdown drawing. Enable Markdown Excalidraw files in Excalidraw settings to use it as a K-Plex note.", 5000);
+            new Notice(this.translator("notice.excalidrawLegacyDrawing"), 5000);
             return null;
           }
           return this.rememberManagedCreatedFile(created);
@@ -3414,17 +3437,17 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (!excalidraw?.createDrawing) {
         this.managedCreatedPaths.delete(destination);
         if (alternateExcalidrawPath) this.managedCreatedPaths.delete(alternateExcalidrawPath);
-        new Notice("Excalidraw is not available.", 2200);
+        new Notice(this.translator("notice.excalidrawUnavailable"), 2200);
         return null;
       }
       try {
         const created = await excalidraw.createDrawing(leafName, normalizedFolder || undefined);
         const file = typeof created === "string" ? this.app.vault.getAbstractFileByPath(normalizePath(created)) : created;
-        if (!(file instanceof TFile)) throw new Error("Excalidraw did not return a created file.");
+        if (!(file instanceof TFile)) throw new Error(this.translator("error.excalidrawCreatedFileMissing"));
         if (file.extension !== "md") {
           this.managedCreatedPaths.delete(destination);
           if (alternateExcalidrawPath) this.managedCreatedPaths.delete(alternateExcalidrawPath);
-          new Notice("Excalidraw created a legacy non-Markdown drawing. Enable Markdown Excalidraw files in Excalidraw settings to use it as a K-Plex note.", 5000);
+          new Notice(this.translator("notice.excalidrawLegacyDrawing"), 5000);
           return null;
         }
         return this.rememberManagedCreatedFile(file);
@@ -3444,15 +3467,16 @@ export default class ExcaliBrainPlugin extends Plugin {
     }
   }
 
+  /** Create and materialize a folder child using the existing optimistic/index reconciliation workflow and localized feedback. */
   async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind): Promise<GraphPage | null> {
     if (!folder.isFolder) return null;
     const validation = this.validateRelatedNoteName(rawName);
     if (!validation.valid) {
-      new Notice(validation.error ?? "Enter a valid note name.", 2800);
+      new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
       return null;
     }
     if (validation.existing) {
-      new Notice(`A note named “${validation.stem}” already exists in the vault.`, 2800);
+      new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
       return null;
     }
 
@@ -3500,14 +3524,15 @@ export default class ExcaliBrainPlugin extends Plugin {
     }
   }
 
+  /** Create a related file for the selected origin while preserving folder/name validation and localized product feedback. */
   async createNewRelatedFileForOrigin(origin: GraphPage, rawName: string, kind: GhostMaterializationKind, rawAlias = ""): Promise<TFile | null> {
     const validation = this.validateRelatedNoteName(rawName);
     if (!validation.valid) {
-      new Notice(validation.error ?? "Enter a valid note name.", 2800);
+      new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
       return null;
     }
     if (validation.existing) {
-      new Notice(`A note named “${validation.stem}” already exists in the vault.`, 2800);
+      new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
       return null;
     }
 
@@ -3524,6 +3549,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return file;
   }
 
+  /** Persist the ontology link for a newly created related file, retaining the optimistic relationship and localized failure path. */
   async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = ""): Promise<GraphPage> {
     // K-Plex already knows the complete minimum fact set for a newly created node. Publish both the
     // page and relationship before awaiting processFrontMatter/MetadataCache, then let the normal
@@ -3552,9 +3578,10 @@ export default class ExcaliBrainPlugin extends Plugin {
       }
       return target;
     }
-    throw new Error("A new K-Plex relationship requires at least one Markdown endpoint.");
+    throw new Error(this.translator("error.relationshipRequiresMarkdownEndpoint"));
   }
 
+  /** Materialize a related URL node through existing URL/relationship semantics and report localized validation feedback. */
   async createWebLinkRelatedPage(
     origin: GraphPage,
     semanticRole: RelationshipRole,
@@ -3563,12 +3590,12 @@ export default class ExcaliBrainPlugin extends Plugin {
     selectedField: string,
   ): Promise<GraphPage | null> {
     if (origin.file?.extension !== "md") {
-      new Notice("Web links can only be added from a Markdown node.", 2800);
+      new Notice(this.translator("notice.webLinkMarkdownOnly"), 2800);
       return null;
     }
     const url = this.normalizedWebUrl(rawUrl);
     if (!url) {
-      new Notice("Enter a valid http:// or https:// web link.", 2800);
+      new Notice(this.translator("notice.invalidWebLink"), 2800);
       return null;
     }
     const alias = rawAlias.trim();
@@ -3590,6 +3617,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return stem.trim();
   }
 
+  /** Create an unresolved related node without manufacturing a real file; localize its product feedback. */
   async createPlaceholderRelatedPage(
     origin: GraphPage,
     semanticRole: RelationshipRole,
@@ -3598,15 +3626,15 @@ export default class ExcaliBrainPlugin extends Plugin {
   ): Promise<GraphPage | null> {
     const validation = this.validateRelatedNoteName(rawName);
     if (!validation.valid) {
-      new Notice(validation.error ?? "Enter a valid note name.", 2800);
+      new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
       return null;
     }
     if (validation.existing) {
-      new Notice(`A note named “${validation.stem}” already exists in the vault.`, 2800);
+      new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
       return null;
     }
     if (origin.file?.extension !== "md") {
-      new Notice("A placeholder relationship must be stored in a Markdown note.", 2800);
+      new Notice(this.translator("notice.placeholderNeedsMarkdown"), 2800);
       return null;
     }
 
@@ -3647,6 +3675,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     await this.openInDocumentLeaf(page.file);
   }
 
+  /** List permissible real-file locations for materializing a ghost, with localized display labels independent of physical paths. */
   private ghostCreationLocations(page: GraphPage, stem: string): GhostMaterializationLocation[] {
     const normalizedGhostPath = normalizePath(page.path);
     const explicitFolderSeparator = normalizedGhostPath.lastIndexOf("/");
@@ -3673,7 +3702,7 @@ export default class ExcaliBrainPlugin extends Plugin {
 
     return [...folders].sort((a, b) => a.localeCompare(b)).map((folderPath) => ({
       folderPath,
-      label: folderPath || "Vault root",
+      label: folderPath || this.translator("common.vaultRoot"),
     }));
   }
 
@@ -3693,6 +3722,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return true;
   }
 
+  /** Materialize the requested ghost note through the existing vault/index workflow and localize user-visible validation and failures. */
   async createGhostNote(page: GraphPage): Promise<void> {
     if (page.file) {
       await this.openInDocumentLeaf(page.file);
@@ -3703,7 +3733,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     const rawLeafName = page.path.split("/").pop() ?? page.name;
     const validation = this.validateRelatedNoteName(rawLeafName);
     if (!validation.valid) {
-      new Notice(validation.error ?? "The placeholder does not have a valid note name.", 3000);
+      new Notice(validation.error ?? this.translator("notice.placeholderInvalidName"), 3000);
       return;
     }
     if (validation.existing) {

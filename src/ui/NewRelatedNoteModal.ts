@@ -1,3 +1,6 @@
+/**
+ * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations; the modal owns focus, suggestions and cleanup, and consumes localized copy.
+ */
 import { Modal, Notice, type WorkspaceLeaf } from "obsidian";
 import { createElement, useEffect, useMemo, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -7,20 +10,12 @@ import { FuzzySearchInput, fuzzyFilterStrings } from "./FuzzySearchInput";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { fitMobileModalToViewport } from "./mobileModalViewport";
 
-const RELATIONSHIP_ROLES: Array<{ value: RelationshipRole; label: string }> = [
-  { value: "child", label: "Child" },
-  { value: "parent", label: "Parent" },
-  { value: "left", label: "Friend" },
-  { value: "right", label: "Challenger" },
-  { value: "previous", label: "Previous" },
-  { value: "next", label: "Next" },
-];
-
 function isNoteTarget(page: GraphPage, originPath: string): boolean {
   if (page.path === originPath || page.isFolder || page.isTag || page.url) return false;
   return page.file?.extension === "md";
 }
 
+/** Render the reusable related-node form with localized labels and injected creation actions; note/query values remain user data. */
 function RelatedNoteComposer({
   plugin,
   origin,
@@ -85,7 +80,7 @@ function RelatedNoteComposer({
   const prepareField = async (): Promise<string | null> => {
     const field = ontology.trim();
     if (!field) {
-      new Notice("Enter an ontology field.", 1800);
+      new Notice(plugin.translator("addRelated.enterOntologyField"), 1800);
       return null;
     }
     return plugin.rememberRelationshipOntology(role, field);
@@ -103,7 +98,7 @@ function RelatedNoteComposer({
       onCommitted?.();
       onClose();
     } catch (error) {
-      new Notice(`Could not add relationship: ${error instanceof Error ? error.message : String(error)}`, 5000);
+      new Notice(plugin.translator("addRelated.relationshipFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -125,7 +120,7 @@ function RelatedNoteComposer({
       onClose();
       if (editAfterCreate) await plugin.finishNewRelatedNode(page, hostLeaf, true);
     } catch (error) {
-      new Notice(`Could not create related note: ${error instanceof Error ? error.message : String(error)}`, 5000);
+      new Notice(plugin.translator("addRelated.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -134,7 +129,7 @@ function RelatedNoteComposer({
   const createPlaceholder = async () => {
     if (busy || selectedTarget || webUrl || !nameValidation.valid || nameValidation.existing) return;
     if (alias.trim()) {
-      new Notice("Placeholder nodes cannot persist aliases. The alias will not be saved.", 4_000);
+      new Notice(plugin.translator("addRelated.placeholderAliasNotSaved"), 4_000);
     }
     setBusy(true);
     try {
@@ -146,7 +141,7 @@ function RelatedNoteComposer({
       onCommitted?.();
       onClose();
     } catch (error) {
-      new Notice(`Could not create placeholder: ${error instanceof Error ? error.message : String(error)}`, 5000);
+      new Notice(plugin.translator("addRelated.placeholderFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -164,7 +159,7 @@ function RelatedNoteComposer({
       onCommitted?.();
       onClose();
     } catch (error) {
-      new Notice(`Could not add web link: ${error instanceof Error ? error.message : String(error)}`, 5000);
+      new Notice(plugin.translator("addRelated.webLinkFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -197,8 +192,8 @@ function RelatedNoteComposer({
     getKey: (page: GraphPage) => page.path,
     getLabel: (page: GraphPage) => plugin.index.titleFor(page),
     getDetail: (page: GraphPage) => page.path,
-    placeholder: "Find a note, type a new name, or paste a web link…",
-    ariaLabel: "Related note name or web link",
+    placeholder: plugin.translator("addRelated.searchPlaceholder"),
+    ariaLabel: plugin.translator("addRelated.searchAria"),
     autoFocus: true,
     disabled: busy,
     className: `kplex-add-related-note-search${selectedTarget ? " has-selection" : ""}`,
@@ -217,8 +212,8 @@ function RelatedNoteComposer({
     type: "text",
     className: "kplex-create-alias-input",
     value: alias,
-    placeholder: "Alias",
-    "aria-label": "Alias (optional)",
+    placeholder: plugin.translator("addRelated.aliasPlaceholder"),
+    "aria-label": plugin.translator("addRelated.aliasAria"),
     disabled: busy,
     onFocus: () => setAliasFocused(true),
     onBlur: () => setAliasFocused(false),
@@ -239,8 +234,8 @@ function RelatedNoteComposer({
     onChoose: (field: string) => { setOntology(field); setOntologyTyped(false); },
     getKey: (field: string) => field.toLocaleLowerCase(),
     getLabel: (field: string) => field,
-    placeholder: `Ontology · ${plugin.defaultOntologyField(role)}`,
-    ariaLabel: "Ontology field",
+    placeholder: plugin.translator("addRelated.ontologyPlaceholder", { field: plugin.defaultOntologyField(role) }),
+    ariaLabel: plugin.translator("addRelated.ontologyAria"),
     icon: "tags",
     disabled: busy,
     className: "kplex-add-related-ontology-search",
@@ -255,7 +250,7 @@ function RelatedNoteComposer({
     {
       type: "button",
       className: `kplex-add-related-type-button${defaultCreateType === "markdown" ? " is-default" : ""}`,
-      "aria-label": createAvailable ? "Create Markdown note and link it" : "Create Markdown note",
+      "aria-label": plugin.translator(createAvailable ? "addRelated.createMarkdownLink" : "addRelated.createMarkdown"),
       "aria-keyshortcuts": "Control+Enter Meta+Enter",
       disabled: !createAvailable || busy,
       "data-kplex-primary-action": defaultCreateType === "markdown" ? "true" : undefined,
@@ -270,7 +265,7 @@ function RelatedNoteComposer({
         {
           type: "button",
           className: `kplex-add-related-type-button${defaultCreateType === "excalidraw" ? " is-default" : ""}`,
-          "aria-label": createAvailable ? "Create Excalidraw drawing and link it" : "Create Excalidraw drawing",
+          "aria-label": plugin.translator(createAvailable ? "addRelated.createExcalidrawLink" : "addRelated.createExcalidraw"),
           "aria-keyshortcuts": "Control+Enter Meta+Enter",
           disabled: !createAvailable || busy,
           "data-kplex-primary-action": defaultCreateType === "excalidraw" ? "true" : undefined,
@@ -285,7 +280,7 @@ function RelatedNoteComposer({
     {
       type: "button",
       className: "kplex-add-related-type-button",
-      "aria-label": "Create placeholder node",
+      "aria-label": plugin.translator("addRelated.createPlaceholder"),
       disabled: !placeholderAvailable || busy,
       onClick: () => { void createPlaceholder(); },
     },
@@ -298,13 +293,13 @@ function RelatedNoteComposer({
         {
           type: "button",
           className: "kplex-add-related-link-button",
-          "aria-label": origin.file?.extension === "md" ? "Add web link" : "Web links require a Markdown origin node",
+          "aria-label": plugin.translator(origin.file?.extension === "md" ? "addRelated.addWebLink" : "addRelated.webLinkRequiresMarkdown"),
           disabled: !webLinkAvailable || busy,
           "data-kplex-primary-action": webLinkAvailable ? "true" : undefined,
           onClick: () => { void createWebLink(); },
         },
         createElement(ObsidianIcon, { name: "globe", size: 19 }),
-        createElement("span", null, "Add link"),
+        createElement("span", null, plugin.translator("addRelated.addLink")),
       )
     : null;
 
@@ -314,13 +309,13 @@ function RelatedNoteComposer({
         {
           type: "button",
           className: "kplex-add-related-link-button",
-          "aria-label": `Link to ${plugin.index.titleFor(selectedTarget)}`,
+          "aria-label": plugin.translator("addRelated.linkTo", { title: plugin.index.titleFor(selectedTarget) }),
           disabled: busy,
           "data-kplex-primary-action": "true",
           onClick: () => { void linkExisting(); },
         },
         createElement(ObsidianIcon, { name: "link", size: 19 }),
-        createElement("span", null, "Link"),
+        createElement("span", null, plugin.translator("addRelated.link")),
       )
     : null;
 
@@ -343,7 +338,7 @@ function RelatedNoteComposer({
   const editToggle = !selectedTarget && !webUrl ? createElement(
     "label",
     { className: "kplex-create-edit-toggle" },
-    createElement("span", { className: "kplex-create-edit-copy" }, createElement("strong", null, "Open for editing")),
+    createElement("span", { className: "kplex-create-edit-copy" }, createElement("strong", null, plugin.translator("addRelated.openForEditing"))),
     createElement(
       "span",
       { className: `checkbox-container${editAfterCreate ? " is-enabled" : ""}` },
@@ -351,7 +346,7 @@ function RelatedNoteComposer({
         type: "checkbox",
         checked: editAfterCreate,
         disabled: busy,
-        "aria-label": "Open the new note for editing",
+        "aria-label": plugin.translator("addRelated.openNewForEditing"),
         onChange: (event: { currentTarget: HTMLInputElement }) => {
           const enabled = event.currentTarget.checked;
           setEditAfterCreate(enabled);
@@ -368,22 +363,22 @@ function RelatedNoteComposer({
   let statusText: string | null = null;
   let statusError = false;
   if (selectedTarget) {
-    statusText = `Selected existing note: ${selectedTarget.path}`;
+    statusText = plugin.translator("addRelated.selectedExisting", { path: selectedTarget.path });
   } else if (webUrl) {
     if (origin.file?.extension !== "md") {
-      statusText = "Web links can only be added from a Markdown node because the relationship is stored in document properties.";
+      statusText = plugin.translator("addRelated.webMarkdownExplanation");
       statusError = true;
     } else {
-      statusText = alias.trim() ? `Add “${alias.trim()}” as a web link.` : "Add this web link. Add an optional alias for its display text.";
+      statusText = alias.trim() ? plugin.translator("addRelated.webAliasStatus", { alias: alias.trim() }) : plugin.translator("addRelated.webStatus");
     }
   } else if (noteTyped && query.trim()) {
     if (nameValidation.error) {
       statusText = nameValidation.error;
       statusError = true;
     } else if (nameValidation.existing) {
-      statusText = "A note with this name already exists. Select it from the search results to link it.";
+      statusText = plugin.translator("addRelated.existingName");
     } else {
-      statusText = `Create “${nameValidation.stem}” as Markdown${excalidrawAvailable ? ", Excalidraw" : ""}, or a placeholder. Alias is optional.`;
+      statusText = plugin.translator(excalidrawAvailable ? "addRelated.createStatusWithExcalidraw" : "addRelated.createStatus", { name: nameValidation.stem });
     }
   }
 
@@ -444,6 +439,7 @@ export class NewRelatedNoteModal extends Modal {
     this.close();
   }
 
+  /** Render the related-node creation composer with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
     this.scope.register(["Mod"], "Enter", (event) => {
       if (!this.triggerPrimaryAction()) return false;
@@ -452,12 +448,17 @@ export class NewRelatedNoteModal extends Modal {
     });
     this.titleEl.empty();
     this.titleEl.addClass("kplex-add-related-title");
-    this.titleEl.createSpan({ text: "Add" });
+    this.titleEl.createSpan({ text: this.plugin.translator("addRelated.title") });
     const roleSelect = this.titleEl.createEl("select", {
       cls: "kplex-add-related-role-select",
-      attr: { "aria-label": "Relationship type" },
+      attr: { "aria-label": this.plugin.translator("addRelated.relationshipType") },
     });
-    for (const choice of RELATIONSHIP_ROLES) roleSelect.createEl("option", { text: choice.label, attr: { value: choice.value } });
+    const roleChoices: Array<{ value: RelationshipRole; label: string }> = [
+      { value: "child", label: this.plugin.translator("role.child") }, { value: "parent", label: this.plugin.translator("role.parent") },
+      { value: "left", label: this.plugin.translator("role.friend") }, { value: "right", label: this.plugin.translator("role.challenger") },
+      { value: "previous", label: this.plugin.translator("role.previous") }, { value: "next", label: this.plugin.translator("role.next") },
+    ];
+    for (const choice of roleChoices) roleSelect.createEl("option", { text: choice.label, attr: { value: choice.value } });
     roleSelect.value = this.role;
     roleSelect.addEventListener("change", () => {
       const next = roleSelect.value as RelationshipRole;

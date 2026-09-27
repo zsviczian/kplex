@@ -303,6 +303,26 @@ test("C10 host providers request only cached Markdown fields and plain pair deci
   assert.deepEqual(pairCalls, [['Source.md', 'Ghost.md']]);
   assert.deepEqual(mapped, [decision]);
   assert.notEqual(mapped[0].evidence, decision.evidence, 'plain records cross the boundary without unsafe casts');
+  decision.suppressionReason = 'frontmatter-overrides-body-ontology';
+  const suppressed = evidence.decisions('Source.md', 'Ghost.md')[0];
+  assert.equal(suppressed.suppressionReason, 'Conflicting body ontology is overridden by frontmatter ontology for this note pair.', 'existing persisted reason predicates must retain their value');
+  assert.equal(suppressed.evidence.suppressionCode, 'frontmatter-overrides-body-ontology', 'new selectors have locale-independent codes');
+  assert.equal(decision.suppressionReason, 'frontmatter-overrides-body-ontology', 'mapping must not mutate semantic DTOs');
+  const { GraphPredicateEngine } = await import(pathToFileURL(predicatePath).href);
+  const { compileGraphLensDefinitions, matchesGraphLenses } = await import(pathToFileURL(lensFacadePath).href);
+  const candidate = { page: page({ path: 'Ghost.md' }), label: 'Ghost', center: page({ path: 'Source.md' }) };
+  const engine = { portable: new GraphPredicateEngine() };
+  for (const expression of [
+    'evidence.suppressionReason.equals("Conflicting body ontology is overridden by frontmatter ontology for this note pair.")',
+    'evidence.suppressionReason.contains("overridden by frontmatter")',
+    'evidence.suppressionCode == "frontmatter-overrides-body-ontology"',
+  ]) {
+    const lenses = compileGraphLensDefinitions([{ id: 'persisted-reason', name: 'Reason', enabled: true, scope: 'evidence', mode: 'include', expression }]);
+    assert.deepEqual(lenses.errors, []);
+    assert.equal(matchesGraphLenses(engine, { explainRelationship() { return { decisions: [decision] }; } }, lenses, candidate), true, expression);
+  }
+
+
 });
 
 

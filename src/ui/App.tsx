@@ -1,3 +1,6 @@
+/**
+ * Host-bound React shell for K-Plex navigation, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects.
+ */
 import {
   useCallback,
   useEffect,
@@ -14,6 +17,7 @@ import type { GraphPage } from "../types";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
 import { isSearchFocusShortcut } from "../core/plex/shortcutPresentation";
 import type { Translator } from "../lang";
+import { physicalPositionLabel } from "./features/positionPresentation";
 import { searchFieldCopy } from "./features/searchPresentation";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarPosition } from "../settings";
 import { SearchBox } from "./features/SearchBox";
@@ -52,6 +56,7 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
   ><ObsidianIcon name={icon} size={17} /></button>;
 }
 
+/** Compose the native K-Plex toolbar, filters and scene with injected localization and environment facts; host effects remain plugin-owned. */
 export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environment }: {
   plugin: ExcaliBrainPlugin;
   surface: KplexViewSurface;
@@ -266,12 +271,12 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     const current = plugin.getDocumentSyncMode();
 
     menu.addItem((item) => item
-      .setTitle("Sync most recent note tab with K-Plex")
+      .setTitle(translate("app.syncRecentTabWithPlex"))
       .setIcon("arrow-right")
       .setDisabled(!page?.file)
       .onClick(() => { if (page) void plugin.syncMostRecentTabWithKplex(page).then(() => forceRender((value) => value + 1)); }));
     menu.addItem((item) => item
-      .setTitle("Sync K-Plex with most recent note tab")
+      .setTitle(translate("app.syncPlexWithRecentTab"))
       .setIcon("arrow-left")
       .onClick(() => void plugin.syncKplexWithMostRecentTab().then((file) => {
         if (!file) return;
@@ -281,9 +286,9 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 
     menu.addSeparator();
     const choices: Array<[DocumentSyncMode, string, string]> = [
-      ["off", "K-Plex not linked to a note tab", "unlink"],
-      ["recent", "K-Plex linked to most recent note tab", "link"],
-      ["pinned", "K-Plex pinned to one fixed note tab", "pin"],
+      ["off", translate("app.syncModeOff"), "unlink"],
+      ["recent", translate("app.syncModeRecent"), "link"],
+      ["pinned", translate("app.syncModePinned"), "pin"],
     ];
     for (const [mode, title, icon] of choices) {
       menu.addItem((item) => item
@@ -294,7 +299,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     }
     menu.addSeparator();
     menu.addItem((item) => item
-      .setTitle("Show linked/pinned tab")
+      .setTitle(translate("app.showLinkedTab"))
       .setIcon("scan-eye")
       .setDisabled(!plugin.hasDocumentSyncTarget())
       .onClick(() => void plugin.showLinkedDocumentLeaf()));
@@ -333,7 +338,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 
   if (!page) return <div className="excalibrain-app excalibrain-empty">
     <div className="kplex-index-status-empty"><IndexStatusIndicator plugin={plugin} /></div>
-    <span>Building K-Plex index…</span>
+    <span>{translate("app.buildingIndex")}</span>
   </div>;
 
   const linkedLabel = plugin.getLinkedDocumentLeafLabel();
@@ -341,12 +346,12 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   const syncTargetAvailable = plugin.hasDocumentSyncTarget();
   const syncIcon = syncMode === "pinned" ? "pin" : syncMode === "recent" ? "link" : "unlink";
   const syncTitle = syncMode === "off"
-    ? "K-Plex is not linked to a note tab"
+    ? translate("app.syncStatusOff")
     : syncMode === "recent"
-      ? (syncTargetAvailable ? "K-Plex is linked to the most recent note tab" : "No recent note tab is currently available")
+      ? (syncTargetAvailable ? translate("app.syncStatusRecent") : translate("app.syncStatusNoRecent"))
       : (syncTargetAvailable
-        ? `K-Plex is pinned to a fixed note tab${linkedLabel ? ` · ${linkedLabel}` : ""}`
-        : "K-Plex has a pinned-tab preference, but the tab is not currently connected");
+        ? translate("app.syncStatusPinned", { suffix: linkedLabel ? ` · ${linkedLabel}` : "" })
+        : translate("app.syncStatusPinnedUnavailable"));
   const pinnedPages = plugin.settings.pinnedNodes
     .map((path) => plugin.index.get(path))
     .filter((item): item is GraphPage => Boolean(item));
@@ -375,7 +380,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   const showSidecarMoveMenu = (event: MouseEvent<HTMLButtonElement>) => {
     const menu = new Menu();
     const options: Array<[SidecarPosition, string, string]> = [
-      ["right", "Right", "panel-right"], ["left", "Left", "panel-left"], ["above", "Above", "panel-top"], ["below", "Below", "panel-bottom"],
+      ["right", translate("position.right"), "panel-right"], ["left", translate("position.left"), "panel-left"], ["above", translate("position.above"), "panel-top"], ["below", translate("position.below"), "panel-bottom"],
     ];
     for (const [position, label, icon] of options) menu.addItem((item) => item
       .setTitle(label).setIcon(icon).setChecked((sidecarPosition ?? plugin.settings.sidecarPosition) === position)
@@ -397,7 +402,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
       <div className="excalibrain-top-stack">
         <header className="excalibrain-topbar">
           <IndexStatusIndicator plugin={plugin} />
-          <div className="excalibrain-brand"><ObsidianIcon name="brain-circuit" size={20} className="excalibrain-brand-mark" /><strong>K-Plex</strong></div>
+          <div className="excalibrain-brand"><ObsidianIcon name="brain-circuit" size={20} className="excalibrain-brand-mark" /><strong>{translate("view.displayName")}</strong></div>
           <ActionButton
             label={translate("toolbar.navigateBack")}
             icon={<ObsidianIcon name="arrow-big-left" size={17} />}
@@ -448,32 +453,33 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
             onVisibilityChange={(key) => void toggleToolbarSetting(key)}
             sortOrder={plugin.settings.nodeSortOrder}
             onSortOrderChange={(order) => void setNodeSortOrder(order)}
+            translate={translate}
           />
           <div className="excalibrain-top-actions is-compact">
             <button
               className={`excalibrain-icon-button${syncMode !== "off" && syncTargetAvailable ? " is-on" : ""}`}
-              aria-label={`${syncTitle}. Click for sync actions and link mode.`}
+              aria-label={translate("app.syncActions", { status: syncTitle })}
               onClick={showDocumentSyncMenu}
             ><ObsidianIcon name={syncIcon} size={17} /></button>
             <ToolButton
               icon="type"
-              title={plugin.settings.renderAlias ? "Display aliases: on" : "Display aliases: off"}
+              title={translate(plugin.settings.renderAlias ? "app.displayAliasesOn" : "app.displayAliasesOff")}
               on={plugin.settings.renderAlias}
               onClick={() => void toggleToolbarSetting("renderAlias")}
             />
             <span className="excalibrain-toolbar-divider" />
-            <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={plugin.settings.graphDepth === 2 ? "Single-level view" : "Expanded view: show each node’s children"} on={plugin.settings.graphDepth === 2} onClick={() => void toggleExpandedView()} />
-            <ToolButton icon="spline" title={plugin.settings.connectorStyle === "bezier" ? "Use straight connectors" : "Use curved connectors"} on={plugin.settings.connectorStyle === "bezier"} onClick={() => void toggleConnectorStyle()} />
-            <ToolButton icon="settings" title="Open K-Plex settings" onClick={() => plugin.openSettings()} />
+            <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => void toggleExpandedView()} />
+            <ToolButton icon="spline" title={translate(plugin.settings.connectorStyle === "bezier" ? "app.useStraightConnectors" : "app.useCurvedConnectors")} on={plugin.settings.connectorStyle === "bezier"} onClick={() => void toggleConnectorStyle()} />
+            <ToolButton icon="settings" title={translate("app.openSettings")} onClick={() => plugin.openSettings()} />
           </div>
         </header>
 
-        {pinnedPages.length > 0 && <div className="kplex-pinned-bar" aria-label="Pinned nodes">
+        {pinnedPages.length > 0 && <div className="kplex-pinned-bar" aria-label={translate("app.pinnedNodes")}>
           {pinnedPages.map((pinned) => {
             const title = plugin.index.titleFor(pinned);
             return <div key={pinned.path} className={`kplex-pinned-chip${pinned.path === page.path ? " is-active" : ""}`}>
               <button className="kplex-pinned-open" title={`${title}\n${pinned.path}`} onClick={() => activate(pinned)}><ObsidianIcon name="pin" size={12} /><span>{title}</span></button>
-              <button className="kplex-pinned-remove" aria-label={`Unpin ${title}`} onClick={() => void unpin(pinned.path)}><ObsidianIcon name="x" size={11} /></button>
+              <button className="kplex-pinned-remove" aria-label={translate("app.unpinNode", { title })} onClick={() => void unpin(pinned.path)}><ObsidianIcon name="x" size={11} /></button>
             </div>;
           })}
         </div>}
@@ -481,25 +487,25 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 
       <main className="excalibrain-workspace">
         <section className="excalibrain-graph-area">
-          <div className="excalibrain-zone-label zone-parent">PARENTS</div>
-          <div className="excalibrain-zone-label zone-left">FRIENDS / PREVIOUS</div>
-          <div className="excalibrain-zone-label zone-right">CHALLENGERS / NEXT</div>
-          <div className="excalibrain-zone-label zone-child">CHILDREN</div>
+          <div className="excalibrain-zone-label zone-parent">{translate("app.zoneParents")}</div>
+          <div className="excalibrain-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
+          <div className="excalibrain-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
+          <div className="excalibrain-zone-label zone-child">{translate("app.zoneChildren")}</div>
           <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} onActivate={activate} onOpen={open} />
         </section>
       </main>
 
-      {sidecarAvailable && <div className={`kplex-sidecar-controls is-${sidecarEdgePosition}${sidecarOpen ? " is-open" : " is-closed"}`} aria-label="Sidecar controls">
-        <button className="kplex-sidecar-primary" aria-label={sidecarOpen ? "Close companion Sidecar" : `Open Sidecar on the ${sidecarEdgePosition}`} onClick={() => void plugin.toggleSidecar(hostLeaf, page)}><ObsidianIcon name={sidecarOpen ? closeSidecarIcon : openSidecarIcon} size={16} /></button>
+      {sidecarAvailable && <div className={`kplex-sidecar-controls is-${sidecarEdgePosition}${sidecarOpen ? " is-open" : " is-closed"}`} aria-label={translate("app.sidecarControls")}>
+        <button className="kplex-sidecar-primary" aria-label={sidecarOpen ? translate("app.closeSidecar") : translate("app.openSidecarAt", { position: physicalPositionLabel(sidecarEdgePosition, translate) })} onClick={() => void plugin.toggleSidecar(hostLeaf, page)}><ObsidianIcon name={sidecarOpen ? closeSidecarIcon : openSidecarIcon} size={16} /></button>
         {sidecarOpen && <>
-          <button aria-label="Fold K-Plex and give the companion document the full split" onClick={() => void plugin.collapsePlexForSidecar(hostLeaf)}><ObsidianIcon name={foldPlexIcon} size={15} /></button>
-          <button aria-label="Move Sidecar" onClick={showSidecarMoveMenu}><ObsidianIcon name="move" size={15} /></button>
-          <button aria-label="Detach Sidecar — keep this tab open independently" onClick={() => void plugin.detachSidecar(hostLeaf)}><ObsidianIcon name="unlink" size={15} /></button>
+          <button aria-label={translate("app.foldForSidecar")} onClick={() => void plugin.collapsePlexForSidecar(hostLeaf)}><ObsidianIcon name={foldPlexIcon} size={15} /></button>
+          <button aria-label={translate("app.moveSidecar")} onClick={showSidecarMoveMenu}><ObsidianIcon name="move" size={15} /></button>
+          <button aria-label={translate("app.detachSidecar")} onClick={() => void plugin.detachSidecar(hostLeaf)}><ObsidianIcon name="unlink" size={15} /></button>
         </>}
       </div>}
 
       <footer className="excalibrain-history-bar">
-        <span className="excalibrain-history-label">PAST NODES</span>
+        <span className="excalibrain-history-label">{translate("app.pastNodes")}</span>
         <div className="excalibrain-history-list">
           {plugin.settings.navigationHistory.slice(-14).reverse().map((path, indexValue) => {
             const item = plugin.index.get(path);

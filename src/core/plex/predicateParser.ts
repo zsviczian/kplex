@@ -1,3 +1,6 @@
+/**
+ * Host-free predicate grammar and AST construction. Syntax failures return structured, one-based character locations; presentation belongs to the consumer.
+ */
 import {
   predicateAll,
   predicateAny,
@@ -17,13 +20,30 @@ type Token = { kind: TokenKind; text: string; value?: unknown; position: number 
 
 const NAMESPACES = new Set<GraphPredicateNamespace>(["node", "edge", "evidence", "note", "file", "this"]);
 
+export type PredicateParseIssue =
+  | { code: "unterminated-string"; position: number }
+  | { code: "invalid-number"; position: number; value: string }
+  | { code: "unexpected-token"; position: number; value: string }
+  | { code: "empty-expression"; position: number }
+  | { code: "expected-token"; position: number; expected: string; found: string | null }
+  | { code: "comparison-right-value"; position: number }
+  | { code: "expected-value"; position: number; found: string | null }
+  | { code: "unknown-namespace"; position: number; value: string }
+  | { code: "expected-property"; position: number; namespace: string }
+  | { code: "function-arguments-values"; position: number }
+  | { code: "unknown-function"; position: number; value: string }
+  | { code: "unknown-method"; position: number; value: string }
+  | { code: "invalid-expression"; position: number };
+
 class PredicateSyntaxError extends Error {
-  constructor(message: string, readonly position: number) {
-    super(`${message} at character ${position + 1}`);
+  /** Retain the structured syntax issue as an English machine diagnostic; no user-visible sentence is created here. */
+  constructor(readonly issue: PredicateParseIssue) {
+    super(issue.code);
     this.name = "PredicateSyntaxError";
   }
 }
 
+/** Tokenize predicate syntax while reporting invalid literals as structured issues with one-based source positions. */
 function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
   let i = 0;
@@ -54,7 +74,7 @@ function tokenize(source: string): Token[] {
         else if (escaped === "t") value += "\t";
         else value += escaped;
       }
-      if (!closed) throw new PredicateSyntaxError("Unterminated string", start);
+      if (!closed) throw new PredicateSyntaxError({ code: "unterminated-string", position: start + 1 });
       push("string", source.slice(start, i), start, value);
       continue;
     }
@@ -63,7 +83,7 @@ function tokenize(source: string): Token[] {
       while (i < source.length && /[0-9.]/.test(source[i])) i += 1;
       const text = source.slice(start, i);
       const value = Number(text);
-      if (!Number.isFinite(value)) throw new PredicateSyntaxError(`Invalid number '${text}'`, start);
+      if (!Number.isFinite(value)) throw new PredicateSyntaxError({ code: "invalid-number", position: start + 1, value: text });
       push("number", text, start, value);
       continue;
     }
@@ -73,7 +93,7 @@ function tokenize(source: string): Token[] {
       push("identifier", source.slice(start, i), start);
       continue;
     }
-    throw new PredicateSyntaxError(`Unexpected '${ch}'`, start);
+    throw new PredicateSyntaxError({ code: "unexpected-token", position: start + 1, value: ch });
   }
   tokens.push({ kind: "eof", text: "", position: source.length });
   return tokens;
@@ -89,8 +109,9 @@ class Parser {
   private cursor = 0;
   constructor(private readonly source: string, private readonly tokens: Token[]) {}
 
+  /** Parse the complete expression and reject empty input or trailing tokens with structured issues. */
   parse(): GraphPredicateExpression {
-    if (!this.source.trim()) throw new PredicateSyntaxError("Expression is empty", 0);
+    if (!this.source.trim()) throw new PredicateSyntaxError({ code: "empty-expression", position: 1 });
     const expression = this.parseOr();
     this.expect("eof");
     return expression;
@@ -100,10 +121,11 @@ class Parser {
   private advance(): Token { return this.tokens[this.cursor++]; }
   private is(text: string): boolean { return this.current().text.toLowerCase() === text.toLowerCase(); }
   private match(text: string): boolean { if (!this.is(text)) return false; this.advance(); return true; }
+  /** Consume the required token or report its expected kind and the found text; null denotes end of input. */
   private expect(kindOrText: string): Token {
     const token = this.current();
     if (token.kind === kindOrText || token.text === kindOrText) return this.advance();
-    throw new PredicateSyntaxError(`Expected ${kindOrText}, found '${token.text || "end of expression"}'`, token.position);
+    throw new PredicateSyntaxError({ code: "expected-token", position: token.position + 1, expected: kindOrText, found: token.text || null });
   }
 
   private parseOr(): GraphPredicateExpression {
@@ -130,6 +152,7 @@ class Parser {
     return this.parseComparisonOrCall();
   }
 
+  /** Parse a comparison or boolean-valued call and reject an absent right-hand value at its source position. */
   private parseComparisonOrCall(): GraphPredicateExpression {
     const left = this.parsePrimary();
     if (left.kind === "expression") return left.expression;
@@ -138,7 +161,7 @@ class Parser {
     if (["==", "!=", ">", ">=", "<", "<="].includes(operator)) {
       this.advance();
       const right = this.parsePrimary();
-      if (right.kind !== "value") throw new PredicateSyntaxError("The right side of a comparison must be a value", operatorToken.position);
+      if (right.kind !== "value") throw new PredicateSyntaxError({ code: "comparison-right-value", position: operatorToken.position + 1 });
       const mapped = operator === "==" ? "eq" : operator === "!=" ? "neq" : operator === ">" ? "gt" : operator === ">=" ? "gte" : operator === "<" ? "lt" : "lte";
       return predicateCompare(mapped, left.value, right.value);
     }
@@ -146,13 +169,14 @@ class Parser {
     return predicateCompare("eq", left.value, predicateLiteral(true));
   }
 
+  /** Parse a grouped expression, literal or namespaced selector without producing presentation copy. */
   private parsePrimary(): PrimaryValue {
     const token = this.current();
     if (token.kind === "string" || token.kind === "number") {
       this.advance();
       return { kind: "value", value: predicateLiteral(token.value) };
     }
-    if (token.kind !== "identifier") throw new PredicateSyntaxError(`Expected a value, found '${token.text || "end of expression"}'`, token.position);
+    if (token.kind !== "identifier") throw new PredicateSyntaxError({ code: "expected-value", position: token.position + 1, found: token.text || null });
     const lowered = token.text.toLowerCase();
     if (lowered === "true" || lowered === "false" || lowered === "null") {
       this.advance();
@@ -174,10 +198,11 @@ class Parser {
     return { kind: "value", value: predicateProperty(path.namespace, path.key) };
   }
 
+  /** Read a namespaced property path and report unknown namespaces or missing property names as structured issues. */
   private parseIdentifierPath(): PropertyPath {
     const first = this.expect("identifier");
     const namespace = first.text as GraphPredicateNamespace;
-    if (!NAMESPACES.has(namespace)) throw new PredicateSyntaxError(`Unknown namespace '${first.text}'`, first.position);
+    if (!NAMESPACES.has(namespace)) throw new PredicateSyntaxError({ code: "unknown-namespace", position: first.position + 1, value: first.text });
     if (namespace === "this" && !this.is(".") && !this.is("[")) return { namespace, key: "path" };
 
     let key = "";
@@ -190,32 +215,35 @@ class Parser {
       // Function namespaces such as value.exists(...) are handled as call paths below.
       return { namespace, key: "" };
     }
-    if (!key && namespace !== "this") throw new PredicateSyntaxError(`Expected a property after '${namespace}'`, this.current().position);
+    if (!key && namespace !== "this") throw new PredicateSyntaxError({ code: "expected-property", position: this.current().position + 1, namespace });
     return { namespace, key: key || "path" };
   }
 
+  /** Read comma-separated function values and reject nested expressions where the grammar requires values. */
   private parseArguments(): GraphPredicateValue[] {
     const args: GraphPredicateValue[] = [];
     if (this.match(")")) return args;
     while (true) {
       const primary = this.parsePrimary();
-      if (primary.kind !== "value") throw new PredicateSyntaxError("Function arguments must be values", this.current().position);
+      if (primary.kind !== "value") throw new PredicateSyntaxError({ code: "function-arguments-values", position: this.current().position + 1 });
       args.push(primary.value);
       if (this.match(")")) return args;
       this.expect(",");
     }
   }
 
+  /** Resolve a supported predicate function name and return its AST call, reporting unknown names structurally. */
   private parseCall(path: PropertyPath): GraphPredicateExpression {
     const args = this.parseArguments();
     const name = `${path.namespace}.${path.key}`;
     if (name === "file.hasTag") return predicateCall("tags.has", predicateProperty("file", "tags"), ...args);
     if (name === "file.inFolder") return predicateCall("file.inFolder", predicateProperty("file", "path"), ...args);
     const allowed = new Set<GraphPredicateFunction>(["text.contains", "text.equals", "text.startsWith", "text.endsWith", "collection.contains", "tags.has", "value.exists", "file.inFolder"]);
-    if (!allowed.has(name as GraphPredicateFunction)) throw new PredicateSyntaxError(`Unknown function '${name}'`, this.current().position);
+    if (!allowed.has(name as GraphPredicateFunction)) throw new PredicateSyntaxError({ code: "unknown-function", position: this.current().position + 1, value: name });
     return predicateCall(name as GraphPredicateFunction, ...args);
   }
 
+  /** Resolve selector-method syntax to the shared predicate function AST or return a structured unknown-method issue. */
   private parseMethodCall(path: PropertyPath, method: string): GraphPredicateExpression {
     const args = this.parseArguments();
     const property = predicateProperty(path.namespace, path.key);
@@ -233,7 +261,7 @@ class Parser {
     if (normalized === "hastag") return predicateCall("tags.has", property, ...args);
     if (normalized === "infolder") return predicateCall("file.inFolder", property, ...args);
     if (normalized === "exists") return predicateCall("value.exists", property);
-    throw new PredicateSyntaxError(`Unknown method '${method}'`, this.current().position);
+    throw new PredicateSyntaxError({ code: "unknown-method", position: this.current().position + 1, value: method });
   }
 }
 
@@ -246,7 +274,11 @@ export function parseGraphPredicateExpression(source: string): GraphPredicateExp
   return new Parser(source, tokenize(source)).parse();
 }
 
-export function tryParseGraphPredicateExpression(source: string): { expression?: GraphPredicateExpression; error?: string } {
+/** Return a parsed AST or a structured syntax issue, keeping error wording outside portable parsing. */
+export function tryParseGraphPredicateExpression(source: string): { expression?: GraphPredicateExpression; error?: PredicateParseIssue } {
   try { return { expression: parseGraphPredicateExpression(source) }; }
-  catch (error) { return { error: error instanceof Error ? error.message : String(error) }; }
+  catch (error) {
+    if (error instanceof PredicateSyntaxError) return { error: error.issue };
+    return { error: { code: "invalid-expression", position: 1 } };
+  }
 }

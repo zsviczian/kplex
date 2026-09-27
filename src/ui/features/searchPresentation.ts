@@ -1,3 +1,6 @@
+/**
+ * Host-free localized search-control copy composed with effective environment-aware shortcut hints. This feature reads neither Obsidian state nor browser language.
+ */
 import type { PresentationEnvironment } from "../../core/contracts/presentationEnvironment";
 import { formatShortcut, SEARCH_FOCUS_SHORTCUT } from "../../core/plex/shortcutPresentation";
 import type { Translator } from "../../lang";
@@ -14,7 +17,13 @@ export function searchFieldCopy(
   environment: Pick<PresentationEnvironment, "keyConvention" | "inputModes">,
   actionAvailable = true,
 ): SearchFieldCopy {
-  const shortcutHint = formatShortcut(SEARCH_FOCUS_SHORTCUT, environment, actionAvailable);
+  const shortcutHint = formatShortcut(SEARCH_FOCUS_SHORTCUT, environment, {
+    shift: translate("shortcut.shift"),
+    command: translate("shortcut.command"),
+    control: translate("shortcut.control"),
+    option: translate("shortcut.option"),
+    alt: translate("shortcut.alt"),
+  }, actionAvailable);
   return {
     placeholder: shortcutHint
       ? translate("search.placeholderWithShortcut", { shortcut: shortcutHint })

@@ -1,3 +1,6 @@
+/**
+ * Compatibility exports for the portable relationship resolver. Existing host callers retain this facade while semantic decisions remain core-owned.
+ */
 import type { GraphPage } from "../types";
 import type { RelationEvidenceStore } from "../core/graph/evidence";
 import { resolveEvidenceStoreCooperative as resolveEvidenceStoreCooperativeCore } from "../core/graph/resolver";
@@ -10,6 +13,7 @@ export {
   resolveEvidenceStore,
   type RelationVector,
   type RelationshipExplanation,
+  type RelationshipSummary,
   type ResolvedRole,
 } from "../core/graph/resolver";
 

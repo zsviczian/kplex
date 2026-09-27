@@ -1,3 +1,6 @@
+/**
+ * Native Obsidian dialog for creating a real note in a physical folder. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
+ */
 import { Modal, Notice, Setting, type ButtonComponent, type WorkspaceLeaf } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import type { GraphPage } from "../types";
@@ -16,8 +19,9 @@ export class CreateFolderNoteModal extends Modal {
     super(plugin.app);
   }
 
+  /** Produce a localized folder display label while retaining its underlying vault path. */
   private folderLabel(): string {
-    if (this.folder.path === "folder:/") return "Vault root";
+    if (this.folder.path === "folder:/") return this.plugin.translator("common.vaultRoot");
     return this.folder.path.startsWith("folder:") ? this.folder.path.slice("folder:".length) : this.folder.name;
   }
 
@@ -27,15 +31,16 @@ export class CreateFolderNoteModal extends Modal {
     for (const button of this.createButtons) button.setDisabled(!enabled);
   }
 
+  /** Submit the validated creation request to the plugin and show localized failure feedback; the modal retains its existing busy/close lifecycle. */
   private async create(kind: GhostMaterializationKind): Promise<void> {
     if (this.creating) return;
     const validation = this.plugin.validateRelatedNoteName(this.noteName);
     if (!validation.valid) {
-      new Notice(validation.error ?? "Enter a valid note name.", 2800);
+      new Notice(validation.error ?? this.plugin.translator("note.validation.enterValid"), 2800);
       return;
     }
     if (validation.existing) {
-      new Notice(`A note named “${validation.stem}” already exists in the vault.`, 2800);
+      new Notice(this.plugin.translator("note.existsNamed", { name: validation.stem }), 2800);
       return;
     }
 
@@ -50,31 +55,32 @@ export class CreateFolderNoteModal extends Modal {
         await this.plugin.finishNewRelatedNode(page, this.hostLeaf, true);
       }
     } catch (error) {
-      new Notice(`Could not create note: ${error instanceof Error ? error.message : String(error)}`, 5000);
+      new Notice(this.plugin.translator("note.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       this.creating = false;
       this.refreshButtons();
     }
   }
 
+  /** Render the physical-folder note creation form with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
     const excalidrawAvailable = this.plugin.isExcalidrawAvailable();
     const defaultKind: GhostMaterializationKind = this.plugin.settings.newNodeDefaultType === "excalidraw" && excalidrawAvailable
       ? "excalidraw"
       : "markdown";
 
-    this.titleEl.setText("Add note to folder");
+    this.titleEl.setText(this.plugin.translator("folderNote.title"));
     this.modalEl.addClass("kplex-create-folder-note-modal");
     this.contentEl.createEl("p", {
-      text: `Create a file in ${this.folderLabel()}. Its folder location defines the relationship, so no note-to-note link will be added.`,
+      text: this.plugin.translator("folderNote.help", { folder: this.folderLabel() }),
       cls: "setting-item-description",
     });
 
     const nameSetting = new Setting(this.contentEl)
-      .setName("Note name")
+      .setName(this.plugin.translator("folderNote.noteName"))
       .addText((text) => {
         text
-          .setPlaceholder("New note")
+          .setPlaceholder(this.plugin.translator("folderNote.placeholder"))
           .onChange((value) => {
             this.noteName = value;
             this.refreshButtons();
@@ -84,8 +90,8 @@ export class CreateFolderNoteModal extends Modal {
     nameSetting.settingEl.addClass("kplex-create-folder-note-name-setting");
 
     new Setting(this.contentEl)
-      .setName("Open for editing")
-      .setDesc("Center the new note and open it in the Sidecar.")
+      .setName(this.plugin.translator("folderNote.openForEditing"))
+      .setDesc(this.plugin.translator("folderNote.openForEditingHelp"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.editNewNodeAfterCreate)
         .onChange((enabled) => {
@@ -97,7 +103,7 @@ export class CreateFolderNoteModal extends Modal {
     actions.addButton((button) => {
       this.createButtons.push(button);
       button
-        .setButtonText("Markdown")
+        .setButtonText(this.plugin.translator("common.markdown"))
         .setIcon("file-text")
         .onClick(() => { void this.create("markdown"); });
       if (defaultKind === "markdown") button.setCta();
@@ -107,7 +113,7 @@ export class CreateFolderNoteModal extends Modal {
       actions.addButton((button) => {
         this.createButtons.push(button);
         button
-          .setButtonText("Excalidraw")
+          .setButtonText(this.plugin.translator("common.excalidraw"))
           .setIcon("palette")
           .onClick(() => { void this.create("excalidraw"); });
         if (defaultKind === "excalidraw") button.setCta();
@@ -115,7 +121,7 @@ export class CreateFolderNoteModal extends Modal {
     }
 
     actions.addButton((button) => button
-      .setButtonText("Cancel")
+      .setButtonText(this.plugin.translator("common.cancel"))
       .onClick(() => this.close()));
 
     this.refreshButtons();

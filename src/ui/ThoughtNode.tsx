@@ -1,13 +1,19 @@
+/**
+ * Plex node and gate presentation with localized accessibility and interaction hints. Physical gate labels are layout copy; semantic roles and drag effects belong to callers.
+ */
 import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
 import { alphaHexToCss } from "../index/style";
 import type { ExcaliBrainSettings } from "../settings";
 import { effectiveLabelLimit, gateDiameter } from "./layout";
 import { ObsidianIcon } from "./ObsidianIcon";
+import type { Translator } from "../lang";
+import { physicalPositionLabel } from "./features/positionPresentation";
 
 const GATES: GateSide[] = ["top", "bottom", "left", "right"];
 export type ConnectionDragState = "normal" | "candidate" | "blocked" | "origin";
 
+/** Render a Plex node and physical gates with localized interaction hints; user labels, semantic roles and event effects stay caller-owned. */
 export function ThoughtNode({
   node,
   settings,
@@ -29,6 +35,7 @@ export function ThoughtNode({
   onContextMenu,
   sectionFold,
   visual,
+  translate,
 }: {
   node: PositionedNode;
   settings: ExcaliBrainSettings;
@@ -49,6 +56,7 @@ export function ThoughtNode({
   onNodePointerDown: (node: PositionedNode, event: ReactPointerEvent<HTMLDivElement>) => void;
   onContextMenu?: (node: PositionedNode, event: MouseEvent<HTMLDivElement>) => void;
   visual?: NodeVisual;
+  translate: Translator;
   sectionFold?: {
     hasChildren: boolean;
     expanded: boolean;
@@ -134,7 +142,7 @@ export function ThoughtNode({
         onContextMenu(node, e);
       }
     }}
-    aria-label={`${node.label} — ${node.page.path}`}
+    aria-label={translate("node.accessibleLabel", { label: node.label, path: node.page.path })}
   >
     <span className="excalibrain-thought-label">
       {node.page.transient?.kind === "section"
@@ -158,21 +166,24 @@ export function ThoughtNode({
       type="button"
       className={`kplex-section-fold-handle${sectionFold.expanded ? " is-expanded" : " is-folded"}`}
       aria-label={sectionFold.expanded
-        ? (sectionFold.expandedTitle ?? "Fold section children")
-        : `${sectionFold.foldedTitle ?? "Unfold section children"}${sectionFold.hiddenDescendantCount ? ` · ${sectionFold.hiddenDescendantCount} hidden` : ""}`}
+        ? (sectionFold.expandedTitle ?? translate("node.foldSectionChildren"))
+        : `${sectionFold.foldedTitle ?? translate("node.unfoldSectionChildren")}${sectionFold.hiddenDescendantCount ? ` · ${translate("node.hiddenCount", { count: sectionFold.hiddenDescendantCount })}` : ""}`}
       onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>) => { e.preventDefault(); e.stopPropagation(); }}
       onClick={(e: MouseEvent<HTMLButtonElement>) => { e.preventDefault(); e.stopPropagation(); sectionFold.onToggle(); }}
     />}
     {GATES.map((gate) => {
       const stat = node.gateStats[gate];
       const gateDisabled = node.page.isTag || (node.page.isFolder && gate !== "bottom");
+      const gateLabel = physicalPositionLabel(gate, translate);
       const gateTitle = node.page.isTag
-        ? `${gate} gate · drag linking is disabled for tag thoughts`
+        ? translate("node.gateTagDisabled", { gate: gateLabel })
         : node.page.isFolder
           ? gate === "bottom"
-            ? "child gate · drag to create a note in this folder"
-            : `${gate} gate · folder relationship editing is disabled`
-          : `${gate} gate${stat.hasAny ? ` · ${stat.visibleCount} visible` : " · no relationships"}`;
+            ? translate("node.gateFolderChild")
+            : translate("node.gateFolderDisabled", { gate: gateLabel })
+          : stat.hasAny
+            ? translate("node.gateVisible", { gate: gateLabel, count: stat.visibleCount })
+            : translate("node.gateEmpty", { gate: gateLabel });
       return <span key={gate} className={`excalibrain-gate-wrap gate-wrap-${gate}${stat.hasAny ? "" : " is-empty"}`}>
         <span
           className={`excalibrain-gate gate-${gate}${stat.hasAny ? " has-connections" : " is-empty"}${highlightedGates.has(gate) ? " is-highlighted" : ""}${gateDisabled ? " is-link-disabled" : ""}`}

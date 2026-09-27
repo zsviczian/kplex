@@ -1,3 +1,6 @@
+/**
+ * Host-side heading and transient section projection over indexed relationship evidence. Transient explanation codes reuse the UI language boundary without persisting section nodes.
+ */
 import type { App, CachedMetadata } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Neighbour, type Neighborhood, type Relation, type Role } from "../types";
@@ -385,7 +388,7 @@ export async function buildCentralSectionExpansion(
       targetPath: section.page.path,
       resolvedRoles: [{ role: "child", relationType: RelationType.DEFINED }],
       hidden: false,
-      summary: "This is a transient heading section of the expanded central Markdown note. It is parsed on demand and is not stored in the persistent K-Plex index.",
+      summary: "transient-section",
       decisions: [],
     });
   }
@@ -438,7 +441,7 @@ export function projectCentralSectionExpansion(
     explanations.set(`${center.path}\u0000${section.page.path}`, {
       sourcePath: center.path, targetPath: section.page.path,
       resolvedRoles: [{ role: "child", relationType: RelationType.DEFINED }], hidden: false,
-      summary: "This is a transient heading section of the expanded central Markdown note. It is parsed on demand and is not stored in the persistent K-Plex index.",
+      summary: "transient-section",
       decisions: [],
     });
   }

@@ -1,3 +1,6 @@
+/**
+ * Portable shortcut presentation from explicit device and key-convention facts. Callers supply localized modifier names; registration tokens and action availability stay separate.
+ */
 import type { KeyConvention, PresentationEnvironment } from "../contracts/presentationEnvironment";
 
 export type ShortcutModifier = "mod" | "alt" | "shift";
@@ -22,15 +25,24 @@ export function isSearchFocusShortcut(event: ShortcutKeyboardEvent): boolean {
   return event.key.toLocaleLowerCase() === "f" && (event.ctrlKey || event.metaKey) && !event.altKey;
 }
 
-function modifierName(modifier: ShortcutModifier, convention: KeyConvention): string | null {
-  if (modifier === "shift") return "Shift";
+export type ShortcutPresentationLabels = Readonly<{
+  shift: string;
+  command: string;
+  control: string;
+  option: string;
+  alt: string;
+}>;
+
+/** Resolve a logical modifier against explicit OS conventions and caller-supplied localized names; unknown conventions cannot invent a key hint. */
+function modifierName(modifier: ShortcutModifier, convention: KeyConvention, labels: ShortcutPresentationLabels): string | null {
+  if (modifier === "shift") return labels.shift;
   if (modifier === "mod") {
-    if (convention === "macos" || convention === "ios") return "Command";
-    if (convention === "windows" || convention === "android") return "Control";
+    if (convention === "macos" || convention === "ios") return labels.command;
+    if (convention === "windows" || convention === "android") return labels.control;
     return null;
   }
-  if (convention === "macos" || convention === "ios") return "Option";
-  if (convention === "windows" || convention === "android") return "Alt";
+  if (convention === "macos" || convention === "ios") return labels.option;
+  if (convention === "windows" || convention === "android") return labels.alt;
   return null;
 }
 
@@ -41,12 +53,13 @@ function modifierName(modifier: ShortcutModifier, convention: KeyConvention): st
 export function formatShortcut(
   shortcut: ShortcutSpec,
   environment: Pick<PresentationEnvironment, "keyConvention" | "inputModes">,
+  labels: ShortcutPresentationLabels,
   actionAvailable = true,
 ): string | null {
   if (!actionAvailable || environment.inputModes.keyboard !== true) return null;
   const modifiers: string[] = [];
   for (const modifier of shortcut.modifiers ?? []) {
-    const name = modifierName(modifier, environment.keyConvention);
+    const name = modifierName(modifier, environment.keyConvention, labels);
     if (!name) return null;
     modifiers.push(name);
   }

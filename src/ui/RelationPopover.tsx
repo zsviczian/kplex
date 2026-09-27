@@ -1,16 +1,13 @@
+/**
+ * Legacy React relationship popover with localized role, target and field controls. The plugin performs relationship writes; this component owns presentation and dismiss behavior.
+ */
 import { useEffect, useMemo, useState, type ChangeEvent, type PointerEvent } from "react";
 import type { TFile } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import type { GateRole, GraphPage, LinkDirection } from "../types";
 import { ObsidianIcon } from "./ObsidianIcon";
 
-const ROLE_LABEL: Record<GateRole, string> = {
-  parent: "Parent",
-  child: "Child",
-  left: "Friend",
-  right: "Challenger",
-};
-
+/** Render the legacy relationship picker with localized headings/actions and original candidate/field values. */
 export function RelationPopover({
   plugin,
   origin,
@@ -76,7 +73,10 @@ export function RelationPopover({
     }
   };
 
-  const relationName = ROLE_LABEL[semanticRole];
+  const translate = plugin.translator;
+  const relationName = ({
+    parent: translate("role.parent"), child: translate("role.child"), left: translate("role.friend"), right: translate("role.challenger"),
+  } satisfies Record<GateRole, string>)[semanticRole];
   const storageNote = !originIsMarkdown && !fixedTarget;
   const inverseField = plugin.inverseOntologyField(selectedField, semanticRole);
 
@@ -86,22 +86,22 @@ export function RelationPopover({
     onPointerDown={(e: PointerEvent<HTMLDivElement>) => e.stopPropagation()}
   >
     <div className="kplex-relation-popover-title">
-      <strong>{fixedTarget ? "Move relationship" : `Add ${relationName.toLowerCase()}`}</strong>
-      <button className="kplex-popover-icon" aria-label="Cancel" onClick={onClose}><ObsidianIcon name="x" size={16} /></button>
+      <strong>{fixedTarget ? translate("relation.move") : translate("relation.addRole", { role: relationName.toLowerCase() })}</strong>
+      <button className="kplex-popover-icon" aria-label={translate("common.cancel")} onClick={onClose}><ObsidianIcon name="x" size={16} /></button>
     </div>
 
     {fixedTarget ? <div className="kplex-relation-summary">
       <span className="kplex-relation-direction">{relationName}</span>
       <span title={fixedTarget.path}>{plugin.index.titleFor(fixedTarget)}</span>
     </div> : <>
-      <label className="kplex-relation-label" htmlFor="kplex-relation-search">Markdown note</label>
+      <label className="kplex-relation-label" htmlFor="kplex-relation-search">{translate("relation.markdownNote")}</label>
       <div className="kplex-relation-search-wrap">
         <ObsidianIcon name="search" size={15} />
         <input
           id="kplex-relation-search"
           autoFocus
           value={query}
-          placeholder="Search notes…"
+          placeholder={translate("relation.searchNotes")}
           onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.currentTarget.value)}
         />
       </div>
@@ -116,21 +116,21 @@ export function RelationPopover({
           <span className="kplex-relation-file-name">{file.basename}</span>
           <small>{file.path}</small>
         </button>)}
-        {candidates.length === 0 && <div className="kplex-relation-empty">No unconnected Markdown notes match.</div>}
+        {candidates.length === 0 && <div className="kplex-relation-empty">{translate("relation.noUnconnectedMatches")}</div>}
       </div>
     </>}
 
-    <label className="kplex-relation-label" htmlFor="kplex-relation-field">Note property</label>
+    <label className="kplex-relation-label" htmlFor="kplex-relation-field">{translate("relation.noteProperty")}</label>
     <select id="kplex-relation-field" value={selectedField} onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedField(event.currentTarget.value)}>
       {fields.map((field) => <option key={field} value={field}>{field}</option>)}
     </select>
     {(storageNote || (!originIsMarkdown && fixedTarget)) && <div className="kplex-relation-hint">
-      {relationName} is stored on the Markdown note using the inverse document property <strong>{inverseField}</strong>.
+      {translate("relation.inverseStorage", { role: relationName, property: inverseField })}
     </div>}
 
     <div className="kplex-relation-actions">
-      <button aria-label="Cancel" onClick={onClose}><ObsidianIcon name="x" size={17} /></button>
-      <button className="mod-cta" disabled={busy || (!fixedTarget && !selectedFile)} aria-label="Save relationship" onClick={() => void confirm()}>
+      <button aria-label={translate("common.cancel")} onClick={onClose}><ObsidianIcon name="x" size={17} /></button>
+      <button className="mod-cta" disabled={busy || (!fixedTarget && !selectedFile)} aria-label={translate("relation.save")} onClick={() => void confirm()}>
         <ObsidianIcon name="check" size={17} />
       </button>
     </div>

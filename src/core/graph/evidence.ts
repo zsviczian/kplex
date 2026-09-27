@@ -1,3 +1,6 @@
+/**
+ * Portable evidence storage and ontology precedence. Decisions carry stable suppression codes; callers own localized explanations, cooperative scheduling and publication.
+ */
 import { LinkDirection, RelationType, type Role, type SemanticRelation } from "./relations";
 
 export type EvidenceRole = Exclude<Role, "sibling"> | "hidden";
@@ -38,10 +41,14 @@ export type RelationEvidence = EvidenceProvenance & {
   declaredRole: EvidenceRole;
 };
 
+export const ONTOLOGY_PRECEDENCE_SUPPRESSION = "frontmatter-overrides-body-ontology" as const;
+export type EvidenceSuppressionReason = typeof ONTOLOGY_PRECEDENCE_SUPPRESSION;
+
 export type EvidenceDecision = {
   evidence: RelationEvidence;
   active: boolean;
-  suppressionReason?: string;
+  /** Stable machine reason; presentation copy belongs to the host language catalog. */
+  suppressionReason?: EvidenceSuppressionReason;
 };
 
 const inverseDirection = (direction: LinkDirection): LinkDirection => {
@@ -462,7 +469,7 @@ export function applyOntologyPrecedence(evidence: RelationEvidence[]): EvidenceD
     return {
       evidence: item,
       active: false,
-      suppressionReason: "Conflicting body ontology is overridden by frontmatter ontology for this note pair.",
+      suppressionReason: ONTOLOGY_PRECEDENCE_SUPPRESSION,
     };
   });
 }

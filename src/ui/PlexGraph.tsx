@@ -1,3 +1,6 @@
+/**
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator.
+ */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
@@ -14,6 +17,7 @@ import { RenameNoteModal } from "./RenameNoteModal";
 import { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion, type CentralSectionExpansion } from "../index/SectionExpansion";
 import { GraphPredicateEngine, type CompiledGraphPredicate, type GraphPredicateEdgeContext } from "../lens/GraphPredicate";
 import { graphLensEdgeStyle, graphLensNodeStyle, matchesGraphLenses, type CompiledGraphLensSet } from "../lens/GraphLens";
+import type { Translator, PlainTranslationKey } from "../lang";
 
 type Point = { x: number; y: number };
 type HoverState =
@@ -76,29 +80,30 @@ const GENERIC_RELATION_LABELS = new Set([
 ].map((label) => label.toLowerCase()));
 const gateKey = (path: string, gate: GateSide) => `${path}::${gate}`;
 
-const EVIDENCE_ROLE_LABEL: Record<string, string> = {
-  parent: "Parent",
-  child: "Child",
-  left: "Friend",
-  right: "Challenger",
-  previous: "Previous",
-  next: "Next",
-  hidden: "Hidden",
+const EVIDENCE_ROLE_LABEL: Record<string, PlainTranslationKey> = {
+  parent: "role.parent",
+  child: "role.child",
+  left: "role.friend",
+  right: "role.challenger",
+  previous: "role.previous",
+  next: "role.next",
+  hidden: "role.hidden",
 };
-const EVIDENCE_SOURCE_LABEL: Record<string, string> = {
-  "obsidian-link": "Resolved link",
-  "unresolved-link": "Unresolved link",
-  "frontmatter-ontology": "Document property",
-  "inline-ontology": "Body property",
-  "body-url": "Body URL",
-  "date-property": "Date property",
-  "file-tree": "Folder tree",
-  "tag-tree": "Tag tree",
-  "url-origin": "URL origin",
+const EVIDENCE_SOURCE_LABEL: Record<string, PlainTranslationKey> = {
+  "obsidian-link": "graph.sourceResolvedLink",
+  "unresolved-link": "graph.sourceUnresolvedLink",
+  "frontmatter-ontology": "graph.sourceDocumentProperty",
+  "inline-ontology": "graph.sourceBodyProperty",
+  "body-url": "graph.sourceBodyUrl",
+  "date-property": "graph.sourceDateProperty",
+  "file-tree": "graph.sourceFolderTree",
+  "tag-tree": "graph.sourceTagTree",
+  "url-origin": "graph.sourceUrlOrigin",
 };
-const relationTypeText = (type: RelationType): string => type === RelationType.DEFINED ? "Defined" : "Inferred";
+const relationTypeText = (type: RelationType, translate: Translator): string => translate(type === RelationType.DEFINED ? "graph.relationDefined" : "graph.relationInferred");
 
-function edgeEvidenceTooltipText(index: GraphIndex, edge: PositionedEdge): string | null {
+/** Lazily format relationship evidence for a connector hint using localized role/source labels and original provenance. */
+function edgeEvidenceTooltipText(index: GraphIndex, edge: PositionedEdge, translate: Translator): string | null {
   const sourcePath = edge.explanationSourcePath ?? edge.sourcePath;
   const targetPath = edge.explanationTargetPath ?? edge.targetPath;
   const explanation = index.explainRelationship(sourcePath, targetPath);
@@ -107,20 +112,22 @@ function edgeEvidenceTooltipText(index: GraphIndex, edge: PositionedEdge): strin
   const lines: string[] = [];
   if (explanation.resolvedRoles.length) {
     const resolved = explanation.resolvedRoles
-      .map((item) => `${EVIDENCE_ROLE_LABEL[item.role] ?? item.role} · ${relationTypeText(item.relationType)}`)
+      .map((item) => `${EVIDENCE_ROLE_LABEL[item.role] ? translate(EVIDENCE_ROLE_LABEL[item.role]) : item.role} · ${relationTypeText(item.relationType, translate)}`)
       .join(", ");
-    lines.push(`Resolved: ${resolved}`);
+    lines.push(translate("graph.resolved", { roles: resolved }));
   } else if (explanation.hidden) {
-    lines.push("Resolved: Hidden");
+    lines.push(translate("graph.resolvedHidden"));
   }
 
   const seen = new Set<string>();
   let evidenceShown = 0;
   for (const decision of explanation.decisions) {
     const evidence = decision.evidence;
-    const source = (evidence.fieldName ?? evidence.definition ?? EVIDENCE_SOURCE_LABEL[evidence.sourceKind] ?? evidence.sourceKind).trim();
-    const resolution = `${EVIDENCE_ROLE_LABEL[evidence.role] ?? evidence.role} · ${relationTypeText(evidence.relationType)}`;
-    const text = `${source} — ${resolution}${decision.active ? "" : " · overridden"}`;
+    const sourceKey = EVIDENCE_SOURCE_LABEL[evidence.sourceKind];
+    const source = (evidence.fieldName ?? evidence.definition ?? (sourceKey ? translate(sourceKey) : evidence.sourceKind)).trim();
+    const roleKey = EVIDENCE_ROLE_LABEL[evidence.role];
+    const resolution = `${roleKey ? translate(roleKey) : evidence.role} · ${relationTypeText(evidence.relationType, translate)}`;
+    const text = translate(decision.active ? "graph.evidenceDecision" : "graph.evidenceDecisionOverridden", { source, resolution });
     if (!seen.has(text)) {
       seen.add(text);
       lines.push(text);
@@ -129,7 +136,7 @@ function edgeEvidenceTooltipText(index: GraphIndex, edge: PositionedEdge): strin
     if (evidenceShown >= 4) break;
   }
   const remaining = Math.max(0, explanation.decisions.length - evidenceShown);
-  if (remaining > 0) lines.push(`+${remaining} more evidence item${remaining === 1 ? "" : "s"}`);
+  if (remaining > 0) lines.push(translate("graph.moreEvidence", { count: remaining }));
   return lines.length ? lines.join("\n") : null;
 }
 
@@ -318,12 +325,13 @@ function markerFor(head?: string): string | undefined {
   return "url(#excalibrain-arrow)";
 }
 
-function zoneTitle(zone: ScrollZone): string {
-  if (zone === "parent") return "Parents";
-  if (zone === "child") return "Children";
-  if (zone === "left") return "Friends / Previous";
-  if (zone === "right") return "Challengers / Next";
-  return "Siblings";
+/** Translate the displayed zone heading while preserving semantic role and layout classification. */
+function zoneTitle(zone: ScrollZone, translate: Translator): string {
+  if (zone === "parent") return translate("graph.zoneParents");
+  if (zone === "child") return translate("graph.zoneChildren");
+  if (zone === "left") return translate("graph.zoneFriendsPrevious");
+  if (zone === "right") return translate("graph.zoneChallengersNext");
+  return translate("graph.zoneSiblings");
 }
 
 function matchesZoneFilter(node: PositionedNode, filter: string): boolean {
@@ -619,6 +627,7 @@ function Edge({
   </g>;
 }
 
+/** Compose the deterministic Plex scene and interaction handlers, using localized UI copy without rebuilding semantic state for presentation changes. */
 export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, onActivate, onOpen }: {
   plugin: ExcaliBrainPlugin;
   index: GraphIndex;
@@ -635,6 +644,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   onActivate: (page: GraphPage) => void;
   onOpen: (page: GraphPage) => void;
 }) {
+  const translate = plugin.translator;
   const predicateEngine = useMemo(() => new GraphPredicateEngine(plugin.app), [plugin]);
   // getNeighborhood() performs relationship classification/filtering. Keep it stable during local
   // pointer/camera/hover state updates; only rebuild it when navigation, settings, or the index
@@ -901,7 +911,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     edgeTooltipPoint.current = edgeTooltipPosition(event.clientX, event.clientY);
     edgeTooltipTimer.current = window.setTimeout(() => {
       edgeTooltipTimer.current = null;
-      const text = edgeEvidenceTooltipText(index, edge);
+      const text = edgeEvidenceTooltipText(index, edge, translate);
       if (!text) return;
       const point = edgeTooltipPoint.current;
       setEdgeHoverTooltip({ edgeId: edge.id, left: point.x, top: point.y, text });
@@ -2035,7 +2045,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     if (panDrag.current?.pointerId === e.pointerId) panDrag.current = null;
   };
 
-  if (!neighborhood) return <div className="excalibrain-empty">Select a note to start navigating K-Plex.</div>;
+  if (!neighborhood) return <div className="excalibrain-empty">{translate("graph.selectNote")}</div>;
 
   const connectionStateFor = (node: PositionedNode): ConnectionDragState => {
     if (!connectDrag) return "normal";
@@ -2073,7 +2083,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
     if (persistent && !persistent.isFolder && !persistent.isTag && !persistent.url && page.transient?.kind !== "section") {
       menu.addItem((item) => item
-        .setTitle("Add note…")
+        .setTitle(translate("graph.addNote"))
         .setIcon("file-plus-2")
         .onClick(() => plugin.openRelationModal({
           hostLeaf,
@@ -2084,14 +2094,14 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
     if (isMarkdown && persistent && page.transient?.kind !== "section") {
       menu.addItem((item) => item
-        .setTitle("Set note type…")
+        .setTitle(translate("graph.setNoteType"))
         .setIcon("tags")
         .onClick(() => plugin.openNoteTypeModal(persistent)));
     }
 
     if (persistent?.file && page.transient?.kind !== "section") {
       menu.addItem((item) => item
-        .setTitle("Rename note…")
+        .setTitle(translate("graph.renameNote"))
         .setIcon("pencil-line")
         .onClick(() => new RenameNoteModal(plugin, persistent.file!).open()));
     }
@@ -2099,7 +2109,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     if (persistent && page.transient?.kind !== "section") {
       const pinned = plugin.isPinned(persistent.path);
       menu.addItem((item) => item
-        .setTitle(pinned ? "Unpin note" : "Pin note")
+        .setTitle(translate(pinned ? "graph.unpinNote" : "graph.pinNote"))
         .setIcon(pinned ? "pin-off" : "pin")
         .onClick(() => void plugin.togglePinned(persistent.path)));
     }
@@ -2108,7 +2118,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         (!persistent.file || persistent.file.extension === "md") && page.transient?.kind !== "section") {
       menu.addSeparator();
       menu.addItem((item) => item
-        .setTitle(persistent.file ? "Delete note…" : "Delete placeholder…")
+        .setTitle(translate(persistent.file ? "graph.deleteNote" : "graph.deletePlaceholder"))
         .setIcon("trash-2")
         .onClick(() => {
           void plugin.deleteNode(persistent, hostLeaf, isCenter).then(() => clearHoverIntent(true));
@@ -2118,16 +2128,16 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     if (isCenter && isMarkdown && persistent && !page.transient && canExpand) {
       menu.addSeparator();
       menu.addItem((item) => item
-        .setTitle(sectionExpanded ? "Collapse note sections" : "Expand note to sections")
+        .setTitle(translate(sectionExpanded ? "graph.collapseSections" : "graph.expandSections"))
         .setIcon(sectionExpanded ? "fold-vertical" : "unfold-vertical")
         .onClick(() => toggleCentralSections()));
       if (sectionExpanded && sectionExpansion) {
         menu.addItem((item) => item
-          .setTitle("Fold all sections")
+          .setTitle(translate("graph.foldAllSections"))
           .setIcon("list-tree")
           .onClick(() => updateSectionFolds(() => new Set())));
         menu.addItem((item) => item
-          .setTitle("Unfold all sections")
+          .setTitle(translate("graph.unfoldAllSections"))
           .setIcon("list-tree")
           .onClick(() => updateSectionFolds(() => new Set(sectionExpansion.sections.filter((section) => section.childIds.length).map((section) => section.id)))));
       }
@@ -2136,7 +2146,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     if (page.transient?.kind === "section") {
       const section = sectionExpansion?.sections.find((candidate) => candidate.id === page.transient?.sectionId);
       menu.addItem((item) => item
-        .setTitle("Open section")
+        .setTitle(translate("graph.openSection"))
         .setIcon("heading")
         .onClick(() => void plugin.openSection(page)));
       if (section?.childIds.length) {
@@ -2150,7 +2160,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         menu.addSeparator();
         const expanded = expandedSectionIds.has(section.id);
         menu.addItem((item) => item
-          .setTitle(expanded ? "Fold one level" : "Unfold one level")
+          .setTitle(translate(expanded ? "graph.foldOneLevel" : "graph.unfoldOneLevel"))
           .setIcon(expanded ? "square-minus" : "square-plus")
           .onClick(() => updateSectionFolds((current) => {
             const next = new Set(current);
@@ -2158,7 +2168,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
             return next;
           })));
         menu.addItem((item) => item
-          .setTitle("Fold all descendants")
+          .setTitle(translate("graph.foldAllDescendants"))
           .setIcon("fold-vertical")
           .onClick(() => updateSectionFolds((current) => {
             const next = new Set(current);
@@ -2167,7 +2177,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
             return next;
           })));
         menu.addItem((item) => item
-          .setTitle("Unfold all descendants")
+          .setTitle(translate("graph.unfoldAllDescendants"))
           .setIcon("unfold-vertical")
           .onClick(() => updateSectionFolds((current) => {
             const next = new Set(current);
@@ -2211,12 +2221,12 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     }).open();
 
     menu.addItem((item) => item
-      .setTitle("Connection details…")
+      .setTitle(translate("graph.connectionDetails"))
       .setIcon("list-tree")
       .onClick(() => openDetails("sources")));
 
     menu.addItem((item) => item
-      .setTitle("Unlink connection")
+      .setTitle(translate("graph.unlinkConnection"))
       .setIcon("unlink")
       .onClick(() => {
         void plugin.directFrontmatterUnlinkCandidate(explanation.decisions.map((decision) => decision.evidence)).then(async (candidate) => {
@@ -2266,6 +2276,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     return <ThoughtNode
       key={baseNode.page.path}
       node={nodeForDisplay}
+      translate={translate}
       visual={nodeVisuals.get(baseNode.page.path)}
       settings={settings}
       selected={baseNode.page.path === activePath}
@@ -2310,8 +2321,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         hasChildren: true,
         expanded: sectionExpanded,
         hiddenDescendantCount: 0,
-        expandedTitle: "Fold note sections",
-        foldedTitle: "Unfold note sections",
+        expandedTitle: translate("graph.foldNoteSections"),
+        foldedTitle: translate("graph.unfoldNoteSections"),
         onToggle: toggleCentralSections,
       } : undefined)}
     />;
@@ -2342,8 +2353,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
           className="kplex-zone-filter-input"
           type="text"
           value={filter}
-          placeholder={`Filter ${zoneTitle(zone).toLowerCase()}…`}
-          aria-label={`Filter ${zoneTitle(zone)}`}
+          placeholder={translate("graph.filterZonePlaceholder", { zone: zoneTitle(zone, translate).toLowerCase() })}
+          aria-label={translate("graph.filterZone", { zone: zoneTitle(zone, translate) })}
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             const value = event.currentTarget.value;
             setZoneFilters((current) => ({ ...current, [zone]: value }));
@@ -2355,10 +2366,10 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
           autoFocus
         />}
         <span className={`kplex-zone-filter-control${flairFilterZone === zone ? " is-new-flair" : ""}`}>
-          <span className="kplex-zone-count" aria-label={`${layout.count} ${zoneTitle(zone).toLowerCase()}`}>{layout.count}</span>
+          <span className="kplex-zone-count" aria-label={translate("graph.zoneCount", { count: layout.count, zone: zoneTitle(zone, translate).toLowerCase() })}>{layout.count}</span>
           <button
             className={`kplex-zone-filter-button${zoneFilterOpen[zone] ? " is-on" : ""}`}
-            aria-label={`Filter ${zoneTitle(zone)}`}
+            aria-label={translate("graph.filterZone", { zone: zoneTitle(zone, translate) })}
             onPointerDown={(event: PointerEvent<HTMLButtonElement>) => event.stopPropagation()}
             onClick={(event: MouseEvent<HTMLButtonElement>) => {
               event.stopPropagation();
@@ -2425,7 +2436,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
                 borderColor: alphaHexToCss(child.style.borderColor, "rgba(255,255,255,.18)"),
                 fontSize: cluster.parent.role === "sibling" ? 8 * siblingScale(settings) : 8,
               }}
-              title={`${child.label} — ${child.relation.page.path}`}
+              title={translate("graph.relatedNotePath", { label: child.label, path: child.relation.page.path })}
               onClick={(event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); onActivate(child.relation.page); }}
               onDoubleClick={(event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); onOpen(child.relation.page); }}
               onPointerEnter={(event: PointerEvent<HTMLDivElement>) => {
@@ -2467,7 +2478,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     onPointerCancel={cancel}
     onContextMenu={(event: MouseEvent<HTMLDivElement>) => event.preventDefault()}
   >
-    {relationshipUpdating && <div className="kplex-relationship-updating" aria-live="polite" aria-busy="true"><ObsidianIcon name="loader-circle" size={16} /><span>Updating relationship…</span></div>}
+    {relationshipUpdating && <div className="kplex-relationship-updating" aria-live="polite" aria-busy="true"><ObsidianIcon name="loader-circle" size={16} /><span>{translate("graph.updatingRelationship")}</span></div>}
     <div ref={cameraElement} className="excalibrain-camera" style={{ transform: `translate(${camera.current.x}px, ${camera.current.y}px) scale(${camera.current.scale})` }}>
       <svg className="excalibrain-links" width="3200" height="2400" viewBox="-1600 -1200 3200 2400">
         <defs>
@@ -2555,8 +2566,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     >{edgeHoverTooltip.text}</div>}
 
     <div className="kplex-layout-controls" onPointerDown={(event: PointerEvent<HTMLDivElement>) => event.stopPropagation()}>
-      <label className="kplex-density-control" title={`Compactness ${settings.compactingFactor.toFixed(2)}`}>
-        <span className="kplex-density-heading"><ObsidianIcon name="minimize-2" size={11} /><span>Density</span><output>{settings.compactingFactor.toFixed(2)}</output></span>
+      <label className="kplex-density-control" title={translate("graph.compactnessValue", { value: settings.compactingFactor.toFixed(2) })}>
+        <span className="kplex-density-heading"><ObsidianIcon name="minimize-2" size={11} /><span>{translate("graph.density")}</span><output>{settings.compactingFactor.toFixed(2)}</output></span>
         <span className="kplex-density-rail">
           <span className="kplex-density-fill" style={{ width: `${compactPercent}%` }} />
           <input
@@ -2565,7 +2576,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
             max="4"
             step="0.05"
             value={settings.compactingFactor}
-            aria-label="Compactness"
+            aria-label={translate("graph.compactness")}
             onChange={(event: ChangeEvent<HTMLInputElement>) => {
               settings.compactingFactor = Number(event.currentTarget.value);
               preserveCameraOnNextLayout.current = true;
@@ -2575,8 +2586,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
           />
         </span>
       </label>
-      <label className="kplex-density-control" title={`${COLUMN_PRESETS[columnPresetIndex][0]} parent / ${COLUMN_PRESETS[columnPresetIndex][1]} child columns`}>
-        <span className="kplex-density-heading"><ObsidianIcon name="columns-3" size={11} /><span>Columns</span><output>{COLUMN_PRESETS[columnPresetIndex][0]}/{COLUMN_PRESETS[columnPresetIndex][1]}</output></span>
+      <label className="kplex-density-control" title={translate("graph.columnCounts", { parent: COLUMN_PRESETS[columnPresetIndex][0], child: COLUMN_PRESETS[columnPresetIndex][1] })}>
+        <span className="kplex-density-heading"><ObsidianIcon name="columns-3" size={11} /><span>{translate("graph.columns")}</span><output>{COLUMN_PRESETS[columnPresetIndex][0]}/{COLUMN_PRESETS[columnPresetIndex][1]}</output></span>
         <span className="kplex-density-rail is-stepped">
           <span className="kplex-density-fill" style={{ width: `${columnsPercent}%` }} />
           <input
@@ -2585,7 +2596,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
             max={String(COLUMN_PRESETS.length - 1)}
             step="1"
             value={columnPresetIndex}
-            aria-label="Parent and child columns"
+            aria-label={translate("graph.parentChildColumns")}
             onChange={(event: ChangeEvent<HTMLInputElement>) => {
               const preset = COLUMN_PRESETS[Math.max(0, Math.min(COLUMN_PRESETS.length - 1, Number(event.currentTarget.value)))] ?? COLUMN_PRESETS[0];
               settings.parentColumns = preset[0];
@@ -2600,9 +2611,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     </div>
 
     <div className="excalibrain-zoom-controls">
-      <button aria-label="Zoom in" onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); applyCamera((c) => ({ ...c, scale: Math.min(Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, c.scale * 1.15) })); }}><ObsidianIcon name="zoom-in" size={16} /></button>
-      <button aria-label="Zoom out" onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); applyCamera((c) => ({ ...c, scale: Math.max(.3, c.scale / 1.15) })); }}><ObsidianIcon name="zoom-out" size={16} /></button>
-      <button aria-label="Fit graph" onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); fit(); }}><ObsidianIcon name="focus" size={16} /></button>
+      <button aria-label={translate("graph.zoomIn")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); applyCamera((c) => ({ ...c, scale: Math.min(Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, c.scale * 1.15) })); }}><ObsidianIcon name="zoom-in" size={16} /></button>
+      <button aria-label={translate("graph.zoomOut")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); applyCamera((c) => ({ ...c, scale: Math.max(.3, c.scale / 1.15) })); }}><ObsidianIcon name="zoom-out" size={16} /></button>
+      <button aria-label={translate("graph.fitGraph")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); fit(); }}><ObsidianIcon name="focus" size={16} /></button>
     </div>
   </div>;
 }

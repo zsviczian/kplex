@@ -1,0 +1,54 @@
+[
+  {
+    "source": "",
+    "message": "Expression is empty at character 1"
+  },
+  {
+    "source": "node.name ==",
+    "message": "Expected a value, found 'end of expression' at character 13"
+  },
+  {
+    "source": "node.name == \"abc",
+    "message": "Unterminated string at character 14"
+  },
+  {
+    "source": "node.name == 1.2.3",
+    "message": "Invalid number '1.2.3' at character 14"
+  },
+  {
+    "source": "node.name @ \"abc\"",
+    "message": "Unexpected '@' at character 11"
+  },
+  {
+    "source": "unknown.name == \"abc\"",
+    "message": "Unknown namespace 'unknown' at character 1"
+  },
+  {
+    "source": "node. == \"abc\"",
+    "message": "Expected identifier, found '==' at character 7"
+  },
+  {
+    "source": "node.name.unknown(\"abc\")",
+    "message": "Unknown method 'unknown' at character 25"
+  },
+  {
+    "source": "unknown(node.name)",
+    "message": "Unknown namespace 'unknown' at character 1"
+  },
+  {
+    "source": "node.name == \"abc\" extra",
+    "message": "Expected eof, found 'extra' at character 20"
+  },
+  {
+    "source": "node.name == node.name.contains(\"x\")",
+    "message": "The right side of a comparison must be a value at character 11"
+  },
+  {
+    "source": "node.name.contains(node.name == \"x\")",
+    "message": "Expected ,, found '==' at character 30"
+  },
+  {
+    "source": "(node.name == \"abc\"",
+    "message": "Expected ), found 'end of expression' at character 20"
+  }
+]

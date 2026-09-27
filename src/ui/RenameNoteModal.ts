@@ -1,3 +1,6 @@
+/**
+ * Native Obsidian dialog for renaming a real note through the Vault API. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
+ */
 import { Modal, Notice, Setting, type TFile, normalizePath } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 
@@ -17,8 +20,9 @@ export class RenameNoteModal extends Modal {
     super(plugin.app);
   }
 
+  /** Render the real-note rename form with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
-    this.titleEl.setText("Rename note");
+    this.titleEl.setText(this.plugin.translator("rename.title"));
     this.modalEl.addClass("kplex-rename-note-modal");
     const suffix = fileSuffix(this.file);
     let value = editableStem(this.file, suffix);
@@ -30,12 +34,12 @@ export class RenameNoteModal extends Modal {
         stem = stem.slice(0, -suffix.length).trim();
       }
       if (!stem) {
-        new Notice("Enter a note name.", 1800);
+        new Notice(this.plugin.translator("note.validation.enter"), 1800);
         input?.focus();
         return;
       }
       if (/[\\/]/.test(stem)) {
-        new Notice("Rename changes the note name only. Folder separators are not allowed.", 2600);
+        new Notice(this.plugin.translator("rename.folderSeparators"), 2600);
         input?.focus();
         return;
       }
@@ -47,7 +51,7 @@ export class RenameNoteModal extends Modal {
         return;
       }
       if (this.plugin.app.vault.getAbstractFileByPath(newPath)) {
-        new Notice(`A file already exists at ${newPath}.`, 3000);
+        new Notice(this.plugin.translator("file.existsAt", { path: newPath }), 3000);
         input?.focus();
         return;
       }
@@ -56,15 +60,15 @@ export class RenameNoteModal extends Modal {
         await this.plugin.app.fileManager.renameFile(this.file, newPath);
         this.close();
       } catch (error) {
-        new Notice(`Could not rename note: ${error instanceof Error ? error.message : String(error)}`, 5000);
+        new Notice(this.plugin.translator("rename.failed", { error: error instanceof Error ? error.message : String(error) }), 5000);
       }
     };
 
     const nameSetting = new Setting(this.contentEl)
-      .setName("Name")
+      .setName(this.plugin.translator("common.name"))
       .addText((text) => {
         input = text.inputEl;
-        text.setValue(value).setPlaceholder("Note name").onChange((next) => { value = next; });
+        text.setValue(value).setPlaceholder(this.plugin.translator("rename.placeholder")).onChange((next) => { value = next; });
         text.inputEl.addEventListener("keydown", (event) => {
           if (event.key !== "Enter") return;
           event.preventDefault();
@@ -78,8 +82,8 @@ export class RenameNoteModal extends Modal {
     nameSetting.settingEl.addClass("kplex-rename-note-name-setting");
 
     new Setting(this.contentEl)
-      .addButton((button) => button.setButtonText("Rename").setCta().onClick(() => void rename()))
-      .addButton((button) => button.setButtonText("Cancel").onClick(() => this.close()));
+      .addButton((button) => button.setButtonText(this.plugin.translator("common.rename")).setCta().onClick(() => void rename()))
+      .addButton((button) => button.setButtonText(this.plugin.translator("common.cancel")).onClick(() => this.close()));
   }
 
   onClose(): void {

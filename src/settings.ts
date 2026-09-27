@@ -1,3 +1,6 @@
+/**
+ * Obsidian settings compatibility, declarative controls and style/ontology managers. Persisted keys and vault-facing defaults remain stable; the injected translator owns display copy.
+ */
 import {
   AbstractInputSuggest,
   App,
@@ -9,10 +12,11 @@ import {
   type SettingDefinitionItem,
 } from "obsidian";
 import type ExcaliBrainPlugin from "./main";
-import type { Arrowhead, Hierarchy, LinkStyle, NodeStyle } from "./types";
+import type { Arrowhead, Hierarchy, LinkStyle, NodeStyle, Role } from "./types";
 import { sanitizeGraphLensDefinitions, type GraphLensDefinition } from "./lens/GraphLens";
 import { collectionWindow } from "./ui/components/collectionWindow";
 import { createObsidianTranslator } from "./adapters/obsidian/localization";
+import type { Translator, PlainTranslationKey } from "./lang";
 
 export const DEFAULT_LINK_STYLE: LinkStyle = {
   strokeColor: "#696969ff",
@@ -515,12 +519,13 @@ function appendIcon(button: HTMLElement, name: string): void {
   button.prepend(icon);
 }
 
-type OntologyStyleField = { name: string; roles: string[] };
+type OntologyStyleField = { name: string; roles: Role[] };
 type NodeStyleEntry = { name: string; kind: "property" | "tag" };
 type NodeStyleValueSuggestion = { value: string; display: string; kind: "property" | "tag" | "configured" };
 
 class NodeStyleValueSuggest extends AbstractInputSuggest<NodeStyleValueSuggestion> {
   private readonly input: HTMLInputElement;
+  private readonly translate = createObsidianTranslator();
 
   constructor(app: App, input: HTMLInputElement, private readonly values: NodeStyleValueSuggestion[]) {
     super(app, input);
@@ -537,13 +542,14 @@ class NodeStyleValueSuggest extends AbstractInputSuggest<NodeStyleValueSuggestio
     return ranked.slice(0, this.limit);
   }
 
+  /** Render the actual suggested value, using localized help only for plugin-owned annotations. */
   renderSuggestion(item: NodeStyleValueSuggestion, el: HTMLElement): void {
     const line = el.createDiv({ cls: "kplex-input-suggestion-line" });
     appendIcon(line, item.kind === "tag" ? "tag" : item.kind === "configured" ? "palette" : "list-tree");
     line.createSpan({ text: item.display });
     el.createDiv({
       cls: "suggestion-note",
-      text: item.kind === "tag" ? "Vault tag" : item.kind === "configured" ? "Configured style" : "Existing style-property value",
+      text: this.translate(item.kind === "tag" ? "styles.vaultTag" : item.kind === "configured" ? "styles.configuredStyle" : "styles.existingPropertyValue"),
     });
   }
 
@@ -615,28 +621,56 @@ const hasMeaningfulLinkOverride = (style: LinkStyle | undefined, baseStyle: Link
   });
 };
 
-const describeLinkStyle = (style: LinkStyle | undefined, baseStyle: LinkStyle): string => {
+/** Map a semantic role to a parameter-free catalog key for localized settings captions. */
+const roleLabelKey = (role: Role): PlainTranslationKey => {
+  switch (role) {
+    case "parent": return "role.parent";
+    case "child": return "role.child";
+    case "left": return "role.friend";
+    case "right": return "role.challenger";
+    case "previous": return "role.previous";
+    case "next": return "role.next";
+    case "sibling": return "role.sibling";
+  }
+};
+
+/** Format a stored arrowhead value as a localized caption without changing the persisted enum. */
+const arrowheadLabel = (arrowhead: Arrowhead, translate: Translator): string => {
+  switch (arrowhead) {
+    case "arrow": return translate("styles.arrowArrow");
+    case "triangle": return translate("styles.arrowTriangle");
+    case "dot": return translate("styles.arrowDot");
+    case "bar": return translate("styles.arrowBar");
+    case "none": return translate("styles.arrowNone");
+  }
+};
+
+/** Summarize the effective link-style overrides using localized labels and original color/width values. */
+const describeLinkStyle = (style: LinkStyle | undefined, baseStyle: LinkStyle, translate: Translator): string => {
   const effective = { ...baseStyle, ...(style ?? {}) };
+  const strokeStyle = effective.strokeStyle ?? "solid";
+  const strokeKey = strokeStyle === "dashed" ? "styles.dashed" : strokeStyle === "dotted" ? "styles.dotted" : "styles.solid";
   const parts = [
-    effective.strokeStyle ?? "solid",
+    translate(strokeKey),
     `${effective.strokeWidth ?? 1}px`,
     sixHex(effective.strokeColor, "#696969"),
   ];
   if ((effective.startArrowHead ?? "none") !== "none" || (effective.endArrowHead ?? "none") !== "none") {
-    parts.push(`${effective.startArrowHead ?? "none"} → ${effective.endArrowHead ?? "none"}`);
+    parts.push(`${arrowheadLabel(effective.startArrowHead ?? "none", translate)} → ${arrowheadLabel(effective.endArrowHead ?? "none", translate)}`);
   }
-  if (effective.showLabel) parts.push("label");
-  if (effective.roughness !== undefined && effective.roughness !== baseStyle.roughness) parts.push(`roughness ${effective.roughness}`);
-  if (effective.fontFamily !== undefined && effective.fontFamily !== baseStyle.fontFamily) parts.push(`font ${effective.fontFamily}`);
+  if (effective.showLabel) parts.push(translate("styles.summaryLabel"));
+  if (effective.roughness !== undefined && effective.roughness !== baseStyle.roughness) parts.push(translate("styles.summaryRoughness", { value: effective.roughness }));
+  if (effective.fontFamily !== undefined && effective.fontFamily !== baseStyle.fontFamily) parts.push(translate("styles.summaryFont", { value: effective.fontFamily }));
   return parts.join(" · ");
 };
 
-const describeNodeStyle = (style: NodeStyle): string => {
+/** Summarize a node style with localized property labels while preserving its stored visual values. */
+const describeNodeStyle = (style: NodeStyle, translate: Translator): string => {
   const parts: string[] = [];
-  if (style.icon) parts.push(`icon: ${style.icon}`);
+  if (style.icon) parts.push(translate("styles.summaryIcon", { icon: style.icon }));
   if (style.fontSize) parts.push(`${style.fontSize}px`);
   if (style.backgroundColor) parts.push(sixHex(style.backgroundColor));
-  return parts.length ? parts.join(" · ") : "Uses inherited node defaults";
+  return parts.length ? parts.join(" · ") : translate("styles.inheritedNodeDefaults");
 };
 
 class NoteTypeStyleModal extends Modal {
@@ -655,6 +689,7 @@ class NoteTypeStyleModal extends Modal {
     super(app);
   }
 
+  /** Render the note-type style controls with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
     this.titleEl.setText(this.translate(this.initialName ? "styles.editNode" : "styles.addNode"));
     this.modalEl.addClass("kplex-style-editor-modal");
@@ -675,7 +710,7 @@ class NoteTypeStyleModal extends Modal {
     const nameInput = form.createEl("input");
     nameInput.type = "text";
     nameInput.value = this.initialName ?? "";
-    nameInput.placeholder = "project";
+    nameInput.placeholder = this.translate("styles.propertyValuePlaceholder");
     field(this.translate(this.legacyTag ? "styles.tagPrefix" : "styles.propertyValue"), nameInput);
     new NodeStyleValueSuggest(this.app, nameInput, this.valueSuggestions);
 
@@ -689,24 +724,24 @@ class NoteTypeStyleModal extends Modal {
     const iconInput = form.createEl("input");
     iconInput.type = "text";
     iconInput.value = this.initialStyle.icon ?? "";
-    iconInput.placeholder = "Search Lucide icons, e.g. book-open";
-    field("Lucide icon", iconInput);
+    iconInput.placeholder = this.translate("styles.lucidePlaceholder");
+    field(this.translate("styles.lucideIcon"), iconInput);
     new LucideIconSuggest(this.app, iconInput);
 
     const background = form.createEl("input");
     background.type = "color";
     background.value = sixHex(this.initialStyle.backgroundColor, "#182433");
-    field("Background", background);
+    field(this.translate("styles.background"), background);
 
     const text = form.createEl("input");
     text.type = "color";
     text.value = sixHex(this.initialStyle.textColor, "#ffffff");
-    field("Text", text);
+    field(this.translate("styles.text"), text);
 
     const border = form.createEl("input");
     border.type = "color";
     border.value = sixHex(this.initialStyle.borderColor, "#6f849a");
-    field("Border", border);
+    field(this.translate("styles.border"), border);
 
     const fontSize = form.createEl("input");
     fontSize.type = "number";
@@ -714,21 +749,21 @@ class NoteTypeStyleModal extends Modal {
     fontSize.max = "40";
     fontSize.step = "1";
     fontSize.value = String(this.initialStyle.fontSize ?? 18);
-    field("Font size", fontSize);
+    field(this.translate("styles.fontSize"), fontSize);
 
     const actions = this.contentEl.createDiv({ cls: "kplex-style-actions" });
     if (this.initialName && this.onDelete) {
-      const remove = actions.createEl("button", { cls: "mod-warning", text: "Delete" });
+      const remove = actions.createEl("button", { cls: "mod-warning", text: this.translate("common.delete") });
       appendIcon(remove, "trash-2");
       remove.addEventListener("click", () => {
         void this.onDelete!(this.initialName!).then(() => this.close());
       });
     }
-    const cancel = actions.createEl("button", { text: "Cancel" });
+    const cancel = actions.createEl("button", { text: this.translate("common.cancel") });
     appendIcon(cancel, "x");
     cancel.addEventListener("click", () => this.close());
 
-    const save = actions.createEl("button", { cls: "mod-cta", text: "Save" });
+    const save = actions.createEl("button", { cls: "mod-cta", text: this.translate("common.save") });
     appendIcon(save, "check");
     save.addEventListener("click", () => {
       const name = this.legacyTag ? nameInput.value.trim() : normalizeNodeStyleValue(nameInput.value);
@@ -757,6 +792,8 @@ class NoteTypeStyleModal extends Modal {
 }
 
 class OntologyLinkStyleModal extends Modal {
+  private readonly translate = createObsidianTranslator();
+
   constructor(
     app: App,
     private fieldName: string,
@@ -768,12 +805,13 @@ class OntologyLinkStyleModal extends Modal {
     super(app);
   }
 
+  /** Render the ontology-link style controls with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
-    this.titleEl.setText(`Link style · ${this.fieldName}`);
+    this.titleEl.setText(this.translate("styles.linkEditorTitle", { field: this.fieldName }));
     this.modalEl.addClass("kplex-style-editor-modal");
     this.contentEl.addClass("kplex-style-editor");
     this.contentEl.createEl("p", {
-      text: "Change the appearance of links created by this relationship field. Reset returns it to the default link style.",
+      text: this.translate("styles.linkEditorHelp"),
     });
 
     const effective = { ...this.baseStyle, ...this.initialStyle };
@@ -787,7 +825,7 @@ class OntologyLinkStyleModal extends Modal {
     const strokeColor = form.createEl("input");
     strokeColor.type = "color";
     strokeColor.value = sixHex(effective.strokeColor, "#696969");
-    field("Line color", strokeColor);
+    field(this.translate("styles.lineColor"), strokeColor);
 
     const strokeWidth = form.createEl("input");
     strokeWidth.type = "number";
@@ -795,37 +833,37 @@ class OntologyLinkStyleModal extends Modal {
     strokeWidth.max = "8";
     strokeWidth.step = "0.5";
     strokeWidth.value = String(effective.strokeWidth ?? 1);
-    field("Line width", strokeWidth);
+    field(this.translate("styles.lineWidth"), strokeWidth);
 
     const strokeStyle = form.createEl("select");
-    for (const [value, label] of Object.entries({ solid: "Solid", dashed: "Dashed", dotted: "Dotted" })) {
+    for (const [value, label] of Object.entries({ solid: this.translate("styles.solid"), dashed: this.translate("styles.dashed"), dotted: this.translate("styles.dotted") })) {
       const option = strokeStyle.createEl("option", { text: label, attr: { value } });
       if (value === (effective.strokeStyle ?? "solid")) option.selected = true;
     }
-    field("Line style", strokeStyle);
+    field(this.translate("styles.lineStyle"), strokeStyle);
 
     const arrowSelect = (selected: Arrowhead): HTMLSelectElement => {
       const select = form.createEl("select");
-      for (const [value, label] of Object.entries(ARROW_OPTIONS)) {
+      for (const [value, label] of Object.entries(arrowOptions(this.translate))) {
         const option = select.createEl("option", { text: label, attr: { value } });
         if (value === selected) option.selected = true;
       }
       return select;
     };
     const startArrow = arrowSelect(effective.startArrowHead ?? "none");
-    field("Start arrowhead", startArrow);
+    field(this.translate("styles.startArrowhead"), startArrow);
     const endArrow = arrowSelect(effective.endArrowHead ?? "none");
-    field("End arrowhead", endArrow);
+    field(this.translate("styles.endArrowhead"), endArrow);
 
     const showLabel = form.createEl("input");
     showLabel.type = "checkbox";
     showLabel.checked = effective.showLabel ?? false;
-    field("Show ontology label", showLabel);
+    field(this.translate("styles.showOntologyLabel"), showLabel);
 
     const textColor = form.createEl("input");
     textColor.type = "color";
     textColor.value = sixHex(effective.textColor, "#ffffff");
-    field("Label color", textColor);
+    field(this.translate("styles.labelColor"), textColor);
 
     const fontSize = form.createEl("input");
     fontSize.type = "number";
@@ -833,18 +871,18 @@ class OntologyLinkStyleModal extends Modal {
     fontSize.max = "24";
     fontSize.step = "1";
     fontSize.value = String(effective.fontSize ?? 10);
-    field("Label size", fontSize);
+    field(this.translate("styles.labelSize"), fontSize);
 
     const actions = this.contentEl.createDiv({ cls: "kplex-style-actions" });
-    const reset = actions.createEl("button", { cls: "mod-warning", text: "Reset" });
+    const reset = actions.createEl("button", { cls: "mod-warning", text: this.translate("styles.reset") });
     appendIcon(reset, "rotate-ccw");
     reset.addEventListener("click", () => {
       void this.onReset().then(() => this.close());
     });
-    const cancel = actions.createEl("button", { text: "Cancel" });
+    const cancel = actions.createEl("button", { text: this.translate("common.cancel") });
     appendIcon(cancel, "x");
     cancel.addEventListener("click", () => this.close());
-    const save = actions.createEl("button", { cls: "mod-cta", text: "Save" });
+    const save = actions.createEl("button", { cls: "mod-cta", text: this.translate("common.save") });
     appendIcon(save, "check");
     save.addEventListener("click", () => {
       const style: LinkStyle = {
@@ -870,7 +908,7 @@ class OntologyLinkStyleModal extends Modal {
 class OntologyLinkStylesManagerModal extends Modal {
   private readonly translate = createObsidianTranslator();
   private search = "";
-  private role = "all";
+  private role: "all" | Role = "all";
   // Modal already owns a `scope: Scope` keyboard-handler property. Keep this UI filter distinct.
   private displayScope: "custom" | "all" = "custom";
   private visibleLimit = 12;
@@ -887,18 +925,19 @@ class OntologyLinkStylesManagerModal extends Modal {
     super(app);
   }
 
+  /** Render the searchable ontology-link style manager with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
-    this.titleEl.setText("Relationship link styles");
+    this.titleEl.setText(this.translate("styles.relationshipTitle"));
     this.modalEl.addClass("kplex-style-manager-modal");
     this.contentEl.addClass("kplex-style-manager");
     this.contentEl.createEl("p", {
-      text: "Customize only the relationship properties that should look different from the default link style.",
+      text: this.translate("styles.relationshipHelp"),
     });
 
     const controls = this.contentEl.createDiv({ cls: "kplex-style-manager-controls" });
     const searchWrap = controls.createDiv({ cls: "search-input-container kplex-style-manager-search" });
     const search = searchWrap.createEl("input", {
-      attr: { type: "search", placeholder: "Search relationship properties…", "aria-label": "Search relationship properties" },
+      attr: { type: "search", placeholder: this.translate("styles.searchRelationshipPlaceholder"), "aria-label": this.translate("styles.searchRelationshipAria") },
     });
     search.addEventListener("input", () => {
       this.search = search.value.trim().toLowerCase();
@@ -906,9 +945,9 @@ class OntologyLinkStylesManagerModal extends Modal {
       this.renderList();
     });
 
-    const scope = controls.createEl("select", { attr: { "aria-label": "Link style scope" } });
-    scope.createEl("option", { text: "Custom styles", attr: { value: "custom" } });
-    scope.createEl("option", { text: "All relationship fields", attr: { value: "all" } });
+    const scope = controls.createEl("select", { attr: { "aria-label": this.translate("styles.linkStyleScope"), "data-kplex-style-scope": "true" } });
+    scope.createEl("option", { text: this.translate("styles.customStyles"), attr: { value: "custom" } });
+    scope.createEl("option", { text: this.translate("styles.allRelationshipFields"), attr: { value: "all" } });
     scope.value = this.displayScope;
     scope.addEventListener("change", () => {
       this.displayScope = scope.value === "all" ? "all" : "custom";
@@ -916,13 +955,14 @@ class OntologyLinkStylesManagerModal extends Modal {
       this.renderList();
     });
 
-    const role = controls.createEl("select", { attr: { "aria-label": "Ontology role" } });
-    role.createEl("option", { text: "All roles", attr: { value: "all" } });
-    for (const value of ["Parent", "Child", "Friend", "Challenger", "Previous", "Next"]) {
-      role.createEl("option", { text: value, attr: { value } });
+    const role = controls.createEl("select", { attr: { "aria-label": this.translate("styles.ontologyRole") } });
+    role.createEl("option", { text: this.translate("styles.allRoles"), attr: { value: "all" } });
+    const roleOptions: Role[] = ["parent", "child", "left", "right", "previous", "next"];
+    for (const value of roleOptions) {
+      role.createEl("option", { text: this.translate(roleLabelKey(value)), attr: { value } });
     }
     role.addEventListener("change", () => {
-      this.role = role.value;
+      this.role = role.value === "all" ? "all" : role.value as Role;
       this.visibleLimit = 12;
       this.renderList();
     });
@@ -933,6 +973,7 @@ class OntologyLinkStylesManagerModal extends Modal {
     window.setTimeout(() => search.focus(), 0);
   }
 
+  /** Rebuild the searchable ontology-link style manager entries with localized status/actions while preserving actual field and style values. */
   private renderList(): void {
     if (!this.listEl || !this.statusEl) return;
     this.listEl.empty();
@@ -946,20 +987,21 @@ class OntologyLinkStylesManagerModal extends Modal {
     });
     const customCount = this.fields.filter((field) => hasMeaningfulLinkOverride(this.getStyle(field.name), this.baseStyle)).length;
     const scopeCount = this.displayScope === "custom" ? customCount : this.fields.length;
-    this.statusEl.setText(`${scopeCount} ${this.displayScope === "custom" ? "custom style" : "relationship field"}${scopeCount === 1 ? "" : "s"} · ${matches.length} result${matches.length === 1 ? "" : "s"}`);
+    const statusKey = this.displayScope === "custom"
+      ? (scopeCount === 1 ? (matches.length === 1 ? "styles.statusCustom11" : "styles.statusCustom1n") : (matches.length === 1 ? "styles.statusCustomn1" : "styles.statusCustomnn"))
+      : (scopeCount === 1 ? (matches.length === 1 ? "styles.statusFields11" : "styles.statusFields1n") : (matches.length === 1 ? "styles.statusFieldsn1" : "styles.statusFieldsnn"));
+    this.statusEl.setText(this.translate(statusKey, { scopeCount, matches: matches.length }));
 
     if (!matches.length) {
       const empty = this.listEl.createDiv({ cls: "kplex-style-manager-empty" });
       empty.createEl("p", {
-        text: this.displayScope === "custom"
-          ? "No customized link styles match. The remaining relationship fields use the global link style."
-          : "No relationship fields match this filter.",
+        text: this.translate(this.displayScope === "custom" ? "styles.noCustomMatches" : "styles.noRelationshipMatches"),
       });
       if (this.displayScope === "custom") {
-        const browse = empty.createEl("button", { text: "Browse all relationship fields" });
+        const browse = empty.createEl("button", { text: this.translate("styles.browseAllRelationships") });
         browse.addEventListener("click", () => {
           this.displayScope = "all";
-          const select = this.contentEl.querySelector<HTMLSelectElement>('.kplex-style-manager-controls select[aria-label="Link style scope"]');
+          const select = this.contentEl.querySelector<HTMLSelectElement>('.kplex-style-manager-controls select[data-kplex-style-scope]');
           if (select) select.value = "all";
           this.renderList();
         });
@@ -982,9 +1024,9 @@ class OntologyLinkStylesManagerModal extends Modal {
       const heading = copy.createDiv({ cls: "kplex-style-manager-heading" });
       heading.createSpan({ text: field.name, cls: "kplex-style-manager-name" });
       const badges = heading.createSpan({ cls: "kplex-style-manager-badges" });
-      for (const role of field.roles) badges.createSpan({ text: role, cls: "kplex-style-manager-badge" });
+      for (const role of field.roles) badges.createSpan({ text: this.translate(roleLabelKey(role)), cls: "kplex-style-manager-badge" });
       copy.createDiv({
-        text: `${customized ? "Custom" : "Default"} · ${describeLinkStyle(style, this.baseStyle)}`,
+        text: this.translate(customized ? "styles.customSummary" : "styles.defaultSummary", { summary: describeLinkStyle(style, this.baseStyle, this.translate) }),
         cls: "kplex-style-manager-summary",
       });
       appendIcon(row, "chevron-right");
@@ -1025,6 +1067,7 @@ class NoteTypeStylesManagerModal extends Modal {
     super(app);
   }
 
+  /** Render the searchable note-type style manager with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
     this.titleEl.setText(this.translate("styles.nodeTitle"));
     this.modalEl.addClass("kplex-style-manager-modal");
@@ -1036,14 +1079,14 @@ class NoteTypeStylesManagerModal extends Modal {
     const controls = this.contentEl.createDiv({ cls: "kplex-style-manager-controls" });
     const searchWrap = controls.createDiv({ cls: "search-input-container kplex-style-manager-search" });
     const search = searchWrap.createEl("input", {
-      attr: { type: "search", placeholder: "Search node styles…", "aria-label": "Search node styles" },
+      attr: { type: "search", placeholder: this.translate("styles.searchNodePlaceholder"), "aria-label": this.translate("styles.searchNodeAria") },
     });
     search.addEventListener("input", () => {
       this.search = search.value.trim().toLowerCase();
       this.visibleLimit = 12;
       this.renderList();
     });
-    const add = controls.createEl("button", { cls: "mod-cta", text: "Add style" });
+    const add = controls.createEl("button", { cls: "mod-cta", text: this.translate("styles.addStyle") });
     appendIcon(add, "plus");
     add.addEventListener("click", () => this.onEdit(null, () => this.renderList()));
 
@@ -1053,6 +1096,7 @@ class NoteTypeStylesManagerModal extends Modal {
     window.setTimeout(() => search.focus(), 0);
   }
 
+  /** Rebuild the searchable note-type style manager entries with localized status/actions while preserving actual field and style values. */
   private renderList(): void {
     if (!this.listEl || !this.statusEl) return;
     this.listEl.empty();
@@ -1081,7 +1125,7 @@ class NoteTypeStylesManagerModal extends Modal {
       const copy = row.createDiv({ cls: "kplex-style-manager-copy" });
       copy.createDiv({ text: entry.name, cls: "kplex-style-manager-name" });
       copy.createDiv({ text: this.translate(entry.kind === "tag" ? "styles.legacyTag" : "styles.propertyValue"), cls: "kplex-style-manager-badge" });
-      copy.createDiv({ text: describeNodeStyle(style), cls: "kplex-style-manager-summary" });
+      copy.createDiv({ text: describeNodeStyle(style, this.translate), cls: "kplex-style-manager-summary" });
       appendIcon(row, "chevron-right");
       row.addEventListener("click", () => this.onEdit(entry, () => this.renderList()));
     }
@@ -1122,18 +1166,19 @@ class UnassignedOntologyManagerModal extends Modal {
     super(app);
   }
 
+  /** Render the discovered, unassigned ontology-field manager with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
-    this.titleEl.setText("Unassigned relationship fields");
+    this.titleEl.setText(this.translate("settings.unassignedTitle"));
     this.modalEl.addClass("kplex-style-manager-modal");
     this.contentEl.addClass("kplex-style-manager");
     this.contentEl.createEl("p", {
-      text: "Review properties K-Plex has discovered but does not yet use as relationship fields.",
+      text: this.translate("settings.unassignedHelp"),
     });
 
     const controls = this.contentEl.createDiv({ cls: "kplex-style-manager-controls" });
     const searchWrap = controls.createDiv({ cls: "search-input-container kplex-style-manager-search" });
     const search = searchWrap.createEl("input", {
-      attr: { type: "search", placeholder: "Search discovered fields…", "aria-label": "Search discovered fields" },
+      attr: { type: "search", placeholder: this.translate("settings.searchDiscoveredPlaceholder"), "aria-label": this.translate("settings.searchDiscoveredAria") },
     });
     search.addEventListener("input", () => {
       this.search = search.value.trim().toLowerCase();
@@ -1141,9 +1186,9 @@ class UnassignedOntologyManagerModal extends Modal {
       this.renderList();
     });
 
-    const sort = controls.createEl("select", { attr: { "aria-label": "Sort discovered fields" } });
-    sort.createEl("option", { text: "Most used", attr: { value: "frequency" } });
-    sort.createEl("option", { text: "A–Z", attr: { value: "name" } });
+    const sort = controls.createEl("select", { attr: { "aria-label": this.translate("settings.sortDiscovered") } });
+    sort.createEl("option", { text: this.translate("settings.mostUsed"), attr: { value: "frequency" } });
+    sort.createEl("option", { text: this.translate("settings.az"), attr: { value: "name" } });
     sort.value = this.sortMode;
     sort.addEventListener("change", () => {
       this.sortMode = sort.value === "name" ? "name" : "frequency";
@@ -1151,7 +1196,7 @@ class UnassignedOntologyManagerModal extends Modal {
       this.renderList();
     });
 
-    const refresh = controls.createEl("button", { text: "Refresh" });
+    const refresh = controls.createEl("button", { text: this.translate("settings.refresh") });
     appendIcon(refresh, "refresh-cw");
     refresh.addEventListener("click", () => {
       refresh.disabled = true;
@@ -1169,6 +1214,7 @@ class UnassignedOntologyManagerModal extends Modal {
     window.setTimeout(() => search.focus(), 0);
   }
 
+  /** Rebuild the discovered, unassigned ontology-field manager entries with localized status/actions while preserving actual field and style values. */
   private renderList(): void {
     if (!this.listEl || !this.statusEl) return;
     this.listEl.empty();
@@ -1178,12 +1224,15 @@ class UnassignedOntologyManagerModal extends Modal {
       .sort((a, b) => this.sortMode === "name"
         ? a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
         : b.count - a.count || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-    this.statusEl.setText(`${all.length} unassigned field${all.length === 1 ? "" : "s"} · ${matches.length} result${matches.length === 1 ? "" : "s"}`);
+    const statusKey = all.length === 1
+      ? (matches.length === 1 ? "settings.unassignedStatus11" : "settings.unassignedStatus1n")
+      : (matches.length === 1 ? "settings.unassignedStatusn1" : "settings.unassignedStatusnn");
+    this.statusEl.setText(this.translate(statusKey, { count: all.length, results: matches.length }));
 
     if (!matches.length) {
       this.listEl.createDiv({
         cls: "kplex-style-manager-empty",
-        text: all.length ? "No discovered fields match this search." : "All discovered fields are assigned to an ontology role.",
+        text: this.translate(all.length ? "settings.noDiscoveredMatches" : "settings.allDiscoveredAssigned"),
       });
       return;
     }
@@ -1197,7 +1246,7 @@ class UnassignedOntologyManagerModal extends Modal {
       const copy = row.createDiv({ cls: "kplex-style-manager-copy" });
       copy.createDiv({ text: field.name, cls: "kplex-style-manager-name" });
       copy.createDiv({
-        text: `${field.count} occurrence${field.count === 1 ? "" : "s"}`,
+        text: this.translate(field.count === 1 ? "settings.occurrenceOne" : "settings.occurrenceMany", { count: field.count }),
         cls: "kplex-style-manager-summary",
       });
       appendIcon(row, "chevron-right");
@@ -1224,28 +1273,30 @@ class UnassignedOntologyManagerModal extends Modal {
 
 class LegacySettingsImportModal extends Modal {
   private rawText = "";
+  private readonly translate = createObsidianTranslator();
 
   constructor(app: App, private plugin: ExcaliBrainPlugin, private onImported: () => void) {
     super(app);
   }
 
+  /** Render the legacy settings import chooser with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
-    this.titleEl.setText("Import ExcaliBrain settings");
+    this.titleEl.setText(this.translate("settings.importTitle"));
     this.contentEl.addClass("kplex-import-settings-modal");
 
     this.contentEl.createEl("p", {
-      text: "Choose an ExcaliBrain data.json backup. K-Plex will migrate compatible ontology, visibility, navigation and appearance settings, then rebuild the index."
+      text: this.translate("settings.importHelp")
     });
 
     const fileRow = this.contentEl.createDiv({ cls: "kplex-import-file-row" });
     const fileInput = fileRow.createEl("input", { attr: { type: "file", accept: "application/json,.json" } });
-    const status = this.contentEl.createDiv({ cls: "kplex-import-status", text: "No file selected." });
+    const status = this.contentEl.createDiv({ cls: "kplex-import-status", text: this.translate("settings.noFileSelected") });
 
     fileInput.addEventListener("change", () => {
       const file = fileInput.files?.[0];
       if (!file) {
         this.rawText = "";
-        status.setText("No file selected.");
+        status.setText(this.translate("settings.noFileSelected"));
         return;
       }
       void file.text().then((text) => {
@@ -1253,20 +1304,20 @@ class LegacySettingsImportModal extends Modal {
         status.setText(file.name);
       }).catch((error: unknown) => {
         this.rawText = "";
-        status.setText(`Could not read file: ${String(error)}`);
+        status.setText(this.translate("settings.fileReadFailed", { error: String(error) }));
       });
     });
 
     const actions = this.contentEl.createDiv({ cls: "kplex-style-actions" });
-    const cancel = actions.createEl("button", { text: "Cancel" });
+    const cancel = actions.createEl("button", { text: this.translate("common.cancel") });
     appendIcon(cancel, "x");
     cancel.addEventListener("click", () => this.close());
 
-    const importButton = actions.createEl("button", { cls: "mod-cta", text: "Import" });
+    const importButton = actions.createEl("button", { cls: "mod-cta", text: this.translate("settings.importButton") });
     appendIcon(importButton, "download");
     importButton.addEventListener("click", () => {
       if (!this.rawText) {
-        status.setText("Choose an ExcaliBrain data.json file first.");
+        status.setText(this.translate("settings.chooseFileFirst"));
         return;
       }
       try {
@@ -1284,17 +1335,17 @@ class LegacySettingsImportModal extends Modal {
           hierarchy: { ...current.hierarchy, ...importedHierarchy },
         });
       } catch (error) {
-        status.setText(`Invalid JSON: ${String(error)}`);
+        status.setText(this.translate("settings.invalidJson", { error: String(error) }));
         return;
       }
       importButton.disabled = true;
       void this.plugin.saveSettings(true).then(() => {
-        new Notice("ExcaliBrain settings imported into K-Plex.", 2600);
+        new Notice(this.translate("settings.importedNotice"), 2600);
         this.onImported();
         this.close();
       }).catch((error: unknown) => {
         importButton.disabled = false;
-        status.setText(`Import failed: ${String(error)}`);
+        status.setText(this.translate("settings.importFailed", { error: String(error) }));
       });
     });
   }
@@ -1346,13 +1397,14 @@ const REINDEX_SETTING_KEYS = new Set<string>([
   ...Object.keys(HIERARCHY_KEY_MAP)
 ]);
 
-const ARROW_OPTIONS: Record<Arrowhead, string> = {
-  none: "None",
-  arrow: "Arrow",
-  triangle: "Triangle",
-  dot: "Dot",
-  bar: "Bar",
-};
+/** Provide localized arrowhead dropdown labels keyed by the unchanged persisted arrowhead values. */
+const arrowOptions = (translate: Translator): Record<Arrowhead, string> => ({
+  none: translate("styles.arrowNone"),
+  arrow: translate("styles.arrowArrow"),
+  triangle: translate("styles.arrowTriangle"),
+  dot: translate("styles.arrowDot"),
+  bar: translate("styles.arrowBar"),
+});
 
 export class ExcaliBrainSettingTab extends PluginSettingTab {
   constructor(app: App, private ebPlugin: ExcaliBrainPlugin) {
@@ -1451,14 +1503,15 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
     ).open();
   }
 
+  /** Build style-manager entries from configured ontology fields, preserving field values and localizing fallback role captions. */
   private ontologyStyleFields(): OntologyStyleField[] {
-    const roleGroups: [string, string[]][] = [
-      ["Parent", this.ebPlugin.settings.hierarchy.parents],
-      ["Child", this.ebPlugin.settings.hierarchy.children],
-      ["Friend", this.ebPlugin.settings.hierarchy.leftFriends],
-      ["Challenger", this.ebPlugin.settings.hierarchy.rightFriends],
-      ["Previous", this.ebPlugin.settings.hierarchy.previous],
-      ["Next", this.ebPlugin.settings.hierarchy.next],
+    const roleGroups: [Role, string[]][] = [
+      ["parent", this.ebPlugin.settings.hierarchy.parents],
+      ["child", this.ebPlugin.settings.hierarchy.children],
+      ["left", this.ebPlugin.settings.hierarchy.leftFriends],
+      ["right", this.ebPlugin.settings.hierarchy.rightFriends],
+      ["previous", this.ebPlugin.settings.hierarchy.previous],
+      ["next", this.ebPlugin.settings.hierarchy.next],
     ];
     const fields = new Map<string, OntologyStyleField>();
     for (const [role, names] of roleGroups) {
@@ -1539,6 +1592,7 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
     new LegacySettingsImportModal(this.app, this.ebPlugin, () => this.update()).open();
   }
 
+  /** Build native declarative settings and subpages with localized copy while keeping keys, defaults and control behavior stable. */
   getSettingDefinitions(): SettingDefinitionItem<DeclarativeSettingKey>[] {
     const translate = createObsidianTranslator();
     const nodeStyles = this.nodeStyleEntries();
@@ -1553,140 +1607,140 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
         heading: "",
         cls: "kplex-resource-links",
         items: [
-          { name: "Buy me a coffee", action: () => { window.open("https://ko-fi.com/zsolt", "_blank", "noopener,noreferrer"); } },
-          { name: "Read Sketch Your Mind", action: () => { window.open("https://community.sketch-your-mind.com/sym", "_blank", "noopener,noreferrer"); } },
-          { name: "Join SYM Community", action: () => { window.open("https://community.sketch-your-mind.com", "_blank", "noopener,noreferrer"); } },
+          { name: translate("settings.ui.buy.me.a.coffee"), action: () => { window.open("https://ko-fi.com/zsolt", "_blank", "noopener,noreferrer"); } },
+          { name: translate("settings.ui.read.sketch.your.mind"), action: () => { window.open("https://community.sketch-your-mind.com/sym", "_blank", "noopener,noreferrer"); } },
+          { name: translate("settings.ui.join.sym.community"), action: () => { window.open("https://community.sketch-your-mind.com", "_blank", "noopener,noreferrer"); } },
         ],
       },
       {
         type: "page",
-        name: "Plex behavior",
-        desc: "Navigation, layout, visibility and relationship behavior inside the Plex.",
+        name: translate("settings.ui.plex.behavior"),
+        desc: translate("settings.ui.navigation.layout.visibility.and.relationship.behavior.i"),
         items: [
           {
             type: "group",
-            heading: "Navigation & interaction",
+            heading: translate("settings.ui.navigation.interaction"),
             items: [
-              { name: "Animation speed", desc: "Speed multiplier: 0 = off, 0.5 = slow, 1 = normal, 1.5 = fast, 2 = very fast. Shared nodes visibly migrate to their new position while the newly selected center arrives a little sooner.", control: { type: "slider", key: "animationSpeed", min: 0, max: 2, step: 0.1 } },
-              { name: "Auto fit on navigation", control: { type: "toggle", key: "allowAutozoom" } },
-              { name: "Open K-Plex in a pop-out window", desc: "When K-Plex is opened and no K-Plex view already exists, create it in a pop-out window. Desktop only.", control: { type: "toggle", key: "startInPopout" } },
-              { name: "Confirm before deleting files", desc: "Ask before a node context-menu action deletes a note using Obsidian's configured trash behavior. Placeholder cleanup is still explained the first time you use Delete node.", control: { type: "toggle", key: "confirmFileDelete" } },
+              { name: translate("settings.ui.animation.speed"), desc: translate("settings.ui.speed.multiplier.0.off.0.5.slow.1.normal.1.5.fast.2.very"), control: { type: "slider", key: "animationSpeed", min: 0, max: 2, step: 0.1 } },
+              { name: translate("settings.ui.auto.fit.on.navigation"), control: { type: "toggle", key: "allowAutozoom" } },
+              { name: translate("settings.ui.open.k.plex.in.a.pop.out.window"), desc: translate("settings.ui.when.k.plex.is.opened.and.no.k.plex.view.already.exists"), control: { type: "toggle", key: "startInPopout" } },
+              { name: translate("settings.ui.confirm.before.deleting.files"), desc: translate("settings.ui.ask.before.a.node.context.menu.action.deletes.a.note.usi"), control: { type: "toggle", key: "confirmFileDelete" } },
               {
-                name: "Mouse navigation",
-                desc: "Smart reserves right-click for context menus: left-drag empty canvas or middle-drag anywhere to pan. Legacy allows any mouse button to pan. Wheel zoom never requires a modifier.",
-                control: { type: "dropdown", key: "mouseInteractionMode", defaultValue: "smart", options: { smart: "Smart (recommended)", legacy: "Legacy: any button pans", "middle-only": "Middle button pans" } }
+                name: translate("settings.ui.mouse.navigation"),
+                desc: translate("settings.ui.smart.reserves.right.click.for.context.menus.left.drag.e"),
+                control: { type: "dropdown", key: "mouseInteractionMode", defaultValue: "smart", options: { smart: translate("settings.ui.smart.recommended"), legacy: translate("settings.ui.legacy.any.button.pans"), "middle-only": translate("settings.ui.middle.button.pans") } }
               },
             ]
           },
           {
             type: "group",
-            heading: "Layout & sizing",
+            heading: translate("settings.ui.layout.sizing"),
             items: [
-              { name: "Parent maximum height", desc: "Parent rows become vertically scrollable above this height.", control: { type: "slider", key: "parentMaxHeight", min: 140, max: 800, step: 20 } },
-              { name: "Friend / challenger maximum height", desc: "Friend and challenger lists become vertically scrollable above this height.", control: { type: "slider", key: "friendMaxHeight", min: 140, max: 800, step: 20 } },
-              { name: "Sibling maximum height", desc: "Sibling lists become vertically scrollable above this height.", control: { type: "slider", key: "siblingMaxHeight", min: 120, max: 700, step: 10 } },
-              { name: "Sibling relative size (%)", desc: "Scale sibling nodes and their expanded descendants relative to other nodes. 30% is smallest; 85% is largest.", control: { type: "slider", key: "siblingRelativeSize", min: 30, max: 85, step: 5 } },
-              { name: "Child maximum height", desc: "Child rows become vertically scrollable above this height.", control: { type: "slider", key: "childMaxHeight", min: 160, max: 900, step: 20 } },
-              { name: "Maximum nodes per zone", control: { type: "slider", key: "maxItemCount", min: 10, max: 300, step: 10 } },
-              { name: "Compact view", control: { type: "toggle", key: "compactView" } },
-              { name: "Minimum link length", desc: "Minimum spacing target for connected nodes.", control: { type: "slider", key: "minLinkLength", min: 6, max: 40, step: 1 } },
+              { name: translate("settings.ui.parent.maximum.height"), desc: translate("settings.ui.parent.rows.become.vertically.scrollable.above.this.heig"), control: { type: "slider", key: "parentMaxHeight", min: 140, max: 800, step: 20 } },
+              { name: translate("settings.ui.friend.challenger.maximum.height"), desc: translate("settings.ui.friend.and.challenger.lists.become.vertically.scrollable"), control: { type: "slider", key: "friendMaxHeight", min: 140, max: 800, step: 20 } },
+              { name: translate("settings.ui.sibling.maximum.height"), desc: translate("settings.ui.sibling.lists.become.vertically.scrollable.above.this.he"), control: { type: "slider", key: "siblingMaxHeight", min: 120, max: 700, step: 10 } },
+              { name: translate("settings.ui.sibling.relative.size"), desc: translate("settings.ui.scale.sibling.nodes.and.their.expanded.descendants.relat"), control: { type: "slider", key: "siblingRelativeSize", min: 30, max: 85, step: 5 } },
+              { name: translate("settings.ui.child.maximum.height"), desc: translate("settings.ui.child.rows.become.vertically.scrollable.above.this.heigh"), control: { type: "slider", key: "childMaxHeight", min: 160, max: 900, step: 20 } },
+              { name: translate("settings.ui.maximum.nodes.per.zone"), control: { type: "slider", key: "maxItemCount", min: 10, max: 300, step: 10 } },
+              { name: translate("settings.ui.compact.view"), control: { type: "toggle", key: "compactView" } },
+              { name: translate("settings.ui.minimum.link.length"), desc: translate("settings.ui.minimum.spacing.target.for.connected.nodes"), control: { type: "slider", key: "minLinkLength", min: 6, max: 40, step: 1 } },
             ]
           },
           {
             type: "group",
-            heading: "Content visibility",
+            heading: translate("settings.ui.content.visibility"),
             items: [
-              { name: "Show siblings", control: { type: "toggle", key: "renderSiblings" } },
-              { name: "Show inferred relationships", control: { type: "toggle", key: "showInferredNodes" } },
-              { name: "Ghost / unresolved nodes", control: { type: "toggle", key: "showVirtualNodes" } },
-              { name: "Web links", control: { type: "toggle", key: "showURLNodes" } },
-              { name: "Attachments", control: { type: "toggle", key: "showAttachments" } },
-              { name: "Folders", control: { type: "toggle", key: "showFolderNodes" } },
-              { name: "Tags", control: { type: "toggle", key: "showTagNodes" } },
-              { name: "Markdown pages", control: { type: "toggle", key: "showPageNodes" } },
-              { name: "Excluded path prefixes", desc: "Comma-separated path prefixes that stay hidden from the Plex.", control: { type: "textarea", key: "excludeFilepathsCsv", rows: 4 } },
-              { name: "Gate counts", desc: "Show the number of currently visible relationships beside each gate.", control: { type: "toggle", key: "showNeighborCount" } },
+              { name: translate("settings.ui.show.siblings"), control: { type: "toggle", key: "renderSiblings" } },
+              { name: translate("settings.ui.show.inferred.relationships"), control: { type: "toggle", key: "showInferredNodes" } },
+              { name: translate("settings.ui.ghost.unresolved.nodes"), control: { type: "toggle", key: "showVirtualNodes" } },
+              { name: translate("settings.ui.web.links"), control: { type: "toggle", key: "showURLNodes" } },
+              { name: translate("settings.ui.attachments"), control: { type: "toggle", key: "showAttachments" } },
+              { name: translate("settings.ui.folders"), control: { type: "toggle", key: "showFolderNodes" } },
+              { name: translate("settings.ui.tags"), control: { type: "toggle", key: "showTagNodes" } },
+              { name: translate("settings.ui.markdown.pages"), control: { type: "toggle", key: "showPageNodes" } },
+              { name: translate("settings.ui.excluded.path.prefixes"), desc: translate("settings.ui.comma.separated.path.prefixes.that.stay.hidden.from.the"), control: { type: "textarea", key: "excludeFilepathsCsv", rows: 4 } },
+              { name: translate("settings.ui.gate.counts"), desc: translate("settings.ui.show.the.number.of.currently.visible.relationships.besid"), control: { type: "toggle", key: "showNeighborCount" } },
             ]
           },
           {
             type: "group",
-            heading: "Relationship behavior",
+            heading: translate("settings.ui.relationship.behavior"),
             items: [
-              { name: "Infer normal links as friends", control: { type: "toggle", key: "inferAllLinksAsFriends" } },
-              { name: "Inverse inferred parent/child direction", control: { type: "toggle", key: "inverseInfer" } },
-              { name: "Reverse displayed arrow direction", desc: "Reverse the displayed link arrow direction without changing relationship semantics.", control: { type: "toggle", key: "inverseArrowDirection" } },
+              { name: translate("settings.ui.infer.normal.links.as.friends"), control: { type: "toggle", key: "inferAllLinksAsFriends" } },
+              { name: translate("settings.ui.inverse.inferred.parent.child.direction"), control: { type: "toggle", key: "inverseInfer" } },
+              { name: translate("settings.ui.reverse.displayed.arrow.direction"), desc: translate("settings.ui.reverse.the.displayed.link.arrow.direction.without.chang"), control: { type: "toggle", key: "inverseArrowDirection" } },
             ]
           },
         ]
       },
       {
         type: "page",
-        name: "Ontology",
-        desc: "Define which note properties create relationships and how quickly you can enter them while editing.",
+        name: translate("settings.ui.ontology"),
+        desc: translate("settings.ui.define.which.note.properties.create.relationships.and.ho"),
         items: [
           {
             type: "page",
-            name: "Relationship fields",
-            desc: "Choose which properties appear as parents, children, friends, challengers and sequence links.",
+            name: translate("settings.ui.relationship.fields"),
+            desc: translate("settings.ui.choose.which.properties.appear.as.parents.children.frien"),
             items: [
               {
                 type: "group",
-                heading: "Relationship fields",
+                heading: translate("settings.ui.relationship.fields"),
                 cls: "kplex-ontology-fields",
                 items: [
-                  { name: "Parent fields", control: { type: "textarea", key: "hierarchy.parents", rows: 3 } },
-                  { name: "Child fields", control: { type: "textarea", key: "hierarchy.children", rows: 3 } },
-                  { name: "Left friend / jump fields", control: { type: "textarea", key: "hierarchy.leftFriends", rows: 3 } },
-                  { name: "Right friend / challenger fields", control: { type: "textarea", key: "hierarchy.rightFriends", rows: 3 } },
-                  { name: "Previous fields", control: { type: "textarea", key: "hierarchy.previous", rows: 3 } },
-                  { name: "Next fields", control: { type: "textarea", key: "hierarchy.next", rows: 3 } },
-                  { name: "Hidden fields", desc: "Relationships stored in these properties stay out of the Plex.", control: { type: "textarea", key: "hierarchy.hidden", rows: 3 } },
+                  { name: translate("settings.ui.parent.fields"), control: { type: "textarea", key: "hierarchy.parents", rows: 3 } },
+                  { name: translate("settings.ui.child.fields"), control: { type: "textarea", key: "hierarchy.children", rows: 3 } },
+                  { name: translate("settings.ui.left.friend.jump.fields"), control: { type: "textarea", key: "hierarchy.leftFriends", rows: 3 } },
+                  { name: translate("settings.ui.right.friend.challenger.fields"), control: { type: "textarea", key: "hierarchy.rightFriends", rows: 3 } },
+                  { name: translate("settings.ui.previous.fields"), control: { type: "textarea", key: "hierarchy.previous", rows: 3 } },
+                  { name: translate("settings.ui.next.fields"), control: { type: "textarea", key: "hierarchy.next", rows: 3 } },
+                  { name: translate("settings.ui.hidden.fields"), desc: translate("settings.ui.relationships.stored.in.these.properties.stay.out.of.the"), control: { type: "textarea", key: "hierarchy.hidden", rows: 3 } },
                 ],
               },
             ],
           },
           {
             type: "page",
-            name: "Editor suggester",
-            desc: "Configure shortcuts for inserting ontology fields while writing notes.",
+            name: translate("settings.ui.editor.suggester"),
+            desc: translate("settings.ui.configure.shortcuts.for.inserting.ontology.fields.while"),
             items: [
               {
                 type: "group",
-                heading: "Ontology suggester",
+                heading: translate("settings.ui.ontology.suggester"),
                 items: [
-                  { name: "Enable ontology suggester", control: { type: "toggle", key: "allowOntologySuggester" } },
-                  { name: "Parent trigger", control: { type: "text", key: "ontologySuggesterParentTrigger" } },
-                  { name: "Child trigger", control: { type: "text", key: "ontologySuggesterChildTrigger" } },
-                  { name: "Left friend trigger", control: { type: "text", key: "ontologySuggesterLeftFriendTrigger" } },
-                  { name: "Right friend trigger", control: { type: "text", key: "ontologySuggesterRightFriendTrigger" } },
-                  { name: "Previous trigger", control: { type: "text", key: "ontologySuggesterPreviousTrigger" } },
-                  { name: "Next trigger", control: { type: "text", key: "ontologySuggesterNextTrigger" } },
-                  { name: "All ontology trigger", desc: "Suggest fields from every ontology role.", control: { type: "text", key: "ontologySuggesterTrigger" } },
-                  { name: "Mid-sentence prefix", desc: "Prefix used before a trigger for Dataview-style inline fields, for example (::p → (Parent:: …).", control: { type: "text", key: "ontologySuggesterMidSentenceTrigger" } },
-                  { name: "Bold inserted field names", control: { type: "toggle", key: "boldFields" } },
+                  { name: translate("settings.ui.enable.ontology.suggester"), control: { type: "toggle", key: "allowOntologySuggester" } },
+                  { name: translate("settings.ui.parent.trigger"), control: { type: "text", key: "ontologySuggesterParentTrigger" } },
+                  { name: translate("settings.ui.child.trigger"), control: { type: "text", key: "ontologySuggesterChildTrigger" } },
+                  { name: translate("settings.ui.left.friend.trigger"), control: { type: "text", key: "ontologySuggesterLeftFriendTrigger" } },
+                  { name: translate("settings.ui.right.friend.trigger"), control: { type: "text", key: "ontologySuggesterRightFriendTrigger" } },
+                  { name: translate("settings.ui.previous.trigger"), control: { type: "text", key: "ontologySuggesterPreviousTrigger" } },
+                  { name: translate("settings.ui.next.trigger"), control: { type: "text", key: "ontologySuggesterNextTrigger" } },
+                  { name: translate("settings.ui.all.ontology.trigger"), desc: translate("settings.ui.suggest.fields.from.every.ontology.role"), control: { type: "text", key: "ontologySuggesterTrigger" } },
+                  { name: translate("settings.ui.mid.sentence.prefix"), desc: translate("settings.ui.prefix.used.before.a.trigger.for.dataview.style.inline.f"), control: { type: "text", key: "ontologySuggesterMidSentenceTrigger" } },
+                  { name: translate("settings.ui.bold.inserted.field.names"), control: { type: "toggle", key: "boldFields" } },
                 ],
               },
             ],
           },
           {
             type: "page",
-            name: "Discovered fields",
-            desc: "Review note properties that are not currently assigned to an ontology role.",
+            name: translate("settings.ui.discovered.fields"),
+            desc: translate("settings.ui.review.note.properties.that.are.not.currently.assigned.t"),
             items: [
               {
                 type: "group",
-                heading: "Unassigned relationship fields",
+                heading: translate("settings.ui.unassigned.relationship.fields"),
                 items: [
                   {
-                    name: "Review unassigned fields",
+                    name: translate("settings.ui.review.unassigned.fields"),
                     desc: unassignedFields.length
-                      ? `${unassignedFields.length} discovered field${unassignedFields.length === 1 ? " is" : "s are"} not assigned to an ontology role. Search, sort and assign them from one compact list.`
-                      : "All currently discovered fields are assigned. You can refresh after adding new properties to your vault.",
+                      ? translate("settings.unassignedSummary", { count: unassignedFields.length })
+                      : translate("settings.ui.all.currently.discovered.fields.are.assigned.you.can.ref"),
                     action: () => this.openUnassignedOntologyManager(),
                   },
                   {
-                    name: "Refresh discovered fields",
-                    desc: "Rescan note properties now. This can take longer in a large vault.",
+                    name: translate("settings.ui.refresh.discovered.fields"),
+                    desc: translate("settings.ui.rescan.note.properties.now.this.can.take.longer.in.a.lar"),
                     action: () => void this.ebPlugin.rebuildIndex(true, true, "ontology-discovery"),
                   },
                 ],
@@ -1697,30 +1751,30 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
       },
       {
         type: "page",
-        name: "Visual styling",
-        desc: "Canvas, node and link appearance.",
+        name: translate("settings.ui.visual.styling"),
+        desc: translate("settings.ui.canvas.node.and.link.appearance"),
         items: [
           {
             type: "group",
-            heading: "Canvas & labels",
+            heading: translate("settings.ui.canvas.labels"),
             items: [
-              { name: "Plex background", control: { type: "color", key: "backgroundColorHex" } },
-              { name: "Use frontmatter display names", desc: "Use the first non-empty value from the configured name fields. Turn this off to always show the file name.", control: { type: "toggle", key: "renderAlias" } },
-              { name: "Name fields", desc: "Comma-separated frontmatter fields checked in order. Text and list values are supported; the first non-empty value is used, then K-Plex falls back to the file name. Example: title, aliases, backup_names.", control: { type: "text", key: "nameFields" } },
-              { name: "Show full tag names", control: { type: "toggle", key: "showFullTagName" } },
+              { name: translate("settings.ui.plex.background"), control: { type: "color", key: "backgroundColorHex" } },
+              { name: translate("settings.ui.use.frontmatter.display.names"), desc: translate("settings.ui.use.the.first.non.empty.value.from.the.configured.name.f"), control: { type: "toggle", key: "renderAlias" } },
+              { name: translate("settings.ui.name.fields"), desc: translate("settings.ui.comma.separated.frontmatter.fields.checked.in.order.text"), control: { type: "text", key: "nameFields" } },
+              { name: translate("settings.ui.show.full.tag.names"), control: { type: "toggle", key: "showFullTagName" } },
             ],
           },
           {
             type: "page",
-            name: "Node styling",
-            desc: "Node shape details, property-based colors and node images.",
+            name: translate("settings.ui.node.styling"),
+            desc: translate("settings.ui.node.shape.details.property.based.colors.and.node.images"),
             items: [
               {
                 type: "group",
-                heading: "Node appearance",
+                heading: translate("settings.ui.node.appearance"),
                 items: [
-                  { name: "Gate radius", desc: "Radius of the relationship gates around nodes, in pixels.", control: { type: "slider", key: "baseNodeStyle.gateRadius", min: 2, max: 8, step: 0.5 } },
-                  { name: "Style property", desc: "A YAML or Dataview-style property whose value can select a custom node style. Default: Note type.", control: { type: "text", key: "noteTypeField" } },
+                  { name: translate("settings.ui.gate.radius"), desc: translate("settings.ui.radius.of.the.relationship.gates.around.nodes.in.pixels"), control: { type: "slider", key: "baseNodeStyle.gateRadius", min: 2, max: 8, step: 0.5 } },
+                  { name: translate("settings.ui.style.property"), desc: translate("settings.ui.a.yaml.or.dataview.style.property.whose.value.can.select"), control: { type: "text", key: "noteTypeField" } },
                   {
                     name: translate("styles.nodeTitle"),
                     desc: translate("styles.settingsSummary", { count: nodeStyles.length }),
@@ -1730,39 +1784,39 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
               },
               {
                 type: "group",
-                heading: "Node images",
+                heading: translate("settings.ui.node.images"),
                 items: [
-                  { name: "Thumbnail property", desc: "Image link shown as a small preview before the node label. Works with YAML or Dataview-style inline fields.", control: { type: "text", key: "thumbnailProperty" } },
-                  { name: "Node image property", desc: "Image link that replaces the node label with a compact visual node. Works with YAML or Dataview-style inline fields.", control: { type: "text", key: "nodeImageProperty" } },
-                  { name: "Image attachment nodes", desc: "How JPG, PNG, GIF, SVG, WebP and similar image attachments appear in the Plex.", control: { type: "dropdown", key: "attachmentImageDisplay", defaultValue: "thumbnail-label", options: { label: "File name", "thumbnail-label": "Thumbnail + file name", image: "Image only" } } },
+                  { name: translate("settings.ui.thumbnail.property"), desc: translate("settings.ui.image.link.shown.as.a.small.preview.before.the.node.labe"), control: { type: "text", key: "thumbnailProperty" } },
+                  { name: translate("settings.ui.node.image.property"), desc: translate("settings.ui.image.link.that.replaces.the.node.label.with.a.compact.v"), control: { type: "text", key: "nodeImageProperty" } },
+                  { name: translate("settings.ui.image.attachment.nodes"), desc: translate("settings.ui.how.jpg.png.gif.svg.webp.and.similar.image.attachments.a"), control: { type: "dropdown", key: "attachmentImageDisplay", defaultValue: "thumbnail-label", options: { label: translate("settings.ui.file.name"), "thumbnail-label": translate("settings.ui.thumbnail.file.name"), image: translate("settings.ui.image.only") } } },
                 ],
               },
             ],
           },
           {
             type: "page",
-            name: "Link styling",
-            desc: "Connector shape, default appearance, cross-link opacity and relationship-specific overrides.",
+            name: translate("settings.ui.link.styling"),
+            desc: translate("settings.ui.connector.shape.default.appearance.cross.link.opacity.an"),
             items: [
               {
                 type: "group",
-                heading: "Link appearance",
+                heading: translate("settings.ui.link.appearance"),
                 items: [
-                  { name: "Link shape", control: { type: "dropdown", key: "connectorStyle", defaultValue: "bezier", options: { bezier: "Curved", straight: "Straight" } } },
-                  { name: "Default line color", control: { type: "color", key: "baseLinkStyle.strokeColorHex" } },
-                  { name: "Default line width", control: { type: "slider", key: "baseLinkStyle.strokeWidth", min: 0.5, max: 8, step: 0.5 } },
-                  { name: "Default line style", control: { type: "dropdown", key: "baseLinkStyle.strokeStyle", defaultValue: "solid", options: { solid: "Solid", dashed: "Dashed", dotted: "Dotted" } } },
-                  { name: "Start arrowhead", control: { type: "dropdown", key: "baseLinkStyle.startArrowHead", defaultValue: "none", options: ARROW_OPTIONS } },
-                  { name: "End arrowhead", control: { type: "dropdown", key: "baseLinkStyle.endArrowHead", defaultValue: "none", options: ARROW_OPTIONS } },
-                  { name: "Show relationship labels", control: { type: "toggle", key: "baseLinkStyle.showLabel" } },
-                  { name: "Relationship label color", control: { type: "color", key: "baseLinkStyle.textColorHex" } },
-                  { name: "Relationship label size", control: { type: "slider", key: "baseLinkStyle.fontSize", min: 7, max: 24, step: 1 } },
-                  { name: "Cross-link opacity (%)", desc: "Opacity of extra links between visible non-central nodes. Hovered or highlighted links are shown at full opacity.", control: { type: "slider", key: "crossLinkOpacity", min: 0, max: 100, step: 5 } },
+                  { name: translate("settings.ui.link.shape"), control: { type: "dropdown", key: "connectorStyle", defaultValue: "bezier", options: { bezier: translate("settings.ui.curved"), straight: translate("settings.ui.straight") } } },
+                  { name: translate("settings.ui.default.line.color"), control: { type: "color", key: "baseLinkStyle.strokeColorHex" } },
+                  { name: translate("settings.ui.default.line.width"), control: { type: "slider", key: "baseLinkStyle.strokeWidth", min: 0.5, max: 8, step: 0.5 } },
+                  { name: translate("settings.ui.default.line.style"), control: { type: "dropdown", key: "baseLinkStyle.strokeStyle", defaultValue: "solid", options: { solid: translate("settings.ui.solid"), dashed: translate("settings.ui.dashed"), dotted: translate("settings.ui.dotted") } } },
+                  { name: translate("settings.ui.start.arrowhead"), control: { type: "dropdown", key: "baseLinkStyle.startArrowHead", defaultValue: "none", options: arrowOptions(translate) } },
+                  { name: translate("settings.ui.end.arrowhead"), control: { type: "dropdown", key: "baseLinkStyle.endArrowHead", defaultValue: "none", options: arrowOptions(translate) } },
+                  { name: translate("settings.ui.show.relationship.labels"), control: { type: "toggle", key: "baseLinkStyle.showLabel" } },
+                  { name: translate("settings.ui.relationship.label.color"), control: { type: "color", key: "baseLinkStyle.textColorHex" } },
+                  { name: translate("settings.ui.relationship.label.size"), control: { type: "slider", key: "baseLinkStyle.fontSize", min: 7, max: 24, step: 1 } },
+                  { name: translate("settings.ui.cross.link.opacity"), desc: translate("settings.ui.opacity.of.extra.links.between.visible.non.central.nodes"), control: { type: "slider", key: "crossLinkOpacity", min: 0, max: 100, step: 5 } },
                   {
-                    name: "Relationship-specific styles",
+                    name: translate("settings.ui.relationship.specific.styles"),
                     desc: customOntologyStyleCount
-                      ? `${customOntologyStyleCount} custom relationship style${customOntologyStyleCount === 1 ? "" : "s"}. Search by property or filter by role.`
-                      : "All relationship properties currently use the default link style.",
+                      ? translate("styles.relationshipSettingsSummary", { count: customOntologyStyleCount })
+                      : translate("settings.ui.all.relationship.properties.currently.use.the.default.li"),
                     action: () => this.openOntologyLinkStylesManager(),
                   },
                 ],
@@ -1774,26 +1828,26 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
 
       {
         type: "page",
-        name: "Sidecar",
-        desc: "Dedicated companion document pane placement and behavior.",
+        name: translate("settings.ui.sidecar"),
+        desc: translate("settings.ui.dedicated.companion.document.pane.placement.and.behavior"),
         items: [
           {
             type: "group",
-            heading: "Companion document",
+            heading: translate("settings.ui.companion.document"),
             items: [
               {
-                name: "Default position",
-                desc: "Where K-Plex creates its dedicated companion document pane. Existing neighboring tabs are never reused as the sidecar.",
-                control: { type: "dropdown", key: "sidecarPosition", defaultValue: "right", options: { right: "Right", left: "Left", above: "Above", below: "Below" } }
+                name: translate("settings.ui.default.position"),
+                desc: translate("settings.ui.where.k.plex.creates.its.dedicated.companion.document.pa"),
+                control: { type: "dropdown", key: "sidecarPosition", defaultValue: "right", options: { right: translate("settings.ui.right"), left: translate("settings.ui.left"), above: translate("settings.ui.above"), below: translate("settings.ui.below") } }
               },
               {
-                name: "Default Markdown mode",
-                desc: "Open Markdown notes in the sidecar in reading view or source/edit mode.",
-                control: { type: "dropdown", key: "sidecarMarkdownMode", defaultValue: "source", options: { source: "Edit mode", preview: "Reading view" } }
+                name: translate("settings.ui.default.markdown.mode"),
+                desc: translate("settings.ui.open.markdown.notes.in.the.sidecar.in.reading.view.or.so"),
+                control: { type: "dropdown", key: "sidecarMarkdownMode", defaultValue: "source", options: { source: translate("settings.ui.edit.mode"), preview: translate("settings.ui.reading.view") } }
               },
               {
-                name: "Condensed Plex breakpoint",
-                desc: "When the remaining K-Plex width is at or below this value, use the compact sidecar toolbar layout.",
+                name: translate("settings.ui.condensed.plex.breakpoint"),
+                desc: translate("settings.ui.when.the.remaining.k.plex.width.is.at.or.below.this.valu"),
                 control: { type: "slider", key: "sidecarCondensedBreakpoint", min: 280, max: 900, step: 20 }
               },
             ],
@@ -1802,16 +1856,16 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
       },
       {
         type: "page",
-        name: "Compatibility",
-        desc: "Migration and legacy ExcaliBrain interoperability.",
+        name: translate("settings.ui.compatibility"),
+        desc: translate("settings.ui.migration.and.legacy.excalibrain.interoperability"),
         items: [
           {
             type: "group",
-            heading: "ExcaliBrain",
+            heading: translate("settings.ui.excalibrain"),
             items: [
               {
-                name: "Import ExcaliBrain settings",
-                desc: "Import a backed-up ExcaliBrain data.json file and migrate compatible settings into K-Plex.",
+                name: translate("settings.ui.import.excalibrain.settings"),
+                desc: translate("settings.ui.import.a.backed.up.excalibrain.data.json.file.and.migrat"),
                 action: () => this.openLegacySettingsImporter(),
               },
             ],

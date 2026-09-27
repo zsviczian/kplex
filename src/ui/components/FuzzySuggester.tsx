@@ -1,3 +1,6 @@
+/**
+ * Reusable React suggestion control independent of Obsidian and graph semantics. Callers supply ranked results, localized labels and actions; the control owns focus, navigation and owner-document portal cleanup.
+ */
 import {
   useEffect,
   useLayoutEffect,
@@ -19,8 +22,10 @@ export type FuzzySuggesterProps<T> = {
   getKey: (value: T) => string;
   getLabel: (value: T) => string;
   getDetail?: (value: T) => string | null | undefined;
-  placeholder?: string;
-  ariaLabel?: string;
+  /** Localized copy supplied by the feature; the shared control owns no English defaults. */
+  placeholder: string;
+  /** Localized accessible name; required even when no visible caption is rendered. */
+  ariaLabel: string;
   icon?: ReactNode;
   autoFocus?: boolean;
   disabled?: boolean;
@@ -97,8 +102,8 @@ export function FuzzySuggester<T>({
   getKey,
   getLabel,
   getDetail,
-  placeholder = "Search…",
-  ariaLabel = "Search",
+  placeholder,
+  ariaLabel,
   icon,
   autoFocus = false,
   disabled = false,

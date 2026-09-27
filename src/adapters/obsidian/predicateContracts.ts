@@ -1,9 +1,23 @@
+/**
+ * Obsidian compatibility adapter for lazy property reads and pair-scoped predicate evidence.
+ * Preserves persisted predicate values while passing only plain records to the portable engine.
+ */
 import type { App } from "obsidian";
-import type { RelationEvidence, EvidenceDecision } from "../../index/RelationEvidence";
+import { ONTOLOGY_PRECEDENCE_SUPPRESSION, type RelationEvidence, type EvidenceDecision } from "../../index/RelationEvidence";
 import type { GraphPage, LinkDirection, RelationType, Role } from "../../types";
 import type { GraphPropertyProvider, GraphPredicateContext } from "../../core/plex/predicate";
 import type { GraphEvidenceProvider, PortableLensCandidate } from "../../core/plex/lens";
 import { graphNodeViewFromLegacy } from "./graphContracts";
+
+/**
+ * Preserve the historical English value as a persisted selector contract, never as UI copy.
+ * New predicates can use evidence.suppressionCode; resolver DTOs retain stable machine codes.
+ */
+function persistedSuppressionReason(reason: string | undefined): string | undefined {
+  return reason === ONTOLOGY_PRECEDENCE_SUPPRESSION
+    ? "Conflicting body ontology is overridden by frontmatter ontology for this note pair."
+    : reason;
+}
 
 export type LegacyPredicateEdgeContext = {
   role?: Role | "center";
@@ -47,12 +61,17 @@ export function createLegacyPropertyProvider(app: App): GraphPropertyProvider {
   };
 }
 
+/** Convert a legacy candidate to plain portable predicate inputs, retaining persisted suppression values and exposing stable codes separately. */
 export function predicateContextFromLegacy(context: LegacyPredicateContext): GraphPredicateContext {
   return {
     node: { node: graphNodeViewFromLegacy(context.node.page), label: context.node.label },
     center: context.center ? graphNodeViewFromLegacy(context.center) : undefined,
     edge: context.edge,
-    evidence: context.evidence ? { ...context.evidence } : undefined,
+    evidence: context.evidence ? {
+      ...context.evidence,
+      ...(context.evidence.suppressionReason === ONTOLOGY_PRECEDENCE_SUPPRESSION ? { suppressionCode: context.evidence.suppressionReason } : {}),
+      suppressionReason: persistedSuppressionReason(context.evidence.suppressionReason),
+    } : undefined,
   };
 }
 
@@ -68,11 +87,12 @@ export function lensCandidateFromLegacy(candidate: LegacyLensCandidate): Portabl
 /** Pair-scoped mapping runs only when an evidence-scope lens requests it. */
 export function createLegacyEvidenceProvider(index: LegacyEvidenceSource): GraphEvidenceProvider {
   return {
+    /** Read only the requested note pair and copy its evidence into predicate inputs without mutating semantic decisions. */
     decisions(sourcePath, targetPath) {
       return (index.explainRelationship(sourcePath, targetPath)?.decisions ?? []).map((decision) => ({
-        evidence: { ...decision.evidence },
+        evidence: { ...decision.evidence, ...(decision.suppressionReason === ONTOLOGY_PRECEDENCE_SUPPRESSION ? { suppressionCode: decision.suppressionReason } : {}) },
         active: decision.active,
-        suppressionReason: decision.suppressionReason,
+        suppressionReason: persistedSuppressionReason(decision.suppressionReason),
       }));
     },
   };

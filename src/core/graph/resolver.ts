@@ -1,3 +1,6 @@
+/**
+ * Portable relationship reconciliation and explanations derived from source evidence. Semantic roles and reason codes remain independent of layout, host APIs and language.
+ */
 import { RelationType, type ResolverTarget, type Role, type SemanticRelation } from "./relations";
 import {
   RelationEvidenceStore,
@@ -5,6 +8,7 @@ import {
   applyOntologyPrecedence,
   emptyRelation,
   type EvidenceDecision,
+  type EvidenceSourceKind,
   type RelationEvidence,
 } from "./evidence";
 
@@ -18,12 +22,24 @@ export type ResolvedRole = {
   relationType: RelationType;
 };
 
+export type RelationshipSummary =
+  | "hidden"
+  | "ontology-precedence"
+  | "conflicting-defined-roles"
+  | "bidirectional-inferred"
+  | "defined-ontology"
+  | "date-property"
+  | "no-active-evidence"
+  | "transient-section"
+  | `source:${EvidenceSourceKind}`;
+
 export type RelationshipExplanation = {
   sourcePath: string;
   targetPath: string;
   resolvedRoles: ResolvedRole[];
   hidden: boolean;
-  summary: string;
+  /** Stable semantic reason. The UI adapter maps this to localized presentation copy. */
+  summary: RelationshipSummary;
   decisions: EvidenceDecision[];
 };
 
@@ -206,20 +222,8 @@ export async function resolveEvidenceStoreCooperative<TPage extends ResolverTarg
   return resolveEvidenceStoreCooperativeByKey(pages, store, runtime, batchSize, onProgress);
 }
 
-function sourceLabel(evidence: RelationEvidence): string {
-  switch (evidence.sourceKind) {
-    case "frontmatter-ontology": return "frontmatter ontology";
-    case "inline-ontology": return "body ontology";
-    case "obsidian-link": return "resolved note link";
-    case "unresolved-link": return "unresolved note link";
-    case "body-url": return "body URL";
-    case "date-property": return "Date property";
-    case "file-tree": return "physical folder tree";
-    case "tag-tree": return "tag tree";
-    case "url-origin": return "URL origin hierarchy";
-  }
-}
 
+/** Describe the reconciled pair using stable reason codes and active/suppressed evidence. Display wording is deliberately supplied outside the semantic core. */
 export function explainResolvedRelationship<TPage extends ResolverTarget<TPage>>(
   source: TPage,
   target: TPage,
@@ -244,23 +248,23 @@ export function explainResolvedRelationship<TPage extends ResolverTarget<TPage>>
   const ordinaryDirections = active.filter((item) => item.evidence.relationType === RelationType.INFERRED &&
     (item.evidence.sourceKind === "obsidian-link" || item.evidence.sourceKind === "unresolved-link"));
 
-  let reason: string;
+  let reason: RelationshipSummary;
   if (relation?.isHidden && roles.length === 0) {
-    reason = "The relationship is indexed but hidden from this source note's visible neighbourhood.";
+    reason = "hidden";
   } else if (suppressed.length) {
-    reason = "Frontmatter ontology takes precedence over conflicting body ontology; the overridden body evidence is retained for explanation.";
+    reason = "ontology-precedence";
   } else if (activeDefinedRoles.size >= 2 && roles.some((item) => item.role === "left")) {
-    reason = "Multiple active defined ontology roles conflict, so the pair is presented laterally as a friend relationship.";
+    reason = "conflicting-defined-roles";
   } else if (roles.some((item) => item.role === "left" && item.relationType === RelationType.INFERRED) && ordinaryDirections.length >= 2) {
-    reason = "Ordinary links provide evidence in both directions, so the pair resolves to an inferred friend relationship.";
+    reason = "bidirectional-inferred";
   } else if (roles.some((item) => item.relationType === RelationType.DEFINED)) {
-    reason = "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.";
+    reason = "defined-ontology";
   } else if (active.some((item) => item.evidence.sourceKind === "date-property")) {
-    reason = "An Obsidian Date property maps to a Daily Notes target and is treated as an inferred outgoing relationship.";
+    reason = "date-property";
   } else if (active.length) {
-    reason = `The visible relationship is derived from ${sourceLabel(active[0].evidence)} evidence.`;
+    reason = `source:${active[0].evidence.sourceKind}`;
   } else {
-    reason = "No active evidence currently resolves to a visible relationship.";
+    reason = "no-active-evidence";
   }
 
   return {
