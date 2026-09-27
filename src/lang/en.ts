@@ -2249,6 +2249,31 @@ export const englishCatalog = {
     context: "Plex graph controls, menus, relationship evidence, and accessibility copy.",
     params: [],
   },
+  "graph.openMenu": {
+    message: "Open",
+    context: "Parent submenu in a Plex node context menu for choosing where a file opens.",
+    params: [],
+  },
+  "graph.focusOpenTab": {
+    message: "Focus open tab",
+    context: "Plex node Open submenu action shown only when the file is already open in a workspace tab.",
+    params: [],
+  },
+  "graph.openNewTab": {
+    message: "Open in new tab",
+    context: "Plex node Open submenu action available on all supported platforms.",
+    params: [],
+  },
+  "graph.openAdjacentPane": {
+    message: "Open in adjacent pane",
+    context: "Plex node Open submenu action available on desktop and tablet, where Obsidian can create a split pane.",
+    params: [],
+  },
+  "graph.openPopoutWindow": {
+    message: "Open in pop-out window",
+    context: "Plex node Open submenu action available on desktop.",
+    params: [],
+  },
   "graph.setNoteType": {
     message: "Set note type…",
     context: "Plex graph controls, menus, relationship evidence, and accessibility copy.",

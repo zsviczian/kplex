@@ -1921,6 +1921,37 @@
   overflow-y: auto;
 }
 
+/* Desktop-only draggable modal geometry. The host shell adds these classes only when Obsidian's
+   presentation environment reports desktop, leaving phone/tablet modal policy untouched. */
+.kplex-draggable-dialog.is-positioned {
+  position: fixed;
+  left: var(--kplex-dialog-left);
+  top: var(--kplex-dialog-top);
+  right: auto;
+  bottom: auto;
+  margin: 0;
+}
+.kplex-draggable-dialog-handle {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.kplex-draggable-dialog-handle.is-dragging {
+  cursor: grabbing;
+}
+.kplex-draggable-dialog-handle button,
+.kplex-draggable-dialog-handle input,
+.kplex-draggable-dialog-handle select,
+.kplex-draggable-dialog-handle textarea,
+.kplex-draggable-dialog-handle a,
+.kplex-draggable-dialog-handle [contenteditable="true"],
+.kplex-draggable-dialog-handle [role="button"],
+.kplex-draggable-dialog-handle [role="link"] {
+  cursor: auto;
+  user-select: auto;
+  touch-action: auto;
+}
+
 /* Folding K-Plex in companion-sidecar mode removes the Plex tab group from the split. The
    surviving native document group owns this small edge control so K-Plex is always recoverable. */
 .kplex-sidecar-unfold-plex {

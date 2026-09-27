@@ -22,6 +22,7 @@ import { readObsidianPresentationEnvironment } from "./adapters/obsidian/present
 import { createObsidianTranslator } from "./adapters/obsidian/localization";
 import { createTranslator, type Translator } from "./lang";
 import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurface } from "./core/plex/viewPresentation";
+import { createAdjacentFileLeaf } from "./adapters/obsidian/adjacentFileLeaf";
 import { perfNow } from "./util/perf";
 
 type LoadAwareView = FileView & { _loaded?: boolean };
@@ -1375,6 +1376,110 @@ export default class ExcaliBrainPlugin extends Plugin {
     if (typeof state?.file !== "string") return null;
     const abstractFile = this.app.vault.getAbstractFileByPath(state.file);
     return abstractFile instanceof TFile ? abstractFile : null;
+  }
+
+  /** Find an existing workspace leaf that already displays the requested file, preferring the most-recent leaf when it matches. */
+  private findOpenFileLeaf(file: TFile): WorkspaceLeaf | null {
+    /** A Sidecar is also an open file tab; only graph surfaces must be excluded. */
+    const matches = (leaf: WorkspaceLeaf | null): leaf is WorkspaceLeaf => {
+      if (!leaf) return false;
+      const type = leaf.getViewState().type;
+      return type !== EXCALIBRAIN_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE
+        && this.fileForLeaf(leaf)?.path === file.path;
+    };
+    const recent = this.app.workspace.getMostRecentLeaf();
+    if (matches(recent)) return recent;
+
+    let candidate: WorkspaceLeaf | null = null;
+    this.app.workspace.iterateAllLeaves(/** Preserve workspace order when the recent tab does not match. */ (leaf) => {
+      if (!candidate && matches(leaf)) candidate = leaf;
+    });
+    return candidate;
+  }
+
+  /** Report which explicit file-opening actions should be shown for a node on the current Obsidian form factor. */
+  getFileOpenMenuState(file: TFile): { focusOpenTab: boolean; adjacentPane: boolean; popoutWindow: boolean } {
+    const environment = readObsidianPresentationEnvironment();
+    return {
+      focusOpenTab: this.findOpenFileLeaf(file) !== null,
+      adjacentPane: isGraphTabCommandAvailable(environment),
+      popoutWindow: isPopoutCommandAvailable(environment),
+    };
+  }
+
+  /** Reveal a tab that already displays the file without creating another leaf. Returns false if no matching open tab remains. */
+  async focusOpenFileTab(file: TFile): Promise<boolean> {
+    const leaf = this.findOpenFileLeaf(file);
+    if (!leaf) return false;
+    this.lastDocumentLeaf = leaf;
+    await this.app.workspace.revealLeaf(leaf);
+    return true;
+  }
+
+  /** Open a file in a newly-created tab in the active tab group on every supported platform. */
+  async openFileInNewTab(file: TFile): Promise<void> {
+    let leaf: WorkspaceLeaf;
+    try { leaf = this.app.workspace.getLeaf("tab"); }
+    catch { leaf = this.app.workspace.getLeaf(true); }
+    this.lastDocumentLeaf = leaf;
+    await leaf.openFile(file, { active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /**
+   * Share the outer anchor's allocation when pixel bases retained by a Sidecar
+   * move leave a newly inserted native pane with no usable extent. Preserve
+   * all other workspace branches and normal nonzero native split allocations.
+   */
+  private ensureAdjacentFileLeafSize(anchor: WorkspaceLeaf, leaf: WorkspaceLeaf): void {
+    const anchorGroup = this.leafGroupElement(anchor);
+    const leafGroup = this.leafGroupElement(leaf);
+    const split = anchorGroup?.parentElement;
+    if (!anchorGroup || !leafGroup || !split || leafGroup.parentElement !== split) return;
+    const axis = this.splitAxis(split);
+    if (!axis) return;
+    const anchorExtent = anchorGroup.getBoundingClientRect()[axis];
+    const leafExtent = leafGroup.getBoundingClientRect()[axis];
+    if (leafExtent > 8 || anchorExtent <= 16) return;
+    // The default flex basis is zero. Existing explicit bases can consume the
+    // whole split, so give the new pane half the anchor's existing allocation.
+    const sharedExtent = (anchorExtent + leafExtent) / 2;
+    this.setWorkspaceBasis(anchorGroup, sharedExtent);
+    this.setWorkspaceBasis(leafGroup, sharedExtent);
+  }
+
+  /** Open beyond this Plex's Sidecar pair, protecting ownership while split geometry settles. */
+  async openFileInAdjacentPane(file: TFile, hostLeaf: WorkspaceLeaf): Promise<void> {
+    const sidecar = this.availableSidecarLeaf(hostLeaf);
+    const position = this.getSidecarPosition(hostLeaf);
+    const alreadyMoving = this.sidecarMovingHosts.has(hostLeaf);
+    if (sidecar) this.sidecarMovingHosts.add(hostLeaf);
+    try {
+      const leaf = createAdjacentFileLeaf(this.app.workspace, hostLeaf, sidecar, position);
+      this.lastDocumentLeaf = leaf;
+      await leaf.openFile(file, { active: true });
+      await this.app.workspace.revealLeaf(leaf);
+      await this.waitForWorkspaceLayout(hostLeaf);
+      const anchor = sidecar && (position === "right" || position === "below") ? sidecar : hostLeaf;
+      this.ensureAdjacentFileLeafSize(anchor, leaf);
+    } finally {
+      if (sidecar) {
+        await this.waitForWorkspaceLayout(hostLeaf);
+        if (!alreadyMoving) this.sidecarMovingHosts.delete(hostLeaf);
+      }
+    }
+  }
+
+  /** Open a file in a native desktop pop-out window and show localized feedback if the host rejects the request. */
+  async openFileInPopout(file: TFile): Promise<void> {
+    try {
+      const leaf = this.app.workspace.getLeaf("window");
+      this.lastDocumentLeaf = leaf;
+      await leaf.openFile(file, { active: true });
+      await this.app.workspace.revealLeaf(leaf);
+    } catch {
+      new Notice(this.translator("notice.popoutUnavailable"), 2200);
+    }
   }
 
   isDocumentLeafLinked(): boolean {

@@ -3,6 +3,7 @@
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
+import { addNativeSubmenu } from "../adapters/obsidian/nativeSubmenu";
 import type ExcaliBrainPlugin from "../main";
 import type { GraphIndex } from "../index/GraphIndex";
 import type { ExcaliBrainSettings, KplexViewSurface } from "../settings";
@@ -2073,6 +2074,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     if (target) onOpen(target);
   };
 
+  /** Build the node context menu at a viewport point, including host-aware file opening targets and node-specific graph actions. */
   const showNodeContextMenuAt = (node: PositionedNode, clientX: number, clientY: number): void => {
     const page = node.page;
     const persistent = persistentPageFor(page);
@@ -2080,6 +2082,38 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     const isMarkdown = Boolean(persistent?.file?.extension === "md");
     const canExpand = canExpandCentralSections(persistent, activePath);
     const menu = new Menu();
+
+    const persistentFile = persistent?.file;
+    if (persistentFile && page.transient?.kind !== "section") {
+      const openState = plugin.getFileOpenMenuState(persistentFile);
+      addNativeSubmenu(menu, translate("graph.openMenu"), "external-link",
+        /** Populate platform-supported destinations without replacing the owning context menu. */
+        (openMenu) => {
+        if (openState.focusOpenTab) {
+          openMenu.addItem(/** Configure the existing-file action without creating a duplicate tab. */ (item) => item
+            .setTitle(translate("graph.focusOpenTab"))
+            .setIcon("scan-eye")
+            .onClick(/** Reveal the selected file through native workspace focus. */ () => void plugin.focusOpenFileTab(persistentFile)));
+        }
+        openMenu.addItem(/** Configure an independent file tab on every form factor. */ (item) => item
+          .setTitle(translate("graph.openNewTab"))
+          .setIcon("file-plus-2")
+          .onClick(/** Create a tab through the host instead of changing the graph center. */ () => void plugin.openFileInNewTab(persistentFile)));
+        if (openState.adjacentPane) {
+          openMenu.addItem(/** Configure a split destination anchored to this graph and its companion. */ (item) => item
+            .setTitle(translate("graph.openAdjacentPane"))
+            .setIcon("panel-right-open")
+            .onClick(/** Preserve this Plex/Sidecar pair while opening the file outside it. */ () => void plugin.openFileInAdjacentPane(persistentFile, hostLeaf)));
+        }
+        if (openState.popoutWindow) {
+          openMenu.addItem(/** Configure the desktop-only native window destination. */ (item) => item
+            .setTitle(translate("graph.openPopoutWindow"))
+            .setIcon("external-link")
+            .onClick(/** Delegate window creation and unavailable-host feedback. */ () => void plugin.openFileInPopout(persistentFile)));
+        }
+      });
+      menu.addSeparator();
+    }
 
     if (persistent && !persistent.isFolder && !persistent.isTag && !persistent.url && page.transient?.kind !== "section") {
       menu.addItem((item) => item
