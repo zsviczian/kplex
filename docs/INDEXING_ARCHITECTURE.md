@@ -18,7 +18,7 @@ Vault tree / tag tree / Obsidian links / frontmatter / body fields / Date proper
                                   ▼
                         resolved GraphState
                                   │
-                       atomic snapshot swap
+              atomic full swap / atomic source commits
                                   │
                                   ▼
                          GraphIndex queries
@@ -32,9 +32,9 @@ The main boundaries are:
 - `MetadataParser.ts` — production worker/fallback boundary using the portable owner; the legacy `MetadataParseWorker` class delegates here and contains no parser copy.
 - `src/core/graph/evidence.ts` — host-free immutable relationship evidence, compact copy-on-write store, provenance and precedence; `src/index/RelationEvidence.ts` is the legacy re-export facade.
 - `src/core/graph/resolver.ts` — host-free ExcaliBrain-compatible classification/resolution/explanation owner with injected cooperative clock/yield/lifetime; `src/index/RelationResolver.ts` supplies the renderer runtime for the historical signature.
-- `GraphState.ts` — one graph snapshot.
-- `GraphBuilder.ts` — collects all vault evidence and builds a complete private snapshot.
-- `GraphIndex.ts` — publishes snapshots atomically and serves neighbourhood/search/explanation queries.
+- `GraphState.ts` — the published graph repository state; full replacements are private-first, while per-source commits are atomic.
+- `GraphBuilder.ts` — collects all vault evidence for complete private builds and can also create the low-cost structural/link baseline used by cold progressive startup.
+- `GraphIndex.ts` — owns full-snapshot publication, progressive cold-start publication, snapshot persistence, and neighbourhood/search/explanation queries.
 
 C13b keeps explicit semantic paths as the compatibility key for evidence declarations and neighbour maps. These paths are not opaque IDs and core does not infer file/kind/basename semantics from them. Original declarations remain stored once; reverse/inverse perspectives are generated on read, hidden evidence remains directional, and declaration IDs/multiplicity survive forks, rename and compaction. C13c now compiles full semantics into portable nodes over normalized facts; its host adapter cooperatively binds legacy `GraphPage`/file targets. Publication remains outside the resolver and incremental preparation/publication remains C14a/C14b.
 
@@ -106,7 +106,7 @@ This is different from interpreting every ISO-looking string as a date: K-Plex c
 
 ## Snapshot publication, demand gating, and startup persistence
 
-`GraphBuilder` constructs a graph privately. `GraphIndex` publishes only a fully collected and resolved state. Rebuilds are generation-scoped and cancellable, so stale partial work cannot replace the live graph. `main.ts` tracks a dirty revision and clears the backlog only when a build actually publishes the revision it started from.
+Normal authoritative rebuilds still construct a complete graph privately and atomically replace the published state. **Cold startup is the deliberate exception:** `GraphBuilder` first creates a structure + host-link baseline, then ingests the preferred center note and its bounded child-note neighborhood through the same atomic per-source patch boundary. `GraphIndex` publishes that useful non-authoritative neighborhood immediately, installs a bounded working search index, and progressively commits the remaining Markdown sources with batched UI notifications. Search entries grow with those commits and are rebuilt once at completion so folders, tags, attachments and virtual nodes are all included. The partial graph is never persisted as the authoritative snapshot and `main.ts` does not mark initial indexing complete until `GraphIndex.isFullSnapshotHydrated()` is true. Rebuilds remain generation-scoped and cancellable, so a cancelled partial graph stays usable but is retried instead of being mistaken for complete. `main.ts` tracks a dirty revision and clears the backlog only when a build actually publishes the revision it started from.
 
 Automatic edit indexing is **visibility-demand gated**. An Obsidian K-Plex tab can remain mounted while hidden behind another tab; that does not count as visible demand. Hidden surfaces retain the dirty backlog but do not automatically parse/build, persist a new snapshot, or run the graph React subscription. Revealing a K-Plex surface catches up from the accumulated dirty revision. Explicit commands and the documented once-per-session startup path are separate from this automatic edit policy.
 
@@ -114,17 +114,19 @@ Folder and tag **node visibility is presentation state, not an index mode**. The
 
 The resolved semantic graph is persisted in **IndexedDB as a transactional, generation-scoped chunked snapshot**. The active metadata record is written only after the new page/evidence generation is complete, so interrupted writes cannot make a partial generation authoritative. A cheap vault signature plus semantic-settings signature decides whether the restored snapshot is already fresh. A full restored generation whose physical file bindings/tree no longer match the vault is rejected before evidence/relation hydration instead of being retained beside a replacement build; an already-published bounded preview may remain non-authoritative while the rebuild starts.
 
+Warm startup uses that IndexedDB generation progressively too: targeted page/evidence reads publish the remembered/active center plus one relationship hop before full snapshot hydration finishes. That preview remains navigable and searchable while the complete generation streams in; it is never treated as authoritative until hydration succeeds.
+
 IndexedDB is always treated as an optimization. Opening the database has a short deadline and bounded retry backoff: if WebView storage is blocked or slow, startup proceeds using vault reads rather than waiting indefinitely, and a late stale connection is closed. Page/evidence hydration is chunked, time-sliced, and generation checked. Deferred snapshot/orphan maintenance is cancelled when there is no visible K-Plex demand.
 
 Progressive snapshot hydration is also bounded against a *stalled* asynchronous read. `GraphIndex` records its current restore phase (including metadata and targeted preview reads), last active phase, terminal outcome and sampled page/relation/evidence/search/resolver progress. Unload immediately settles the hydration wait and stops its watchdog; cancelled startup continuations do not rebuild. If a run makes no phase/progress for 90 seconds, an inactivity watchdog invalidates that hydration generation and releases startup as an unsuccessful restore; the existing coordinator then rebuilds authoritatively. The already-published preview may remain usable while this happens, but it is never considered the complete graph. If the abandoned IndexedDB operation later resumes, generation checks prevent it from publishing over newer state. This is deliberately an inactivity bound rather than a total-startup deadline so legitimately large snapshots may continue as long as they are making progress.
 
 Runtime inspection and fault-injection procedure: [Obsidian runtime testing](OBSIDIAN_RUNTIME_TESTING.md).
 
-A durable per-file body parse cache is keyed by file path + mtime. On large iOS cold starts K-Plex can prewarm that compact cache in bounded checkpoints before retaining the full graph, so an interrupted first run resumes rather than rereading every body. Desktop cold builds overlap a small, byte-capped number of native file reads; parsing remains bounded and publication is still atomic. Worker parsing is disabled on iOS to avoid structured-clone duplication.
+A durable per-file body parse cache is keyed by file path + mtime. On large iOS cold starts K-Plex now publishes the center + child neighborhood first, then prewarms the remaining compact body cache in bounded checkpoints before continuing progressive semantic ingestion. This preserves a useful first paint while retaining the low-memory/resumable checkpoint strategy that avoids rereading every body after interruption. Desktop full rebuilds may still overlap a small, byte-capped number of native file reads; parsing remains bounded. Worker parsing is disabled on iOS to avoid structured-clone duplication.
 
 Semantic no-op detection uses a compact per-file fingerprint kept independently of the hot parsed-body LRU and persisted with page snapshot records. This allows prose-only or unrelated frontmatter edits to stay no-ops even after a warm restore or after the hot body entry has been evicted.
 
-Incremental publication has one synchronous repository boundary per committed Markdown source. Private staging may await parsing, portable preparation, evidence cleanup and cooperative binding, but once `GraphIndex` accepts a `PatchFileCommit` it applies the staged graph/fingerprint/cache state, patches affected search entries and invalidates affected presentation caches before subscriber callbacks run. The builder cannot continue to another awaited source until that boundary returns. Source revision fences include the exact path and current vault identity as well as mtime/size, so a file renamed or deleted during any await cancels the stale source instead of publishing it. Earlier committed sources remain published; cancellation does not itself request a full rebuild. Demand/backlog scheduling remains a separate `main.ts` concern for C15.
+Incremental publication has one synchronous repository boundary per committed Markdown source, and cold progressive startup intentionally reuses that same boundary. Private staging may await parsing, portable preparation, evidence cleanup and cooperative binding, but once `GraphIndex` accepts a `PatchFileCommit` it applies the staged graph/fingerprint/cache state, patches affected search entries and invalidates affected presentation caches before subscriber callbacks run. The builder cannot continue to another awaited source until that boundary returns. Source revision fences include the exact path and current vault identity as well as mtime/size, so a file renamed or deleted during any await cancels the stale source instead of publishing it. Earlier committed sources remain published; cancellation does not itself request a full rebuild. Demand/backlog scheduling remains a separate `main.ts` concern for C15.
 
 
 ## Presentation predicates are not graph indexing

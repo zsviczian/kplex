@@ -18,65 +18,62 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ### Current transfer
 
-**State: main-agent review and automated/native validation complete; changes remain uncommitted.**
+**State: main-agent review and local validation complete; changes remain uncommitted. Two device/reboot acceptance checks remain manual.**
 
-- Sender → recipient: offline development agent → main validation agent.
-- Kind: implementation / return review.
-- Objective: migrate all plugin-owned user-facing English copy to `src/lang/en.ts` without changing displayed English wording, while preserving vault content, persisted keys/IDs, machine-readable shortcut tokens and developer-console diagnostics. Add the L01 whole-source localization enforcement gate.
-- Base commit/branch: unavailable; the supplied repository ZIP contains no Git metadata. The preserved input tree is `/mnt/data/original_repo`; the implementation tree is `/mnt/data/work_repo`.
-- Input identity: `repository(20260927-075426).zip` supplied by the maintainer in this conversation.
-- Actual capabilities: Node v22.16.0, npm 10.9.2, global TypeScript 5.8.3, Git 2.47.3 and Chromium are present. Project `node_modules` is absent. Network/package cache is insufficient for an offline install. Obsidian CLI/runtime is unavailable by assignment.
+- Sender → recipient: main validation agent → maintainer.
+- Kind: reviewed implementation / validation report.
+- Objective: publish a useful center neighborhood and working search before cold/warm startup indexing is authoritative, then grow progressively; add a reusable anchored information bubble for incomplete startup indexing.
+- Branch/base: `instant-initialization`, `4d4e0e103d0421298df2146015d21df05758fb0c`.
+- Validation environment: macOS, Node 22.22.2, Obsidian 1.14.2 (installer 1.14.0), disposable `kplex-test` vault with 20,000+ Markdown notes including its large-file population.
+- Review covered `AGENTS.md`, `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, `docs/INDEXING_ARCHITECTURE.md` and `docs/AGENT_WORKFLOW.md`. No commit, push or PR action was performed.
 
-### Scope and implementation
+### Main-agent findings and fixes
 
-- `src/lang/en.ts` is now the single source for plugin-owned commands, menus, settings, help, placeholders, tooltips, ARIA labels, notices and user-visible errors migrated in this pass.
-- Settings, host commands/notices, React UI, native Obsidian modals, content panes, graph/filter controls, relationship dialogs and accessibility copy now consume the injected translator rather than hard-coded English.
-- Shortcut modifier presentation now receives localized labels (`Shift`, `Command`, `Control`, `Option`, `Alt`) while machine-readable shortcut syntax and host registration tokens remain unchanged.
-- Relationship explanations and ontology-precedence suppression reasons are stable semantic codes in portable core; the UI maps those codes to localized English. The relation fixtures were updated to assert the stable reason data.
-- Graph Lens parser/semantic validation now returns structured issues rather than portable-core English error sentences; the UI maps those issues through the English catalog. End-of-expression uses a locale-neutral `null` sentinel.
-- Blank/malformed persisted Graph Lens names stay blank in sanitized data and use the localized `filter.untitledLens` display fallback at the UI boundary.
-- Persisted/vault-facing ontology field defaults such as `Parent`, `Child` and `Note type`, stable IDs/keys, URLs/paths, user/vault content and developer console diagnostics intentionally remain untranslated per `AGENTS.md`.
-- `tests/localization.test.mjs` now recursively scans production TS/TSX UI sinks and fails if literal user-facing copy is reintroduced outside `src/lang/en.ts`. Existing source-regression assertions in `tests/indexing.test.mjs` were updated to require localization keys instead of hard-coded English.
-- Canonical `src/ui/NewRelatedNoteModal.ts` and legacy `.tsx` compatibility copy remain byte-identical.
+1. **Partial snapshot persistence was not fully prevented.** `rebuildProgressively()` scheduled persistence only after completion, but another graph action could schedule the existing writer while a partial graph was live. `persistIndexedDbSnapshot()` now rejects every non-authoritative state through `fullSnapshotHydrated`, with an executable regression test proving no write occurs.
+2. **The startup bubble could reopen during an ordinary later update.** Readiness only made its `open` expression false while leaving caller state true. `App.tsx` now clears that state when readiness becomes true. A ready → later-updating runtime probe confirmed the bubble closes and stays closed in the same session.
+3. **Escape could not restore focus to the index indicator.** The `span` anchor could not receive programmatic focus. It now has `tabIndex={-1}`. Exact-build pop-out validation confirmed Escape is consumed, the bubble closes and focus returns to the indicator.
+4. **The claimed InfoBubble browser coverage did not exist.** The returned test only inspected source text. `tests/ui-components.test.mjs` now renders the real component and verifies owner-document portal placement, accessible note/description semantics, action labels/order, caller-owned advance behavior and explicit dismissal.
 
-### Offline validation performed
+The implementation otherwise follows the established architecture: GraphBuilder owns host fact collection and prepared source work; GraphIndex owns coherent publication/search/persistence; main.ts owns startup coordination; the host-free `InfoBubble` composes the existing owner-document-aware `FloatingLayer`; all product copy uses the localization catalog.
 
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node --test tests/localization.test.mjs` → PASS, 13/13. Includes strict catalog/fallback/interpolation checks, shortcut presentation checks, host adapter check and the new whole-source user-copy gate.
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node tests/indexing.test.mjs` → PASS on rerun: indexing assertions 1–68, P1–P17, section expansion, predicate/lens, incremental runtime patch, creation/imagery and placeholder/ghost materialization all pass. One earlier run hit the existing cooperative-parser timing guard at 47.9 ms; the immediate rerun passed unchanged.
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node --test tests/presentation-environment.test.mjs tests/parser-core.test.mjs` → PASS, 14/14.
-- With a temporary local symlink exposing the already-installed global TypeScript package as `node_modules/typescript` (removed immediately after): `node --test tests/architecture.test.mjs` → PASS, 7/7; `node scripts/check-architecture.mjs` → PASS, 34 migrated roots / 75 reachable files / 0 violations; global `tsc -p tsconfig.core.json` → PASS.
-- Global TypeScript `transpileModule` syntax validation over all 29 modified `.ts`/`.tsx` files → PASS.
-- Static translator-key reference audit → PASS: 807 English catalog keys and no unknown literal key passed to `translate`/`translator` calls.
-- Direct UI-literal audit (`setText`, `setTitle`, `setName`, `setDesc`, `setButtonText`, `setPlaceholder`, `setTooltip`, `Notice`, visible object labels/text/placeholders/titles, JSX text/ARIA/title/placeholder) → zero production literals outside `src/lang/en.ts`; this logic is now covered by the committed localization test.
-- Temporary validation symlink/node_modules directory was removed. No generated build artifacts or temporary diagnostics remain in the project tree.
+### Automated validation
 
-### Unavailable / pending validation
+- `npm run verify:obsidian` on exact Node 22.22.2: **passed** after review fixes.
+  - Architecture: 7/7; 36 migrated roots, 77 reachable files, zero violations.
+  - Core contracts: 58/58.
+  - Official Obsidian ESLint and production TypeScript/esbuild build: passed.
+  - Indexing fixture, progressive cold parity, warm preview, publication/search/discovered-field checks: passed.
+  - Aggregate Node tests: 101/101.
+  - Browser component tests: 5/5, including the new real InfoBubble lane.
+  - Exact built artifacts were staged and reloaded in `kplex-test`; command registration, graph render and captured-error smoke checks passed.
+- Final runner report: `/private/tmp/kplex-progressive-final/report.json`. The report records identical source/staged SHA-256 hashes; these are transient local artifacts.
+- `git diff --check`: passed.
+- One earlier full run hit the existing timing-sensitive malformed-URL scaling assertion while the native 20,000-note cold build was consuming resources (31 ms outlier). The unchanged suite passed after stopping that concurrent native build. This was treated as harness contention, not a waived failure.
 
-- Required engine is Node `>=22.22.2 <23`; this agent has Node 22.16.0. Do not treat local engine-sensitive results as the exact-build acceptance lane.
-- `npm ci --offline --ignore-scripts` was attempted and failed. npm reported the engine mismatch and `ENOTCACHED` because `yocto-queue-0.1.0.tgz` is not available in the local cache. No dependency tree was left behind.
-- Consequently full `npm run verify`, ESLint with the repository plugin, real Obsidian typings/build/esbuild lanes, and the production Obsidian runner were not available here and remain pending, not skipped/passed.
-- Obsidian CLI/runtime validation was not performed, per the maintainer's explicit offline-agent constraint.
-- Git commit/branch identity and `git diff --check` against a repository index are unavailable because the supplied ZIP has no `.git` metadata.
+### Native cold-start and interruption evidence
 
-### Main-agent validation tasks
+- Deleted only K-Plex's IndexedDB cache in the authorized disposable vault and restarted the exact staged plugin.
+- Before first useful publication: `full=false`, graph size 0, updating indicator active.
+- First useful publication: remembered center `Synthetic-Scale-v2/Nodes/056/Scale-005600.md` existed, search returned that note and its URL, `full=false`, and graph size was already about 20,500 because the structural baseline materializes vault nodes. Subsequent samples grew while Markdown semantics were ingested.
+- The red/updating state remained active. The localized bubble appeared only after a useful page was present and pointed to the index indicator.
+- While the partial graph was live, `readSnapshotMeta()` returned `null`.
+- Interrupted the run by disabling the plugin. IndexedDB still had `meta=null` while 1,017 durable body-cache records remained, proving partial semantic state was not promoted and resumable parse checkpoints survived.
+- Restarted K-Plex: it republished the useful partial graph from the retained cache and resumed progressive work without false-ready state.
+- The test vault's roughly 2,000 near-1 MB notes make complete first indexing intentionally long. The native test validated useful publication and interruption/resume rather than waiting hours for completion. Final authoritative parity and warm targeted-preview behavior are covered by executable fixtures.
 
-1. Use exact Node 22.22.2 with a clean dependency install (`npm ci` or the repository-prescribed clean install), then run `npm run verify`. Expected: architecture/core/lint/tests/build all pass, including `tests/localization.test.mjs` and the updated indexing fixtures.
-2. Run the repository's Obsidian validation lane (`npm run verify:obsidian`) in the equipped environment. Expected: no command/menu/settings/dialog rendering regression and no runtime localization-key failures.
-3. Perform a focused native UI smoke across commands, Settings (including node/link style managers and ontology discovery), Filter / Graph Lenses (including invalid-expression feedback), create/link/delete/materialize/rename dialogs, relationship explanations, notices, tooltips and ARIA-visible controls. Expected: displayed English wording remains equivalent to the pre-migration UI, with no raw catalog keys, blank labels, or English emitted from portable semantic code.
-4. Confirm platform shortcut copy on macOS and Windows conventions (and, where available, mobile/hardware-keyboard surfaces). Expected: localized modifier names match the effective convention; machine shortcut registration remains unchanged.
-5. Review the structured reason/validation DTO changes (`RelationshipSummary`, `EvidenceSuppressionReason`, `PredicateParseIssue`, `GraphLensValidationIssue`) for any external caller not represented by the supplied source/tests. Expected: all presentation formatting remains at the UI/localization boundary.
+### InfoBubble and environment evidence
 
-### Cleanup / remaining risk
+- Desktop main window: anchored below the indicator, 320 px wide, z-index 1000, Obsidian theme background, fully inside the viewport.
+- Outside pointer dismissal closed it; an index rerender in the same session did not reopen it.
+- Pop-out: the bubble and indicator were in the pop-out's owner document. Escape closed it, prevented host handling and restored focus to the indicator.
+- Temporary ready → later-updating status transition: automatic ready close passed; the later ordinary update did not reopen the bubble; coordinator fields were immediately restored.
+- Tablet emulation at 900×875: partial center/search published, bubble fit fully inside the viewport.
+- Phone emulation at 390×875: partial graph published, only the visible K-Plex surface claimed guidance, and the 320 px bubble fit fully inside the viewport.
+- Final cleanup restored `app.emulateMobile(false)`, cleared the CDP metrics override, restored the 996×795 desktop window and removed temporary pop-outs/globals. Final `dev:errors`: no errors captured.
 
-- No schema, settings key/default, command ID, cache/storage format, network behavior or vault-content migration was intentionally changed.
-- No non-English locale was added; English remains the source/fallback catalog.
-- No Obsidian-host-only probes or temporary instrumentation were added.
-- Main validation agent should review and validate the returned uncommitted diff before any commit/PR action.
+### Prioritized manual checks
 
-## Main-agent acceptance
+1. **Physical iPhone/iPad, first cold run:** confirm the center neighborhood paints before remaining body-cache prewarm, touch dismissal/positioning works, closing/reopening resumes, and memory remains stable. Desktop emulation proves layout/routing but not native WebView touch or memory behavior.
+2. **True warm Obsidian reboot after a completed snapshot exists:** confirm the persisted center and one-hop search/neighborhood appear before full hydration, transient workspace focus does not replace the K-Plex center, and the final graph becomes ready. The disposable vault's new cold run was deliberately interrupted, so it did not produce a new authoritative snapshot for this reboot observation; the warm path passed its executable snapshot fixture.
 
-Reviewed on Node **22.22.2 / npm 10.9.7** with clean dependencies and real Obsidian **1.14.2**. The main agent corrected the label-table type errors, localized physical position parameters, strengthened the sink gate with negative fixtures, required caller-owned suggestion copy, documented touched module/function responsibilities and preserved saved suppression-reason predicates at the host compatibility boundary. Accepted-English parser/explanation comparisons and saved-lens evaluation regressions were added.
-
-Required portable checks/build and exact-build native install/open passed. Native desktop/tablet/phone copy checks and the complete fixture-import/style-manager/persistence/reload lane passed. Baseline device/window state and test settings were restored; test-owned notes/controller were removed; the index settled. No required manual test remains for this unchanged-English localization scope. An optional physical-phone keyboard/visual smoke is described in the review report; emulation is not a physical touch/WebView pass.
-
-See [durable review evidence](docs/validation/L01-2026-09-27.md) and [machine-readable results](docs/validation/L01-2026-09-27.json). Structural refactoring remains paused after C14. No commit, PR or subsequent assignment was requested or performed.
+No additional desktop manual test is required for local acceptance. Changes remain uncommitted pending maintainer review of the two manual boundaries above.

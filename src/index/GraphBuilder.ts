@@ -1,3 +1,9 @@
+/**
+ * Obsidian-bound graph construction and per-file semantic patch staging. Full builds collect host
+ * structure, cached link maps and Markdown semantics into a private snapshot; cold startup can also
+ * publish a structure/link baseline and then reuse the same atomic per-file patch boundary to add
+ * Markdown semantics progressively without exposing half-committed source state.
+ */
 import { Platform, TFile, type App } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
@@ -565,6 +571,7 @@ export class GraphBuilder {
     patch: PreparedSourcePatch,
     affected: Set<string>,
     desiredUrlOrigins: Map<string, string>,
+    discoveryMode: "patch" | "rebuild",
   ): Promise<boolean> {
     const sourceNode = patch.sourceNode;
     const sourcePage = state.pages.get(sourcePath);
@@ -603,7 +610,18 @@ export class GraphBuilder {
     sourcePage.maxLabelLength = sourceNode.maxLabelLength;
 
     for (const [normalized, value] of patch.compilation.discoveredFields) {
-      if (!state.discoveredFields.has(normalized)) state.discoveredFields.set(normalized, { ...value, count: 1 });
+      const current = state.discoveredFields.get(normalized);
+      if (discoveryMode === "rebuild") {
+        state.discoveredFields.set(normalized, {
+          name: current?.name ?? value.name,
+          count: (current?.count ?? 0) + value.count,
+        });
+      } else if (!current) {
+        // Runtime patches cannot cheaply subtract the prior per-file contribution, so they retain
+        // the historical discovery contract: learn newly seen fields and let the next full build
+        // restore exact counts. Cold progressive ingestion starts from zero and may count exactly.
+        state.discoveredFields.set(normalized, { ...value, count: 1 });
+      }
     }
 
     for (const item of patch.declarations()) {
@@ -706,12 +724,40 @@ export class GraphBuilder {
     }
   }
 
+  /**
+   * Build the authoritative complete graph privately.
+   *
+   * @returns A fully collected state only when every source family remains current through binding;
+   * otherwise `null` so the coordinator can retain the previous published graph.
+   */
   async build(): Promise<GraphState | null> {
     const compiler = this.createFullCompiler();
     const structuralRead = await this.collectStructuralSources(compiler);
     if (!structuralRead) return null;
     if (!(await this.collectHostLinkSources(compiler))) return null;
     if (!(await this.collectMarkdownSources(compiler))) return null;
+    if (!(await this.finalizeStructuralSources(compiler, structuralRead))) return null;
+
+    const compiled = await compiler.finish();
+    if (!compiled || !structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) || !this.isCurrent()) return null;
+    const state = await this.bindCompiledGraph(compiled, structuralRead.collector);
+    if (!state || !structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) || !this.isCurrent()) return null;
+    return state;
+  }
+
+  /**
+   * Build the low-cost cold-start baseline from vault structure, tag structure and Obsidian's
+   * already-resolved link maps without reading Markdown bodies.
+   *
+   * @returns A graph containing materialized vault nodes and host-link relationships, or `null` if
+   * the source revision changes while the private read is in flight. The caller may patch Markdown
+   * semantics into this state before publishing it as a non-authoritative startup preview.
+   */
+  async buildStructuralBaseline(): Promise<GraphState | null> {
+    const compiler = this.createFullCompiler();
+    const structuralRead = await this.collectStructuralSources(compiler);
+    if (!structuralRead) return null;
+    if (!(await this.collectHostLinkSources(compiler))) return null;
     if (!(await this.finalizeStructuralSources(compiler, structuralRead))) return null;
 
     const compiled = await compiler.finish();
@@ -1176,12 +1222,13 @@ export class GraphBuilder {
   }
 
   /**
-   * Re-index only modified Markdown sources on top of a hydrated semantic snapshot.
+   * Parse Markdown sources and commit each source through the existing atomic patch boundary.
    *
-   * This is the normal warm-start path for a large vault: restore the last complete graph from
-   * IndexedDB, then replace declarations owned by the handful of files whose mtimes changed while
-   * K-Plex was closed. Incoming declarations from other notes remain untouched. Structural vault
-   * changes (create/delete/rename) are intentionally handled by a full rebuild instead.
+   * Runtime/warm-start callers replace declarations owned by modified files on a hydrated graph.
+   * Cold progressive startup sets `discoveryMode: "rebuild"` and feeds every source exactly once
+   * into a structural baseline, forcing semantic application even when a prior cancelled attempt
+   * left a hot body/fingerprint cache entry behind. Structural vault changes remain the caller's
+   * responsibility.
    */
   async patchMarkdownFiles(
     state: GraphState,
@@ -1190,6 +1237,8 @@ export class GraphBuilder {
       useDurableCache?: boolean;
       awaitBodyWrite?: boolean;
       publishFileCommit?: PatchFilePublisher;
+      /** Full cold-start ingestion counts every discovered field exactly once per source. */
+      discoveryMode?: "patch" | "rebuild";
     } = {},
   ): Promise<PatchMarkdownResult> {
     const touchedPagePaths = new Set<string>();
@@ -1197,7 +1246,7 @@ export class GraphBuilder {
     let semanticNoops = 0;
     const useDurableCache = options.useDurableCache === true;
     const awaitBodyWrite = options.awaitBodyWrite === true;
-
+    const discoveryMode = options.discoveryMode ?? "patch";
 
     for (const file of files) {
       if (!this.isCurrent()) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
@@ -1277,7 +1326,12 @@ export class GraphBuilder {
       if (!signature || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
-      const previousSignature = this.semanticFingerprints.get(sourcePath) ?? previousEntry?.semanticSignature;
+      // A progressive rebuild starts from a structural-only baseline. A body cache entry left by a
+      // cancelled earlier attempt is useful for parsing, but its semantic fingerprint must never
+      // suppress applying that source to the fresh baseline. Runtime patches do have prior semantics.
+      const previousSignature = discoveryMode === "rebuild"
+        ? undefined
+        : this.semanticFingerprints.get(sourcePath) ?? previousEntry?.semanticSignature;
       if (!(await this.compactPublishedPatchLayers(state)) || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
@@ -1346,7 +1400,7 @@ export class GraphBuilder {
       }, () => this.yieldToHost());
       if (removed === null) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
 
-      if (!(await this.applyPreparedSourcePatch(stagedState, sourcePath, preparedPatch, affected, desiredUrlOrigins))) {
+      if (!(await this.applyPreparedSourcePatch(stagedState, sourcePath, preparedPatch, affected, desiredUrlOrigins, discoveryMode))) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
       stagedPage.mtime = revision.mtime;

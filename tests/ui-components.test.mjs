@@ -416,6 +416,78 @@ try {
 `;
 }
 
+function infoBubbleBrowserEntry() {
+  return `
+import React, { useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { InfoBubble } from ${JSON.stringify(join(root, "src/ui/components/InfoBubble.tsx"))};
+
+const result = document.querySelector("#result");
+const fail = (message) => { throw new Error(message); };
+const check = (condition, message) => { if (!condition) fail(message); };
+
+try {
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 800 });
+  Object.defineProperty(window, "innerHeight", { configurable: true, value: 600 });
+  const container = document.createElement("div");
+  const outside = document.createElement("button");
+  document.body.append(container, outside);
+  let advances = 0;
+  let dismissals = 0;
+
+  function Consumer() {
+    const [open, setOpen] = useState(true);
+    const targetRef = useRef(null);
+    return React.createElement(React.Fragment, null,
+      React.createElement("button", { ref: targetRef, id: "bubble-target" }, "Index status"),
+      React.createElement(InfoBubble, {
+        open,
+        targetRef,
+        message: "Indexing in progress.",
+        dismissLabel: "Dismiss",
+        advanceLabel: "Next",
+        onAdvance: () => { advances += 1; },
+        onDismiss: () => { dismissals += 1; setOpen(false); },
+      }),
+    );
+  }
+
+  const root = createRoot(container);
+  flushSync(() => root.render(React.createElement(Consumer)));
+  const target = container.querySelector("#bubble-target");
+  target.getBoundingClientRect = () => ({
+    left: 20, right: 40, top: 10, bottom: 30,
+    width: 20, height: 20, x: 20, y: 10, toJSON() { return {}; },
+  });
+  flushSync(() => window.dispatchEvent(new Event("resize")));
+
+  const bubble = document.body.querySelector(".kplex-info-bubble");
+  check(bubble, "InfoBubble did not portal into the target owner document");
+  check(bubble.getAttribute("role") === "note", "InfoBubble needs an accessible informational role");
+  const descriptionId = bubble.getAttribute("aria-describedby");
+  check(descriptionId && document.getElementById(descriptionId)?.textContent === "Indexing in progress.", "InfoBubble message was not exposed as its description");
+  const buttons = [...bubble.querySelectorAll("button")];
+  check(buttons.map((button) => button.textContent).join("|") === "Next|Dismiss", "InfoBubble actions changed order or labels");
+  flushSync(() => buttons[0].click());
+  check(advances === 1, "InfoBubble advance action must delegate exactly once");
+  check(document.body.contains(bubble), "Caller-owned advance must not implicitly dismiss the bubble");
+  flushSync(() => buttons[1].click());
+  check(dismissals === 1, "InfoBubble dismiss action must delegate exactly once");
+  check(!document.body.querySelector(".kplex-info-bubble"), "InfoBubble remained after explicit dismissal");
+
+  flushSync(() => root.unmount());
+  container.remove();
+  outside.remove();
+  result.dataset.status = "passed";
+  result.textContent = "InfoBubble browser behavior passed";
+} catch (error) {
+  result.dataset.status = "failed";
+  result.textContent = String(error?.stack ?? error);
+}
+`;
+}
+
 
 function fuzzySuggesterBrowserEntry() {
   return `
@@ -759,6 +831,10 @@ test("ActionButton rendered browser behavior", () => {
 
 test("FloatingLayer owner-document browser behavior", () => {
   runBrowserDom(floatingLayerBrowserEntry(), "FloatingLayer browser behavior passed");
+});
+
+test("InfoBubble rendered browser behavior", () => {
+  runBrowserDom(infoBubbleBrowserEntry(), "InfoBubble browser behavior passed");
 });
 
 

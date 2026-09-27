@@ -90,6 +90,42 @@
   .kplex-index-status.is-updating { animation: none; }
 }
 
+.kplex-info-bubble {
+  z-index: 1000;
+  box-sizing: border-box;
+  padding: 12px;
+  color: var(--text-normal);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s);
+}
+
+.kplex-info-bubble-pointer {
+  position: absolute;
+  top: -6px;
+  left: 10px;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
+  border-left: 1px solid var(--background-modifier-border);
+  transform: rotate(45deg);
+}
+
+.kplex-info-bubble-message {
+  font-size: var(--font-ui-small);
+  line-height: 1.4;
+}
+
+.kplex-info-bubble-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
 .excalibrain-brand-mark {
   color: #f0aa43;
   font-size: 20px;

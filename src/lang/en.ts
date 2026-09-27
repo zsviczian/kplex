@@ -680,6 +680,16 @@ export const englishCatalog = {
     context: "K-Plex host shell, command, toolbar, and status copy.",
     params: [],
   },
+  "index.incompleteBubble": {
+    message: "Indexing in progress. Graph and search results are incomplete.",
+    context: "Startup info bubble shown beside the updating index indicator while K-Plex is still building or hydrating its authoritative graph.",
+    params: [],
+  },
+  "infoBubble.dismiss": {
+    message: "Dismiss",
+    context: "Reusable K-Plex info bubble action that closes the current guidance callout.",
+    params: [],
+  },
   "app.syncRecentTabWithPlex": {
     message: "Sync most recent note tab with K-Plex",
     context: "K-Plex host shell, command, toolbar, and status copy.",

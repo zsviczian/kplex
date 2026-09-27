@@ -1,3 +1,9 @@
+/**
+ * Published graph repository for K-Plex. It owns snapshot restoration/persistence, search and
+ * presentation caches, atomic per-file publication and startup rebuild orchestration; builders stage
+ * semantics privately while this class decides when partial cold-start or authoritative state may
+ * become visible to UI readers.
+ */
 import { Platform, TFile, normalizePath, type App } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import type { ExcaliBrainSettings } from "../settings";
@@ -967,14 +973,24 @@ export class GraphIndex {
     return this.restoredPatchPlanAvailable && !this.restoredStructuralMismatch;
   }
 
-  /** Complete one incremental publication synchronously. Graph/fingerprint state is applied first,
-   * then all repository-owned derived views are refreshed before any subscriber can run. The
-   * publisher must not await or retain the prepared-state callback. */
-  private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
+  /**
+   * Apply one prepared file commit and refresh every repository-owned derived view synchronously.
+   *
+   * @param commit Describes paths affected by the already-prepared source transaction.
+   * @param publishPreparedState Synchronous one-shot callback that makes the staged graph/fingerprint
+   * state visible. It must be invoked before search/cache invalidation and must never be retained.
+   */
+  private commitPreparedFile(commit: PatchFileCommit, publishPreparedState: () => void): void {
     publishPreparedState();
     this.invalidatePatchedPages(commit.touchedPagePaths);
     this.patchSearchIndex(commit.touchedPagePaths);
     this.suggestionCatalogCache = null;
+  }
+
+  /** Complete one normal incremental publication synchronously and notify graph subscribers only
+   * when graph topology changed. The publisher never awaits or retains the prepared-state callback. */
+  private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
+    this.commitPreparedFile(commit, publishPreparedState);
     if (commit.semanticChanged) this.emit();
   };
 
@@ -1193,8 +1209,9 @@ export class GraphIndex {
     } catch { return null; }
   }
 
+  /** Persist only the current complete graph generation; startup previews are never durable snapshots. */
   private async persistIndexedDbSnapshot(run: number): Promise<void> {
-    if (run !== this.snapshotPersistGeneration || this.state.pages.size === 0) return;
+    if (run !== this.snapshotPersistGeneration || !this.fullSnapshotHydrated || this.state.pages.size === 0) return;
     const state = this.state;
     const semanticFingerprints = this.semanticFingerprints;
     function* pageRecords(): IterableIterator<PersistedPage> {
@@ -1242,6 +1259,175 @@ export class GraphIndex {
       this.snapshotPersistTimer = null;
       void this.persistIndexedDbSnapshot(run).catch(() => { /* persistence is an optimization only */ });
     }, delay);
+  }
+
+  /**
+   * Build a cold-start graph in usefulness order while preserving the per-source atomic boundary.
+   *
+   * The structural/link-map baseline is private until the preferred center Markdown source and the
+   * bounded child notes visible from that center have been parsed. That first useful neighborhood
+   * is then published with a small working search index. Remaining Markdown files commit one at a
+   * time into the live state; UI notifications are batched so the graph grows progressively without
+   * forcing a React render for every note. Large iOS vaults may prewarm durable body parses only
+   * after the first neighborhood is visible, retaining the existing low-memory safety contract.
+   *
+   * @param seedPaths Ordered startup center candidates; the first graph path that exists wins.
+   * @param options `prewarmBodyCache` preserves the large-iOS checkpoint pass before the remainder.
+   * @returns `true` only after every Markdown source has committed and the final search index is
+   * authoritative. Cancellation or a source revision change leaves any already-published preview
+   * non-authoritative and returns `false` for the coordinator to retry.
+   */
+  async rebuildProgressively(
+    seedPaths: readonly string[] = [],
+    options: Readonly<{ prewarmBodyCache?: boolean }> = {},
+  ): Promise<boolean> {
+    if (this.building) {
+      this.rebuildQueued = true;
+      return false;
+    }
+    this.cancelPendingPersistence();
+    this.building = true;
+    const run = ++this.generation;
+    const sourceRevision = this.plugin.getIndexSourceRevision();
+    const isCurrent = (): boolean => run === this.generation && this.plugin.getIndexSourceRevision() === sourceRevision;
+    try {
+      const nextFingerprints = new Map<string, string>();
+      const builder = new GraphBuilder(
+        this.plugin,
+        this.app,
+        this.fieldCache,
+        this.metadataParser,
+        this.indexedDb,
+        isCurrent,
+        nextFingerprints,
+      );
+      const next = await builder.buildStructuralBaseline();
+      if (!next || !isCurrent()) return false;
+
+      const markdownFiles = this.app.vault.getMarkdownFiles();
+      const markdownByPath = new Map(markdownFiles.map((file) => [file.path, file] as const));
+      const indexedPaths = new Set<string>();
+      let centerPath: string | null = null;
+      for (const seed of seedPaths) {
+        const page = getGraphPage(next, seed);
+        if (!page) continue;
+        centerPath = page.path;
+        break;
+      }
+      centerPath ??= getGraphPage(next, "folder:/")?.path ?? null;
+
+      const patchBeforePublish = async (files: readonly TFile[]): Promise<boolean> => {
+        const unique = files.filter((file) => !indexedPaths.has(file.path));
+        if (!unique.length) return true;
+        const result = await builder.patchMarkdownFiles(next, unique, {
+          useDurableCache: true,
+          awaitBodyWrite: false,
+          discoveryMode: "rebuild",
+        });
+        if (!result.ok || !isCurrent()) return false;
+        for (const file of unique) indexedPaths.add(file.path);
+        return true;
+      };
+
+      const centerFile = centerPath ? markdownByPath.get(centerPath) : undefined;
+      if (centerFile && !(await patchBeforePublish([centerFile]))) return false;
+
+      const initialChildFiles: TFile[] = [];
+      const center = centerPath ? getGraphPage(next, centerPath) : undefined;
+      if (center) {
+        const childLimit = Math.max(1, this.plugin.settings.maxItemCount);
+        for (const relation of center.neighbours.values()) {
+          if (relation.isHidden || classifyRelation(relation, "child", this.plugin.settings.inferAllLinksAsFriends) === null) continue;
+          const file = relation.target.file;
+          if (!(file instanceof TFile) || file.extension !== "md" || indexedPaths.has(file.path)) continue;
+          initialChildFiles.push(file);
+          if (initialChildFiles.length >= childLimit) break;
+        }
+      }
+      if (!(await patchBeforePublish(initialChildFiles))) return false;
+
+      if (!isCurrent()) return false;
+      this.state = next;
+      this.semanticFingerprints = nextFingerprints;
+      this.fullSnapshotHydrated = false;
+      this.fullSnapshotFresh = false;
+      this.previewSnapshotPublished = false;
+      this.restoredModifiedMarkdownPaths = [];
+      this.restoredStructuralMismatch = false;
+      this.restoredPatchPlanAvailable = false;
+      this.activeSnapshotGeneration = null;
+      this.titleCache.clear();
+      this.nodeVisualCache.clear();
+      this.suggestionCatalogCache = null;
+      this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+
+      const initialSearchPaths = new Set<string>(indexedPaths);
+      if (center) {
+        initialSearchPaths.add(center.path);
+        for (const relation of center.neighbours.values()) initialSearchPaths.add(relation.target.path);
+      }
+      const initialEntries: SearchEntry[] = [];
+      const initialByPath = new Map<string, SearchEntry>();
+      for (const path of initialSearchPaths) {
+        const page = getGraphPage(next, path);
+        if (!page || initialByPath.has(page.path)) continue;
+        const entry = this.makeSearchEntry(page);
+        initialEntries.push(entry);
+        initialByPath.set(page.path, entry);
+      }
+      this.installSearchIndex({ entries: initialEntries, byPath: initialByPath });
+      this.emit();
+
+      if (options.prewarmBodyCache && indexedPaths.size < markdownFiles.length) {
+        const warmed = await this.prewarmBodyCache(isCurrent);
+        if (!warmed || !isCurrent()) return false;
+      }
+
+      const remaining: TFile[] = [];
+      const queued = new Set<string>();
+      for (const seed of seedPaths) {
+        const page = getGraphPage(next, seed);
+        const file = page ? markdownByPath.get(page.path) : undefined;
+        if (!file || indexedPaths.has(file.path) || queued.has(file.path)) continue;
+        queued.add(file.path);
+        remaining.push(file);
+      }
+      for (const file of markdownFiles) {
+        if (indexedPaths.has(file.path) || queued.has(file.path)) continue;
+        queued.add(file.path);
+        remaining.push(file);
+      }
+
+      const notifyEvery = Platform.isIosApp ? 3 : Platform.isMobile ? 5 : 10;
+      let commitsSinceNotify = 0;
+      const result = await builder.patchMarkdownFiles(this.state, remaining, {
+        useDurableCache: true,
+        awaitBodyWrite: false,
+        discoveryMode: "rebuild",
+        publishFileCommit: (commit, publishPreparedState) => {
+          this.commitPreparedFile(commit, publishPreparedState);
+          commitsSinceNotify += 1;
+          if (commitsSinceNotify < notifyEvery) return;
+          commitsSinceNotify = 0;
+          this.emit();
+        },
+      });
+      if (!result.ok || !isCurrent()) return false;
+      if (commitsSinceNotify > 0) this.emit();
+
+      // The bounded startup search intentionally grows from per-file commits. Rebuild it once at
+      // completion so standalone attachments/folders/tags and untouched virtual nodes are included.
+      this.rebuildSearchIndex();
+      this.fullSnapshotHydrated = true;
+      this.fullSnapshotFresh = true;
+      this.previewSnapshotPublished = false;
+      this.emit();
+      this.scheduleSnapshotPersist();
+      return true;
+    } finally {
+      this.building = false;
+      this.rebuildQueued = false;
+    }
   }
 
   /** Build a complete graph off to the side, then atomically publish it. */
