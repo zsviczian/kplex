@@ -57,19 +57,51 @@
 }
 
 .kplex-index-status {
+  position: relative;
   width: 9px;
   height: 9px;
+  min-width: 9px;
   flex: 0 0 9px;
+  padding: 0;
   border-radius: 50%;
   border: 1px solid rgba(255,255,255,.28);
+  cursor: pointer;
 }
 
-.kplex-index-status.is-ready {
+/* Keep the compact dot layout while giving mouse/touch users a larger invisible hit target. */
+.kplex-index-status::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  bottom: -8px;
+  left: -8px;
+  border-radius: 50%;
+}
+
+.excalibrain-topbar button.kplex-index-status,
+.kplex-index-status-empty button.kplex-index-status {
+  width: 9px;
+  height: 9px;
+  min-width: 9px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 50%;
+}
+
+.kplex-index-status:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 4px;
+}
+
+.kplex-index-status.is-ready,
+.excalibrain-topbar button.kplex-index-status.is-ready {
   background: #45c86f;
   box-shadow: 0 0 7px rgba(69,200,111,.72);
 }
 
-.kplex-index-status.is-updating {
+.kplex-index-status.is-updating,
+.excalibrain-topbar button.kplex-index-status.is-updating {
   background: #ff4d4d;
   box-shadow: 0 0 8px rgba(255,77,77,.78);
   animation: kplex-index-status-blink 1s ease-in-out infinite;

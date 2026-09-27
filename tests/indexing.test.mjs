@@ -43,8 +43,12 @@ const startupSeedSource = mainSource.slice(mainSource.indexOf("  private startup
 assert(startupSeedSource.indexOf("this.settings.lastActivePath") < startupSeedSource.indexOf("this.app.workspace.getActiveFile()"), "Warm/cold previews must prioritize the persisted K-Plex center over transient Obsidian startup focus");
 assert(appSource.includes('translate("index.incompleteBubble")'), "Startup indexing guidance must be localized and anchored from the K-Plex shell");
 assert(appSource.includes("setShowStartupIndexBubble(false)"), "Ready startup must clear bubble state so an ordinary later update cannot reopen it");
-assert(appSource.includes("tabIndex={-1}"), "The startup bubble anchor must accept programmatic focus restoration after Escape");
+assert(appSource.includes('type="button"') && appSource.includes("aria-expanded={open}"), "The index status marker must be a semantic interactive control for click/touch and keyboard access");
+assert(appSource.includes("onMouseEnter={onHoverStart}") && appSource.includes("onClick={onToggle}"), "Index status details must open from hover and click/touch interaction");
+assert(appSource.includes('translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })'), "Index status details must show localized indexed-file progress");
+assert(mainSource.includes("this.index.indexedMarkdownFileCount()"), "Index status progress must come from published Markdown sources rather than graph node count");
 assert(infoBubbleSource.includes("onAdvance?: () => void"), "Reusable info bubbles must expose caller-owned sequence advancement for future onboarding/help flows");
+assert(infoBubbleSource.includes("dismissLabel?: string"), "Informational status bubbles must be able to omit an unnecessary action row");
 assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");
 assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(origin, role"), "Placeholder action must create only a relationship-backed virtual node");
 assert(newRelatedSource.includes("void createNew(defaultCreateType)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
@@ -451,6 +455,43 @@ const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
 const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
 const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
 
+const indexingStatusContext = {
+  initialIndexComplete: false,
+  indexDirty: true,
+  rebuildTask: null,
+  rebuildTimer: null,
+  app: { vault: { getMarkdownFiles: () => {
+    indexingStatusContext.markdownFileCountReads += 1;
+    return Array.from({ length: 5 });
+  } } },
+  cachedMarkdownFileCount: null,
+  markdownFileCountReads: 0,
+  index: {
+    hasPendingSnapshotHydration: () => false,
+    indexedMarkdownFileCount: () => 3,
+  },
+  translator: (key) => key === "index.statusReady" ? "Status: index ready" : "Status: indexing",
+};
+assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
+  upToDate: false,
+  label: "Status: indexing",
+  indexedFiles: 3,
+  totalFiles: 5,
+}, "Updating status must report currently published Markdown-file progress");
+assert.equal(indexingStatusContext.markdownFileCountReads, 1, "First status read must capture the Markdown total once");
+ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext);
+assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publications must reuse the cached Markdown total");
+assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
+  ...indexingStatusContext,
+  initialIndexComplete: true,
+  indexDirty: false,
+}), {
+  upToDate: true,
+  label: "Status: index ready",
+  indexedFiles: 5,
+  totalFiles: 5,
+}, "Ready status must report the complete Markdown-file total");
+
 // Native split regression: persisted pixel bases may consume the entire split,
 // leaving a newly inserted pane at zero width/height despite correct ordering.
 for (const axis of ["width", "height"]) {
@@ -847,6 +888,7 @@ try {
   assert.equal(hugeDrawingParsed.inlineFields.friend, undefined);
 
   await index.rebuild();
+  assert.equal(index.indexedMarkdownFileCount(), app.vault.getMarkdownFiles().length, "Authoritative build must count every indexed Markdown source");
 
   const A = index.get("Note A.md");
   assert(A);
