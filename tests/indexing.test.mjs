@@ -43,8 +43,14 @@ const startupSeedSource = mainSource.slice(mainSource.indexOf("  private startup
 assert(startupSeedSource.indexOf("this.settings.lastActivePath") < startupSeedSource.indexOf("this.app.workspace.getActiveFile()"), "Warm/cold previews must prioritize the persisted K-Plex center over transient Obsidian startup focus");
 assert(appSource.includes('translate("index.incompleteBubble")'), "Startup indexing guidance must be localized and anchored from the K-Plex shell");
 assert(appSource.includes("setShowStartupIndexBubble(false)"), "Ready startup must clear bubble state so an ordinary later update cannot reopen it");
-assert(appSource.includes("tabIndex={-1}"), "The startup bubble anchor must accept programmatic focus restoration after Escape");
+assert(appSource.includes('type="button"') && appSource.includes("aria-expanded={open}"), "The index status marker must be a semantic interactive control for click/touch and keyboard access");
+assert(appSource.includes("onMouseEnter={onHoverStart}") && appSource.includes("onClick={onToggle}"), "Index status details must open from hover and click/touch interaction");
+assert(mainSource.includes('this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })'), "Progressive indexing status must show localized indexed-file progress");
+assert(mainSource.includes("this.index.indexedMarkdownFileCount()"), "Index status progress must come from published Markdown sources rather than graph node count");
+assert(mainSource.includes("this.settings.startupIndexInfoBubbleSeen = true") && mainSource.includes("void this.saveSettings(false, false)"), "Startup indexing guidance must persist its one-time seen state when claimed");
+assert(appSource.includes('["indexing", "updating"].includes(indexStatus.phase)') && appSource.includes('translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })') && appSource.includes("indexStatus.label"), "Indexing and updating status details must show indexed-file progress while preserving the phase label");
 assert(infoBubbleSource.includes("onAdvance?: () => void"), "Reusable info bubbles must expose caller-owned sequence advancement for future onboarding/help flows");
+assert(infoBubbleSource.includes("dismissLabel?: string"), "Informational status bubbles must be able to omit an unnecessary action row");
 assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");
 assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(origin, role"), "Placeholder action must create only a relationship-backed virtual node");
 assert(newRelatedSource.includes("void createNew(defaultCreateType)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
@@ -289,6 +295,7 @@ for (const file of [
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/adjacentFileLeaf.ts",
   "src/adapters/obsidian/embeddedMarkdownLeaf.ts",
+  "src/adapters/obsidian/externalUrl.ts",
   "src/adapters/obsidian/predicateContracts.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts",
   "src/adapters/obsidian/hostLinkSourceCollector.ts",
@@ -451,6 +458,101 @@ exports.createObsidianTranslator = () => createTranslator("en");
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
 const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
 const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
+
+// URL selection must not replace a companion with Obsidian's missing-plugin placeholder.
+{
+  const context = {
+    app: {},
+    settings: { sidecarLastUrl: "", sidecarLastFilePath: "Existing.md" },
+    translator: () => "Web Viewer unavailable",
+  };
+  let assignments = 0;
+  const leaf = { async setViewState() { assignments += 1; } };
+  await ExcaliBrainPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  assert.equal(assignments, 0, "Unavailable Web Viewer must not be assigned to a native leaf");
+  assert.equal(context.settings.sidecarLastFilePath, "Existing.md");
+  assert.equal(context.settings.sidecarLastUrl, "");
+  context.app.viewRegistry = { getViewCreatorByType: () => () => {} };
+  await ExcaliBrainPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  assert.equal(assignments, 1, "An available Web Viewer must retain explicit Sidecar preview support");
+  assert.equal(context.settings.sidecarLastFilePath, "");
+  assert.equal(context.settings.sidecarLastUrl, "https://example.com");
+}
+const indexingStatusContext = {
+  initialIndexComplete: false,
+  indexDirty: true,
+  rebuildTask: Promise.resolve(),
+  rebuildTimer: null,
+  app: { vault: { getMarkdownFiles: () => {
+    indexingStatusContext.markdownFileCountReads += 1;
+    return Array.from({ length: 5 });
+  } } },
+  cachedMarkdownFileCount: null,
+  markdownFileCountReads: 0,
+  index: {
+    size: 3,
+    hasPendingSnapshotHydration: () => false,
+    hasIncrementalRestorePatch: () => false,
+    indexedMarkdownFileCount: () => 3,
+  },
+  translator: (key, params) => {
+    if (key === "index.statusReady") return "Status: index ready";
+    if (key === "index.statusLoadingCache") return "Status: loading index from cache";
+    if (key === "index.statusPreparing") return "Status: preparing index";
+    if (key === "index.statusCheckingCache") return "Status: checking cached index for changes";
+    if (key === "index.statusIndexingProgress") return `Status: indexing ${params.indexed} of ${params.total} files`;
+    return "Status: updating index";
+  },
+};
+assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
+  upToDate: false,
+  phase: "indexing",
+  label: "Status: indexing 3 of 5 files",
+  indexedFiles: 3,
+  totalFiles: 5,
+}, "Progressive indexing status must report currently published Markdown-file progress");
+assert.equal(indexingStatusContext.markdownFileCountReads, 1, "First status read must capture the Markdown total once");
+ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext);
+assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publications must reuse the cached Markdown total");
+assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
+  ...indexingStatusContext,
+  rebuildTask: null,
+  index: { ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 0 },
+}), {
+  upToDate: false,
+  phase: "loading-cache",
+  label: "Status: loading index from cache",
+  indexedFiles: 0,
+  totalFiles: 5,
+}, "Snapshot hydration must identify cache loading instead of presenting a misleading 0-of-total indexing status");
+assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
+  ...indexingStatusContext,
+  rebuildTask: null,
+  initialIndexComplete: true,
+  indexDirty: false,
+}), {
+  upToDate: true,
+  phase: "ready",
+  label: "Status: index ready",
+  indexedFiles: 5,
+  totalFiles: 5,
+}, "Ready status must report the complete Markdown-file total");
+let startupBubbleSaves = 0;
+const startupBubbleContext = {
+  startupIndexInfoBubbleClaimed: false,
+  initialIndexComplete: false,
+  settings: { startupIndexInfoBubbleSeen: false },
+  getIndexStatus: () => ({ upToDate: false }),
+  saveSettings: () => { startupBubbleSaves += 1; return Promise.resolve(); },
+};
+assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), true, "First incomplete startup must claim the one-time guidance bubble");
+assert.equal(startupBubbleContext.settings.startupIndexInfoBubbleSeen, true, "Claiming startup guidance must persist its seen state in settings");
+assert.equal(startupBubbleSaves, 1, "Claiming startup guidance must save the one-time state exactly once");
+assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), false, "The same session must not reclaim startup guidance");
+assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call({
+  ...startupBubbleContext,
+  startupIndexInfoBubbleClaimed: false,
+}), false, "A persisted seen flag must prevent startup guidance from returning after restart");
 
 // Native split regression: persisted pixel bases may consume the entire split,
 // leaving a newly inserted pane at zero width/height despite correct ordering.
@@ -848,6 +950,7 @@ try {
   assert.equal(hugeDrawingParsed.inlineFields.friend, undefined);
 
   await index.rebuild();
+  assert.equal(index.indexedMarkdownFileCount(), app.vault.getMarkdownFiles().length, "Authoritative build must count every indexed Markdown source");
 
   const A = index.get("Note A.md");
   assert(A);
@@ -966,6 +1069,37 @@ try {
       return [];
     },
   };
+  // Area-height controls exist even without content; overflow and semantic edges stay independent.
+  const emptyAreas = { center: fakeCenter, parents: [], children: [], leftFriends: [], rightFriends: [], siblings: [] };
+  const areaBefore = buildScene(emptyAreas, fakeCrossIndex, settings);
+  assert.deepEqual(Object.keys(areaBefore.zoneAreas).sort(), ["child", "left", "parent", "right", "sibling"]);
+  assert.deepEqual(areaBefore.zoneViewports, {}, "Empty editable regions must not become scroll panels");
+  const areaSettings = { ...settings, parentMaxHeight: 380, childMaxHeight: 410, friendMaxHeight: 310, siblingMaxHeight: 270 };
+  const areaAfter = buildScene(emptyAreas, fakeCrossIndex, areaSettings);
+  for (const [zone, key] of [["parent", "parentMaxHeight"], ["child", "childMaxHeight"], ["left", "friendMaxHeight"], ["right", "friendMaxHeight"], ["sibling", "siblingMaxHeight"]]) {
+    const before = areaBefore.zoneAreas[zone];
+    const after = areaAfter.zoneAreas[zone];
+    assert.equal(after.height, areaSettings[key], `${zone} must use its existing persisted height setting`);
+    assert.equal(after.resizeEdge, zone === "child" ? "bottom" : "top");
+    const fixedBefore = before.resizeEdge === "bottom" ? before.top : before.top + before.height;
+    const fixedAfter = after.resizeEdge === "bottom" ? after.top : after.top + after.height;
+    assert(Math.abs(fixedAfter - fixedBefore) < 1e-9, `${zone} fixed edge moved during resizing`);
+    assert(after.width > 0, "Empty regions need a usable horizontal target");
+  }
+  assert.deepEqual(areaAfter.nodes, areaBefore.nodes, "Empty-area resizing must not change the graph");
+  assert.deepEqual(areaAfter.edges, areaBefore.edges);
+  const crowdedAreas = { ...emptyAreas, parents: Array.from({length: 24}, (_, i) => fakeNeighbour(fakePage(`Area parent ${i}.md`), "parent")), children: Array.from({length: 24}, (_, i) => fakeNeighbour(fakePage(`Area child ${i}.md`), "child")) };
+  const crowdedBefore = buildScene(crowdedAreas, fakeCrossIndex, { ...settings, parentMaxHeight: 140, childMaxHeight: 160 });
+  const crowdedAfter = buildScene(crowdedAreas, fakeCrossIndex, { ...settings, parentMaxHeight: 800, childMaxHeight: 900 });
+  assert(crowdedBefore.zoneViewports.parent && crowdedBefore.zoneViewports.child, "Small regions must overflow");
+  for (const zone of ["parent", "child"]) {
+    const before = crowdedBefore.zoneAreas[zone];
+    const after = crowdedAfter.zoneAreas[zone];
+    const fixedBefore = zone === "child" ? before.top : before.top + before.height;
+    const fixedAfter = zone === "child" ? after.top : after.top + after.height;
+    assert(Math.abs(fixedAfter - fixedBefore) < 1e-9, "Overflow transitions must retain the fixed edge");
+  }
+
   const multiParentScene = buildScene({
     center: fakeCenter,
     parents: [fakeNeighbour(fakeParentOne, "parent"), fakeNeighbour(fakeParentTwo, "parent")],

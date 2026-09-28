@@ -1,3 +1,8 @@
+/**
+ * Host-bound Plex geometry: arrange semantic neighborhoods into presentation zones.
+ * Area resize bounds exist for empty groups independently of overflow viewports;
+ * callers own interaction, settings persistence and camera transforms.
+ */
 import type { ExcaliBrainSettings } from "../settings";
 import type { GraphPage, Neighborhood, Neighbour, NodeStyle, PositionedEdge, PositionedNode, Role, ScrollZone } from "../types";
 import { RelationType } from "../types";
@@ -20,6 +25,16 @@ export type ZoneViewport = {
   initialScrollTop: number;
 };
 
+/** Configured world-space area and its movable edge, independent of content overflow. */
+export type ZoneAreaBounds = {
+  key: ScrollZone;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  resizeEdge: "top" | "bottom";
+};
+
 export type SectionTreeEdge = {
   id: string;
   sourcePath: string;
@@ -33,6 +48,7 @@ export type PlexScene = {
   nodes: PositionedNode[];
   edges: PositionedEdge[];
   zoneViewports: Partial<Record<ScrollZone, ZoneViewport>>;
+  zoneAreas: Partial<Record<ScrollZone, ZoneAreaBounds>>;
   sectionTreeEdges?: SectionTreeEdge[];
 };
 
@@ -231,6 +247,46 @@ function fitVerticalStrip(
   for (const node of nodes) node.y += shift;
 }
 
+/** Calculate an editable area with a conservative width and the established fixed vertical anchor. */
+function areaBoundsFor(
+  key: ScrollZone,
+  nodes: PositionedNode[],
+  configuredHeight: number,
+  resizeEdge: "top" | "bottom",
+  fallback: { centerX: number; width: number; fixedEdgeY: number },
+  bottomLimit?: number,
+  topLimit?: number,
+): ZoneAreaBounds {
+  const padX = 24;
+  const padY = 16;
+  let left = fallback.centerX - fallback.width / 2;
+  let right = fallback.centerX + fallback.width / 2;
+  let minY = fallback.fixedEdgeY;
+  let maxY = fallback.fixedEdgeY;
+  if (nodes.length) {
+    left = Math.min(left, ...nodes.map((node) => node.x - node.width / 2 - padX));
+    right = Math.max(right, ...nodes.map((node) => node.x + node.width / 2 + padX));
+    minY = Math.min(...nodes.map((node) => node.y - node.height / 2));
+    maxY = Math.max(...nodes.map((node) => node.y + node.height / 2));
+  }
+  const height = topLimit !== undefined && bottomLimit !== undefined
+    ? Math.max(72, bottomLimit - topLimit)
+    : Math.max(72, configuredHeight);
+  const top = topLimit !== undefined && bottomLimit !== undefined
+    ? topLimit
+    : resizeEdge === "top"
+      ? (nodes.length ? maxY + padY : fallback.fixedEdgeY) - height
+      : nodes.length ? minY - padY : fallback.fixedEdgeY;
+  return {
+    key,
+    left,
+    top,
+    width: right - left,
+    height,
+    resizeEdge,
+  };
+}
+
 function viewportFor(
   key: ScrollZone,
   nodes: PositionedNode[],
@@ -284,6 +340,7 @@ function viewportFor(
 }
 
 /** Build the deterministic Plex layout, optionally reserving an explicit center-node rectangle. */
+/** Arrange one neighborhood, retaining all editable areas while creating scroll viewports only for overflow. */
 export function buildScene(
   neighborhood: Neighborhood,
   index: GraphIndex,
@@ -381,6 +438,18 @@ export function buildScene(
   if (rightViewport) zoneViewports.right = rightViewport;
   if (siblingViewport) zoneViewports.sibling = siblingViewport;
 
+  // The configured relationship areas exist independently of whether their contents currently
+  // overflow. Keeping these bounds separate from zoneViewports lets the Plex expose the existing
+  // max-height settings as direct-manipulation affordances even for sparse relationship lists.
+  const zoneAreas: Partial<Record<ScrollZone, ZoneAreaBounds>> = {};
+  const parentAreaBottom = parentBaseY + typicalHeight / 2 + 16;
+  const childAreaTop = childBaseY - typicalHeight / 2 - 16;
+  zoneAreas.parent = areaBoundsFor("parent", parents, settings.parentMaxHeight, "top", { centerX: 0, width: 340, fixedEdgeY: parentAreaBottom });
+  zoneAreas.child = areaBoundsFor("child", children, settings.childMaxHeight, "bottom", { centerX: 0, width: 440, fixedEdgeY: childAreaTop });
+  zoneAreas.left = areaBoundsFor("left", left, settings.friendMaxHeight, "top", { centerX: -sideX, width: 230, fixedEdgeY: sideBottom }, sideBottom, sideTop);
+  zoneAreas.right = areaBoundsFor("right", right, settings.friendMaxHeight, "top", { centerX: sideX, width: 230, fixedEdgeY: sideBottom }, sideBottom, sideTop);
+  zoneAreas.sibling = areaBoundsFor("sibling", siblings, settings.siblingMaxHeight, "top", { centerX: siblingCenterX, width: 220, fixedEdgeY: siblingBottom }, siblingBottom, siblingTop);
+
   const nodes = [center, ...parents, ...children, ...left, ...right, ...siblings];
   const edges: PositionedEdge[] = [];
   const from = (items: Neighbour[], role: Role) => {
@@ -406,7 +475,7 @@ export function buildScene(
   appendSiblingParentLinks(nodes, edges, index, settings, neighborhood.center.path);
   if (showCrossLinks) appendVisibleCrossLinks(nodes, edges, index, settings, neighborhood.center.path);
 
-  return { nodes, edges, zoneViewports };
+  return { nodes, edges, zoneViewports, zoneAreas };
 }
 
 function appendSiblingParentLinks(
@@ -490,7 +559,8 @@ function appendVisibleCrossLinks(
 /** Runtime layout for central-note heading expansion. Section headings form an outline tree
  * below the normal Plex. Each visible section still owns a local four-gate relationship cluster.
  * Hidden descendants of a folded section project their relationships upward into the nearest
- * visible folded ancestor. Nothing here is persisted in GraphIndex. */
+ * visible folded ancestor. Nothing here is persisted in GraphIndex. The central scene's
+ * editable area controls remain available independently of expanded sections. */
 export function buildSectionExpandedScene(
   expansion: import("../index/SectionExpansion").CentralSectionExpansion,
   index: GraphIndex,

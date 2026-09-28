@@ -27,6 +27,7 @@ import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts
 import { getDraggedMarkdownFile } from "../adapters/obsidian/fileExplorerDrag";
 import { ActionButton } from "./components/ActionButton";
 import { InfoBubble } from "./components/InfoBubble";
+import type { FloatingLayerDismissReason } from "./components/FloatingLayer";
 import { PlexGraph } from "./PlexGraph";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { EMPTY_PLEX_FILTER, PlexFilter, type GraphFilterLayoutMode, type PlexFilterState, type PlexVisibilitySetting } from "./PlexFilter";
@@ -37,39 +38,73 @@ import { installKplexLongPressTooltips } from "./LongPressTooltip";
 type BooleanToolbarSetting = PlexVisibilitySetting | "renderAlias";
 type IndexStatus = ReturnType<ExcaliBrainPlugin["getIndexStatus"]>;
 
-/** Subscribe a mounted K-Plex surface to the host-owned index readiness status. */
-function useIndexStatus(plugin: ExcaliBrainPlugin): IndexStatus {
+/** Subscribe a visible K-Plex surface to host-owned index status and catch up once on reveal. */
+function useIndexStatus(plugin: ExcaliBrainPlugin, hostLeaf: WorkspaceLeaf): IndexStatus {
   const [status, setStatus] = useState(() => plugin.getIndexStatus());
-  useEffect(
-    /** Subscribe through the plugin lifecycle and always read its latest composite status. */
-    () => plugin.subscribeIndexStatus(
-      /** Refresh this surface after the host coordinator changes readiness or activity. */
-      () => setStatus(plugin.getIndexStatus()),
-    ),
-    [plugin],
-  );
+  useEffect(() => {
+    /** Refresh only when a visible status fact changed; progressive graph publication can be frequent. */
+    const refresh = (): void => {
+      if (!plugin.isKplexLeafVisible(hostLeaf)) return;
+      const next = plugin.getIndexStatus();
+      setStatus((current) => (
+        current.upToDate === next.upToDate
+        && current.phase === next.phase
+        && current.label === next.label
+        && current.indexedFiles === next.indexedFiles
+        && current.totalFiles === next.totalFiles
+          ? current
+          : next
+      ));
+    };
+    const releaseCoordinator = plugin.subscribeIndexStatus(refresh);
+    const releaseIndex = plugin.index.subscribe(refresh);
+    const releaseVisibility = plugin.subscribeKplexVisibility(refresh);
+    return () => {
+      releaseCoordinator();
+      releaseIndex();
+      releaseVisibility();
+    };
+  }, [plugin, hostLeaf]);
   return status;
 }
 
-/** Render the compact colored index state marker, optionally exposing its node as a callout target. */
-function IndexStatusIndicator({ status, indicatorRef }: {
+/** Render the compact colored index state marker as an accessible hover/click/touch target. */
+function IndexStatusIndicator({
+  status,
+  indicatorRef,
+  open,
+  onHoverStart,
+  onHoverEnd,
+  onToggle,
+}: {
   status: IndexStatus;
-  indicatorRef?: RefObject<HTMLSpanElement | null>;
+  indicatorRef?: RefObject<HTMLButtonElement | null>;
+  open: boolean;
+  onHoverStart: () => void;
+  onHoverEnd: () => void;
+  onToggle: () => void;
 }) {
-  return <span
+  return <button
     ref={indicatorRef}
+    type="button"
     className={`kplex-index-status${status.upToDate ? " is-ready" : " is-updating"}`}
     aria-label={status.label}
-    tabIndex={-1}
+    aria-expanded={open}
+    onMouseEnter={onHoverStart}
+    onMouseLeave={onHoverEnd}
+    onFocus={onHoverStart}
+    onBlur={onHoverEnd}
+    onClick={onToggle}
   />;
 }
 
+/** Render a labeled toolbar action and pass its owning-window click event to native menu callers. */
 function ToolButton({ icon, title, on, disabled, onClick }: {
   icon: string;
   title: string;
   on?: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return <button
     className={`excalibrain-icon-button${on ? " is-on" : ""}`}
@@ -88,9 +123,11 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   environment: PresentationEnvironment;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const indexStatusRef = useRef<HTMLSpanElement>(null);
-  const indexStatus = useIndexStatus(plugin);
+  const indexStatusRef = useRef<HTMLButtonElement>(null);
+  const indexStatus = useIndexStatus(plugin, hostLeaf);
   const [showStartupIndexBubble, setShowStartupIndexBubble] = useState(false);
+  const [indexStatusInfoMode, setIndexStatusInfoMode] = useState<"closed" | "hover" | "pinned">("closed");
+  const suppressRestoredIndexStatusFocusRef = useRef(false);
   const [renderRevision, forceRender] = useState(0);
   const graphSearchRead = useMemo(() => createLegacyGraphSearchRead(plugin.index), [plugin.index]);
   const [plexFilter, setPlexFilter] = useState<PlexFilterState>(EMPTY_PLEX_FILTER);
@@ -102,6 +139,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   const [hostWidth, setHostWidth] = useState(0);
   const [sidecarRevision, setSidecarRevision] = useState(0);
   const [searchFocusRequest, setSearchFocusRequest] = useState(0);
+  const [areaSettingsMode, setAreaSettingsMode] = useState(false);
   const [initialWorkspaceFile] = useState<TFile | null>(() => plugin.app.workspace.getActiveFile());
   const [activePath, setActivePath] = useState(() => {
     const history = plugin.settings.navigationHistory;
@@ -249,6 +287,58 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     setShowStartupIndexBubble(false);
   }, []);
 
+  /** Detailed index status replaces startup guidance once the user explicitly inspects the marker. */
+  const acknowledgeIndexStatusInspection = useCallback((): void => {
+    if (!indexStatus.upToDate) plugin.claimStartupIndexInfoBubble();
+    setShowStartupIndexBubble(false);
+  }, [plugin, indexStatus.upToDate]);
+
+  /** Open transient index details for pointer hover or keyboard focus unless already pinned. */
+  const showIndexStatusOnHover = useCallback((): void => {
+    if (suppressRestoredIndexStatusFocusRef.current) {
+      suppressRestoredIndexStatusFocusRef.current = false;
+      return;
+    }
+    acknowledgeIndexStatusInspection();
+    setIndexStatusInfoMode((current) => current === "pinned" ? current : "hover");
+  }, [acknowledgeIndexStatusInspection]);
+
+  /** Close only a transient hover/focus detail, preserving an explicitly pinned detail. */
+  const hideIndexStatusAfterHover = useCallback((): void => {
+    setIndexStatusInfoMode((current) => current === "hover" ? "closed" : current);
+  }, []);
+
+  /** Toggle the persistent click/touch detail state for the index indicator. */
+  const togglePinnedIndexStatus = useCallback((): void => {
+    acknowledgeIndexStatusInspection();
+    setIndexStatusInfoMode((current) => current === "pinned" ? "closed" : "pinned");
+  }, [acknowledgeIndexStatusInspection]);
+
+  /** Dismiss index details while preventing Escape focus restoration from reopening them. */
+  const dismissIndexStatusInfo = useCallback((reason?: FloatingLayerDismissReason): void => {
+    if (reason === "escape") {
+      suppressRestoredIndexStatusFocusRef.current = true;
+      const view = indexStatusRef.current?.ownerDocument.defaultView;
+      if (view) {
+        view.queueMicrotask(
+          /** Limit suppression to the synchronous focus restoration performed for this Escape. */
+          () => { suppressRestoredIndexStatusFocusRef.current = false; },
+        );
+      } else {
+        suppressRestoredIndexStatusFocusRef.current = false;
+      }
+    }
+    setIndexStatusInfoMode("closed");
+  }, []);
+
+  const indexStatusInfoOpen = indexStatusInfoMode !== "closed";
+  const indexStatusMessage = <div className="kplex-index-status-details">
+    {["indexing", "updating"].includes(indexStatus.phase) &&
+      <div>{translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })}</div>
+    }
+    <div>{indexStatus.label}</div>
+  </div>;
+
   // The first render can show the empty indexing view, which has no rootRef. Attach once the
   // graph root appears, and release the document-scoped listener if it disappears again.
   useEffect(() => {
@@ -286,7 +376,10 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     void plugin.saveSettings(false, false);
   }, [page?.path, activePath, plugin]);
 
-  const open = useCallback((target: GraphPage) => { void plugin.openPage(target); }, [plugin]);
+  /** Open the target through the host while preserving this surface's document for external-link routing. */
+  const open = useCallback((target: GraphPage) => {
+    void plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument);
+  }, [plugin, hostLeaf]);
 
   const updateGraphLenses = useCallback((next: GraphLensDefinition[]) => {
     setGraphLensesState(next);
@@ -402,6 +495,21 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     forceRender((value) => value + 1);
   };
 
+  /** Open the owning-window native settings menu; area editing remains transient to this surface. */
+  const showSettingsMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    const menu = new Menu();
+    menu.addItem((item) => item
+      .setTitle(translate("app.pluginSettings"))
+      .setIcon("settings")
+      .onClick(() => plugin.openSettings()));
+    menu.addItem((item) => item
+      .setTitle(translate("app.areaSettings"))
+      .setIcon("move-vertical")
+      .setChecked(areaSettingsMode)
+      .onClick(() => setAreaSettingsMode((enabled) => !enabled)));
+    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent);
+  };
+
   const activateSearch = () => setSearchFocusRequest((value) => value + 1);
   const searchCopy = searchFieldCopy(translate, environment);
 
@@ -451,7 +559,22 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
   >
-    <div className="kplex-index-status-empty"><IndexStatusIndicator status={indexStatus} /></div>
+    <div className="kplex-index-status-empty">
+      <IndexStatusIndicator
+        status={indexStatus}
+        indicatorRef={indexStatusRef}
+        open={indexStatusInfoOpen}
+        onHoverStart={showIndexStatusOnHover}
+        onHoverEnd={hideIndexStatusAfterHover}
+        onToggle={togglePinnedIndexStatus}
+      />
+      <InfoBubble
+        open={indexStatusInfoOpen}
+        targetRef={indexStatusRef}
+        message={indexStatusMessage}
+        onDismiss={dismissIndexStatusInfo}
+      />
+    </div>
     <span>{translate("app.buildingIndex")}</span>
   </div>;
 
@@ -517,13 +640,26 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     <div className="excalibrain-main-column">
       <div className="excalibrain-top-stack">
         <header className="excalibrain-topbar">
-          <IndexStatusIndicator status={indexStatus} indicatorRef={indexStatusRef} />
+          <IndexStatusIndicator
+            status={indexStatus}
+            indicatorRef={indexStatusRef}
+            open={indexStatusInfoOpen}
+            onHoverStart={showIndexStatusOnHover}
+            onHoverEnd={hideIndexStatusAfterHover}
+            onToggle={togglePinnedIndexStatus}
+          />
           <InfoBubble
-            open={showStartupIndexBubble && !indexStatus.upToDate}
+            open={showStartupIndexBubble && !indexStatus.upToDate && !indexStatusInfoOpen}
             targetRef={indexStatusRef}
             message={translate("index.incompleteBubble")}
             dismissLabel={translate("infoBubble.dismiss")}
             onDismiss={dismissStartupIndexBubble}
+          />
+          <InfoBubble
+            open={indexStatusInfoOpen}
+            targetRef={indexStatusRef}
+            message={indexStatusMessage}
+            onDismiss={dismissIndexStatusInfo}
           />
           <div className="excalibrain-brand"><ObsidianIcon name="brain-circuit" size={20} className="excalibrain-brand-mark" /><strong>{translate("view.displayName")}</strong></div>
           <ActionButton
@@ -593,7 +729,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
             <span className="excalibrain-toolbar-divider" />
             <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => void toggleExpandedView()} />
             <ToolButton icon="spline" title={translate(plugin.settings.connectorStyle === "bezier" ? "app.useStraightConnectors" : "app.useCurvedConnectors")} on={plugin.settings.connectorStyle === "bezier"} onClick={() => void toggleConnectorStyle()} />
-            <ToolButton icon="settings" title={translate("app.openSettings")} onClick={() => plugin.openSettings()} />
+            <ToolButton icon="settings" title={translate("app.settingsMenu")} on={areaSettingsMode} onClick={showSettingsMenu} />
           </div>
         </header>
 
@@ -614,7 +750,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
           <div className="excalibrain-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
           <div className="excalibrain-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="excalibrain-zone-label zone-child">{translate("app.zoneChildren")}</div>
-          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} />
+          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode} />
         </section>
       </main>
 
