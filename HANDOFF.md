@@ -16,66 +16,83 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
+
 ## Current transfer
 
 **State: returned for main-agent review.**
 
 - Sender → recipient: offline development agent → main validation agent.
-- Kind: coordinated K-Plex / Obsidian Excalidraw integration change.
-- Objective: replace K-Plex's command-palette/leaf-activation workaround for switching an embedded Excalidraw drawing between Excalidraw and Markdown with a view-targeted Excalidraw Automate API.
-- K-Plex base identity: user-supplied `repository.zip`, SHA-256 `3c332117cbcdae04becacb8554f3718ae3151012f3401be0dc898173b488f15f`, plus the previously returned `kplex-excalidraw-view-sync-fix.zip`, `kplex-excalidraw-initial-leaf-activation-fix.zip`, and `kplex-excalidraw-initial-activation-command-fix.zip` applied in order to reproduce the state the maintainer tested immediately before this assignment. The supplied archive has no Git metadata.
-- Coordinated Excalidraw base identity: user-supplied `obsidian-excalidraw.zip`, SHA-256 `de60f589b1cf7dee8c7eaab6672365912dd3eedde5bab413a8f69bac25c63811`.
-- Actual capabilities: no Obsidian runtime/CLI. Container Node is `v22.16.0`, npm `10.9.2`, global TypeScript `5.8.3`. Dependency installation was attempted for both repositories but `npm ci --ignore-scripts` timed out, so real builds/lint remain pending.
+- Kind: correction to recent-leaf navigation history.
+- Objective: make **Sync K-Plex with recent tab** follow the exact sequence of `active-leaf-change` events inside a tab group instead of resolving through workspace/group order.
+- Base identity: the maintainer's current repository state from the previous transfer (user-supplied `repository.zip` plus the prior leaf-history adaptation). No Git metadata is available in this offline handoff copy.
+- Actual capabilities: no Obsidian runtime/CLI. Container Node is `v22.16.0`; repository contract requires Node `22.22.2`. Project dependencies are not installed; global TypeScript is available for syntax checks.
 
-## Final design
+## Root cause in the previous patch
 
-The representation switch is now owned by Excalidraw and is explicitly targeted at the native view object that K-Plex hosts. K-Plex no longer tries to make a synthetic leaf look like the active workspace leaf long enough for Excalidraw's command-palette command to find it.
+The previous implementation was still treating navigation history as a **qualified MRU set**:
 
-The coordinated Excalidraw change adds `ExcalidrawAutomate.toggleViewMode(view: View): Promise<View | null>`. It accepts either:
+- it tried to decide during `active-leaf-change` whether the activated leaf already exposed a file or Web Viewer URL;
+- it de-duplicated by leaf identity and moved that entry to the MRU front;
+- it later iterated that MRU rather than replaying the real activation sequence.
 
-- a live `ExcalidrawView` for an Excalidraw-backed file, in which case Excalidraw performs its normal save/decompression/Markdown transition; or
-- a live `MarkdownView` whose file is an Excalidraw drawing, in which case Excalidraw saves the Markdown view and switches that exact leaf back to `ExcalidrawView`.
+That is weaker than the required model. `active-leaf-change` can occur before a newly selected view is fully materialized, and de-duplicating the leaf sequence obscures the exact navigation chronology. The reliable input is the leaf activation itself; file/URL qualification belongs at resolution time.
 
-The API rejects unrelated/stale views and Excalidraw compatibility-mode views with `null`. It does not inspect or depend on `workspace.activeLeaf`, command palette routing, or DOM focus. The built-in Excalidraw toggle command is also routed through the same API so there is one transition implementation.
+## Implementation
 
-K-Plex now calls this API with `leaf.view`. The existing DOM mutation observer remains responsible for reflecting externally initiated representation changes in the K-Plex top-right icon. K-Plex still reapplies its remembered reading/edit mode, Excalidraw link routing, zoom-to-fit and resize state after a successful transition.
+`src/main.ts` now keeps a bounded chronological `WorkspaceLeaf[]` history, oldest to newest.
 
-All delayed leaf-activation repair introduced by the prior workaround has been removed: no 0/25/75 ms activation timers, no synthetic `setEphemeralState({ focus: true })`, and no command invocation from K-Plex. The ordinary interaction-time `setActiveLeaf(leaf, { focus: false })` remains so native editor shortcuts route to the hosted leaf when the user actually interacts with it; it is not part of representation switching and does not move DOM focus.
+- Every non-null `active-leaf-change` is appended immediately, including K-Plex and utility leaves.
+- No file/view/visibility check is performed before the leaf is stored.
+- Repeated activations are preserved; the history is **not de-duplicated**.
+- The history is capped at 20 entries by removing only the oldest overflow.
+- Closed leaves are pruned by comparing leaf object identity with `workspace.iterateAllLeaves()`; surviving order is unchanged.
+- `findRecentDocumentLeaf()` iterates the activation history from newest to oldest and inspects each leaf **at resolution time** with `fileForLeaf()`. K-Plex/utility leaves are skipped naturally; hidden file siblings in the same tab group remain eligible.
+- `findRecentIndexedNavigationTarget()` uses the same reverse chronological traversal. For each live historical leaf it checks, in order:
+  1. current vault file → indexed file path;
+  2. current Web Viewer URL → indexed URL node.
+- If explicit activation history exists but contains no indexed target, sync returns no target. It does not fall through to `getMostRecentLeaf()` or workspace iteration, which is the path that previously selected the first tab in the group.
+- Generic file handling from the previous patch is preserved: any view/file type resolving to a `TFile` can participate (Markdown, image, Bases, attachment, etc.). Web Viewer URL support is also preserved.
 
-## Changed K-Plex files
+## Changed files
 
-- `src/adapters/obsidian/embeddedMarkdownLeaf.ts`
-  - Extends the narrow runtime Excalidraw Automate bridge with `toggleViewMode(view)`.
-  - Uses the exact embedded native view as the representation-switch target.
-  - Removes Excalidraw command-manager invocation, transition polling, repeated active-leaf timers and ephemeral-focus repair.
-  - Preserves external view-state observation, reading/edit mode reconciliation, link routing, zoom-to-fit and normal interaction-time leaf activation.
+- `src/main.ts`
+- `tests/indexing.test.mjs`
 - `HANDOFF.md`
-  - Replaced the rejected activation-workaround handoff with this coordinated two-repository design and validation packet.
-
-## Coordinated Excalidraw files expected with this transfer
-
-The separate Excalidraw patch contains `src/shared/ExcalidrawAutomate.ts`, `src/view/ExcalidrawView.ts`, `src/core/managers/CommandManager.ts`, `src/shared/Dialogs/SuggesterInfo.ts`, and `src/shared/Dialogs/Messages.ts`. Apply/review that patch before validating the K-Plex runtime behavior. K-Plex's current minimum integration version remains `2.28.0`; the new API is intended to ship as part of that coordinated integration boundary.
 
 ## Validation performed offline
 
-- Read K-Plex `AGENTS.md` / `CONTRIBUTING.md` and Excalidraw `AGENTS.md` / `CONTRIBUTING.md` before editing.
-- Searched both repositories for the existing Excalidraw/Markdown transition owners. The new EA method reuses Excalidraw's existing `ExcalidrawView.openAsMarkdown()`, plugin Markdown transition and `setExcalidrawView()` paths rather than reproducing lifecycle behavior in K-Plex.
-- Parsed all modified TypeScript files with the installed TypeScript parser; no syntax diagnostics were reported.
-- A restricted K-Plex `tsc --noResolve` pass reaches only expected unavailable-host/dependency diagnostics (`obsidian`, the local integration module under `--noResolve`, and Obsidian's `HTMLElement.setCssStyles` extension); no new syntax/type-flow diagnostic from the changed code appeared.
-- `npm ci --ignore-scripts` was attempted in both repositories and timed out in this environment. Therefore `npm run verify` / K-Plex real build and Excalidraw `npm run code`, `npm run lib`, and `npm run build` are **pending**, not passed.
+- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node tests/indexing.test.mjs` — **PASS**.
+- Global TypeScript `transpileModule` syntax validation of `src/main.ts` — **PASS**.
+- Behavioral simulation of `tab 1 → tab 3 → K-Plex` using the same chronological resolver semantics — **PASS**: reverse traversal skips K-Plex and returns tab 3; after tab 3 is closed, traversal falls back to tab 1.
+- Regression guards now require:
+  - every `active-leaf-change` to append the leaf before qualification;
+  - chronological `push()` storage;
+  - no de-duplication;
+  - newest-to-oldest traversal;
+  - closed-leaf pruning without reordering;
+  - file qualification at resolution time;
+  - Web Viewer qualification at resolution time;
+  - no workspace-order fallback once explicit activation history exists.
 
 ## Required main-agent validation
 
-1. **Build/integration gate:** with the normal Node/dependency environment, run Excalidraw `npm ci`, `npm run code`, `npm run lib`, and `npm run build`; then run K-Plex `npm ci` and `npm run verify`. Validate K-Plex against an Excalidraw build that actually contains the new `toggleViewMode()` API.
-2. **First-render toggle regression (desktop + physical iOS/mobile):** open an Excalidraw-backed central editor node and do not click the canvas first. K-Plex **Show Markdown** must work on the first press; **Show Excalidraw drawing** must switch back on the first press. Repeat after navigating to another central file. No activation timers or extra canvas click should be required.
-3. **State/focus synchronization regression:** switch representation externally using Excalidraw's own control and the command palette and confirm the K-Plex icon follows the actual view. After switching to Markdown, Cmd/Ctrl+F and Cmd/Ctrl+B must target the embedded editor; also regression-check remembered reading/edit mode, Excalidraw link routing, zoom-to-fit and fullscreen.
+1. Run Node `22.22.2` with normal dependencies and execute `npm run verify`.
+2. Primary native regression in **one tab group**:
+   - tab 1 = file A;
+   - tab 2 = K-Plex;
+   - tab 3 = file B;
+   - click tab 1, click tab 3, optionally edit B, click K-Plex, then choose **Sync K-Plex with recent tab**;
+   - expected: K-Plex navigates to B, never A.
+3. Repeated chronology: A → B → A → K-Plex must resolve A; then B → K-Plex must resolve B.
+4. Stale history: activate B, close B, return to K-Plex, sync. Expected: reverse traversal skips the detached B leaf and resolves the previous valid indexed target.
+5. File-type regression: repeat with an indexed image/attachment/Bases file. The most recently activated indexed file-backed leaf must win regardless of extension/view subtype.
+6. Web Viewer regression where supported: activate an indexed URL in Obsidian Web Viewer, then K-Plex, then sync. Expected: reverse history traversal skips K-Plex and resolves the indexed URL. A non-indexed URL should cause traversal to continue backward to the preceding indexed file/URL target.
+7. Startup/Sidecar regression: verify persisted Sidecar restoration and recent/pinned document sync modes still behave correctly. The chronological history is session-only and does not replace persisted Sidecar ownership.
 
 ## Reviewer attention
 
-- `toggleViewMode()` is a new public Excalidraw Automate API. The Excalidraw patch updates its TSDoc, SuggesterInfo entry and upcoming release notes as required by that repository's agent guide. No new user-visible localized string was introduced.
-- `ExcalidrawView.openAsMarkdown()` now awaits its own `setMarkdownView()` transition so `toggleViewMode()` resolves only after the replacement Markdown view is installed. Existing callers that intentionally ignore the promise keep the same user-visible behavior.
-- The K-Plex bridge deliberately feature-checks `toggleViewMode` in addition to the existing semantic version check. If the runtime Excalidraw build does not expose it, the K-Plex button leaves the current representation unchanged instead of falling back to the rejected command/activation hack.
+If native behavior still differs, instrument/log the actual `active-leaf-change` sequence (leaf identity and current `getViewState().type/state.file`) for A → B → K-Plex. Do not reintroduce `getMostRecentLeaf()` or workspace-order selection as an authoritative recent-tab source; those APIs are retained only for the no-history startup compatibility path.
 
 ## Next recipient
 
-Main validation agent: review both patches as one coordinated change, run the real build/lint lanes, then validate first-render switching and mobile behavior against the same Excalidraw artifact.
+Main validation agent: run the full repository gate and the same-group chronology tests above against the exact build artifact.

@@ -50,6 +50,13 @@ const isUnknownRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const MANAGED_CREATED_PATH_TTL_MS = 4_000;
+const RECENT_LEAF_HISTORY_LIMIT = 20;
+
+type RecentIndexedNavigationTarget = {
+  leaf: WorkspaceLeaf;
+  path: string;
+  file: TFile | null;
+};
 
 export default class ExcaliBrainPlugin extends Plugin {
   settings: ExcaliBrainSettings = DEFAULT_SETTINGS;
@@ -59,6 +66,8 @@ export default class ExcaliBrainPlugin extends Plugin {
   private indexDirty = true;
   private linkedDocumentLeaf: WorkspaceLeaf | null = null;
   private lastDocumentLeaf: WorkspaceLeaf | null = null;
+  /** Chronological session history of active leaves, oldest to newest. */
+  private recentLeafHistory: WorkspaceLeaf[] = [];
   private readonly hoverParent: HoverParent = { hoverPopover: null };
   private reactiveIndexListenersRegistered = false;
   private openKplexViews = 0;
@@ -235,10 +244,10 @@ export default class ExcaliBrainPlugin extends Plugin {
     });
 
     this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
-      // During workspace hydration Obsidian can report the first serialized tab as the most
-      // recent leaf. Do not let that transient ordering replace the persisted K-Plex/sidecar
-      // relationship before startup re-association has completed.
-      if (!this.startupInitializing) this.rememberDocumentLeaf(leaf);
+      // Capture every actual leaf activation in sequence. Do not decide here whether the leaf is a
+      // file/Web Viewer: active-leaf-change can arrive before a newly activated view is fully
+      // materialized. Resolution walks this history backward and inspects each leaf's current view.
+      this.rememberLeafActivation(leaf);
       this.validateLinkedDocumentLeaf();
       this.onKplexVisibilityMayHaveChanged();
     }));
@@ -1027,11 +1036,9 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   private leafIsAttached(leaf: WorkspaceLeaf): boolean {
-    let attached = false;
-    this.app.workspace.iterateAllLeaves((candidate) => {
-      if (candidate === leaf) attached = true;
-    });
-    return attached;
+    // iterateAllLeaves() can omit background tabs in a tab group. Type lookup includes them,
+    // so a previously active document remains valid after K-Plex takes focus in the same group.
+    return this.app.workspace.getLeavesOfType(leaf.getViewState().type).includes(leaf);
   }
 
   private leafGroupElement(leaf: WorkspaceLeaf | null): HTMLElement | null {
@@ -1388,17 +1395,68 @@ export default class ExcaliBrainPlugin extends Plugin {
     return null;
   }
 
+  /** Read a real file directly from the currently materialized view, regardless of file type. */
+  private loadedFileForLeaf(leaf: WorkspaceLeaf | null): TFile | null {
+    if (!leaf || !("file" in leaf.view)) return null;
+    const file = leaf.view.file;
+    return file instanceof TFile ? file : null;
+  }
+
+  /** Best-effort Web Viewer identity. `webviewer` is the host view-state identity already used by Sidecar restore. */
+  private webViewerUrlForLeaf(leaf: WorkspaceLeaf | null): string | null {
+    if (!leaf) return null;
+    const viewState = leaf.getViewState();
+    if (viewState.type !== "webviewer") return null;
+    const state = viewState.state as { url?: unknown } | undefined;
+    return typeof state?.url === "string" && state.url.trim() ? state.url.trim() : null;
+  }
+
+  /** Record every active leaf change in chronological order; qualification happens when history is resolved. */
+  private rememberLeafActivation(leaf: WorkspaceLeaf | null): void {
+    if (!leaf) return;
+    this.recentLeafHistory.push(leaf);
+    const overflow = this.recentLeafHistory.length - RECENT_LEAF_HISTORY_LIMIT;
+    if (overflow > 0) this.recentLeafHistory.splice(0, overflow);
+    if (!this.startupInitializing && this.fileForLeaf(leaf)) this.lastDocumentLeaf = leaf;
+  }
+
   private rememberDocumentLeaf(leaf: WorkspaceLeaf | null): void {
     if (this.isDocumentLeafCandidate(leaf) && this.leafIsVisible(leaf)) this.lastDocumentLeaf = leaf;
+  }
+
+  /** Drop closed leaves while preserving the exact activation sequence of all surviving entries. */
+  private pruneRecentLeafHistory(): void {
+    if (this.recentLeafHistory.length === 0) return;
+    const leavesByType = new Map<string, Set<WorkspaceLeaf>>();
+    this.recentLeafHistory = this.recentLeafHistory.filter((leaf) => {
+      const type = leaf.getViewState().type;
+      let attached = leavesByType.get(type);
+      if (!attached) {
+        attached = new Set(this.app.workspace.getLeavesOfType(type));
+        leavesByType.set(type, attached);
+      }
+      return attached.has(leaf);
+    });
   }
 
   private validateLinkedDocumentLeaf(): void {
     if (this.linkedDocumentLeaf && !this.leafIsAttached(this.linkedDocumentLeaf)) this.linkedDocumentLeaf = null;
     if (this.lastDocumentLeaf && !this.leafIsAttached(this.lastDocumentLeaf)) this.lastDocumentLeaf = null;
+    this.pruneRecentLeafHistory();
   }
 
   private findRecentDocumentLeaf(): WorkspaceLeaf | null {
     this.validateLinkedDocumentLeaf();
+
+    // Walk real activation history backward. K-Plex/utility leaves are naturally skipped because
+    // they do not currently resolve to a vault file; hidden siblings in the same tab group remain valid.
+    for (let index = this.recentLeafHistory.length - 1; index >= 0; index -= 1) {
+      const leaf = this.recentLeafHistory[index];
+      if (!this.fileForLeaf(leaf)) continue;
+      this.lastDocumentLeaf = leaf;
+      return leaf;
+    }
+
     if (this.isDocumentLeafCandidate(this.lastDocumentLeaf) && this.leafIsVisible(this.lastDocumentLeaf)) return this.lastDocumentLeaf;
 
     const recent = this.app.workspace.getMostRecentLeaf();
@@ -1432,12 +1490,56 @@ export default class ExcaliBrainPlugin extends Plugin {
 
   private fileForLeaf(leaf: WorkspaceLeaf | null): TFile | null {
     if (!leaf) return null;
-    if (leaf.view instanceof FileView && leaf.view.file) return leaf.view.file;
+    const loadedFile = this.loadedFileForLeaf(leaf);
+    if (loadedFile) return loadedFile;
 
     const state = leaf.getViewState().state as { file?: unknown } | undefined;
     if (typeof state?.file !== "string") return null;
-    const abstractFile = this.app.vault.getAbstractFileByPath(state.file);
-    return abstractFile instanceof TFile ? abstractFile : null;
+    return this.app.vault.getFileByPath(state.file);
+  }
+
+  private indexedUrlPathForLeaf(leaf: WorkspaceLeaf): string | null {
+    const url = this.webViewerUrlForLeaf(leaf);
+    if (!url) return null;
+    const exact = this.index.get(url);
+    if (exact?.url) return exact.path;
+    const normalized = this.normalizedWebUrl(url);
+    if (!normalized || normalized === url) return null;
+    const normalizedPage = this.index.get(normalized);
+    return normalizedPage?.url ? normalizedPage.path : null;
+  }
+
+  /** Resolve the newest still-live activation that K-Plex can actually represent. */
+  private findRecentIndexedNavigationTarget(): RecentIndexedNavigationTarget | null {
+    this.validateLinkedDocumentLeaf();
+    const hasActivationHistory = this.recentLeafHistory.length > 0;
+
+    for (let index = this.recentLeafHistory.length - 1; index >= 0; index -= 1) {
+      const leaf = this.recentLeafHistory[index];
+      const file = this.fileForLeaf(leaf);
+      if (file && this.index.get(file.path)) return { leaf, path: file.path, file };
+      const path = this.indexedUrlPathForLeaf(leaf);
+      if (path) return { leaf, path, file: null };
+    }
+
+    // Once explicit activation history exists, never replace its ordering with workspace iteration.
+    // If no historical leaf maps to an indexed target, syncing is a no-op rather than selecting
+    // whichever tab happens to be first in Obsidian's group/workspace traversal.
+    if (hasActivationHistory) return null;
+
+    const recent = this.app.workspace.getMostRecentLeaf();
+    if (recent) {
+      const file = this.fileForLeaf(recent);
+      if (file && this.index.get(file.path)) return { leaf: recent, path: file.path, file };
+      const path = this.indexedUrlPathForLeaf(recent);
+      if (path) return { leaf: recent, path, file: null };
+    }
+
+    const fileLeaf = this.findRecentDocumentLeaf();
+    const file = this.fileForLeaf(fileLeaf);
+    return fileLeaf && file && this.index.get(file.path)
+      ? { leaf: fileLeaf, path: file.path, file }
+      : null;
   }
 
   /** Find an existing workspace leaf that already displays the requested file, preferring the most-recent leaf when it matches. */
@@ -1716,16 +1818,17 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   async syncKplexWithMostRecentTab(): Promise<TFile | null> {
-    const leaf = this.findRecentDocumentLeaf();
-    const file = this.fileForLeaf(leaf);
-    if (!file || !this.index.get(file.path)) return null;
-    this.settings.lastActivePath = file.path;
-    const history = [...this.settings.navigationHistory.filter((path) => path !== file.path), file.path].slice(-40);
+    const target = this.findRecentIndexedNavigationTarget();
+    if (!target) return null;
+    this.settings.lastActivePath = target.path;
+    const history = [...this.settings.navigationHistory.filter((path) => path !== target.path), target.path].slice(-40);
     this.settings.navigationHistory = history;
     await this.saveSettings(false, false);
-    this.notifyNavigation(file.path);
+    this.notifyNavigation(target.path);
     this.index.notify();
-    return file;
+    // Existing callers only use the file return value as an optional extra activation signal.
+    // URL targets already navigate through notifyNavigation(), so returning null is intentional.
+    return target.file;
   }
 
   async showPageInDocumentLeaf(page: GraphPage): Promise<void> {
