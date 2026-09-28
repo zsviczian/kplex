@@ -21,7 +21,7 @@ import { isSearchFocusShortcut } from "../core/plex/shortcutPresentation";
 import type { Translator } from "../lang";
 import { physicalPositionLabel } from "./features/positionPresentation";
 import { searchFieldCopy } from "./features/searchPresentation";
-import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarPosition } from "../settings";
+import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdownMode, SidecarPosition } from "../settings";
 import { SearchBox } from "./features/SearchBox";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { getDraggedMarkdownFile } from "../adapters/obsidian/fileExplorerDrag";
@@ -304,10 +304,29 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 
   const toggleToolbarSetting = async (key: BooleanToolbarSetting) => {
     plugin.settings[key] = !plugin.settings[key];
-    // These toolbar/filter controls are presentation-only. Folder/tag topology and aliases are
-    // already present in the index, so changing their display must never rebuild the semantic graph.
+    // These toolbar/filter controls are presentation-only. Folder/tag topology and aliases reuse
+    // already-materialized graph state, so toggling them must not rebuild the semantic index.
     await plugin.saveSettings(false, true);
     forceRender((value) => value + 1);
+  };
+
+  /** Switch the center presentation immediately; persistence must not delay the node transition. */
+  const setCentralNodeEditorEnabled = (enabled: boolean): void => {
+    if (plugin.settings.embedCentralNode === enabled) return;
+    plugin.settings.embedCentralNode = enabled;
+    forceRender((value) => value + 1);
+    void plugin.saveSettings(false, false).catch((error: unknown) => {
+      console.error("K-Plex failed to save the central-node editor preference.", error);
+    });
+  };
+
+  /** Remember the mode selected in the embedded center so the next center opens the same way. */
+  const rememberCentralNodeMarkdownMode = (mode: SidecarMarkdownMode): void => {
+    if (plugin.settings.centralNodeMarkdownMode === mode) return;
+    plugin.settings.centralNodeMarkdownMode = mode;
+    void plugin.saveSettings(false, false).catch((error: unknown) => {
+      console.error("K-Plex failed to save the central-node Markdown mode.", error);
+    });
   };
 
   const setNodeSortOrder = async (order: NodeSortOrder) => {
@@ -388,6 +407,11 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 
   const handlePlexKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!isSearchFocusShortcut(event)) return;
+    const target = event.target as Element | null;
+    // The central editor is a native Obsidian Markdown surface. Do not steal editor shortcuts
+    // such as Ctrl/Cmd+F while focus is inside it; the graph search remains available from the
+    // toolbar after the editor has been enabled.
+    if (target?.closest(".kplex-central-editor-content")) return;
     event.preventDefault();
     event.stopPropagation();
     activateSearch();
@@ -397,7 +421,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   const handlePlexPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     plugin.dismissKplexMenu();
     const target = event.target as Element | null;
-    if (target?.closest("input, textarea, select, button, a, [contenteditable='true'], [role='button']")) return;
+    if (target?.closest(".kplex-central-editor-content, input, textarea, select, button, a, [contenteditable='true'], [role='button']")) return;
     rootRef.current?.focus({ preventScroll: true });
   };
 
@@ -590,7 +614,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
           <div className="excalibrain-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
           <div className="excalibrain-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="excalibrain-zone-label zone-child">{translate("app.zoneChildren")}</div>
-          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} onActivate={activate} onOpen={open} />
+          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} />
         </section>
       </main>
 

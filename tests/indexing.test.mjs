@@ -288,6 +288,7 @@ for (const file of [
   "src/core/plex/lens.ts",
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/adjacentFileLeaf.ts",
+  "src/adapters/obsidian/embeddedMarkdownLeaf.ts",
   "src/adapters/obsidian/predicateContracts.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts",
   "src/adapters/obsidian/hostLinkSourceCollector.ts",

@@ -833,6 +833,20 @@ const japaneseTranslations = {
   "explain.fieldAtLine": "{field}（{line} 行目）",
   "explain.inlineRelationshipAtLine": "{line} 行目のインライン関係",
   "explain.linkAtLine": "{line} 行目のリンク",
+  "app.useCentralNodeEditor": "中央ノードをエディターにする",
+  "app.useNormalCentralNode": "通常の中央ノードに戻す",
+  "centralEditor.toolbar": "中央ノートエディター",
+  "centralEditor.showPreview": "閲覧ビューを表示",
+  "centralEditor.showEditor": "ノートを編集",
+  "centralEditor.showDrawing": "Excalidraw 図面を表示",
+  "centralEditor.showMarkdown": "Markdown を表示",
+  "centralEditor.maximize": "エディターを拡大",
+  "centralEditor.restore": "エディターを元に戻す",
+  "centralEditor.loading": "ノートを読み込み中…",
+  "centralEditor.unavailable": "埋め込みエディターを利用できません",
+  "settings.centralNodeEditor.heading": "中央ノードエディター",
+  "settings.centralNodeEditor.defaultMode": "既定の Markdown モード",
+  "settings.centralNodeEditor.defaultModeDesc": "中央ノードエディターで Markdown ノートを閲覧ビューまたは編集モードのどちらで開くかを選択します。",
   "filter.untitledLens": "無題のレンズ"
 } as const satisfies LocaleTranslationMap;
 

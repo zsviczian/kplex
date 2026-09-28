@@ -272,6 +272,35 @@
 .excalibrain-role-sibling { opacity: .86; }
 .excalibrain-role-sibling.is-dimmed { opacity: .22; }
 .excalibrain-thought-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kplex-thought-corner-action {
+  position: absolute;
+  z-index: 22;
+  top: -6px;
+  right: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--eb-muted);
+  background: rgba(13, 18, 25, .36);
+  cursor: pointer;
+  opacity: .76;
+}
+.kplex-thought-corner-action:hover,
+.kplex-thought-corner-action:focus-visible {
+  color: var(--eb-text);
+  border-color: var(--eb-line);
+  background: rgba(255, 255, 255, .10);
+  opacity: 1;
+}
+.kplex-thought-corner-action:focus-visible {
+  outline: 1px solid var(--eb-accent);
+  outline-offset: 1px;
+}
 .excalibrain-count {
   display: inline-flex;
   flex: 0 0 auto;
@@ -2920,4 +2949,180 @@ button.kplex-style-manager-row { height: fit-content; }
     padding-bottom: 0;
     align-items: center;
   }
+}
+
+/* Central-node editor: native Obsidian view hosted above the transformed graph camera. */
+.kplex-central-editor-overlay {
+  position: absolute;
+  z-index: 26;
+  box-sizing: border-box;
+  padding: 6px;
+  overflow: visible;
+  border: 1px solid var(--background-modifier-border-hover);
+  border-radius: 18px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  box-shadow: 0 0 0 1px var(--background-modifier-border), 0 10px 34px var(--background-modifier-box-shadow);
+}
+.kplex-central-editor-overlay.is-maximized {
+  box-shadow: 0 0 0 1px var(--background-modifier-border-hover), 0 12px 42px var(--background-modifier-box-shadow);
+}
+.kplex-central-editor-placeholder {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.excalibrain-thought.has-embedded-content {
+  padding: 6px;
+  overflow: visible;
+  cursor: default;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border-hover);
+  box-shadow: 0 0 0 1px var(--background-modifier-border), 0 10px 34px var(--background-modifier-box-shadow);
+}
+.excalibrain-thought.has-embedded-content:hover,
+.excalibrain-thought.has-embedded-content.is-highlighted {
+  filter: none;
+}
+.kplex-thought-embedded-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  text-align: start;
+  line-height: normal;
+  user-select: text;
+  cursor: text;
+  touch-action: pan-x pan-y;
+}
+.kplex-central-editor-content,
+.kplex-central-editor-leaf-host,
+.kplex-embedded-workspace-root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+.kplex-central-editor-content {
+  position: relative;
+  overflow: visible;
+  border-radius: inherit;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  isolation: isolate;
+  touch-action: pan-x pan-y;
+}
+.kplex-central-editor-leaf-host,
+.kplex-embedded-workspace-root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--background-primary);
+}
+.kplex-embedded-workspace-split {
+  display: flex;
+  flex-direction: column;
+}
+.kplex-central-editor-overlay.is-native-view-fullscreen {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-leaf-host,
+.kplex-central-editor-overlay.is-native-view-fullscreen .kplex-embedded-workspace-root {
+  border-radius: 0;
+}
+.kplex-central-editor-overlay.is-native-view-fullscreen .kplex-central-editor-toolbar {
+  display: none;
+}
+.kplex-central-editor-leaf-host .workspace-tab-header-container,
+.kplex-central-editor-leaf-host .view-header {
+  display: none;
+}
+.kplex-central-editor-leaf-host .workspace-leaf,
+.kplex-central-editor-leaf-host .workspace-leaf-content,
+.kplex-central-editor-leaf-host .view-content,
+.kplex-central-editor-leaf-host .markdown-source-view,
+.kplex-central-editor-leaf-host .markdown-reading-view {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+.kplex-central-editor-leaf-host .workspace-leaf-content,
+.kplex-central-editor-leaf-host .view-content {
+  overflow: hidden;
+}
+.kplex-central-editor-leaf-host .cm-scroller,
+.kplex-central-editor-leaf-host .markdown-reading-view,
+.kplex-central-editor-leaf-host .markdown-preview-view {
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+.kplex-central-editor-toolbar {
+  position: absolute;
+  z-index: 32;
+  top: -28px;
+  right: 1px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--eb-line);
+  border-radius: 6px;
+  background: var(--eb-panel);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .28);
+}
+.kplex-central-editor-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--eb-muted);
+  background: transparent;
+}
+.kplex-central-editor-toolbar button:hover,
+.kplex-central-editor-toolbar button:focus-visible {
+  color: var(--eb-text);
+  background: rgba(255, 255, 255, .10);
+}
+.kplex-central-editor-toolbar button:focus-visible {
+  outline: 1px solid var(--eb-accent);
+  outline-offset: -1px;
+}
+.kplex-central-editor-status {
+  position: absolute;
+  z-index: 31;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100% - 36px);
+  padding: 6px 9px;
+  border-radius: 7px;
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-smaller);
+  pointer-events: none;
+}
+.kplex-central-editor-status.is-error { color: var(--text-error); }
+.excalibrain-plex.is-central-editor-maximized .excalibrain-zoom-controls,
+.excalibrain-plex.is-central-editor-maximized .kplex-layout-controls {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.excalibrain-plex.is-central-editor-maximized .excalibrain-role-center.has-embedded-content {
+  box-shadow: none;
 }

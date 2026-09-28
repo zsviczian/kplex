@@ -4087,6 +4087,21 @@ export const englishCatalog = {
     params: ["line"],
   },
 
+  "app.useCentralNodeEditor": { message: "Use editor as central node", context: "Toolbar action that replaces the compact center thought with an embedded native Markdown view.", params: [] },
+  "app.useNormalCentralNode": { message: "Use normal central node", context: "Toolbar action that restores the compact center thought instead of the embedded Markdown view.", params: [] },
+  "centralEditor.toolbar": { message: "Central note editor", context: "Accessible label for controls over the Markdown view embedded in the central Plex node.", params: [] },
+  "centralEditor.showPreview": { message: "Show reading view", context: "Switch the embedded central Markdown note from source editing to reading view.", params: [] },
+  "centralEditor.showEditor": { message: "Edit note", context: "Switch the embedded central Markdown note from reading view to source editing.", params: [] },
+  "centralEditor.showDrawing": { message: "Show Excalidraw drawing", context: "Switch an Excalidraw-backed central note from its Markdown representation to the drawing canvas.", params: [] },
+  "centralEditor.showMarkdown": { message: "Show Markdown", context: "Switch an Excalidraw-backed central note from the drawing canvas to its Markdown representation.", params: [] },
+  "centralEditor.maximize": { message: "Expand editor", context: "Grow the embedded central note to nearly fill the Plex canvas while retaining a small graph margin.", params: [] },
+  "centralEditor.restore": { message: "Restore editor", context: "Restore the embedded central note from its expanded size to the normal Plex layout.", params: [] },
+  "centralEditor.loading": { message: "Loading note…", context: "Short transient status while the native central Markdown leaf opens its note.", params: [] },
+  "centralEditor.unavailable": { message: "Embedded editor unavailable", context: "Status shown if Obsidian cannot create or open the native central Markdown leaf.", params: [] },
+  "settings.centralNodeEditor.heading": { message: "Central node editor", context: "Settings group for the Markdown editor that can replace the central Plex node.", params: [] },
+  "settings.centralNodeEditor.defaultMode": { message: "Default Markdown mode", context: "Setting for whether the embedded central Markdown note starts in edit or reading view.", params: [] },
+  "settings.centralNodeEditor.defaultModeDesc": { message: "Choose whether the central node editor opens Markdown notes in reading view or edit mode.", context: "Description of the default mode setting for the embedded central Markdown editor.", params: [] },
+
   "filter.untitledLens": {
     message: "Untitled lens",
     context: "Fallback display name for a legacy or malformed Graph Lens whose persisted name is blank.",

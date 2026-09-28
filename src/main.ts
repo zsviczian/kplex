@@ -23,6 +23,7 @@ import { createObsidianTranslator } from "./adapters/obsidian/localization";
 import { createTranslator, type Translator } from "./lang";
 import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurface } from "./core/plex/viewPresentation";
 import { createAdjacentFileLeaf } from "./adapters/obsidian/adjacentFileLeaf";
+import { isEmbeddedMarkdownLeaf } from "./adapters/obsidian/embeddedMarkdownLeaf";
 import { perfNow } from "./util/perf";
 
 type LoadAwareView = FileView & { _loaded?: boolean };
@@ -953,7 +954,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   }
 
   private isDocumentLeafCandidate(leaf: WorkspaceLeaf | null): leaf is WorkspaceLeaf {
-    if (!leaf || this.isManagedSidecarLeaf(leaf)) return false;
+    if (!leaf || isEmbeddedMarkdownLeaf(leaf) || this.isManagedSidecarLeaf(leaf)) return false;
     const viewState = leaf.getViewState();
     if (viewState.type === EXCALIBRAIN_VIEW_TYPE || viewState.type === KPLEX_SIDEPANEL_VIEW_TYPE) return false;
     if (viewState.type === "empty" || leaf.view instanceof FileView) return true;

@@ -274,6 +274,8 @@ Friends/challengers and siblings may extend upward into otherwise unused parent-
 
 When their occupied strip fits, Friends/Previous and Challengers/Next are **bottom-aligned** within their shared-height lateral bands and grow upward. A sparse lateral list (including a single node) must stay near the lower edge of the lateral region instead of being centered high in the available band. Overflowing strips remain scrollable; if filtering reduces an overflowed lateral zone to a result set that fits, preserve the same bottom-aligned behavior.
 
+The native central-node editor is the deliberate exception: while its oversized center rectangle is active, friend/challenger and sibling strips are vertically centered beside that rectangle so they do not collect around its lower corners. Returning to the normal center restores the standard bottom-aligned lateral layout.
+
 Leave a small vertical gap between the bottom of lateral zones and the start of children; children should sit slightly lower than in the earlier layout.
 
 Siblings:

@@ -837,6 +837,20 @@ const dutchTranslations = {
   "explain.fieldAtLine": "{field} op regel {line}",
   "explain.inlineRelationshipAtLine": "Inline-relatie op regel {line}",
   "explain.linkAtLine": "Link op regel {line}",
+  "app.useCentralNodeEditor": "Editor als centraal knooppunt gebruiken",
+  "app.useNormalCentralNode": "Normaal centraal knooppunt gebruiken",
+  "centralEditor.toolbar": "Editor voor centrale notitie",
+  "centralEditor.showPreview": "Leesweergave tonen",
+  "centralEditor.showEditor": "Notitie bewerken",
+  "centralEditor.showDrawing": "Excalidraw-tekening tonen",
+  "centralEditor.showMarkdown": "Markdown tonen",
+  "centralEditor.maximize": "Editor vergroten",
+  "centralEditor.restore": "Editor herstellen",
+  "centralEditor.loading": "Notitie laden…",
+  "centralEditor.unavailable": "Ingesloten editor niet beschikbaar",
+  "settings.centralNodeEditor.heading": "Editor voor centraal knooppunt",
+  "settings.centralNodeEditor.defaultMode": "Standaard Markdown-modus",
+  "settings.centralNodeEditor.defaultModeDesc": "Kies of de editor van het centrale knooppunt Markdown-notities opent in leesweergave of bewerkingsmodus.",
   "filter.untitledLens": "Naamloze lens"
 } as const satisfies LocaleTranslationMap;
 

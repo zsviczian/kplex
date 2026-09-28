@@ -845,6 +845,20 @@ const russianTranslations = {
   "explain.fieldAtLine": "{field} в строке {line}",
   "explain.inlineRelationshipAtLine": "Встроенное отношение в строке {line}",
   "explain.linkAtLine": "Ссылка в строке {line}",
+  "app.useCentralNodeEditor": "Использовать редактор как центральный узел",
+  "app.useNormalCentralNode": "Использовать обычный центральный узел",
+  "centralEditor.toolbar": "Редактор центральной заметки",
+  "centralEditor.showPreview": "Показать режим чтения",
+  "centralEditor.showEditor": "Редактировать заметку",
+  "centralEditor.showDrawing": "Показать рисунок Excalidraw",
+  "centralEditor.showMarkdown": "Показать Markdown",
+  "centralEditor.maximize": "Развернуть редактор",
+  "centralEditor.restore": "Восстановить редактор",
+  "centralEditor.loading": "Загрузка заметки…",
+  "centralEditor.unavailable": "Встроенный редактор недоступен",
+  "settings.centralNodeEditor.heading": "Редактор центрального узла",
+  "settings.centralNodeEditor.defaultMode": "Режим Markdown по умолчанию",
+  "settings.centralNodeEditor.defaultModeDesc": "Выберите, открывать ли Markdown-заметки в редакторе центрального узла в режиме чтения или редактирования.",
   "filter.untitledLens": "Линза без названия"
 } as const satisfies LocaleTranslationMap;
 

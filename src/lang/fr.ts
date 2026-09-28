@@ -841,6 +841,20 @@ const frenchTranslations = {
   "explain.fieldAtLine": "{field} à la ligne {line}",
   "explain.inlineRelationshipAtLine": "Relation en ligne à la ligne {line}",
   "explain.linkAtLine": "Lien à la ligne {line}",
+  "app.useCentralNodeEditor": "Utiliser l’éditeur comme nœud central",
+  "app.useNormalCentralNode": "Utiliser le nœud central normal",
+  "centralEditor.toolbar": "Éditeur de la note centrale",
+  "centralEditor.showPreview": "Afficher le mode lecture",
+  "centralEditor.showEditor": "Modifier la note",
+  "centralEditor.showDrawing": "Afficher le dessin Excalidraw",
+  "centralEditor.showMarkdown": "Afficher le Markdown",
+  "centralEditor.maximize": "Agrandir l’éditeur",
+  "centralEditor.restore": "Restaurer l’éditeur",
+  "centralEditor.loading": "Chargement de la note…",
+  "centralEditor.unavailable": "Éditeur intégré indisponible",
+  "settings.centralNodeEditor.heading": "Éditeur du nœud central",
+  "settings.centralNodeEditor.defaultMode": "Mode Markdown par défaut",
+  "settings.centralNodeEditor.defaultModeDesc": "Choisissez si l’éditeur du nœud central ouvre les notes Markdown en mode lecture ou en mode édition.",
   "filter.untitledLens": "Lentille sans titre"
 } as const satisfies LocaleTranslationMap;
 

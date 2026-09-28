@@ -833,6 +833,20 @@ const traditionalChineseTranslations = {
   "explain.fieldAtLine": "{field}，第 {line} 行",
   "explain.inlineRelationshipAtLine": "第 {line} 行的行內關係",
   "explain.linkAtLine": "第 {line} 行的連結",
+  "app.useCentralNodeEditor": "將編輯器設為中央節點",
+  "app.useNormalCentralNode": "使用一般中央節點",
+  "centralEditor.toolbar": "中央筆記編輯器",
+  "centralEditor.showPreview": "顯示閱讀檢視",
+  "centralEditor.showEditor": "編輯筆記",
+  "centralEditor.showDrawing": "顯示 Excalidraw 繪圖",
+  "centralEditor.showMarkdown": "顯示 Markdown",
+  "centralEditor.maximize": "放大編輯器",
+  "centralEditor.restore": "還原編輯器",
+  "centralEditor.loading": "正在載入筆記…",
+  "centralEditor.unavailable": "無法使用內嵌編輯器",
+  "settings.centralNodeEditor.heading": "中央節點編輯器",
+  "settings.centralNodeEditor.defaultMode": "預設 Markdown 模式",
+  "settings.centralNodeEditor.defaultModeDesc": "選擇中央節點編輯器開啟 Markdown 筆記時使用閱讀檢視或編輯模式。",
   "filter.untitledLens": "未命名透鏡"
 } as const satisfies LocaleTranslationMap;
 

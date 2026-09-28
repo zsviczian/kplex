@@ -179,6 +179,7 @@ export interface ExcaliBrainSettings {
   allowAutofocuOnSearch: boolean;
   defaultAlwaysOnTop: boolean;
   embedCentralNode: boolean;
+  centralNodeMarkdownMode: SidecarMarkdownMode;
   centerEmbedWidth: number;
   centerEmbedHeight: number;
   // React/K-Plex additions. Existing ExcaliBrain data.json files simply omit these.
@@ -301,6 +302,7 @@ export const DEFAULT_SETTINGS: ExcaliBrainSettings = {
   allowAutofocuOnSearch: true,
   defaultAlwaysOnTop: false,
   embedCentralNode: false,
+  centralNodeMarkdownMode: "source",
   centerEmbedWidth: 550,
   centerEmbedHeight: 700,
   showContentPane: false,
@@ -467,6 +469,11 @@ export function migrateAndMergeSettings(raw: unknown): ExcaliBrainSettings {
     pinnedNodes: Array.isArray(old.pinnedNodes) ? old.pinnedNodes.filter((value): value is string => typeof value === "string") : [],
     layoutProfiles: migratedProfiles,
     mouseInteractionMode: old.mouseInteractionMode === "legacy" || old.mouseInteractionMode === "middle-only" ? old.mouseInteractionMode : "smart",
+    // ExcaliBrain persisted `embedCentralNode` for its own center presentation. K-Plex's native
+    // embedded editor is a different, explicitly opt-in surface, so legacy imports must start
+    // with the normal central node. Existing initialized K-Plex vaults keep the user's choice.
+    embedCentralNode: old.kplexInitialized ? Boolean(old.embedCentralNode) : false,
+    centralNodeMarkdownMode: old.centralNodeMarkdownMode === "preview" ? "preview" : "source",
     toolbarExpanded: Boolean(old.toolbarExpanded),
     sidecarOpen: Boolean(old.sidecarOpen),
     sidecarPosition: old.sidecarPosition === "left" || old.sidecarPosition === "above" || old.sidecarPosition === "below" ? old.sidecarPosition : "right",
@@ -1332,6 +1339,11 @@ class LegacySettingsImportModal extends Modal {
         this.plugin.settings = migrateAndMergeSettings({
           ...current,
           ...imported,
+          // ExcaliBrain's central-node embedding preference has different semantics from K-Plex's
+          // native editor toggle. A manual legacy import must not unexpectedly switch the Plex
+          // presentation or overwrite the user's K-Plex editor-mode preference.
+          embedCentralNode: current.embedCentralNode,
+          centralNodeMarkdownMode: current.centralNodeMarkdownMode,
           hierarchy: { ...current.hierarchy, ...importedHierarchy },
         });
       } catch (error) {
@@ -1631,6 +1643,22 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
                 control: { type: "dropdown", key: "mouseInteractionMode", defaultValue: "smart", options: { smart: translate("settings.ui.smart.recommended"), legacy: translate("settings.ui.legacy.any.button.pans"), "middle-only": translate("settings.ui.middle.button.pans") } }
               },
             ]
+          },
+          {
+            type: "group",
+            heading: translate("settings.centralNodeEditor.heading"),
+            items: [
+              {
+                name: translate("settings.centralNodeEditor.defaultMode"),
+                desc: translate("settings.centralNodeEditor.defaultModeDesc"),
+                control: {
+                  type: "dropdown",
+                  key: "centralNodeMarkdownMode",
+                  defaultValue: "source",
+                  options: { source: translate("settings.ui.edit.mode"), preview: translate("settings.ui.reading.view") },
+                },
+              },
+            ],
           },
           {
             type: "group",

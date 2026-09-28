@@ -837,6 +837,20 @@ const germanTranslations = {
   "explain.fieldAtLine": "{field} in Zeile {line}",
   "explain.inlineRelationshipAtLine": "Inline-Beziehung in Zeile {line}",
   "explain.linkAtLine": "Link in Zeile {line}",
+  "app.useCentralNodeEditor": "Editor als zentralen Knoten verwenden",
+  "app.useNormalCentralNode": "Normalen zentralen Knoten verwenden",
+  "centralEditor.toolbar": "Editor der zentralen Notiz",
+  "centralEditor.showPreview": "Leseansicht anzeigen",
+  "centralEditor.showEditor": "Notiz bearbeiten",
+  "centralEditor.showDrawing": "Excalidraw-Zeichnung anzeigen",
+  "centralEditor.showMarkdown": "Markdown anzeigen",
+  "centralEditor.maximize": "Editor vergrößern",
+  "centralEditor.restore": "Editor wiederherstellen",
+  "centralEditor.loading": "Notiz wird geladen…",
+  "centralEditor.unavailable": "Eingebetteter Editor nicht verfügbar",
+  "settings.centralNodeEditor.heading": "Editor des zentralen Knotens",
+  "settings.centralNodeEditor.defaultMode": "Standard-Markdownmodus",
+  "settings.centralNodeEditor.defaultModeDesc": "Wählen Sie, ob der Editor des zentralen Knotens Markdown-Notizen in der Leseansicht oder im Bearbeitungsmodus öffnet.",
   "filter.untitledLens": "Unbenannte Linse"
 } as const satisfies LocaleTranslationMap;
 
