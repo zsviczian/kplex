@@ -206,6 +206,7 @@ const germanTranslations = {
   "notice.relationshipNeedsMarkdown": "Mindestens eine Seite der Beziehung muss eine Markdown-Notiz sein.",
   "notice.excalidrawLegacyDrawing": "Excalidraw hat eine ältere Nicht-Markdown-Zeichnung erstellt. Aktivieren Sie Markdown-Excalidraw-Dateien in den Excalidraw-Einstellungen, um sie als K-Plex-Notiz zu verwenden.",
   "notice.excalidrawUnavailable": "Excalidraw ist nicht verfügbar.",
+  "notice.excalidrawUpdateRequired": "Aktualisieren Sie Excalidraw auf Version {version} oder neuer, um die vollständige K-Plex-Zeichnungsintegration zu nutzen. Die Zeichnung wurde im Kompatibilitätsmodus geöffnet.",
   "error.excalidrawCreatedFileMissing": "Excalidraw hat keine erstellte Datei zurückgegeben.",
   "error.relationshipRequiresMarkdownEndpoint": "Eine neue K-Plex-Beziehung benötigt mindestens einen Markdown-Endpunkt.",
   "notice.webLinkMarkdownOnly": "Weblinks können nur von einem Markdown-Knoten hinzugefügt werden.",
@@ -845,6 +846,20 @@ const germanTranslations = {
   "explain.fieldAtLine": "{field} in Zeile {line}",
   "explain.inlineRelationshipAtLine": "Inline-Beziehung in Zeile {line}",
   "explain.linkAtLine": "Link in Zeile {line}",
+  "app.useCentralNodeEditor": "Editor als zentralen Knoten verwenden",
+  "app.useNormalCentralNode": "Normalen zentralen Knoten verwenden",
+  "centralEditor.toolbar": "Editor der zentralen Notiz",
+  "centralEditor.showPreview": "Leseansicht anzeigen",
+  "centralEditor.showEditor": "Notiz bearbeiten",
+  "centralEditor.showDrawing": "Excalidraw-Zeichnung anzeigen",
+  "centralEditor.showMarkdown": "Markdown anzeigen",
+  "centralEditor.maximize": "Editor vergrößern",
+  "centralEditor.restore": "Editor wiederherstellen",
+  "centralEditor.loading": "Notiz wird geladen…",
+  "centralEditor.unavailable": "Eingebetteter Editor nicht verfügbar",
+  "settings.centralNodeEditor.heading": "Editor des zentralen Knotens",
+  "settings.centralNodeEditor.defaultMode": "Standard-Markdownmodus",
+  "settings.centralNodeEditor.defaultModeDesc": "Wählen Sie, ob der Editor des zentralen Knotens Markdown-Notizen in der Leseansicht oder im Bearbeitungsmodus öffnet.",
   "filter.untitledLens": "Unbenannte Linse"
 } as const satisfies LocaleTranslationMap;
 

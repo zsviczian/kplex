@@ -6,15 +6,16 @@ import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
 import { addNativeSubmenu } from "../adapters/obsidian/nativeSubmenu";
 import type ExcaliBrainPlugin from "../main";
 import type { GraphIndex } from "../index/GraphIndex";
-import type { ExcaliBrainSettings, KplexViewSurface } from "../settings";
+import type { ExcaliBrainSettings, KplexViewSurface, SidecarMarkdownMode } from "../settings";
 import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle, NodeVisual, PositionedEdge, PositionedNode, Role, ScrollZone } from "../types";
 import { LinkDirection, RelationType } from "../types";
 import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle } from "../index/style";
-import { buildScene, buildSectionExpandedScene, effectiveLabelLimit, expandedChildReserve, gateDiameter, siblingScale, type ZoneAreaBounds, type ZoneViewport } from "./layout";
+import { buildScene, buildSectionExpandedScene, effectiveLabelLimit, expandedChildReserve, gateDiameter, siblingScale, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
 import { ResizableAreaFrame } from "./components/ResizableAreaFrame";
 import { ThoughtNode, type ConnectionDragState } from "./ThoughtNode";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { ObsidianIcon } from "./ObsidianIcon";
+import { CentralNodeEditor } from "./CentralNodeEditor";
 import { RelationshipExplanationModal } from "./RelationshipExplanationModal";
 import { RenameNoteModal } from "./RenameNoteModal";
 import { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion, type CentralSectionExpansion } from "../index/SectionExpansion";
@@ -651,7 +652,7 @@ function Edge({
 }
 
 /** Compose the deterministic Plex scene and interaction handlers, using localized UI copy without rebuilding semantic state for presentation changes. */
-export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, areaSettingsMode, onAreaSettingsModeChange, onActivate, onOpen }: {
+export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, areaSettingsMode, onAreaSettingsModeChange, onActivate, onOpen, onCentralNodeEditorChange, onCentralNodeModeChange }: {
   plugin: ExcaliBrainPlugin;
   index: GraphIndex;
   settings: ExcaliBrainSettings;
@@ -668,6 +669,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   onAreaSettingsModeChange: (enabled: boolean) => void;
   onActivate: (page: GraphPage) => void;
   onOpen: (page: GraphPage) => void;
+  onCentralNodeEditorChange: (enabled: boolean) => void;
+  onCentralNodeModeChange: (mode: SidecarMarkdownMode) => void;
 }) {
   const translate = plugin.translator;
   const predicateEngine = useMemo(() => new GraphPredicateEngine(plugin.app), [plugin]);
@@ -675,6 +678,35 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   // pointer/camera/hover state updates; only rebuild it when navigation, settings, or the index
   // actually changes. This removes the largest source of wasted work in dense Plex scenes.
   const persistentNeighborhood = useMemo(() => index.getNeighborhood(activePath), [index, activePath, renderRevision]);
+  const centralEditorCapable = Boolean(
+    persistentNeighborhood?.center.file
+    && persistentNeighborhood.center.file.extension === "md",
+  );
+  const centralEditorAvailable = settings.embedCentralNode && centralEditorCapable;
+  const centralEditorCanMaximize = surface !== "sidepanel";
+  const [centralEditorMaximized, setCentralEditorMaximized] = useState(false);
+  const centralEditorAvailabilityRef = useRef(centralEditorAvailable);
+  const centralEditorSizeKeyRef = useRef("");
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const centralEditorRestoreCamera = useRef<{ x: number; y: number; scale: number } | null>(null);
+  const restoreCentralEditorCamera = useRef(false);
+  const centralEditorSize = useMemo<CenterNodeSize | undefined>(() => {
+    if (!centralEditorAvailable) return undefined;
+    if (centralEditorCanMaximize && centralEditorMaximized && viewportSize.width > 0 && viewportSize.height > 0) {
+      return {
+        width: Math.max(280, viewportSize.width - 36),
+        // Reserve enough top/bottom Plex margin for the editor-local controls to sit outside the
+        // document while still communicating that the user remains inside the graph surface.
+        height: Math.max(220, viewportSize.height - 60),
+      };
+    }
+    const availableWidth = viewportSize.width > 0 ? Math.max(180, viewportSize.width - 24) : Number.POSITIVE_INFINITY;
+    const availableHeight = viewportSize.height > 0 ? Math.max(220, viewportSize.height - 80) : Number.POSITIVE_INFINITY;
+    return {
+      width: Math.min(availableWidth, Math.max(360, Math.min(720, settings.centerEmbedWidth))),
+      height: Math.min(availableHeight, Math.max(260, Math.min(460, settings.centerEmbedHeight))),
+    };
+  }, [centralEditorAvailable, centralEditorCanMaximize, centralEditorMaximized, viewportSize.width, viewportSize.height, settings.centerEmbedWidth, settings.centerEmbedHeight]);
   const [sectionExpanded, setSectionExpanded] = useState(false);
   const sectionEvidenceRevision = useMemo(() => {
     if (!sectionExpanded || !persistentNeighborhood?.center.file || persistentNeighborhood.center.file.extension !== "md") return "";
@@ -753,8 +785,14 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     return filterNeighborhoodForLenses(neighborhood, neighborhood.center, predicateEngine, index, predicate, lenses);
   }, [neighborhood, globalFiltering, filterLayoutMode, layoutSectionExpansion, predicateEngine, index, predicate, lenses, predicateRevision]);
   const scene = useMemo(() => layoutNeighborhood
-    ? (layoutSectionExpansion ? buildSectionExpandedScene(layoutSectionExpansion, index, settings, expandedSectionIds, showCrossLinks) : buildScene(layoutNeighborhood, index, settings, showCrossLinks))
-    : { nodes: [], edges: [], zoneViewports: {}, zoneAreas: {} }, [layoutNeighborhood, layoutSectionExpansion, expandedSectionIds, index, settings, layoutRevision, showCrossLinks]);
+    ? (layoutSectionExpansion
+      ? buildSectionExpandedScene(layoutSectionExpansion, index, settings, expandedSectionIds, showCrossLinks, centralEditorSize)
+      : buildScene(layoutNeighborhood, index, settings, showCrossLinks, centralEditorSize))
+    : { nodes: [], edges: [], zoneViewports: {}, zoneAreas: {} }, [layoutNeighborhood, layoutSectionExpansion, expandedSectionIds, index, settings, layoutRevision, showCrossLinks, centralEditorSize]);
+  const centralEditorNode = useMemo(() => centralEditorAvailable
+    ? scene.nodes.find((node) => node.role === "center") ?? null
+    : null, [centralEditorAvailable, scene.nodes]);
+  const centralEditorFile = centralEditorAvailable ? persistentNeighborhood?.center.file ?? null : null;
   const [nodeVisuals, setNodeVisuals] = useState<Map<string, NodeVisual>>(new Map());
   const visualRefreshTimers = useRef(new Map<string, number>());
   const visualPages = useMemo(() => [...new Map(
@@ -805,7 +843,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   }, [plugin, index, visualPageByPath, settings.thumbnailProperty, settings.nodeImageProperty, settings.attachmentImageDisplay]);
   const viewport = useRef<HTMLDivElement | null>(null);
   const cameraElement = useRef<HTMLDivElement | null>(null);
+  const centralEditorOverlayElement = useRef<HTMLDivElement | null>(null);
   const cameraFrame = useRef<number | null>(null);
+  const cameraFrameWindow = useRef<Window | null>(null);
   const zoneScrollRefs = useRef<Partial<Record<ScrollZone, HTMLDivElement>>>({});
   const camera = useRef({ x: 0, y: 0, scale: 1 });
   const [hover, setHover] = useState<HoverState>(null);
@@ -974,6 +1014,24 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   }, [activePath, settings.animationSpeed]);
 
   useEffect(() => {
+    if (!centralEditorAvailable || !sectionExpanded) return;
+    preserveCameraOnNextLayout.current = true;
+    suppressAutoFitUntil.current = Date.now() + 2500;
+    setSectionExpanded(false);
+    setSectionExpansion(null);
+    setExpandedSectionIds(new Set());
+    sectionFoldCenter.current = null;
+  }, [centralEditorAvailable, sectionExpanded]);
+
+  useEffect(() => {
+    if (centralEditorAvailable || !centralEditorMaximized) return;
+    preserveCameraOnNextLayout.current = true;
+    suppressAutoFitUntil.current = Date.now() + 2500;
+    restoreCentralEditorCamera.current = centralEditorRestoreCamera.current !== null;
+    setCentralEditorMaximized(false);
+  }, [centralEditorAvailable, centralEditorMaximized]);
+
+  useEffect(() => {
     let cancelled = false;
     if (!sectionExpanded || !persistentNeighborhood?.center.file || persistentNeighborhood.center.file.extension !== "md") {
       setSectionExpansion(null);
@@ -1004,19 +1062,39 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     });
     return () => { cancelled = true; };
   }, [sectionExpanded, persistentNeighborhood?.center.path, sectionEvidenceRevision, plugin, index, settings.animationSpeed]);
+  /** Keep the native central editor in viewport coordinates so host canvases are never scaled by a DOM transform. */
+  const syncCentralEditorOverlay = (): void => {
+    const overlay = centralEditorOverlayElement.current;
+    if (!overlay || !centralEditorNode || !centralEditorFile) return;
+    if (overlay.classList.contains("is-native-view-fullscreen")) return;
+    const current = camera.current;
+    const width = Math.max(1, centralEditorNode.width * current.scale);
+    const height = Math.max(1, centralEditorNode.height * current.scale);
+    overlay.style.left = `${current.x + (centralEditorNode.x - centralEditorNode.width / 2) * current.scale}px`;
+    overlay.style.top = `${current.y + (centralEditorNode.y - centralEditorNode.height / 2) * current.scale}px`;
+    overlay.style.width = `${width}px`;
+    overlay.style.height = `${height}px`;
+  };
+
   const applyCamera = (nextOrUpdater: { x: number; y: number; scale: number } | ((current: { x: number; y: number; scale: number }) => { x: number; y: number; scale: number })) => {
     const next = typeof nextOrUpdater === "function" ? nextOrUpdater(camera.current) : nextOrUpdater;
     camera.current = next;
     // Pointer streams on iOS can deliver substantially more events than the screen can paint.
-    // Coalesce camera writes to one per animation frame, and use a 2D transform rather than
-    // forcing the entire Plex into a large GPU-backed 3D compositing layer.
+    // Coalesce camera writes to one per animation frame, and use a 2D transform for graph-only
+    // content. Native embedded views are positioned separately above the camera so Excalidraw and
+    // other host canvases continue receiving untransformed pointer coordinates at every Plex zoom.
     if (cameraFrame.current === null) {
-      cameraFrame.current = window.requestAnimationFrame(() => {
+      const viewWindow = cameraElement.current?.ownerDocument.defaultView ?? viewport.current?.ownerDocument.defaultView ?? window;
+      cameraFrameWindow.current = viewWindow;
+      cameraFrame.current = viewWindow.requestAnimationFrame(() => {
         cameraFrame.current = null;
+        cameraFrameWindow.current = null;
         const element = cameraElement.current;
-        if (!element) return;
-        const current = camera.current;
-        element.style.transform = `translate(${current.x}px, ${current.y}px) scale(${current.scale})`;
+        if (element) {
+          const current = camera.current;
+          element.style.transform = `translate(${current.x}px, ${current.y}px) scale(${current.scale})`;
+        }
+        syncCentralEditorOverlay();
       });
     }
     return next;
@@ -1024,13 +1102,56 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
   const flushCameraTransform = () => {
     const element = cameraElement.current;
-    if (!element) return;
     const current = camera.current;
-    element.style.transform = `translate(${current.x}px, ${current.y}px) scale(${current.scale})`;
+    if (element) element.style.transform = `translate(${current.x}px, ${current.y}px) scale(${current.scale})`;
+    syncCentralEditorOverlay();
   };
+
+  /** Expand or restore the embedded central editor without losing the user's previous Plex camera. */
+  const setCentralEditorMaximizedState = (maximized: boolean): void => {
+    if (maximized && !centralEditorCanMaximize) return;
+    if (maximized === centralEditorMaximized) return;
+    preserveCameraOnNextLayout.current = true;
+    suppressAutoFitUntil.current = Date.now() + 2500;
+    if (maximized) {
+      centralEditorRestoreCamera.current = { ...camera.current };
+      restoreCentralEditorCamera.current = false;
+    } else {
+      restoreCentralEditorCamera.current = true;
+    }
+    setCentralEditorMaximized(maximized);
+  };
+
+  /** Restore the graph camera when necessary, then return the center to its compact Plex node. */
+  const collapseCentralEditor = (): void => {
+    if (centralEditorMaximized && centralEditorRestoreCamera.current) {
+      restoreCentralEditorCamera.current = false;
+      applyCamera(centralEditorRestoreCamera.current);
+      centralEditorRestoreCamera.current = null;
+      flushCameraTransform();
+    }
+    setCentralEditorMaximized(false);
+    onCentralNodeEditorChange(false);
+  };
+
+  useLayoutEffect(() => {
+    const el = viewport.current;
+    if (!el) return;
+    if (centralEditorMaximized && centralEditorAvailable) {
+      applyCamera({ x: el.clientWidth / 2, y: el.clientHeight / 2, scale: 1 });
+      flushCameraTransform();
+      return;
+    }
+    if (!restoreCentralEditorCamera.current || !centralEditorRestoreCamera.current) return;
+    restoreCentralEditorCamera.current = false;
+    applyCamera(centralEditorRestoreCamera.current);
+    centralEditorRestoreCamera.current = null;
+    flushCameraTransform();
+  }, [centralEditorMaximized, centralEditorAvailable, viewportSize.width, viewportSize.height]);
 
   const sceneLayoutKey = [
     activePath,
+    centralEditorSize ? `central-editor:${centralEditorSize.width}:${centralEditorSize.height}` : "central-editor:-",
     scene.nodes.map((node) => `${node.role}:${node.page.path}`).join("|"),
     ...ZONES.map((zone) => {
       const panel = scene.zoneViewports[zone];
@@ -1042,12 +1163,16 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     const root = viewport.current;
     if (!root) return;
 
-    // Recenter only for initial display or explicit navigation. Index/metadata updates often add
-    // or move thoughts a second after an autosave or Sync event; those updates must preserve the
+    // Recenter only for initial display, explicit navigation, or an explicit central-editor mode
+    // toggle. Index/metadata updates often add or move thoughts after an autosave or Sync event;
+    // those updates must preserve the
     // user's exact camera and bounded-list scroll positions. FLIP still animates nodes into their
     // new layout, but the canvas itself stays anchored.
     const preserveCamera = preserveCameraOnNextLayout.current;
-    const shouldRecenter = !preserveCamera && (previousNodeRects.current.size === 0 || pathChangedThisRender);
+    const editorModeChanged = centralEditorAvailabilityRef.current !== centralEditorAvailable;
+    const editorSizeKey = centralEditorSize ? `${centralEditorSize.width}:${centralEditorSize.height}` : "";
+    const editorSizeChanged = centralEditorSizeKeyRef.current !== editorSizeKey;
+    const shouldRecenter = !preserveCamera && (previousNodeRects.current.size === 0 || pathChangedThisRender || editorModeChanged || editorSizeChanged);
     if (shouldRecenter) {
       if (settings.allowAutozoom) fit();
       else {
@@ -1104,12 +1229,19 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       });
     }
     previousNodeRects.current = nextRects;
+    centralEditorAvailabilityRef.current = centralEditorAvailable;
+    centralEditorSizeKeyRef.current = editorSizeKey;
     preserveCameraOnNextLayout.current = false;
+    syncCentralEditorOverlay();
   }, [sceneLayoutKey, settings.animationSpeed]);
 
   const fit = () => {
     const el = viewport.current;
     if (!el) return;
+    if (centralEditorMaximized) {
+      applyCamera({ x: el.clientWidth / 2, y: el.clientHeight / 2, scale: 1 });
+      return;
+    }
 
     let minX = Number.POSITIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
@@ -1312,13 +1444,22 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   useEffect(() => {
     const el = viewport.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => {
-      if (Date.now() < suppressAutoFitUntil.current) return;
+    type WindowWithResizeObserver = Window & { ResizeObserver: typeof ResizeObserver };
+    const owningWindow = (el.ownerDocument.defaultView ?? window) as WindowWithResizeObserver;
+    const updateViewport = (): void => {
+      setViewportSize((current) => {
+        const width = el.clientWidth;
+        const height = el.clientHeight;
+        return current.width === width && current.height === height ? current : { width, height };
+      });
+      if (centralEditorMaximized || Date.now() < suppressAutoFitUntil.current) return;
       if (settings.allowAutozoom) fit();
-    });
+    };
+    updateViewport();
+    const observer = new owningWindow.ResizeObserver(updateViewport);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [settings.allowAutozoom]);
+  }, [settings.allowAutozoom, centralEditorMaximized]);
 
   useEffect(() => {
     const el = viewport.current;
@@ -1327,8 +1468,9 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       const target = e.target as Element | null;
       // Native wheel scrolling is retained only inside bounded thought lists. Everywhere else
       // the wheel zooms, regardless of whether the wheel/middle button is currently pressed.
-      if (target?.closest?.(".kplex-zone-scroll, .kplex-expanded-scroll, .modal-container")) return;
+      if (target?.closest?.(".kplex-central-editor-content, .kplex-zone-scroll, .kplex-expanded-scroll, .modal-container")) return;
       e.preventDefault();
+      if (centralEditorMaximized) return;
       const rect = el.getBoundingClientRect();
       const px = e.clientX - rect.left;
       const py = e.clientY - rect.top;
@@ -1352,7 +1494,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     };
     el.addEventListener("wheel", wheel, { passive: false });
     return () => el.removeEventListener("wheel", wheel);
-  }, []);
+  }, [centralEditorMaximized]);
 
   useEffect(() => {
     const el = viewport.current;
@@ -1361,10 +1503,10 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     const protectTouchGesture = (event: TouchEvent) => {
       // K-Plex owns touch gestures inside its canvas. Stop Obsidian Mobile's edge/top swipe
       // recognizers from interpreting graph pans as sidebar/command-palette gestures. Native
-      // vertical scrolling remains available inside bounded relationship lists and modal content.
-      event.stopPropagation();
+      // editor/relationship scrolling remains available inside their bounded surfaces.
       const target = event.target as Element | null;
-      if (target?.closest?.(".modal-container, input, select, textarea, button")) return;
+      if (target?.closest?.(".kplex-central-editor-content, .modal-container, input, select, textarea, button")) return;
+      event.stopPropagation();
       const scrollSurface = target?.closest?.(".kplex-zone-scroll, .kplex-expanded-scroll");
       const graphTarget = target?.closest?.("[data-kplex-path], .excalibrain-edge-hit");
       // Empty bounded relationship lists keep native one-finger scrolling. A touch that starts on
@@ -1386,7 +1528,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     if (hoverIntentTimer.current !== null) window.clearTimeout(hoverIntentTimer.current);
     if (edgeTooltipTimer.current !== null) window.clearTimeout(edgeTooltipTimer.current);
     if (sceneTransitionTimer.current !== null) window.clearTimeout(sceneTransitionTimer.current);
-    if (cameraFrame.current !== null) window.cancelAnimationFrame(cameraFrame.current);
+    if (cameraFrame.current !== null) (cameraFrameWindow.current ?? window).cancelAnimationFrame(cameraFrame.current);
+    cameraFrameWindow.current = null;
     viewport.current?.classList.remove("is-touch-gesturing", "is-pinch-gesturing");
   }, []);
 
@@ -1937,7 +2080,8 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       return;
     }
     const target = e.target as Element;
-    if (target.closest(".excalibrain-zoom-controls, .kplex-zone-tools, .kplex-layout-controls, .kplex-filter-panel, input, select, textarea, button")) return;
+    if (target.closest(".kplex-central-editor-content, .excalibrain-zoom-controls, .kplex-zone-tools, .kplex-layout-controls, .kplex-filter-panel, input, select, textarea, button")) return;
+    if (centralEditorMaximized) return;
 
 
     armAreaSettingsDismiss(e, target);
@@ -2432,7 +2576,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         }));
     }
 
-    if (isCenter && isMarkdown && persistent && !page.transient && canExpand) {
+    if (isCenter && isMarkdown && persistent && !page.transient && canExpand && !centralEditorAvailable) {
       menu.addSeparator();
       menu.addItem((item) => item
         .setTitle(translate(sectionExpanded ? "graph.collapseSections" : "graph.expandSections"))
@@ -2581,12 +2725,20 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         },
       }
       : styledDisplayNode;
+    const hasCentralEditor = baseNode.role === "center" && centralEditorFile !== null;
+    const canOpenCentralEditor = baseNode.role === "center" && centralEditorCapable && !hasCentralEditor;
 
     return <ThoughtNode
       key={baseNode.page.path}
       node={nodeForDisplay}
       translate={translate}
-      visual={nodeVisuals.get(baseNode.page.path)}
+      visual={hasCentralEditor ? undefined : nodeVisuals.get(baseNode.page.path)}
+      content={hasCentralEditor ? <div className="kplex-central-editor-placeholder" aria-hidden="true" /> : undefined}
+      cornerAction={canOpenCentralEditor ? {
+        icon: "file-text",
+        label: translate("app.useCentralNodeEditor"),
+        onClick: () => onCentralNodeEditorChange(true),
+      } : undefined}
       settings={settings}
       selected={baseNode.page.path === activePath}
       highlighted={!connectDrag && interaction.nodePaths.has(baseNode.page.path)}
@@ -2626,7 +2778,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
             return next;
           }),
         };
-      })() : (baseNode.role === "center" && persistentPageFor(baseNode.page)?.file?.extension === "md" ? {
+      })() : (baseNode.role === "center" && !centralEditorAvailable && persistentPageFor(baseNode.page)?.file?.extension === "md" ? {
         hasChildren: true,
         expanded: sectionExpanded,
         hiddenDescendantCount: 0,
@@ -2792,7 +2944,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
   return <div
     ref={viewport}
-    className={`excalibrain-plex${sceneTransitioning || pathChangedThisRender ? " is-scene-transitioning" : ""}${sectionExpanded ? " is-section-expanded" : ""}${Platform.isIosApp ? " is-ios" : ""}${areaSettingsMode ? " is-area-settings-mode" : ""}${areaHover?.edgeActive ? " is-area-resize-ready" : ""}${resizingArea ? " is-area-resizing" : ""}`}
+    className={`excalibrain-plex${sceneTransitioning || pathChangedThisRender ? " is-scene-transitioning" : ""}${sectionExpanded ? " is-section-expanded" : ""}${centralEditorMaximized ? " is-central-editor-maximized" : ""}${Platform.isIosApp ? " is-ios" : ""}${Platform.isIosApp ? " is-ios" : ""}${areaSettingsMode ? " is-area-settings-mode" : ""}${areaHover?.edgeActive ? " is-area-resize-ready" : ""}${resizingArea ? " is-area-resizing" : ""}`}
     style={{
       background: alphaHexToCss(settings.backgroundColor, "#0c2233"),
       "--kplex-motion-scale": String(Math.max(0, Math.min(2, settings.animationSpeed))),
@@ -2898,6 +3050,37 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         {draggedBaseNode && renderNode(draggedBaseNode, renderedNodeMap.get(draggedBaseNode.page.path) ?? draggedBaseNode)}
       </div>
     </div>
+
+    {centralEditorFile && centralEditorNode && <div
+      ref={centralEditorOverlayElement}
+      className={`kplex-central-editor-overlay${centralEditorMaximized ? " is-maximized" : ""}`}
+      style={{
+        left: camera.current.x + (centralEditorNode.x - centralEditorNode.width / 2) * camera.current.scale,
+        top: camera.current.y + (centralEditorNode.y - centralEditorNode.height / 2) * camera.current.scale,
+        width: Math.max(1, centralEditorNode.width * camera.current.scale),
+        height: Math.max(1, centralEditorNode.height * camera.current.scale),
+      }}
+      onContextMenu={(event: MouseEvent<HTMLDivElement>) => event.stopPropagation()}
+    >
+      <CentralNodeEditor
+        key={centralEditorFile.path}
+        plugin={plugin}
+        hostLeaf={hostLeaf}
+        file={centralEditorFile}
+        defaultMode={settings.centralNodeMarkdownMode}
+        maximized={centralEditorMaximized}
+        allowMaximize={centralEditorCanMaximize}
+        activateHostLeafOnInteraction={surface === "sidepanel" || Platform.isMobile}
+        onModeChange={onCentralNodeModeChange}
+        onMaximizedChange={setCentralEditorMaximizedState}
+        onCollapse={collapseCentralEditor}
+        onNavigate={(nextFile) => {
+          const target = index.get(nextFile.path);
+          if (target) onActivate(target);
+        }}
+        translate={translate}
+      />
+    </div>}
 
     {edgeHoverTooltip && <div
       className="kplex-edge-hover-tooltip"

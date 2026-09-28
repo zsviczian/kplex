@@ -41,6 +41,9 @@ export type SectionTreeEdge = {
   targetPath: string;
 };
 
+/** Explicit dimensions for a center thought whose content owns more space than a label pill. */
+export type CenterNodeSize = { width: number; height: number };
+
 export type PlexScene = {
   nodes: PositionedNode[];
   edges: PositionedEdge[];
@@ -336,11 +339,21 @@ function viewportFor(
   };
 }
 
+/** Build the deterministic Plex layout, optionally reserving an explicit center-node rectangle. */
 /** Arrange one neighborhood, retaining all editable areas while creating scroll viewports only for overflow. */
-export function buildScene(neighborhood: Neighborhood, index: GraphIndex, settings: ExcaliBrainSettings, showCrossLinks = true): PlexScene {
+export function buildScene(
+  neighborhood: Neighborhood,
+  index: GraphIndex,
+  settings: ExcaliBrainSettings,
+  showCrossLinks = true,
+  centerSizeOverride?: CenterNodeSize,
+): PlexScene {
   const centerStyle = resolveNodeStyle(neighborhood.center, null, "center", settings);
   const centerLabel = index.titleFor(neighborhood.center);
-  const centerSize = nodeSize(`${centerStyle.prefix ?? ""}${centerLabel}`, centerStyle.fontSize ?? 30, settings, true, centerStyle.maxLabelLength ?? 30);
+  const normalCenterSize = nodeSize(`${centerStyle.prefix ?? ""}${centerLabel}`, centerStyle.fontSize ?? 30, settings, true, centerStyle.maxLabelLength ?? 30);
+  const centerSize = centerSizeOverride
+    ? { width: Math.max(180, centerSizeOverride.width), height: Math.max(48, centerSizeOverride.height) }
+    : normalCenterSize;
   const center: PositionedNode = {
     page: neighborhood.center,
     role: "center",
@@ -395,8 +408,13 @@ export function buildScene(neighborhood: Neighborhood, index: GraphIndex, settin
     ? Math.min(...children.map((node) => node.y - node.height / 2))
     : center.height / 2 + centerGap + childExtraGap + 12;
   const sideToChildrenGap = Math.max(30, 36 * compactFactor * legacySpacing);
-  const sideBottom = childSectionTop - sideToChildrenGap;
-  const sideTop = sideBottom - Math.max(120, settings.friendMaxHeight);
+  const friendBandHeight = Math.max(120, settings.friendMaxHeight);
+  const siblingBandHeight = Math.max(120, settings.siblingMaxHeight);
+  // A large embedded editor changes the visual center of gravity. Keep lateral relationship
+  // strips centered beside the editor rather than deriving their band from the much lower child
+  // zone; otherwise friends/challengers end up clustered around the editor's lower corners.
+  const sideBottom = centerSizeOverride ? friendBandHeight / 2 : childSectionTop - sideToChildrenGap;
+  const sideTop = centerSizeOverride ? -friendBandHeight / 2 : sideBottom - friendBandHeight;
   // Sparse lateral relationship lists are centered on the active node's horizontal midline:
   // one node sits level with the center, two straddle it evenly, and larger lists grow
   // outward in both directions. Only shift the strip when it reaches the zone bounds.
@@ -404,9 +422,9 @@ export function buildScene(neighborhood: Neighborhood, index: GraphIndex, settin
   fitVerticalStrip(right, sideTop, sideBottom, index, settings, neighborhood.center.path, "midline");
 
   const siblingLift = Math.max(58, 72 * compactFactor * legacySpacing);
-  const siblingBottom = sideBottom - siblingLift;
-  const siblingTop = siblingBottom - Math.max(120, settings.siblingMaxHeight);
-  fitVerticalStrip(siblings, siblingTop, siblingBottom, index, settings, neighborhood.center.path);
+  const siblingBottom = centerSizeOverride ? siblingBandHeight / 2 : sideBottom - siblingLift;
+  const siblingTop = centerSizeOverride ? -siblingBandHeight / 2 : siblingBottom - siblingBandHeight;
+  fitVerticalStrip(siblings, siblingTop, siblingBottom, index, settings, neighborhood.center.path, centerSizeOverride ? "midline" : "center");
 
   const zoneViewports: Partial<Record<ScrollZone, ZoneViewport>> = {};
   const parentViewport = viewportFor("parent", parents, settings.parentMaxHeight, "bottom");
@@ -549,6 +567,7 @@ export function buildSectionExpandedScene(
   settings: ExcaliBrainSettings,
   expandedSectionIds: ReadonlySet<string> = new Set(expansion.sections.filter((section) => section.childIds.length).map((section) => section.id)),
   showCrossLinks = true,
+  centerSizeOverride?: CenterNodeSize,
 ): PlexScene {
   const sectionPaths = new Set(expansion.sections.map((section) => section.page.path));
   const baseNeighborhood: Neighborhood = {
@@ -557,7 +576,7 @@ export function buildSectionExpandedScene(
   };
   // Add cross-links after section/runtime relationship nodes are appended, so the visibility rule
   // is truly based on the final scene rather than only on the unexpanded center neighbourhood.
-  const scene = buildScene(baseNeighborhood, index, settings, false);
+  const scene = buildScene(baseNeighborhood, index, settings, false, centerSizeOverride);
   const byId = new Map(expansion.sections.map((section) => [section.id, section] as const));
   const roots = expansion.sections.filter((section) => !section.parentId);
   const visible: Array<{ section: import("../index/SectionExpansion").ExpandedSection; depth: number }> = [];

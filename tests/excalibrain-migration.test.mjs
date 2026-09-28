@@ -12,7 +12,7 @@ const fixture = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-m
 const temp = mkdtempSync(join(tmpdir(), "kplex-migration-"));
 process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
 await build({
-  stdin: { contents: 'export * from "./src/settings"; export * from "./src/index/style";', resolveDir: root },
+  stdin: { contents: 'export * from "./src/settings"; export * from "./src/index/style"; export * from "./src/ui/layout";', resolveDir: root },
   outfile: join(temp, "migration.mjs"), bundle: true, platform: "node", format: "esm",
   plugins: [{ name: "obsidian-boundary-double", setup(builder) {
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "double" }));
@@ -24,7 +24,7 @@ await build({
     `, loader: "js" }));
   } }],
 });
-const { migrateAndMergeSettings, ExcaliBrainSettingTab, resolveNodeStyle, resolveLinkStyle } = await import(pathToFileURL(join(temp, "migration.mjs")));
+const { migrateAndMergeSettings, ExcaliBrainSettingTab, resolveNodeStyle, resolveLinkStyle, buildScene } = await import(pathToFileURL(join(temp, "migration.mjs")));
 const migrated = migrateAndMergeSettings(fixture);
 
 test("real ExcaliBrain fixture migrates complete ontology, styles and compatible preferences without mutation", () => {
@@ -34,6 +34,57 @@ test("real ExcaliBrain fixture migrates complete ontology, styles and compatible
   assert.equal(Object.keys(migrated.hierarchyLinkStyles).length, 297);
   assert.deepEqual(migrateAndMergeSettings(JSON.parse(JSON.stringify(migrated))), migrated, "persisted settings must remain stable on reload");
   assert.equal(JSON.stringify(fixture), before);
+});
+
+test("central editor stays opt-in while its local mode defaults safely", () => {
+  assert.equal(migrated.embedCentralNode, false, "legacy ExcaliBrain embed preference must not enable K-Plex editor mode by default");
+  assert.equal(migrated.centralNodeMarkdownMode, "source");
+  assert.equal(migrateAndMergeSettings({ ...fixture, centralNodeMarkdownMode: "preview" }).centralNodeMarkdownMode, "preview");
+  assert.equal(migrateAndMergeSettings({ ...fixture, centralNodeMarkdownMode: "invalid" }).centralNodeMarkdownMode, "source");
+  assert.equal(migrateAndMergeSettings({ ...fixture, kplexInitialized: true, embedCentralNode: true }).embedCentralNode, true, "initialized K-Plex vaults preserve the user's editor toggle");
+});
+
+
+test("central editor layout reserves its rectangle and pushes surrounding relationship zones away", () => {
+  const makePage = (path) => ({ path, name: path, file: { extension: "md" }, noteType: null, styleTags: [], primaryStyleTag: null });
+  const center = makePage("Center.md");
+  const parentPage = makePage("Parent.md");
+  const rightPage = makePage("Right.md");
+  const siblingPage = makePage("Sibling.md");
+  const relation = (page) => ({ page, relationType: 1, typeDefinition: "", linkDirection: 0 });
+  const neighborhood = {
+    center,
+    parents: [relation(parentPage)],
+    children: [],
+    leftFriends: [],
+    rightFriends: [relation(rightPage)],
+    siblings: [relation(siblingPage)],
+  };
+  const gateStats = {
+    top: { count: 0, inferredCount: 0 },
+    bottom: { count: 0, inferredCount: 0 },
+    left: { count: 0, inferredCount: 0 },
+    right: { count: 0, inferredCount: 0 },
+  };
+  const index = {
+    titleFor: (page) => page.name,
+    neighbourCount: () => 0,
+    gateStats: () => gateStats,
+    neighbours: () => [],
+    visibleRelationshipsWithin: () => [],
+  };
+
+  const normal = buildScene(neighborhood, index, migrated, false);
+  const editor = buildScene(neighborhood, index, migrated, false, { width: 600, height: 480 });
+  const node = (scene, path) => scene.nodes.find((candidate) => candidate.page.path === path);
+
+  assert.equal(node(editor, "Center.md").width, 600);
+  assert.equal(node(editor, "Center.md").height, 480);
+  assert(node(editor, "Parent.md").y < node(normal, "Parent.md").y, "parents should move farther above a taller editor");
+  assert(node(editor, "Right.md").x > node(normal, "Right.md").x, "lateral relationships should move beyond a wider editor");
+  assert(node(editor, "Sibling.md").x > node(normal, "Sibling.md").x, "siblings should also move beyond a wider editor");
+  assert(Math.abs(node(editor, "Right.md").y) < 1, "friends/challengers should stay centered beside the editor");
+  assert(Math.abs(node(editor, "Sibling.md").y) < 1, "siblings should stay centered beside the editor");
 });
 
 test("legacy friends fallback and existing K-Plex-only settings survive migration", () => {

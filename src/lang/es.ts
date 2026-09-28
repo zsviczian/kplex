@@ -207,6 +207,7 @@ const spanishTranslations = {
   "notice.relationshipNeedsMarkdown": "Al menos un lado de la relación debe ser una nota Markdown.",
   "notice.excalidrawLegacyDrawing": "Excalidraw creó un dibujo heredado que no es Markdown. Activa los archivos Markdown de Excalidraw en la configuración de Excalidraw para usarlo como nota de K-Plex.",
   "notice.excalidrawUnavailable": "Excalidraw no está disponible.",
+  "notice.excalidrawUpdateRequired": "Actualiza Excalidraw a la versión {version} o posterior para usar la integración completa de dibujos de K-Plex. El dibujo se abrió en modo de compatibilidad.",
   "error.excalidrawCreatedFileMissing": "Excalidraw no devolvió un archivo creado.",
   "error.relationshipRequiresMarkdownEndpoint": "Una nueva relación de K-Plex requiere al menos un extremo Markdown.",
   "notice.webLinkMarkdownOnly": "Los enlaces web solo se pueden añadir desde un nodo Markdown.",
@@ -849,6 +850,20 @@ const spanishTranslations = {
   "explain.fieldAtLine": "{field} en la línea {line}",
   "explain.inlineRelationshipAtLine": "Relación en línea en la línea {line}",
   "explain.linkAtLine": "Enlace en la línea {line}",
+  "app.useCentralNodeEditor": "Usar editor como nodo central",
+  "app.useNormalCentralNode": "Usar nodo central normal",
+  "centralEditor.toolbar": "Editor de la nota central",
+  "centralEditor.showPreview": "Mostrar vista de lectura",
+  "centralEditor.showEditor": "Editar nota",
+  "centralEditor.showDrawing": "Mostrar dibujo de Excalidraw",
+  "centralEditor.showMarkdown": "Mostrar Markdown",
+  "centralEditor.maximize": "Ampliar editor",
+  "centralEditor.restore": "Restaurar editor",
+  "centralEditor.loading": "Cargando nota…",
+  "centralEditor.unavailable": "Editor incrustado no disponible",
+  "settings.centralNodeEditor.heading": "Editor del nodo central",
+  "settings.centralNodeEditor.defaultMode": "Modo Markdown predeterminado",
+  "settings.centralNodeEditor.defaultModeDesc": "Elige si el editor del nodo central abre las notas Markdown en vista de lectura o en modo de edición.",
   "filter.untitledLens": "Lente sin título"
 } as const satisfies LocaleTranslationMap;
 

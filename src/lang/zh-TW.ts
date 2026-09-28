@@ -205,6 +205,7 @@ const traditionalChineseTranslations = {
   "notice.relationshipNeedsMarkdown": "關係至少有一端必須是 Markdown 筆記。",
   "notice.excalidrawLegacyDrawing": "Excalidraw 建立了舊式非 Markdown 繪圖。請在 Excalidraw 設定中啟用 Markdown Excalidraw 檔案，才能將它用作 K-Plex 筆記。",
   "notice.excalidrawUnavailable": "Excalidraw 無法使用。",
+  "notice.excalidrawUpdateRequired": "請將 Excalidraw 更新至 {version} 或更新版本，以使用完整的 K-Plex 繪圖整合功能。繪圖已以相容模式開啟。",
   "error.excalidrawCreatedFileMissing": "Excalidraw 未傳回已建立的檔案。",
   "error.relationshipRequiresMarkdownEndpoint": "新的 K-Plex 關係至少需要一個 Markdown 端點。",
   "notice.webLinkMarkdownOnly": "網頁連結只能從 Markdown 節點新增。",
@@ -841,6 +842,20 @@ const traditionalChineseTranslations = {
   "explain.fieldAtLine": "{field}，第 {line} 行",
   "explain.inlineRelationshipAtLine": "第 {line} 行的行內關係",
   "explain.linkAtLine": "第 {line} 行的連結",
+  "app.useCentralNodeEditor": "將編輯器設為中央節點",
+  "app.useNormalCentralNode": "使用一般中央節點",
+  "centralEditor.toolbar": "中央筆記編輯器",
+  "centralEditor.showPreview": "顯示閱讀檢視",
+  "centralEditor.showEditor": "編輯筆記",
+  "centralEditor.showDrawing": "顯示 Excalidraw 繪圖",
+  "centralEditor.showMarkdown": "顯示 Markdown",
+  "centralEditor.maximize": "放大編輯器",
+  "centralEditor.restore": "還原編輯器",
+  "centralEditor.loading": "正在載入筆記…",
+  "centralEditor.unavailable": "無法使用內嵌編輯器",
+  "settings.centralNodeEditor.heading": "中央節點編輯器",
+  "settings.centralNodeEditor.defaultMode": "預設 Markdown 模式",
+  "settings.centralNodeEditor.defaultModeDesc": "選擇中央節點編輯器開啟 Markdown 筆記時使用閱讀檢視或編輯模式。",
   "filter.untitledLens": "未命名透鏡"
 } as const satisfies LocaleTranslationMap;
 

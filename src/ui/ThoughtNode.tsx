@@ -1,7 +1,7 @@
 /**
  * Plex node and gate presentation with localized accessibility and interaction hints. Physical gate labels are layout copy; semantic roles and drag effects belong to callers.
  */
-import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
 import { alphaHexToCss } from "../index/style";
 import type { ExcaliBrainSettings } from "../settings";
@@ -35,6 +35,8 @@ export function ThoughtNode({
   onContextMenu,
   sectionFold,
   visual,
+  content,
+  cornerAction,
   translate,
 }: {
   node: PositionedNode;
@@ -56,6 +58,12 @@ export function ThoughtNode({
   onNodePointerDown: (node: PositionedNode, event: ReactPointerEvent<HTMLDivElement>) => void;
   onContextMenu?: (node: PositionedNode, event: MouseEvent<HTMLDivElement>) => void;
   visual?: NodeVisual;
+  content?: ReactNode;
+  cornerAction?: {
+    icon: string;
+    label: string;
+    onClick: () => void;
+  };
   translate: Translator;
   sectionFold?: {
     hasChildren: boolean;
@@ -86,9 +94,9 @@ export function ThoughtNode({
     top: node.y - node.height / 2,
     width: node.width,
     height: node.height,
-    background: isSection ? undefined : pattern,
-    color: isSection ? undefined : alphaHexToCss(style.textColor, "white"),
-    borderColor: isSection ? undefined : alphaHexToCss(style.borderColor, "rgba(255,255,255,.18)"),
+    background: isSection || content ? undefined : pattern,
+    color: isSection || content ? undefined : alphaHexToCss(style.textColor, "white"),
+    borderColor: isSection || content ? undefined : alphaHexToCss(style.borderColor, "rgba(255,255,255,.18)"),
     borderWidth: isSection ? undefined : `${style.strokeWidth ?? 1}px`,
     borderStyle: isSection ? undefined : strokeStyle,
     borderRadius: isSection ? undefined : (style.strokeShaprness === "sharp" ? 5 : node.role === "center" ? 18 : 12),
@@ -111,6 +119,7 @@ export function ThoughtNode({
     node.page.isFolder || node.page.isTag ? "is-structural-thought" : "",
     isSection ? "is-kplex-section" : "",
     visual ? "has-node-visual" : "",
+    content ? "has-embedded-content" : "",
     visual?.mode === "replace" ? "is-node-image-only" : "",
   ].filter(Boolean).join(" ");
 
@@ -144,7 +153,13 @@ export function ThoughtNode({
     }}
     aria-label={translate("node.accessibleLabel", { label: node.label, path: node.page.path })}
   >
-    <span className="excalibrain-thought-label">
+    {content ? <div
+      className="kplex-thought-embedded-content"
+      onPointerDown={(e: ReactPointerEvent<HTMLDivElement>) => e.stopPropagation()}
+      onClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
+      onDoubleClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
+      onContextMenu={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
+    >{content}</div> : <span className="excalibrain-thought-label">
       {node.page.transient?.kind === "section"
         ? <span className="kplex-section-heading-mark" aria-hidden="true">{(() => {
           const level = node.page.transient?.level ?? 1;
@@ -161,7 +176,18 @@ export function ThoughtNode({
           <img src={visual.src} alt={visual.alt} loading="lazy" decoding="async" draggable={false} />
         </span>
         : <span>{display}</span>}
-    </span>
+    </span>}
+    {cornerAction && <button
+      type="button"
+      className="kplex-thought-corner-action"
+      aria-label={cornerAction.label}
+      onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>) => { e.stopPropagation(); }}
+      onClick={(e: MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        cornerAction.onClick();
+      }}
+    ><ObsidianIcon name={cornerAction.icon} size={10} /></button>}
     {sectionFold?.hasChildren && <button
       type="button"
       className={`kplex-section-fold-handle${sectionFold.expanded ? " is-expanded" : " is-folded"}`}

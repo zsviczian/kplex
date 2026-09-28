@@ -248,6 +248,7 @@ Layout rules:
 - leave a small gap before children
 - when a friend/challenger strip fits within its lateral band, bottom-align it and let it grow upward; sparse lists must not be vertically centered or stranded near the top
 - overflowing lateral lists remain scrollable; if filtering reduces an overflowed friend/challenger zone to a result set that fits, bottom-align the filtered results too
+- while the native central-node editor reserves an oversized center rectangle, vertically center friend/challenger and sibling strips beside that rectangle; the normal compact center keeps the standard bottom-aligned lateral layout
 - siblings use the configured `siblingRelativeSize` (30%–85%, default 85%) and sit slightly higher
 - sibling expanded descendants inherit the same configured multiplier
 - density uses the same tight node interior padding at every setting

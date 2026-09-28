@@ -207,6 +207,7 @@ const frenchTranslations = {
   "notice.relationshipNeedsMarkdown": "Au moins un côté de la relation doit être une note Markdown.",
   "notice.excalidrawLegacyDrawing": "Excalidraw a créé un ancien dessin non Markdown. Activez les fichiers Excalidraw Markdown dans les paramètres d’Excalidraw pour l’utiliser comme note K-Plex.",
   "notice.excalidrawUnavailable": "Excalidraw n’est pas disponible.",
+  "notice.excalidrawUpdateRequired": "Mettez Excalidraw à jour vers la version {version} ou une version ultérieure pour bénéficier de l’intégration complète des dessins dans K-Plex. Le dessin a été ouvert en mode de compatibilité.",
   "error.excalidrawCreatedFileMissing": "Excalidraw n’a pas renvoyé de fichier créé.",
   "error.relationshipRequiresMarkdownEndpoint": "Une nouvelle relation K-Plex nécessite au moins une extrémité Markdown.",
   "notice.webLinkMarkdownOnly": "Les liens Web ne peuvent être ajoutés qu’à partir d’un nœud Markdown.",
@@ -849,6 +850,20 @@ const frenchTranslations = {
   "explain.fieldAtLine": "{field} à la ligne {line}",
   "explain.inlineRelationshipAtLine": "Relation en ligne à la ligne {line}",
   "explain.linkAtLine": "Lien à la ligne {line}",
+  "app.useCentralNodeEditor": "Utiliser l’éditeur comme nœud central",
+  "app.useNormalCentralNode": "Utiliser le nœud central normal",
+  "centralEditor.toolbar": "Éditeur de la note centrale",
+  "centralEditor.showPreview": "Afficher le mode lecture",
+  "centralEditor.showEditor": "Modifier la note",
+  "centralEditor.showDrawing": "Afficher le dessin Excalidraw",
+  "centralEditor.showMarkdown": "Afficher le Markdown",
+  "centralEditor.maximize": "Agrandir l’éditeur",
+  "centralEditor.restore": "Restaurer l’éditeur",
+  "centralEditor.loading": "Chargement de la note…",
+  "centralEditor.unavailable": "Éditeur intégré indisponible",
+  "settings.centralNodeEditor.heading": "Éditeur du nœud central",
+  "settings.centralNodeEditor.defaultMode": "Mode Markdown par défaut",
+  "settings.centralNodeEditor.defaultModeDesc": "Choisissez si l’éditeur du nœud central ouvre les notes Markdown en mode lecture ou en mode édition.",
   "filter.untitledLens": "Lentille sans titre"
 } as const satisfies LocaleTranslationMap;
 

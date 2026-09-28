@@ -6,9 +6,12 @@ export function assertMigratedExcaliBrainSettings(actual, fixture, current = {})
   for (const key of ["tagNodeStyles", "tagStyleList", "hierarchyLinkStyles", "navigationHistory", "excludeFilepaths"])
     assert.deepEqual(actual[key], fixture[key], `Imported ${key} differs`);
   for (const [key, value] of Object.entries(fixture)) {
-    if (typeof value !== "object" && !["maxZoom", "primaryTagFieldLowerCase", "autoOpenCentralDocument"].includes(key))
+    if (typeof value !== "object" && !["maxZoom", "primaryTagFieldLowerCase", "autoOpenCentralDocument", "embedCentralNode"].includes(key))
       assert.equal(actual[key], value, `Legacy setting ${key} was lost`);
   }
+  // ExcaliBrain's embedCentralNode controlled a different presentation. Auto migration starts with
+  // K-Plex's normal center; manual import preserves the already-initialized K-Plex preference.
+  assert.equal(actual.embedCentralNode, current.embedCentralNode ?? false);
   for (const key of ["baseNodeStyle", "centralNodeStyle", "inferredNodeStyle", "virtualNodeStyle", "siblingNodeStyle", "baseLinkStyle", "inferredLinkStyle", "folderLinkStyle", "tagLinkStyle"])
     for (const [field, value] of Object.entries(fixture[key])) assert.deepEqual(actual[key][field], value, `${key}.${field}`);
   for (const [key, icon] of [["urlNodeStyle", "globe"], ["attachmentNodeStyle", "paperclip"], ["folderNodeStyle", "folder"], ["tagNodeStyle", "tag"]]) {
