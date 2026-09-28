@@ -171,6 +171,7 @@ Changes that touch indexing should preserve:
 - path-indexed evidence updates for single-file edits; do not scan the complete evidence store when provenance already identifies the touched path
 - time-budgeted cooperative yielding on large collectors/resolvers; do not yield every note on iOS
 - deferred/coalesced snapshot writes, cancelled when the final K-Plex view closes
+- separate transactional cold-build checkpoints that never replace the complete active snapshot; resume only against matching vault/settings signatures and verified file bindings
 - skipped periodic refresh when nothing changed
 
 Incremental preparation stays private and copy-on-write with canonical page identity preserved. C14b publication synchronously applies graph/evidence, hot field cache and fingerprint, refreshes affected caches/search, then notifies per committed file before another await. The prepared-state callback is exactly once and expires when its publisher returns or throws. Semantic no-ops retain zero semantic events. Cancellation preserves committed files and pending current work; it does not automatically request a full rebuild.

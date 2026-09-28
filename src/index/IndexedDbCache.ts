@@ -1,3 +1,8 @@
+/**
+ * Vault-local IndexedDB storage for parsed bodies and generation-scoped graph snapshots.
+ * Complete and partial checkpoint metadata point to independent chunk generations only after
+ * their writes finish; callers own semantic validity and plugin-lifetime cancellation.
+ */
 import { Platform } from "obsidian";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
@@ -12,7 +17,7 @@ const SNAPSHOT_CHUNK_STORE = "snapshotChunks";
 const GENERATION_INDEX = "generation";
 
 export type IndexedDbSnapshotMeta = {
-  key: "active";
+  key: "active" | "checkpoint";
   schema: 1 | 2 | 3;
   generation: string;
   createdAt: number;
@@ -22,6 +27,8 @@ export type IndexedDbSnapshotMeta = {
   /** Present for schema 3 snapshots. Older generations fall back to per-record cursors. */
   pageChunkCount?: number;
   evidenceChunkCount?: number;
+  /** A checkpoint contains the full structural baseline but only these completed Markdown sources. */
+  completedMarkdownPaths?: string[];
 };
 
 type PageRecord = { generation: string; path: string; value: PersistedPage };
@@ -103,7 +110,9 @@ function isIndexedDbSnapshotMeta(value: unknown): value is IndexedDbSnapshotMeta
   if (!isUnknownRecord(value)) return false;
   const schema = value.schema;
   if (schema !== 1 && schema !== 2 && schema !== 3) return false;
-  if (value.key !== "active" || typeof value.generation !== "string" || typeof value.createdAt !== "number") return false;
+  if ((value.key !== "active" && value.key !== "checkpoint") || typeof value.generation !== "string" || typeof value.createdAt !== "number") return false;
+  if (value.key === "checkpoint" && (!Array.isArray(value.completedMarkdownPaths) ||
+    !value.completedMarkdownPaths.every((path) => typeof path === "string"))) return false;
   if (typeof value.vaultSignature !== "string" || typeof value.settingsSignature !== "string" || !Array.isArray(value.discoveredFields)) return false;
   if (schema === 3) {
     if (!Number.isInteger(value.pageChunkCount) || !Number.isInteger(value.evidenceChunkCount)) return false;
@@ -219,15 +228,16 @@ export class KplexIndexedDbCache {
     });
   }
 
-  async readSnapshotMeta(): Promise<IndexedDbSnapshotMeta | null> {
+  /** Read an activated complete generation or a separately activated partial checkpoint. */
+  async readSnapshotMeta(key: "active" | "checkpoint" = "active"): Promise<IndexedDbSnapshotMeta | null> {
     const db = await this.open();
     if (!db) return null;
     try {
       const tx = db.transaction(META_STORE, "readonly");
       const done = transactionDone(tx);
-      const value = await requestUnknownResult(tx.objectStore(META_STORE).get("active"));
+      const value = await requestUnknownResult(tx.objectStore(META_STORE).get(key));
       await done;
-      return isIndexedDbSnapshotMeta(value) ? value : null;
+      return isIndexedDbSnapshotMeta(value) && value.key === key ? value : null;
     } catch {
       return null;
     }
@@ -348,11 +358,14 @@ export class KplexIndexedDbCache {
     }
   }
 
+  /** Serialize one graph generation in bounded transactions, then atomically activate its key.
+   * Cancellation leaves unreachable chunks for later orphan cleanup and preserves prior metadata. */
   async writeSnapshot(
     meta: Omit<IndexedDbSnapshotMeta, "key" | "schema" | "generation" | "pageChunkCount" | "evidenceChunkCount">,
     pages: Iterable<PersistedPage>,
     evidence: Iterable<PersistedEvidenceDeclaration>,
     isCurrent: () => boolean = () => true,
+    key: "active" | "checkpoint" = "active",
   ): Promise<boolean> {
     const db = await this.open();
     if (!db) return false;
@@ -462,7 +475,7 @@ export class KplexIndexedDbCache {
 
       if (!isCurrent()) return await cancelAndCleanup();
       const active: IndexedDbSnapshotMeta = {
-        key: "active",
+        key,
         schema: 3,
         generation,
         pageChunkCount,
@@ -476,6 +489,17 @@ export class KplexIndexedDbCache {
     } catch {
       return false;
     }
+  }
+
+  /** Retire a partial checkpoint only after a complete snapshot has activated successfully. */
+  async clearCheckpoint(): Promise<void> {
+    const db = await this.open();
+    if (!db) return;
+    try {
+      const tx = db.transaction(META_STORE, "readwrite");
+      tx.objectStore(META_STORE).delete("checkpoint");
+      await transactionDone(tx);
+    } catch { /* cache cleanup only */ }
   }
 
   private generationRange(storeName: string, generation: string): IDBKeyRange | IDBKeyRange[] {
@@ -506,6 +530,7 @@ export class KplexIndexedDbCache {
     }
   }
 
+  /** Remove unreachable chunks while retaining both the complete and partial active generations. */
   async cleanupOrphanGenerations(activeGeneration: string, isCurrent: () => boolean = () => true): Promise<void> {
     if (!isCurrent()) return;
     const db = await this.open();
@@ -528,7 +553,9 @@ export class KplexIndexedDbCache {
       });
       await done;
       if (!isCurrent()) return;
-      const stale = generations.filter((generation) => generation !== activeGeneration);
+      const [active, checkpoint] = await Promise.all([this.readSnapshotMeta(), this.readSnapshotMeta("checkpoint")]);
+      const stale = generations.filter((generation) => generation !== activeGeneration &&
+        generation !== active?.generation && generation !== checkpoint?.generation);
       for (const generation of stale) {
         if (!isCurrent()) return;
         await this.deleteGeneration(generation, isCurrent);

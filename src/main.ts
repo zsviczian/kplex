@@ -491,7 +491,8 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.pruneMissingDirtyMarkdownPaths();
     if (this.dirtyMarkdownPaths.size > 0) return;
     const patchOnly = [...this.indexBacklogReasons].every((reason) =>
-      reason === "metadata:changed" || reason === "coalesced-backlog" || reason === "interval",
+      reason === "metadata:changed" || reason === "vault:create-markdown" ||
+      reason === "coalesced-backlog" || reason === "interval",
     );
     if (!patchOnly) return;
     this.indexDirty = false;
@@ -518,6 +519,17 @@ export default class ExcaliBrainPlugin extends Plugin {
           this.notifyIndexStatus();
         }
         if (created instanceof TFile && (this.managedCreatedPaths.get(created.path) ?? 0) > Date.now()) return;
+        if (created instanceof TFile && created.extension === "md") {
+          // A new note has one new source. Materialize its file-tree endpoint immediately when an
+          // authoritative graph is already available; if startup is still building, reconcile it
+          // after that pass instead of restarting the entire vault scan for one created file.
+          this.dirtyMarkdownPaths.add(created.path);
+          if (this.initialIndexComplete && !this.rebuildTask && this.hasVisibleKplexSurface() && this.index?.isFullSnapshotHydrated()) {
+            this.index.insertCreatedFile(created);
+          }
+          this.scheduleRebuild("vault:create-markdown");
+          return;
+        }
         this.scheduleRebuild("vault:create");
       }));
     this.registerEvent(this.app.vault.on("delete",
@@ -856,7 +868,16 @@ export default class ExcaliBrainPlugin extends Plugin {
       // rebuilding the vault. A path may disappear after its metadata notification was queued;
       // prune such paths before deciding whether an incremental patch must escalate.
       this.pruneMissingDirtyMarkdownPaths();
-      const structuralDirty = [...this.indexBacklogReasons].some((item) => item !== "metadata:changed" && item !== "coalesced-backlog" && item !== "interval");
+      if (this.initialIndexComplete && this.index.isFullSnapshotHydrated()) {
+        for (const path of this.dirtyMarkdownPaths) {
+          const file = this.app.vault.getFileByPath(path);
+          if (file?.extension === "md" && this.index.get(path)?.file !== file) this.index.insertCreatedFile(file);
+        }
+      }
+      const structuralDirty = [...this.indexBacklogReasons].some((item) =>
+        item !== "metadata:changed" && item !== "coalesced-backlog" && item !== "interval" &&
+        item !== "vault:create-markdown" && item !== "startup:post-initial-backlog",
+      );
       if (!force && !showNotice && this.index.size > 0 && !structuralDirty && this.dirtyMarkdownPaths.size === 0) {
         this.indexDirty = false;
         this.indexBacklogReasons.clear();
@@ -926,8 +947,28 @@ export default class ExcaliBrainPlugin extends Plugin {
       if (!published) {
         this.indexDirty = true;
         this.indexBacklogReasons.add(reason);
+        if (allowClosed && this.indexDirtyRevision !== startRevision && this.hasVisibleKplexSurface() && this.rebuildTimer === null) {
+          // A note saved while cold ingestion was awaiting work invalidates that source revision.
+          // Retry after the current startup task releases its guard instead of leaving a partial
+          // scene indefinitely until the user closes and reopens K-Plex.
+          this.rebuildTimer = window.setTimeout(() => {
+            this.rebuildTimer = null;
+            void this.ensureInitialIndex();
+          }, 1100);
+        }
         return;
       }
+
+      // The authoritative build covered its startup reasons. New Markdown files created after
+      // its file list was captured are now materialized and remain in the per-source patch backlog.
+      for (const pendingReason of [...this.indexBacklogReasons]) {
+        if (pendingReason.startsWith("startup:")) this.indexBacklogReasons.delete(pendingReason);
+      }
+      for (const path of this.dirtyMarkdownPaths) {
+        const file = this.app.vault.getFileByPath(path);
+        if (file?.extension === "md" && this.index.get(path)?.file !== file) this.index.insertCreatedFile(file);
+      }
+      this.indexBacklogReasons.delete("vault:create-markdown");
 
       // Only clear the backlog that this build actually covered. If a vault/metadata event fired
       // while GraphBuilder was working, keep the index dirty and coalesce one follow-up pass.

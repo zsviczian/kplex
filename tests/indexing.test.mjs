@@ -1004,6 +1004,73 @@ try {
     progressiveIndex.destroy();
   }
 
+  // A cold-build checkpoint must restore as non-authoritative, skip sources already committed,
+  // and converge on the same graph as an uninterrupted build after restart.
+  const interrupted = new GraphIndex(plugin, app);
+  const originalCommit = interrupted.commitPreparedFile.bind(interrupted);
+  let coldCommits = 0;
+  interrupted.commitPreparedFile = (commit, publish) => {
+    originalCommit(commit, publish);
+    if (++coldCommits === 2) interrupted.cancelRebuild();
+  };
+  assert.equal(await interrupted.rebuildProgressively(["Note A.md"]), false);
+  const completedBeforeRestart = new Set(interrupted.semanticFingerprints.keys());
+  assert(completedBeforeRestart.size > 0 && completedBeforeRestart.size < app.vault.getMarkdownFiles().length);
+  let checkpointRecord = null;
+  interrupted.indexedDb.writeSnapshot = async (meta, pages, evidence, current, key) => {
+    assert.equal(key, "checkpoint");
+    assert.equal(current(), true);
+    checkpointRecord = {
+      meta: { ...meta, key, schema: 3, generation: "partial-generation", pageChunkCount: 1, evidenceChunkCount: 1 },
+      pages: [...pages], evidence: [...evidence],
+    };
+    return true;
+  };
+  await interrupted.persistIndexedDbSnapshot(interrupted.snapshotPersistGeneration, completedBeforeRestart);
+  assert(checkpointRecord);
+  assert.deepEqual(new Set(checkpointRecord.meta.completedMarkdownPaths), completedBeforeRestart);
+  interrupted.destroy();
+
+  const resumed = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+  resumed.indexedDb.readSnapshotMeta = async (key = "active") => key === "checkpoint" ? checkpointRecord.meta : null;
+  resumed.indexedDb.snapshotUsesChunks = () => true;
+  resumed.indexedDb.getPages = async (_generation, paths) => new Map(checkpointRecord.pages
+    .filter((page) => paths.includes(page.path)).map((page) => [page.path, page]));
+  resumed.indexedDb.iterateSnapshotPages = async (_meta, onPage, current) => {
+    for (const page of checkpointRecord.pages) { if (!current()) return false; onPage(page); }
+    return current();
+  };
+  resumed.indexedDb.iterateSnapshotEvidence = async (_meta, onEvidence, current) => {
+    for (const item of checkpointRecord.evidence) { if (!current()) return false; onEvidence(item); }
+    return current();
+  };
+  resumed.scheduleOrphanCleanup = () => {};
+  resumed.scheduleSnapshotPersist = () => {};
+  try {
+    await resumed.restoreIndexedDbSnapshot(["Note A.md"]);
+    const restoredCheckpoint = await resumed.waitForSnapshotHydration();
+    assert.equal(restoredCheckpoint.restored, true);
+    assert.equal(restoredCheckpoint.fresh, false);
+    assert.equal(resumed.isFullSnapshotHydrated(), false);
+    assert.deepEqual(resumed.resumableCheckpointPaths, completedBeforeRestart);
+    const resumedCommits = [];
+    const originalResumedCommit = resumed.commitPreparedFile.bind(resumed);
+    resumed.commitPreparedFile = (commit, publish) => {
+      resumedCommits.push(commit.sourcePath);
+      originalResumedCommit(commit, publish);
+    };
+    const newCenter = app.vault.getMarkdownFiles().find((file) => !completedBeforeRestart.has(file.path))?.path;
+    assert(newCenter, "Fixture needs an unfinished source to test a changed restart center");
+    assert.equal(await resumed.rebuildProgressively([newCenter]), true);
+    assert(resumedCommits.length > 0);
+    assert(resumedCommits.includes(newCenter), "An unfinished restart center must publish through the live per-file boundary");
+    assert(resumedCommits.every((path) => !completedBeforeRestart.has(path)), "Resume must not revisit committed sources");
+    assert.deepEqual(canonicalGraph(resumed), baseline.graph, "Checkpoint resume must preserve full graph semantics");
+    assert.deepEqual(resumed.discoveredFields(), index.discoveredFields());
+  } finally {
+    resumed.destroy();
+  }
+
   // A custom style selected by the Style property is an explicit user choice. It must remain
   // visible on the central note instead of being masked by the generic central-node appearance.
   const originalCentralStyle = settings.centralNodeStyle;
@@ -1582,7 +1649,7 @@ try {
   // Only the external cache and watchdog clock are controlled; graph semantics remain real.
   const snapshotEvidence = [...index.state.evidence.declarations()].map(persistedDeclarationFromEvidence);
   const snapshotMeta = {
-    schema: 3, generation: "test-generation", createdAt: 123,
+    key: "active", schema: 3, generation: "test-generation", createdAt: 123,
     settingsSignature: computeIndexSettingsSignature(settings), vaultSignature: computeVaultSignature(app),
     discoveredFields: [...index.state.discoveredFields],
   };
@@ -2559,6 +2626,7 @@ try {
   const coordinatorPatchGate = new Promise((resolve) => { releaseCoordinatorPatch = resolve; });
   coordinator.index = {
     size: 1,
+    isFullSnapshotHydrated: () => false,
     patchMarkdownPaths: async (paths) => {
       coordinatorPatchCalls.push([...paths]);
       if (coordinatorPatchCalls.length === 1) {
@@ -2592,6 +2660,36 @@ try {
   assert.equal(coordinatorPatchCalls.length, 2, "Revealing K-Plex must resume the backlog exactly once");
   assert.equal(coordinator.indexDirty, false);
   assert.equal(coordinator.dirtyMarkdownPaths.size, 0);
+
+  // Creating a Markdown note during another patch must materialize and patch only that source.
+  // A missing page used to make this path fall through to an expensive whole-vault rebuild.
+  const createdDuringPatch = new TFile("Created During Patch.md", 9000);
+  const creationCoordinator = new ExcaliBrainPlugin();
+  let materialized = false;
+  let creationFullBuilds = 0;
+  const creationPatchCalls = [];
+  creationCoordinator.app = { vault: { getFileByPath: (path) => path === createdDuringPatch.path ? createdDuringPatch : null } };
+  creationCoordinator.index = {
+    size: 1,
+    isFullSnapshotHydrated: () => true,
+    get: () => materialized ? { file: createdDuringPatch } : undefined,
+    insertCreatedFile: () => { materialized = true; },
+    patchMarkdownPaths: async (paths) => { creationPatchCalls.push([...paths]); return { outcome: "patched", count: paths.length }; },
+    rebuild: async () => { creationFullBuilds += 1; return true; },
+  };
+  creationCoordinator.hasVisibleKplexSurface = () => true;
+  creationCoordinator.refreshBookmarkedEntryPoints = async () => {};
+  creationCoordinator.notifyIndexStatus = () => {};
+  creationCoordinator.initialIndexComplete = true;
+  creationCoordinator.indexDirty = true;
+  creationCoordinator.indexDirtyRevision = 1;
+  creationCoordinator.indexBacklogReasons.add("vault:create-markdown");
+  creationCoordinator.dirtyMarkdownPaths.add(createdDuringPatch.path);
+  await creationCoordinator.performRebuild(false, false, "vault:create-markdown", false);
+  assert.equal(materialized, true);
+  assert.deepEqual(creationPatchCalls, [[createdDuringPatch.path]]);
+  assert.equal(creationFullBuilds, 0);
+  assert.equal(creationCoordinator.indexDirty, false);
 
   // Rename performance regression: a TFile rename must remap the already-published semantic graph
   // in place. No Markdown is reparsed and all evidence/search/relationship paths follow the same
@@ -2658,6 +2756,25 @@ try {
   metadataChangedHandler(renamedCentral);
   assert(renameCoordinator.dirtyMarkdownPaths.has("Moved/New.md"), "A real content revision after rename must still use the incremental patch path");
   assert.deepEqual(rebuildReasons, ["metadata:changed"]);
+
+  // Issue #2: creating an empty note and then pasting 8,246 words must finish as one file patch
+  // while the graph remains usable. The content shape matches the reported 44,369 characters.
+  const pastedText = Array.from({ length: 8246 }, (_, i) => i < 3140 ? "words" : "word").join(" ");
+  assert.equal(pastedText.length, 44369);
+  const pastedFile = new TFile("Large Paste.md", noteA.stat.mtime + 10_000);
+  files.set(pastedFile.path, pastedFile);
+  caches.set(pastedFile.path, { frontmatter: {}, tags: [], links: [] });
+  contents.set(pastedFile.path, "");
+  const pastedPage = index.insertCreatedFile(pastedFile);
+  contents.set(pastedFile.path, pastedText);
+  pastedFile.stat.mtime += 1;
+  pastedFile.stat.size = pastedText.length;
+  const pasteStartedAt = performance.now();
+  assert.deepEqual(await index.patchMarkdownPaths([pastedFile.path]), { outcome: "patched", count: 1 });
+  assert(performance.now() - pasteStartedAt < 2000, "A plain 44 KB paste must not monopolize indexing");
+  assert.equal(index.get(pastedFile.path), pastedPage);
+  assert.equal(contents.get(pastedFile.path), pastedText);
+  assert(index.search("large paste").some((page) => page.path === pastedFile.path));
 
   console.log("K-Plex indexing fixture: assertions 1–33 + P1–P17 PASS");
   console.log("Central section expansion fixture: assertions 34–50 PASS");
