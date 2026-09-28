@@ -198,6 +198,7 @@ const germanTranslations = {
   "notice.relationshipNeedsMarkdown": "Mindestens eine Seite der Beziehung muss eine Markdown-Notiz sein.",
   "notice.excalidrawLegacyDrawing": "Excalidraw hat eine ältere Nicht-Markdown-Zeichnung erstellt. Aktivieren Sie Markdown-Excalidraw-Dateien in den Excalidraw-Einstellungen, um sie als K-Plex-Notiz zu verwenden.",
   "notice.excalidrawUnavailable": "Excalidraw ist nicht verfügbar.",
+  "notice.excalidrawUpdateRequired": "Aktualisieren Sie Excalidraw auf Version {version} oder neuer, um die vollständige K-Plex-Zeichnungsintegration zu nutzen. Die Zeichnung wurde im Kompatibilitätsmodus geöffnet.",
   "error.excalidrawCreatedFileMissing": "Excalidraw hat keine erstellte Datei zurückgegeben.",
   "error.relationshipRequiresMarkdownEndpoint": "Eine neue K-Plex-Beziehung benötigt mindestens einen Markdown-Endpunkt.",
   "notice.webLinkMarkdownOnly": "Weblinks können nur von einem Markdown-Knoten hinzugefügt werden.",

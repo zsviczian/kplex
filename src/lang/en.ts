@@ -937,6 +937,11 @@ export const englishCatalog = {
     context: "K-Plex notices, ontology actions, validation, or evidence navigation copy.",
     params: [],
   },
+  "notice.excalidrawUpdateRequired": {
+    message: "Update Excalidraw to version {version} or newer for full K-Plex drawing integration. The drawing opened in compatibility mode.",
+    context: "Notice shown when K-Plex opens an Excalidraw drawing through an older integration contract.",
+    params: ["version"],
+  },
   "error.excalidrawCreatedFileMissing": {
     message: "Excalidraw did not return a created file.",
     context: "Error surfaced when an Excalidraw creation request completes without a usable file.",

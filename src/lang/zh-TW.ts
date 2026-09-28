@@ -197,6 +197,7 @@ const traditionalChineseTranslations = {
   "notice.relationshipNeedsMarkdown": "關係至少有一端必須是 Markdown 筆記。",
   "notice.excalidrawLegacyDrawing": "Excalidraw 建立了舊式非 Markdown 繪圖。請在 Excalidraw 設定中啟用 Markdown Excalidraw 檔案，才能將它用作 K-Plex 筆記。",
   "notice.excalidrawUnavailable": "Excalidraw 無法使用。",
+  "notice.excalidrawUpdateRequired": "請將 Excalidraw 更新至 {version} 或更新版本，以使用完整的 K-Plex 繪圖整合功能。繪圖已以相容模式開啟。",
   "error.excalidrawCreatedFileMissing": "Excalidraw 未傳回已建立的檔案。",
   "error.relationshipRequiresMarkdownEndpoint": "新的 K-Plex 關係至少需要一個 Markdown 端點。",
   "notice.webLinkMarkdownOnly": "網頁連結只能從 Markdown 節點新增。",

@@ -198,6 +198,7 @@ const dutchTranslations = {
   "notice.relationshipNeedsMarkdown": "Minstens één kant van de relatie moet een Markdown-notitie zijn.",
   "notice.excalidrawLegacyDrawing": "Excalidraw heeft een verouderde niet-Markdown-tekening gemaakt. Schakel Markdown Excalidraw-bestanden in bij de Excalidraw-instellingen om deze als K-Plex-notitie te gebruiken.",
   "notice.excalidrawUnavailable": "Excalidraw is niet beschikbaar.",
+  "notice.excalidrawUpdateRequired": "Werk Excalidraw bij naar versie {version} of nieuwer voor de volledige K-Plex-tekenintegratie. De tekening is geopend in compatibiliteitsmodus.",
   "error.excalidrawCreatedFileMissing": "Excalidraw heeft geen gemaakt bestand teruggegeven.",
   "error.relationshipRequiresMarkdownEndpoint": "Een nieuwe K-Plex-relatie vereist ten minste één Markdown-eindpunt.",
   "notice.webLinkMarkdownOnly": "Weblinks kunnen alleen worden toegevoegd vanuit een Markdown-knooppunt.",

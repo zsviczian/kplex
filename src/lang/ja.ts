@@ -197,6 +197,7 @@ const japaneseTranslations = {
   "notice.relationshipNeedsMarkdown": "関係の少なくとも一方は Markdown ノートである必要があります。",
   "notice.excalidrawLegacyDrawing": "Excalidraw が従来形式の非 Markdown 図面を作成しました。K-Plex ノートとして使用するには、Excalidraw 設定で Markdown Excalidraw ファイルを有効にしてください。",
   "notice.excalidrawUnavailable": "Excalidraw は利用できません。",
+  "notice.excalidrawUpdateRequired": "K-Plex の描画統合を完全に利用するには、Excalidraw をバージョン {version} 以降に更新してください。描画は互換モードで開かれました。",
   "error.excalidrawCreatedFileMissing": "Excalidraw から作成されたファイルが返されませんでした。",
   "error.relationshipRequiresMarkdownEndpoint": "新しい K-Plex 関係には少なくとも 1 つの Markdown エンドポイントが必要です。",
   "notice.webLinkMarkdownOnly": "Web リンクは Markdown ノードからのみ追加できます。",

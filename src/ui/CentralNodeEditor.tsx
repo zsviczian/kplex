@@ -1,6 +1,6 @@
 /** Native Obsidian view for a Markdown-backed central Plex node, including Excalidraw when installed. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { TFile, WorkspaceLeaf } from "obsidian";
+import { Notice, type TFile, type WorkspaceLeaf } from "obsidian";
 import type ExcaliBrainPlugin from "../main";
 import type { Translator } from "../lang";
 import {
@@ -18,6 +18,7 @@ export function CentralNodeEditor({
   file,
   defaultMode,
   maximized,
+  allowMaximize,
   onModeChange,
   onMaximizedChange,
   onCollapse,
@@ -29,6 +30,7 @@ export function CentralNodeEditor({
   file: TFile;
   defaultMode: EmbeddedMarkdownMode;
   maximized: boolean;
+  allowMaximize: boolean;
   onModeChange: (mode: EmbeddedMarkdownMode) => void;
   onMaximizedChange: (maximized: boolean) => void;
   onCollapse: () => void;
@@ -55,6 +57,10 @@ export function CentralNodeEditor({
     try {
       controller = mountEmbeddedMarkdownLeaf(plugin.app, hostLeaf, mount, (nextFile) => {
         if (nextFile.path !== fileRef.current.path) onNavigateRef.current(nextFile);
+      }, (requiredVersion) => {
+        new Notice(plugin.translator("notice.excalidrawUpdateRequired", {
+          version: requiredVersion,
+        }), 6000);
       });
     } catch (error) {
       console.error("K-Plex failed to create the embedded central Markdown leaf.", error);
@@ -131,7 +137,7 @@ export function CentralNodeEditor({
   };
 
   return <div
-    className={`kplex-central-editor-content${maximized ? " is-maximized" : ""}`}
+    className={`kplex-central-editor-content${maximized ? " is-maximized" : ""}${mode === "source" ? " is-edit-mode" : ""}`}
     onPointerDownCapture={() => controllerRef.current?.activate()}
     onFocusCapture={() => controllerRef.current?.activate()}
   >
@@ -147,11 +153,11 @@ export function CentralNodeEditor({
         aria-label={translate(mode === "source" ? "centralEditor.showPreview" : "centralEditor.showEditor")}
         onClick={toggleMode}
       ><ObsidianIcon name={mode === "source" ? "book-open" : "square-pen"} size={12} /></button>
-      <button
+      {allowMaximize && <button
         type="button"
         aria-label={translate(maximized ? "centralEditor.restore" : "centralEditor.maximize")}
         onClick={() => onMaximizedChange(!maximized)}
-      ><ObsidianIcon name={maximized ? "minimize-2" : "maximize-2"} size={12} /></button>
+      ><ObsidianIcon name={maximized ? "minimize-2" : "maximize-2"} size={12} /></button>}
       <button
         type="button"
         aria-label={translate("app.useNormalCentralNode")}

@@ -200,6 +200,7 @@ const russianTranslations = {
   "notice.relationshipNeedsMarkdown": "Хотя бы одна сторона связи должна быть Markdown-заметкой.",
   "notice.excalidrawLegacyDrawing": "Excalidraw создал устаревший рисунок не в Markdown. Включите Markdown-файлы Excalidraw в настройках Excalidraw, чтобы использовать его как заметку K-Plex.",
   "notice.excalidrawUnavailable": "Excalidraw недоступен.",
+  "notice.excalidrawUpdateRequired": "Обновите Excalidraw до версии {version} или новее для полной интеграции рисунков с K-Plex. Рисунок открыт в режиме совместимости.",
   "error.excalidrawCreatedFileMissing": "Excalidraw не вернул созданный файл.",
   "error.relationshipRequiresMarkdownEndpoint": "Для новой связи K-Plex требуется хотя бы одна Markdown-конечная точка.",
   "notice.webLinkMarkdownOnly": "Веб-ссылки можно добавлять только из Markdown-узла.",

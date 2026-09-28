@@ -6,7 +6,11 @@
  * workspace root/container, insert one leaf, and detach that leaf on teardown. Keep every use of
  * that host-specific seam in this adapter so the React graph only deals with a small controller.
  */
-import { WorkspaceLeaf, WorkspaceSplit, type App, type TFile, type Workspace } from "obsidian";
+import { Platform, WorkspaceLeaf, WorkspaceSplit, type App, type TFile, type Workspace } from "obsidian";
+import {
+  hasMinimumExcalidrawIntegrationVersion,
+  MINIMUM_EXCALIDRAW_INTEGRATION_VERSION,
+} from "./excalidrawIntegrationVersion";
 
 export type EmbeddedMarkdownMode = "preview" | "source";
 export type EmbeddedDocumentView = "markdown" | "excalidraw";
@@ -42,13 +46,31 @@ type RootAwareLeaf = WorkspaceLeaf & {
   getRoot?: () => unknown;
   getContainer?: () => unknown;
 };
+type LinkOpeningLeaf = WorkspaceLeaf & {
+  openLinkText?: (linkText: string, sourcePath: string, state?: unknown) => Promise<void>;
+};
 type ResizableView = WorkspaceLeaf["view"] & { onResize?: () => void };
 type ExcalidrawView = WorkspaceLeaf["view"] & { excalidrawAPI?: unknown };
+type ExcalidrawPaneTarget = "active-pane" | "new-pane" | "popout-window" | "new-tab" | "md-properties";
+type ExcalidrawViewLinkClickContext = {
+  linkText: string,
+  event: MouseEvent | null,
+  action: ExcalidrawPaneTarget,
+  view: WorkspaceLeaf["view"],
+  ea: ExcalidrawAutomateApi,
+};
 type ExcalidrawAutomateApi = {
   isExcalidraw?: () => boolean;
+  verifyMinimumPluginVersion?: (requiredVersion: string) => boolean;
   setViewModeEnabled?: (enabled: boolean) => void;
   getViewElements?: () => readonly unknown[];
   viewZoomToElements?: (selectElements: boolean, elements: readonly unknown[], margin?: number) => void;
+  viewZoomToFit?: () => void;
+  getLeaf?: (origo: WorkspaceLeaf, targetPane?: ExcalidrawPaneTarget) => WorkspaceLeaf;
+  registerViewLinkClickHook?: (
+    hook: (context: ExcalidrawViewLinkClickContext) => boolean | void,
+  ) => () => void;
+  destroy?: () => void;
 };
 type ExcalidrawAutomateBridge = ExcalidrawAutomateApi & {
   getAPI?: (view: WorkspaceLeaf["view"]) => ExcalidrawAutomateApi | null | undefined;
@@ -58,6 +80,121 @@ type ObsidianCommandManager = {
   executeCommandById(commandId: string): boolean;
 };
 type AppWithCommandManager = App & { commands?: ObsidianCommandManager };
+type CodeMirrorLine = { from: number; to: number; text: string };
+type CodeMirrorDocument = { lineAt(position: number): CodeMirrorLine };
+type CodeMirrorEditorView = {
+  posAtDOM(node: Node, offset?: number): number;
+  state: { doc: CodeMirrorDocument };
+};
+type MarkdownViewWithCodeMirror = WorkspaceLeaf["view"] & { editor?: { cm?: CodeMirrorEditorView } };
+
+const warnedIncompatibleExcalidrawBridges = new WeakSet<object>();
+
+function isExternalLinkTarget(target: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("//");
+}
+
+/** Normalize the raw link text emitted by Markdown/Excalidraw into an Obsidian link target. */
+function internalLinkTarget(rawTarget: string): string | null {
+  let target = rawTarget.trim();
+  if (!target) return null;
+  if (target.startsWith("!")) target = target.slice(1).trim();
+
+  if (target.startsWith("[[") && target.endsWith("]]")) {
+    const body = target.slice(2, -2);
+    const aliasAt = body.indexOf("|");
+    target = (aliasAt >= 0 ? body.slice(0, aliasAt) : body).trim();
+  } else {
+    const markdownMatch = target.match(/^\[[^\]]*\]\((.+)\)$/);
+    if (markdownMatch) target = markdownMatch[1].trim();
+  }
+
+  if (target.startsWith("<") && target.endsWith(">")) target = target.slice(1, -1).trim();
+  if (!target || isExternalLinkTarget(target)) return null;
+  try {
+    return decodeURIComponent(target);
+  } catch {
+    return target;
+  }
+}
+
+/** Return a native Obsidian link target from the source line under a CodeMirror link decoration. */
+function markdownLinkTargetAt(sourceLine: string, sourceOffset: number): string | null {
+  let cursor = 0;
+  while (cursor < sourceLine.length) {
+    const open = sourceLine.indexOf("[[", cursor);
+    if (open < 0) break;
+    const close = sourceLine.indexOf("]]", open + 2);
+    if (close < 0) break;
+    if (sourceOffset >= open - 1 && sourceOffset <= close + 2) {
+      const body = sourceLine.slice(open + 2, close);
+      const aliasAt = body.indexOf("|");
+      const target = (aliasAt >= 0 ? body.slice(0, aliasAt) : body).trim();
+      return target || null;
+    }
+    cursor = close + 2;
+  }
+
+  cursor = 0;
+  while (cursor < sourceLine.length) {
+    const separator = sourceLine.indexOf("](", cursor);
+    if (separator < 0) break;
+    const labelStart = sourceLine.lastIndexOf("[", separator);
+    if (labelStart < 0) {
+      cursor = separator + 2;
+      continue;
+    }
+
+    let close = -1;
+    let nestedParens = 0;
+    let escaped = false;
+    for (let index = separator + 2; index < sourceLine.length; index += 1) {
+      const char = sourceLine[index];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "(") {
+        nestedParens += 1;
+        continue;
+      }
+      if (char === ")") {
+        if (nestedParens === 0) {
+          close = index;
+          break;
+        }
+        nestedParens -= 1;
+      }
+    }
+    if (close < 0) break;
+
+    if (sourceOffset >= labelStart - 1 && sourceOffset <= close + 1) {
+      const rawDestination = sourceLine.slice(separator + 2, close).trim();
+      if (!rawDestination) return null;
+      let target = rawDestination;
+      if (target.startsWith("<")) {
+        const angleClose = target.indexOf(">");
+        if (angleClose > 0) target = target.slice(1, angleClose);
+      } else {
+        const whitespace = target.search(/\s/);
+        if (whitespace > 0) target = target.slice(0, whitespace);
+      }
+      target = target.trim();
+      if (!target || isExternalLinkTarget(target)) return null;
+      try {
+        return decodeURIComponent(target);
+      } catch {
+        return target;
+      }
+    }
+    cursor = close + 1;
+  }
+  return null;
+}
 
 /**
  * Create an isolated native Markdown leaf whose DOM remains owned by `mountEl`.
@@ -70,6 +207,7 @@ export function mountEmbeddedMarkdownLeaf(
   hostLeaf: WorkspaceLeaf,
   mountEl: HTMLElement,
   onFileChange?: (file: TFile) => void,
+  onExcalidrawVersionMismatch?: (requiredVersion: string) => void,
 ): EmbeddedMarkdownLeafController {
   const SplitConstructor = WorkspaceSplit as unknown as WorkspaceSplitConstructor;
   const LeafConstructor = WorkspaceLeaf as unknown as WorkspaceLeafConstructor;
@@ -101,14 +239,131 @@ export function mountEmbeddedMarkdownLeaf(
   let currentFile: TFile | null = null;
   let openSequence = 0;
   let requestedMode: EmbeddedMarkdownMode = "preview";
-  type WindowWithMutationObserver = Window & { MutationObserver: typeof MutationObserver };
+  type WindowWithMutationObserver = Window & { MutationObserver: typeof MutationObserver; Element: typeof Element };
   const viewWindow = (mountEl.ownerDocument.defaultView ?? window) as WindowWithMutationObserver;
+
+  /** Resolve the Excalidraw Automate bridge belonging to the embedded view's window. */
+  const getExcalidrawBridge = (): ExcalidrawAutomateBridge | null => (
+    (viewWindow as ExcalidrawWindow).ExcalidrawAutomate
+      ?? (window as ExcalidrawWindow).ExcalidrawAutomate
+      ?? null
+  );
+
+  /** Verify the semantic integration boundary and report an old release only once per bridge. */
+  const hasCompatibleExcalidrawBridge = (
+    bridge: ExcalidrawAutomateBridge | null,
+    reportMismatch: boolean,
+  ): bridge is ExcalidrawAutomateBridge => {
+    if (!bridge) return false;
+    const compatible = hasMinimumExcalidrawIntegrationVersion(bridge);
+    if (
+      !compatible
+      && reportMismatch
+      && !warnedIncompatibleExcalidrawBridges.has(bridge)
+    ) {
+      warnedIncompatibleExcalidrawBridges.add(bridge);
+      onExcalidrawVersionMismatch?.(MINIMUM_EXCALIDRAW_INTEGRATION_VERSION);
+    }
+    return compatible;
+  };
   const fileOpenRef = onFileChange ? app.workspace.on("file-open", (file) => {
     if (disposed || !file) return;
     const state = leaf.getViewState();
     const stateFile = (state.state as { file?: unknown } | undefined)?.file;
-    if (stateFile === file.path) onFileChange(file);
+    if (stateFile !== file.path) return;
+    currentFile = file;
+    onFileChange(file);
   }) : null;
+
+  /** Notify React/graph navigation after the hosted leaf itself changed files. */
+  const notifyEmbeddedFileChange = (): void => {
+    if (disposed || !onFileChange) return;
+    const stateFile = (leaf.getViewState().state as { file?: unknown } | undefined)?.file;
+    if (typeof stateFile !== "string") return;
+    const nextFile = app.vault.getFileByPath(stateFile);
+    if (!nextFile || nextFile.path === currentFile?.path) return;
+    currentFile = nextFile;
+    onFileChange(nextFile);
+  };
+
+  /** Open a link on the hosted leaf itself, then make that file the Plex center as well. */
+  const openEmbeddedLink = async (rawTarget: string): Promise<void> => {
+    if (disposed || !currentFile) return;
+    const linkText = internalLinkTarget(rawTarget);
+    if (!linkText) return;
+    const embeddedLeaf: LinkOpeningLeaf = leaf;
+    if (typeof embeddedLeaf.openLinkText !== "function") return;
+    const sourcePath = currentFile.path;
+    await embeddedLeaf.openLinkText(linkText, sourcePath);
+    if (disposed) return;
+    // Some native views update getViewState() one turn after openLinkText() resolves.
+    await new Promise<void>((resolve) => viewWindow.setTimeout(resolve, 0));
+    notifyEmbeddedFileChange();
+  };
+
+  /**
+   * Keep ordinary Markdown link navigation inside the embedded leaf.
+   *
+   * Native Markdown click handlers assume a leaf that participates in the normal workspace tree.
+   * On this synthetic split, their default path can ask the workspace for another leaf and open a
+   * new tab. Hover Editor avoids that by targeting its hosted leaf directly. Do the same here for
+   * the normal follow-link gesture in each Markdown mode, while leaving explicit alternate-pane
+   * modifiers to Obsidian.
+   */
+  const onEmbeddedLinkClick = (event: MouseEvent): void => {
+    if (Platform.isMobile || disposed || event.button !== 0) return;
+    const target = event.target;
+    if (!(target instanceof viewWindow.Element)) return;
+
+    const editorLink = target.closest<HTMLElement>(".cm-hmd-internal-link, .cm-link, .cm-url");
+    const nativeLink = target.closest<HTMLElement>(
+      "a.internal-link, [data-href], [data-link-data-href], [data-link-path]",
+    );
+    const linkContainer = editorLink ?? nativeLink;
+    if (!linkContainer || !mountEl.contains(linkContainer)) return;
+
+    // An unmodified click is K-Plex's same-editor navigation gesture in both Markdown modes and
+    // in the document-properties UI. Any modifier belongs to Obsidian: Cmd/Ctrl+click can open a
+    // new tab, while Shift/Alt combinations keep their normal host behavior.
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    const dataHrefElement = linkContainer.matches("[data-href], [data-link-data-href], [data-link-path]")
+      ? linkContainer
+      : linkContainer.querySelector<HTMLElement>("[data-href], [data-link-data-href], [data-link-path]");
+    const anchor = linkContainer.matches("a")
+      ? linkContainer
+      : linkContainer.querySelector<HTMLAnchorElement>("a");
+    let linkText = dataHrefElement?.getAttribute("data-href")
+      ?? dataHrefElement?.getAttribute("data-link-data-href")
+      ?? dataHrefElement?.getAttribute("data-link-path")
+      ?? anchor?.getAttribute("data-href")
+      ?? anchor?.getAttribute("href")
+      ?? null;
+    if (!linkText && editorLink) {
+      const editorView = (leaf.view as MarkdownViewWithCodeMirror).editor?.cm;
+      if (editorView) {
+        try {
+          const position = editorView.posAtDOM(target, 0);
+          const line = editorView.state.doc.lineAt(position);
+          linkText = markdownLinkTargetAt(line.text, position - line.from);
+        } catch {
+          // Let Obsidian handle the click normally if this CodeMirror decoration cannot be mapped.
+          return;
+        }
+      }
+    }
+    if (!linkText || !currentFile || isExternalLinkTarget(linkText) || !internalLinkTarget(linkText)) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void openEmbeddedLink(linkText).catch((error: unknown) => {
+      console.error(`K-Plex failed to open embedded Markdown link ${linkText}.`, error);
+    });
+  };
+  // Listen at the owning document's capture phase. Obsidian registers different Markdown link
+  // handlers for Reading View and Live Preview; catching the gesture above both view-local handler
+  // stacks keeps the same-leaf behavior consistent without disturbing clicks outside this mount.
+  viewWindow.document.addEventListener("click", onEmbeddedLinkClick, true);
 
   /** Ask the current native view to recompute its editor/preview geometry after host resizing. */
   const resize = (): void => {
@@ -193,15 +448,27 @@ export function mountEmbeddedMarkdownLeaf(
   }
   syncNativeFullscreenFrame();
 
-  /** Resolve the Excalidraw Automate API for this embedded view without assuming the main window. */
+  let scopedExcalidrawView: WorkspaceLeaf["view"] | null = null;
+  let scopedExcalidrawApi: ExcalidrawAutomateApi | null = null;
+  let ownsScopedExcalidrawApi = false;
+
+  /** Resolve one reusable Excalidraw Automate API for this view without assuming the main window. */
   const excalidrawApiForView = (view: WorkspaceLeaf["view"]): ExcalidrawAutomateApi | null => {
-    const owningBridge = (viewWindow as ExcalidrawWindow).ExcalidrawAutomate;
-    const fallbackBridge = (window as ExcalidrawWindow).ExcalidrawAutomate;
-    const bridge = owningBridge ?? fallbackBridge;
+    if (scopedExcalidrawView === view) return scopedExcalidrawApi;
+    if (ownsScopedExcalidrawApi) scopedExcalidrawApi?.destroy?.();
+    scopedExcalidrawView = view;
+    scopedExcalidrawApi = null;
+    ownsScopedExcalidrawApi = false;
+    const bridge = getExcalidrawBridge();
     if (!bridge) return null;
-    if (typeof bridge.getAPI !== "function") return bridge;
+    if (typeof bridge.getAPI !== "function") {
+      scopedExcalidrawApi = bridge;
+      return bridge;
+    }
     try {
-      return bridge.getAPI(view) ?? null;
+      scopedExcalidrawApi = bridge.getAPI(view) ?? null;
+      ownsScopedExcalidrawApi = Boolean(scopedExcalidrawApi);
+      return scopedExcalidrawApi;
     } catch {
       return null;
     }
@@ -214,6 +481,73 @@ export function mountEmbeddedMarkdownLeaf(
     return null;
   };
 
+  let unregisterExcalidrawLinkRouting: (() => void) | null = null;
+  let routedExcalidrawView: WorkspaceLeaf["view"] | null = null;
+
+  /**
+   * Route Excalidraw link targets from the synthetic leaf without changing Excalidraw's configured
+   * modifier semantics. `active-pane` belongs inside the embedded editor. `new-tab` and `new-pane`
+   * need a real workspace origin because Excalidraw cannot derive a normal tab/split from the
+   * synthetic leaf; ask Excalidraw Automate for those destinations using the owning K-Plex leaf.
+   * Pop-out/properties actions and external links remain fully native.
+   */
+  const installExcalidrawLinkRouting = (): void => {
+    if (Platform.isMobile) return;
+    if (!hasCompatibleExcalidrawBridge(getExcalidrawBridge(), false)) return;
+    const view = leaf.view;
+    if (routedExcalidrawView === view) return;
+    unregisterExcalidrawLinkRouting?.();
+    unregisterExcalidrawLinkRouting = null;
+    routedExcalidrawView = null;
+    const api = excalidrawApiForView(view);
+    if (!api?.registerViewLinkClickHook) return;
+    routedExcalidrawView = view;
+    unregisterExcalidrawLinkRouting = api.registerViewLinkClickHook(({ linkText, action, view: sourceView, ea }) => {
+      if (disposed || sourceView !== leaf.view || getDocumentView() !== "excalidraw") return;
+      const target = internalLinkTarget(linkText);
+      if (!target) return;
+
+      if (action === "active-pane") {
+        void openEmbeddedLink(target).catch((error: unknown) => {
+          console.error(`K-Plex failed to open embedded Excalidraw link ${linkText}.`, error);
+        });
+        return false;
+      }
+
+      if (action !== "new-tab" && action !== "new-pane") return;
+
+      // `hostLeaf` is the real K-Plex workspace leaf supplied by PlexGraph, while `leaf` is the
+      // synthetic embedded Excalidraw leaf. Always give Excalidraw Automate the real host as the
+      // origin for workspace-level destinations. For `new-tab`, also re-anchor Obsidian's active
+      // leaf context because EA ultimately delegates tab creation to Workspace.getLeaf("tab").
+      if (action === "new-tab") app.workspace.setActiveLeaf(hostLeaf, { focus: false });
+
+      const targetLeaf = ea.getLeaf?.(hostLeaf, action);
+      const linkOpeningLeaf: LinkOpeningLeaf | null = targetLeaf ?? (
+        action === "new-tab" ? app.workspace.getLeaf("tab") : app.workspace.getLeaf("split")
+      );
+      if (typeof linkOpeningLeaf.openLinkText !== "function" || !currentFile) return;
+      void linkOpeningLeaf.openLinkText(target, currentFile.path).catch((error: unknown) => {
+        console.error(`K-Plex failed to open Excalidraw link ${linkText} in ${action}.`, error);
+      });
+      return false;
+    });
+  };
+
+  const restoreExcalidrawLinkRouting = (): void => {
+    unregisterExcalidrawLinkRouting?.();
+    unregisterExcalidrawLinkRouting = null;
+    routedExcalidrawView = null;
+  };
+
+  /** Detect an Excalidraw-backed Markdown file from stable vault metadata. */
+  const isExcalidrawBackedFile = (file: TFile | null): boolean => {
+    if (!file) return false;
+    if (/\.excalidraw\.md$/i.test(file.path)) return true;
+    const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+    return Boolean(frontmatter && Object.prototype.hasOwnProperty.call(frontmatter, "excalidraw-plugin"));
+  };
+
   /** Detect an Excalidraw-backed Markdown file while remaining safe when the plugin is absent. */
   const isExcalidrawFile = (): boolean => {
     if (getDocumentView() === "excalidraw") return true;
@@ -223,17 +557,18 @@ export function mountEmbeddedMarkdownLeaf(
     } catch {
       // Fall through to file metadata/path detection while the Excalidraw view is still mounting.
     }
-    if (!currentFile) return false;
-    if (/\.excalidraw\.md$/i.test(currentFile.path)) return true;
-    const frontmatter = app.metadataCache.getFileCache(currentFile)?.frontmatter;
-    return Boolean(frontmatter && Object.prototype.hasOwnProperty.call(frontmatter, "excalidraw-plugin"));
+    return isExcalidrawBackedFile(currentFile);
   };
 
   /** Fit the mounted Excalidraw scene into the embedded viewport once its Automate API is ready. */
   const zoomExcalidrawToFit = (api: ExcalidrawAutomateApi | null): void => {
-    if (!api?.getViewElements || !api.viewZoomToElements) return;
+    if (!api) return;
     try {
-      api.viewZoomToElements(false, api.getViewElements(), 0.1);
+      if (api.viewZoomToFit) {
+        api.viewZoomToFit();
+      } else if (api.getViewElements && api.viewZoomToElements) {
+        api.viewZoomToElements(false, api.getViewElements(), 0.1);
+      }
     } catch {
       // Excalidraw can briefly expose the API before its scene has finished attaching to the view.
     }
@@ -252,6 +587,7 @@ export function mountEmbeddedMarkdownLeaf(
     const view = leaf.view as ExcalidrawView;
     if (!view.excalidrawAPI) return;
     const api = excalidrawApiForView(view);
+    installExcalidrawLinkRouting();
     api?.setViewModeEnabled?.(mode === "preview");
     resize();
   };
@@ -284,7 +620,11 @@ export function mountEmbeddedMarkdownLeaf(
    * watcher so the same mode is applied once the real drawing view is ready, then zoom the scene to
    * fit the available central-editor viewport.
    */
-  const finishExcalidrawAfterOpen = async (filePath: string, sequence: number): Promise<void> => {
+  const finishExcalidrawAfterOpen = async (
+    filePath: string,
+    sequence: number,
+    applyPresentation = true,
+  ): Promise<void> => {
     const maxAttempts = 160;
     for (let attempt = 0; attempt < maxAttempts && !disposed; attempt += 1) {
       if (sequence !== openSequence || currentFile?.path !== filePath) return;
@@ -292,14 +632,17 @@ export function mountEmbeddedMarkdownLeaf(
         const view = leaf.view as ExcalidrawView;
         if (view.excalidrawAPI) {
           const api = excalidrawApiForView(view);
-          if (api?.setViewModeEnabled) {
-            // Let Excalidraw finish its own mount-time state restoration before enforcing K-Plex's
-            // remembered mode. This mirrors a user toggling view/edit mode after the drawing loads.
+          if (api) {
+            // Let Excalidraw finish its own mount-time state restoration before registering the
+            // view-scoped integration or applying the compatibility presentation fallback.
             await new Promise<void>((resolve) => viewWindow.setTimeout(resolve, 25));
             if (disposed || sequence !== openSequence || currentFile?.path !== filePath || leaf.view !== view) return;
             try {
-              api.setViewModeEnabled(requestedMode === "preview");
-              zoomExcalidrawToFit(api);
+              installExcalidrawLinkRouting();
+              if (applyPresentation) {
+                api.setViewModeEnabled?.(requestedMode === "preview");
+                zoomExcalidrawToFit(api);
+              }
               resize();
               return;
             } catch {
@@ -323,9 +666,13 @@ export function mountEmbeddedMarkdownLeaf(
     // Obsidian types. `setActiveLeaf()` is the typed focus path already used by this adapter;
     // the narrow command-manager bridge is kept here because Excalidraw exposes this switch only
     // as a command.
+    if (previousView === "excalidraw") restoreExcalidrawLinkRouting();
     app.workspace.setActiveLeaf(leaf, { focus: true });
     const executed = commands.executeCommandById("obsidian-excalidraw-plugin:toggle-excalidraw-view");
-    if (!executed) return previousView;
+    if (!executed) {
+      if (previousView === "excalidraw") installExcalidrawLinkRouting();
+      return previousView;
+    }
 
     const maxAttempts = 80;
     for (let attempt = 0; attempt < maxAttempts && !disposed; attempt += 1) {
@@ -335,7 +682,10 @@ export function mountEmbeddedMarkdownLeaf(
     }
     if (disposed) return null;
     await setMode(mode);
-    if (getDocumentView() === "excalidraw") zoomExcalidrawToFit(excalidrawApiForView(leaf.view));
+    if (getDocumentView() === "excalidraw") {
+      installExcalidrawLinkRouting();
+      zoomExcalidrawToFit(excalidrawApiForView(leaf.view));
+    }
     resize();
     return getDocumentView();
   };
@@ -346,8 +696,34 @@ export function mountEmbeddedMarkdownLeaf(
       const sequence = ++openSequence;
       currentFile = file;
       requestedMode = mode;
-      await leaf.openFile(file, { active: false });
+      const bridge = getExcalidrawBridge();
+      const excalidrawBackedFile = isExcalidrawBackedFile(file);
+      const compatibleBridge = excalidrawBackedFile
+        ? hasCompatibleExcalidrawBridge(bridge, true)
+        : false;
+      const supportsIntegrationState = Boolean(
+        compatibleBridge && bridge?.registerViewLinkClickHook && bridge?.viewZoomToFit,
+      );
+      let openedWithIntegrationState = false;
+      if (supportsIntegrationState) {
+        openedWithIntegrationState = true;
+        await leaf.setViewState({
+          type: "excalidraw",
+          active: false,
+          state: {
+            file: file.path,
+            mode: mode === "preview" ? "view" : "edit",
+            zoomToFit: true,
+          },
+        }, { focus: false });
+      } else {
+        await leaf.openFile(file, { active: false });
+      }
       if (disposed || sequence !== openSequence) return;
+      if (openedWithIntegrationState) {
+        void finishExcalidrawAfterOpen(file.path, sequence, false);
+        return;
+      }
       await setMode(mode);
       if (disposed || sequence !== openSequence) return;
       if (isExcalidrawFile()) void finishExcalidrawAfterOpen(file.path, sequence);
@@ -358,9 +734,10 @@ export function mountEmbeddedMarkdownLeaf(
     toggleExcalidrawView,
     activate() {
       if (disposed) return;
-      // Match Hover Editor's focus model: the embedded leaf becomes Obsidian's active editor only
-      // when the user actually interacts with it, never merely because K-Plex rendered the node.
-      app.workspace.setActiveLeaf(leaf, { focus: true });
+      // Make the hosted leaf active without forcing focus back into the editor. Native controls
+      // such as Markdown's Cmd/Ctrl+F search field must be allowed to keep the DOM focus that the
+      // user's click just gave them. The leaf is still active for commands and link handling.
+      app.workspace.setActiveLeaf(leaf, { focus: false });
     },
     resize,
     dispose() {
@@ -368,8 +745,14 @@ export function mountEmbeddedMarkdownLeaf(
       disposed = true;
       openSequence += 1;
       fullscreenObserver?.disconnect();
+      restoreExcalidrawLinkRouting();
+      if (ownsScopedExcalidrawApi) scopedExcalidrawApi?.destroy?.();
+      scopedExcalidrawView = null;
+      scopedExcalidrawApi = null;
+      ownsScopedExcalidrawApi = false;
       restoreNativeFullscreenGeometry();
       if (fileOpenRef) app.workspace.offref(fileOpenRef);
+      viewWindow.document.removeEventListener("click", onEmbeddedLinkClick, true);
       try {
         leaf.detach();
       } catch {

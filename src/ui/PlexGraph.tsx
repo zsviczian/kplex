@@ -659,6 +659,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     && persistentNeighborhood.center.file.extension === "md",
   );
   const centralEditorAvailable = settings.embedCentralNode && centralEditorCapable;
+  const centralEditorCanMaximize = surface !== "sidepanel";
   const [centralEditorMaximized, setCentralEditorMaximized] = useState(false);
   const centralEditorAvailabilityRef = useRef(centralEditorAvailable);
   const centralEditorSizeKeyRef = useRef("");
@@ -667,7 +668,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   const restoreCentralEditorCamera = useRef(false);
   const centralEditorSize = useMemo<CenterNodeSize | undefined>(() => {
     if (!centralEditorAvailable) return undefined;
-    if (centralEditorMaximized && viewportSize.width > 0 && viewportSize.height > 0) {
+    if (centralEditorCanMaximize && centralEditorMaximized && viewportSize.width > 0 && viewportSize.height > 0) {
       return {
         width: Math.max(280, viewportSize.width - 36),
         // Reserve enough top/bottom Plex margin for the editor-local controls to sit outside the
@@ -681,7 +682,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       width: Math.min(availableWidth, Math.max(360, Math.min(720, settings.centerEmbedWidth))),
       height: Math.min(availableHeight, Math.max(260, Math.min(460, settings.centerEmbedHeight))),
     };
-  }, [centralEditorAvailable, centralEditorMaximized, viewportSize.width, viewportSize.height, settings.centerEmbedWidth, settings.centerEmbedHeight]);
+  }, [centralEditorAvailable, centralEditorCanMaximize, centralEditorMaximized, viewportSize.width, viewportSize.height, settings.centerEmbedWidth, settings.centerEmbedHeight]);
   const [sectionExpanded, setSectionExpanded] = useState(false);
   const sectionEvidenceRevision = useMemo(() => {
     if (!sectionExpanded || !persistentNeighborhood?.center.file || persistentNeighborhood.center.file.extension !== "md") return "";
@@ -1077,6 +1078,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
   /** Expand or restore the embedded central editor without losing the user's previous Plex camera. */
   const setCentralEditorMaximizedState = (maximized: boolean): void => {
+    if (maximized && !centralEditorCanMaximize) return;
     if (maximized === centralEditorMaximized) return;
     preserveCameraOnNextLayout.current = true;
     suppressAutoFitUntil.current = Date.now() + 2500;
@@ -2761,6 +2763,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         file={centralEditorFile}
         defaultMode={settings.centralNodeMarkdownMode}
         maximized={centralEditorMaximized}
+        allowMaximize={centralEditorCanMaximize}
         onModeChange={onCentralNodeModeChange}
         onMaximizedChange={setCentralEditorMaximizedState}
         onCollapse={collapseCentralEditor}

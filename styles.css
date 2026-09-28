@@ -3018,6 +3018,9 @@ button.kplex-style-manager-row { height: fit-content; }
   isolation: isolate;
   touch-action: pan-x pan-y;
 }
+.kplex-central-editor-content.is-edit-mode {
+  cursor: default;
+}
 .kplex-central-editor-leaf-host,
 .kplex-embedded-workspace-root {
   position: absolute;

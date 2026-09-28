@@ -199,6 +199,7 @@ const frenchTranslations = {
   "notice.relationshipNeedsMarkdown": "Au moins un côté de la relation doit être une note Markdown.",
   "notice.excalidrawLegacyDrawing": "Excalidraw a créé un ancien dessin non Markdown. Activez les fichiers Excalidraw Markdown dans les paramètres d’Excalidraw pour l’utiliser comme note K-Plex.",
   "notice.excalidrawUnavailable": "Excalidraw n’est pas disponible.",
+  "notice.excalidrawUpdateRequired": "Mettez Excalidraw à jour vers la version {version} ou une version ultérieure pour bénéficier de l’intégration complète des dessins dans K-Plex. Le dessin a été ouvert en mode de compatibilité.",
   "error.excalidrawCreatedFileMissing": "Excalidraw n’a pas renvoyé de fichier créé.",
   "error.relationshipRequiresMarkdownEndpoint": "Une nouvelle relation K-Plex nécessite au moins une extrémité Markdown.",
   "notice.webLinkMarkdownOnly": "Les liens Web ne peuvent être ajoutés qu’à partir d’un nœud Markdown.",

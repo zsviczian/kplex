@@ -43,6 +43,9 @@ process.on("exit", () => rmSync(classified.temp, { recursive: true, force: true 
 const fileDragCompiled = compilePureModule("src/adapters/obsidian/fileExplorerDrag.ts");
 const fileExplorerDrag = fileDragCompiled.exports;
 process.on("exit", () => rmSync(fileDragCompiled.temp, { recursive: true, force: true }));
+const excalidrawVersionCompiled = compilePureModule("src/adapters/obsidian/excalidrawIntegrationVersion.ts");
+const excalidrawVersion = excalidrawVersionCompiled.exports;
+process.on("exit", () => rmSync(excalidrawVersionCompiled.temp, { recursive: true, force: true }));
 
 function compileObsidianAdapter() {
   const temp = mkdtempSync(join(tmpdir(), "kplex-obsidian-environment-test-"));
@@ -117,6 +120,23 @@ test("File Explorer drag adapter accepts one current Markdown file and rejects u
 
   files.delete(note.path);
   assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "stale drag payloads must not return deleted files");
+});
+
+test("Excalidraw integration requires the declared semantic version and contains bridge failures", () => {
+  const calls = [];
+  assert.equal(excalidrawVersion.MINIMUM_EXCALIDRAW_INTEGRATION_VERSION, "2.28.0");
+  assert.equal(excalidrawVersion.hasMinimumExcalidrawIntegrationVersion({
+    verifyMinimumPluginVersion: (requiredVersion) => {
+      calls.push(requiredVersion);
+      return true;
+    },
+  }), true);
+  assert.deepEqual(calls, ["2.28.0"]);
+  assert.equal(excalidrawVersion.hasMinimumExcalidrawIntegrationVersion({}), false);
+  assert.equal(excalidrawVersion.hasMinimumExcalidrawIntegrationVersion(null), false);
+  assert.equal(excalidrawVersion.hasMinimumExcalidrawIntegrationVersion({
+    verifyMinimumPluginVersion: () => { throw new Error("incompatible bridge"); },
+  }), false);
 });
 
 test("device classifier preserves desktop, explicit phone/tablet flags and shortest-side fallback", () => {
