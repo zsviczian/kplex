@@ -62,6 +62,7 @@ type ExcalidrawViewLinkClickContext = {
 type ExcalidrawAutomateApi = {
   isExcalidraw?: () => boolean;
   verifyMinimumPluginVersion?: (requiredVersion: string) => boolean;
+  toggleViewMode?: (view: WorkspaceLeaf["view"]) => Promise<WorkspaceLeaf["view"] | null>;
   setViewModeEnabled?: (enabled: boolean) => void;
   getViewElements?: () => readonly unknown[];
   viewZoomToElements?: (selectElements: boolean, elements: readonly unknown[], margin?: number) => void;
@@ -76,10 +77,6 @@ type ExcalidrawAutomateBridge = ExcalidrawAutomateApi & {
   getAPI?: (view: WorkspaceLeaf["view"]) => ExcalidrawAutomateApi | null | undefined;
 };
 type ExcalidrawWindow = Window & { ExcalidrawAutomate?: ExcalidrawAutomateBridge };
-type ObsidianCommandManager = {
-  executeCommandById(commandId: string): boolean;
-};
-type AppWithCommandManager = App & { commands?: ObsidianCommandManager };
 type CodeMirrorLine = { from: number; to: number; text: string };
 type CodeMirrorDocument = { lineAt(position: number): CodeMirrorLine };
 type CodeMirrorEditorView = {
@@ -208,6 +205,8 @@ export function mountEmbeddedMarkdownLeaf(
   mountEl: HTMLElement,
   onFileChange?: (file: TFile) => void,
   onExcalidrawVersionMismatch?: (requiredVersion: string) => void,
+  onDocumentViewChange?: (view: EmbeddedDocumentView) => void,
+  activateHostLeafOnInteraction = false,
 ): EmbeddedMarkdownLeafController {
   const SplitConstructor = WorkspaceSplit as unknown as WorkspaceSplitConstructor;
   const LeafConstructor = WorkspaceLeaf as unknown as WorkspaceLeafConstructor;
@@ -369,6 +368,16 @@ export function mountEmbeddedMarkdownLeaf(
   const resize = (): void => {
     if (disposed) return;
     (leaf.view as ResizableView | undefined)?.onResize?.();
+  };
+
+  /** Keep command routing on the correct real or embedded leaf for the owning K-Plex surface. */
+  const activateInteractionLeaf = (): void => {
+    if (disposed) return;
+    // A synthetic leaf cannot become active while its real host owns the current mobile surface:
+    // Obsidian interprets that active-leaf change as navigation away from K-Plex and hides it.
+    // Keep the real K-Plex host active on mobile and in desktop sidepanels. Normal desktop tabs
+    // retain native Markdown command routing through the embedded leaf.
+    app.workspace.setActiveLeaf(activateHostLeafOnInteraction ? hostLeaf : leaf, { focus: false });
   };
 
   // Excalidraw marks every ancestor on the active view path with `excalidraw-visible` while its
@@ -655,96 +664,154 @@ export function mountEmbeddedMarkdownLeaf(
     }
   };
 
-  /** Toggle an Excalidraw note between drawing and Markdown while preserving the chosen read/edit mode. */
-  const toggleExcalidrawView = async (mode: EmbeddedMarkdownMode): Promise<EmbeddedDocumentView | null> => {
-    if (disposed || !isExcalidrawFile()) return getDocumentView();
-    const previousView = getDocumentView();
-    const commands = (app as AppWithCommandManager).commands;
-    if (!commands) return previousView;
+  let observedDocumentView = getDocumentView();
+  let documentViewTransitionDepth = 0;
 
-    // `focusLeaf()` and `App.commands` are host internals and are not declared by the public
-    // Obsidian types. `setActiveLeaf()` is the typed focus path already used by this adapter;
-    // the narrow command-manager bridge is kept here because Excalidraw exposes this switch only
-    // as a command.
-    if (previousView === "excalidraw") restoreExcalidrawLinkRouting();
-    app.workspace.setActiveLeaf(leaf, { focus: true });
-    const executed = commands.executeCommandById("obsidian-excalidraw-plugin:toggle-excalidraw-view");
-    if (!executed) {
-      if (previousView === "excalidraw") installExcalidrawLinkRouting();
-      return previousView;
-    }
-
-    const maxAttempts = 80;
-    for (let attempt = 0; attempt < maxAttempts && !disposed; attempt += 1) {
-      const nextView = getDocumentView();
-      if (nextView && nextView !== previousView) break;
-      await new Promise<void>((resolve) => viewWindow.setTimeout(resolve, 25));
-    }
-    if (disposed) return null;
-    await setMode(mode);
-    if (getDocumentView() === "excalidraw") {
+  /** Apply K-Plex mode/integration state after an externally initiated representation change. */
+  const reconcileObservedDocumentView = async (view: EmbeddedDocumentView): Promise<void> => {
+    const filePath = currentFile?.path;
+    if (!filePath) return;
+    if (view === "markdown") restoreExcalidrawLinkRouting();
+    await setMode(requestedMode);
+    if (disposed || currentFile?.path !== filePath || getDocumentView() !== view) return;
+    if (view === "excalidraw") {
       installExcalidrawLinkRouting();
       zoomExcalidrawToFit(excalidrawApiForView(leaf.view));
     }
     resize();
-    return getDocumentView();
+  };
+
+  /**
+   * Publish the native representation owned by the embedded leaf and repair externally initiated
+   * switches from the command palette or Excalidraw's own representation control.
+   */
+  const syncObservedDocumentView = (reconcile = true): void => {
+    const nextView = getDocumentView();
+    // View replacement can briefly expose an intermediate/null type. Wait for the final native
+    // representation so the toolbar never flickers to an indeterminate state.
+    if (!nextView || nextView === observedDocumentView) return;
+    observedDocumentView = nextView;
+    onDocumentViewChange?.(nextView);
+    if (!reconcile || documentViewTransitionDepth > 0) return;
+    void reconcileObservedDocumentView(nextView).catch((error: unknown) => {
+      console.error(`K-Plex failed to reconcile embedded ${nextView} view state.`, error);
+    });
+  };
+
+  // A representation switch replaces `.workspace-leaf-content` and/or its `data-type`. Observing
+  // the embedded split is more reliable than workspace active-leaf events because this synthetic
+  // leaf intentionally does not participate in Obsidian's normal workspace tree.
+  const documentViewObserver = new viewWindow.MutationObserver(() => syncObservedDocumentView());
+  documentViewObserver.observe(split.containerEl, {
+    attributes: true,
+    attributeFilter: ["data-type"],
+    childList: true,
+    subtree: true,
+  });
+
+  /** Toggle an Excalidraw-backed note between drawing and Markdown while preserving read/edit mode. */
+  const toggleExcalidrawView = async (mode: EmbeddedMarkdownMode): Promise<EmbeddedDocumentView | null> => {
+    if (disposed || !isExcalidrawFile() || !currentFile) return getDocumentView();
+    const previousView = getDocumentView();
+    if (!previousView) return null;
+
+    const bridge = getExcalidrawBridge();
+    if (
+      !hasCompatibleExcalidrawBridge(bridge, true) ||
+      typeof bridge.toggleViewMode !== "function"
+    ) {
+      return previousView;
+    }
+
+    requestedMode = mode;
+    documentViewTransitionDepth += 1;
+    try {
+      if (previousView === "excalidraw") restoreExcalidrawLinkRouting();
+
+      // Excalidraw owns the representation transition. Pass the exact embedded view so the switch
+      // does not depend on workspace activation, command routing, DOM focus, or delayed leaf repair.
+      const nextNativeView = await bridge.toggleViewMode(leaf.view);
+      if (disposed) return null;
+
+      const nextView = getDocumentView();
+      if (!nextNativeView || !nextView || nextView === previousView) {
+        if (previousView === "excalidraw") installExcalidrawLinkRouting();
+        return previousView;
+      }
+
+      await setMode(mode);
+      if (getDocumentView() === "excalidraw") {
+        installExcalidrawLinkRouting();
+        zoomExcalidrawToFit(excalidrawApiForView(leaf.view));
+      }
+      resize();
+      syncObservedDocumentView(false);
+      return getDocumentView();
+    } finally {
+      documentViewTransitionDepth -= 1;
+      // Replacing even an inactive synthetic leaf changes Obsidian's mobile navigation surface.
+      // Reasserting the real K-Plex host after the transition keeps that surface visible.
+      if (activateHostLeafOnInteraction) activateInteractionLeaf();
+    }
   };
 
   return {
     async open(file, mode) {
       if (disposed) return;
-      const sequence = ++openSequence;
-      currentFile = file;
-      requestedMode = mode;
-      const bridge = getExcalidrawBridge();
-      const excalidrawBackedFile = isExcalidrawBackedFile(file);
-      const compatibleBridge = excalidrawBackedFile
-        ? hasCompatibleExcalidrawBridge(bridge, true)
-        : false;
-      const supportsIntegrationState = Boolean(
-        compatibleBridge && bridge?.registerViewLinkClickHook && bridge?.viewZoomToFit,
-      );
-      let openedWithIntegrationState = false;
-      if (supportsIntegrationState) {
-        openedWithIntegrationState = true;
-        await leaf.setViewState({
-          type: "excalidraw",
-          active: false,
-          state: {
-            file: file.path,
-            mode: mode === "preview" ? "view" : "edit",
-            zoomToFit: true,
-          },
-        }, { focus: false });
-      } else {
-        await leaf.openFile(file, { active: false });
+      documentViewTransitionDepth += 1;
+      try {
+        const sequence = ++openSequence;
+        currentFile = file;
+        requestedMode = mode;
+        const bridge = getExcalidrawBridge();
+        const excalidrawBackedFile = isExcalidrawBackedFile(file);
+        const compatibleBridge = excalidrawBackedFile
+          ? hasCompatibleExcalidrawBridge(bridge, true)
+          : false;
+        const supportsIntegrationState = Boolean(
+          compatibleBridge && bridge?.registerViewLinkClickHook && bridge?.viewZoomToFit,
+        );
+        let openedWithIntegrationState = false;
+        if (supportsIntegrationState) {
+          openedWithIntegrationState = true;
+          await leaf.setViewState({
+            type: "excalidraw",
+            active: false,
+            state: {
+              file: file.path,
+              mode: mode === "preview" ? "view" : "edit",
+              zoomToFit: true,
+            },
+          }, { focus: false });
+        } else {
+          await leaf.openFile(file, { active: false });
+        }
+        if (disposed || sequence !== openSequence) return;
+        if (openedWithIntegrationState) {
+          syncObservedDocumentView(false);
+          void finishExcalidrawAfterOpen(file.path, sequence, false);
+          return;
+        }
+        await setMode(mode);
+        if (disposed || sequence !== openSequence) return;
+        syncObservedDocumentView(false);
+        if (isExcalidrawFile()) void finishExcalidrawAfterOpen(file.path, sequence);
+      } finally {
+        documentViewTransitionDepth -= 1;
       }
-      if (disposed || sequence !== openSequence) return;
-      if (openedWithIntegrationState) {
-        void finishExcalidrawAfterOpen(file.path, sequence, false);
-        return;
-      }
-      await setMode(mode);
-      if (disposed || sequence !== openSequence) return;
-      if (isExcalidrawFile()) void finishExcalidrawAfterOpen(file.path, sequence);
     },
     setMode,
     getDocumentView,
     isExcalidrawFile,
     toggleExcalidrawView,
-    activate() {
-      if (disposed) return;
-      // Make the hosted leaf active without forcing focus back into the editor. Native controls
-      // such as Markdown's Cmd/Ctrl+F search field must be allowed to keep the DOM focus that the
-      // user's click just gave them. The leaf is still active for commands and link handling.
-      app.workspace.setActiveLeaf(leaf, { focus: false });
-    },
+    activate: activateInteractionLeaf,
     resize,
     dispose() {
       if (disposed) return;
       disposed = true;
       openSequence += 1;
       fullscreenObserver?.disconnect();
+      documentViewObserver.disconnect();
       restoreExcalidrawLinkRouting();
       if (ownsScopedExcalidrawApi) scopedExcalidrawApi?.destroy?.();
       scopedExcalidrawView = null;

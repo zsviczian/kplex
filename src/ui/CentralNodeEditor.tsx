@@ -19,6 +19,7 @@ export function CentralNodeEditor({
   defaultMode,
   maximized,
   allowMaximize,
+  activateHostLeafOnInteraction,
   onModeChange,
   onMaximizedChange,
   onCollapse,
@@ -31,6 +32,7 @@ export function CentralNodeEditor({
   defaultMode: EmbeddedMarkdownMode;
   maximized: boolean;
   allowMaximize: boolean;
+  activateHostLeafOnInteraction: boolean;
   onModeChange: (mode: EmbeddedMarkdownMode) => void;
   onMaximizedChange: (maximized: boolean) => void;
   onCollapse: () => void;
@@ -61,7 +63,9 @@ export function CentralNodeEditor({
         new Notice(plugin.translator("notice.excalidrawUpdateRequired", {
           version: requiredVersion,
         }), 6000);
-      });
+      }, (nextView) => {
+        setDocumentView(nextView);
+      }, activateHostLeafOnInteraction);
     } catch (error) {
       console.error("K-Plex failed to create the embedded central Markdown leaf.", error);
       setStatus("error");
@@ -72,7 +76,7 @@ export function CentralNodeEditor({
       controllerRef.current = null;
       controller.dispose();
     };
-  }, [plugin, hostLeaf]);
+  }, [plugin, hostLeaf, activateHostLeafOnInteraction]);
 
   useEffect(() => {
     const controller = controllerRef.current;

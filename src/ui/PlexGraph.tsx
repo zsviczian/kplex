@@ -3070,6 +3070,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         defaultMode={settings.centralNodeMarkdownMode}
         maximized={centralEditorMaximized}
         allowMaximize={centralEditorCanMaximize}
+        activateHostLeafOnInteraction={surface === "sidepanel" || Platform.isMobile}
         onModeChange={onCentralNodeModeChange}
         onMaximizedChange={setCentralEditorMaximizedState}
         onCollapse={collapseCentralEditor}
