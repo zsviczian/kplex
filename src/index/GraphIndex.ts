@@ -19,10 +19,11 @@ import {
   type Relation,
   type Role,
 } from "../types";
+import { planRetiredExclusionReconciliation } from "./LegacySnapshotPolicy";
 import { GraphBuilder, type FieldCacheEntry, type PatchFileCommit, type PatchFilePublisher } from "./GraphBuilder";
 import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
 import { extractLinksFromValue } from "./fieldParser";
-import { KplexIndexedDbCache, type IndexedDbSnapshotMeta, type IndexDiagnosticEntry,
+import { KplexIndexedDbCache, sanitizeIndexDiagnostics, type IndexedDbSnapshotMeta, type IndexDiagnosticEntry,
   type SnapshotWriteFailureReason } from "./IndexedDbCache";
 import { createGraphState, getGraphPage } from "./GraphState";
 import type { EvidenceRole, EvidenceSourceKind, RelationEvidence } from "./RelationEvidence";
@@ -50,6 +51,19 @@ import {
   type RelationshipExplanation,
 } from "./RelationResolver";
 
+
+import { tagDisplayName } from "../core/graph/presentation";
+import { captureSettingsPolicy, classifySettingsChange, compareIndexSettingsSignature } from "../core/graph/settingsPolicy";
+import {
+  ALL_PRESENTATION_FACETS, applyPreparedPresentation, capturePresentationSettings, prepareGraphPresentation,
+  presentationFacetsForPage, withPreparedPresentation, type PreparedGraphPresentation, type PresentationStatus,
+} from "./GraphPresentation";
+
+type PreparedPresentationPublication = {
+  settings: KplexSettings;
+  facets: PreparedGraphPresentation;
+  search: PreparedSearchIndex;
+};
 
 type CachedRelationView = {
   signature: string;
@@ -177,6 +191,12 @@ function searchEntryScore(entry: SearchEntry, query: string): number | null {
 export class GraphIndex {
   private state = createGraphState();
   private listeners = new Set<() => void>();
+  private presentationListeners = new Set<() => void>();
+  private presentationSettings: KplexSettings;
+  private presentationStatuses = new WeakMap<GraphPage, PresentationStatus>();
+  private presentationRun = 0;
+  private publicationRevision = 0;
+  private semanticRevision = 0;
   private fieldCache = new Map<string, FieldCacheEntry>();
   /** Compact semantic fingerprints survive hot-body LRU eviction so prose-only edits stay cheap. */
   private semanticFingerprints = new Map<string, string>();
@@ -227,6 +247,7 @@ export class GraphIndex {
   private activeSnapshotGeneration: string | null = null;
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
   constructor(private plugin: KplexPlugin, private app: App = plugin.app) {
+    this.presentationSettings = capturePresentationSettings(plugin.settings);
     this.indexedDb = new KplexIndexedDbCache(app.vault.getName());
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
     // cache; localStorage is a poor fit for large vaults because serialization duplicates memory.
@@ -241,16 +262,121 @@ export class GraphIndex {
     return () => { this.listeners.delete(listener); };
   }
 
+  /** Advance the evidence revision only for repository semantic/workflow notifications. */
   private emit(): void {
+    this.semanticRevision += 1;
     for (const listener of this.listeners) listener();
   }
   notify(): void { this.emit(); }
 
-  /** Refresh presentation-only labels/search terms after display-name settings change. */
+  /** Subscribe to presentation publication without invalidating evidence/relationship consumers. */
+  subscribePresentation(listener: () => void): () => void {
+    this.presentationListeners.add(listener);
+    return () => { this.presentationListeners.delete(listener); };
+  }
+
+  /** Evidence consumers use this revision rather than render-only updates. */
+  getSemanticRevision(): number { return this.semanticRevision; }
+
+  /** Expose pending inputs without persisting a misleading known-empty presentation value. */
+  getPresentationStatus(page: GraphPage): PresentationStatus {
+    return this.presentationStatuses.get(page) ?? { noteType: "pending", styleTags: "pending" };
+  }
+
+  /** Overlay only the prepared presentation policy; view/workflow preferences remain live. */
+  withPreparedPresentationSettings(settings: KplexSettings): KplexSettings {
+    return withPreparedPresentation(settings, this.presentationSettings);
+  }
+
+  /** Notify visible views; hidden views catch up through their existing visibility subscription. */
+  private emitPresentation(): void {
+    for (const listener of this.presentationListeners) listener();
+  }
+
+  /** Request a render-only update for legacy workflow controls without touching evidence. */
+  notifyPresentation(): void { this.emitPresentation(); }
+
+  /**
+   * Legacy synchronous display-name facade. It owns only alias/name/title preferences, not selected
+   * type/style facets. Settings controls use refreshPresentationSettings for the full atomic path.
+   */
   refreshDisplayNames(): void {
+    this.presentationSettings = { ...this.presentationSettings,
+      renderAlias: this.plugin.settings.renderAlias, nameFields: this.plugin.settings.nameFields,
+      nodeTitleScript: this.plugin.settings.nodeTitleScript };
     this.titleCache.clear();
     this.rebuildSearchIndex();
-    this.emit();
+    this.emitPresentation();
+  }
+
+  /**
+   * Prepare a settings-only refresh from cached inputs. A lightweight facet/search staging area is
+   * published in one synchronous step. No builder, patcher, parser, relationship cache or body read
+   * participates. Supersession, source publication and unload invalidate the complete preparation.
+   */
+  async refreshPresentationSettings(): Promise<void> {
+    const run = ++this.presentationRun;
+    const alive = (): boolean => !this.diagnosticsClosed && run === this.presentationRun;
+    while (alive()) {
+      const settings = capturePresentationSettings(this.plugin.settings);
+      const policy = captureSettingsPolicy(settings);
+      const effects = classifySettingsChange(captureSettingsPolicy(this.presentationSettings), policy);
+      if (!effects.render) return;
+      const revision = this.publicationRevision;
+      const sourceRevision = this.plugin.getIndexSourceRevision();
+      const state = this.state;
+      const current = (): boolean => alive() && this.state === state && revision === this.publicationRevision &&
+        sourceRevision === this.plugin.getIndexSourceRevision();
+      const policyCurrent = (): boolean => current() && !classifySettingsChange(policy, captureSettingsPolicy(this.plugin.settings)).render;
+      const keys = effects.changedKeys;
+      const facets = effects.presentationFacets ? await prepareGraphPresentation(state.pages.values(), settings, {
+        names: keys.includes("showFullTagName"), limits: keys.includes("baseNodeStyle.maxLabelLength"),
+        noteType: keys.includes("noteTypeField"), styleTags: keys.includes("primaryTagField") || keys.includes("tagStyleList"),
+      }, this.app, this.fieldCache, this.indexedDb, current) : null;
+      if (!policyCurrent() || (effects.presentationFacets && !facets)) continue;
+      const search = effects.searchTerms ? await this.prepareSearchIndex(state, current, undefined, settings, facets) : null;
+      if (!policyCurrent() || (facets && !facets.isCurrent()) || (effects.searchTerms && !search)) continue;
+      // No await below this line: policy, facets and search become visible as one publication.
+      if (facets) applyPreparedPresentation(facets, this.presentationStatuses);
+      this.presentationSettings = settings;
+      if (effects.searchTerms) this.titleCache.clear();
+      if (search) this.installSearchIndex(search);
+      if (effects.presentationFacets) this.suggestionCatalogCache = null;
+      if (effects.nodeVisuals) this.nodeVisualCache.clear();
+      this.recordIndexDiagnostic("restore", facets?.pending ? "presentation-inputs-pending" : "presentation-settings-adapted",
+        { changedKeys: [...keys], modified: facets?.pending ?? 0 });
+      this.emitPresentation();
+      return;
+    }
+  }
+
+  /** Prepare current presentation and search for an unpublished state, retrying changed policies. */
+  private async preparePresentationPublication(
+    state: ReturnType<typeof createGraphState>, isCurrent: () => boolean, onProgress?: () => void, structuralPreview = false,
+  ): Promise<PreparedPresentationPublication | null> {
+    while (isCurrent() && !this.diagnosticsClosed) {
+      const settings = capturePresentationSettings(this.plugin.settings);
+      const policy = captureSettingsPolicy(settings);
+      const sourceRevision = this.plugin.getIndexSourceRevision();
+      const current = (): boolean => isCurrent() && !this.diagnosticsClosed &&
+        sourceRevision === this.plugin.getIndexSourceRevision();
+      const policyCurrent = (): boolean => current() && !classifySettingsChange(policy, captureSettingsPolicy(this.plugin.settings)).render;
+      const facets = await prepareGraphPresentation(state.pages.values(), settings, ALL_PRESENTATION_FACETS,
+        this.app, this.fieldCache, structuralPreview ? { getBodies: () => Promise.resolve(new Map()) } : this.indexedDb, current, onProgress);
+      if (!facets || !policyCurrent()) continue;
+      // Cold structural publication keeps its bounded seed search and never preloads all bodies.
+      const search = structuralPreview ? { entries: [], byPath: new Map<string, SearchEntry>() } :
+        await this.prepareSearchIndex(state, current, onProgress, settings, facets);
+      if (!search || !policyCurrent() || !facets.isCurrent()) continue;
+      return { settings, facets, search };
+    }
+    return null;
+  }
+
+  /** Install prepared facets immediately before the associated graph/search publication. */
+  private acceptPresentation(prepared: PreparedPresentationPublication): void {
+    applyPreparedPresentation(prepared.facets, this.presentationStatuses);
+    this.presentationSettings = prepared.settings;
   }
 
   get size(): number { return this.state.pages.size; }
@@ -362,7 +488,7 @@ export class GraphIndex {
   }
 
   /** Whole-vault catalogs used by the filter/lens editor. They are derived once per published
-   * semantic revision instead of rescanning every page on each React render/status update. */
+   * semantic or selected-facet revision instead of rescanning every page on each React render/status update. */
   suggestionCatalog(): SuggestionCatalog {
     if (this.suggestionCatalogCache) return this.suggestionCatalogCache;
     const tags = new Set<string>();
@@ -405,6 +531,14 @@ export class GraphIndex {
       this.plugin.settings.noteTypeField, this.plugin.settings.primaryTagField,
     ].map((name) => name.toLowerCase().replaceAll(" ", "-").trim()));
     return this.discoveredFields().filter((field) => !assigned.has(field.normalized));
+  }
+
+  /** Invalidate in-flight semantic work only when the canonical settings classifier requires it. */
+  invalidateSemanticPolicy(): void {
+    this.cancelRebuild();
+    this.cancelSnapshotHydration?.();
+    this.snapshotHydrationRun += 1;
+    this.cancelPendingPersistence();
   }
 
   cancelRebuild(): void {
@@ -544,6 +678,8 @@ export class GraphIndex {
 
   destroy(): void {
     this.diagnosticsClosed = true;
+    this.presentationRun += 1;
+    this.presentationListeners.clear();
     this.generation += 1;
     this.bodyWarmGeneration += 1;
     this.cancelSnapshotHydration?.();
@@ -588,6 +724,7 @@ export class GraphIndex {
     keepExistingSearch = false,
   ): void {
     this.state = next;
+    this.publicationRevision += 1;
     this.titleCache.clear();
     this.suggestionCatalogCache = null;
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
@@ -602,10 +739,13 @@ export class GraphIndex {
     this.searchEntryByPath = prepared.byPath;
   }
 
+  /** Stage search against a proposed presentation policy without modifying published pages/caches. */
   private async prepareSearchIndex(
     state: ReturnType<typeof createGraphState>,
     isCurrent: () => boolean,
     onProgress?: () => void,
+    settings?: KplexSettings,
+    facets?: PreparedGraphPresentation | null,
   ): Promise<PreparedSearchIndex | null> {
     const entries: SearchEntry[] = [];
     const byPath = new Map<string, SearchEntry>();
@@ -615,7 +755,7 @@ export class GraphIndex {
 
     for (const page of state.pages.values()) {
       if (!isCurrent()) return null;
-      const entry = this.makeSearchEntry(page);
+      const entry = this.makeSearchEntry(page, settings, facets?.facets.get(page)?.name);
       entries.push(entry);
       byPath.set(page.path, entry);
       processed += 1;
@@ -633,6 +773,7 @@ export class GraphIndex {
     return { entries, byPath };
   }
 
+  /** Publish the bounded saved neighborhood only after current facets/search pass the restore fence. */
   private async publishSnapshotPreview(meta: IndexedDbSnapshotMeta, seedPaths: readonly string[], isCurrent: () => boolean): Promise<boolean> {
     if (meta.schema < 2) return false;
     const seeds = [...new Set([
@@ -680,23 +821,34 @@ export class GraphIndex {
     for (const saved of savedByPath.values()) addPersistedPageToState(next, saved, this.app);
     for (const saved of savedByPath.values()) hydratePersistedPageRelations(next, saved);
     next.discoveredFields = new Map(meta.discoveredFields);
+    // Current presentation and search are prepared before the targeted preview becomes visible.
+    // Attribute this newly awaited work to the existing search watchdog phase, not the page fetch.
+    const run = this.snapshotHydrationRun;
+    this.setSnapshotHydrationPhase(run, "preview-search");
+    const prepared = await this.preparePresentationPublication(next, isCurrent,
+      () => this.touchSnapshotHydrationProgress(run));
+    if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return false;
+    this.acceptPresentation(prepared);
     this.fullSnapshotHydrated = false;
     this.previewSnapshotPublished = true;
     this.restoredPatchPlanAvailable = false;
-    this.publishRestoredState(next);
+    this.publishRestoredState(next, prepared.search);
     return true;
   }
 
+  /** Hydrate a candidate privately, adapt its facade and retain the existing reconciliation plan. */
   private async restoreFullIndexedDbSnapshot(
     meta: IndexedDbSnapshotMeta,
     fresh: boolean,
     run: number,
     inventory: VaultInventory,
+    parentCurrent: () => boolean,
+    upgradePaths: ReadonlySet<string> = new Set(),
   ): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }> {
-    const isCurrent = () => run === this.snapshotHydrationRun;
+    const isCurrent = () => run === this.snapshotHydrationRun && parentCurrent();
     const next = createGraphState();
     const persistedPhysicalPaths = new Set<string>();
-    const modifiedMarkdownPaths = new Set<string>();
+    const modifiedMarkdownPaths = new Set<string>(upgradePaths);
     const missingFileBindings = new Set<string>();
     const restoredFingerprints = new Map<string, string>();
     // Old schema-2 desktop snapshots use one slow page cursor. Retain those decoded records so we
@@ -822,9 +974,10 @@ export class GraphIndex {
       this.previewSnapshotPublished = true;
       this.restoredPatchPlanAvailable = false;
       this.setSnapshotHydrationPhase(run, "preview-search");
-      const previewSearch = await this.prepareSearchIndex(pagePreview, isCurrent, () => this.touchSnapshotHydrationProgress(run));
-      if (!previewSearch || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-      this.publishRestoredState(pagePreview, previewSearch);
+      const prepared = await this.preparePresentationPublication(pagePreview, isCurrent, () => this.touchSnapshotHydrationProgress(run));
+      if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      this.acceptPresentation(prepared);
+      this.publishRestoredState(pagePreview, prepared.search);
     }
 
     this.setSnapshotHydrationPhase(run, "evidence");
@@ -866,12 +1019,17 @@ export class GraphIndex {
     // second time when promoting the fully hydrated state.
     this.setSnapshotHydrationPhase(run, "promote");
     if (relationsHydrated) {
+      if (classifySettingsChange(captureSettingsPolicy(this.presentationSettings), captureSettingsPolicy(this.plugin.settings)).render) {
+        await this.refreshPresentationSettings();
+        if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      }
       this.publishRestoredState(next, null, true);
     } else {
       this.setSnapshotHydrationPhase(run, "authoritative-search");
-      const restoredSearch = await this.prepareSearchIndex(next, isCurrent, () => this.touchSnapshotHydrationProgress(run));
-      if (!restoredSearch || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-      this.publishRestoredState(next, restoredSearch);
+      const prepared = await this.preparePresentationPublication(next, isCurrent, () => this.touchSnapshotHydrationProgress(run));
+      if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      this.acceptPresentation(prepared);
+      this.publishRestoredState(next, prepared.search);
     }
     this.fullSnapshotHydrated = !isCheckpoint;
     this.fullSnapshotFresh = authoritativeFresh;
@@ -905,10 +1063,13 @@ export class GraphIndex {
     return { restored: true, fresh: authoritativeFresh, createdAt: meta.createdAt };
   }
 
+  /** Compare named semantic policy, preserve candidate fallback and scope any retired-policy repair. */
   private async restoreIndexedDbSnapshot(seedPaths: readonly string[] = []): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
     this.cancelSnapshotHydration?.();
     const run = ++this.snapshotHydrationRun;
-    const isCurrent = () => run === this.snapshotHydrationRun;
+    const semanticPolicy = computeIndexSettingsSignature(this.plugin.settings);
+    const isCurrent = () => run === this.snapshotHydrationRun && !this.diagnosticsClosed &&
+      semanticPolicy === computeIndexSettingsSignature(this.plugin.settings);
     this.beginSnapshotHydrationDiagnostics(run);
     this.fullSnapshotHydrated = false;
     this.fullSnapshotFresh = false;
@@ -932,36 +1093,48 @@ export class GraphIndex {
       this.rememberSnapshotCatalog(catalog);
       if (this.indexDiagnostics.length === 0) this.indexDiagnostics = previousDiagnostics;
       const { active, checkpoint } = catalog;
-      const settingsSignature = computeIndexSettingsSignature(this.plugin.settings);
-      if (active?.settingsSignature !== settingsSignature && checkpoint?.settingsSignature !== settingsSignature) {
+      const compatibility = new Map([active, checkpoint].filter((meta): meta is IndexedDbSnapshotMeta => Boolean(meta))
+        .map((meta) => [meta, compareIndexSettingsSignature(meta.settingsSignature, this.plugin.settings)] as const));
+      const usable = (meta: IndexedDbSnapshotMeta | null): boolean => Boolean(meta && compatibility.get(meta)?.compatible);
+      if (!usable(active) && !usable(checkpoint)) {
         createdAt = active?.createdAt ?? checkpoint?.createdAt ?? null;
+        const decision = (active && compatibility.get(active)) || (checkpoint && compatibility.get(checkpoint));
         this.recordIndexDiagnostic("restore", !catalog.available ? "storage-unavailable" :
           catalog.invalidActive || catalog.invalidCheckpoint ? "invalid-snapshot-metadata" :
-            active || checkpoint ? "semantic-settings-changed" : "no-complete-snapshot");
+            decision ? decision.reason : "no-complete-snapshot", { changedKeys: [...(decision?.changedKeys ?? [])] });
         return { restored: false, fresh: false, createdAt };
       }
       const inventory = captureVaultInventory(this.app);
       this.restoreInventorySourceRevision = this.plugin.getIndexSourceRevision();
       const vaultSignature = inventory.signature;
-      // Prefer a fresh checkpoint to a stale complete snapshot. If both are stale, the complete
-      // generation normally preserves more work; the restore below plans its per-file delta.
-      const usableCheckpoint = checkpoint?.settingsSignature === settingsSignature &&
-        (!active || active.settingsSignature !== settingsSignature ||
-          (checkpoint.vaultSignature === vaultSignature && active.vaultSignature !== vaultSignature));
+      // Preserve active/checkpoint freshness preference and corruption fallback after classification.
+      const usableCheckpoint = usable(checkpoint) && (!usable(active) ||
+        (checkpoint?.vaultSignature === vaultSignature && active?.vaultSignature !== vaultSignature));
       const candidates = (usableCheckpoint ? [checkpoint, active] : [active, checkpoint])
-        .filter((meta): meta is IndexedDbSnapshotMeta => Boolean(meta && meta.settingsSignature === settingsSignature));
+        .filter((meta): meta is IndexedDbSnapshotMeta => Boolean(meta && usable(meta)));
       for (const meta of candidates) {
         if (!isCurrent()) return { restored: false, fresh: false, createdAt };
         createdAt = meta.createdAt;
+        const decision = compatibility.get(meta)!;
+        if (decision.reason !== "compatible") this.recordIndexDiagnostic("restore", decision.reason, { changedKeys: [...decision.changedKeys] });
         this.activeSnapshotGeneration = meta.generation;
-        const fresh = meta.key === "active" && meta.vaultSignature === vaultSignature;
+        const upgradePaths = decision.retiredFilepath ? await planRetiredExclusionReconciliation(
+          decision.retiredFilepath, this.plugin.settings, this.app, this.fieldCache, this.indexedDb,
+          isCurrent, () => this.plugin.getIndexSourceRevision(),
+        ) : new Set<string>();
+        if (!upgradePaths || !isCurrent()) return { restored: false, fresh: false, createdAt };
+        if (decision.retiredFilepath) this.recordIndexDiagnostic("restore", upgradePaths.size ?
+          "retired-policy-reconcile" : "retired-policy-no-affected-sources", { modified: upgradePaths.size });
+        const fresh = meta.key === "active" && meta.vaultSignature === vaultSignature && upgradePaths.size === 0;
         this.recordIndexDiagnostic("restore", meta.key === "checkpoint" ? "checkpoint-selected" :
           fresh ? "complete-snapshot-fresh" : "complete-snapshot-stale");
         this.setSnapshotHydrationPhase(run, "preview");
         const previewPublished = await this.publishSnapshotPreview(meta, seedPaths, isCurrent);
         if (!isCurrent()) return { restored: false, fresh: false, createdAt };
         if (previewPublished) reportPreview({ restored: true, fresh, createdAt, partial: true });
-        const result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory);
+        const result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory, isCurrent, upgradePaths);
+        if (result.restored && decision.presentationChanged) this.recordIndexDiagnostic("restore", "presentation-settings-adapted",
+          { changedKeys: [...decision.changedKeys] });
         if (result.restored || !isCurrent()) return result;
       }
       return { restored: false, fresh: false, createdAt };
@@ -1041,7 +1214,7 @@ export class GraphIndex {
 
   /** Inspect recent local index decisions without exposing vault paths or note content. */
   getIndexDiagnostics(): IndexDiagnosticEntry[] {
-    return this.indexDiagnostics.map((entry) => ({ ...entry }));
+    return sanitizeIndexDiagnostics(this.indexDiagnostics);
   }
 
   /** Safe, synchronous snapshot facts for a user-shared report. Clipboard writes need the user gesture. */
@@ -1076,12 +1249,13 @@ export class GraphIndex {
     this.recordIndexDiagnostic("build", `${kind}:${reason}`, { modified });
   }
 
+  /** Retain only bounded sanitized decisions, including built-in changed-key names. */
   private recordIndexDiagnostic(
     stage: IndexDiagnosticEntry["stage"],
     reason: string,
-    counts: Pick<IndexDiagnosticEntry, "added" | "removed" | "modified" | "completedMarkdownFiles" | "durationMs"> = {},
+    counts: Pick<IndexDiagnosticEntry, "added" | "removed" | "modified" | "completedMarkdownFiles" | "durationMs" | "changedKeys"> = {},
   ): void {
-    this.indexDiagnostics = [...this.indexDiagnostics, { at: Date.now(), stage, reason, ...counts }].slice(-20);
+    this.indexDiagnostics = sanitizeIndexDiagnostics([...this.indexDiagnostics, { at: Date.now(), stage, reason, ...counts }]);
     const entries = this.getIndexDiagnostics();
     this.diagnosticWriteTask = this.diagnosticWriteTask.then(() =>
       this.diagnosticsClosed ? undefined : this.indexedDb.writeIndexDiagnostics(entries));
@@ -1156,6 +1330,23 @@ export class GraphIndex {
    */
   private commitPreparedFile(commit: PatchFileCommit, publishPreparedState: () => void): void {
     publishPreparedState();
+    this.publicationRevision += 1;
+    for (const path of commit.touchedPagePaths) {
+      const page = this.state.pages.get(path);
+      if (!page) continue;
+      if (path !== commit.sourcePath) {
+        // A URL-heavy source may touch thousands of targets. Their type/style values were not
+        // recollected: retain those prepared facets without allocating a per-target staging object.
+        if (page.isTag) page.name = tagDisplayName(page.path, this.presentationSettings.showFullTagName);
+        page.maxLabelLength = this.presentationSettings.baseNodeStyle.maxLabelLength ?? 30;
+        continue;
+      }
+      const hot = this.fieldCache.get(path);
+      const body = hot?.mtime === page.file?.stat.mtime ? hot?.body : undefined;
+      const { status, ...facets } = presentationFacetsForPage(page, this.presentationSettings, this.app, body);
+      Object.assign(page, facets);
+      if (status) this.presentationStatuses.set(page, { noteType: "pending", styleTags: "pending", ...status });
+    }
     this.invalidatePatchedPages(commit.touchedPagePaths);
     this.patchSearchIndex(commit.touchedPagePaths);
     this.suggestionCatalogCache = null;
@@ -1166,6 +1357,7 @@ export class GraphIndex {
   private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
     this.commitPreparedFile(commit, publishPreparedState);
     if (commit.semanticChanged) this.emit();
+    else this.emitPresentation();
   };
 
   /** Patch modified Markdown sources into a restored snapshot without rebuilding the whole vault. */
@@ -1287,6 +1479,7 @@ export class GraphIndex {
     }
   }
 
+  /** Deprecated disk-cache compatibility reader; production startup uses IndexedDB. */
   private async restoreChunkedSnapshot(): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }> {
     const manifestPath = this.snapshotManifestPath();
     if (!manifestPath || !(await this.app.vault.adapter.exists(manifestPath))) {
@@ -1297,10 +1490,13 @@ export class GraphIndex {
       const parsed: unknown = JSON.parse(raw);
       if (!isPersistedIndexManifestV2(parsed)) return { restored: false, fresh: false, createdAt: null };
       const manifest = parsed;
-      if (manifest.settingsSignature !== computeIndexSettingsSignature(this.plugin.settings)) {
+      const decision = compareIndexSettingsSignature(manifest.settingsSignature, this.plugin.settings);
+      if (!decision.compatible || decision.retiredFilepath) {
         return { restored: false, fresh: false, createdAt: manifest.createdAt };
       }
 
+      const policy = computeIndexSettingsSignature(this.plugin.settings);
+      const current = (): boolean => !this.diagnosticsClosed && policy === computeIndexSettingsSignature(this.plugin.settings);
       const next = createGraphState();
       for (let i = 0; i < manifest.pageChunkCount; i += 1) {
         const path = this.snapshotChunkPath(manifest.generation, "pages", i);
@@ -1321,13 +1517,14 @@ export class GraphIndex {
       next.discoveredFields = new Map(manifest.discoveredFields);
       const resolved = await finalizeHydratedGraphStateCooperative(
         next,
-        () => true,
+        current,
         Platform.isIosApp ? 50 : Platform.isMobile ? 100 : 240,
       );
       if (!resolved) return { restored: false, fresh: false, createdAt: manifest.createdAt };
-      const restoredSearch = await this.prepareSearchIndex(next, () => true);
-      if (!restoredSearch) return { restored: false, fresh: false, createdAt: manifest.createdAt };
-      this.publishRestoredState(next, restoredSearch);
+      const prepared = await this.preparePresentationPublication(next, current);
+      if (!prepared || !current() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: manifest.createdAt };
+      this.acceptPresentation(prepared);
+      this.publishRestoredState(next, prepared.search);
       const fresh = manifest.vaultSignature === computeVaultSignature(this.app);
       // A previous iOS/WebView termination may have interrupted a new generation after some
       // chunks were written but before its manifest became authoritative. Remove those orphaned
@@ -1521,7 +1718,7 @@ export class GraphIndex {
     // backlog. Cancelling the entire pass for each sync/metadata event restarted large vaults at
     // file zero. GraphBuilder still fences each source by its exact TFile/stat revision; a source
     // changed during its own read cancels safely, while unrelated events leave committed work intact.
-    const isCurrent = (): boolean => run === this.generation;
+    const isCurrent = (): boolean => run === this.generation && !this.diagnosticsClosed;
     try {
       const resuming = this.resumableCheckpointPaths !== null;
       const nextFingerprints = resuming ? this.semanticFingerprints : new Map<string, string>();
@@ -1595,7 +1792,11 @@ export class GraphIndex {
 
       if (!isCurrent()) return false;
       if (!resuming) {
+        const prepared = await this.preparePresentationPublication(next, isCurrent, undefined, true);
+        if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return false;
+        this.acceptPresentation(prepared);
         this.state = next;
+        this.publicationRevision += 1;
         this.semanticFingerprints = nextFingerprints;
         this.fullSnapshotHydrated = false;
         this.fullSnapshotFresh = false;
@@ -1739,6 +1940,8 @@ export class GraphIndex {
     }
     this.building = true;
     const run = ++this.generation;
+    const semanticPolicy = computeIndexSettingsSignature(this.plugin.settings);
+    const current = (): boolean => run === this.generation && !this.diagnosticsClosed;
     try {
       const nextFingerprints = new Map<string, string>();
       const builder = new GraphBuilder(
@@ -1747,19 +1950,23 @@ export class GraphIndex {
         this.fieldCache,
         this.metadataParser,
         this.indexedDb,
-        () => run === this.generation,
+        current,
         nextFingerprints,
       );
       const next = await builder.build();
-      if (!next || run !== this.generation) {
+      if (!next || !current()) {
         return false;
       }
 
-      const preparedSearch = await this.prepareSearchIndex(next, () => run === this.generation);
-      if (!preparedSearch || run !== this.generation) return false;
+      const prepared = await this.preparePresentationPublication(next, current);
+      if (!prepared || !current() || !prepared.facets.isCurrent() ||
+        semanticPolicy !== computeIndexSettingsSignature(this.plugin.settings)) return false;
+      const preparedSearch = prepared.search;
+      this.acceptPresentation(prepared);
 
       // Atomic graph-state swap: readers never observe a half-built graph.
       this.state = next;
+      this.publicationRevision += 1;
       this.semanticFingerprints = nextFingerprints;
       this.fullSnapshotHydrated = true;
       this.fullSnapshotFresh = true;
@@ -1778,9 +1985,10 @@ export class GraphIndex {
     }
   }
 
-  private makeSearchEntry(page: GraphPage): SearchEntry {
-    const title = this.titleFor(page);
-    const alternateNames = new Set([page.name, ...page.aliases]);
+  /** Build search terms against a proposed policy without mutating pages or live title caches. */
+  private makeSearchEntry(page: GraphPage, settings?: KplexSettings, name = page.name): SearchEntry {
+    const title = settings ? this.displayNameFromConfiguredFields(page, settings) ?? name : this.titleFor(page);
+    const alternateNames = new Set([name, ...page.aliases]);
     alternateNames.delete(title);
     return {
       page,
@@ -2629,9 +2837,10 @@ export class GraphIndex {
     return result;
   }
 
-  private displayNameFromConfiguredFields(page: GraphPage): string | null {
-    if (!this.plugin.settings.renderAlias) return null;
-    const fields = this.plugin.settings.nameFields
+  /** Select a display name from MetadataCache only, using the prepared or explicitly staged policy. */
+  private displayNameFromConfiguredFields(page: GraphPage, settings = this.presentationSettings): string | null {
+    if (!settings.renderAlias) return null;
+    const fields = settings.nameFields
       .split(",")
       .map((field) => field.trim())
       .filter(Boolean);
@@ -2670,8 +2879,9 @@ export class GraphIndex {
     return null;
   }
 
+  /** Read the synchronous prepared display facade; no storage or parsing occurs during render. */
   titleFor(page: GraphPage): string {
-    const settings = this.plugin.settings;
+    const settings = this.presentationSettings;
     const signature = [
       page.mtime ?? 0,
       settings.renderAlias ? "1" : "0",

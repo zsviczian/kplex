@@ -652,7 +652,7 @@ function Edge({
 }
 
 /** Compose the deterministic Plex scene and interaction handlers, using localized UI copy without rebuilding semantic state for presentation changes. */
-export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, areaSettingsMode, onAreaSettingsModeChange, onActivate, onOpen, onCentralNodeEditorChange, onCentralNodeModeChange }: {
+export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, semanticRevision, areaSettingsMode, onAreaSettingsModeChange, onActivate, onOpen, onCentralNodeEditorChange, onCentralNodeModeChange }: {
   plugin: KplexPlugin;
   index: GraphIndex;
   settings: KplexSettings;
@@ -665,6 +665,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   showCrossLinks: boolean;
   activePath: string;
   renderRevision: number;
+  semanticRevision: number;
   areaSettingsMode: boolean;
   onAreaSettingsModeChange: (enabled: boolean) => void;
   onActivate: (page: GraphPage) => void;
@@ -721,7 +722,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         return `${entry.targetPath}:${target?.mtime ?? 0}:${target?.name ?? ""}:${evidenceIds}`;
       }),
     ].join("|");
-  }, [index, sectionExpanded, persistentNeighborhood?.center.path, persistentNeighborhood?.center.mtime, renderRevision]);
+  }, [index, sectionExpanded, persistentNeighborhood?.center.path, persistentNeighborhood?.center.mtime, semanticRevision]);
   const [sectionExpansion, setSectionExpansion] = useState<CentralSectionExpansion | null>(null);
   const sectionProjectionRevision = [
     settings.showFolderNodes ? "1" : "0",
@@ -735,9 +736,11 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     settings.renderSiblings ? "1" : "0",
     settings.maxItemCount,
   ].join("|");
+  // Presentation publications reproject cached section evidence; only semantic/source revisions
+  // above may trigger the asynchronous Markdown expansion again.
   const projectedSectionExpansion = useMemo(() => sectionExpansion
     ? projectCentralSectionExpansion(plugin, index, sectionExpansion)
-    : null, [sectionExpansion, plugin, index, sectionProjectionRevision]);
+    : null, [sectionExpansion, plugin, index, sectionProjectionRevision, renderRevision]);
   const [expandedSectionIds, setExpandedSectionIds] = useState<Set<string>>(new Set());
   const sectionFoldCenter = useRef<string | null>(null);
   const [sceneTransitioning, setSceneTransitioning] = useState(false);

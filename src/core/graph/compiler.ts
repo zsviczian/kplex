@@ -1,3 +1,8 @@
+/**
+ * Portable source-to-evidence compiler. Semantic rules remain canonical here; presentation fields
+ * are a finite compatibility output delegated to the shared presentation owner until SI4.
+ */
+import { selectStyleTags, tagDisplayName, unwrapNoteType } from "./presentation";
 import { normalizeFieldName } from "../contracts/fieldName";
 import { nodeId, type FileFacet, type GraphNodeKind, type NodeId } from "./model";
 import {
@@ -661,9 +666,7 @@ export class NormalizedGraphCompiler {
 
   private tagNameFromPath(path: string | undefined): string {
     if (!path) return "";
-    const tagPath = path.replace(/^tag:/, "");
-    const parts = tagPath.split("/");
-    return this.settings.showFullTagName ? tagPath : parts[parts.length - 1] ?? tagPath;
+    return tagDisplayName(path, this.settings.showFullTagName);
   }
 
   private syntheticId(): NodeId {
@@ -773,31 +776,10 @@ export class NormalizedGraphCompiler {
     return this.runtime.isCurrent();
   }
 
+  /** Prepare compatibility facets through the same presentation rules used after restoration. */
   private finalizeMetadata(node: CompiledGraphNode): void {
     const accumulator = this.metadata.get(node.id);
-    if (accumulator) {
-      const noteType = (accumulator.hasFrontmatterNoteType ? accumulator.frontmatterNoteType : undefined)
-        ?? (accumulator.hasInlineNoteType ? accumulator.inlineNoteType : undefined);
-      node.noteType = this.unwrapNoteType(noteType);
-      const styleTags = node.tags.filter((tag) => this.settings.tagStyleList.some((prefix) => tag.startsWith(prefix)));
-      const primaryTags = accumulator.primaryValues
-        .flatMap((value) => typeof value === "string" ? value.match(/#[^\s\])$"'\\]+/g) ?? [] : []);
-      node.primaryStyleTag = primaryTags.find((tag) => styleTags.some((styleTag) => styleTag.startsWith(tag))) ?? styleTags[0] ?? null;
-      node.styleTags = styleTags.filter((tag) => tag !== node.primaryStyleTag);
-      return;
-    }
-    const styleTags = node.tags.filter((tag) => this.settings.tagStyleList.some((prefix) => tag.startsWith(prefix)));
-    node.primaryStyleTag = styleTags[0] ?? null;
-    node.styleTags = styleTags.filter((tag) => tag !== node.primaryStyleTag);
-  }
-
-  private unwrapNoteType(value: SemanticMetadataOccurrence["value"] | undefined): string | null {
-    const first: unknown = Array.isArray(value) ? value[0] : value;
-    if (typeof first !== "string" && typeof first !== "number") return null;
-    let text = String(first).trim();
-    const wiki = text.match(/^\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]$/);
-    if (wiki) text = wiki[1].trim();
-    text = text.replace(/^#/, "").trim();
-    return text || null;
+    node.noteType = unwrapNoteType(accumulator?.frontmatterNoteType ?? accumulator?.inlineNoteType);
+    Object.assign(node, selectStyleTags(node.tags, this.settings.tagStyleList, accumulator?.primaryValues ?? []));
   }
 }

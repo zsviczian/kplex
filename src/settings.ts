@@ -1,7 +1,8 @@
 /**
  * Obsidian settings persistence, bounded legacy graph import, declarative controls and style/ontology
  * managers. Foreign imports cannot change plugin workflow preferences; own persisted K-Plex keys
- * remain stable. Callers own saving/reindexing and the injected translator owns display copy.
+ * remain stable. All saves cross the plugin settings-impact classifier; the injected translator
+ * owns display copy.
  */
 import {
   AbstractInputSuggest,
@@ -1442,15 +1443,6 @@ const HIERARCHY_KEY_MAP: Record<string, EditableHierarchyKey> = {
   "hierarchy.hidden": "hidden"
 };
 
-const REINDEX_SETTING_KEYS = new Set<string>([
-  "inferAllLinksAsFriends",
-  "inverseInfer",
-  "showFullTagName",
-  "primaryTagField",
-  "noteTypeField",
-  ...Object.keys(HIERARCHY_KEY_MAP)
-]);
-
 /** Provide localized arrowhead dropdown labels keyed by the unchanged persisted arrowhead values. */
 const arrowOptions = (translate: Translator): Record<Arrowhead, string> => ({
   none: translate("styles.arrowNone"),
@@ -1962,6 +1954,7 @@ export class KplexSettingTab extends PluginSettingTab {
     return this.kplexPlugin.settings[key as keyof KplexSettings];
   }
 
+  /** Apply every declarative control through the plugin's shared settings-impact classifier. */
   async setControlValue(key: string, value: unknown): Promise<void> {
     const hierarchyKey = HIERARCHY_KEY_MAP[key];
     if (hierarchyKey) {
@@ -2032,11 +2025,6 @@ export class KplexSettingTab extends PluginSettingTab {
 
     const settingKey = key as keyof KplexSettings;
     (this.kplexPlugin.settings as unknown as Record<string, unknown>)[settingKey] = value;
-    if (key === "renderAlias" || key === "nameFields") {
-      await this.kplexPlugin.saveSettings(false, false);
-      this.kplexPlugin.index.refreshDisplayNames();
-      return;
-    }
-    await this.kplexPlugin.saveSettings(REINDEX_SETTING_KEYS.has(key));
+    await this.kplexPlugin.saveSettings();
   }
 }

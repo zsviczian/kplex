@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runSettingsIndependence } from "./support/settingsIndependence.mjs";
 import { canonicalGraph, canonicalNeighborhood, canonicalPair, canonicalScene } from "./support/canonicalGraph.mjs";
 
 const require = createRequire(import.meta.url);
@@ -296,9 +297,9 @@ assert(!placeholderPathSource.includes("getNewFileParent"), "A placeholder must 
 
 globalThis.window = globalThis;
 
-function compile(relativePath) {
+function compile(relativePath, targetPath = relativePath) {
   const sourcePath = join(root, relativePath);
-  const outputPath = join(temp, relativePath.replace(/\.ts$/, ".js"));
+  const outputPath = join(temp, targetPath.replace(/\.ts$/, ".js"));
   mkdirSync(dirname(outputPath), { recursive: true });
   const source = readFileSync(sourcePath, "utf8");
   const result = ts.transpileModule(source, {
@@ -339,6 +340,10 @@ for (const file of [
   "src/core/graph/resolver.ts",
   "src/core/graph/source.ts",
   "src/core/graph/settings.ts",
+  "src/core/graph/settingsPolicy.ts",
+  "src/core/graph/presentation.ts",
+  "src/index/GraphPresentation.ts",
+  "src/index/LegacySnapshotPolicy.ts",
   "src/core/graph/compiler.ts",
   "src/core/graph/patch.ts",
   "src/core/plex/predicate.ts",
@@ -374,7 +379,10 @@ for (const file of [
   "src/lens/GraphLensSimple.ts",
   "src/lens/SimplePlexFilter.ts",
   "src/ui/layout.ts",
+  "src/ui/components/collectionWindow.ts",
 ]) compile(file);
+
+compile("src/settings.ts", "src/settingsUnderTest.ts");
 
 const obsidianModuleDir = join(temp, "node_modules/obsidian");
 mkdirSync(obsidianModuleDir, { recursive: true });
@@ -449,11 +457,17 @@ class FileView { constructor() { this.containerEl = null; } }
 class MarkdownView extends FileView {}
 class Menu {}
 class Notice { constructor() {} }
+class Modal { constructor(app) { this.app = app; } open() { Modal.latest = this; } }
+class App {}
+class AbstractInputSuggest {}
+class PluginSettingTab { constructor(app) { this.app = app; this.containerEl = { addClass() {} }; } update() {} }
+function getIcon() { return null; }
+function getIconIds() { return []; }
 function normalizePath(path) { return path; }
 function setIcon() {}
 module.exports = {
   TAbstractFile, TFile, TFolder, getAllTags, moment, Platform, apiVersion: "1.14.2", Plugin, FileView, MarkdownView,
-  Menu, Notice, normalizePath, setIcon,
+  Menu, Notice, normalizePath, setIcon, Modal, App, AbstractInputSuggest, PluginSettingTab, getIcon, getIconIds,
 };
 `);
 
@@ -1232,6 +1246,16 @@ try {
       .map((page) => persistedPageFromGraphPage(page, index.semanticFingerprints.get(page.path))),
     evidence: [...index.state.evidence.declarations()].map(persistedDeclarationFromEvidence),
   };
+  await runSettingsIndependence({
+    GraphIndex, GraphBuilder, KplexPlugin, settingsModule: require(join(temp, "src/settingsUnderTest.js")),
+    policy: require(join(temp, "src/core/graph/settingsPolicy.js")),
+    sanitize: require(join(temp, "src/index/IndexedDbCache.js")).sanitizeIndexDiagnostics,
+    OntologyCollector: require(join(temp, "src/adapters/obsidian/ontologySourceCollector.js")).ObsidianOntologySourceCollector,
+    mergeFileMetadata: require(join(temp, "src/index/fieldParser.js")).mergeFileMetadata, parseBodyMetadata,
+    app, plugin, settings, index, warmRecord, caches, obsidianTestApi, canonicalGraph,
+    computeIndexSettingsSignature, computeVaultSignature, createIndexDiagnosticsReport,
+    buildCentralSectionExpansion, projectCentralSectionExpansion,
+  });
   const newPath = "Startup Delta.md";
   const newContent = "Parent:: [[Note A]]\n";
   const newFile = new TFile(newPath, mtime++);
@@ -1245,6 +1269,10 @@ try {
   unresolvedLinks[newPath] = {};
   const makeWarmDelta = () => {
     const warmDelta = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [] } }, app);
+    warmDelta.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+      const cached = index.fieldCache.get(path);
+      return cached?.mtime === mtime ? [[path, cached.body]] : [];
+    }));
     warmDelta.indexedDb.readSnapshotMeta = async (key = "active") => key === "active" ? warmRecord.meta : null;
     warmDelta.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: warmRecord.meta, checkpoint: null, invalidActive: false });
     warmDelta.indexedDb.snapshotUsesChunks = () => true;
@@ -1549,6 +1577,10 @@ try {
   const fallback = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
   const damagedActive = { ...checkpointRecord.meta, key: "active", generation: "damaged-complete-generation", vaultSignature: "stale" };
   const staleCheckpointMeta = { ...checkpointRecord.meta, vaultSignature: "stale" };
+  fallback.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+    const cached = index.fieldCache.get(path);
+    return cached?.mtime === mtime ? [[path, cached.body]] : [];
+  }));
   fallback.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: damagedActive,
     checkpoint: staleCheckpointMeta, invalidActive: false, invalidCheckpoint: false });
   fallback.indexedDb.snapshotUsesChunks = () => true;
@@ -1597,6 +1629,10 @@ try {
   }
 
   const resumed = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+  resumed.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+    const cached = index.fieldCache.get(path);
+    return cached?.mtime === mtime ? [[path, cached.body]] : [];
+  }));
   resumed.indexedDb.readSnapshotMeta = async (key = "active") => key === "checkpoint" ? checkpointRecord.meta : null;
   resumed.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: null, checkpoint: checkpointRecord.meta, invalidActive: false });
   resumed.indexedDb.snapshotUsesChunks = () => true;
@@ -1658,6 +1694,10 @@ try {
   changedCompletedFile.stat.mtime = mtime++;
   changedCompletedFile.stat.size = contents.get(changedCompletedPath).length;
   const staleCheckpoint = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+  staleCheckpoint.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+    const cached = index.fieldCache.get(path);
+    return cached?.mtime === mtime ? [[path, cached.body]] : [];
+  }));
   staleCheckpoint.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: null, checkpoint: checkpointRecord.meta, invalidActive: false });
   staleCheckpoint.indexedDb.readIndexDiagnostics = async () => [];
   staleCheckpoint.indexedDb.snapshotUsesChunks = () => true;
@@ -2315,6 +2355,10 @@ try {
   const controlledIndexes = [];
   const makeRestoreIndex = () => {
     const restored = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+    restored.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+      const cached = index.fieldCache.get(path);
+      return cached?.mtime === mtime ? [[path, cached.body]] : [];
+    }));
     restored.indexedDb.readSnapshotMeta = async () => snapshotMeta;
     restored.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: await restored.indexedDb.readSnapshotMeta(), checkpoint: null, invalidActive: false });
     restored.indexedDb.snapshotUsesChunks = () => true;
@@ -2635,6 +2679,13 @@ try {
   resolvedLinks["Note A.md"][imageFile.path] = 1;
   await index.patchMarkdownPaths(["Note A.md"]);
   expectNoRole("Note A.md", "child", imageFile.path);
+
+  // SI0: a second ordinary/prose occurrence must retain generic inferred evidence even when the
+  // first occurrence is image metadata. Selector changes therefore require semantic invalidation.
+  noteA.stat.mtime += 1000;
+  resolvedLinks["Note A.md"][imageFile.path] = 2;
+  await index.patchMarkdownPaths(["Note A.md"]);
+  expectRole("Note A.md", "child", imageFile.path, RelationType.INFERRED);
 
   noteA.stat.mtime += 1000;
   const existingChildren = noteACache.frontmatter.Child;

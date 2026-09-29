@@ -3,6 +3,7 @@
  * Complete and partial checkpoint metadata point to independent chunk generations only after
  * their writes finish; callers own semantic validity and plugin-lifetime cancellation.
  */
+import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
 import { Platform } from "obsidian";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
@@ -41,7 +42,25 @@ export type IndexDiagnosticEntry = {
   modified?: number;
   completedMarkdownFiles?: number;
   durationMs?: number;
+  changedKeys?: SettingDiagnosticKey[];
 };
+
+/** Revalidate stored history and public exports without copying arbitrary diagnostic fields. */
+export function sanitizeIndexDiagnostics(entries: readonly unknown[]): IndexDiagnosticEntry[] {
+  return entries.flatMap((item): IndexDiagnosticEntry[] => {
+    if (!isUnknownRecord(item) || typeof item.at !== "number" || !Number.isFinite(item.at) || typeof item.reason !== "string" ||
+      !/^[a-z0-9:|_-]{1,240}$/.test(item.reason) ||
+      (item.stage !== "restore" && item.stage !== "reconcile" && item.stage !== "build" && item.stage !== "persist")) return [];
+    const sanitized: IndexDiagnosticEntry = { at: item.at, stage: item.stage, reason: item.reason };
+    for (const key of ["added", "removed", "modified", "completedMarkdownFiles", "durationMs"] as const) {
+      const value = item[key];
+      if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) sanitized[key] = value;
+    }
+    const changedKeys = sanitizeChangedSettingKeys(item.changedKeys);
+    if (changedKeys.length) sanitized.changedKeys = changedKeys;
+    return [sanitized];
+  }).slice(-20);
+}
 
 /** Path-free reason codes for an unsuccessful snapshot stream. */
 export type SnapshotReadFailureReason = "storage-unavailable" | "missing-chunk" | "invalid-chunk" |
@@ -291,6 +310,7 @@ export class KplexIndexedDbCache {
     } catch { return unavailable; }
   }
 
+  /** Read only bounded, path-free diagnostic fields from untrusted persisted metadata. */
   async readIndexDiagnostics(): Promise<IndexDiagnosticEntry[]> {
     const db = await this.open();
     if (!db) return [];
@@ -300,26 +320,17 @@ export class KplexIndexedDbCache {
       const value = await requestUnknownResult(tx.objectStore(META_STORE).get("diagnostics"));
       await done;
       if (!isUnknownRecord(value) || !Array.isArray(value.entries)) return [];
-      return value.entries.flatMap((item): IndexDiagnosticEntry[] => {
-        if (!isUnknownRecord(item) || typeof item.at !== "number" || !Number.isFinite(item.at) || typeof item.reason !== "string" ||
-          !/^[a-z0-9:|_-]{1,240}$/.test(item.reason) ||
-          (item.stage !== "restore" && item.stage !== "reconcile" && item.stage !== "build" && item.stage !== "persist")) return [];
-        const sanitized: IndexDiagnosticEntry = { at: item.at, stage: item.stage, reason: item.reason };
-        for (const key of ["added", "removed", "modified", "completedMarkdownFiles", "durationMs"] as const) {
-          const number = item[key];
-          if (typeof number === "number" && Number.isSafeInteger(number) && number >= 0) sanitized[key] = number;
-        }
-        return [sanitized];
-      }).slice(-20);
+      return sanitizeIndexDiagnostics(value.entries);
     } catch { return []; }
   }
 
+  /** Save sanitized local history without changing cache schema or blocking indexing on failure. */
   async writeIndexDiagnostics(entries: readonly IndexDiagnosticEntry[]): Promise<void> {
     const db = await this.open();
     if (!db) return;
     try {
       const tx = db.transaction(META_STORE, "readwrite");
-      tx.objectStore(META_STORE).put({ key: "diagnostics", entries: entries.slice(-20) });
+      tx.objectStore(META_STORE).put({ key: "diagnostics", entries: sanitizeIndexDiagnostics(entries) });
       await transactionDone(tx);
     } catch { /* Diagnostics must never block indexing. */ }
   }

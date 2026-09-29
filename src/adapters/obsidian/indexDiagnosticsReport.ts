@@ -1,5 +1,6 @@
 /** User-shared index support report. Only explicit counters, states and reason codes cross this boundary. */
 import { apiVersion, Platform } from "obsidian";
+import { sanitizeIndexDiagnostics } from "../../index/IndexedDbCache";
 import type { GraphIndex } from "../../index/GraphIndex";
 
 type IndexStatusFacts = {
@@ -9,6 +10,7 @@ type IndexStatusFacts = {
   totalFiles: number | null;
 };
 
+/** Export only sanitized aggregate decisions, even if an older runtime supplied history. */
 export function createIndexDiagnosticsReport(
   index: GraphIndex,
   getStatus: () => IndexStatusFacts,
@@ -34,6 +36,6 @@ export function createIndexDiagnosticsReport(
     },
     hydration: index.getSnapshotHydrationDiagnostics(),
     saved,
-    decisions: index.getIndexDiagnostics(),
+    decisions: sanitizeIndexDiagnostics(index.getIndexDiagnostics()),
   }, null, 2);
 }

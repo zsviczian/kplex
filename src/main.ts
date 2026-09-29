@@ -2,6 +2,7 @@
  * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback.
  */
 import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
+import { captureSettingsPolicy, classifySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
 import { GraphIndex } from "./index/GraphIndex";
 import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
 import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelView } from "./ui/KplexView";
@@ -62,6 +63,7 @@ type RecentIndexedNavigationTarget = {
 export default class KplexPlugin extends Plugin {
   settings: KplexSettings = DEFAULT_SETTINGS;
   index!: GraphIndex;
+  private savedSettingsPolicy: SettingsPolicy | null = null;
   translator: Translator = createTranslator("en");
   private rebuildTimer: number | null = null;
   private indexDirty = true;
@@ -160,6 +162,7 @@ export default class KplexPlugin extends Plugin {
       ownRecord?.noteTypeField
     );
     this.settings = migrateAndMergeSettings(ownData);
+    this.savedSettingsPolicy = captureSettingsPolicy(this.settings);
     if (alreadyKplex && !ownRecord?.kplexInitialized) {
       this.settings.kplexInitialized = true;
       await this.saveData(this.settings);
@@ -337,7 +340,7 @@ export default class KplexPlugin extends Plugin {
             new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
           }
           this.settings.kplexInitialized = true;
-          await this.saveData(this.settings);
+          await this.saveSettings();
         }
 
         if (this.unloading) return;
@@ -1091,11 +1094,24 @@ export default class KplexPlugin extends Plugin {
     return page;
   }
 
-  async saveSettings(reindex = false, notifyIndex = true): Promise<void> {
+  /**
+   * Persist all caller mutations through the canonical immutable settings projection. The legacy
+   * boolean is a call-site compatibility facade only: managers/imports cannot bypass classification.
+   * Capture before awaiting storage so overlapping saves cannot lose a semantic invalidation.
+   */
+  async saveSettings(_reindex = false, notifyIndex = true): Promise<void> {
     this.settings.primaryTagFieldLowerCase = this.settings.primaryTagField.toLowerCase().replaceAll(" ", "-");
+    const next = captureSettingsPolicy(this.settings);
+    const effects = classifySettingsChange(this.savedSettingsPolicy ?? next, next);
+    this.savedSettingsPolicy = next;
+    if (effects.semanticInvalidation) this.index.invalidateSemanticPolicy();
     await this.saveData(this.settings);
-    if (reindex) this.scheduleRebuild("settings");
-    else if (notifyIndex) this.index.notify();
+    if (this.unloading) return;
+    if (effects.semanticInvalidation) this.scheduleRebuild("settings");
+    await this.index.refreshPresentationSettings();
+    // Workflow-only callers can still request their historical view notification. Changed settings
+    // use the separate presentation channel and never pretend relationship evidence changed.
+    if (!effects.render && notifyIndex) this.index.notifyPresentation();
   }
 
   private isDocumentLeafCandidate(leaf: WorkspaceLeaf | null): leaf is WorkspaceLeaf {
@@ -2628,8 +2644,9 @@ export default class KplexPlugin extends Plugin {
     await this.createGhostNote(page);
   }
 
+  /** Render facets and styles under the same prepared policy, including during async refresh. */
   getViewSettings(surface: KplexViewSurface): KplexSettings {
-    return effectiveViewSettings(this.settings, surface, readObsidianPresentationEnvironment());
+    return effectiveViewSettings(this.index.withPreparedPresentationSettings(this.settings), surface, readObsidianPresentationEnvironment());
   }
 
   getActiveLayoutProfile(surface: KplexViewSurface): KplexLayoutProfile {

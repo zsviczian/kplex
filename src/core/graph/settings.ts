@@ -1,5 +1,6 @@
 /**
- * Defines the host-free semantic settings subset used by K-Plex compilation and cache adapters.
+ * Defines the host-free compiler settings facade. SI1 settingsPolicy.ts owns invalidation;
+ * the presentation members here remain only for finite compiler/binder compatibility until SI4.
  */
 export type SemanticHierarchy = Readonly<{
   hidden: readonly string[];
@@ -13,7 +14,7 @@ export type SemanticHierarchy = Readonly<{
   friends?: readonly string[];
 }>;
 
-/** Only settings that currently participate in semantic indexing/cache invalidation. */
+/** Historical compilation input, including prepared presentation output; not a validity signature. */
 export type SemanticIndexSettings = Readonly<{
   hierarchy: SemanticHierarchy;
   inferAllLinksAsFriends: boolean;

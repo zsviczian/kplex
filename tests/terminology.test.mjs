@@ -33,6 +33,8 @@ const migrationTokens = new Map([
   ["src/main.ts", new Set(["runningExcaliBrainSettings", "importExcaliBrainGraphSettings", "excalibrain", "notice.excaliBrainSettingsImported"])],
   ["src/settings.ts", new Set(["importExcaliBrainGraphSettings", "excalibrainFilepath", ...[...migrationCopyKeys].filter((key) => key.startsWith("settings.ui."))])],
   ["src/index/IndexedDbCache.ts", new Set(["excalibrain:index-body-cache:v2"])],
+  // Decode only this historical on-disk signature member; never restore runtime branding/commands.
+  ["src/core/graph/settingsPolicy.ts", new Set(["excalibrainFilepath"])],
 ]);
 
 /** Enumerate actual source modules without reading generated output or dependencies. */
@@ -114,6 +116,7 @@ test("runtime names are K-Plex except explicitly inventoried migration tokens", 
 test("terminology gate rejects retired symbols, selectors, imports and non-migration copy", () => {
   for (const [filename, source] of [
     ["src/settings.ts", "export interface ExcaliBrainSettings {}"],
+    ["src/core/graph/settingsPolicy.ts", 'const command = { id: "excalibrain-start" };'],
     ["src/main.ts", 'import { KplexView } from "./ui/ExcaliBrainView";'],
     ["src/main.ts", 'const command = { id: "excalibrain-start" };'],
     ["src/adapters/obsidian/legacyCommands.ts", 'const command = { id: "excalibrain-start" };'],
