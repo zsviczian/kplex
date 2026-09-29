@@ -1,4 +1,4 @@
-/** Production-method SI0/SI1 regressions using the indexing harness's host/cache doubles. */
+/** Production-method SI0/SI1/SI2 regressions using the indexing harness's host/cache doubles. */
 import assert from "node:assert/strict";
 
 export async function runSettingsIndependence(c) {
@@ -7,7 +7,7 @@ export async function runSettingsIndependence(c) {
   let cases = 0;
   async function scenario(name, run) {
     try { await run(); cases++; }
-    catch (error) { console.error(`SI0/SI1 scenario failed: ${name}`); error.message = `SI0/SI1 ${name}: ${error.message}`; throw error; }
+    catch (error) { console.error(`Settings independence scenario failed: ${name}`); error.message = `Settings independence ${name}: ${error.message}`; throw error; }
   }
   const legacy = (overrides = {}) => JSON.stringify({ schema: 1, hierarchy: settings.hierarchy,
     inferAllLinksAsFriends: settings.inferAllLinksAsFriends, inverseInfer: settings.inverseInfer,
@@ -220,18 +220,41 @@ export async function runSettingsIndependence(c) {
       assert.equal((await p.index.reconcileRestoredSnapshot()).reconciled, true);
       assert.deepEqual(canonicalGraph(p.index), canonicalGraph(index));
     });
-    await scenario("SI2 expected limitation: unassigned reference candidates are omitted", async () => {
+    await scenario("SI2 production fingerprint ignores ontology/image policy and detects dormant references", async () => {
+      const file = app.vault.getFileByPath("Note A.md"), original = caches.get(file.path);
+      const next = structuredClone(settings);
+      next.hierarchy.parents = ["Dormant SI2"]; next.hierarchy.rightFriends = ["Dormant Inline SI2"];
+      next.thumbnailProperty = "New image SI2"; next.nodeImageProperty = "Dormant SI2";
+      const makeBuilder = current => new GraphBuilder({ ...c.plugin, settings: current }, app, new Map(),
+        index.metadataParser, index.indexedDb, () => true);
+      const before = makeBuilder(settings), after = makeBuilder(next);
+      const body = c.parseBodyMetadata("Dormant Inline SI2:: [[Note B]]");
+      try {
+        caches.set(file.path, { ...original, frontmatter: { ...original.frontmatter,
+          "Dormant SI2": "[[Note C]]", "Unrelated SI2": 1 } });
+        const signature = before.semanticSourceSignature(file, body);
+        assert.equal(after.semanticSourceSignature(file, body), signature);
+        assert.equal(await after.semanticSourceSignatureCooperative(file, body), signature);
+        caches.get(file.path).frontmatter["Unrelated SI2"] = { arbitrary: [1, 2, 3] };
+        assert.equal(before.semanticSourceSignature(file, body), signature);
+        caches.get(file.path).frontmatter["Dormant SI2"] = "[[Note B]]";
+        assert.notEqual(before.semanticSourceSignature(file, body), signature);
+        assert.equal(before.semanticSourceSignature(file, body), after.semanticSourceSignature(file, body));
+      } finally { caches.set(file.path, original); }
+    });
+    await scenario("SI2 neutral unassigned reference collection", async () => {
       const metadata = c.mergeFileMetadata({ frontmatter: { "Unassigned Ref": "[[Note C]]" } },
         c.parseBodyMetadata("Unassigned Inline:: [[Note B]]"));
       const runtime = { isCurrent: () => true, sourceRevision: () => 0, checkpoint: async () => true };
       const file = app.vault.getFileByPath("Note A.md");
+      const host = { metadataCache: app.metadataCache, resolvedLinkCount: () => 0 };
       const records = [];
-      const collector = new c.OntologyCollector(app, runtime, file, metadata, settings.hierarchy.parents);
+      const collector = new c.ReferenceCollector(host, runtime, file, metadata);
       assert.equal(await collector.collectBatches((batch) => { records.push(...batch.records); return true; }), true);
-      assert.deepEqual(records, [], "SI1 must not silently introduce SI2 neutral reference collection");
-      const assigned = new c.OntologyCollector(app, runtime, file, metadata, ["Unassigned Ref", "Unassigned Inline"]);
-      assert.equal(await assigned.collectBatches((batch) => { records.push(...batch.records); return true; }), true);
-      assert.deepEqual(records.map((record) => record.kind).sort(), ["frontmatter-ontology", "inline-ontology"]);
+      assert.deepEqual(records.filter((record) => record.kind === "reference-value").map((record) => record.fieldName),
+        ["Unassigned Ref", "Unassigned Inline"]);
+      assert.equal(records.filter((record) => record.kind === "reference-candidate").length, 2);
+      assert.equal(records.some((record) => "configuredFieldName" in record || "role" in record || "image" in record), false);
     });
     await scenario("missing cache is pending, never a Markdown fallback", async () => {
       const p = owner(); await restore(p); p.index.indexedDb.getBodies = async () => new Map();

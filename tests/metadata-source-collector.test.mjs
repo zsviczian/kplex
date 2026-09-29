@@ -28,6 +28,9 @@ for (const file of [
   "src/core/graph/model.ts",
   "src/core/contracts/fieldName.ts",
   "src/core/parser/metadata.ts",
+  "src/core/parser/referenceValues.ts",
+  "src/core/graph/sourcePolicy.ts",
+  "src/adapters/obsidian/ontologySourceCollector.ts",
   "src/core/graph/source.ts",
   "src/index/fieldParser.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",
@@ -71,6 +74,24 @@ function makeMetadata(overrides = {}) {
     urls: [],
     ...overrides,
   };
+}
+
+const { ObsidianReferenceSourceCollector } = require(join(temp, "src/adapters/obsidian/ontologySourceCollector.js"));
+const { ReferenceSourcePolicyRead, ReferencePolicySelector } = require(join(temp, "src/core/graph/sourcePolicy.js"));
+async function selectedImages(host, runtime, file, meta, settings) {
+  const records = await collect(new ObsidianReferenceSourceCollector({
+    metadataCache: { getFirstLinkpathDest: (path, source) => host.resolveLinkpath(path, source) },
+    resolvedLinkCount: (source, target) => host.resolvedLinkCount(source, target),
+  }, runtime, file, meta));
+  const read = new ReferenceSourcePolicyRead(new ReferencePolicySelector({ ...settings,
+    hierarchy: { hidden: [], parents: [], children: [], leftFriends: [], rightFriends: [], previous: [], next: [] },
+  }));
+  const selected = [];
+  for (const record of records) {
+    const result = read.accept(record); assert.equal(result.accepted, true);
+    if (result.record) selected.push(result.record);
+  }
+  assert(read.canComplete()); return selected;
 }
 
 function makeHost(files, { dateFields = [], resolutions = {}, counts = {}, daily = { folder: "Daily", format: "YYYY/MM/YYYYMMDD" } } = {}) {
@@ -154,10 +175,11 @@ try {
     const values = [...getNormalizedFrontmatterValues(meta, "thumb"), ...getNormalizedInlineFieldValues(meta, "thumb")];
     const expectedTargets = values.flatMap(v => extractLinksFromValue({ metadataCache: { getFirstLinkpathDest: c => c === image.path ? image : null } }, v, source));
     const records = await collect(new ObsidianMetadataSourceCollector(host, runtime, source, meta, settings, "relations"));
-    const presentation = records.filter(r => r.kind === "presentation-link");
+    assert.equal(records.some(r => r.kind === "presentation-link"), false);
+    const presentation = await selectedImages(host, runtime, source, meta, settings);
     assert.deepEqual(presentation.map(r => r.target.entity.semanticPath), expectedTargets);
     assert.deepEqual(presentation.map(r => r.hostOccurrenceCount), expectedTargets.map(p => p === image.path ? 2 : 0));
-    assert(!presentation.some(r => r.provenance.location), "map-owned values must not acquire invented occurrence locations");
+    assert(!presentation.some(r => r.value.location), "map-owned values must not acquire invented occurrence locations");
   }
   {
     const source = new TFile("Dense-relations.md");
@@ -168,8 +190,8 @@ try {
     let checkpoints = 0;
     const records = await collect(new ObsidianMetadataSourceCollector(host, { isCurrent: () => true, sourceRevision: () => 1,
       checkpoint: async () => { checkpoints++; return true; } }, source, metadata, settings, "relations"));
-    assert.equal(records.length, 1800);
-    assert(checkpoints >= 50, "dense Date, URL and single visual values stay cooperative");
+    assert.equal(records.length, 1200, "reference candidates now belong to the neutral reference producer");
+    assert(checkpoints >= 35, "dense Date and URL values stay cooperative");
     let revision = 1;
     const skipped = makeMetadata({ frontmatter: Object.fromEntries(Array.from({ length: 600 }, (_, i) => [`Other-${i}`, "ignored"])) });
     assert.equal(await new ObsidianMetadataSourceCollector(host, { isCurrent: () => true, sourceRevision: () => revision,
@@ -251,12 +273,13 @@ try {
     const malformed = urls.find((r) => r.target.entity.semanticPath === "https://[broken");
     assert.equal(malformed.origin, undefined, "malformed body URLs retain their raw node without invented origin input");
 
-    const presentation = relationRecords.filter((r) => r.kind === "presentation-link");
+    assert.equal(relationRecords.some(r => r.kind === "presentation-link"), false);
+    const presentation = await selectedImages(host, runtime, source, meta, settings);
     assert.equal(presentation.length, 2, "duplicate targets inside one property value deduplicate, while separate frontmatter/inline occurrences retain multiplicity");
     assert(presentation.every((r) => r.target.entity.semanticPath === image.path));
     assert(presentation.every((r) => r.target.entity.kind === "attachment"), "host-selected attachment kind/case must cross explicitly");
-    assert.deepEqual(presentation.map((r) => r.surface), ["frontmatter", "inline"]);
-    assert(presentation.every((r) => r.provenance.configuredFieldName === "Thumbnail"), "normalized duplicate visual settings must not double-count a configured field");
+    assert.deepEqual(presentation.map((r) => r.value.surface), ["frontmatter", "inline"]);
+    assert(presentation.every((r) => r.value.normalizedFieldName === "thumbnail" && r.selection.image), "normalized duplicate visual settings must not double-count a physical value");
     assert(calls.some(([candidate, path]) => candidate === "Assets/Picture.PNG" && path === source.path), "presentation resolution remains source-relative and host-owned");
   }
 

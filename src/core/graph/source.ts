@@ -1,3 +1,8 @@
+/**
+ * Portable, revision-scoped source facts. Reference values/payloads are physical observations,
+ * independent of ontology/image policy; candidates refer to their one shared value payload.
+ * Host resolution, collection lifetime and publication remain adapter/caller responsibilities.
+ */
 import type { FileFacet, GraphNodeKind, NodeId } from "./model";
 
 /** Opaque adapter-owned source revision. A file mtime alone is not a coherent host revision. */
@@ -45,8 +50,6 @@ export type SourceProvenance = Readonly<{
   definition?: string;
   /** Original declaring property name, preserving presentation/casing. */
   fieldName?: string;
-  /** Configured ontology field label when it differs from the physical inline field label. */
-  configuredFieldName?: string;
   /** Normalized property key used for later compiler lookup, never a relationship role. */
   normalizedFieldName?: string;
   rawValue?: string;
@@ -132,10 +135,60 @@ export type HostLinkOccurrence = SourceRecordBase & Readonly<{
   occurrenceCount: number;
 }>;
 
-/** Ontology field occurrence; role/precedence is intentionally not part of this source record. */
-export type OntologyOccurrence = SourceRecordBase & Readonly<{
-  kind: "frontmatter-ontology" | "inline-ontology";
+/** A physical field-value identity, scoped to its declaring source and revision. */
+export type ReferenceValueId = string & { readonly __referenceValueId: unique symbol };
+
+/** Preserve the adapter's occurrence identity without parsing it in portable consumers. */
+export const referenceValueId = (value: string): ReferenceValueId => value as ReferenceValueId;
+
+/**
+ * Header for one reference-bearing value, followed by its payload chunks and candidates. A nested
+ * frontmatter list/object is ONE value, not one payload per extracted target. Inline map-only
+ * inputs retain their genuine lack of location; matching physical/map observations share a header.
+ */
+export type ReferenceValueFact = SourceRecordBase & Readonly<{
+  kind: "reference-value";
+  valueId: ReferenceValueId;
+  fieldName: string;
+  normalizedFieldName: string;
+  surface: "frontmatter" | "inline";
+  /** Physical order within the surface, independent of configured assignment order. */
+  ordinal: number;
+  /** A compatibility map input is not an invented physical inline occurrence. */
+  origin: "physical" | "inline-map";
+  /** Present when this value was also observed at this position in the parsed inline-value map. */
+  inlineMapIndex?: number;
+  syntax?: "line" | "parenthesized" | "bracketed";
+  location?: SourceLocation;
+}>;
+
+/** Bound payload records by UTF-16 code units; strings otherwise keep their exact raw spelling. */
+export const MAX_REFERENCE_PAYLOAD_CHARS = 16 * 1024;
+/** Reference collectors also flush by estimated retained bytes, not just record count. */
+export const MAX_REFERENCE_BATCH_ESTIMATED_BYTES = 256 * 1024;
+
+/** One ordered chunk of the original raw value; concatenation preserves explanation provenance. */
+export type ReferencePayloadChunk = SourceRecordBase & Readonly<{
+  kind: "reference-payload";
+  valueId: ReferenceValueId;
+  index: number;
+  final: boolean;
+  text: string;
+}>;
+
+/**
+ * Neutral, deduplicated value/target observation. Lexical target/subpath and host-selected entity
+ * stay separate. A candidate is dormant until policy selection; it is not an entity declaration.
+ */
+export type ReferenceCandidate = SourceRecordBase & Readonly<{
+  kind: "reference-candidate";
+  valueId: ReferenceValueId;
+  ordinal: number;
+  /** Proves that this physical value's candidate sequence reached its terminal record. */
+  final: boolean;
   target: SourceTargetRef;
+  /** Exact host resolved-link aggregate for image reconciliation, independent of image selectors. */
+  hostOccurrenceCount: number;
 }>;
 
 /** Body URL occurrence. URL-origin evidence is derived later from `origin`, once per URL target. */
@@ -153,19 +206,6 @@ export type DatePropertyOccurrence = SourceRecordBase & Readonly<{
   target: SourceTargetRef;
 }>;
 
-/**
- * Links found in configured thumbnail/node-image fields are semantic reconciliation inputs only;
- * decoded imagery never crosses this boundary. They let the compiler exclude an otherwise generic
- * host link only when every host occurrence is presentation-only.
- */
-export type PresentationLinkOccurrence = SourceRecordBase & Readonly<{
-  kind: "presentation-link";
-  /** Exact aggregate for this visual target only; no retained whole-vault link map. */
-  hostOccurrenceCount: number;
-  surface: "frontmatter" | "inline";
-  target: SourceTargetRef;
-}>;
-
 export type NormalizedSourceRecord =
   | SourceEntityFact
   | SemanticMetadataOccurrence
@@ -173,10 +213,11 @@ export type NormalizedSourceRecord =
   | FileTreeOccurrence
   | TagTreeOccurrence
   | HostLinkOccurrence
-  | OntologyOccurrence
+  | ReferenceValueFact
+  | ReferencePayloadChunk
+  | ReferenceCandidate
   | BodyUrlOccurrence
-  | DatePropertyOccurrence
-  | PresentationLinkOccurrence;
+  | DatePropertyOccurrence;
 
 export type SourceReadBoundary = Readonly<{
   generation: SourceGeneration;

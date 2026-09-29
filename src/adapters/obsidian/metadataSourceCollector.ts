@@ -1,3 +1,8 @@
+/**
+ * Obsidian Date/body-URL and finite presentation-metadata source adapter. Reference/image candidate
+ * acquisition belongs to the neutral reference collector; this owner never selects image fields.
+ * GraphBuilder owns parser/cache acquisition and publication; reads retain per-source revision fences.
+ */
 import { TFile, type App } from "obsidian";
 import { nodeId, type GraphNodeKind } from "../../core/graph/model";
 import {
@@ -9,7 +14,6 @@ import {
   type DatePropertyOccurrence,
   type NormalizedSourceBatch,
   type NormalizedSourceRecord,
-  type PresentationLinkOccurrence,
   type SemanticMetadataOccurrence,
   type SemanticMetadataValue,
   type SemanticMetadataScalar,
@@ -20,9 +24,7 @@ import {
   type SourceTargetRef,
 } from "../../core/graph/source";
 import {
-  iterateLinkReferencesFromValue,
   normalizeFieldName,
-  type ExtractedLinkReference,
   type ParsedFileMetadata,
 } from "../../core/parser/metadata";
 
@@ -36,8 +38,6 @@ export type ObsidianMetadataSourceRuntime = Readonly<{
 export type ObsidianMetadataSourceSettings = Readonly<{
   noteTypeField: string;
   primaryTagField: string;
-  thumbnailProperty: string;
-  nodeImageProperty: string;
 }>;
 
 export type DailyNotesSourceSettings = Readonly<{
@@ -81,11 +81,6 @@ type CapturedFileRevision = Readonly<{
   path: string;
   mtime: number;
   size: number;
-}>;
-
-type VisualField = Readonly<{
-  configuredFieldName: string;
-  normalizedFieldName: string;
 }>;
 
 let collectorRunSequence = 0;
@@ -175,34 +170,6 @@ function* flattenDateValues(value: unknown): IterableIterator<unknown> {
   yield value;
 }
 
-function decodeInternalCandidate(rawTarget: string): string {
-  let candidate = rawTarget.trim();
-  try { candidate = decodeURIComponent(candidate); } catch { /* preserve undecodable host input */ }
-  const hash = candidate.indexOf("#");
-  if (hash >= 0) candidate = candidate.slice(0, hash);
-  return candidate;
-}
-
-function resolvePresentationTarget(
-  host: ObsidianMetadataSourceHost,
-  sourcePath: string,
-  reference: ExtractedLinkReference,
-): SourceTargetRef | null {
-  if (reference.external) return {
-    entity: urlRef(reference.rawTarget), rawTarget: reference.rawTarget, resolvedBy: "url",
-  };
-  const candidate = decodeInternalCandidate(reference.rawTarget);
-  if (!candidate) return null;
-  const destination = host.resolveLinkpath(candidate, sourcePath);
-  const entity = destination instanceof TFile ? fileRef(destination) : unresolvedRef(candidate);
-  return {
-    entity,
-    rawTarget: reference.rawTarget,
-    ...(reference.subpath ? { subpath: reference.subpath } : {}),
-    resolvedBy: destination instanceof TFile ? "host" : "unresolved",
-  };
-}
-
 /** Only the scalar/array shape consumed by legacy metadata semantics crosses the boundary. */
 const unsupportedMetadataValue: SemanticMetadataScalar = Object.freeze({ unsupported: true });
 function metadataValue(value: unknown): SemanticMetadataValue {
@@ -213,22 +180,10 @@ function metadataValue(value: unknown): SemanticMetadataValue {
   return Array.isArray(value) ? value.map(scalar) : scalar(value);
 }
 
-function visualFields(settings: ObsidianMetadataSourceSettings): VisualField[] {
-  const output: VisualField[] = [];
-  const seen = new Set<string>();
-  for (const configuredFieldName of [settings.thumbnailProperty, settings.nodeImageProperty]) {
-    const normalizedFieldName = normalizeFieldName(configuredFieldName);
-    if (!normalizedFieldName || seen.has(normalizedFieldName)) continue;
-    seen.add(normalizedFieldName);
-    output.push({ configuredFieldName, normalizedFieldName });
-  }
-  return output;
-}
-
 /**
  * Source-scoped C12c adapter over already-acquired ParsedFileMetadata. Parser/cache ownership stays
- * in GraphBuilder/C16; this adapter owns only Obsidian-specific Date normalization and property-link
- * destination selection plus plain graph-relevant metadata normalization. Dense sources stream in
+ * in GraphBuilder/C16; this adapter owns only Obsidian-specific Date normalization plus
+ * plain graph-relevant metadata normalization. Neutral property references have a separate producer. Dense sources stream in
  * bounded batches and are fenced by the existing source-event revision plus file path/mtime/size.
  */
 export class ObsidianMetadataSourceCollector {
@@ -419,6 +374,7 @@ export class ObsidianMetadataSourceCollector {
     return this.isCurrent();
   }
 
+  /** Emit host Date and body-URL facts; field reference/image acquisition belongs to the neutral collector. */
   private async collectRelations(
     emit: (record: NormalizedSourceRecord) => Promise<boolean>,
     touch: () => Promise<boolean>,
@@ -490,56 +446,6 @@ export class ObsidianMetadataSourceCollector {
       if (!(await emit(record))) return false;
     }
 
-    for (const field of visualFields(this.settings)) {
-      for (const [fieldName, value] of Object.entries(this.metadata.frontmatter)) {
-        if (!(await touch())) return false;
-        if (normalizeFieldName(fieldName) !== field.normalizedFieldName) continue;
-        if (!(await this.emitPresentationValue(emit, touch, field, "frontmatter", fieldName, value))) return false;
-      }
-      for (const value of this.metadata.inlineFields[field.normalizedFieldName] ?? []) {
-        if (!(await touch())) return false;
-        if (!(await this.emitPresentationValue(emit, touch, field, "inline", field.normalizedFieldName, value))) return false;
-      }
-    }
-    return this.isCurrent();
-  }
-
-  private async emitPresentationValue(
-    emit: (record: NormalizedSourceRecord) => Promise<boolean>,
-    touch: () => Promise<boolean>,
-    field: VisualField,
-    surface: "frontmatter" | "inline",
-    fieldName: string,
-    value: unknown,
-    location?: Readonly<{ line: number; start: number; end: number }>,
-  ): Promise<boolean> {
-    const seenTargets = new Set<string>();
-    for (const reference of iterateLinkReferencesFromValue(value)) {
-      const target = resolvePresentationTarget(this.host, this.capturedFile.path, reference);
-      const targetPath = target?.entity.semanticPath;
-      if (!target || !targetPath || seenTargets.has(targetPath)) {
-        if (!(await touch())) return false;
-        continue;
-      }
-      seenTargets.add(targetPath);
-      const record: PresentationLinkOccurrence = {
-        kind: "presentation-link",
-        hostOccurrenceCount: this.host.resolvedLinkCount(this.capturedFile.path, targetPath),
-        surface,
-        source: this.source,
-        sourceRevision: this.sourceRevision,
-        target,
-        provenance: {
-          surface,
-          definition: field.normalizedFieldName,
-          fieldName,
-          configuredFieldName: field.configuredFieldName,
-          normalizedFieldName: field.normalizedFieldName,
-          ...(location ? { location } : {}),
-        },
-      };
-      if (!(await emit(record))) return false;
-    }
     return this.isCurrent();
   }
 

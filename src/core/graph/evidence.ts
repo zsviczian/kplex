@@ -148,6 +148,47 @@ export class RelationEvidenceStore {
     return compacted;
   }
 
+  /**
+   * Stably reorder private compiler declarations without building another source/graph model.
+   * A bottom-up merge yields during dense pair buckets rather than hiding an unbounded native sort.
+   * This is deliberately unavailable on published copy-on-write forks; normal patch publication
+   * receives an already ordered standalone compilation and retains its established store behavior.
+   */
+  async orderDeclarationsCooperative(
+    compare: (left: RelationEvidence, right: RelationEvidence) => number,
+    checkpoint: () => Promise<boolean>,
+  ): Promise<boolean> {
+    if (this.base) throw new Error("Declaration ordering requires a private standalone evidence store");
+    let processed = 0;
+    for (const [key, original] of this.byPair) {
+      if (original.length > 1) {
+        let source = original;
+        let target = new Array<RelationEvidence>(source.length);
+        for (let width = 1; width < source.length; width *= 2) {
+          for (let start = 0; start < source.length; start += width * 2) {
+            const middle = Math.min(start + width, source.length);
+            const end = Math.min(start + width * 2, source.length);
+            let left = start;
+            let right = middle;
+            for (let output = start; output < end; output += 1) {
+              target[output] = left < middle && (right >= end || compare(source[left], source[right]) <= 0)
+                ? source[left++] : source[right++];
+              processed += 1;
+              if ((processed & 255) === 0 && !(await checkpoint())) return false;
+            }
+          }
+          const previous = source;
+          source = target;
+          target = previous;
+        }
+        this.byPair.set(key, source);
+      }
+      processed += 1;
+      if ((processed & 255) === 0 && !(await checkpoint())) return false;
+    }
+    return checkpoint();
+  }
+
   addPair(
     sourcePath: string,
     targetPath: string,

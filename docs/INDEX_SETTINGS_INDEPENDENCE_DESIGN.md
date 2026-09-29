@@ -1,5 +1,7 @@
 # Settings-independent source indexing
 
+**Implementation checkpoint (2026-09-29):** SI0–SI2 are accepted. SI2 supplies neutral reference acquisition, one full/patch policy selector, settings-neutral reference fingerprints and complete value-frame finality; the accepted protocol is documented in [NORMALIZED_SOURCE_CONTRACT.md](NORMALIZED_SOURCE_CONTRACT.md) and its [validation report](validation/settings-independent-indexing-si2-2026-09-29.md). SI3 persistence, SI4 demand-driven/settings-only reinterpretation and SI5 lifecycle/performance work remain unimplemented; the design below is not a claim that those capabilities have shipped.
+
 Design review and implementation brief for Sol, 2026-09-29.
 
 **Status: proposed design; no implementation.** Reviewed on `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`, initially clean. The maintainer requires ordinary ontology and presentation changes to preserve indexed source data. This document proposes the implementation and acceptance sequence; it does not resume C15–C26, claim a fix, or authorize a release.

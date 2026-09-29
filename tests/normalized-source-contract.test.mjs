@@ -1,7 +1,8 @@
+/** Current stream protocol tests plus frozen C11 source-family/provenance oracles; no golden is regenerated. */
 import assert from "node:assert/strict";
-import { build } from "esbuild";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { loadPortableModules } from "./support/portableTypeScript.mjs";
+import { neutralizeLegacyReferenceFixtures } from "./support/referenceCandidateFixture.mjs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -9,11 +10,7 @@ import test from "node:test";
 import { produceNormalizedFixtureRecords } from "./support/normalizedSourceFixture.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const temp = mkdtempSync(join(tmpdir(), "kplex-normalized-source-"));
-process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
-const contractPath = join(temp, "source.mjs");
-await build({ entryPoints: [join(root, "src/core/graph/source.ts")], outfile: contractPath, bundle: true, platform: "node", format: "esm", target: "es2021" });
-const contract = await import(pathToFileURL(contractPath).href);
+const { directory: temp, entryPath: contractPath, exports: contract } = loadPortableModules(["src/core/graph/source.ts"]);
 
 const compatibilityRoot = join(root, "tests/fixtures/excalibrain-indexing/Vault");
 const normalizedRoot = join(root, "tests/fixtures/normalized-source");
@@ -27,7 +24,7 @@ function baselineSourceCounts() {
   return counts;
 }
 
-test("normalized source contract bundles and runs in a clean process without Obsidian/window", () => {
+test("normalized source contract runs in a clean process without Obsidian/window", () => {
   const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
     import assert from "node:assert/strict";
     import * as source from ${JSON.stringify(pathToFileURL(contractPath).href)};
@@ -177,7 +174,7 @@ test("bounded batches allow later-target references and reject stale/mixed gener
 
   const boundary = { generation: contract.sourceGeneration("generation-1"), snapshotRevision: contract.sourceSnapshotRevision("snapshot-A") };
   let cursor = contract.beginSourceRead(boundary);
-  const first = contract.acceptSourceBatch(cursor, { boundary, sequence: 0, final: false, records: [reference] });
+  const first = contract.acceptSourceBatch(cursor, { boundary, sequence: 0, final: false, records: neutralizeLegacyReferenceFixtures([reference]) });
   assert.equal(first.accepted, true);
   cursor = first.cursor;
   assert.equal(contract.sourceReadCanPublish(cursor, boundary), false, "later-target references do not publish a partial read");
@@ -230,4 +227,16 @@ test("replacement/deletion state is distinct from unresolved/missing and IDs rem
   const deletedAccepted = contract.acceptSourceBatch(contract.beginSourceRead(newBoundary), { boundary: newBoundary, sequence: 0, final: true, records: [deletedRecord] });
   assert.equal(deletedAccepted.accepted, true);
   assert.equal(contract.sourceReadCanPublish(deletedAccepted.cursor, newBoundary), true);
+});
+
+test("neutral source frame replaces configured occurrence/selector identity", () => {
+  const legacy = produceNormalizedFixtureRecords(normalizedRoot).records;
+  const neutral = neutralizeLegacyReferenceFixtures(legacy);
+  assert(neutral.some(record => record.kind === "reference-value"));
+  assert(neutral.some(record => record.kind === "reference-payload"));
+  assert(neutral.some(record => record.kind === "reference-candidate"));
+  assert(!neutral.some(record => ["frontmatter-ontology", "inline-ontology", "presentation-link"].includes(record.kind)));
+  assert(neutral.filter(record => record.kind.startsWith("reference-")).every(record => !("provenance" in record) && !("configuredFieldName" in record)));
+  assert.equal(contract.MAX_REFERENCE_PAYLOAD_CHARS, 16384);
+  assert.equal(contract.MAX_REFERENCE_BATCH_ESTIMATED_BYTES, 262144);
 });

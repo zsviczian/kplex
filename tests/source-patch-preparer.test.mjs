@@ -1,40 +1,14 @@
 /**
  * Tests K-Plex per-source patch preparation, cancellation and graph/evidence coherence using
- * portable bundles. Publication remains caller-owned and legacy fixture data is not rewritten.
+ * portable transpiled production modules. Publication remains caller-owned and legacy fixture data is not rewritten.
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { build } from "esbuild";
+import { loadPortableModules } from "./support/portableTypeScript.mjs";
+import { neutralizeLegacyReferenceFixtures } from "./support/referenceCandidateFixture.mjs";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const temp = mkdtempSync(join(tmpdir(), "kplex-source-patch-"));
-process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
-const corePath = join(temp, "source-patch.mjs");
-await build({
-  stdin: {
-    contents: [
-      'export * from "./src/core/graph/compiler.ts";',
-      'export * from "./src/core/graph/patch.ts";',
-      'export * from "./src/core/graph/model.ts";',
-      'export * from "./src/core/graph/source.ts";',
-      'export * from "./src/core/graph/relations.ts";',
-      'export * from "./src/core/graph/evidence.ts";',
-    ].join("\n"),
-    resolveDir: root,
-    sourcefile: "source-patch-entry.ts",
-    loader: "ts",
-  },
-  outfile: corePath,
-  bundle: true,
-  platform: "node",
-  format: "esm",
-  target: "es2021",
-});
-const core = await import(pathToFileURL(corePath).href);
+const loaded = loadPortableModules(['src/core/graph/compiler.ts', 'src/core/graph/patch.ts', 'src/core/graph/model.ts', 'src/core/graph/source.ts', 'src/core/graph/relations.ts', 'src/core/graph/evidence.ts']);
+const { exports: core } = loaded;
 
 const settings = {
   hierarchy: {
@@ -81,6 +55,7 @@ const entityFact = (entity, name, revision = "base:1") => ({
 });
 
 async function consumeOneRead(target, records, name = "read") {
+  records = neutralizeLegacyReferenceFixtures(records);
   const b = boundary(name);
   const read = target.beginRead(b);
   let sequence = 0;

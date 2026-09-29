@@ -1,41 +1,20 @@
 /**
  * Tests K-Plex normalized-source compilation against the preserved migration golden and opaque
- * identity/revision contracts. Host-free bundles and their temporary outputs are owned by the suite.
+ * identity/revision contracts. Host-free transpiled modules and their temporary outputs are owned by the suite.
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { build } from "esbuild";
+import { loadPortableModules } from "./support/portableTypeScript.mjs";
+import { neutralizeLegacyReferenceFixtures } from "./support/referenceCandidateFixture.mjs";
 import { produceNormalizedFixtureRecords } from "./support/normalizedSourceFixture.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const temp = mkdtempSync(join(tmpdir(), "kplex-graph-compiler-"));
-process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
-const corePath = join(temp, "graph-compiler.mjs");
-await build({
-  stdin: {
-    contents: [
-      'export * from "./src/core/graph/compiler.ts";',
-      'export * from "./src/core/graph/model.ts";',
-      'export * from "./src/core/graph/source.ts";',
-      'export * from "./src/core/graph/relations.ts";',
-      'export * from "./src/core/graph/evidence.ts";',
-    ].join("\n"),
-    resolveDir: root,
-    sourcefile: "graph-compiler-entry.ts",
-    loader: "ts",
-  },
-  outfile: corePath,
-  bundle: true,
-  platform: "node",
-  format: "esm",
-  target: "es2021",
-});
-const core = await import(pathToFileURL(corePath).href);
+const loaded = loadPortableModules(['src/core/graph/compiler.ts', 'src/core/graph/model.ts', 'src/core/graph/source.ts', 'src/core/graph/relations.ts', 'src/core/graph/evidence.ts']);
+const { directory: temp, entryPath: corePath, exports: core } = loaded;
 
 const settings = {
   hierarchy: {
@@ -72,6 +51,7 @@ const boundary = (name = "fixture") => ({
 });
 
 async function compileRecords(records, options = {}) {
+  records = neutralizeLegacyReferenceFixtures(records);
   const compiler = new core.NormalizedGraphCompiler(options.settings ?? settings, options.runtime ?? runtime());
   const readBoundary = options.boundary ?? boundary("compile");
   const read = compiler.beginRead(readBoundary);
@@ -301,7 +281,7 @@ test("compiler cancellation is checked after awaited yields and during cooperati
   }));
   const firstBoundary = boundary("cancel-batch");
   const read = compiler.beginRead(firstBoundary);
-  assert.equal(await compiler.acceptBatch(read, { boundary: firstBoundary, sequence: 0, final: true, records: [record] }), false);
+  assert.equal(await compiler.acceptBatch(read, { boundary: firstBoundary, sequence: 0, final: true, records: neutralizeLegacyReferenceFixtures([record]) }), false);
   assert.equal(yields, 1);
   assert.equal(await compiler.finish(), null);
 
@@ -317,7 +297,7 @@ test("compiler cancellation is checked after awaited yields and during cooperati
   }));
   const secondBoundary = boundary("cancel-resolver");
   const secondRead = resolverCompiler.beginRead(secondBoundary);
-  assert.equal(await resolverCompiler.acceptBatch(secondRead, { boundary: secondBoundary, sequence: 0, final: true, records: [record] }), true);
+  assert.equal(await resolverCompiler.acceptBatch(secondRead, { boundary: secondBoundary, sequence: 0, final: true, records: neutralizeLegacyReferenceFixtures([record]) }), true);
   assert.equal(resolverCompiler.completeRead(secondRead, secondBoundary), true);
   assert.equal(await resolverCompiler.finish(), null, "resolver cancellation after its awaited host yield must abort publication");
   assert(yields >= 1);
@@ -337,7 +317,7 @@ test("compiler reports bounded cooperative progress on a dense portable graph", 
   assert(progress > 0, "dense resolution must expose progress checkpoints without whole-vault publication");
 });
 
-test("portable compiler bundle loads without Obsidian or browser globals", () => {
+test("portable compiler modules load without Obsidian or browser globals", () => {
   const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
     import assert from "node:assert/strict";
     const core = await import(${JSON.stringify(pathToFileURL(corePath).href)});
@@ -380,7 +360,7 @@ test("compiler rejection is terminal even if a producer retries the batch", asyn
   const compiler = new core.NormalizedGraphCompiler(settings, runtime());
   const b = boundary("rejected");
   const read = compiler.beginRead(b);
-  const invalid = { kind: "inline-ontology", source, sourceRevision: rev, target: { entity: source, rawTarget: "source", resolvedBy: "unresolved" }, provenance: { configuredFieldName: "Not assigned" } };
+  const invalid = { kind: "reference-candidate", source, sourceRevision: rev, valueId: "missing-header", ordinal: 0, final: true, hostOccurrenceCount: 0, target: { entity: source, rawTarget: "source", resolvedBy: "unresolved" } };
   const entity = { kind: "entity", source, sourceRevision: rev, entity: source, name: "Partial", url: null };
   assert.equal(await compiler.acceptBatch(read, { boundary: b, sequence: 0, final: true, records: [entity, invalid] }), false);
   assert.equal(await compiler.acceptBatch(read, { boundary: b, sequence: 0, final: true, records: [] }), false);
