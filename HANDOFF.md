@@ -16,155 +16,50 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Offline assignment — SI3 durable neutral source repository
+# Offline assignment — SI4a cached-source replay and scoped semantic foundation
 
-## Status, base and recommended chunk
+## Transfer state and base
 
-Implement **SI3 only** from [the settings-independence design](docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md), especially §§5.3, 6, 8–11 and the SI3 checkpoint row. Work from accepted commit **`ce7c038`** on branch `indexing-optimization-v2`. SI0–SI2 are accepted; their architecture and exact validation are recorded in:
+**Prepared for the offline development agent.** Work from accepted commit **`da471aa`** on branch `indexing-optimization-v2`. At transfer, only this transient `HANDOFF.md` is dirty. SI0–SI3 are accepted; [SI3 validation](docs/validation/settings-independent-indexing-si3-2026-09-29.md) records the exact Node/browser/Obsidian evidence and its remaining limits. The implementation target remains [the settings-independence design](docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md), especially §§3, 7–9 and the SI4 row. Read [the source repository contract](docs/SOURCE_REPOSITORY.md), [normalized source contract](docs/NORMALIZED_SOURCE_CONTRACT.md), [index architecture](docs/INDEXING_ARCHITECTURE.md), `AGENTS.md` and `CONTRIBUTING.md`.
 
-- [normalized source contract](docs/NORMALIZED_SOURCE_CONTRACT.md)
-- [SI2 validation report](docs/validation/settings-independent-indexing-si2-2026-09-29.md)
-- [indexing architecture](docs/INDEXING_ARCHITECTURE.md)
-- [settings/presentation ownership](docs/SETTINGS_PRESENTATION_OWNERSHIP.md)
-- [refactor plan](Refactor%20plan.md)
+**Recommended next chunk: SI4a alone.** SI4 requires cached-fact replay, selective semantic interpretation, settings dispatch and revision-aware UI/query migration. The first two are substantial offline work and can be tested against the accepted full compiler without changing visible behavior. Do not combine this with the live settings/UI switch, derived-snapshot migration or SI5 performance/device acceptance. Return an uncommitted diff with this file overwritten as an implementation return marked **Review**. Record exact environment, changed files, checks, failures, skips and host evidence needed.
 
-The next reasonable chunk is **SI3 alone**. Do not combine SI3 with SI4. SI3 changes IndexedDB schema, migration, atomic source activation and recovery. SI4 changes live interpretation, revision-aware reads and settings behavior. Keeping them separate makes persistence failures distinguishable from policy/read-consistency failures.
+## Problem and objective
 
-Return the changes uncommitted with this file rewritten as a precise implementation return. Mark the result **Review**, never Accepted. Record the exact base available to you, every changed file, environment/tool versions, every command and its actual result, skips, limitations and any host evidence needed from the main agent.
+SI3 stores settings-neutral source facts, but a hierarchy or image-policy edit still calls the complete `GraphBuilder` through `GraphIndex.rebuild()`. A compatible saved graph still carries an old semantic policy. SI4 must ultimately prepare current relationships from durable facts without reading Markdown, reparsing bodies, rebuilding the whole source graph, or exposing mixed-policy UI state. SI4a creates the reusable **read and semantic preparation seam** needed for that switch; it does not claim to fix the settings workflow yet.
 
-## Product objective
+Implement a production path that, given requested source IDs and the current source/host revisions, reads validated SI3 facts and reconstructs the accepted normalized compiler input without `Vault.read`, `cachedRead` or Markdown parsing. It must support selective source discovery through existing `field`, `target`, `literal` and `family` postings, and prepare semantics for requested sources using the **existing** selector/compiler/evidence/resolver. An unchanged source must be replayable under two ontology/image policies from the same stored facts. Define a narrow revision/read result that distinguishes ready, pending acquisition, stale/cancelled, invalid family and storage unavailable. These are internal capabilities, not a public plugin API.
 
-Create a durable, settings-neutral per-source fact repository so acquired Markdown facts survive restart and can later be reinterpreted without rereading unchanged files. Durable progress is the set of complete activated source heads, independent of ontology, image-property and presentation settings.
+## Required investigation and design decisions before editing
 
-This checkpoint is infrastructure. Keep the current settings-triggered semantic rebuild route and current graph snapshot acceleration until SI4 proves their replacement. Do not describe the product as settings-independent after SI3: a settings edit may still invoke the old full semantic path, although that path should be able to reuse durable source acquisition where integration is safe.
+1. Inventory every SI3 stored fact kind and its relationship to `core/graph/source.ts` batches, `ObsidianReferenceSourceCollector`, metadata/host-link collectors, `NormalizedGraphCompiler` and `NormalizedSourcePatchPreparer`. Identify exact facts unavailable from storage. Do not fabricate a source fact or infer a lexical target from aggregate resolved links.
+2. Trace `SourceRepository.pin/visit/querySources`, family validation, unsaved masking, reader pins, expected-head/sequence and host resolution epochs. Replayed input must come from one coherent selected head and observed host environment; a settings change may reinterpret it, while a source/host change invalidates the prepared result.
+3. Trace existing pair/evidence precedence and incoming declarations. A field reassignment can change a pair even if only the opposite endpoint's source is requested. State how the source-posting query finds every competing contributor, including structural and inferred links, without reading one dense source once per incident pair.
+4. Record a finite inventory of current `GraphIndex` semantic read consumers for later SI4b/c. Include center neighborhoods, gate totals, search, explanations, edit eligibility, predicates/lenses, section expansion and direct `GraphPage.neighbours` uses. This is an inventory, not permission to migrate all callers now.
 
-## Required investigation before editing
+If existing v5 postings cannot support a bounded exact query, make the gap explicit. A small additive indexed format/migration may be proposed, but do not change the database schema or claim pair-scoped performance without a bounded implementation and real-browser migration test. Prefer a source-scoped replay seam that can be accepted independently; leave any unproven pair-specific index for SI4b.
 
-Trace and document the current ownership and failure behavior of:
+## Implementation boundary
 
-- `src/index/IndexedDbCache.ts`, including DB version 4, stores `meta`, `pages`, `evidence`, `bodies`, `snapshotChunks`, active/checkpoint pointer schemas 1–3, `BODY_CACHE_VERSION = 2`, open/upgrade/error/reset paths, batching and cleanup.
-- `GraphBuilder`/`GraphIndex` acquisition, body-cache reuse, MetadataCache readiness, startup event fencing, source fingerprinting, cancellation and publication revisions.
-- SI2 neutral records, value/payload/candidate framing, shared payload ownership, complete `final` markers, source policy selection and host-resolved versus lexical target fields.
-- existing browser IndexedDB harnesses, persistence tests, native migration verification and diagnostic-report allowlists.
+- Place portable selection/semantic work beside the accepted `core/graph` owners. Host/IndexedDB reads stay in `index` or Obsidian adapters. Do not pass `App`, `TFile`, the plugin instance or `GraphState` into portable code.
+- Reuse the canonical normalized batch cursor/finality checks, `ReferencePolicySelector`, full compiler, patch preparer and resolver. Do not create a second Markdown grammar, relationship classifier, basename resolver, evidence precedence table or shadow semantic implementation.
+- Stream at existing 256-record and byte/cooperative limits. Keep one source/selected revision pinned through replay; release pins on success, rejection, cancellation and unload. Do not load the whole vault or duplicate the complete graph in memory.
+- Query postings for candidate **source owners** only, then validate selected heads/families before interpreting. Staged/retired/tombstoned/evicted-unsaved sources must not leak old contributions. An incomplete query must return a pending/incomplete result, not an empty relationship.
+- Prepare a private semantic result with source, host and policy revision stamps. Every awaited read/yield must recheck cancellation and revision. No live GraphIndex publication or UI reads are switched in SI4a; existing synchronous C14b per-file publication and settings routing stay intact.
+- Preserve exact opaque IDs, original reference candidate spellings, shared payload finality, field normalization, frontmatter/inline precedence, duplicate counts, inferred and inverse perspectives, Date/URL/structural support and synthetic-node lifetimes. Do not promote dormant references into visible nodes or search candidates.
+- Add/update meaningful module/function TSDoc, architecture documentation and the `Refactor plan.md` with **Review** status. Do not rewrite historical acceptance evidence.
 
-Do not mechanically persist the current SI2 host-resolved candidate as timeless source truth. Lexical reference facts and current host resolution have different validity. Another file's create, rename, move, delete or alias change can alter resolution without changing the source file. Design the repository so lexical acquisition remains reusable and host resolution/postings can be refreshed independently through Obsidian's resolver. Preserve unresolved/literal reverse dependencies and exact targets. Core must not implement basename/path guessing.
+## Focused acceptance tests
 
-## Required implementation
+1. Compile the same complete fixture from current host facts and from validated SI3 replay under identical settings; compare exact node identities, materialization, directed relationships, declaration multiplicity/provenance and relevant search inputs. Repeat after assigning a previously dormant frontmatter and inline field, Friend→Challenger, image selector, inference toggles and a Date/URL case. No golden relaxation.
+2. Prove one cached source can be reinterpreted under two policies without a Vault read, `cachedRead`, parser call or source-head write. Prove source completion/sequence do not change solely because of policy.
+3. Query a changed field and a target/literal dependency with competing contributions from both endpoints. Assert no missing or duplicated declarations. Use a dense-source fixture to bound chunks, bytes and repeated reads per requested scope; do not claim pair-scoped performance from a whole-source-per-pair loop.
+4. Reject missing/corrupt family chunks/postings, pending metadata, tombstones, unsaved eviction, newer format, source/host supersession, policy supersession and cancellation without publishing partial semantics. Preserve intact sources and retry only the affected source.
+5. Exercise browser IndexedDB source-head selection and reader-pin cleanup for any new repository read path. Existing v4/v5 migration, graph snapshot isolation and failure tests must continue to pass.
+6. Add a source-level contract test that production `GraphIndex` still uses its current settings route during SI4a; no premature claim that the product is settings-independent.
 
-### 1. IndexedDB version and compatibility
+Run `git diff --check`, `npm run verify`, `npm run test:sources` and `npm run test:sources:browser` with actual versions/prerequisites where available. An offline environment without required Node/dependencies/Chrome must record those lanes as pending, not passed. Main-agent acceptance will independently review the seam, rerun full/browser checks and use the exact installed Obsidian build to compare representative cached-source interpretation with the current full oracle. Native settings-routing change, foreground latency and physical mobile testing remain later checkpoints.
 
-- Recheck the implementation base, then upgrade the vault-local database from version 4 to **version 5**.
-- Add focused stores equivalent to the proposed `sourceHeads`, `sourceChunks` and `sourcePostings`. Store names may change only if the code makes a clearer ownership boundary and the design docs are updated.
-- Create all version-5 stores/indexes in one upgrade transaction. Preserve the existing body cache and graph snapshot stores. Do not delete or rewrite unrelated stores during upgrade.
-- Keep graph snapshot schemas 1–3 explicitly readable as the existing optional acceleration. Do not silently change schema-3 meaning. A graph-snapshot failure must not invalidate neutral source heads.
-- Handle an older binary opening a newer DB gracefully: report persistence unavailable for that process without deleting the database or breaking in-memory indexing.
+## Return to the online validation agent
 
-### 2. Versioned source records and strict codecs
-
-- Define explicit runtime-validated codecs/types for source heads, immutable chunks and postings. Distinguish DB version, source-fact format/compiler versions, body-parser version, graph-snapshot schema and semantic policy version.
-- A head identifies the exact physical source identity/revision, observed path/mtime/size when known, completeness by required fact family, immutable chunk/posting manifest, relevant host observation/resolution revision and monotonically increasing durable sequence.
-- Represent a successfully acquired empty source distinctly from missing, incomplete, corrupt and tombstoned records.
-- Preserve SI2 reference framing and terminal markers. Reject missing/malformed chunks or truncated/post-final frames. Invalidate only the affected source/family.
-- Persist the finite normalized facts needed by the accepted source contract. Do not mirror arbitrary frontmatter/property objects, settings values, note text or values that are not required inputs. Shared payloads are stored once.
-- Do not fabricate unavailable metadata. In particular, legacy body records do not contain a trustworthy file size.
-
-### 3. Atomic per-source activation
-
-For each bounded source batch:
-
-1. Capture physical source identity/revision plus relevant host observation revision.
-2. Prepare immutable neutral chunks and postings privately with source and cancellation fences.
-3. Write revision-scoped staging records in bounded transactions. Staging data remains invisible to readers.
-4. Activate the complete manifest and head in one short transaction only after all required chunks/postings exist and validate.
-5. Serialize replacement per source and compare the expected previous head so an obsolete writer cannot replace a newer revision.
-6. After every await, revalidate current Vault identity/revision before live publication. A valid older disk head may remain durable, but must not be claimed as the current live source.
-
-IndexedDB and in-memory publication cannot be one transaction. Model both directions explicitly:
-
-- disk activation followed by live invalidation leaves a valid older durable head and the source dirty for retry;
-- storage failure may still permit a validated in-memory commit, marked unsaved, without discarding its facts or starting a vault-wide rebuild.
-
-Posting queries must filter through the currently activated head so old and staged revisions cannot both contribute. Cleanup must never delete a head-referenced, reader-pinned or in-flight revision. If catalog reads are uncertain, perform no deletion.
-
-### 4. Bounded work, backpressure and interruption
-
-- Retain the 256-record stream bound and existing platform read-byte/concurrency and cooperative scheduling constraints.
-- Start from the design's 256 KiB encoded chunk target. Enforce both record and byte budgets, including an explicit simultaneous decode budget for oversized values.
-- Flush a bounded pending batch at its size/byte cap, after roughly one second of active acquisition, and before reporting a successful durable stop.
-- Do not assume unload awaits an asynchronous final flush. An interruption may lose only the unactivated bounded batch; activated heads remain valid.
-- Apply producer backpressure when storage is slow. Do not introduce an unbounded write queue or serialize the whole graph on source progress.
-- Cancellation, unload and supersession must prevent stale head activation and stale live publication.
-
-### 5. Startup inventory, migration and selective repair
-
-- Startup compares the captured vault inventory against valid activated heads and schedules only missing, stale, incomplete, corrupt or tombstoned sources. There is no whole-vault completion manifest rewritten per file.
-- Reuse a valid legacy body record and current MetadataCache facts to construct the neutral source record without another Vault read or Markdown parse. A stale/missing body reacquires only that source. If required metadata is still pending, do not record a complete empty source.
-- Preserve startup metadata stabilization and the event fence. Do not infer lexical spellings from aggregate resolved-links maps when MetadataCache does not provide them.
-- Repair a missing/malformed chunk for one source without discarding unrelated heads. Corrupt graph pages/evidence/snapshot chunks likewise must not delete source facts.
-- Rename/move/delete handling must preserve exact identity/latest-writer semantics, including tombstone/cleanup behavior and source-relative unresolved references.
-- Host target/alias changes must be able to refresh resolution/postings without rereading or reparsing the unchanged source. When narrow impact cannot be proven, bounded re-resolution of cached lexical candidates is acceptable.
-
-### 6. Storage unavailable and diagnostics
-
-- Keep the same fact/interpretation boundary in memory when IndexedDB is unavailable. Continue correct live indexing, report unsaved status and retry with bounded backoff. A process restart may reacquire because persistence was unavailable; do not report this as a settings invalidation.
-- Failed opens, upgrades and transactions must clear unusable handles/readiness promises. Do not leave a closed connection reporting ready.
-- Diagnostics may expose version, family/reason codes, counts, byte/chunk totals, durations and durable sequence ranges. They must not expose file paths, filenames, property names, reference text, note contents, settings values or raw exceptions containing those values.
-- Use stable allowlisted reason codes. Keep development fault injection and test controllers out of production output.
-
-## Scope boundaries
-
-Do not implement:
-
-- SI4 settings dispatch, demand-driven reinterpretation, policy-revision UI/read migration, or removal of the current settings-triggered rebuild path;
-- SI5 performance acceptance, physical-mobile lifecycle policy, memory tuning claims or release readiness;
-- a second semantic classifier, graph journal, whole-vault DTO, duplicate permanent graph, custom Markdown parser, custom Obsidian path resolver or new public API;
-- broad C15–C26 refactoring, UI redesign, settings-key/default migration, commands, CSS or unrelated cleanup.
-
-Preserve the synchronous accepted publication boundary and existing semantic resolver. Any necessary integration should remain narrow and reversible. If SI3 cannot safely provide one planned source family from current accepted facts, stop short of inventing data and document the exact gap.
-
-## Mandatory tests and acceptance evidence
-
-Add production-module tests, not parallel test-only implementations. Real browser IndexedDB coverage must supplement any mocks. Exercise at least:
-
-1. Cold version-5 creation and version-4 upgrade preserve bodies and graph snapshot stores while adding current stores/indexes.
-2. Fault injection before chunks, between chunks, before head activation and during activation leaves the old head readable, staging invisible and retry safe.
-3. Activated A/B plus interrupted C survives a new cache instance with A/B durable and only C pending.
-4. Missing/malformed chunk or posting invalidates/repairs only its source/family.
-5. Codec/privacy checks reject arbitrary property mirrors, incomplete reference frames and post-final records.
-6. Valid legacy body plus ready MetadataCache migrates/acquires with zero Vault reads and zero Markdown parses; one stale/missing source alone is reacquired; absent size is not fabricated.
-7. Ontology, image-property and presentation changes do not invalidate neutral source heads; source-fact format changes do.
-8. Create/rename/move/delete/alias changes refresh target resolution/postings without body parsing and without losing lexical candidates.
-9. Concurrent replacement and cancellation prove expected-head/latest-writer behavior and no stale activation after unload/supersession.
-10. Quota/open/transaction failure continues correct in-memory indexing, never claims false durable progress and recovers through bounded retry.
-11. Batch/chunk byte limits, oversized payload decode limits, flush deadline and storage backpressure are deterministic under fake time/fault control.
-12. Existing graph active/checkpoint restore remains compatible and optional; damaging a graph snapshot does not remove source heads.
-13. Newer-DB `VersionError` leaves the DB intact and falls back safely.
-14. Diagnostics expose only allowlisted aggregate fields and reason codes.
-15. Fresh-process restart restores activated source facts and selective dirty work rather than reacquiring every Markdown file.
-
-Update architecture docs and `Refactor plan.md` with **Review** status and actual limitations. Document changed public functions/classes using the repository convention. Do not mark SI3 accepted, remove the transitional warning or claim settings-change latency improvements.
-
-## Offline validation
-
-Use the repository-required Node range (`>=22.22.2 <23`) if available and record exact versions. Run, as available:
-
-```text
-git diff --check
-npm run verify
-```
-
-Also run the narrow source-repository and real-browser IndexedDB suites directly so their results are visible. A missing Node version, dependency, browser, network, Git history or Obsidian runtime must be recorded as unavailable; do not replace it with a stub or count a skipped lane as passed.
-
-## Main-agent validation after return
-
-The main agent will independently:
-
-- review the migration, codecs, source/host validity split, bounded writes and all failure paths;
-- run the exact Node 22.22.x aggregate verification and focused real-Chromium IndexedDB tests;
-- run strict native migration/build verification in Obsidian;
-- probe restart reuse with read/parser counters, partial interruption, one-source corruption/repair, storage-unavailable behavior and graph-cache damage;
-- exercise create/rename/move/delete/alias resolution refresh without source parsing;
-- verify source/installed artifacts, error capture, cleanup and Git diff/status before acceptance;
-- decide whether a physical-device interruption test is needed now or remains an SI5/release gate.
-
-Do not commit, push, create a PR, merge, release, publish or mutate a real user vault.
+Rewrite only the transient assignment/results below the preserved standing header. State the base/archive identity, full changed-file manifest, actual command outcomes, source/host/policy revision contract, any data gap requiring SI4b, bounded-work evidence and precise native probe requests. Mark SI4a **Review**. Do not commit, push, open a PR, merge, release, publish, mutate a personal vault or describe SI4 as accepted. Recommend the next reasonable chunk after your findings: likely SI4b scoped pair index/derived-cache publication if SI4a's oracle passes, then SI4c settings dispatch and read-consumer migration. The main agent retains commit and native acceptance responsibility.
