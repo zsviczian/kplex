@@ -14,72 +14,72 @@ export const englishCatalog = {
   "position.physicalRight": { message: "right", context: "Physical gate/sidecar position embedded in a sentence; lowercase preserves existing English.", params: [] },
   "styles.nodeTitle": {
     message: "Node styles",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.editNode": {
     message: "Edit node style",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.addNode": {
     message: "Add node style",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.legacyTagHelp": {
     message: "Style notes whose primary style tag starts with this prefix. Imported tag styles keep their original matching order.",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.propertyHelp": {
     message: "Style notes where “{property}” matches this value. Existing values and vault tags are suggested as you type.",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: ["property"],
   },
   "styles.tagPrefix": {
     message: "Tag prefix",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.labelPrefix": {
     message: "Label prefix",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.legacyTag": {
     message: "Imported tag style",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.propertyValue": {
     message: "Property value",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.managerHelp": {
     message: "Manage styles for values of “{property}” and imported tag styles.",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: ["property"],
   },
   "styles.resultCount": {
     message: "{count} styles · {results} results",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: ["count", "results"],
   },
   "styles.noMatches": {
     message: "No node styles match this search.",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.noneConfigured": {
     message: "No custom node styles configured yet.",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: [],
   },
   "styles.settingsSummary": {
     message: "{count} custom styles. Search and edit property-value and imported tag styles.",
-    context: "Node style settings and legacy ExcaliBrain style management.",
+    context: "K-Plex node style settings and imported style management.",
     params: ["count"],
   },
 
@@ -605,6 +605,11 @@ export const englishCatalog = {
     context: "K-Plex host shell, command, toolbar, and status copy.",
     params: [],
   },
+  "command.copyIndexDiagnostics": {
+    message: "Copy index diagnostics",
+    context: "K-Plex command for sharing a path-free index support report.",
+    params: [],
+  },
   "command.openPopout": {
     message: "Open in pop-out window",
     context: "K-Plex host shell, command, toolbar, and status copy.",
@@ -665,6 +670,16 @@ export const englishCatalog = {
     context: "K-Plex host shell, command, toolbar, and status copy.",
     params: [],
   },
+  "notice.indexDiagnosticsCopied": {
+    message: "Copied index diagnostics to clipboard.",
+    context: "Shown after the index support report is copied.",
+    params: [],
+  },
+  "notice.indexDiagnosticsCopyFailed": {
+    message: "Could not copy index diagnostics.",
+    context: "Shown if clipboard access or the index support report fails.",
+    params: [],
+  },
   "sidecar.unfoldPlex": {
     message: "Unfold K-Plex",
     context: "K-Plex host shell, command, toolbar, and status copy.",
@@ -694,6 +709,11 @@ export const englishCatalog = {
     message: "Status: indexing {indexed} of {total} files",
     context: "K-Plex index indicator detail showing actual progressive Markdown indexing progress.",
     params: ["indexed", "total"],
+  },
+  "index.statusSavingCache": {
+    message: "Status: saving index to cache",
+    context: "K-Plex index indicator detail while a progressive checkpoint saves the graph.",
+    params: [],
   },
   "index.statusUpdating": {
     message: "Status: updating index",
@@ -2938,7 +2958,7 @@ export const englishCatalog = {
     params: [],
   },
   "settings.importHelp": {
-    message: "Choose an ExcaliBrain data.json backup. K-Plex will migrate compatible ontology, visibility, navigation and appearance settings, then rebuild the index.",
+    message: "Choose an ExcaliBrain data.json backup. K-Plex will import the ontology and graph, node and link styling, then rebuild the index. Your K-Plex workflow preferences will stay unchanged.",
     context: "Settings, style editors, and manager copy.",
     params: [],
   },

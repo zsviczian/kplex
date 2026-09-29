@@ -1,3 +1,7 @@
+/**
+ * Tests K-Plex strict host-runner staging and failure paths with injected filesystem/CLI doubles.
+ * Canonical command and DOM expectations match production; these tests do not launch Obsidian.
+ */
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -36,7 +40,7 @@ function fakeCli(target, options = {}) {
     if (command === "version") return "1.14.2\n";
     if (command === "help") return "version vault plugin:disable plugin:enable commands command dev:dom dev:errors";
     if (command === "vault") return `${options.reportedVault ?? target.vaultPath}\n`;
-    if (command === "commands") return "k-plex:excalibrain-start\n";
+    if (command === "commands") return "k-plex:kplex-start\n";
     if (command === "dev:dom") return args.includes("total") ? options.domCount ?? "1\n" : options.domText ?? "K-Plex Welcome";
     if (command === "dev:errors") return options.errors ?? "No errors captured\n";
     return "OK\n";

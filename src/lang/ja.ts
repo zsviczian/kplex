@@ -597,7 +597,7 @@ const japaneseTranslations = {
   "settings.noDiscoveredMatches": "この検索に一致する検出済みフィールドはありません。",
   "settings.allDiscoveredAssigned": "検出されたすべてのフィールドはオントロジーロールに割り当てられています。",
   "settings.importTitle": "ExcaliBrain 設定をインポート",
-  "settings.importHelp": "ExcaliBrain の data.json バックアップを選択します。K-Plex は互換性のあるオントロジー、表示、ナビゲーション、外観設定を移行し、その後インデックスを再構築します。",
+  "settings.importHelp": "ExcaliBrain の data.json バックアップを選択します。K-Plex はオントロジーとグラフ、ノード、リンクのスタイルをインポートし、インデックスを再構築します。K-Plex の操作設定は変更されません。",
   "settings.noFileSelected": "ファイルが選択されていません。",
   "settings.fileReadFailed": "ファイルを読み込めませんでした: {error}",
   "settings.importButton": "インポート",
@@ -856,7 +856,11 @@ const japaneseTranslations = {
   "settings.centralNodeEditor.heading": "中央ノードエディター",
   "settings.centralNodeEditor.defaultMode": "既定の Markdown モード",
   "settings.centralNodeEditor.defaultModeDesc": "中央ノードエディターで Markdown ノートを閲覧ビューまたは編集モードのどちらで開くかを選択します。",
-  "filter.untitledLens": "無題のレンズ"
+  "filter.untitledLens": "無題のレンズ" ,
+  "command.copyIndexDiagnostics": "インデックス診断情報をコピー",
+  "notice.indexDiagnosticsCopied": "インデックス診断情報をクリップボードにコピーしました。",
+  "notice.indexDiagnosticsCopyFailed": "インデックス診断情報をコピーできませんでした。",
+  "index.statusSavingCache": "状態: インデックスをキャッシュに保存中",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

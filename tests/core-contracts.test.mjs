@@ -1,3 +1,7 @@
+/**
+ * Tests portable K-Plex identity, graph-read, predicate and adapter contracts in isolated bundles.
+ * Preserved data-migration keys are checked at the host boundary, never promoted to core identifiers.
+ */
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -87,10 +91,10 @@ test("legacy mapper covers every node kind without deriving kind from an opaque 
     graphNodeViewFromLegacy(page({ path: "case:node" })).id);
 });
 
-test("semantic settings mapper preserves legacy values and excludes unrelated host/UI settings", () => {
+test("semantic settings mapper preserves graph values and excludes unrelated host/UI settings", () => {
   const settings = {
     hierarchy: { hidden: [], parents: ["Parent"], children: [], leftFriends: [], rightFriends: [], previous: [], next: [], exclusions: [], friends: ["Legacy"] },
-    inferAllLinksAsFriends: false, inverseInfer: true, excalibrainFilepath: "legacy.md",
+    inferAllLinksAsFriends: false, inverseInfer: true,
     showFullTagName: false, noteTypeField: "Note type", primaryTagField: "Tag",
     tagStyleList: ["#tag"], baseNodeStyle: {}, showFolderNodes: false,
     graphLenses: [{ id: "host-only" }], futureSetting: { keep: true },
@@ -99,7 +103,7 @@ test("semantic settings mapper preserves legacy values and excludes unrelated ho
   const view = semanticIndexSettingsFromLegacy(settings);
   assert.deepEqual(view, {
     hierarchy: settings.hierarchy, inferAllLinksAsFriends: false, inverseInfer: true,
-    excalibrainFilepath: "legacy.md", showFullTagName: false, noteTypeField: "Note type",
+    showFullTagName: false, noteTypeField: "Note type",
     primaryTagField: "Tag", tagStyleList: settings.tagStyleList, maxLabelLength: 30,
   });
   assert.equal(view.hierarchy, settings.hierarchy);

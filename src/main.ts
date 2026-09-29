@@ -3,8 +3,8 @@
  */
 import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { GraphIndex } from "./index/GraphIndex";
-import { DEFAULT_SETTINGS, ExcaliBrainSettingTab, migrateAndMergeSettings, type DocumentSyncMode, type ExcaliBrainSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
-import { EXCALIBRAIN_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, ExcaliBrainView, KplexSidepanelView } from "./ui/ExcaliBrainView";
+import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
+import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelView } from "./ui/KplexView";
 import { RelationModal, type RelationModalOptions } from "./ui/RelationModal";
 import { NewRelatedNoteModal } from "./ui/NewRelatedNoteModal";
 import { CreateFolderNoteModal } from "./ui/CreateFolderNoteModal";
@@ -26,6 +26,7 @@ import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurfac
 import { createAdjacentFileLeaf } from "./adapters/obsidian/adjacentFileLeaf";
 import { isEmbeddedMarkdownLeaf } from "./adapters/obsidian/embeddedMarkdownLeaf";
 import { perfNow } from "./util/perf";
+import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
 
 type LoadAwareView = FileView & { _loaded?: boolean };
 
@@ -58,8 +59,8 @@ type RecentIndexedNavigationTarget = {
   file: TFile | null;
 };
 
-export default class ExcaliBrainPlugin extends Plugin {
-  settings: ExcaliBrainSettings = DEFAULT_SETTINGS;
+export default class KplexPlugin extends Plugin {
+  settings: KplexSettings = DEFAULT_SETTINGS;
   index!: GraphIndex;
   translator: Translator = createTranslator("en");
   private rebuildTimer: number | null = null;
@@ -70,6 +71,11 @@ export default class ExcaliBrainPlugin extends Plugin {
   private recentLeafHistory: WorkspaceLeaf[] = [];
   private readonly hoverParent: HoverParent = { hoverPopover: null };
   private reactiveIndexListenersRegistered = false;
+  private preRestoreChanged = false;
+  private preRestoreUncoveredChanges = false;
+  private readonly preRestoreReasons = new Map<string, number>();
+  private readonly preRestoreMarkdownPaths = new Map<string, number>();
+  private preRestoreListenerCleanup: (() => void) | null = null;
   private openKplexViews = 0;
   private layoutReady = false;
   private metadataStabilized = false;
@@ -108,7 +114,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private readonly kplexVisibilityListeners = new Set<() => void>();
   private visibleKplexLeaves = new Set<WorkspaceLeaf>();
   private lastIndexStatusKey = "";
-  private readonly graphLensListeners = new Set<(lenses: ExcaliBrainSettings["graphLenses"]) => void>();
+  private readonly graphLensListeners = new Set<(lenses: KplexSettings["graphLenses"]) => void>();
   private readonly managedMetadataWrites = new Map<string, number>();
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
   private readonly managedCreatedPaths = new Map<string, number>();
@@ -127,7 +133,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.dismissKplexMenu();
   };
 
-  private runningExcaliBrainSettings(): unknown {
+  private runningKplexSettings(): unknown {
     // Obsidian does not currently expose the community-plugin registry as public API. The
     // legacy ExcaliBrain plugin does expose its loaded settings on the plugin instance, so keep
     // this guarded bridge isolated here. K-Plex has its own manifest id (k-plex), allowing both
@@ -140,7 +146,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return legacy.settings ?? null;
   }
 
-  /** Register plugin lifecycle resources, commands and host integrations. Product command/notice copy uses the translator; persisted command IDs remain stable. */
+  /** Register plugin lifecycle resources, commands and host integrations. Product command/notice copy uses the translator; command IDs use the K-Plex namespace. */
   async onload(): Promise<void> {
     this.translator = createObsidianTranslator();
     const ownData: unknown = await this.loadData();
@@ -161,21 +167,21 @@ export default class ExcaliBrainPlugin extends Plugin {
 
     this.index = new GraphIndex(this);
 
-    this.registerView(EXCALIBRAIN_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ExcaliBrainView(leaf, this));
+    this.registerView(KPLEX_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexView(leaf, this));
     this.registerView(KPLEX_SIDEPANEL_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexSidepanelView(leaf, this));
-    this.registerHoverLinkSource(EXCALIBRAIN_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
+    this.registerHoverLinkSource(KPLEX_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
     this.registerHoverLinkSource(KPLEX_SIDEPANEL_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
-    this.addSettingTab(new ExcaliBrainSettingTab(this.app, this));
+    this.addSettingTab(new KplexSettingTab(this.app, this));
     this.registerEditorSuggest(new OntologySuggester(this));
     this.addRibbonIcon("brain-circuit", this.translator("ribbon.open"), () => void this.activateView());
 
-    // Keep legacy command IDs so existing hotkeys continue to work, but expose only actions that
+    // Register canonical K-Plex commands and expose actions that
     // make sense for the current form factor. Phones use the sidepanel as their primary K-Plex
     // surface; tablets can choose between a normal tab and the sidepanel; pop-out windows are
     // desktop-only. Obsidian evaluates checkCallback while building the command palette, so a
     // false result keeps unavailable actions out of the list instead of merely disabling them.
     this.addCommand({
-      id: "excalibrain-start",
+      id: "kplex-start",
       name: this.translator("command.openGraph"),
       checkCallback: (checking) => {
         if (!isGraphTabCommandAvailable(readObsidianPresentationEnvironment())) return false;
@@ -183,7 +189,12 @@ export default class ExcaliBrainPlugin extends Plugin {
         return true;
       },
     });
-    this.addCommand({ id: "excalibrain-rebuild-index", name: this.translator("command.rebuildIndex"), callback: () => void this.rebuildIndex(true) });
+    this.addCommand({ id: "kplex-rebuild-index", name: this.translator("command.rebuildIndex"), callback: () => void this.rebuildIndex(true) });
+    this.addCommand({
+      id: "kplex-copy-index-diagnostics",
+      name: this.translator("command.copyIndexDiagnostics"),
+      callback: () => void this.copyIndexDiagnostics(),
+    });
     this.addCommand({
       id: "kplex-open-popout",
       name: this.translator("command.openPopout"),
@@ -233,12 +244,12 @@ export default class ExcaliBrainPlugin extends Plugin {
     });
     this.registerOntologyCommands();
     this.addCommand({
-      id: "excalibrain-focus-active-note",
+      id: "kplex-focus-active-note",
       name: this.translator("command.focusActiveNote"),
       checkCallback: (checking: boolean) => {
         const file = this.app.workspace.getActiveFile();
         if (!file) return false;
-        if (!checking) void this.focusInBrain(file.path);
+        if (!checking) void this.focusInKplex(file.path);
         return true;
       }
     });
@@ -318,10 +329,11 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       void (async () => {
         if (this.unloading) return;
+        this.installPreRestoreChangeFence();
         if (!alreadyKplex) {
-          const legacySettings = this.runningExcaliBrainSettings();
+          const legacySettings = this.runningKplexSettings();
           if (legacySettings) {
-            this.settings = migrateAndMergeSettings(legacySettings);
+            this.settings = importExcaliBrainGraphSettings(legacySettings, this.settings);
             new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
           }
           this.settings.kplexInitialized = true;
@@ -335,7 +347,7 @@ export default class ExcaliBrainPlugin extends Plugin {
         // run. This uses only Obsidian's restored workspace geometry/view state; it must not wait
         // for the semantic graph or create a new split.
         if (this.settings.sidecarOpen) {
-          const restoredHost = this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE)[0];
+          const restoredHost = this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE)[0];
           if (restoredHost) {
             try {
               await this.restorePersistedSidecar(restoredHost);
@@ -368,12 +380,13 @@ export default class ExcaliBrainPlugin extends Plugin {
           await this.refreshBookmarkedEntryPoints();
         }
         if (this.unloading) return;
-        this.indexDirty = !restored.fresh;
+        this.classifyPreRestoreChanges(restored.fresh);
         if (!restored.fresh) {
           this.indexDirtyRevision += 1;
           this.indexBacklogReasons.add(restored.restored ? "startup:stale-snapshot" : "startup:no-snapshot");
         }
 
+        this.preRestoreListenerCleanup?.();
         this.registerReactiveIndexListeners();
         this.registerOntologyContextMenu();
         // Prewarm exactly once per Obsidian session when it is safe to do so. A fresh persisted
@@ -511,6 +524,58 @@ export default class ExcaliBrainPlugin extends Plugin {
       this.rebuildTimer = null;
     }
     this.notifyIndexStatus();
+  }
+
+  /** Discard startup events already covered by the captured physical inventory. */
+  private classifyPreRestoreChanges(snapshotFresh: boolean): void {
+    // The inventory already includes events delivered before its synchronous tree walk.
+    // Keep only events that arrived while snapshot preview/hydration was loading.
+    const inventoryRevision = this.index.getRestoreInventorySourceRevision();
+    this.preRestoreUncoveredChanges = this.preRestoreChanged &&
+      (inventoryRevision === null || inventoryRevision !== this.indexDirtyRevision);
+    if (this.preRestoreUncoveredChanges) {
+      for (const [reason, revision] of this.preRestoreReasons) {
+        if (inventoryRevision === null || revision > inventoryRevision) this.indexBacklogReasons.add(reason);
+      }
+      for (const [path, revision] of this.preRestoreMarkdownPaths) {
+        if (inventoryRevision === null || revision > inventoryRevision) this.dirtyMarkdownPaths.add(path);
+      }
+    }
+    this.preRestoreReasons.clear();
+    this.preRestoreMarkdownPaths.clear();
+    this.indexDirty = !snapshotFresh || this.preRestoreUncoveredChanges || this.indexBacklogReasons.size > 0;
+  }
+
+  /** Capture changes during snapshot inspection before normal event-driven work is registered. */
+  private installPreRestoreChangeFence(): void {
+    if (this.preRestoreListenerCleanup) return;
+    const mark = (reason: string, file?: TFile): void => {
+      this.preRestoreChanged = true;
+      this.indexDirtyRevision += 1;
+      this.preRestoreReasons.set(reason, this.indexDirtyRevision);
+      if (file?.extension === "md") this.preRestoreMarkdownPaths.set(file.path, this.indexDirtyRevision);
+    };
+    const created = this.app.vault.on("create", (item) => mark(
+      item instanceof TFile && item.extension === "md" ? "vault:create-markdown" : "vault:create",
+      item instanceof TFile ? item : undefined,
+    ));
+    const deleted = this.app.vault.on("delete", (item) => mark("vault:delete",
+      item instanceof TFile ? item : undefined));
+    const renamed = this.app.vault.on("rename", (item) => mark("vault:rename",
+      item instanceof TFile ? item : undefined));
+    const metadata = this.app.metadataCache.on("changed", (file) => mark("metadata:changed", file));
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
+      this.app.vault.offref(created);
+      this.app.vault.offref(deleted);
+      this.app.vault.offref(renamed);
+      this.app.metadataCache.offref(metadata);
+      this.preRestoreListenerCleanup = null;
+    };
+    this.preRestoreListenerCleanup = release;
+    this.register(release);
   }
 
   /** Register post-restore vault/metadata listeners and refresh cached vault-wide status facts. */
@@ -764,7 +829,7 @@ export default class ExcaliBrainPlugin extends Plugin {
             this.indexBacklogReasons.add("startup:stale-snapshot");
           }
         }
-      } else if (this.index.size > 0 && !this.index.isFullSnapshotHydrated()) {
+      } else if (this.index.size > 0 && !this.index.isFullSnapshotHydrated() && !this.index.hasRestoredCheckpoint()) {
         // The preview task failed after it had already returned a usable partial scene. Fall back
         // to a normal rebuild instead of ever treating that partial scene as the complete index.
         this.indexDirty = true;
@@ -795,11 +860,18 @@ export default class ExcaliBrainPlugin extends Plugin {
         const patchRevision = this.indexDirtyRevision;
         const patched = await this.index.reconcileRestoredSnapshot();
         if (this.unloading) return;
-        if (patched.reconciled && patchRevision === this.indexDirtyRevision) {
-          this.indexDirty = false;
-          this.indexBacklogReasons.clear();
+        if (patched.reconciled) {
+          this.indexBacklogReasons.delete("startup:stale-snapshot");
           this.initialIndexComplete = true;
+          if (!this.preRestoreUncoveredChanges && patchRevision === this.indexDirtyRevision &&
+              this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
+            this.indexDirty = false;
+          }
           this.notifyIndexStatus();
+          if (!this.indexDirty) return;
+          // A newer reactive event remains in the per-file backlog. Let the normal coordinator
+          // patch it after this startup task releases its guard.
+          if (this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
           return;
         }
       }
@@ -897,6 +969,7 @@ export default class ExcaliBrainPlugin extends Plugin {
         this.dirtyMarkdownPaths.size > 0;
       if (canIncrementalPatch) {
         const paths = [...this.dirtyMarkdownPaths];
+        this.index.noteBuildDecision("per-file-patch", [...this.indexBacklogReasons].sort().join("|") || reason, paths.length);
         const result = await this.index.patchMarkdownPaths(paths);
         if (this.unloading) return;
         if (result.outcome === "patched") {
@@ -945,6 +1018,8 @@ export default class ExcaliBrainPlugin extends Plugin {
       }
       if (showNotice) new Notice(this.translator("notice.rebuildingIndex"), 1200);
       const progressiveStartup = allowClosed && !showNotice && !force && !this.initialIndexComplete && !this.index.isFullSnapshotHydrated();
+      this.index.noteBuildDecision(progressiveStartup ? "cold-progressive" : "full-rebuild",
+        [...this.indexBacklogReasons].sort().join("|") || reason);
       const published = progressiveStartup
         ? await this.index.rebuildProgressively(this.startupGraphSeedPaths(), {
           // Keep the large-iOS low-memory checkpoint strategy, but only after the useful center
@@ -1026,7 +1101,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private isDocumentLeafCandidate(leaf: WorkspaceLeaf | null): leaf is WorkspaceLeaf {
     if (!leaf || isEmbeddedMarkdownLeaf(leaf) || this.isManagedSidecarLeaf(leaf)) return false;
     const viewState = leaf.getViewState();
-    if (viewState.type === EXCALIBRAIN_VIEW_TYPE || viewState.type === KPLEX_SIDEPANEL_VIEW_TYPE) return false;
+    if (viewState.type === KPLEX_VIEW_TYPE || viewState.type === KPLEX_SIDEPANEL_VIEW_TYPE) return false;
     if (viewState.type === "empty" || leaf.view instanceof FileView) return true;
 
     // Background tabs can be DeferredView instances. Inspect serialized view state instead
@@ -1326,7 +1401,7 @@ export default class ExcaliBrainPlugin extends Plugin {
 
   private currentVisibleKplexLeaves(): Set<WorkspaceLeaf> {
     return new Set([
-      ...this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE),
+      ...this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE),
       ...this.app.workspace.getLeavesOfType(KPLEX_SIDEPANEL_VIEW_TYPE),
     ].filter((leaf) => this.leafIsVisible(leaf)));
   }
@@ -1548,7 +1623,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     const matches = (leaf: WorkspaceLeaf | null): leaf is WorkspaceLeaf => {
       if (!leaf) return false;
       const type = leaf.getViewState().type;
-      return type !== EXCALIBRAIN_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE
+      return type !== KPLEX_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE
         && this.fileForLeaf(leaf)?.path === file.path;
     };
     const recent = this.app.workspace.getMostRecentLeaf();
@@ -1862,7 +1937,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private isKplexLeaf(leaf: WorkspaceLeaf | null | undefined): leaf is WorkspaceLeaf {
     if (!leaf) return false;
     const type = leaf.getViewState().type;
-    return type === EXCALIBRAIN_VIEW_TYPE || type === KPLEX_SIDEPANEL_VIEW_TYPE;
+    return type === KPLEX_VIEW_TYPE || type === KPLEX_SIDEPANEL_VIEW_TYPE;
   }
 
   private searchTargetLeaf(): WorkspaceLeaf | null {
@@ -1887,13 +1962,32 @@ export default class ExcaliBrainPlugin extends Plugin {
     return this.indexDirtyRevision;
   }
 
-  /** Return current index readiness/progress facts plus localized status copy; this query does not schedule indexing. */
-  getIndexStatus(): {
+  private async copyIndexDiagnostics(): Promise<void> {
+    try {
+      const report = createIndexDiagnosticsReport(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version);
+      await window.navigator.clipboard.writeText(report);
+      new Notice(this.translator("notice.indexDiagnosticsCopied"));
+    } catch (error) {
+      console.error("K-Plex could not copy index diagnostics", error);
+      new Notice(this.translator("notice.indexDiagnosticsCopyFailed"));
+    }
+  }
+
+  /** Never enumerate Markdown files merely to build a clipboard report. */
+  private getIndexDiagnosticsStatus(): {
     upToDate: boolean;
-    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "updating";
-    label: string;
+    phase: string;
     indexedFiles: number;
-    totalFiles: number;
+    totalFiles: number | null;
+  } {
+    return this.computeIndexStatusFacts(this.cachedMarkdownFileCount);
+  }
+
+  private computeIndexStatusFacts(totalFiles: number | null): {
+    upToDate: boolean;
+    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating";
+    indexedFiles: number;
+    totalFiles: number | null;
   } {
     const loadingCache = this.index.hasPendingSnapshotHydration();
     const upToDate = this.initialIndexComplete
@@ -1901,17 +1995,15 @@ export default class ExcaliBrainPlugin extends Plugin {
       && this.rebuildTask === null
       && this.rebuildTimer === null
       && !loadingCache;
-    // Progressive publication can notify frequently in large vaults. Cache the vault-wide total
-    // between lifecycle changes so status rendering remains O(1) instead of repeatedly allocating
-    // the complete Markdown-file list for every published batch.
-    const totalFiles = this.cachedMarkdownFileCount ??= this.app.vault.getMarkdownFiles().length;
-    const indexedFiles = upToDate
-      ? totalFiles
-      : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
+    const indexedFiles = totalFiles === null
+      ? this.index.indexedMarkdownFileCount()
+      : upToDate ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
     const phase = upToDate
       ? "ready"
       : loadingCache
         ? "loading-cache"
+        : this.index.isCheckpointSaving()
+          ? "saving-cache"
         : !this.initialIndexComplete && this.rebuildTask !== null
           ? "indexing"
           : !this.initialIndexComplete && this.index.size > 0 && this.index.hasIncrementalRestorePatch()
@@ -1919,6 +2011,23 @@ export default class ExcaliBrainPlugin extends Plugin {
             : !this.initialIndexComplete
               ? "preparing"
               : "updating";
+    return { upToDate, phase, indexedFiles, totalFiles };
+  }
+
+  /** Return current index readiness/progress facts plus localized status copy; this query does not schedule indexing. */
+  getIndexStatus(): {
+    upToDate: boolean;
+    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating";
+    label: string;
+    indexedFiles: number;
+    totalFiles: number;
+  } {
+    // Progressive publication can notify frequently in large vaults. Cache the vault-wide total
+    // between lifecycle changes so status rendering remains O(1) instead of repeatedly allocating
+    // the complete Markdown-file list for every published batch.
+    const totalFiles = this.cachedMarkdownFileCount ??= this.app.vault.getMarkdownFiles().length;
+    const facts = this.computeIndexStatusFacts(totalFiles);
+    const { phase, indexedFiles } = facts;
     const label = phase === "ready"
       ? this.translator("index.statusReady")
       : phase === "loading-cache"
@@ -1929,8 +2038,10 @@ export default class ExcaliBrainPlugin extends Plugin {
             ? this.translator("index.statusCheckingCache")
             : phase === "indexing"
               ? this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })
+              : phase === "saving-cache"
+                ? this.translator("index.statusSavingCache")
               : this.translator("index.statusUpdating");
-    return { upToDate, phase, label, indexedFiles, totalFiles };
+    return { ...facts, label, totalFiles };
   }
 
   subscribeIndexStatus(listener: () => void): () => void {
@@ -1946,12 +2057,12 @@ export default class ExcaliBrainPlugin extends Plugin {
     for (const listener of this.indexStatusListeners) listener();
   }
 
-  subscribeGraphLenses(listener: (lenses: ExcaliBrainSettings["graphLenses"]) => void): () => void {
+  subscribeGraphLenses(listener: (lenses: KplexSettings["graphLenses"]) => void): () => void {
     this.graphLensListeners.add(listener);
     return () => this.graphLensListeners.delete(listener);
   }
 
-  async setGraphLenses(lenses: ExcaliBrainSettings["graphLenses"]): Promise<void> {
+  async setGraphLenses(lenses: KplexSettings["graphLenses"]): Promise<void> {
     this.settings.graphLenses = lenses;
     await this.saveSettings(false, false);
     for (const listener of this.graphLensListeners) listener(lenses);
@@ -2406,7 +2517,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       return;
     }
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
-    let leaf = this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE)[0];
+    let leaf = this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE)[0];
     if (!leaf) {
       if (target === "popout") {
         try { leaf = this.app.workspace.getLeaf("window"); }
@@ -2414,7 +2525,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       } else {
         leaf = this.app.workspace.getLeaf(true);
       }
-      await leaf.setViewState({ type: EXCALIBRAIN_VIEW_TYPE, active: true });
+      await leaf.setViewState({ type: KPLEX_VIEW_TYPE, active: true });
     }
     await this.app.workspace.revealLeaf(leaf);
   }
@@ -2462,14 +2573,14 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
     try {
       const leaf = this.app.workspace.getLeaf("window");
-      await leaf.setViewState({ type: EXCALIBRAIN_VIEW_TYPE, active: true });
+      await leaf.setViewState({ type: KPLEX_VIEW_TYPE, active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch {
       new Notice(this.translator("notice.popoutUnavailable"), 2200);
     }
   }
 
-  async focusInBrain(path: string): Promise<void> {
+  async focusInKplex(path: string): Promise<void> {
     await this.activateView();
     await this.ensureIndexReady("focus-active-note");
     if (!this.index.get(path)) return;
@@ -2517,7 +2628,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     await this.createGhostNote(page);
   }
 
-  getViewSettings(surface: KplexViewSurface): ExcaliBrainSettings {
+  getViewSettings(surface: KplexViewSurface): KplexSettings {
     return effectiveViewSettings(this.settings, surface, readObsidianPresentationEnvironment());
   }
 
@@ -2654,7 +2765,7 @@ export default class ExcaliBrainPlugin extends Plugin {
 
     const collect = (items: BookmarkItem[] | undefined): void => {
       for (const item of items ?? []) {
-        if (item.type === "file" && item.path && item.path !== this.settings.excalibrainFilepath && this.app.vault.getAbstractFileByPath(item.path)) {
+        if (item.type === "file" && item.path && this.app.vault.getAbstractFileByPath(item.path)) {
           // Keep entry-point paths even while startup is displaying only a partial graph. search()
           // resolves them against the current index later, after full hydration has completed.
           paths.push(item.path);
@@ -2739,7 +2850,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     if (!page.file) return;
     this.app.workspace.trigger("hover-link", {
       event,
-      source: EXCALIBRAIN_VIEW_TYPE,
+      source: KPLEX_VIEW_TYPE,
       hoverParent: this.hoverParent,
       targetEl,
       linktext: page.file.path,
@@ -3997,7 +4108,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     if (!openForEditing || !page.file) return;
     const host = hostLeaf && hostLeaf.view.getViewType() !== KPLEX_SIDEPANEL_VIEW_TYPE
       ? hostLeaf
-      : this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE)[0];
+      : this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE)[0];
     if (host) {
       await this.openMarkdownInSidecar(host, page.file, 0, true);
       return;

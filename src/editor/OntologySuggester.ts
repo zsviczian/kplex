@@ -1,3 +1,7 @@
+/**
+ * Provides Obsidian editor suggestions from K-Plex ontology settings. The native editor owns
+ * suggestion lifecycle; this host adapter reads configured fields and inserts the selected value.
+ */
 import {
   EditorSuggest,
   type Editor,
@@ -6,7 +10,7 @@ import {
   type EditorSuggestTriggerInfo,
   type TFile
 } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -16,7 +20,7 @@ export class OntologySuggester extends EditorSuggest<string> {
   private suggestType: SuggestType = "all";
   private latestTriggerInfo: EditorSuggestTriggerInfo | null = null;
 
-  constructor(private plugin: ExcaliBrainPlugin) { super(plugin.app); }
+  constructor(private plugin: KplexPlugin) { super(plugin.app); }
 
   onTrigger(cursor: EditorPosition, editor: Editor, _file: TFile | null): EditorSuggestTriggerInfo | null {
     const settings = this.plugin.settings;

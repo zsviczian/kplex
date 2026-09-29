@@ -31,7 +31,7 @@ export type FuzzySuggesterProps<T> = {
   disabled?: boolean;
   floating?: boolean;
   /**
-   * `app` keeps the historic K-Plex topbar overlay inside `.excalibrain-app`.
+   * `app` keeps the historic K-Plex topbar overlay inside `.kplex-app`.
    * `viewport` portals to the document body so a modal cannot clip the result list.
    */
   floatingMode?: "app" | "viewport";
@@ -333,7 +333,7 @@ export function FuzzySuggester<T>({
   };
 
   const list = focused && visibleResults.length > 0
-    ? <div ref={resultsRef} className={`excalibrain-search-results${floating ? " kplex-fuzzy-floating-results" : " kplex-fuzzy-inline-results"}`} style={floating ? overlayStyle ?? undefined : undefined}>
+    ? <div ref={resultsRef} className={`kplex-search-results${floating ? " kplex-fuzzy-floating-results" : " kplex-fuzzy-inline-results"}`} style={floating ? overlayStyle ?? undefined : undefined}>
       {visibleResults.map((item, resultIndex) => {
         const label = getLabel(item);
         const detail = getDetail?.(item);
@@ -341,7 +341,7 @@ export function FuzzySuggester<T>({
         return <button
           key={getKey(item)}
           data-kplex-fuzzy-index={resultIndex}
-          className={`excalibrain-search-result${resultIndex === clampedSelectedIndex ? " is-selected" : ""}`}
+          className={`kplex-search-result${resultIndex === clampedSelectedIndex ? " is-selected" : ""}`}
           title={detail ? `${label}\n${detail}` : label}
           onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
           onMouseEnter={() => setSelectedIndex(resultIndex)}
@@ -356,11 +356,11 @@ export function FuzzySuggester<T>({
 
   const resultList = floating && portalRoot && overlayStyle && list ? createPortal(list, portalRoot) : (!floating ? list : null);
 
-  return <div ref={shellRef} className={`excalibrain-search-shell kplex-fuzzy-search${className ? ` ${className}` : ""}`}>
-    {icon ? <div className="excalibrain-search-icon">{icon}</div> : null}
+  return <div ref={shellRef} className={`kplex-search-shell kplex-fuzzy-search${className ? ` ${className}` : ""}`}>
+    {icon ? <div className="kplex-search-icon">{icon}</div> : null}
     <input
       ref={inputRef}
-      className="excalibrain-search"
+      className="kplex-search"
       value={value}
       disabled={disabled}
       onChange={(event: ChangeEvent<HTMLInputElement>) => {

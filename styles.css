@@ -1,41 +1,41 @@
-.excalibrain-view-host,
-.excalibrain-view-host > div,
-.excalibrain-app {
+.kplex-view-host,
+.kplex-view-host > div,
+.kplex-app {
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
 }
 
-.excalibrain-app {
+.kplex-app {
   position: relative;
-  --eb-panel: rgba(15, 19, 25, 0.96);
-  --eb-panel-2: rgba(25, 31, 40, 0.96);
-  --eb-line: rgba(255, 255, 255, 0.10);
-  --eb-muted: rgba(222, 231, 243, 0.56);
-  --eb-text: #e9f1fb;
-  --eb-accent: #74b6ff;
+  --kplex-panel: rgba(15, 19, 25, 0.96);
+  --kplex-panel-2: rgba(25, 31, 40, 0.96);
+  --kplex-line: rgba(255, 255, 255, 0.10);
+  --kplex-muted: rgba(222, 231, 243, 0.56);
+  --kplex-text: #e9f1fb;
+  --kplex-accent: #74b6ff;
   /* Host-owned values for migrated action controls. Keep the current dark Plex palette until
      the broader shell is themed; the component itself remains independent of Obsidian CSS. */
-  --kplex-action-fg: var(--eb-text);
+  --kplex-action-fg: var(--kplex-text);
   --kplex-action-bg: rgba(255, 255, 255, .055);
   --kplex-action-bg-hover: rgba(255, 255, 255, .11);
   --kplex-action-border: rgba(255, 255, 255, .09);
   --kplex-action-focus: var(--interactive-accent);
   --kplex-action-disabled-opacity: .28;
-  color: var(--eb-text);
+  color: var(--kplex-text);
   background: #0d1219;
   font-family: var(--font-interface);
   overflow: hidden;
 }
 
-.excalibrain-main-column {
+.kplex-main-column {
   height: 100%;
   display: grid;
   grid-template-rows: 46px minmax(0, 1fr) 40px;
 }
 
-.excalibrain-topbar {
+.kplex-topbar {
   position: relative;
   z-index: 30;
   display: flex;
@@ -43,11 +43,11 @@
   gap: 7px;
   padding: 0 10px;
   background: linear-gradient(180deg, rgba(24, 30, 39, .98), rgba(14, 18, 24, .98));
-  border-bottom: 1px solid var(--eb-line);
+  border-bottom: 1px solid var(--kplex-line);
   box-shadow: 0 5px 18px rgba(0,0,0,.24);
 }
 
-.excalibrain-brand {
+.kplex-brand {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -79,7 +79,7 @@
   border-radius: 50%;
 }
 
-.excalibrain-topbar button.kplex-index-status,
+.kplex-topbar button.kplex-index-status,
 .kplex-index-status-empty button.kplex-index-status {
   width: 9px;
   height: 9px;
@@ -95,13 +95,13 @@
 }
 
 .kplex-index-status.is-ready,
-.excalibrain-topbar button.kplex-index-status.is-ready {
+.kplex-topbar button.kplex-index-status.is-ready {
   background: #45c86f;
   box-shadow: 0 0 7px rgba(69,200,111,.72);
 }
 
 .kplex-index-status.is-updating,
-.excalibrain-topbar button.kplex-index-status.is-updating {
+.kplex-topbar button.kplex-index-status.is-updating {
   background: #ff4d4d;
   box-shadow: 0 0 8px rgba(255,77,77,.78);
   animation: kplex-index-status-blink 1s ease-in-out infinite;
@@ -158,16 +158,16 @@
   margin-top: 10px;
 }
 
-.excalibrain-brand-mark {
+.kplex-brand-mark {
   color: #f0aa43;
   font-size: 20px;
   text-shadow: 0 0 16px rgba(240,170,67,.55);
 }
 
-.excalibrain-topbar button,
-.excalibrain-content-actions button,
-.excalibrain-zoom-controls button {
-  color: var(--eb-text);
+.kplex-topbar button,
+.kplex-content-actions button,
+.kplex-zoom-controls button {
+  color: var(--kplex-text);
   background: rgba(255,255,255,.055);
   border: 1px solid rgba(255,255,255,.09);
   border-radius: 7px;
@@ -176,40 +176,40 @@
   cursor: pointer;
 }
 
-.excalibrain-topbar button:hover,
-.excalibrain-content-actions button:hover,
-.excalibrain-zoom-controls button:hover { background: rgba(255,255,255,.11); }
-.excalibrain-topbar button.is-on { color: #dcecff; border-color: rgba(116,182,255,.48); background: rgba(67,132,205,.18); }
-.excalibrain-topbar button:disabled { opacity: .28; cursor: default; }
-.excalibrain-topbar .kplex-action-button {
+.kplex-topbar button:hover,
+.kplex-content-actions button:hover,
+.kplex-zoom-controls button:hover { background: rgba(255,255,255,.11); }
+.kplex-topbar button.is-on { color: #dcecff; border-color: rgba(116,182,255,.48); background: rgba(67,132,205,.18); }
+.kplex-topbar button:disabled { opacity: .28; cursor: default; }
+.kplex-topbar .kplex-action-button {
   color: var(--kplex-action-fg);
   background: var(--kplex-action-bg);
   border-color: var(--kplex-action-border);
 }
-.excalibrain-topbar .kplex-action-button:hover { background: var(--kplex-action-bg-hover); }
-.excalibrain-topbar .kplex-action-button:disabled { opacity: var(--kplex-action-disabled-opacity); }
-.excalibrain-topbar .kplex-action-button:focus-visible {
+.kplex-topbar .kplex-action-button:hover { background: var(--kplex-action-bg-hover); }
+.kplex-topbar .kplex-action-button:disabled { opacity: var(--kplex-action-disabled-opacity); }
+.kplex-topbar .kplex-action-button:focus-visible {
   outline: 2px solid var(--kplex-action-focus);
   outline-offset: 2px;
 }
-.excalibrain-view-host .excalibrain-icon-button { width: 30px; padding: 0; font-size: 17px; }
-.excalibrain-top-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; }
-.excalibrain-top-actions .kplex-auto-open { width: 32px; padding: 0; }
+.kplex-view-host .kplex-icon-button { width: 30px; padding: 0; font-size: 17px; }
+.kplex-top-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+.kplex-top-actions .kplex-auto-open { width: 32px; padding: 0; }
 
-.excalibrain-search-shell { position: relative; flex: 1; max-width: 520px; min-width: 140px; }
-.excalibrain-search-icon { position: absolute; left: 10px; top: 5px; color: var(--eb-muted); font-size: 18px; pointer-events: none; }
-.excalibrain-view-host .excalibrain-search {
+.kplex-search-shell { position: relative; flex: 1; max-width: 520px; min-width: 140px; }
+.kplex-search-icon { position: absolute; left: 10px; top: 5px; color: var(--kplex-muted); font-size: 18px; pointer-events: none; }
+.kplex-view-host .kplex-search {
   width: 100%;
   height: 30px;
   padding: 0 12px 0 33px;
-  color: var(--eb-text);
+  color: var(--kplex-text);
   background: rgba(0,0,0,.30);
   border: 1px solid rgba(255,255,255,.10);
   border-radius: 8px;
   box-shadow: inset 0 1px 4px rgba(0,0,0,.22);
 }
-.excalibrain-view-host .excalibrain-search:focus { border-color: rgba(116,182,255,.48); box-shadow: 0 0 0 2px rgba(70,145,226,.14); }
-.excalibrain-search-results {
+.kplex-view-host .kplex-search:focus { border-color: rgba(116,182,255,.48); box-shadow: 0 0 0 2px rgba(70,145,226,.14); }
+.kplex-search-results {
   position: absolute;
   z-index: 60;
   box-sizing: border-box;
@@ -221,7 +221,7 @@
   box-shadow: 0 18px 50px rgba(0,0,0,.48);
   padding: 6px;
 }
-.excalibrain-search-result {
+.kplex-search-result {
   width: 100%;
   display: grid;
   grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
@@ -229,44 +229,44 @@
   gap: 18px;
   text-align: left;
   border: 0;
-  color: var(--eb-text);
+  color: var(--kplex-text);
   background: transparent;
   border-radius: 6px;
   padding: 8px 10px;
   cursor: pointer;
 }
-.excalibrain-search-result:hover { background: rgba(116,182,255,.10); }
-.excalibrain-search-result > span,
-.excalibrain-search-result small {
+.kplex-search-result:hover { background: rgba(116,182,255,.10); }
+.kplex-search-result > span,
+.kplex-search-result small {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.excalibrain-search-result small { color: var(--eb-muted); text-align: right; }
+.kplex-search-result small { color: var(--kplex-muted); text-align: right; }
 
-.excalibrain-workspace { min-height: 0; display: flex; }
-.excalibrain-graph-area { position: relative; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
-.excalibrain-plex { position: absolute; inset: 0; overflow: hidden; user-select: none; cursor: grab; }
-.excalibrain-plex:active { cursor: grabbing; }
-.excalibrain-plex::after {
+.kplex-workspace { min-height: 0; display: flex; }
+.kplex-graph-area { position: relative; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
+.kplex-plex { position: absolute; inset: 0; overflow: hidden; user-select: none; cursor: grab; }
+.kplex-plex:active { cursor: grabbing; }
+.kplex-plex::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: radial-gradient(circle at 50% 48%, rgba(108,170,225,.12), transparent 34%), linear-gradient(180deg, rgba(255,255,255,.018), transparent 24%, rgba(0,0,0,.12));
 }
-.excalibrain-camera { position: absolute; width: 0; height: 0; transform-origin: 0 0; will-change: transform; }
-.excalibrain-links { position: absolute; left: -1600px; top: -1200px; overflow: visible; pointer-events: none; z-index: 4; }
-.excalibrain-nodes { position: absolute; left: 0; top: 0; z-index: 8; }
-.excalibrain-edge { transition: opacity .11s ease, filter .11s ease; }
-.excalibrain-edge-visible { pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,.55)); transition: opacity .11s ease, filter .11s ease; }
-.excalibrain-edge-hit { pointer-events: stroke; cursor: pointer; }
-.excalibrain-edge.is-highlighted .excalibrain-edge-visible { filter: drop-shadow(0 0 4px rgba(190,226,255,.8)) drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
-.excalibrain-edge.is-dimmed { opacity: .16; }
-.excalibrain-edge-label { pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.72); stroke-width: 3px; stroke-linejoin: round; }
+.kplex-camera { position: absolute; width: 0; height: 0; transform-origin: 0 0; will-change: transform; }
+.kplex-links { position: absolute; left: -1600px; top: -1200px; overflow: visible; pointer-events: none; z-index: 4; }
+.kplex-nodes { position: absolute; left: 0; top: 0; z-index: 8; }
+.kplex-edge { transition: opacity .11s ease, filter .11s ease; }
+.kplex-edge-visible { pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,.55)); transition: opacity .11s ease, filter .11s ease; }
+.kplex-edge-hit { pointer-events: stroke; cursor: pointer; }
+.kplex-edge.is-highlighted .kplex-edge-visible { filter: drop-shadow(0 0 4px rgba(190,226,255,.8)) drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
+.kplex-edge.is-dimmed { opacity: .16; }
+.kplex-edge-label { pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.72); stroke-width: 3px; stroke-linejoin: round; }
 
-.excalibrain-zone-label {
+.kplex-zone-label {
   position: absolute;
   z-index: 3;
   pointer-events: none;
@@ -280,7 +280,7 @@
 .zone-left { top: 50%; left: 10px; transform: translateY(-50%) rotate(-90deg); transform-origin: left top; }
 .zone-right { top: 50%; right: 10px; transform: translateY(-50%) rotate(90deg); transform-origin: right top; }
 
-.excalibrain-thought {
+.kplex-thought {
   position: absolute;
   z-index: 10;
   display: flex;
@@ -295,15 +295,15 @@
   cursor: pointer;
   transition: filter .11s ease, box-shadow .11s ease, opacity .11s ease;
 }
-.excalibrain-thought:hover { filter: brightness(1.12); z-index: 12; }
-.excalibrain-thought.is-highlighted { filter: brightness(1.22); box-shadow: 0 0 0 1px rgba(184,222,255,.66), 0 0 18px rgba(112,184,255,.32), 0 5px 18px rgba(0,0,0,.36); z-index: 13; }
-.excalibrain-thought.is-dimmed { opacity: .24; filter: saturate(.55) brightness(.72); }
-.excalibrain-thought.is-selected { box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 0 34px rgba(112,184,255,.28), 0 8px 24px rgba(0,0,0,.42); }
-.excalibrain-thought.is-selected.is-highlighted { box-shadow: 0 0 0 2px rgba(255,255,255,.72), 0 0 34px rgba(112,184,255,.42), 0 8px 24px rgba(0,0,0,.42); }
-.excalibrain-role-center { font-weight: 650; z-index: 14; padding: 8px 13px; }
-.excalibrain-role-sibling { opacity: .86; }
-.excalibrain-role-sibling.is-dimmed { opacity: .22; }
-.excalibrain-thought-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kplex-thought:hover { filter: brightness(1.12); z-index: 12; }
+.kplex-thought.is-highlighted { filter: brightness(1.22); box-shadow: 0 0 0 1px rgba(184,222,255,.66), 0 0 18px rgba(112,184,255,.32), 0 5px 18px rgba(0,0,0,.36); z-index: 13; }
+.kplex-thought.is-dimmed { opacity: .24; filter: saturate(.55) brightness(.72); }
+.kplex-thought.is-selected { box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 0 34px rgba(112,184,255,.28), 0 8px 24px rgba(0,0,0,.42); }
+.kplex-thought.is-selected.is-highlighted { box-shadow: 0 0 0 2px rgba(255,255,255,.72), 0 0 34px rgba(112,184,255,.42), 0 8px 24px rgba(0,0,0,.42); }
+.kplex-role-center { font-weight: 650; z-index: 14; padding: 8px 13px; }
+.kplex-role-sibling { opacity: .86; }
+.kplex-role-sibling.is-dimmed { opacity: .22; }
+.kplex-thought-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kplex-thought-corner-action {
   position: absolute;
   z-index: 22;
@@ -317,23 +317,23 @@
   padding: 0;
   border: 1px solid transparent;
   border-radius: 4px;
-  color: var(--eb-muted);
+  color: var(--kplex-muted);
   background: rgba(13, 18, 25, .36);
   cursor: pointer;
   opacity: .76;
 }
 .kplex-thought-corner-action:hover,
 .kplex-thought-corner-action:focus-visible {
-  color: var(--eb-text);
-  border-color: var(--eb-line);
+  color: var(--kplex-text);
+  border-color: var(--kplex-line);
   background: rgba(255, 255, 255, .10);
   opacity: 1;
 }
 .kplex-thought-corner-action:focus-visible {
-  outline: 1px solid var(--eb-accent);
+  outline: 1px solid var(--kplex-accent);
   outline-offset: 1px;
 }
-.excalibrain-count {
+.kplex-count {
   display: inline-flex;
   flex: 0 0 auto;
   min-width: 17px;
@@ -346,8 +346,8 @@
   background: rgba(0,0,0,.30);
   border: 1px solid rgba(255,255,255,.15);
 }
-.excalibrain-role-center .excalibrain-count { min-width: 19px; height: 19px; border-radius: 10px; font-size: 10px; }
-.excalibrain-gate-wrap {
+.kplex-role-center .kplex-count { min-width: 19px; height: 19px; border-radius: 10px; font-size: 10px; }
+.kplex-gate-wrap {
   position: absolute;
   z-index: 18;
   width: var(--kplex-gate-size, 8px);
@@ -358,7 +358,7 @@
 .gate-wrap-bottom { bottom: calc(-1 * var(--kplex-gate-size, 8px) - 3px); left: 50%; transform: translateX(-50%); }
 .gate-wrap-left { left: calc(-1 * var(--kplex-gate-size, 8px) - 3px); top: 50%; transform: translateY(-50%); }
 .gate-wrap-right { right: calc(-1 * var(--kplex-gate-size, 8px) - 3px); top: 50%; transform: translateY(-50%); }
-.excalibrain-gate {
+.kplex-gate {
   position: relative;
   display: block;
   width: 100%;
@@ -373,19 +373,19 @@
   cursor: crosshair;
   transition: opacity .1s ease, box-shadow .1s ease, background .1s ease;
 }
-.excalibrain-gate::after {
+.kplex-gate::after {
   content: "";
   position: absolute;
   inset: -5px;
   border-radius: 50%;
 }
-.excalibrain-gate.has-connections { background: var(--kplex-gate-fill, rgba(226,239,255,.84)); }
-.excalibrain-gate.is-empty { background: transparent; }
-.excalibrain-gate.is-link-disabled { cursor: default; opacity: .56; }
-.excalibrain-gate.is-link-disabled::after { display: none; }
-.excalibrain-gate:hover,
-.excalibrain-gate.is-highlighted { opacity: 1; box-shadow: 0 0 0 2px rgba(139,205,255,.30), 0 0 9px rgba(162,216,255,.72); }
-.excalibrain-gate-count {
+.kplex-gate.has-connections { background: var(--kplex-gate-fill, rgba(226,239,255,.84)); }
+.kplex-gate.is-empty { background: transparent; }
+.kplex-gate.is-link-disabled { cursor: default; opacity: .56; }
+.kplex-gate.is-link-disabled::after { display: none; }
+.kplex-gate:hover,
+.kplex-gate.is-highlighted { opacity: 1; box-shadow: 0 0 0 2px rgba(139,205,255,.30), 0 0 9px rgba(162,216,255,.72); }
+.kplex-gate-count {
   position: absolute;
   z-index: 20;
   pointer-events: none;
@@ -396,12 +396,12 @@
   line-height: 1;
   text-shadow: 0 1px 3px rgba(0,0,0,.9);
 }
-.gate-wrap-top .excalibrain-gate-count { left: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: left; }
-.gate-wrap-bottom .excalibrain-gate-count { left: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: left; }
-.gate-wrap-left .excalibrain-gate-count { right: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: right; }
-.gate-wrap-right .excalibrain-gate-count { left: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: left; }
+.gate-wrap-top .kplex-gate-count { left: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: left; }
+.gate-wrap-bottom .kplex-gate-count { left: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: left; }
+.gate-wrap-left .kplex-gate-count { right: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: right; }
+.gate-wrap-right .kplex-gate-count { left: calc(100% + 4px); top: 50%; transform: translateY(-50%); text-align: left; }
 
-.excalibrain-sibling-scroll {
+.kplex-sibling-scroll {
   position: absolute;
   z-index: 16;
   overflow-y: auto;
@@ -412,64 +412,64 @@
   border-radius: 10px;
   background: linear-gradient(90deg, transparent, rgba(5,18,30,.08));
 }
-.excalibrain-sibling-scroll::-webkit-scrollbar { width: 7px; }
-.excalibrain-sibling-scroll::-webkit-scrollbar-track { background: transparent; }
-.excalibrain-sibling-scroll::-webkit-scrollbar-thumb { background: rgba(170,205,235,.32); border-radius: 8px; }
-.excalibrain-sibling-content { position: relative; width: 100%; min-height: 100%; }
+.kplex-sibling-scroll::-webkit-scrollbar { width: 7px; }
+.kplex-sibling-scroll::-webkit-scrollbar-track { background: transparent; }
+.kplex-sibling-scroll::-webkit-scrollbar-thumb { background: rgba(170,205,235,.32); border-radius: 8px; }
+.kplex-sibling-content { position: relative; width: 100%; min-height: 100%; }
 
-.excalibrain-zoom-controls { position: absolute; z-index: 20; right: 12px; bottom: 12px; display: flex; gap: 5px; }
-.excalibrain-zoom-controls button { width: 30px; padding: 0; background: rgba(12,17,23,.78); }
+.kplex-zoom-controls { position: absolute; z-index: 20; right: 12px; bottom: 12px; display: flex; gap: 5px; }
+.kplex-zoom-controls button { width: 30px; padding: 0; background: rgba(12,17,23,.78); }
 
-.excalibrain-content-pane {
-  width: var(--excalibrain-content-width);
+.kplex-content-pane {
+  width: var(--kplex-content-width);
   max-width: 760px;
   min-width: 290px;
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, rgba(24,29,37,.99), rgba(15,19,25,.99));
-  border-left: 1px solid var(--eb-line);
+  border-left: 1px solid var(--kplex-line);
   box-shadow: -12px 0 36px rgba(0,0,0,.22);
   z-index: 24;
 }
-.excalibrain-content-header { padding: 18px 22px 14px; border-bottom: 1px solid var(--eb-line); }
-.excalibrain-content-kicker { font-size: 9px; letter-spacing: .16em; color: #79baff; font-weight: 700; margin-bottom: 6px; }
-.excalibrain-content-header h2 { margin: 0 0 4px; font-size: 22px; color: var(--eb-text); }
-.excalibrain-content-path { color: var(--eb-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.excalibrain-content-actions { display: flex; gap: 6px; margin-top: 12px; }
-.excalibrain-content-scroll { min-height: 0; overflow: auto; padding: 18px 22px 32px; }
-.excalibrain-markdown { color: var(--text-normal); }
-.excalibrain-markdown h1:first-child { margin-top: 0; }
-.excalibrain-loading { color: var(--eb-muted); padding: 8px 0; }
-.excalibrain-special-content { padding: 28px 16px; text-align: center; border: 1px solid var(--eb-line); border-radius: 10px; background: rgba(255,255,255,.025); }
-.excalibrain-special-icon { font-size: 34px; margin-bottom: 10px; }
-.excalibrain-mapped-links { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--eb-line); }
-.excalibrain-mapped-links h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--eb-muted); }
-.excalibrain-mapped-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
-.excalibrain-mapped-list button { display: flex; justify-content: space-between; gap: 10px; color: var(--eb-text); background: rgba(255,255,255,.035); border: 1px solid var(--eb-line); border-radius: 6px; padding: 7px 8px; cursor: pointer; text-align: left; }
-.excalibrain-mapped-list button:hover { background: rgba(116,182,255,.08); }
-.excalibrain-mapped-list small { color: var(--eb-muted); text-transform: uppercase; font-size: 8px; letter-spacing: .08em; }
+.kplex-content-header { padding: 18px 22px 14px; border-bottom: 1px solid var(--kplex-line); }
+.kplex-content-kicker { font-size: 9px; letter-spacing: .16em; color: #79baff; font-weight: 700; margin-bottom: 6px; }
+.kplex-content-header h2 { margin: 0 0 4px; font-size: 22px; color: var(--kplex-text); }
+.kplex-content-path { color: var(--kplex-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kplex-content-actions { display: flex; gap: 6px; margin-top: 12px; }
+.kplex-content-scroll { min-height: 0; overflow: auto; padding: 18px 22px 32px; }
+.kplex-markdown { color: var(--text-normal); }
+.kplex-markdown h1:first-child { margin-top: 0; }
+.kplex-loading { color: var(--kplex-muted); padding: 8px 0; }
+.kplex-special-content { padding: 28px 16px; text-align: center; border: 1px solid var(--kplex-line); border-radius: 10px; background: rgba(255,255,255,.025); }
+.kplex-special-icon { font-size: 34px; margin-bottom: 10px; }
+.kplex-mapped-links { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--kplex-line); }
+.kplex-mapped-links h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--kplex-muted); }
+.kplex-mapped-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+.kplex-mapped-list button { display: flex; justify-content: space-between; gap: 10px; color: var(--kplex-text); background: rgba(255,255,255,.035); border: 1px solid var(--kplex-line); border-radius: 6px; padding: 7px 8px; cursor: pointer; text-align: left; }
+.kplex-mapped-list button:hover { background: rgba(116,182,255,.08); }
+.kplex-mapped-list small { color: var(--kplex-muted); text-transform: uppercase; font-size: 8px; letter-spacing: .08em; }
 
-.excalibrain-history-bar {
+.kplex-history-bar {
   z-index: 30;
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 0 9px;
   background: rgba(12,16,22,.99);
-  border-top: 1px solid var(--eb-line);
+  border-top: 1px solid var(--kplex-line);
   overflow: hidden;
 }
-.excalibrain-history-label { flex: 0 0 auto; font-size: 8px; font-weight: 700; letter-spacing: .13em; color: var(--eb-muted); }
-.excalibrain-history-list { min-width: 0; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
-.excalibrain-history-list::-webkit-scrollbar { display: none; }
-.excalibrain-history-list button { flex: 0 0 auto; width: 180px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; color: rgba(230,238,248,.68); border: 1px solid rgba(255,255,255,.06); border-radius: 6px; background: rgba(255,255,255,.025); padding: 5px 9px; cursor: pointer; font-size: 11px; }
-.excalibrain-history-list button:hover { color: var(--eb-text); background: rgba(255,255,255,.06); }
-.excalibrain-history-list button.is-active { color: #eaf5ff; border-color: rgba(116,182,255,.34); background: rgba(72,143,220,.13); }
-.excalibrain-empty { display: grid; place-items: center; color: var(--text-muted); }
+.kplex-history-label { flex: 0 0 auto; font-size: 8px; font-weight: 700; letter-spacing: .13em; color: var(--kplex-muted); }
+.kplex-history-list { min-width: 0; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
+.kplex-history-list::-webkit-scrollbar { display: none; }
+.kplex-history-list button { flex: 0 0 auto; width: 180px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; color: rgba(230,238,248,.68); border: 1px solid rgba(255,255,255,.06); border-radius: 6px; background: rgba(255,255,255,.025); padding: 5px 9px; cursor: pointer; font-size: 11px; }
+.kplex-history-list button:hover { color: var(--kplex-text); background: rgba(255,255,255,.06); }
+.kplex-history-list button.is-active { color: #eaf5ff; border-color: rgba(116,182,255,.34); background: rgba(72,143,220,.13); }
+.kplex-empty { display: grid; place-items: center; color: var(--text-muted); }
 
 @media (max-width: 900px) {
-  .excalibrain-brand strong { display: none; }
+  .kplex-brand strong { display: none; }
 }
 
 /* Obsidian 1.13+ declarative settings keep native rendering; only control width is adjusted. */
@@ -491,21 +491,21 @@
 /* K-Plex Lucide icons */
 .kplex-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 0; flex: 0 0 auto; }
 .kplex-icon svg { display: block; stroke: currentColor; }
-.excalibrain-brand-mark { color: #f0aa43; filter: drop-shadow(0 0 7px rgba(240,170,67,.42)); }
-.excalibrain-node-icon { opacity: .88; margin-right: 4px; }
-.excalibrain-thought-label { display: inline-flex; align-items: center; justify-content: center; min-width: 0; }
-.excalibrain-thought-label > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.excalibrain-thought.is-dragging { cursor: grabbing; z-index: 28; filter: brightness(1.16); box-shadow: 0 0 0 1px rgba(187,226,255,.75), 0 10px 28px rgba(0,0,0,.45); }
-.excalibrain-role-parent,
-.excalibrain-role-child,
-.excalibrain-role-left,
-.excalibrain-role-right,
-.excalibrain-role-previous,
-.excalibrain-role-next { cursor: grab; }
+.kplex-brand-mark { color: #f0aa43; filter: drop-shadow(0 0 7px rgba(240,170,67,.42)); }
+.kplex-node-icon { opacity: .88; margin-right: 4px; }
+.kplex-thought-label { display: inline-flex; align-items: center; justify-content: center; min-width: 0; }
+.kplex-thought-label > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kplex-thought.is-dragging { cursor: grabbing; z-index: 28; filter: brightness(1.16); box-shadow: 0 0 0 1px rgba(187,226,255,.75), 0 10px 28px rgba(0,0,0,.45); }
+.kplex-role-parent,
+.kplex-role-child,
+.kplex-role-left,
+.kplex-role-right,
+.kplex-role-previous,
+.kplex-role-next { cursor: grab; }
 
 /* Toolbar mirrors the compact legacy controls while staying horizontally scrollable. */
-.excalibrain-topbar { overflow: visible; }
-.excalibrain-top-actions {
+.kplex-topbar { overflow: visible; }
+.kplex-top-actions {
   min-width: 0;
   max-width: 58%;
   overflow-x: auto;
@@ -513,10 +513,10 @@
   scrollbar-width: none;
   padding: 2px 0;
 }
-.excalibrain-top-actions::-webkit-scrollbar { display: none; }
-.excalibrain-view-host .excalibrain-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 30px; }
-.excalibrain-toolbar-divider { width: 1px; height: 20px; flex: 0 0 1px; margin: 0 2px; background: rgba(255,255,255,.11); }
-.excalibrain-search-icon { display: flex; align-items: center; top: 7px; }
+.kplex-top-actions::-webkit-scrollbar { display: none; }
+.kplex-view-host .kplex-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 30px; }
+.kplex-toolbar-divider { width: 1px; height: 20px; flex: 0 0 1px; margin: 0 2px; background: rgba(255,255,255,.11); }
+.kplex-search-icon { display: flex; align-items: center; top: 7px; }
 
 /* Interactive relationship editing */
 .kplex-drag-connector {
@@ -632,10 +632,10 @@
 }
 
 /* K-Plex responsive toolbar: controls wrap rather than disappearing into horizontal scroll. */
-.excalibrain-main-column {
+.kplex-main-column {
   grid-template-rows: auto minmax(0, 1fr) 40px;
 }
-.excalibrain-topbar {
+.kplex-topbar {
   min-height: 46px;
   height: auto;
   padding: 6px 10px;
@@ -643,11 +643,11 @@
   align-content: center;
   overflow: visible;
 }
-.excalibrain-search-shell {
+.kplex-search-shell {
   flex: 1 1 260px;
   max-width: 560px;
 }
-.excalibrain-top-actions {
+.kplex-top-actions {
   flex: 1 1 auto;
   min-width: 0;
   max-width: none;
@@ -657,7 +657,7 @@
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-.excalibrain-toolbar-divider { align-self: center; }
+.kplex-toolbar-divider { align-self: center; }
 
 /* Direct manipulation for the configured relationship-area heights. Frames are transient and
    theme-native: hovering empty area space reveals the dashed boundary; the draggable edge is
@@ -709,8 +709,8 @@
 .is-edge-top > .kplex-area-keyboard-handle { top: -1px; }
 .is-edge-bottom > .kplex-area-keyboard-handle { bottom: -1px; }
 .kplex-area-keyboard-handle:focus-visible { outline: 2px solid var(--text-accent); }
-.excalibrain-plex.is-area-resize-ready,
-.excalibrain-plex.is-area-resizing { cursor: ns-resize; }
+.kplex-plex.is-area-resize-ready,
+.kplex-plex.is-area-resizing { cursor: ns-resize; }
 
 /* Generic bounded graph zones (parents, children, friends and siblings). */
 .kplex-zone-panel {
@@ -770,7 +770,7 @@
   border-color: rgba(116,182,255,.46);
   background: rgba(47,107,168,.72);
 }
-.excalibrain-view-host .kplex-zone-filter-input {
+.kplex-view-host .kplex-zone-filter-input {
   width: 150px;
   height: 24px;
   padding: 0 7px;
@@ -783,17 +783,17 @@
 }
 
 /* Gate-drag selection is intentionally inverted: only unavailable targets dim. */
-.excalibrain-thought.is-connect-blocked {
+.kplex-thought.is-connect-blocked {
   opacity: .18;
   filter: saturate(.45) brightness(.68);
 }
-.excalibrain-thought.is-connect-candidate {
+.kplex-thought.is-connect-candidate {
   opacity: 1;
 }
-.excalibrain-thought.is-connect-candidate:hover {
+.kplex-thought.is-connect-candidate:hover {
   box-shadow: 0 0 0 1px rgba(124,194,255,.60), 0 0 18px rgba(83,164,235,.26), 0 5px 18px rgba(0,0,0,.34);
 }
-.excalibrain-thought.is-connect-origin {
+.kplex-thought.is-connect-origin {
   opacity: 1;
   filter: brightness(1.16);
   box-shadow: 0 0 0 1px rgba(163,216,255,.72), 0 0 20px rgba(94,178,247,.34), 0 6px 18px rgba(0,0,0,.36);
@@ -864,7 +864,7 @@
 .kplex-import-status { color: var(--text-muted); font-size: var(--font-ui-small); }
 
 @media (max-width: 900px) {
-  .excalibrain-top-actions { flex-basis: 100%; justify-content: flex-start; }
+  .kplex-top-actions { flex-basis: 100%; justify-content: flex-start; }
   .kplex-ontology-fields > .setting-items > .setting-item {
     grid-template-columns: minmax(0, 1fr);
     row-gap: 8px;
@@ -879,13 +879,13 @@
 }
 
 /* Refinements: compact nodes, inline relationship labels, zone counts and quick layout controls. */
-.excalibrain-thought {
+.kplex-thought {
   padding: 3px 8px;
 }
-.excalibrain-role-center {
+.kplex-role-center {
   padding: 7px 11px;
 }
-.excalibrain-edge-label {
+.kplex-edge-label {
   paint-order: normal;
   stroke: none;
   font-weight: 600;
@@ -964,8 +964,8 @@
 }
 
 /* Compactness is visual density only: keep the tight node interior padding at every setting. */
-.excalibrain-thought { padding: 3px 8px; }
-.excalibrain-role-center { padding: 7px 11px; }
+.kplex-thought { padding: 3px 8px; }
+.kplex-role-center { padding: 7px 11px; }
 
 /* Small, unobtrusive graph-layout sliders. */
 .kplex-mini-slider input[type="range"] {
@@ -1071,19 +1071,19 @@
 }
 
 /* Interaction polish: navigable thoughts use a pointer; the Plex background remains pannable. */
-.excalibrain-role-parent,
-.excalibrain-role-child,
-.excalibrain-role-left,
-.excalibrain-role-right,
-.excalibrain-role-previous,
-.excalibrain-role-next,
-.excalibrain-role-sibling,
-.excalibrain-thought.is-structural-thought {
+.kplex-role-parent,
+.kplex-role-child,
+.kplex-role-left,
+.kplex-role-right,
+.kplex-role-previous,
+.kplex-role-next,
+.kplex-role-sibling,
+.kplex-thought.is-structural-thought {
   cursor: pointer;
 }
-.excalibrain-thought:hover { filter: none; }
-.excalibrain-thought.is-highlighted:hover { filter: brightness(1.22); }
-.excalibrain-thought.is-dragging { cursor: grabbing; }
+.kplex-thought:hover { filter: none; }
+.kplex-thought.is-highlighted:hover { filter: brightness(1.22); }
+.kplex-thought.is-dragging { cursor: grabbing; }
 
 /* Bottom-left density controls: deliberately neutral, thin native-range replacements. */
 .kplex-layout-controls {
@@ -1103,7 +1103,7 @@
   text-transform: uppercase;
   color: rgba(230,240,250,.60);
 }
-.excalibrain-plex .kplex-layout-controls .kplex-mini-slider input[type="range"] {
+.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   width: 90px;
@@ -1118,7 +1118,7 @@
   outline: none;
   cursor: ew-resize;
 }
-.excalibrain-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-webkit-slider-runnable-track {
+.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-webkit-slider-runnable-track {
   -webkit-appearance: none;
   height: 1px;
   border: 0;
@@ -1126,7 +1126,7 @@
   background: rgba(226,238,250,.44);
   box-shadow: none;
 }
-.excalibrain-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-webkit-slider-thumb {
+.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 7px;
@@ -1140,14 +1140,14 @@
   background: rgba(231,240,249,.96);
   box-shadow: 0 0 0 1px rgba(3,10,18,.55);
 }
-.excalibrain-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-moz-range-track {
+.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-moz-range-track {
   height: 1px;
   border: 0;
   border-radius: 999px;
   background: rgba(226,238,250,.44);
   box-shadow: none;
 }
-.excalibrain-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-moz-range-thumb {
+.kplex-plex .kplex-layout-controls .kplex-mini-slider input[type="range"]::-moz-range-thumb {
   width: 7px;
   height: 7px;
   padding: 0;
@@ -1158,11 +1158,11 @@
 }
 
 /* Performance/UI pass: tighter thought chrome and professional micro controls. */
-.excalibrain-view-host .excalibrain-thought {
+.kplex-view-host .kplex-thought {
   padding: 1px 8px;
   line-height: 1.02;
 }
-.excalibrain-view-host .excalibrain-role-center {
+.kplex-view-host .kplex-role-center {
   padding: 2px 10px;
 }
 
@@ -1249,7 +1249,7 @@
   background: var(--interactive-accent);
   pointer-events: none;
 }
-.excalibrain-view-host .kplex-density-rail input[type="range"] {
+.kplex-view-host .kplex-density-rail input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   position: absolute;
@@ -1265,13 +1265,13 @@
   outline: none;
   cursor: ew-resize;
 }
-.excalibrain-view-host .kplex-density-rail input[type="range"]::-webkit-slider-runnable-track {
+.kplex-view-host .kplex-density-rail input[type="range"]::-webkit-slider-runnable-track {
   height: 12px;
   border: 0;
   background: transparent;
   box-shadow: none;
 }
-.excalibrain-view-host .kplex-density-rail input[type="range"]::-webkit-slider-thumb {
+.kplex-view-host .kplex-density-rail input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 8px;
@@ -1285,13 +1285,13 @@
   background: var(--interactive-accent);
   box-shadow: 0 0 0 2px rgba(7,16,25,.85);
 }
-.excalibrain-view-host .kplex-density-rail input[type="range"]::-moz-range-track {
+.kplex-view-host .kplex-density-rail input[type="range"]::-moz-range-track {
   height: 12px;
   border: 0;
   background: transparent;
 }
-.excalibrain-view-host .kplex-density-rail input[type="range"]::-moz-range-progress { background: transparent; }
-.excalibrain-view-host .kplex-density-rail input[type="range"]::-moz-range-thumb {
+.kplex-view-host .kplex-density-rail input[type="range"]::-moz-range-progress { background: transparent; }
+.kplex-view-host .kplex-density-rail input[type="range"]::-moz-range-thumb {
   width: 8px;
   height: 8px;
   border: 1px solid rgba(255,255,255,.8);
@@ -1301,14 +1301,14 @@
 }
 
 /* K-Plex top stack: toolbar plus persistent quick-access pins. */
-.excalibrain-top-stack {
+.kplex-top-stack {
   position: relative;
   z-index: 30;
   min-width: 0;
   background: rgba(14, 18, 24, .98);
-  border-bottom: 1px solid var(--eb-line);
+  border-bottom: 1px solid var(--kplex-line);
 }
-.excalibrain-top-stack .excalibrain-topbar {
+.kplex-top-stack .kplex-topbar {
   border-bottom: 0;
   box-shadow: none;
 }
@@ -1345,7 +1345,7 @@
   color: rgba(230,238,248,.78);
   cursor: pointer;
 }
-.kplex-pinned-chip button:hover { background: rgba(255,255,255,.075); color: var(--eb-text); }
+.kplex-pinned-chip button:hover { background: rgba(255,255,255,.075); color: var(--kplex-text); }
 .kplex-pinned-open {
   min-width: 0;
   max-width: 205px;
@@ -1358,7 +1358,7 @@
 }
 .kplex-pinned-open svg { flex: 0 0 auto; color: #e2a64d; }
 .kplex-pinned-open span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.excalibrain-view-host .kplex-pinned-remove {
+.kplex-view-host .kplex-pinned-remove {
   width: 25px;
   padding: 0;
   display: inline-flex;
@@ -1369,7 +1369,7 @@
 }
 
 /* Keyboard search selection mirrors pointer hover and remains visible while arrowing. */
-.excalibrain-search-result.is-selected {
+.kplex-search-result.is-selected {
   color: #eef7ff;
   background: rgba(116,182,255,.15);
   box-shadow: inset 2px 0 0 rgba(116,182,255,.70);
@@ -1454,7 +1454,7 @@
 /* --------------------------------------------------------------------------
  * K-Plex mobile, sidepanel, filtering and transition refinements
  * -------------------------------------------------------------------------- */
-.excalibrain-plex {
+.kplex-plex {
   overscroll-behavior: none;
   -webkit-user-select: none;
   user-select: none;
@@ -1462,9 +1462,9 @@
 
 /* The graph itself owns one- and two-finger gestures. Scrollable relationship
    lists opt back in to vertical touch scrolling below. */
-.excalibrain-plex,
-.excalibrain-camera,
-.excalibrain-nodes {
+.kplex-plex,
+.kplex-camera,
+.kplex-nodes {
   touch-action: none;
 }
 .kplex-zone-scroll,
@@ -1522,18 +1522,18 @@
 .kplex-filter-panel button { justify-self: end; }
 
 /* Sidepanel views deliberately trade toolbar chrome for graph space. */
-.kplex-surface-sidepanel .excalibrain-topbar {
+.kplex-surface-sidepanel .kplex-topbar {
   gap: 4px;
   padding: 4px 6px;
   flex-wrap: wrap;
 }
-.kplex-surface-sidepanel .excalibrain-brand {
+.kplex-surface-sidepanel .kplex-brand {
   min-width: auto;
 }
-.kplex-surface-sidepanel .excalibrain-brand strong { display: none; }
-.kplex-surface-sidepanel .excalibrain-brand-mark { width: 17px; height: 17px; }
-.kplex-surface-sidepanel .excalibrain-search { min-width: 110px; flex: 1 1 145px; }
-.kplex-surface-sidepanel .excalibrain-top-actions {
+.kplex-surface-sidepanel .kplex-brand strong { display: none; }
+.kplex-surface-sidepanel .kplex-brand-mark { width: 17px; height: 17px; }
+.kplex-surface-sidepanel .kplex-search { min-width: 110px; flex: 1 1 145px; }
+.kplex-surface-sidepanel .kplex-top-actions {
   flex: 1 1 100%;
   min-width: 0;
   overflow-x: auto;
@@ -1541,26 +1541,26 @@
   justify-content: flex-start;
   scrollbar-width: none;
 }
-.kplex-surface-sidepanel .excalibrain-top-actions::-webkit-scrollbar { display: none; }
-.kplex-surface-sidepanel .excalibrain-topbar button { flex: 0 0 auto; }
+.kplex-surface-sidepanel .kplex-top-actions::-webkit-scrollbar { display: none; }
+.kplex-surface-sidepanel .kplex-topbar button { flex: 0 0 auto; }
 .kplex-surface-sidepanel .kplex-pinned-bar { padding-left: 6px; padding-right: 6px; }
-.kplex-surface-sidepanel .excalibrain-history-label { display: none; }
-.kplex-surface-sidepanel .excalibrain-history-bar { padding-left: 5px; padding-right: 5px; }
+.kplex-surface-sidepanel .kplex-history-label { display: none; }
+.kplex-surface-sidepanel .kplex-history-bar { padding-left: 5px; padding-right: 5px; }
 .kplex-surface-sidepanel .kplex-layout-controls { transform: scale(.92); transform-origin: bottom left; }
 
 /* Scene motion is driven by FLIP/Web Animations in PlexGraph so nodes that existed in both
    scenes visibly migrate between their actual old/new positions. CSS only handles connector
    appearance; duplicating positional CSS transitions here makes the FLIP transform fight layout. */
 @keyframes kplex-edge-arrive { from { opacity: 0; } to { opacity: 1; } }
-.excalibrain-edge,
+.kplex-edge,
 .kplex-expanded-edge {
   animation: kplex-edge-arrive max(120ms, calc(var(--kplex-motion-ms, 560ms) * .55)) ease-out both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .excalibrain-edge, .kplex-expanded-edge { animation: none; }
+  .kplex-edge, .kplex-expanded-edge { animation: none; }
 }
 
-.excalibrain-plex.is-section-expanded .excalibrain-thought.is-selected {
+.kplex-plex.is-section-expanded .kplex-thought.is-selected {
   box-shadow: 0 0 0 2px rgba(255,255,255,.48), 0 0 28px rgba(112,184,255,.22), 0 8px 24px rgba(0,0,0,.42);
 }
 
@@ -1576,34 +1576,34 @@
 /* On narrow touch devices prioritize graph navigation and large hit targets.
    Platform-specific layout density itself is stored in settings profiles. */
 @media (max-width: 700px) {
-  .excalibrain-view-host .excalibrain-topbar {
+  .kplex-view-host .kplex-topbar {
     gap: 4px;
     padding: 4px 5px;
   }
-  .excalibrain-view-host .excalibrain-brand strong { display: none; }
-  .excalibrain-view-host .excalibrain-topbar button,
-  .excalibrain-view-host .excalibrain-icon-button {
+  .kplex-view-host .kplex-brand strong { display: none; }
+  .kplex-view-host .kplex-topbar button,
+  .kplex-view-host .kplex-icon-button {
     min-width: 30px;
     min-height: 30px;
   }
-  .excalibrain-view-host .excalibrain-search { flex: 1 1 130px; min-width: 100px; }
-  .excalibrain-view-host .excalibrain-top-actions {
+  .kplex-view-host .kplex-search { flex: 1 1 130px; min-width: 100px; }
+  .kplex-view-host .kplex-top-actions {
     flex: 1 1 100%;
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
   }
-  .excalibrain-view-host .excalibrain-top-actions::-webkit-scrollbar { display: none; }
-  .excalibrain-view-host .kplex-filter-panel {
+  .kplex-view-host .kplex-top-actions::-webkit-scrollbar { display: none; }
+  .kplex-view-host .kplex-filter-panel {
     position: fixed;
     top: max(52px, env(safe-area-inset-top));
     left: 8px;
     right: 8px;
     width: auto;
   }
-  .excalibrain-view-host .excalibrain-history-bar { min-height: 26px; }
-  .excalibrain-view-host .kplex-density-heading span:not(output) { display: none; }
-  .excalibrain-view-host .kplex-layout-controls { max-width: calc(100% - 70px); }
+  .kplex-view-host .kplex-history-bar { min-height: 26px; }
+  .kplex-view-host .kplex-density-heading span:not(output) { display: none; }
+  .kplex-view-host .kplex-layout-controls { max-width: calc(100% - 70px); }
 }
 
 /* A navigation render gets the transition class on the first frame, before the
@@ -1613,11 +1613,11 @@
   0% { opacity: .82; }
   100% { opacity: 1; }
 }
-.excalibrain-plex.is-scene-transitioning .excalibrain-camera {
+.kplex-plex.is-scene-transitioning .kplex-camera {
   animation: kplex-scene-arrive max(120ms, calc(var(--kplex-motion-ms, 560ms) * .72)) ease-out both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .excalibrain-plex.is-scene-transitioning .excalibrain-camera { animation: none; }
+  .kplex-plex.is-scene-transitioning .kplex-camera { animation: none; }
 }
 
 /* Touch/mobile rendering stability --------------------------------------
@@ -1626,9 +1626,9 @@
    of simultaneous drop-shadow/position animations during a gesture. Camera motion itself is
    requestAnimationFrame-batched in PlexGraph. */
 @media (hover: none) and (pointer: coarse) {
-  .excalibrain-camera { will-change: auto; }
-  .excalibrain-edge-visible { filter: none; }
-  .excalibrain-edge.is-highlighted .excalibrain-edge-visible { filter: none; }
+  .kplex-camera { will-change: auto; }
+  .kplex-edge-visible { filter: none; }
+  .kplex-edge.is-highlighted .kplex-edge-visible { filter: none; }
 }
 
 
@@ -1636,20 +1636,20 @@
    WebViews can reload under memory pressure when a large transformed graph, drop shadows and
    hundreds of CSS animations are all rasterized while pinching. The gesture classes are toggled
    imperatively, so this adds no React render traffic during pan/pinch. */
-.excalibrain-plex.is-touch-gesturing .excalibrain-thought,
-.excalibrain-plex.is-touch-gesturing .excalibrain-edge,
-.excalibrain-plex.is-touch-gesturing .kplex-expanded-edge,
-.excalibrain-plex.is-pinch-gesturing .excalibrain-camera {
+.kplex-plex.is-touch-gesturing .kplex-thought,
+.kplex-plex.is-touch-gesturing .kplex-edge,
+.kplex-plex.is-touch-gesturing .kplex-expanded-edge,
+.kplex-plex.is-pinch-gesturing .kplex-camera {
   animation: none;
   transition: none;
 }
-.excalibrain-plex.is-pinch-gesturing .excalibrain-thought {
+.kplex-plex.is-pinch-gesturing .kplex-thought {
   box-shadow: none;
 }
-.excalibrain-plex.is-pinch-gesturing .excalibrain-edge-label-wrap {
+.kplex-plex.is-pinch-gesturing .kplex-edge-label-wrap {
   opacity: 0;
 }
-.excalibrain-plex.is-pinch-gesturing .kplex-section-tree-edge {
+.kplex-plex.is-pinch-gesturing .kplex-section-tree-edge {
   filter: none;
 }
 
@@ -1658,12 +1658,12 @@
    hundreds of shadowed HTML nodes are continuously rescaled together. During the *active* pinch
    gesture keep thoughts visible but temporarily suppress expensive relationship painting. The
    edges return as soon as the second finger lifts. Android/desktop keep the full graph. */
-.excalibrain-plex.is-ios.is-pinch-gesturing .excalibrain-edge-visible,
-.excalibrain-plex.is-ios.is-pinch-gesturing .kplex-expanded-edge,
-.excalibrain-plex.is-ios.is-pinch-gesturing .kplex-section-tree-edge {
+.kplex-plex.is-ios.is-pinch-gesturing .kplex-edge-visible,
+.kplex-plex.is-ios.is-pinch-gesturing .kplex-expanded-edge,
+.kplex-plex.is-ios.is-pinch-gesturing .kplex-section-tree-edge {
   opacity: 0;
 }
-.excalibrain-plex.is-ios.is-pinch-gesturing .excalibrain-thought {
+.kplex-plex.is-ios.is-pinch-gesturing .kplex-thought {
   box-shadow: none;
   filter: none;
 }
@@ -1680,7 +1680,7 @@
   opacity: .9;
   pointer-events: none;
 }
-.excalibrain-thought.is-kplex-section {
+.kplex-thought.is-kplex-section {
   border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 34%, var(--background-modifier-border));
   border-left: 3px solid color-mix(in srgb, var(--interactive-accent) 66%, var(--text-accent));
@@ -1688,14 +1688,14 @@
   color: var(--text-normal);
   box-shadow: 0 1px 2px rgba(0,0,0,.12);
 }
-.excalibrain-thought.is-kplex-section:hover {
+.kplex-thought.is-kplex-section:hover {
   border-color: color-mix(in srgb, var(--interactive-accent) 58%, var(--background-modifier-border));
   border-left-color: var(--interactive-accent);
   background: color-mix(in srgb, var(--background-secondary) 90%, var(--interactive-accent) 10%);
   box-shadow: 0 2px 5px rgba(0,0,0,.15);
 }
 /* Incoming structural port: the L-branch terminates here at the card's left-center edge. */
-.excalibrain-thought.is-kplex-section::after {
+.kplex-thought.is-kplex-section::after {
   content: "";
   position: absolute;
   left: -4px;
@@ -1708,7 +1708,7 @@
   border: 1.5px solid color-mix(in srgb, var(--interactive-accent) 72%, var(--text-muted));
   pointer-events: none;
 }
-.excalibrain-thought.is-kplex-section .excalibrain-thought-label {
+.kplex-thought.is-kplex-section .kplex-thought-label {
   justify-content: flex-start;
   gap: 8px;
   padding-inline: 8px 10px;
@@ -1731,8 +1731,8 @@
   font-weight: 760;
   line-height: 18px;
 }
-.excalibrain-thought.is-kplex-section .excalibrain-gate.is-empty,
-.excalibrain-thought.is-kplex-section .excalibrain-gate-wrap.is-empty .excalibrain-gate-count {
+.kplex-thought.is-kplex-section .kplex-gate.is-empty,
+.kplex-thought.is-kplex-section .kplex-gate-wrap.is-empty .kplex-gate-count {
   opacity: 0;
   pointer-events: none;
 }
@@ -1844,8 +1844,8 @@
 }
 .kplex-sidecar-controls button:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
 
-.excalibrain-top-actions.is-compact { flex-wrap: nowrap; }
-.excalibrain-app.is-sidecar-condensed .excalibrain-brand strong { display: none; }
+.kplex-top-actions.is-compact { flex-wrap: nowrap; }
+.kplex-app.is-sidecar-condensed .kplex-brand strong { display: none; }
 .kplex-section-root-port {
   fill: var(--background-primary);
   stroke: color-mix(in srgb, var(--interactive-accent) 65%, var(--text-muted));
@@ -1869,7 +1869,7 @@
   min-width: 0;
   flex: 1 1 auto;
 }
-.kplex-add-related-form .excalibrain-search {
+.kplex-add-related-form .kplex-search {
   box-sizing: border-box;
   width: 100%;
   height: 38px;
@@ -1880,11 +1880,11 @@
   border-radius: var(--input-radius, 5px);
   box-shadow: none;
 }
-.kplex-add-related-form .excalibrain-search:focus {
+.kplex-add-related-form .kplex-search:focus {
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 18%, transparent);
 }
-.kplex-add-related-form .excalibrain-search-icon {
+.kplex-add-related-form .kplex-search-icon {
   top: 10px;
   color: var(--text-muted);
 }
@@ -1898,14 +1898,14 @@
   border-color: var(--background-modifier-border);
   box-shadow: var(--shadow-l, 0 12px 32px rgba(0,0,0,.28));
 }
-.kplex-add-related-form .excalibrain-search-result {
+.kplex-add-related-form .kplex-search-result {
   color: var(--text-normal);
 }
-.kplex-add-related-form .excalibrain-search-result small {
+.kplex-add-related-form .kplex-search-result small {
   color: var(--text-muted);
 }
-.kplex-add-related-form .excalibrain-search-result:hover,
-.kplex-add-related-form .excalibrain-search-result.is-selected {
+.kplex-add-related-form .kplex-search-result:hover,
+.kplex-add-related-form .kplex-search-result.is-selected {
   background: var(--background-modifier-hover);
 }
 .kplex-add-related-role-row {
@@ -2127,10 +2127,10 @@
   border-color: var(--background-modifier-border);
   box-shadow: var(--shadow-l, 0 12px 32px rgba(0,0,0,.28));
 }
-.kplex-fuzzy-floating-results .excalibrain-search-result { color: var(--text-normal); }
-.kplex-fuzzy-floating-results .excalibrain-search-result small { color: var(--text-muted); }
-.kplex-fuzzy-floating-results .excalibrain-search-result:hover,
-.kplex-fuzzy-floating-results .excalibrain-search-result.is-selected { background: var(--background-modifier-hover); }
+.kplex-fuzzy-floating-results .kplex-search-result { color: var(--text-normal); }
+.kplex-fuzzy-floating-results .kplex-search-result small { color: var(--text-muted); }
+.kplex-fuzzy-floating-results .kplex-search-result:hover,
+.kplex-fuzzy-floating-results .kplex-search-result.is-selected { background: var(--background-modifier-hover); }
 .kplex-fuzzy-match {
   padding: 0;
   color: var(--text-accent);
@@ -2146,7 +2146,7 @@
   12%, 38%, 64% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent) 82%, white), 0 0 34px color-mix(in srgb, var(--interactive-accent) 58%, transparent), 0 8px 24px rgba(0,0,0,.42); filter: brightness(1.28); }
   25%, 51%, 77% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 50%, transparent), 0 0 16px color-mix(in srgb, var(--interactive-accent) 34%, transparent), 0 6px 18px rgba(0,0,0,.36); filter: brightness(1.08); }
 }
-.excalibrain-thought.is-new-flair {
+.kplex-thought.is-new-flair {
   z-index: 35;
   animation: kplex-new-relationship-flair 3.6s ease-in-out both;
 }
@@ -2200,7 +2200,7 @@
 .kplex-filter-section + .kplex-filter-section { padding-top: 10px; border-top: 1px solid var(--background-modifier-border); }
 .kplex-filter-section-heading { color: var(--text-normal); font-size: 11px; font-weight: 700; letter-spacing: .025em; }
 .kplex-lens-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.kplex-lens-heading .excalibrain-icon-button { justify-self: auto; }
+.kplex-lens-heading .kplex-icon-button { justify-self: auto; }
 .kplex-lens-empty,
 .kplex-lens-help { color: var(--text-muted); font-size: 10px; line-height: 1.35; }
 .kplex-lens-help code { font-size: 9px; }
@@ -2368,7 +2368,7 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
   min-height: 28px;
 }
 .kplex-lens-help strong { color: var(--text-normal); }
-.excalibrain-gate-count { white-space: nowrap; min-width: max-content; }
+.kplex-gate-count { white-space: nowrap; min-width: max-content; }
 
 @media (max-width: 520px) {
   .kplex-filter-portal { width: calc(100vw - 16px); left: 8px; }
@@ -2508,7 +2508,7 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
 
 /* Edge imagery is resolved only for the currently visible Plex. The preview never changes the
    layout box: visual recognition improves without making dense graphs grow around images. */
-.excalibrain-thought.has-node-visual .excalibrain-thought-label {
+.kplex-thought.has-node-visual .kplex-thought-label {
   overflow: visible;
   gap: 5px;
 }
@@ -2523,7 +2523,7 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
   border-radius: 4px;
   overflow: visible;
 }
-.excalibrain-role-center .kplex-node-visual { width: 24px; height: 24px; }
+.kplex-role-center .kplex-node-visual { width: 24px; height: 24px; }
 .kplex-node-visual img {
   display: block;
   width: 100%;
@@ -2536,11 +2536,11 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
   transform-origin: center;
 }
 .kplex-node-visual.is-replace { width: 26px; height: 22px; }
-.excalibrain-role-center .kplex-node-visual.is-replace { width: 38px; height: 30px; }
+.kplex-role-center .kplex-node-visual.is-replace { width: 38px; height: 30px; }
 .kplex-node-visual.is-replace img { object-fit: contain; }
-.excalibrain-thought-label > .kplex-node-visual:last-child { overflow: visible; text-overflow: clip; }
+.kplex-thought-label > .kplex-node-visual:last-child { overflow: visible; text-overflow: clip; }
 @media (hover: hover) and (pointer: fine) {
-  .excalibrain-thought.has-node-visual:hover { z-index: 40; }
+  .kplex-thought.has-node-visual:hover { z-index: 40; }
   .kplex-node-visual:hover { z-index: 70; }
   .kplex-node-visual:hover img {
     transform: scale(7);
@@ -2926,10 +2926,10 @@ button.kplex-style-manager-row { height: fit-content; }
   font: inherit;
   font-weight: inherit;
 }
-.kplex-create-name-pair .kplex-add-related-note-search .excalibrain-search-icon {
+.kplex-create-name-pair .kplex-add-related-note-search .kplex-search-icon {
   display: none;
 }
-.kplex-create-name-pair .kplex-add-related-note-search .excalibrain-search {
+.kplex-create-name-pair .kplex-add-related-note-search .kplex-search {
   padding-left: 12px;
 }
 
@@ -2950,8 +2950,8 @@ button.kplex-style-manager-row { height: fit-content; }
   font-size: 0;
   -webkit-touch-callout: none;
 }
-.excalibrain-thought,
-.excalibrain-thought * {
+.kplex-thought,
+.kplex-thought * {
   -webkit-touch-callout: none;
 }
 @media (pointer: coarse) {
@@ -3057,7 +3057,7 @@ button.kplex-style-manager-row { height: fit-content; }
   height: 100%;
   pointer-events: none;
 }
-.excalibrain-thought.has-embedded-content {
+.kplex-thought.has-embedded-content {
   padding: 6px;
   overflow: visible;
   cursor: default;
@@ -3066,8 +3066,8 @@ button.kplex-style-manager-row { height: fit-content; }
   border-color: var(--background-modifier-border-hover);
   box-shadow: 0 0 0 1px var(--background-modifier-border), 0 10px 34px var(--background-modifier-box-shadow);
 }
-.excalibrain-thought.has-embedded-content:hover,
-.excalibrain-thought.has-embedded-content.is-highlighted {
+.kplex-thought.has-embedded-content:hover,
+.kplex-thought.has-embedded-content.is-highlighted {
   filter: none;
 }
 .kplex-thought-embedded-content {
@@ -3164,9 +3164,9 @@ button.kplex-style-manager-row { height: fit-content; }
   display: flex;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--eb-line);
+  border: 1px solid var(--kplex-line);
   border-radius: 6px;
-  background: var(--eb-panel);
+  background: var(--kplex-panel);
   box-shadow: 0 3px 10px rgba(0, 0, 0, .28);
 }
 .kplex-central-editor-toolbar button {
@@ -3178,16 +3178,16 @@ button.kplex-style-manager-row { height: fit-content; }
   padding: 0;
   border: 0;
   border-radius: 5px;
-  color: var(--eb-muted);
+  color: var(--kplex-muted);
   background: transparent;
 }
 .kplex-central-editor-toolbar button:hover,
 .kplex-central-editor-toolbar button:focus-visible {
-  color: var(--eb-text);
+  color: var(--kplex-text);
   background: rgba(255, 255, 255, .10);
 }
 .kplex-central-editor-toolbar button:focus-visible {
-  outline: 1px solid var(--eb-accent);
+  outline: 1px solid var(--kplex-accent);
   outline-offset: -1px;
 }
 .kplex-central-editor-status {
@@ -3205,12 +3205,12 @@ button.kplex-style-manager-row { height: fit-content; }
   pointer-events: none;
 }
 .kplex-central-editor-status.is-error { color: var(--text-error); }
-.excalibrain-plex.is-central-editor-maximized .excalibrain-zoom-controls,
-.excalibrain-plex.is-central-editor-maximized .kplex-layout-controls {
+.kplex-plex.is-central-editor-maximized .kplex-zoom-controls,
+.kplex-plex.is-central-editor-maximized .kplex-layout-controls {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
-.excalibrain-plex.is-central-editor-maximized .excalibrain-role-center.has-embedded-content {
+.kplex-plex.is-central-editor-maximized .kplex-role-center.has-embedded-content {
   box-shadow: none;
 }

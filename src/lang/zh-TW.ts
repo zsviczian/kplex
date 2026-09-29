@@ -597,7 +597,7 @@ const traditionalChineseTranslations = {
   "settings.noDiscoveredMatches": "沒有已發現欄位符合此搜尋。",
   "settings.allDiscoveredAssigned": "所有已發現欄位都已指派本體角色。",
   "settings.importTitle": "匯入 ExcaliBrain 設定",
-  "settings.importHelp": "選擇 ExcaliBrain data.json 備份。K-Plex 會移轉相容的本體、可見性、導覽與外觀設定，然後重建索引。",
+  "settings.importHelp": "選擇 ExcaliBrain data.json 備份。K-Plex 會匯入本體及圖譜、節點和連結樣式，然後重建索引。您的 K-Plex 操作偏好設定將保持不變。",
   "settings.noFileSelected": "未選取檔案。",
   "settings.fileReadFailed": "無法讀取檔案：{error}",
   "settings.importButton": "匯入",
@@ -856,7 +856,11 @@ const traditionalChineseTranslations = {
   "settings.centralNodeEditor.heading": "中央節點編輯器",
   "settings.centralNodeEditor.defaultMode": "預設 Markdown 模式",
   "settings.centralNodeEditor.defaultModeDesc": "選擇中央節點編輯器開啟 Markdown 筆記時使用閱讀檢視或編輯模式。",
-  "filter.untitledLens": "未命名透鏡"
+  "filter.untitledLens": "未命名透鏡" ,
+  "command.copyIndexDiagnostics": "複製索引診斷資訊",
+  "notice.indexDiagnosticsCopied": "已將索引診斷資訊複製到剪貼簿。",
+  "notice.indexDiagnosticsCopyFailed": "無法複製索引診斷資訊。",
+  "index.statusSavingCache": "狀態：正在將索引儲存至快取",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

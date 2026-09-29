@@ -601,7 +601,7 @@ const spanishTranslations = {
   "settings.noDiscoveredMatches": "Ningún campo detectado coincide con esta búsqueda.",
   "settings.allDiscoveredAssigned": "Todos los campos detectados están asignados a un rol de ontología.",
   "settings.importTitle": "Importar configuración de ExcaliBrain",
-  "settings.importHelp": "Elige una copia de seguridad data.json de ExcaliBrain. K-Plex migrará la configuración compatible de ontología, visibilidad, navegación y apariencia, y después reconstruirá el índice.",
+  "settings.importHelp": "Elige una copia de seguridad data.json de ExcaliBrain. K-Plex importará la ontología y los estilos del grafo, los nodos y los enlaces, y después reconstruirá el índice. Tus preferencias de uso de K-Plex no cambiarán.",
   "settings.noFileSelected": "No se ha seleccionado ningún archivo.",
   "settings.fileReadFailed": "No se pudo leer el archivo: {error}",
   "settings.importButton": "Importar",
@@ -864,7 +864,11 @@ const spanishTranslations = {
   "settings.centralNodeEditor.heading": "Editor del nodo central",
   "settings.centralNodeEditor.defaultMode": "Modo Markdown predeterminado",
   "settings.centralNodeEditor.defaultModeDesc": "Elige si el editor del nodo central abre las notas Markdown en vista de lectura o en modo de edición.",
-  "filter.untitledLens": "Lente sin título"
+  "filter.untitledLens": "Lente sin título" ,
+  "command.copyIndexDiagnostics": "Copiar diagnóstico del índice",
+  "notice.indexDiagnosticsCopied": "Diagnóstico del índice copiado al portapapeles.",
+  "notice.indexDiagnosticsCopyFailed": "No se pudo copiar el diagnóstico del índice.",
+  "index.statusSavingCache": "Estado: guardando el índice en la caché",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

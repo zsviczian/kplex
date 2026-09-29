@@ -3,14 +3,14 @@
  * Area resize bounds exist for empty groups independently of overflow viewports;
  * callers own interaction, settings persistence and camera transforms.
  */
-import type { ExcaliBrainSettings } from "../settings";
+import type { KplexSettings } from "../settings";
 import type { GraphPage, Neighborhood, Neighbour, NodeStyle, PositionedEdge, PositionedNode, Role, ScrollZone } from "../types";
 import { RelationType } from "../types";
 import { resolveLinkStyle, resolveNodeStyle } from "../index/style";
 import type { GraphIndex } from "../index/GraphIndex";
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-export function siblingScale(settings: ExcaliBrainSettings): number {
+export function siblingScale(settings: KplexSettings): number {
   return clamp(settings.siblingRelativeSize / 100, 0.3, 0.85);
 }
 
@@ -58,7 +58,7 @@ export function gateDiameter(style: NodeStyle): number {
   return Math.max(5, (style.gateRadius ?? 5) * 1.05);
 }
 
-export function effectiveLabelLimit(settings: ExcaliBrainSettings, configured = 30, center = false): number {
+export function effectiveLabelLimit(settings: KplexSettings, configured = 30, center = false): number {
   // Compactness changes only how much text is shown and how tightly thoughts are spaced.
   // Node interior padding remains constant in every view.
   const density = clamp(settings.compactingFactor / 1.5, 0.5, 2);
@@ -67,7 +67,7 @@ export function effectiveLabelLimit(settings: ExcaliBrainSettings, configured = 
   return clamp(scaled + (center ? 8 : 0), center ? 18 : 8, center ? 72 : 52);
 }
 
-function nodeSize(label: string, fontSize: number, settings: ExcaliBrainSettings, center = false, configuredMax = 30): { width: number; height: number } {
+function nodeSize(label: string, fontSize: number, settings: KplexSettings, center = false, configuredMax = 30): { width: number; height: number } {
   const visibleLength = Math.min(label.length, effectiveLabelLimit(settings, configuredMax, center));
   const minWidth = center ? 180 : 112;
   const maxWidth = center ? 370 : 286;
@@ -81,7 +81,7 @@ function makeNode(
   n: Neighbour,
   role: Role,
   index: GraphIndex,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
 ): PositionedNode {
   const resolved = resolveNodeStyle(n.page, n, role, settings);
   const scale = role === "sibling" ? siblingScale(settings) : 1;
@@ -114,7 +114,7 @@ const EXPANDED_MINI_ROW_HEIGHT = 28;
 const EXPANDED_MINI_COLUMNS = 3;
 const EXPANDED_MINI_VISIBLE_ROWS = 2;
 
-export function expandedChildReserve(page: GraphPage, index: GraphIndex, settings: ExcaliBrainSettings, centerPath: string): number {
+export function expandedChildReserve(page: GraphPage, index: GraphIndex, settings: KplexSettings, centerPath: string): number {
   if (settings.graphDepth !== 2) return 0;
   const childCount = index.neighbours(page, "child")
     .filter((child) => child.page.path !== centerPath)
@@ -132,7 +132,7 @@ function distributeGrid(
   columnGap: number,
   rowGap: number,
   index: GraphIndex,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
   role: Role,
   centerPath: string,
 ): PositionedNode[] {
@@ -188,7 +188,7 @@ function distributeVertical(
   x: number,
   gap: number,
   index: GraphIndex,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
   role: Role,
   centerPath: string,
 ): PositionedNode[] {
@@ -220,7 +220,7 @@ function fitVerticalStrip(
   topLimit: number,
   bottomLimit: number,
   index: GraphIndex,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
   centerPath: string,
   alignment: "top" | "center" | "bottom" | "midline" = "center",
 ): void {
@@ -344,7 +344,7 @@ function viewportFor(
 export function buildScene(
   neighborhood: Neighborhood,
   index: GraphIndex,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
   showCrossLinks = true,
   centerSizeOverride?: CenterNodeSize,
 ): PlexScene {
@@ -482,7 +482,7 @@ function appendSiblingParentLinks(
   nodes: PositionedNode[],
   edges: PositionedEdge[],
   index: GraphIndex,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
   centerPath: string,
 ): void {
   const siblingPaths = new Set(nodes.filter((node) => node.role === "sibling").map((node) => node.page.path));
@@ -511,7 +511,7 @@ function appendVisibleCrossLinks(
   nodes: PositionedNode[],
   edges: PositionedEdge[],
   index: GraphIndex,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
   centerPath: string,
 ): void {
   const visibleByPath = new Map<string, GraphPage>();
@@ -564,7 +564,7 @@ function appendVisibleCrossLinks(
 export function buildSectionExpandedScene(
   expansion: import("../index/SectionExpansion").CentralSectionExpansion,
   index: GraphIndex,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
   expandedSectionIds: ReadonlySet<string> = new Set(expansion.sections.filter((section) => section.childIds.length).map((section) => section.id)),
   showCrossLinks = true,
   centerSizeOverride?: CenterNodeSize,

@@ -599,7 +599,7 @@ const dutchTranslations = {
   "settings.noDiscoveredMatches": "Geen ontdekte velden komen overeen met deze zoekopdracht.",
   "settings.allDiscoveredAssigned": "Alle ontdekte velden zijn toegewezen aan een ontologierol.",
   "settings.importTitle": "ExcaliBrain-instellingen importeren",
-  "settings.importHelp": "Kies een ExcaliBrain data.json-back-up. K-Plex migreert compatibele instellingen voor ontologie, zichtbaarheid, navigatie en uiterlijk en bouwt daarna de index opnieuw op.",
+  "settings.importHelp": "Kies een ExcaliBrain data.json-back-up. K-Plex importeert de ontologie en de stijlen van de graaf, knopen en verbindingen en bouwt daarna de index opnieuw op. Je K-Plex-gebruiksvoorkeuren blijven ongewijzigd.",
   "settings.noFileSelected": "Geen bestand geselecteerd.",
   "settings.fileReadFailed": "Kan bestand niet lezen: {error}",
   "settings.importButton": "Importeren",
@@ -860,7 +860,11 @@ const dutchTranslations = {
   "settings.centralNodeEditor.heading": "Editor voor centraal knooppunt",
   "settings.centralNodeEditor.defaultMode": "Standaard Markdown-modus",
   "settings.centralNodeEditor.defaultModeDesc": "Kies of de editor van het centrale knooppunt Markdown-notities opent in leesweergave of bewerkingsmodus.",
-  "filter.untitledLens": "Naamloze lens"
+  "filter.untitledLens": "Naamloze lens" ,
+  "command.copyIndexDiagnostics": "Indexdiagnose kopiëren",
+  "notice.indexDiagnosticsCopied": "Indexdiagnose naar het klembord gekopieerd.",
+  "notice.indexDiagnosticsCopyFailed": "Indexdiagnose kon niet worden gekopieerd.",
+  "index.statusSavingCache": "Status: index opslaan in cache",
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

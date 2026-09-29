@@ -1,3 +1,8 @@
+> **Historical data-migration reference.** This document describes the predecessor's input formats,
+> ontology reconciliation and saved settings so K-Plex can migrate existing ExcaliBrain data.
+> Its original product names, commands and dependencies are not K-Plex architecture or current UI.
+> See [legacy compatibility](LEGACY_COMPATIBILITY.md) for the active migration boundary.
+
 # Introduction
 
 ExcaliBrain is a visual personal knowledge management (PKM) tool designed to provide a **structured, interactive mind map** of an Obsidian vault. It is primarily a **hierarchy visualiser** that transforms the associative, often cluttered "cloud" of a standard graph view into a spatially organised map based on defined relationships.

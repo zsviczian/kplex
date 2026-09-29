@@ -1,3 +1,7 @@
+/**
+ * Tests K-Plex per-source patch preparation, cancellation and graph/evidence coherence using
+ * portable bundles. Publication remains caller-owned and legacy fixture data is not rewritten.
+ */
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -44,7 +48,6 @@ const settings = {
   },
   inferAllLinksAsFriends: false,
   inverseInfer: false,
-  excalibrainFilepath: "Excalibrain.md",
   showFullTagName: true,
   tagStyleList: ["#project", "#person"],
   maxLabelLength: 30,

@@ -1,3 +1,7 @@
+/**
+ * Runs strict K-Plex desktop verification against an explicitly selected disposable Obsidian
+ * vault. Owns exact-build staging, canonical command/DOM assertions and evidence reporting.
+ */
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -96,7 +100,7 @@ export async function runObsidianVerification({ projectRoot, vaultName, vaultPat
     if (ARTIFACTS.some((name) => report.artifacts.stagedHashes[name] !== build.hashes[name])) throw new Error("Staged plugin artifacts do not match this build");
     cli("plugin:enable", `id=${PLUGIN_ID}`);
     const commands = cli("commands", `filter=${PLUGIN_ID}`);
-    const startCommand = `${PLUGIN_ID}:excalibrain-start`;
+    const startCommand = `${PLUGIN_ID}:kplex-start`;
     if (!commands.includes(startCommand)) throw new Error(`Plugin command ${startCommand} was not registered`);
 
     phase = "open-kplex";
@@ -107,8 +111,8 @@ export async function runObsidianVerification({ projectRoot, vaultName, vaultPat
     let text = "";
     const deadline = now() + 15_000;
     do {
-      if (count(cli("dev:dom", "selector=.excalibrain-app", "total")) > 0) {
-        text = cli("dev:dom", "selector=.excalibrain-app", "text");
+      if (count(cli("dev:dom", "selector=.kplex-app", "total")) > 0) {
+        text = cli("dev:dom", "selector=.kplex-app", "text");
         if (text.includes("K-Plex")) { rendered = true; break; }
       }
       if (now() >= deadline) break;
@@ -116,8 +120,8 @@ export async function runObsidianVerification({ projectRoot, vaultName, vaultPat
     } while (true);
     const errors = cli("dev:errors");
     assertErrorsClear(errors);
-    if (!rendered) throw new Error("K-Plex rendered-state assertion timed out: no .excalibrain-app with K-Plex text");
-    report.scenarios.push({ id: "open-kplex", status: "passed", assertions: ["plugin command registered", "rendered .excalibrain-app contains K-Plex", "no captured JavaScript errors"], elapsedMs: now() - started });
+    if (!rendered) throw new Error("K-Plex rendered-state assertion timed out: no .kplex-app with K-Plex text");
+    report.scenarios.push({ id: "open-kplex", status: "passed", assertions: ["plugin command registered", "rendered .kplex-app contains K-Plex", "no captured JavaScript errors"], elapsedMs: now() - started });
     report.status = "passed";
   } catch (error) {
     report.error = error instanceof Error ? error.message : String(error);

@@ -4,9 +4,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
 import { addNativeSubmenu } from "../adapters/obsidian/nativeSubmenu";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { GraphIndex } from "../index/GraphIndex";
-import type { ExcaliBrainSettings, KplexViewSurface, SidecarMarkdownMode } from "../settings";
+import type { KplexSettings, KplexViewSurface, SidecarMarkdownMode } from "../settings";
 import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle, NodeVisual, PositionedEdge, PositionedNode, Role, ScrollZone } from "../types";
 import { LinkDirection, RelationType } from "../types";
 import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle } from "../index/style";
@@ -343,10 +343,10 @@ function relationLabel(typeDefinition?: string): string | null {
 
 function markerFor(head?: string): string | undefined {
   if (!head || head === "none") return undefined;
-  if (head === "triangle") return "url(#excalibrain-triangle)";
-  if (head === "dot") return "url(#excalibrain-dot)";
-  if (head === "bar") return "url(#excalibrain-bar)";
-  return "url(#excalibrain-arrow)";
+  if (head === "triangle") return "url(#kplex-triangle)";
+  if (head === "dot") return "url(#kplex-dot)";
+  if (head === "bar") return "url(#kplex-bar)";
+  return "url(#kplex-arrow)";
 }
 
 /** Translate the displayed zone heading while preserving semantic role and layout classification. */
@@ -486,7 +486,7 @@ function buildZoneDisplayLayout(
   panel: ZoneViewport,
   nodes: PositionedNode[],
   filter: string,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
   index: GraphIndex,
   centerPath: string,
 ): ZoneDisplayLayout {
@@ -603,9 +603,9 @@ function Edge({
 
   const resolvedCrossLinkOpacity = edge.isCrossLink && !highlighted ? crossLinkOpacity : undefined;
 
-  return <g className={`excalibrain-edge${edge.isCrossLink ? " is-cross-link" : ""}${highlighted ? " is-highlighted" : ""}${dimmed ? " is-dimmed" : ""}`}>
+  return <g className={`kplex-edge${edge.isCrossLink ? " is-cross-link" : ""}${highlighted ? " is-highlighted" : ""}${dimmed ? " is-dimmed" : ""}`}>
     <path
-      className="excalibrain-edge-visible"
+      className="kplex-edge-visible"
       opacity={resolvedCrossLinkOpacity}
       d={geometry.d}
       fill="none"
@@ -617,7 +617,7 @@ function Edge({
       vectorEffect="non-scaling-stroke"
     />
     <path
-      className="excalibrain-edge-hit"
+      className="kplex-edge-hit"
       data-kplex-edge-id={edge.id}
       d={geometry.d}
       fill="none"
@@ -629,7 +629,7 @@ function Edge({
       onPointerLeave={onLeave}
       onContextMenu={onContextMenu}
     />
-    {label && <g className="excalibrain-edge-label-wrap" pointerEvents="none" opacity={resolvedCrossLinkOpacity}>
+    {label && <g className="kplex-edge-label-wrap" pointerEvents="none" opacity={resolvedCrossLinkOpacity}>
       <rect
         x={geometry.midpoint.x - labelWidth / 2}
         y={geometry.midpoint.y - labelHeight / 2}
@@ -639,7 +639,7 @@ function Edge({
         fill={labelBackground}
       />
       <text
-        className="excalibrain-edge-label"
+        className="kplex-edge-label"
         x={geometry.midpoint.x}
         y={geometry.midpoint.y}
         textAnchor="middle"
@@ -653,9 +653,9 @@ function Edge({
 
 /** Compose the deterministic Plex scene and interaction handlers, using localized UI copy without rebuilding semantic state for presentation changes. */
 export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, areaSettingsMode, onAreaSettingsModeChange, onActivate, onOpen, onCentralNodeEditorChange, onCentralNodeModeChange }: {
-  plugin: ExcaliBrainPlugin;
+  plugin: KplexPlugin;
   index: GraphIndex;
-  settings: ExcaliBrainSettings;
+  settings: KplexSettings;
   surface: KplexViewSurface;
   hostLeaf: WorkspaceLeaf;
   predicate: CompiledGraphPredicate | null;
@@ -1211,7 +1211,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
           const sx = current.width > 0 ? previous.width / current.width : 1;
           const sy = current.height > 0 ? previous.height / current.height : 1;
           if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5 || Math.abs(sx - 1) > 0.02 || Math.abs(sy - 1) > 0.02) {
-            const isCenter = element.classList.contains("excalibrain-role-center");
+            const isCenter = element.classList.contains("kplex-role-center");
             element.animate([
               { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.90 },
               { transform: "translate(0, 0) scale(1, 1)", opacity: 1 },
@@ -1220,7 +1220,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
           return;
         }
 
-        const role = Array.from(element.classList).find((value) => value.startsWith("excalibrain-role-"))?.replace("excalibrain-role-", "") ?? "child";
+        const role = Array.from(element.classList).find((value) => value.startsWith("kplex-role-"))?.replace("kplex-role-", "") ?? "child";
         const offset = role === "parent" ? [0, 22] : role === "child" ? [0, -22] : role === "left" || role === "previous" ? [22, 0] : role === "right" || role === "next" ? [-22, 0] : [0, 14];
         element.animate([
           { transform: `translate(${offset[0]}px, ${offset[1]}px) scale(.92)`, opacity: 0 },
@@ -1298,13 +1298,13 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
   /** Identify native controls whose pointer and keyboard behavior the canvas must preserve. */
   const isAreaControlTarget = (target: Element | null): boolean => Boolean(target?.closest(
-    ".excalibrain-zoom-controls, .kplex-zone-tools, .kplex-layout-controls, .kplex-filter-panel, input, select, textarea, button",
+    ".kplex-zoom-controls, .kplex-zone-tools, .kplex-layout-controls, .kplex-filter-panel, input, select, textarea, button",
   ));
 
   /** Distinguish empty canvas from graph content before revealing frames or dismissing edit mode. */
   const isEmptyAreaTarget = (target: Element | null): boolean => {
     if (!target || isAreaControlTarget(target)) return false;
-    return !target.closest(".excalibrain-thought, .excalibrain-edge-hit, [data-kplex-gate], .kplex-expanded-cluster");
+    return !target.closest(".kplex-thought, .kplex-edge-hit, [data-kplex-gate], .kplex-expanded-cluster");
   };
 
   /** Resolve the nearest editable edge in screen pixels, or an empty area interior in world coordinates. */
@@ -1508,7 +1508,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       if (target?.closest?.(".kplex-central-editor-content, .modal-container, input, select, textarea, button")) return;
       event.stopPropagation();
       const scrollSurface = target?.closest?.(".kplex-zone-scroll, .kplex-expanded-scroll");
-      const graphTarget = target?.closest?.("[data-kplex-path], .excalibrain-edge-hit");
+      const graphTarget = target?.closest?.("[data-kplex-path], .kplex-edge-hit");
       // Empty bounded relationship lists keep native one-finger scrolling. A touch that starts on
       // a thought/connector belongs to the Plex, so two-finger pinch works even when the Plex is
       // visually full of thoughts (important on iPad where there may be almost no bare canvas).
@@ -2080,7 +2080,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       return;
     }
     const target = e.target as Element;
-    if (target.closest(".kplex-central-editor-content, .excalibrain-zoom-controls, .kplex-zone-tools, .kplex-layout-controls, .kplex-filter-panel, input, select, textarea, button")) return;
+    if (target.closest(".kplex-central-editor-content, .kplex-zoom-controls, .kplex-zone-tools, .kplex-layout-controls, .kplex-filter-panel, input, select, textarea, button")) return;
     if (centralEditorMaximized) return;
 
 
@@ -2089,13 +2089,13 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     // Empty-canvas click/touch is an explicit escape hatch for hover intent. Pointer-leave events
     // can occasionally lag in Obsidian/WebView, leaving a node/gate/connector visually highlighted
     // until the mouse moves again. Clicking the canvas should always clear that transient state.
-    if (!target.closest(".excalibrain-thought, .excalibrain-edge-hit, [data-kplex-gate]")) clearHoverIntent(true);
+    if (!target.closest(".kplex-thought, .kplex-edge-hit, [data-kplex-gate]")) clearHoverIntent(true);
 
     if (e.pointerType === "touch") {
       // Empty bounded lists own one-finger vertical scrolling. A thought/edge inside such a list
       // still belongs to the graph so pinch can begin over visible content, not only bare canvas.
       const scrollSurface = target.closest(".kplex-zone-scroll, .kplex-expanded-scroll");
-      const graphTarget = target.closest("[data-kplex-path], .excalibrain-edge-hit");
+      const graphTarget = target.closest("[data-kplex-path], .kplex-edge-hit");
       if (scrollSurface && !graphTarget) return;
       e.preventDefault();
       e.stopPropagation();
@@ -2151,7 +2151,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
     touchDoubleTap.current.reset();
     if (![0, 1, 2].includes(e.button)) return;
-    const overThought = Boolean(target.closest(".excalibrain-thought"));
+    const overThought = Boolean(target.closest(".kplex-thought"));
     if (!mouseButtonCanPan(e.button, overThought)) return;
     const scrollZone = target.closest<HTMLElement>(".kplex-zone-scroll");
     if (e.button === 0 && scrollZone) {
@@ -2459,7 +2459,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     if (panDrag.current?.pointerId === e.pointerId) panDrag.current = null;
   };
 
-  if (!neighborhood) return <div className="excalibrain-empty">{translate("graph.selectNote")}</div>;
+  if (!neighborhood) return <div className="kplex-empty">{translate("graph.selectNote")}</div>;
 
   const connectionStateFor = (node: PositionedNode): ConnectionDragState => {
     if (!connectDrag) return "normal";
@@ -2944,7 +2944,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 
   return <div
     ref={viewport}
-    className={`excalibrain-plex${sceneTransitioning || pathChangedThisRender ? " is-scene-transitioning" : ""}${sectionExpanded ? " is-section-expanded" : ""}${centralEditorMaximized ? " is-central-editor-maximized" : ""}${Platform.isIosApp ? " is-ios" : ""}${Platform.isIosApp ? " is-ios" : ""}${areaSettingsMode ? " is-area-settings-mode" : ""}${areaHover?.edgeActive ? " is-area-resize-ready" : ""}${resizingArea ? " is-area-resizing" : ""}`}
+    className={`kplex-plex${sceneTransitioning || pathChangedThisRender ? " is-scene-transitioning" : ""}${sectionExpanded ? " is-section-expanded" : ""}${centralEditorMaximized ? " is-central-editor-maximized" : ""}${Platform.isIosApp ? " is-ios" : ""}${Platform.isIosApp ? " is-ios" : ""}${areaSettingsMode ? " is-area-settings-mode" : ""}${areaHover?.edgeActive ? " is-area-resize-ready" : ""}${resizingArea ? " is-area-resizing" : ""}`}
     style={{
       background: alphaHexToCss(settings.backgroundColor, "#0c2233"),
       "--kplex-motion-scale": String(Math.max(0, Math.min(2, settings.animationSpeed))),
@@ -2964,13 +2964,13 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     onContextMenu={(event: MouseEvent<HTMLDivElement>) => event.preventDefault()}
   >
     {relationshipUpdating && <div className="kplex-relationship-updating" aria-live="polite" aria-busy="true"><ObsidianIcon name="loader-circle" size={16} /><span>{translate("graph.updatingRelationship")}</span></div>}
-    <div ref={cameraElement} className="excalibrain-camera" style={{ transform: `translate(${camera.current.x}px, ${camera.current.y}px) scale(${camera.current.scale})` }}>
-      <svg className="excalibrain-links" width="3200" height="2400" viewBox="-1600 -1200 3200 2400">
+    <div ref={cameraElement} className="kplex-camera" style={{ transform: `translate(${camera.current.x}px, ${camera.current.y}px) scale(${camera.current.scale})` }}>
+      <svg className="kplex-links" width="3200" height="2400" viewBox="-1600 -1200 3200 2400">
         <defs>
-          <marker id="excalibrain-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M1,1 L8,4.5 L1,8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker>
-          <marker id="excalibrain-triangle" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 z" fill="context-stroke" /></marker>
-          <marker id="excalibrain-dot" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="strokeWidth"><circle cx="4" cy="4" r="2.6" fill="context-stroke" /></marker>
-          <marker id="excalibrain-bar" markerWidth="8" markerHeight="10" refX="4" refY="5" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M4,1 L4,9" stroke="context-stroke" strokeWidth="1.8" /></marker>
+          <marker id="kplex-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M1,1 L8,4.5 L1,8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker>
+          <marker id="kplex-triangle" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 z" fill="context-stroke" /></marker>
+          <marker id="kplex-dot" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="strokeWidth"><circle cx="4" cy="4" r="2.6" fill="context-stroke" /></marker>
+          <marker id="kplex-bar" markerWidth="8" markerHeight="10" refX="4" refY="5" orient="auto-start-reverse" markerUnits="strokeWidth"><path d="M4,1 L4,9" stroke="context-stroke" strokeWidth="1.8" /></marker>
         </defs>
         {(scene.sectionTreeEdges ?? []).map((treeEdge) => {
           const source = renderedNodeMap.get(treeEdge.sourcePath) ?? scene.nodes.find((node) => node.page.path === treeEdge.sourcePath);
@@ -3040,7 +3040,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
         })
         : visibleAreaZone && visibleArea ? renderAreaFrame(visibleAreaZone, visibleArea) : null}
 
-      <div className="excalibrain-nodes">
+      <div className="kplex-nodes">
         {standardNodes.filter((node) => nodeDrag?.path !== node.page.path && visibleNodePaths.has(node.page.path)).map((node) => renderNode(node, renderedNodeMap.get(node.page.path) ?? node))}
         {ZONES.map((zone) => {
           const panel = scene.zoneViewports[zone];
@@ -3133,7 +3133,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       </label>
     </div>
 
-    <div className="excalibrain-zoom-controls">
+    <div className="kplex-zoom-controls">
       <button aria-label={translate("graph.zoomIn")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); applyCamera((c) => ({ ...c, scale: Math.min(Platform.isIosApp ? IOS_MAX_ZOOM : MAX_ZOOM, c.scale * 1.15) })); }}><ObsidianIcon name="zoom-in" size={16} /></button>
       <button aria-label={translate("graph.zoomOut")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); applyCamera((c) => ({ ...c, scale: Math.max(.3, c.scale / 1.15) })); }}><ObsidianIcon name="zoom-out" size={16} /></button>
       <button aria-label={translate("graph.fitGraph")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); fit(); }}><ObsidianIcon name="focus" size={16} /></button>

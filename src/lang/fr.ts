@@ -601,7 +601,7 @@ const frenchTranslations = {
   "settings.noDiscoveredMatches": "Aucun champ découvert ne correspond à cette recherche.",
   "settings.allDiscoveredAssigned": "Tous les champs découverts sont attribués à un rôle d’ontologie.",
   "settings.importTitle": "Importer les paramètres ExcaliBrain",
-  "settings.importHelp": "Choisissez une sauvegarde data.json d’ExcaliBrain. K-Plex migrera les paramètres compatibles d’ontologie, de visibilité, de navigation et d’apparence, puis reconstruira l’index.",
+  "settings.importHelp": "Choisissez une sauvegarde data.json d’ExcaliBrain. K-Plex importera l’ontologie et les styles du graphe, des nœuds et des liens, puis reconstruira l’index. Vos préférences d’utilisation de K-Plex resteront inchangées.",
   "settings.noFileSelected": "Aucun fichier sélectionné.",
   "settings.fileReadFailed": "Impossible de lire le fichier : {error}",
   "settings.importButton": "Importer",
@@ -864,7 +864,11 @@ const frenchTranslations = {
   "settings.centralNodeEditor.heading": "Éditeur du nœud central",
   "settings.centralNodeEditor.defaultMode": "Mode Markdown par défaut",
   "settings.centralNodeEditor.defaultModeDesc": "Choisissez si l’éditeur du nœud central ouvre les notes Markdown en mode lecture ou en mode édition.",
-  "filter.untitledLens": "Lentille sans titre"
+  "filter.untitledLens": "Lentille sans titre" ,
+  "command.copyIndexDiagnostics": "Copier le diagnostic de l’index",
+  "notice.indexDiagnosticsCopied": "Diagnostic de l’index copié dans le presse-papiers.",
+  "notice.indexDiagnosticsCopyFailed": "Impossible de copier le diagnostic de l’index.",
+  "index.statusSavingCache": "État : enregistrement de l’index dans le cache",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

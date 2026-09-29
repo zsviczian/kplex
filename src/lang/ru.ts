@@ -603,7 +603,7 @@ const russianTranslations = {
   "settings.noDiscoveredMatches": "Нет обнаруженных полей, соответствующих этому поиску.",
   "settings.allDiscoveredAssigned": "Все обнаруженные поля назначены ролям онтологии.",
   "settings.importTitle": "Импортировать настройки ExcaliBrain",
-  "settings.importHelp": "Выберите резервную копию data.json ExcaliBrain. K-Plex перенесёт совместимые настройки онтологии, видимости, навигации и оформления, а затем перестроит индекс.",
+  "settings.importHelp": "Выберите резервную копию data.json ExcaliBrain. K-Plex импортирует онтологию и стили графа, узлов и связей, а затем перестроит индекс. Ваши рабочие настройки K-Plex останутся без изменений.",
   "settings.noFileSelected": "Файл не выбран.",
   "settings.fileReadFailed": "Не удалось прочитать файл: {error}",
   "settings.importButton": "Импортировать",
@@ -868,7 +868,11 @@ const russianTranslations = {
   "settings.centralNodeEditor.heading": "Редактор центрального узла",
   "settings.centralNodeEditor.defaultMode": "Режим Markdown по умолчанию",
   "settings.centralNodeEditor.defaultModeDesc": "Выберите, открывать ли Markdown-заметки в редакторе центрального узла в режиме чтения или редактирования.",
-  "filter.untitledLens": "Линза без названия"
+  "filter.untitledLens": "Линза без названия" ,
+  "command.copyIndexDiagnostics": "Скопировать диагностику индекса",
+  "notice.indexDiagnosticsCopied": "Диагностика индекса скопирована в буфер обмена.",
+  "notice.indexDiagnosticsCopyFailed": "Не удалось скопировать диагностику индекса.",
+  "index.statusSavingCache": "Статус: сохранение индекса в кэш",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

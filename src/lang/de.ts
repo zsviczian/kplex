@@ -599,7 +599,7 @@ const germanTranslations = {
   "settings.noDiscoveredMatches": "Keine entdeckten Felder entsprechen dieser Suche.",
   "settings.allDiscoveredAssigned": "Alle entdeckten Felder sind einer Ontologierolle zugewiesen.",
   "settings.importTitle": "ExcaliBrain-Einstellungen importieren",
-  "settings.importHelp": "Wählen Sie eine ExcaliBrain-data.json-Sicherung. K-Plex migriert kompatible Ontologie-, Sichtbarkeits-, Navigations- und Darstellungseinstellungen und baut anschließend den Index neu auf.",
+  "settings.importHelp": "Wählen Sie eine ExcaliBrain-data.json-Sicherung. K-Plex importiert die Ontologie sowie die Gestaltung von Graph, Knoten und Verbindungen und baut anschließend den Index neu auf. Ihre K-Plex-Bedieneinstellungen bleiben unverändert.",
   "settings.noFileSelected": "Keine Datei ausgewählt.",
   "settings.fileReadFailed": "Datei konnte nicht gelesen werden: {error}",
   "settings.importButton": "Importieren",
@@ -860,7 +860,11 @@ const germanTranslations = {
   "settings.centralNodeEditor.heading": "Editor des zentralen Knotens",
   "settings.centralNodeEditor.defaultMode": "Standard-Markdownmodus",
   "settings.centralNodeEditor.defaultModeDesc": "Wählen Sie, ob der Editor des zentralen Knotens Markdown-Notizen in der Leseansicht oder im Bearbeitungsmodus öffnet.",
-  "filter.untitledLens": "Unbenannte Linse"
+  "filter.untitledLens": "Unbenannte Linse" ,
+  "command.copyIndexDiagnostics": "Indexdiagnose kopieren",
+  "notice.indexDiagnosticsCopied": "Indexdiagnose in die Zwischenablage kopiert.",
+  "notice.indexDiagnosticsCopyFailed": "Indexdiagnose konnte nicht kopiert werden.",
+  "index.statusSavingCache": "Status: Index wird im Cache gespeichert",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

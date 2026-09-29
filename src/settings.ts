@@ -1,5 +1,7 @@
 /**
- * Obsidian settings compatibility, declarative controls and style/ontology managers. Persisted keys and vault-facing defaults remain stable; the injected translator owns display copy.
+ * Obsidian settings persistence, bounded legacy graph import, declarative controls and style/ontology
+ * managers. Foreign imports cannot change plugin workflow preferences; own persisted K-Plex keys
+ * remain stable. Callers own saving/reindexing and the injected translator owns display copy.
  */
 import {
   AbstractInputSuggest,
@@ -11,7 +13,7 @@ import {
   getIconIds,
   type SettingDefinitionItem,
 } from "obsidian";
-import type ExcaliBrainPlugin from "./main";
+import type KplexPlugin from "./main";
 import type { Arrowhead, Hierarchy, LinkStyle, NodeStyle, Role } from "./types";
 import { sanitizeGraphLensDefinitions, type GraphLensDefinition } from "./lens/GraphLens";
 import { collectionWindow } from "./ui/components/collectionWindow";
@@ -111,11 +113,10 @@ export const DEFAULT_LAYOUT_PROFILES: Record<string, KplexLayoutProfile> = {
   "mobile:sidepanel": { compactingFactor: 2.85, parentColumns: 1, childColumns: 2 },
 };
 
-export interface ExcaliBrainSettings {
+export interface KplexSettings {
   compactView: boolean;
   compactingFactor: number;
   minLinkLength: number;
-  excalibrainFilepath: string;
   indexUpdateInterval: number;
   hierarchy: Hierarchy;
   inferAllLinksAsFriends: boolean;
@@ -239,11 +240,10 @@ export interface ExcaliBrainSettings {
   confirmFileDelete: boolean;
 }
 
-export const DEFAULT_SETTINGS: ExcaliBrainSettings = {
+export const DEFAULT_SETTINGS: KplexSettings = {
   compactView: false,
   compactingFactor: 2,
   minLinkLength: 18,
-  excalibrainFilepath: "excalibrain.md",
   indexUpdateInterval: 60000,
   hierarchy: DEFAULT_HIERARCHY_DEFINITION,
   inferAllLinksAsFriends: false,
@@ -361,9 +361,63 @@ function mergeLegacyIconStyle(defaultStyle: NodeStyle, saved: NodeStyle | undefi
   return merged;
 }
 
-export function migrateAndMergeSettings(raw: unknown): ExcaliBrainSettings {
-  const rawSettings = (raw && typeof raw === "object" ? raw : {}) as Partial<ExcaliBrainSettings> & { hierarchy?: Partial<Hierarchy>; maxZoom?: unknown };
-  const { maxZoom: _legacyMaxZoom, ...old } = rawSettings;
+/**
+ * Only ontology inputs and graph/node/link appearance cross the legacy import boundary. Plugin
+ * commands, CSS, navigation, workspace state, editor preferences and scheduling never do.
+ * Existing K-Plex data continues to load through migrateAndMergeSettings without this filter.
+ */
+const LEGACY_GRAPH_SETTING_KEYS = [
+  "hierarchy", "inferAllLinksAsFriends", "inverseInfer", "excludeFilepaths",
+  "compactView", "compactingFactor", "minLinkLength", "backgroundColor", "inverseArrowDirection",
+  "renderAlias", "nameFields", "showInferredNodes", "showAttachments", "showURLNodes",
+  "showVirtualNodes", "showFolderNodes", "showTagNodes", "showPageNodes", "showNeighborCount",
+  "showFullTagName", "maxItemCount", "renderSiblings", "siblingRelativeSize", "crossLinkOpacity",
+  "baseNodeStyle", "centralNodeStyle", "inferredNodeStyle", "urlNodeStyle", "virtualNodeStyle",
+  "siblingNodeStyle", "attachmentNodeStyle", "folderNodeStyle", "tagNodeStyle", "tagNodeStyles",
+  "tagStyleList", "primaryTagField", "displayAllStylePrefixes", "baseLinkStyle", "inferredLinkStyle",
+  "folderLinkStyle", "tagLinkStyle", "hierarchyLinkStyles",
+] as const satisfies readonly (keyof KplexSettings)[];
+
+/** Recognize a settings/property object without treating arrays or null as containers. */
+function isSettingsRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Import legacy graph configuration over current K-Plex preferences, or defaults on first run.
+ * Only allowlisted graph settings are copied; foreign commands, CSS, unknown keys and plugin
+ * workflow state cannot overwrite local preferences. Own persisted K-Plex settings are not filtered.
+ * The caller owns persistence and any required index refresh. No host state is changed here.
+ */
+export function importExcaliBrainGraphSettings(raw: unknown, current?: KplexSettings): KplexSettings {
+  const source = isSettingsRecord(raw) ? raw : {};
+  // Detach imported dictionaries from a running legacy plugin before K-Plex style editors use them.
+  const imported = structuredClone(Object.fromEntries(LEGACY_GRAPH_SETTING_KEYS
+    .filter((key) => Object.prototype.hasOwnProperty.call(source, key))
+    .map((key) => [key, source[key]])));
+  const hierarchy = isSettingsRecord(imported.hierarchy) ? imported.hierarchy : {};
+  // A legacy friends-only field must replace the local leftFriends default, not be masked by it.
+  const leftFriends = hierarchy.leftFriends ?? hierarchy.friends ?? current?.hierarchy.leftFriends;
+  return migrateAndMergeSettings({
+    ...current,
+    ...imported,
+    hierarchy: {
+      ...current?.hierarchy,
+      ...hierarchy,
+      ...(leftFriends === undefined ? {} : { leftFriends }),
+    },
+  });
+}
+
+/** Normalize this plugin's persisted settings, preserving K-Plex preferences across reloads. */
+export function migrateAndMergeSettings(raw: unknown): KplexSettings {
+  const rawSettings = (raw && typeof raw === "object" ? raw : {}) as Partial<KplexSettings> & {
+    hierarchy?: Partial<Hierarchy>;
+    maxZoom?: unknown;
+    excalibrainFilepath?: unknown;
+  };
+  // Both values belonged to retired render surfaces and carry no K-Plex state.
+  const { maxZoom: _legacyMaxZoom, excalibrainFilepath: _legacyDrawingPath, ...old } = rawSettings;
   const hierarchyRaw: Partial<Hierarchy> = old.hierarchy ?? {};
   const hierarchy: Hierarchy = {
     ...DEFAULT_HIERARCHY_DEFINITION,
@@ -1286,7 +1340,7 @@ class LegacySettingsImportModal extends Modal {
   private rawText = "";
   private readonly translate = createObsidianTranslator();
 
-  constructor(app: App, private plugin: ExcaliBrainPlugin, private onImported: () => void) {
+  constructor(app: App, private plugin: KplexPlugin, private onImported: () => void) {
     super(app);
   }
 
@@ -1333,23 +1387,7 @@ class LegacySettingsImportModal extends Modal {
       }
       try {
         const parsed = JSON.parse(this.rawText) as unknown;
-        // Import legacy keys without resetting K-Plex-only preferences that do not exist in an
-        // ExcaliBrain data.json (layout columns, bounded-zone heights, connector style, etc.).
-        const current = this.plugin.settings;
-        const imported = parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
-        const importedHierarchy = imported.hierarchy && typeof imported.hierarchy === "object"
-          ? imported.hierarchy as Record<string, unknown>
-          : {};
-        this.plugin.settings = migrateAndMergeSettings({
-          ...current,
-          ...imported,
-          // ExcaliBrain's central-node embedding preference has different semantics from K-Plex's
-          // native editor toggle. A manual legacy import must not unexpectedly switch the Plex
-          // presentation or overwrite the user's K-Plex editor-mode preference.
-          embedCentralNode: current.embedCentralNode,
-          centralNodeMarkdownMode: current.centralNodeMarkdownMode,
-          hierarchy: { ...current.hierarchy, ...importedHierarchy },
-        });
+        this.plugin.settings = importExcaliBrainGraphSettings(parsed, this.plugin.settings);
       } catch (error) {
         status.setText(this.translate("settings.invalidJson", { error: String(error) }));
         return;
@@ -1372,7 +1410,7 @@ class LegacySettingsImportModal extends Modal {
 }
 
 type DeclarativeSettingKey =
-  | keyof ExcaliBrainSettings
+  | keyof KplexSettings
   | "hierarchy.parents"
   | "hierarchy.children"
   | "hierarchy.leftFriends"
@@ -1422,31 +1460,31 @@ const arrowOptions = (translate: Translator): Record<Arrowhead, string> => ({
   bar: translate("styles.arrowBar"),
 });
 
-export class ExcaliBrainSettingTab extends PluginSettingTab {
-  constructor(app: App, private ebPlugin: ExcaliBrainPlugin) {
-    super(app, ebPlugin);
+export class KplexSettingTab extends PluginSettingTab {
+  constructor(app: App, private kplexPlugin: KplexPlugin) {
+    super(app, kplexPlugin);
     this.containerEl.addClass("kplex-settings");
   }
 
   private openNoteTypeStyleEditor(name: string | null, afterChange?: () => void): void {
-    const style = name ? this.ebPlugin.settings.noteTypeStyles[name] ?? {} : {};
+    const style = name ? this.kplexPlugin.settings.noteTypeStyles[name] ?? {} : {};
     new NoteTypeStyleModal(
       this.app,
       name,
       style,
-      this.ebPlugin.settings.noteTypeField,
+      this.kplexPlugin.settings.noteTypeField,
       this.nodeStyleValueSuggestions(),
       async (nextName, nextStyle, previousName) => {
         const normalizedNext = normalizeNodeStyleValue(nextName);
-        if (previousName && previousName !== normalizedNext) delete this.ebPlugin.settings.noteTypeStyles[previousName];
-        this.ebPlugin.settings.noteTypeStyles[normalizedNext] = nextStyle;
-        await this.ebPlugin.saveSettings(false);
+        if (previousName && previousName !== normalizedNext) delete this.kplexPlugin.settings.noteTypeStyles[previousName];
+        this.kplexPlugin.settings.noteTypeStyles[normalizedNext] = nextStyle;
+        await this.kplexPlugin.saveSettings(false);
         afterChange?.();
         this.update();
       },
       async (removeName) => {
-        delete this.ebPlugin.settings.noteTypeStyles[removeName];
-        await this.ebPlugin.saveSettings(false);
+        delete this.kplexPlugin.settings.noteTypeStyles[removeName];
+        await this.kplexPlugin.saveSettings(false);
         afterChange?.();
         this.update();
       },
@@ -1455,23 +1493,23 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
 
   private openLegacyTagStyleEditor(name: string, afterChange?: () => void): void {
     new NoteTypeStyleModal(
-      this.app, name, this.ebPlugin.settings.tagNodeStyles[name] ?? {},
-      this.ebPlugin.settings.primaryTagField, [],
+      this.app, name, this.kplexPlugin.settings.tagNodeStyles[name] ?? {},
+      this.kplexPlugin.settings.primaryTagField, [],
       async (nextName, nextStyle, previousName) => {
-        const settings = this.ebPlugin.settings;
+        const settings = this.kplexPlugin.settings;
         if (previousName && previousName !== nextName) delete settings.tagNodeStyles[previousName];
         settings.tagNodeStyles[nextName] = nextStyle;
         // Preserve first-match priority when renaming, including overlapping tag prefixes.
         settings.tagStyleList = settings.tagStyleList.map((key) => key === previousName ? nextName : key);
         if (!settings.tagStyleList.includes(nextName)) settings.tagStyleList.push(nextName);
-        await this.ebPlugin.saveSettings(false);
+        await this.kplexPlugin.saveSettings(false);
         afterChange?.();
         this.update();
       },
       async (removeName) => {
-        delete this.ebPlugin.settings.tagNodeStyles[removeName];
-        this.ebPlugin.settings.tagStyleList = this.ebPlugin.settings.tagStyleList.filter((key) => key !== removeName);
-        await this.ebPlugin.saveSettings(false);
+        delete this.kplexPlugin.settings.tagNodeStyles[removeName];
+        this.kplexPlugin.settings.tagStyleList = this.kplexPlugin.settings.tagStyleList.filter((key) => key !== removeName);
+        await this.kplexPlugin.saveSettings(false);
         afterChange?.();
         this.update();
       },
@@ -1489,8 +1527,8 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
       // Existing configured/property values are more semantically precise than a generic tag hint.
       if (!current || (current.kind === "tag" && kind !== "tag")) values.set(key, { value: normalized, display, kind });
     };
-    for (const name of Object.keys(this.ebPlugin.settings.noteTypeStyles)) put(name, normalizeNodeStyleValue(name), "configured");
-    for (const page of this.ebPlugin.index.allPages()) {
+    for (const name of Object.keys(this.kplexPlugin.settings.noteTypeStyles)) put(name, normalizeNodeStyleValue(name), "configured");
+    for (const page of this.kplexPlugin.index.allPages()) {
       if (page.noteType) put(page.noteType, page.noteType, "property");
       for (const tag of page.tags) {
         const normalized = normalizeNodeStyleValue(tag);
@@ -1502,17 +1540,17 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
 
   private nodeStyleEntries(): NodeStyleEntry[] {
     return [
-      ...Object.keys(this.ebPlugin.settings.noteTypeStyles).map((name): NodeStyleEntry => ({ name, kind: "property" })),
-      ...Object.keys(this.ebPlugin.settings.tagNodeStyles).map((name): NodeStyleEntry => ({ name, kind: "tag" })),
+      ...Object.keys(this.kplexPlugin.settings.noteTypeStyles).map((name): NodeStyleEntry => ({ name, kind: "property" })),
+      ...Object.keys(this.kplexPlugin.settings.tagNodeStyles).map((name): NodeStyleEntry => ({ name, kind: "tag" })),
     ].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }
 
   private openNoteTypeStylesManager(): void {
     new NoteTypeStylesManagerModal(
       this.app,
-      this.ebPlugin.settings.noteTypeField,
+      this.kplexPlugin.settings.noteTypeField,
       () => this.nodeStyleEntries(),
-      (entry) => (entry.kind === "tag" ? this.ebPlugin.settings.tagNodeStyles : this.ebPlugin.settings.noteTypeStyles)[entry.name] ?? {},
+      (entry) => (entry.kind === "tag" ? this.kplexPlugin.settings.tagNodeStyles : this.kplexPlugin.settings.noteTypeStyles)[entry.name] ?? {},
       (entry, afterChange) => entry?.kind === "tag"
         ? this.openLegacyTagStyleEditor(entry.name, afterChange)
         : this.openNoteTypeStyleEditor(entry?.name ?? null, afterChange),
@@ -1522,12 +1560,12 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
   /** Build style-manager entries from configured ontology fields, preserving field values and localizing fallback role captions. */
   private ontologyStyleFields(): OntologyStyleField[] {
     const roleGroups: [Role, string[]][] = [
-      ["parent", this.ebPlugin.settings.hierarchy.parents],
-      ["child", this.ebPlugin.settings.hierarchy.children],
-      ["left", this.ebPlugin.settings.hierarchy.leftFriends],
-      ["right", this.ebPlugin.settings.hierarchy.rightFriends],
-      ["previous", this.ebPlugin.settings.hierarchy.previous],
-      ["next", this.ebPlugin.settings.hierarchy.next],
+      ["parent", this.kplexPlugin.settings.hierarchy.parents],
+      ["child", this.kplexPlugin.settings.hierarchy.children],
+      ["left", this.kplexPlugin.settings.hierarchy.leftFriends],
+      ["right", this.kplexPlugin.settings.hierarchy.rightFriends],
+      ["previous", this.kplexPlugin.settings.hierarchy.previous],
+      ["next", this.kplexPlugin.settings.hierarchy.next],
     ];
     const fields = new Map<string, OntologyStyleField>();
     for (const [role, names] of roleGroups) {
@@ -1544,7 +1582,7 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
       }
     }
     // Imported overrides may outlive their ontology assignment; keep them inspectable/editable.
-    for (const name of Object.keys(this.ebPlugin.settings.hierarchyLinkStyles)) {
+    for (const name of Object.keys(this.kplexPlugin.settings.hierarchyLinkStyles)) {
       const key = normalizeOntologyStyleKey(name);
       if (key && !fields.has(key)) fields.set(key, { name, roles: [] });
     }
@@ -1553,7 +1591,7 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
 
   private ontologyLinkStyle(fieldName: string): LinkStyle | undefined {
     const key = normalizeOntologyStyleKey(fieldName);
-    return this.ebPlugin.settings.hierarchyLinkStyles[key] ?? this.ebPlugin.settings.hierarchyLinkStyles[fieldName];
+    return this.kplexPlugin.settings.hierarchyLinkStyles[key] ?? this.kplexPlugin.settings.hierarchyLinkStyles[fieldName];
   }
 
   private openOntologyLinkStyleEditor(fieldName: string, afterChange?: () => void): void {
@@ -1563,20 +1601,20 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
       this.app,
       fieldName,
       style,
-      this.ebPlugin.settings.baseLinkStyle,
+      this.kplexPlugin.settings.baseLinkStyle,
       async (nextStyle) => {
         // Normalize keys on write so aliases/casing in the ontology definition do not create
         // duplicate style entries for the same semantic property.
-        delete this.ebPlugin.settings.hierarchyLinkStyles[fieldName];
-        this.ebPlugin.settings.hierarchyLinkStyles[key] = nextStyle;
-        await this.ebPlugin.saveSettings(false);
+        delete this.kplexPlugin.settings.hierarchyLinkStyles[fieldName];
+        this.kplexPlugin.settings.hierarchyLinkStyles[key] = nextStyle;
+        await this.kplexPlugin.saveSettings(false);
         afterChange?.();
         this.update();
       },
       async () => {
-        delete this.ebPlugin.settings.hierarchyLinkStyles[fieldName];
-        delete this.ebPlugin.settings.hierarchyLinkStyles[key];
-        await this.ebPlugin.saveSettings(false);
+        delete this.kplexPlugin.settings.hierarchyLinkStyles[fieldName];
+        delete this.kplexPlugin.settings.hierarchyLinkStyles[key];
+        await this.kplexPlugin.saveSettings(false);
         afterChange?.();
         this.update();
       },
@@ -1588,7 +1626,7 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
       this.app,
       this.ontologyStyleFields(),
       (fieldName) => this.ontologyLinkStyle(fieldName),
-      this.ebPlugin.settings.baseLinkStyle,
+      this.kplexPlugin.settings.baseLinkStyle,
       (fieldName, afterChange) => this.openOntologyLinkStyleEditor(fieldName, afterChange),
     ).open();
   }
@@ -1596,26 +1634,26 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
   private openUnassignedOntologyManager(): void {
     new UnassignedOntologyManagerModal(
       this.app,
-      () => this.ebPlugin.index.unassignedOntologyFields(),
-      (fieldName, afterChange) => this.ebPlugin.openAddToOntologyModal(fieldName, afterChange),
+      () => this.kplexPlugin.index.unassignedOntologyFields(),
+      (fieldName, afterChange) => this.kplexPlugin.openAddToOntologyModal(fieldName, afterChange),
       async () => {
-        await this.ebPlugin.rebuildIndex(true, true, "ontology-discovery");
+        await this.kplexPlugin.rebuildIndex(true, true, "ontology-discovery");
       },
     ).open();
   }
 
   private openLegacySettingsImporter(): void {
-    new LegacySettingsImportModal(this.app, this.ebPlugin, () => this.update()).open();
+    new LegacySettingsImportModal(this.app, this.kplexPlugin, () => this.update()).open();
   }
 
   /** Build native declarative settings and subpages with localized copy while keeping keys, defaults and control behavior stable. */
   getSettingDefinitions(): SettingDefinitionItem<DeclarativeSettingKey>[] {
     const translate = createObsidianTranslator();
     const nodeStyles = this.nodeStyleEntries();
-    const unassignedFields = this.ebPlugin.index.unassignedOntologyFields();
+    const unassignedFields = this.kplexPlugin.index.unassignedOntologyFields();
     const ontologyStyleFields = this.ontologyStyleFields();
     const customOntologyStyleCount = ontologyStyleFields.filter((field) =>
-      hasMeaningfulLinkOverride(this.ontologyLinkStyle(field.name), this.ebPlugin.settings.baseLinkStyle)
+      hasMeaningfulLinkOverride(this.ontologyLinkStyle(field.name), this.kplexPlugin.settings.baseLinkStyle)
     ).length;
     return [
       {
@@ -1773,7 +1811,7 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
                   {
                     name: translate("settings.ui.refresh.discovered.fields"),
                     desc: translate("settings.ui.rescan.note.properties.now.this.can.take.longer.in.a.lar"),
-                    action: () => void this.ebPlugin.rebuildIndex(true, true, "ontology-discovery"),
+                    action: () => void this.kplexPlugin.rebuildIndex(true, true, "ontology-discovery"),
                   },
                 ],
               },
@@ -1909,96 +1947,96 @@ export class ExcaliBrainSettingTab extends PluginSettingTab {
 
   getControlValue(key: string): unknown {
     const hierarchyKey = HIERARCHY_KEY_MAP[key];
-    if (hierarchyKey) return csv(this.ebPlugin.settings.hierarchy[hierarchyKey]);
-    if (key === "excludeFilepathsCsv") return csv(this.ebPlugin.settings.excludeFilepaths);
-    if (key === "backgroundColorHex") return this.ebPlugin.settings.backgroundColor.slice(0, 7).toLowerCase();
-    if (key === "baseLinkStyle.strokeColorHex") return sixHex(this.ebPlugin.settings.baseLinkStyle.strokeColor, "#696969").toLowerCase();
-    if (key === "baseLinkStyle.strokeWidth") return this.ebPlugin.settings.baseLinkStyle.strokeWidth ?? DEFAULT_LINK_STYLE.strokeWidth ?? 1;
-    if (key === "baseLinkStyle.strokeStyle") return this.ebPlugin.settings.baseLinkStyle.strokeStyle ?? "solid";
-    if (key === "baseLinkStyle.startArrowHead") return this.ebPlugin.settings.baseLinkStyle.startArrowHead ?? "none";
-    if (key === "baseLinkStyle.endArrowHead") return this.ebPlugin.settings.baseLinkStyle.endArrowHead ?? "none";
-    if (key === "baseLinkStyle.showLabel") return this.ebPlugin.settings.baseLinkStyle.showLabel ?? false;
-    if (key === "baseLinkStyle.textColorHex") return sixHex(this.ebPlugin.settings.baseLinkStyle.textColor, "#ffffff").toLowerCase();
-    if (key === "baseLinkStyle.fontSize") return this.ebPlugin.settings.baseLinkStyle.fontSize ?? DEFAULT_LINK_STYLE.fontSize ?? 10;
-    if (key === "baseNodeStyle.gateRadius") return this.ebPlugin.settings.baseNodeStyle.gateRadius ?? DEFAULT_NODE_STYLE.gateRadius ?? 5;
-    return this.ebPlugin.settings[key as keyof ExcaliBrainSettings];
+    if (hierarchyKey) return csv(this.kplexPlugin.settings.hierarchy[hierarchyKey]);
+    if (key === "excludeFilepathsCsv") return csv(this.kplexPlugin.settings.excludeFilepaths);
+    if (key === "backgroundColorHex") return this.kplexPlugin.settings.backgroundColor.slice(0, 7).toLowerCase();
+    if (key === "baseLinkStyle.strokeColorHex") return sixHex(this.kplexPlugin.settings.baseLinkStyle.strokeColor, "#696969").toLowerCase();
+    if (key === "baseLinkStyle.strokeWidth") return this.kplexPlugin.settings.baseLinkStyle.strokeWidth ?? DEFAULT_LINK_STYLE.strokeWidth ?? 1;
+    if (key === "baseLinkStyle.strokeStyle") return this.kplexPlugin.settings.baseLinkStyle.strokeStyle ?? "solid";
+    if (key === "baseLinkStyle.startArrowHead") return this.kplexPlugin.settings.baseLinkStyle.startArrowHead ?? "none";
+    if (key === "baseLinkStyle.endArrowHead") return this.kplexPlugin.settings.baseLinkStyle.endArrowHead ?? "none";
+    if (key === "baseLinkStyle.showLabel") return this.kplexPlugin.settings.baseLinkStyle.showLabel ?? false;
+    if (key === "baseLinkStyle.textColorHex") return sixHex(this.kplexPlugin.settings.baseLinkStyle.textColor, "#ffffff").toLowerCase();
+    if (key === "baseLinkStyle.fontSize") return this.kplexPlugin.settings.baseLinkStyle.fontSize ?? DEFAULT_LINK_STYLE.fontSize ?? 10;
+    if (key === "baseNodeStyle.gateRadius") return this.kplexPlugin.settings.baseNodeStyle.gateRadius ?? DEFAULT_NODE_STYLE.gateRadius ?? 5;
+    return this.kplexPlugin.settings[key as keyof KplexSettings];
   }
 
   async setControlValue(key: string, value: unknown): Promise<void> {
     const hierarchyKey = HIERARCHY_KEY_MAP[key];
     if (hierarchyKey) {
-      this.ebPlugin.settings.hierarchy[hierarchyKey] = fromCsv(String(value));
-      await this.ebPlugin.saveSettings(true);
+      this.kplexPlugin.settings.hierarchy[hierarchyKey] = fromCsv(String(value));
+      await this.kplexPlugin.saveSettings(true);
       return;
     }
 
     if (key === "excludeFilepathsCsv") {
-      this.ebPlugin.settings.excludeFilepaths = fromCsv(String(value));
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.excludeFilepaths = fromCsv(String(value));
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
 
     if (key === "backgroundColorHex") {
       const hex = String(value).slice(0, 7).toLowerCase();
-      this.ebPlugin.settings.backgroundColor = `${hex}ff`;
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.backgroundColor = `${hex}ff`;
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
 
     if (key === "baseLinkStyle.strokeColorHex") {
-      this.ebPlugin.settings.baseLinkStyle.strokeColor = eightHex(String(value));
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.baseLinkStyle.strokeColor = eightHex(String(value));
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
     if (key === "baseLinkStyle.strokeWidth") {
-      this.ebPlugin.settings.baseLinkStyle.strokeWidth = Math.max(0.5, Math.min(8, Number(value) || 1));
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.baseLinkStyle.strokeWidth = Math.max(0.5, Math.min(8, Number(value) || 1));
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
     if (key === "baseLinkStyle.strokeStyle") {
       const next = String(value);
-      this.ebPlugin.settings.baseLinkStyle.strokeStyle = next === "dashed" || next === "dotted" ? next : "solid";
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.baseLinkStyle.strokeStyle = next === "dashed" || next === "dotted" ? next : "solid";
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
     if (key === "baseLinkStyle.startArrowHead") {
-      this.ebPlugin.settings.baseLinkStyle.startArrowHead = String(value) as Arrowhead;
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.baseLinkStyle.startArrowHead = String(value) as Arrowhead;
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
     if (key === "baseLinkStyle.endArrowHead") {
-      this.ebPlugin.settings.baseLinkStyle.endArrowHead = String(value) as Arrowhead;
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.baseLinkStyle.endArrowHead = String(value) as Arrowhead;
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
     if (key === "baseLinkStyle.showLabel") {
-      this.ebPlugin.settings.baseLinkStyle.showLabel = Boolean(value);
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.baseLinkStyle.showLabel = Boolean(value);
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
     if (key === "baseLinkStyle.textColorHex") {
-      this.ebPlugin.settings.baseLinkStyle.textColor = eightHex(String(value));
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.baseLinkStyle.textColor = eightHex(String(value));
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
     if (key === "baseLinkStyle.fontSize") {
-      this.ebPlugin.settings.baseLinkStyle.fontSize = Math.max(7, Math.min(24, Number(value) || 10));
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.baseLinkStyle.fontSize = Math.max(7, Math.min(24, Number(value) || 10));
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
     if (key === "baseNodeStyle.gateRadius") {
-      this.ebPlugin.settings.baseNodeStyle.gateRadius = Number(value);
-      await this.ebPlugin.saveSettings(false);
+      this.kplexPlugin.settings.baseNodeStyle.gateRadius = Number(value);
+      await this.kplexPlugin.saveSettings(false);
       return;
     }
 
-    const settingKey = key as keyof ExcaliBrainSettings;
-    (this.ebPlugin.settings as unknown as Record<string, unknown>)[settingKey] = value;
+    const settingKey = key as keyof KplexSettings;
+    (this.kplexPlugin.settings as unknown as Record<string, unknown>)[settingKey] = value;
     if (key === "renderAlias" || key === "nameFields") {
-      await this.ebPlugin.saveSettings(false, false);
-      this.ebPlugin.index.refreshDisplayNames();
+      await this.kplexPlugin.saveSettings(false, false);
+      this.kplexPlugin.index.refreshDisplayNames();
       return;
     }
-    await this.ebPlugin.saveSettings(REINDEX_SETTING_KEYS.has(key));
+    await this.kplexPlugin.saveSettings(REINDEX_SETTING_KEYS.has(key));
   }
 }

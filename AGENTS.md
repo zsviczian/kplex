@@ -2,7 +2,7 @@
 
 ## Mission
 
-Develop **K-Plex (Knowledge Plex)** as a dedicated React application inside Obsidian based on the Proof of Concept project [ExcaliBrain](https://github.com/zsviczian/excalibrain) preserving the relationship semantics, ontology model and useful settings compatibility of its predessessor: ExcaliBrain. At the same time K-Plex offers additional features and is an independent, stand alone solution and has no dependency on ExcaliBrain, Excalidraw or Dataview.
+Develop **K-Plex (Knowledge Plex)** as a dedicated React application inside Obsidian. Preserve relationship semantics, ontology and graph/node/link styling when migrating data from its predecessor, [ExcaliBrain](https://github.com/zsviczian/excalibrain). K-Plex is an independent, standalone solution with additional features and no runtime dependency on the legacy plugin, Excalidraw or Dataview.
 
 The plugin ID is **`k-plex`** so K-Plex can coexist with legacy ExcaliBrain during migration.
 
@@ -78,12 +78,12 @@ Rules:
 
 ## Non-negotiable compatibility rules
 
-1. Preserve classic ExcaliBrain ontology semantics unless a deliberate migration/change is documented.
+1. Preserve ontology semantics when migrating legacy ExcaliBrain data unless a deliberate migration/change is documented.
 2. Explicit document-property relationships take precedence over inferred/body relationships.
 3. Preserve parent / child / left-friend / right-friend / previous / next reconciliation behavior.
 4. Preserve support for Markdown notes, attachments, folders, tags, URLs and virtual/unresolved nodes.
 5. Preserve legacy style inheritance as closely as possible without relying on Excalidraw rendering.
-6. Preserve/migrate legacy persisted settings instead of silently reinterpreting them.
+6. Import only legacy graph ontology and graph/node/link appearance, not plugin CSS, commands, hotkeys, navigation history, workspace/editor state or scheduling. Preserve existing K-Plex preferences when importing; loading K-Plex's own data remains separate from foreign-data import.
 7. Migrate old `hierarchy.friends` to `hierarchy.leftFriends`.
 8. If legacy ExcaliBrain is installed and running, automatically import compatible settings the first time K-Plex runs in that vault. Keep a manual import path as well.
 9. Folder and tag nodes may be central nodes. Relationship creation/relinking involving folder/tag endpoints stays disabled, except that dragging outward from a folder's child gate is an explicit file-creation gesture for creating a real child file inside that physical folder.
@@ -523,7 +523,7 @@ Use sliders where a bounded numeric range is meaningful (zone heights, gate radi
 
 ## Naming
 
-Use **K-Plex**, not ExcaliBrain, in user-facing UI and docs except when explicitly discussing compatibility/migration.
+Use **K-Plex** in user-facing UI and current product docs, `Kplex` for named code types/components and `kplex` for CSS classes, custom properties, SVG IDs and canonical command suffixes. ExcaliBrain terminology belongs only to explicit data-migration/compatibility boundaries and their preserved source evidence. Keep supported graph-migration keys and migration fixtures stable; do not register legacy CSS or command aliases; never rebrand user data or rewrite historical validation transcripts as though they tested the new namespace. See [legacy compatibility](docs/LEGACY_COMPATIBILITY.md).
 
 Use **nodes**, not "thoughts", in user-facing terminology. Legacy internal names can be migrated gradually, but new UI strings should say nodes.
 

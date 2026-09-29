@@ -2,7 +2,7 @@
  * Native Obsidian dialog for adding or moving an ontology relationship. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
 import { Modal, Notice, TFile, setIcon, type WorkspaceLeaf } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { GateRole, GateSide, GraphPage, LinkDirection } from "../types";
 
 export type RelationModalOptions = {
@@ -47,7 +47,7 @@ export class RelationModal extends Modal {
   private searchInput: HTMLInputElement | null = null;
   private selectedStoragePath: string | null = null;
 
-  constructor(private plugin: ExcaliBrainPlugin, private options: RelationModalOptions) {
+  constructor(private plugin: KplexPlugin, private options: RelationModalOptions) {
     super(plugin.app);
     this.semanticRole = options.semanticRole;
     this.selectedField = options.initialField?.trim() || plugin.defaultOntologyField(this.semanticRole);

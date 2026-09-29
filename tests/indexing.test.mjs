@@ -48,7 +48,7 @@ assert(appSource.includes("onMouseEnter={onHoverStart}") && appSource.includes("
 assert(mainSource.includes('this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })'), "Progressive indexing status must show localized indexed-file progress");
 assert(mainSource.includes("this.index.indexedMarkdownFileCount()"), "Index status progress must come from published Markdown sources rather than graph node count");
 assert(mainSource.includes("this.settings.startupIndexInfoBubbleSeen = true") && mainSource.includes("void this.saveSettings(false, false)"), "Startup indexing guidance must persist its one-time seen state when claimed");
-assert(appSource.includes('["indexing", "updating"].includes(indexStatus.phase)') && appSource.includes('translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })') && appSource.includes("indexStatus.label"), "Indexing and updating status details must show indexed-file progress while preserving the phase label");
+assert(appSource.includes('["indexing", "saving-cache", "updating"].includes(indexStatus.phase)') && appSource.includes('translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })') && appSource.includes("indexStatus.label"), "Indexing and checkpoint-saving status details must show indexed-file progress while preserving the phase label");
 assert(infoBubbleSource.includes("onAdvance?: () => void"), "Reusable info bubbles must expose caller-owned sequence advancement for future onboarding/help flows");
 assert(infoBubbleSource.includes("dismissLabel?: string"), "Informational status bubbles must be able to omit an unnecessary action row");
 assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");
@@ -349,6 +349,7 @@ for (const file of [
   "src/adapters/obsidian/excalidrawIntegrationVersion.ts",
   "src/adapters/obsidian/embeddedMarkdownLeaf.ts",
   "src/adapters/obsidian/externalUrl.ts",
+  "src/adapters/obsidian/indexDiagnosticsReport.ts",
   "src/adapters/obsidian/predicateContracts.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts",
   "src/adapters/obsidian/hostLinkSourceCollector.ts",
@@ -433,7 +434,8 @@ function moment(value, inputFormat, strict) {
     },
   };
 }
-const Platform = { isMobile: false };
+const Platform = { isMobile: false, isMacOS: true, isIosApp: false, isAndroidApp: false,
+  isWin: false, isLinux: false, isPhone: false, isTablet: false };
 class Plugin {
   constructor() { this.app = null; }
   async saveData() {}
@@ -450,7 +452,7 @@ class Notice { constructor() {} }
 function normalizePath(path) { return path; }
 function setIcon() {}
 module.exports = {
-  TAbstractFile, TFile, TFolder, getAllTags, moment, Platform, Plugin, FileView, MarkdownView,
+  TAbstractFile, TFile, TFolder, getAllTags, moment, Platform, apiVersion: "1.14.2", Plugin, FileView, MarkdownView,
   Menu, Notice, normalizePath, setIcon,
 };
 `);
@@ -471,13 +473,13 @@ function writeRuntimeStub(relativePath, source) {
 }
 writeRuntimeStub("src/settings.js", `
 exports.DEFAULT_SETTINGS = {};
-exports.ExcaliBrainSettingTab = class {};
+exports.KplexSettingTab = class {};
 exports.migrateAndMergeSettings = (_legacy, own) => own ?? {};
 `);
-writeRuntimeStub("src/ui/ExcaliBrainView.js", `
-exports.EXCALIBRAIN_VIEW_TYPE = "kplex";
+writeRuntimeStub("src/ui/KplexView.js", `
+exports.KPLEX_VIEW_TYPE = "kplex";
 exports.KPLEX_SIDEPANEL_VIEW_TYPE = "kplex-sidepanel";
-exports.ExcaliBrainView = class {};
+exports.KplexView = class {};
 exports.KplexSidepanelView = class {};
 `);
 for (const [path, name] of [
@@ -510,7 +512,132 @@ exports.createObsidianTranslator = () => createTranslator("en");
 
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
 const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
-const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
+const { KplexIndexedDbCache } = require(join(temp, "src/index/IndexedDbCache.js"));
+const { createIndexDiagnosticsReport } = require(join(temp, "src/adapters/obsidian/indexDiagnosticsReport.js"));
+const KplexPlugin = require(join(temp, "src/main.js")).default;
+
+// Cleanup must never delete a generation when a transient metadata read hides its pointer.
+{
+  const cache = new KplexIndexedDbCache("cleanup-guard-fixture");
+  const deleted = [];
+  cache.open = async () => ({
+    objectStoreNames: { contains: () => true },
+    transaction: () => {
+      const tx = {
+        objectStore: () => ({ index: () => ({ openKeyCursor: () => {
+          const request = { result: null, onsuccess: null, onerror: null };
+          queueMicrotask(() => {
+            request.result = { key: "still-referenced", continue: () => queueMicrotask(() => {
+              request.result = null;
+              request.onsuccess();
+              queueMicrotask(() => tx.oncomplete());
+            }) };
+            request.onsuccess();
+          });
+          return request;
+        } }) }),
+      };
+      return tx;
+    },
+  });
+  cache.deleteGeneration = async (generation) => { deleted.push(generation); };
+  cache.readSnapshotCatalog = async () => ({ available: false, active: null, checkpoint: null,
+    invalidActive: false, invalidCheckpoint: false });
+  await cache.cleanupOrphanGenerations("other-generation");
+  cache.readSnapshotCatalog = async () => ({ available: true, active: null, checkpoint: null,
+    invalidActive: false, invalidCheckpoint: true });
+  await cache.cleanupOrphanGenerations("other-generation");
+  assert.deepEqual(deleted, [], "Uncertain snapshot pointers must preserve all generations");
+}
+
+// Restored support history must drop unknown fields and invalid reasons before clipboard export.
+{
+  const cache = new KplexIndexedDbCache("diagnostic-sanitizer-fixture");
+  cache.open = async () => ({ transaction: () => {
+    const tx = { objectStore: () => ({ get: () => {
+      const request = { result: null, onsuccess: null, onerror: null };
+      queueMicrotask(() => {
+        request.result = { entries: [
+          { at: 123, stage: "persist", reason: "checkpoint-saved", completedMarkdownFiles: 700,
+            durationMs: 1300, path: "Private/Note.md" },
+          { at: 124, stage: "restore", reason: "Private/Note.md", path: "Private/Note.md" },
+        ] };
+        request.onsuccess();
+        queueMicrotask(() => tx.oncomplete());
+      });
+      return request;
+    } }) };
+    return tx;
+  } });
+  assert.deepEqual(await cache.readIndexDiagnostics(), [
+    { at: 123, stage: "persist", reason: "checkpoint-saved", completedMarkdownFiles: 700, durationMs: 1300 },
+  ]);
+  const unavailable = new KplexIndexedDbCache("checkpoint-write-fixture");
+  unavailable.open = async () => null;
+  let failureReason = null;
+  assert.equal(await unavailable.writeSnapshot({ createdAt: 1, vaultSignature: "v", settingsSignature: "s",
+    discoveredFields: [] }, [], [], () => true, "checkpoint", (reason) => { failureReason = reason; }), false);
+  assert.equal(failureReason, "storage-unavailable");
+}
+
+// Support output must be useful during a rebuild without exposing raw snapshot metadata or paths.
+{
+  const summaryContext = {};
+  GraphIndex.prototype.rememberSnapshotCatalog.call(summaryContext, {
+    available: true, invalidActive: false,
+    active: { createdAt: 100, schema: 3, pageChunkCount: 4, evidenceChunkCount: 7,
+      generation: "private-generation", vaultSignature: "private-vault", settingsSignature: "private-settings" },
+    checkpoint: { createdAt: 200, schema: 3, completedMarkdownPaths: ["Private/Note.md"] },
+  });
+  const saved = GraphIndex.prototype.getSavedSnapshotSummary.call(summaryContext);
+  const report = JSON.parse(createIndexDiagnosticsReport({
+    getSavedSnapshotSummary: () => saved,
+    size: 42,
+    indexedMarkdownFileCount: () => 8,
+    isFullSnapshotHydrated: () => false,
+    getSnapshotHydrationDiagnostics: () => ({ phase: "pages", pages: 12, evidence: 0 }),
+    getIndexDiagnostics: () => [{ at: 123, stage: "restore", reason: "complete-snapshot-stale", added: 1 }],
+  }, () => ({ upToDate: false, phase: "loading-cache", label: "not shared", indexedFiles: 8, totalFiles: 10 }), "0.0.5"));
+  assert.equal(report.plugin.version, "0.0.5");
+  assert.deepEqual(report.device, { obsidianApiVersion: "1.14.2", operatingSystem: "macos", formFactor: "desktop" });
+  assert.equal(report.status.totalFiles, 10);
+  assert.equal(report.graph.nodes, 42);
+  assert.equal(report.saved.active.schema, 3);
+  assert.equal(report.saved.checkpoint.completedMarkdownFiles, 1);
+  assert.equal(report.decisions[0].reason, "complete-snapshot-stale");
+  obsidianTestApi.Platform.isIosApp = true;
+  obsidianTestApi.Platform.isTablet = true;
+  const iosReport = JSON.parse(createIndexDiagnosticsReport({
+    getSavedSnapshotSummary: () => saved, size: 42, indexedMarkdownFileCount: () => 8,
+    isFullSnapshotHydrated: () => false, getSnapshotHydrationDiagnostics: () => ({}),
+    getIndexDiagnostics: () => [],
+  }, () => ({ upToDate: false, phase: "indexing", indexedFiles: 8, totalFiles: 10 }), "0.0.5"));
+  assert.equal(iosReport.platform, "ios");
+  assert.deepEqual(iosReport.device, { obsidianApiVersion: "1.14.2", operatingSystem: "ios", formFactor: "tablet" });
+  obsidianTestApi.Platform.isIosApp = false;
+  obsidianTestApi.Platform.isTablet = false;
+  assert(!JSON.stringify(report).includes("Private/Note.md"));
+  assert(!JSON.stringify(report).includes("private-generation"));
+  assert(!JSON.stringify(report).includes("private-vault"));
+  assert(!JSON.stringify(report).includes("private-settings"));
+  assert(!JSON.stringify(report).includes("not shared"));
+  const status = KplexPlugin.prototype.getIndexDiagnosticsStatus.call({
+    cachedMarkdownFileCount: null,
+    computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
+    initialIndexComplete: false, indexDirty: true, rebuildTask: null, rebuildTimer: null,
+    index: { hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 8 },
+    getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
+  });
+  assert.deepEqual(status, { upToDate: false, phase: "loading-cache", indexedFiles: 8, totalFiles: null });
+  const readyStatus = KplexPlugin.prototype.getIndexDiagnosticsStatus.call({
+    cachedMarkdownFileCount: null,
+    computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
+    initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
+    index: { hasPendingSnapshotHydration: () => false, indexedMarkdownFileCount: () => 8 },
+    getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
+  });
+  assert.deepEqual(readyStatus, { upToDate: true, phase: "ready", indexedFiles: 8, totalFiles: null });
+}
 
 // URL selection must not replace a companion with Obsidian's missing-plugin placeholder.
 {
@@ -521,17 +648,18 @@ const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
   };
   let assignments = 0;
   const leaf = { async setViewState() { assignments += 1; } };
-  await ExcaliBrainPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  await KplexPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
   assert.equal(assignments, 0, "Unavailable Web Viewer must not be assigned to a native leaf");
   assert.equal(context.settings.sidecarLastFilePath, "Existing.md");
   assert.equal(context.settings.sidecarLastUrl, "");
   context.app.viewRegistry = { getViewCreatorByType: () => () => {} };
-  await ExcaliBrainPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  await KplexPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
   assert.equal(assignments, 1, "An available Web Viewer must retain explicit Sidecar preview support");
   assert.equal(context.settings.sidecarLastFilePath, "");
   assert.equal(context.settings.sidecarLastUrl, "https://example.com");
 }
 const indexingStatusContext = {
+  computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
   initialIndexComplete: false,
   indexDirty: true,
   rebuildTask: Promise.resolve(),
@@ -545,6 +673,7 @@ const indexingStatusContext = {
   index: {
     size: 3,
     hasPendingSnapshotHydration: () => false,
+    isCheckpointSaving: () => false,
     hasIncrementalRestorePatch: () => false,
     indexedMarkdownFileCount: () => 3,
   },
@@ -554,10 +683,11 @@ const indexingStatusContext = {
     if (key === "index.statusPreparing") return "Status: preparing index";
     if (key === "index.statusCheckingCache") return "Status: checking cached index for changes";
     if (key === "index.statusIndexingProgress") return `Status: indexing ${params.indexed} of ${params.total} files`;
+    if (key === "index.statusSavingCache") return "Status: saving index to cache";
     return "Status: updating index";
   },
 };
-assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
+assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
   upToDate: false,
   phase: "indexing",
   label: "Status: indexing 3 of 5 files",
@@ -565,9 +695,19 @@ assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusC
   totalFiles: 5,
 }, "Progressive indexing status must report currently published Markdown-file progress");
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "First status read must capture the Markdown total once");
-ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext);
+KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext);
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publications must reuse the cached Markdown total");
-assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
+assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
+  ...indexingStatusContext,
+  index: { ...indexingStatusContext.index, isCheckpointSaving: () => true },
+}), {
+  upToDate: false,
+  phase: "saving-cache",
+  label: "Status: saving index to cache",
+  indexedFiles: 3,
+  totalFiles: 5,
+}, "A live checkpoint must explain why the indexing counter pauses without losing its progress count");
+assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
   rebuildTask: null,
   index: { ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 0 },
@@ -578,7 +718,7 @@ assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
   indexedFiles: 0,
   totalFiles: 5,
 }, "Snapshot hydration must identify cache loading instead of presenting a misleading 0-of-total indexing status");
-assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
+assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
   rebuildTask: null,
   initialIndexComplete: true,
@@ -598,11 +738,11 @@ const startupBubbleContext = {
   getIndexStatus: () => ({ upToDate: false }),
   saveSettings: () => { startupBubbleSaves += 1; return Promise.resolve(); },
 };
-assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), true, "First incomplete startup must claim the one-time guidance bubble");
+assert.equal(KplexPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), true, "First incomplete startup must claim the one-time guidance bubble");
 assert.equal(startupBubbleContext.settings.startupIndexInfoBubbleSeen, true, "Claiming startup guidance must persist its seen state in settings");
 assert.equal(startupBubbleSaves, 1, "Claiming startup guidance must save the one-time state exactly once");
-assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), false, "The same session must not reclaim startup guidance");
-assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call({
+assert.equal(KplexPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), false, "The same session must not reclaim startup guidance");
+assert.equal(KplexPlugin.prototype.claimStartupIndexInfoBubble.call({
   ...startupBubbleContext,
   startupIndexInfoBubbleClaimed: false,
 }), false, "A persisted seen flag must prevent startup guidance from returning after restart");
@@ -620,15 +760,15 @@ for (const axis of ["width", "height"]) {
     splitAxis: () => axis,
     setWorkspaceBasis: (element, extent) => writes.push([element, extent]),
   };
-  ExcaliBrainPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
+  KplexPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
   assert.deepEqual(writes, [[anchor, 200], [pane, 200]], "Collapsed native pane must share its anchor's allocation");
   writes.length = 0;
   paneExtent = 200;
-  ExcaliBrainPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
+  KplexPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
   assert.deepEqual(writes, [], "Usable native allocations must remain unchanged");
   paneExtent = 0;
   pane.parentElement = {};
-  ExcaliBrainPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
+  KplexPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
   assert.deepEqual(writes, [], "Sizing must not cross unrelated workspace splits");
 }
 const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedRelations, computeIndexSettingsSignature, computeVaultSignature, persistedDeclarationFromEvidence } = require(join(temp, "src/index/IndexSnapshot.js"));
@@ -861,7 +1001,6 @@ const hierarchy = {
 
 const settings = {
   hierarchy,
-  excalibrainFilepath: "Excalibrain.md",
   noteTypeField: "Note type",
   primaryTagField: "Note type",
   tagStyleList: ["#project", "#person"],
@@ -920,6 +1059,64 @@ const settings = {
 
 const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnostic() {}, manifest: { dir: "" } };
 const index = new GraphIndex(plugin, app);
+
+// Restore has a temporary event fence before the normal reactive listeners are installed.
+// Events before inventory capture are already represented there; later events must remain queued
+// even if stale-snapshot reconciliation itself succeeds without a new event during its await.
+for (const { inventoryRevision, fresh, remainsDirty } of [
+  { inventoryRevision: 1, fresh: true, remainsDirty: false },
+  { inventoryRevision: 1, fresh: false, remainsDirty: false },
+  { inventoryRevision: 0, fresh: true, remainsDirty: true },
+  { inventoryRevision: 0, fresh: false, remainsDirty: true },
+]) {
+  const startup = new KplexPlugin();
+  startup.index = {
+    getRestoreInventorySourceRevision: () => inventoryRevision,
+    hasPendingSnapshotHydration: () => false,
+    size: 1,
+    isFullSnapshotHydrated: () => true,
+    hasIncrementalRestorePatch: () => true,
+    reconcileRestoredSnapshot: async () => ({ reconciled: true, patched: 0 }),
+  };
+  startup.app = app;
+  startup.layoutReady = true;
+  startup.metadataStabilized = true;
+  startup.notifyIndexStatus = () => {};
+  startup.hasVisibleKplexSurface = () => false;
+  startup.preRestoreChanged = true;
+  startup.indexDirtyRevision = 1;
+  startup.preRestoreMarkdownPaths.set("Note A.md", 1);
+  startup.preRestoreReasons.set("metadata:changed", 1);
+  startup.classifyPreRestoreChanges(fresh);
+  if (!fresh) startup.indexBacklogReasons.add("startup:stale-snapshot");
+  await startup.ensureInitialIndex();
+  assert.equal(startup.indexDirty, remainsDirty, `Startup event coverage must match inventory revision ${inventoryRevision}`);
+  assert.equal(startup.dirtyMarkdownPaths.size > 0, remainsDirty, "Only uncovered paths may remain queued");
+}
+{
+  const startup = new KplexPlugin();
+  startup.index = { getRestoreInventorySourceRevision: () => 1 };
+  startup.preRestoreChanged = true;
+  startup.indexDirtyRevision = 1;
+  startup.preRestoreReasons.set("metadata:changed", 1);
+  startup.indexBacklogReasons.add("manual-rebuild");
+  startup.classifyPreRestoreChanges(true);
+  assert.equal(startup.indexDirty, true, "Covered fence events must not clear an independent rebuild request");
+  assert.deepEqual([...startup.indexBacklogReasons], ["manual-rebuild"]);
+}
+{
+  const startup = new KplexPlugin();
+  startup.index = { getRestoreInventorySourceRevision: () => 1 };
+  startup.preRestoreChanged = true;
+  startup.indexDirtyRevision = 2;
+  startup.preRestoreReasons.set("vault:rename-folder", 1);
+  startup.preRestoreReasons.set("metadata:changed", 2);
+  startup.preRestoreMarkdownPaths.set("Note A.md", 2);
+  startup.classifyPreRestoreChanges(true);
+  assert.deepEqual([...startup.indexBacklogReasons], ["metadata:changed"],
+    "A covered structural event must not turn a later note edit into a full rebuild");
+  assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"]);
+}
 
 function expectRole(sourcePath, role, targetPath, type) {
   const source = index.get(sourcePath);
@@ -1023,6 +1220,133 @@ try {
   };
   assert.deepEqual(baseline, JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-indexing/graph-baseline.json"), "utf8")));
 
+  // A new Markdown file may arrive after the last complete snapshot and before the five-minute
+  // edit idle write. Warm startup must reuse that snapshot and ingest only the new source.
+  const warmRecord = {
+    meta: {
+      key: "active", schema: 3, generation: "warm-before-create", createdAt: Date.now(),
+      vaultSignature: computeVaultSignature(app), settingsSignature: computeIndexSettingsSignature(settings),
+      discoveredFields: [...index.state.discoveredFields.entries()], pageChunkCount: 1, evidenceChunkCount: 1,
+    },
+    pages: [...index.state.pages.values()].filter((page) => !page.transient)
+      .map((page) => persistedPageFromGraphPage(page, index.semanticFingerprints.get(page.path))),
+    evidence: [...index.state.evidence.declarations()].map(persistedDeclarationFromEvidence),
+  };
+  const newPath = "Startup Delta.md";
+  const newContent = "Parent:: [[Note A]]\n";
+  const newFile = new TFile(newPath, mtime++);
+  newFile.stat.size = newContent.length;
+  newFile.parent = rootFolder;
+  files.set(newPath, newFile);
+  rootFolder.children.push(newFile);
+  contents.set(newPath, newContent);
+  caches.set(newPath, { frontmatter: {}, tags: [], links: cacheLinks(newContent) });
+  resolvedLinks[newPath] = { "Note A.md": 1 };
+  unresolvedLinks[newPath] = {};
+  const makeWarmDelta = () => {
+    const warmDelta = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [] } }, app);
+    warmDelta.indexedDb.readSnapshotMeta = async (key = "active") => key === "active" ? warmRecord.meta : null;
+    warmDelta.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: warmRecord.meta, checkpoint: null, invalidActive: false });
+    warmDelta.indexedDb.snapshotUsesChunks = () => true;
+    warmDelta.indexedDb.getPages = async (_generation, paths) => new Map(warmRecord.pages
+      .filter((page) => paths.includes(page.path)).map((page) => [page.path, page]));
+    warmDelta.indexedDb.iterateSnapshotPages = async (_meta, onPage, current) => {
+      for (const page of warmRecord.pages) { if (!current()) return false; onPage(page); }
+      return current();
+    };
+    warmDelta.indexedDb.iterateSnapshotEvidence = async (_meta, onEvidence, current) => {
+      for (const item of warmRecord.evidence) { if (!current()) return false; onEvidence(item); }
+      return current();
+    };
+    warmDelta.scheduleOrphanCleanup = () => {};
+    warmDelta.scheduleSnapshotPersist = () => {};
+    return warmDelta;
+  };
+  const warmDelta = makeWarmDelta();
+  try {
+    await warmDelta.restoreIndexedDbSnapshot(["Note A.md"]);
+    const restored = await warmDelta.waitForSnapshotHydration();
+    assert.equal(restored.restored, true, "One added note must not discard the complete snapshot");
+    assert.equal(restored.fresh, false);
+    assert.equal(warmDelta.hasIncrementalRestorePatch(), true);
+    assert.deepEqual(warmDelta.restoredAddedMarkdownPaths, [newPath]);
+    const reconciled = await warmDelta.reconcileRestoredSnapshot();
+    assert.equal(reconciled.reconciled, true);
+    assert.equal(reconciled.patched, 1);
+    assert(warmDelta.getIndexDiagnostics().some((entry) => entry.reason === "complete-markdown-delta" && entry.added === 1));
+    assert(warmDelta.getIndexDiagnostics().some((entry) => entry.reason === "per-file-reconcile-complete" && entry.added === 1));
+    const freshBuild = new GraphIndex(plugin, app);
+    try {
+      assert.equal(await freshBuild.rebuild(), true);
+      assert.deepEqual(canonicalGraph(warmDelta), canonicalGraph(freshBuild), "Warm creation recovery must match a full build");
+    } finally { freshBuild.destroy(); }
+  } finally {
+    warmDelta.destroy();
+    files.delete(newPath);
+    rootFolder.children = rootFolder.children.filter((child) => child !== newFile);
+    contents.delete(newPath);
+    caches.delete(newPath);
+    delete resolvedLinks[newPath];
+    delete unresolvedLinks[newPath];
+  }
+
+  const deletedPath = "Section Tree.md";
+  const deletedFile = files.get(deletedPath);
+  assert(deletedFile);
+  files.delete(deletedPath);
+  deletedFile.parent.children = deletedFile.parent.children.filter((child) => child !== deletedFile);
+  const warmDeletion = makeWarmDelta();
+  try {
+    await warmDeletion.restoreIndexedDbSnapshot(["Note A.md"]);
+    assert.equal((await warmDeletion.waitForSnapshotHydration()).restored, true);
+    assert.deepEqual(warmDeletion.restoredRemovedMarkdownPaths, [deletedPath]);
+    const result = await warmDeletion.reconcileRestoredSnapshot();
+    assert.equal(result.reconciled, true);
+    assert.equal(result.patched, 0);
+    assert.equal(warmDeletion.get(deletedPath)?.file, null, "A removed note remains a nonmaterialized graph endpoint");
+  } finally {
+    warmDeletion.destroy();
+    files.set(deletedPath, deletedFile);
+    deletedFile.parent.children.push(deletedFile);
+  }
+
+  const attachment = new TFile("Startup Attachment.png", mtime++);
+  attachment.parent = rootFolder;
+  rootFolder.children.push(attachment);
+  files.set(attachment.path, attachment);
+  const unsupportedWarmDelta = makeWarmDelta();
+  try {
+    await unsupportedWarmDelta.restoreIndexedDbSnapshot(["Note A.md"]);
+    assert.equal((await unsupportedWarmDelta.waitForSnapshotHydration()).restored, false,
+      "Attachment additions still need a structural rebuild");
+    assert(unsupportedWarmDelta.getIndexDiagnostics().some((entry) =>
+      entry.reason === "non-markdown-file-added" && entry.added === 1));
+  } finally {
+    unsupportedWarmDelta.destroy();
+    files.delete(attachment.path);
+    rootFolder.children = rootFolder.children.filter((child) => child !== attachment);
+  }
+
+  // Real Obsidian reports the vault root path as "/"; fixture roots may report "". Both map to
+  // the persisted folder:/ graph node and must accept an otherwise fresh complete snapshot.
+  const fixtureRootPath = rootFolder.path;
+  const fixtureSignature = warmRecord.meta.vaultSignature;
+  rootFolder.path = "/";
+  warmRecord.meta.vaultSignature = computeVaultSignature(app);
+  const slashRootRestore = makeWarmDelta();
+  try {
+    await slashRootRestore.restoreIndexedDbSnapshot(["Note A.md"]);
+    const restored = await slashRootRestore.waitForSnapshotHydration();
+    assert.equal(restored.restored, true);
+    assert.equal(restored.fresh, true);
+    assert.equal(slashRootRestore.hasIncrementalRestorePatch(), true);
+    assert(!slashRootRestore.getIndexDiagnostics().some((entry) => entry.reason === "folder-structure-changed"));
+  } finally {
+    slashRootRestore.destroy();
+    rootFolder.path = fixtureRootPath;
+    warmRecord.meta.vaultSignature = fixtureSignature;
+  }
+
   // Cold startup publishes a useful center neighborhood before completing the vault, while still
   // converging exactly on the authoritative full-build graph/search/discovered-field behavior.
   const progressiveIndex = new GraphIndex(plugin, app);
@@ -1056,6 +1380,143 @@ try {
     progressiveIndex.destroy();
   }
 
+  // A synced Markdown create after the cold builder captured its file list must not cancel and
+  // restart thousands of committed sources. The coordinator keeps that path for one final patch.
+  let syncRevision = 0;
+  const syncPlugin = { ...plugin, getIndexSourceRevision: () => syncRevision };
+  const syncIndex = new GraphIndex(syncPlugin, app);
+  const syncPath = "Synced During Cold Build.md";
+  const originalSyncCommit = syncIndex.commitPreparedFile.bind(syncIndex);
+  let committedBeforeSync = 0;
+  let syncedFile = null;
+  syncIndex.commitPreparedFile = (commit, publish) => {
+    originalSyncCommit(commit, publish);
+    committedBeforeSync++;
+    if (syncedFile) return;
+    syncedFile = new TFile(syncPath, mtime++);
+    syncedFile.parent = rootFolder;
+    rootFolder.children.push(syncedFile);
+    files.set(syncPath, syncedFile);
+    contents.set(syncPath, "A synchronized note added while indexing.\n");
+    caches.set(syncPath, { frontmatter: {}, tags: [], links: [] });
+    resolvedLinks[syncPath] = {};
+    unresolvedLinks[syncPath] = {};
+    syncRevision++;
+  };
+  try {
+    assert.equal(await syncIndex.rebuildProgressively(["Note A.md"]), true);
+    assert(committedBeforeSync > 1, "The source revision event must not stop the remaining cold pass");
+    assert.equal(syncIndex.get(syncPath), undefined, "A post-capture note belongs to the retained per-file backlog");
+    syncIndex.insertCreatedFile(syncedFile);
+    assert.deepEqual(await syncIndex.patchMarkdownPaths([syncPath]), { outcome: "patched", count: 1 });
+    const cleanAfterSync = new GraphIndex(syncPlugin, app);
+    try {
+      assert.equal(await cleanAfterSync.rebuild(), true);
+      assert.deepEqual(canonicalGraph(syncIndex), canonicalGraph(cleanAfterSync));
+    } finally { cleanAfterSync.destroy(); }
+  } finally {
+    syncIndex.destroy();
+    files.delete(syncPath);
+    rootFolder.children = rootFolder.children.filter((child) => child !== syncedFile);
+    contents.delete(syncPath);
+    caches.delete(syncPath);
+    delete resolvedLinks[syncPath];
+    delete unresolvedLinks[syncPath];
+  }
+
+  // A failed checkpoint must retain its accumulated commits and retry after a short backoff.
+  // The scheduler is exercised with synthetic committed sources so this fixture does not need
+  // to serialize hundreds of real files or wait two wall-clock minutes.
+  const checkpointRetryIndex = new GraphIndex(plugin, app);
+  const originalRetryNow = Date.now;
+  const originalRetryMarkdownFiles = app.vault.getMarkdownFiles;
+  const originalRetryPatch = GraphBuilder.prototype.patchMarkdownFiles;
+  let retryClock = originalRetryNow();
+  let simulatedCommits = 0;
+  const checkpointAttempts = [];
+  const syntheticSources = Array.from({ length: 2000 }, (_, n) => new TFile(`Retry Synthetic ${n}.md`, n + 1));
+  Date.now = () => retryClock;
+  app.vault.getMarkdownFiles = () => [...originalRetryMarkdownFiles(), ...syntheticSources];
+  checkpointRetryIndex.persistIndexedDbSnapshot = async () => {
+    checkpointAttempts.push(simulatedCommits);
+    return checkpointAttempts.length > 1;
+  };
+  GraphBuilder.prototype.patchMarkdownFiles = async function (state, batchFiles, options) {
+    if (!options.afterFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
+    for (let n = 0; n < 620; n++) {
+      simulatedCommits++;
+      retryClock += 300;
+      options.publishFileCommit({ sourcePath: syntheticSources[n].path,
+        touchedPagePaths: new Set(), semanticChanged: false }, () => {});
+      await options.afterFileCommit(syntheticSources[n].path);
+    }
+    return { ok: true, cancelled: false, rebuildRequired: false,
+      touchedPagePaths: new Set(), semanticChanges: 0, semanticNoops: 0 };
+  };
+  try {
+    assert.equal(await checkpointRetryIndex.rebuildProgressively(["Note A.md"]), true);
+    assert.deepEqual(checkpointAttempts, [500, 550],
+      "A failed two-minute checkpoint must retry after 15 seconds, not advance to the four-minute interval");
+  } finally {
+    GraphBuilder.prototype.patchMarkdownFiles = originalRetryPatch;
+    app.vault.getMarkdownFiles = originalRetryMarkdownFiles;
+    Date.now = originalRetryNow;
+    checkpointRetryIndex.destroy();
+  }
+
+  // Reopening an old checkpoint must not restart its two-minute clock. After the first durable
+  // save, a large amount of new progress must also be saved before the four-minute timer ends.
+  const resumedCheckpointIndex = new GraphIndex(plugin, app);
+  const resumeSources = Array.from({ length: 4200 }, (_, n) => new TFile(`Resume Synthetic ${n}.md`, n + 1));
+  let resumeClock = originalRetryNow();
+  let resumeCommits = 0;
+  const savedProgress = [];
+  const saveTransitions = [];
+  resumedCheckpointIndex.subscribe(() => {
+    const saving = resumedCheckpointIndex.isCheckpointSaving();
+    if (saving !== saveTransitions.at(-1)) saveTransitions.push(saving);
+  });
+  resumedCheckpointIndex.resumableCheckpointPaths = new Set(resumeSources.slice(0, 500).map((file) => file.path));
+  resumedCheckpointIndex.restoredVaultSignature = "fixture-vault-signature";
+  resumedCheckpointIndex.savedSnapshotSummary.checkpoint = {
+    createdAt: resumeClock - 60 * 60 * 1000, schema: 3, completedMarkdownFiles: 500,
+  };
+  resumedCheckpointIndex.scheduleSnapshotPersist = () => {};
+  resumedCheckpointIndex.persistIndexedDbSnapshot = async (_generation, completed) => {
+    assert.equal(resumedCheckpointIndex.isCheckpointSaving(), true,
+      "The status must be visible throughout checkpoint persistence");
+    savedProgress.push({ commits: resumeCommits, completed: completed.size });
+    return true;
+  };
+  Date.now = () => resumeClock;
+  app.vault.getMarkdownFiles = () => [...originalRetryMarkdownFiles(), ...resumeSources];
+  GraphBuilder.prototype.patchMarkdownFiles = async function (state, batchFiles, options) {
+    if (!options.afterFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
+    for (const file of batchFiles.slice(0, 3000)) {
+      resumeCommits++;
+      resumeClock += 50;
+      options.publishFileCommit({ sourcePath: file.path,
+        touchedPagePaths: new Set(), semanticChanged: false }, () => {});
+      await options.afterFileCommit(file.path);
+    }
+    return { ok: true, cancelled: false, rebuildRequired: false,
+      touchedPagePaths: new Set(), semanticChanges: 0, semanticNoops: 0 };
+  };
+  try {
+    assert.equal(await resumedCheckpointIndex.rebuildProgressively([]), true);
+    assert.deepEqual(savedProgress, [
+      { commits: 500, completed: 1000 },
+      { commits: 2500, completed: 3000 },
+    ], "Restored checkpoint age and progress must both trigger durable saves");
+    assert.deepEqual(saveTransitions, [false, true, false, true, false],
+      "The indicator must enter and leave saving state around each checkpoint");
+  } finally {
+    GraphBuilder.prototype.patchMarkdownFiles = originalRetryPatch;
+    app.vault.getMarkdownFiles = originalRetryMarkdownFiles;
+    Date.now = originalRetryNow;
+    resumedCheckpointIndex.destroy();
+  }
+
   // A cold-build checkpoint must restore as non-authoritative, skip sources already committed,
   // and converge on the same graph as an uninterrupted build after restart.
   const interrupted = new GraphIndex(plugin, app);
@@ -1083,8 +1544,61 @@ try {
   assert.deepEqual(new Set(checkpointRecord.meta.completedMarkdownPaths), completedBeforeRestart);
   interrupted.destroy();
 
+  // A readable checkpoint must survive a damaged complete generation. The first page chunk
+  // failure is the user's observed zero-page restore, and must not force a cold vault build.
+  const fallback = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+  const damagedActive = { ...checkpointRecord.meta, key: "active", generation: "damaged-complete-generation", vaultSignature: "stale" };
+  const staleCheckpointMeta = { ...checkpointRecord.meta, vaultSignature: "stale" };
+  fallback.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: damagedActive,
+    checkpoint: staleCheckpointMeta, invalidActive: false, invalidCheckpoint: false });
+  fallback.indexedDb.snapshotUsesChunks = () => true;
+  fallback.indexedDb.getPages = async (generation, paths) => new Map(generation === checkpointRecord.meta.generation
+    ? checkpointRecord.pages.filter((page) => paths.includes(page.path)).map((page) => [page.path, page]) : []);
+  fallback.indexedDb.iterateSnapshotPages = async (meta, onPage, current, onFailure) => {
+    if (meta.key === "active") { onFailure?.("missing-chunk"); return false; }
+    for (const page of checkpointRecord.pages) { if (!current()) return false; onPage(page); }
+    return current();
+  };
+  fallback.indexedDb.iterateSnapshotEvidence = async (_meta, onEvidence, current) => {
+    for (const item of checkpointRecord.evidence) { if (!current()) return false; onEvidence(item); }
+    return current();
+  };
+  fallback.scheduleOrphanCleanup = () => {};
+  fallback.scheduleSnapshotPersist = () => {};
+  try {
+    await fallback.restoreIndexedDbSnapshot(["Note A.md"]);
+    assert.equal((await fallback.waitForSnapshotHydration()).restored, true);
+    assert.deepEqual(fallback.resumableCheckpointPaths, completedBeforeRestart);
+    assert.equal(fallback.isFullSnapshotHydrated(), false);
+    assert.equal(fallback.getSnapshotHydrationDiagnostics().outcome, "complete");
+    assert.deepEqual(fallback.getIndexDiagnostics().filter(({ stage }) => stage === "restore").map(({ reason }) => reason),
+      ["complete-snapshot-stale", "active-pages-missing-chunk", "checkpoint-selected", "checkpoint-restored"]);
+    // Startup can observe the already-settled checkpoint task. That state must still select
+    // the resumable lane instead of declaring the partial graph a failed preview.
+    await Promise.resolve();
+    const coordinator = new KplexPlugin();
+    coordinator.index = fallback; coordinator.app = app; coordinator.layoutReady = true;
+    coordinator.metadataStabilized = true; coordinator.indexDirty = true;
+    coordinator.indexBacklogReasons.add("startup:stale-snapshot");
+    let resumedBuilds = 0;
+    coordinator.performRebuild = async () => {
+      resumedBuilds++;
+      assert.equal(coordinator.indexBacklogReasons.has("startup:partial-restore-incomplete"), false);
+      assert.equal(fallback.hasRestoredCheckpoint(), true);
+      assert.equal(await fallback.rebuildProgressively(["Note A.md"]), true);
+      coordinator.indexDirty = false; coordinator.indexBacklogReasons.clear();
+    };
+    await coordinator.ensureInitialIndex();
+    assert.equal(resumedBuilds, 1);
+    assert.equal(fallback.isFullSnapshotHydrated(), true);
+    assert.deepEqual(canonicalGraph(fallback), baseline.graph);
+  } finally {
+    fallback.destroy();
+  }
+
   const resumed = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
   resumed.indexedDb.readSnapshotMeta = async (key = "active") => key === "checkpoint" ? checkpointRecord.meta : null;
+  resumed.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: null, checkpoint: checkpointRecord.meta, invalidActive: false });
   resumed.indexedDb.snapshotUsesChunks = () => true;
   resumed.indexedDb.getPages = async (_generation, paths) => new Map(checkpointRecord.pages
     .filter((page) => paths.includes(page.path)).map((page) => [page.path, page]));
@@ -1121,6 +1635,78 @@ try {
     assert.deepEqual(resumed.discoveredFields(), index.discoveredFields());
   } finally {
     resumed.destroy();
+  }
+
+  // A stale checkpoint still retains completed sources. Reprocess only the completed note
+  // whose revision changed and ingest a newly added note after restart.
+  const changedCompletedPath = "Note A.md";
+  assert(completedBeforeRestart.has(changedCompletedPath));
+  const changedCompletedFile = files.get(changedCompletedPath);
+  const previousContent = contents.get(changedCompletedPath);
+  const previousMtime = changedCompletedFile.stat.mtime;
+  const previousSize = changedCompletedFile.stat.size;
+  const checkpointNewPath = "Checkpoint Delta.md";
+  const checkpointNewFile = new TFile(checkpointNewPath, mtime++);
+  checkpointNewFile.parent = rootFolder;
+  rootFolder.children.push(checkpointNewFile);
+  files.set(checkpointNewPath, checkpointNewFile);
+  contents.set(checkpointNewPath, "A new note after the saved checkpoint.\n");
+  caches.set(checkpointNewPath, { frontmatter: {}, tags: [], links: [] });
+  resolvedLinks[checkpointNewPath] = {};
+  unresolvedLinks[checkpointNewPath] = {};
+  contents.set(changedCompletedPath, `${previousContent}\nAdditional prose after checkpoint.\n`);
+  changedCompletedFile.stat.mtime = mtime++;
+  changedCompletedFile.stat.size = contents.get(changedCompletedPath).length;
+  const staleCheckpoint = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+  staleCheckpoint.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: null, checkpoint: checkpointRecord.meta, invalidActive: false });
+  staleCheckpoint.indexedDb.readIndexDiagnostics = async () => [];
+  staleCheckpoint.indexedDb.snapshotUsesChunks = () => true;
+  staleCheckpoint.indexedDb.getPages = async (_generation, paths) => new Map(checkpointRecord.pages
+    .filter((page) => paths.includes(page.path)).map((page) => [page.path, page]));
+  staleCheckpoint.indexedDb.iterateSnapshotPages = async (_meta, onPage, current) => {
+    for (const page of checkpointRecord.pages) { if (!current()) return false; onPage(page); }
+    return current();
+  };
+  staleCheckpoint.indexedDb.iterateSnapshotEvidence = async (_meta, onEvidence, current) => {
+    for (const item of checkpointRecord.evidence) { if (!current()) return false; onEvidence(item); }
+    return current();
+  };
+  staleCheckpoint.scheduleOrphanCleanup = () => {};
+  staleCheckpoint.scheduleSnapshotPersist = () => {};
+  try {
+    await staleCheckpoint.restoreIndexedDbSnapshot([changedCompletedPath]);
+    assert.equal((await staleCheckpoint.waitForSnapshotHydration()).restored, true);
+    assert.equal(staleCheckpoint.isFullSnapshotHydrated(), false);
+    assert.equal(staleCheckpoint.resumableCheckpointPaths.has(changedCompletedPath), false);
+    assert.equal(staleCheckpoint.resumableCheckpointPaths.size, completedBeforeRestart.size - 1);
+    assert.deepEqual(staleCheckpoint.restoredAddedMarkdownPaths, [checkpointNewPath]);
+    const restoredCommits = [];
+    const originalStaleCommit = staleCheckpoint.commitPreparedFile.bind(staleCheckpoint);
+    staleCheckpoint.commitPreparedFile = (commit, publish) => {
+      restoredCommits.push(commit.sourcePath);
+      originalStaleCommit(commit, publish);
+    };
+    assert.equal(await staleCheckpoint.rebuildProgressively([changedCompletedPath]), true);
+    assert(restoredCommits.includes(changedCompletedPath));
+    assert(restoredCommits.includes(checkpointNewPath));
+    assert([...completedBeforeRestart].filter((path) => path !== changedCompletedPath)
+      .every((path) => !restoredCommits.includes(path)));
+    const freshAfterChange = new GraphIndex(plugin, app);
+    try {
+      assert.equal(await freshAfterChange.rebuild(), true);
+      assert.deepEqual(canonicalGraph(staleCheckpoint), canonicalGraph(freshAfterChange));
+    } finally { freshAfterChange.destroy(); }
+  } finally {
+    staleCheckpoint.destroy();
+    contents.set(changedCompletedPath, previousContent);
+    changedCompletedFile.stat.mtime = previousMtime;
+    changedCompletedFile.stat.size = previousSize;
+    files.delete(checkpointNewPath);
+    rootFolder.children = rootFolder.children.filter((child) => child !== checkpointNewFile);
+    contents.delete(checkpointNewPath);
+    caches.delete(checkpointNewPath);
+    delete resolvedLinks[checkpointNewPath];
+    delete unresolvedLinks[checkpointNewPath];
   }
 
   // A custom style selected by the Style property is an explicit user choice. It must remain
@@ -1730,6 +2316,7 @@ try {
   const makeRestoreIndex = () => {
     const restored = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
     restored.indexedDb.readSnapshotMeta = async () => snapshotMeta;
+    restored.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: await restored.indexedDb.readSnapshotMeta(), checkpoint: null, invalidActive: false });
     restored.indexedDb.snapshotUsesChunks = () => true;
     restored.indexedDb.getPages = async (_generation, paths) => new Map(savedPages.filter((page) => paths.includes(page.path)).map((page) => [page.path, page]));
     restored.indexedDb.iterateSnapshotPages = async (_meta, onPage, current) => {
@@ -1826,7 +2413,7 @@ try {
       assert.equal(stalled.getSnapshotHydrationDiagnostics().lastActivePhase, phase);
       assert.equal(watchdogTimers.size, 0);
       owner[method] = original;
-      const coordinator = new ExcaliBrainPlugin();
+      const coordinator = new KplexPlugin();
       coordinator.index = stalled; coordinator.app = app; coordinator.layoutReady = true;
       coordinator.metadataStabilized = true; coordinator.initialIndexComplete = false;
       coordinator.refreshBookmarkedEntryPoints = async () => {};
@@ -1861,7 +2448,7 @@ try {
     cancelled.indexedDb.iterateSnapshotPages = () => new Promise((resolve) => { releaseCancelled = resolve; });
     await cancelled.restoreIndexedDbSnapshot(["Note A.md"]);
     const waiting = cancelled.waitForSnapshotHydration();
-    const unloaded = new ExcaliBrainPlugin();
+    const unloaded = new KplexPlugin();
     unloaded.index = cancelled; unloaded.app = app; unloaded.layoutReady = true;
     unloaded.metadataStabilized = true;
     let unloadRebuilds = 0;
@@ -2668,7 +3255,7 @@ try {
   // P12: exercise the production rebuild coordinator. If the last visible K-Plex surface closes
   // while an incremental patch is awaiting work, cancellation must not fall through to a hidden
   // full rebuild. Reopening resumes the retained backlog exactly once.
-  const coordinator = new ExcaliBrainPlugin();
+  const coordinator = new KplexPlugin();
   let coordinatorVisible = true;
   let coordinatorFullBuilds = 0;
   const coordinatorPatchCalls = [];
@@ -2678,6 +3265,7 @@ try {
   const coordinatorPatchGate = new Promise((resolve) => { releaseCoordinatorPatch = resolve; });
   coordinator.index = {
     size: 1,
+    noteBuildDecision: () => {},
     isFullSnapshotHydrated: () => false,
     patchMarkdownPaths: async (paths) => {
       coordinatorPatchCalls.push([...paths]);
@@ -2716,13 +3304,14 @@ try {
   // Creating a Markdown note during another patch must materialize and patch only that source.
   // A missing page used to make this path fall through to an expensive whole-vault rebuild.
   const createdDuringPatch = new TFile("Created During Patch.md", 9000);
-  const creationCoordinator = new ExcaliBrainPlugin();
+  const creationCoordinator = new KplexPlugin();
   let materialized = false;
   let creationFullBuilds = 0;
   const creationPatchCalls = [];
   creationCoordinator.app = { vault: { getFileByPath: (path) => path === createdDuringPatch.path ? createdDuringPatch : null } };
   creationCoordinator.index = {
     size: 1,
+    noteBuildDecision: () => {},
     isFullSnapshotHydrated: () => true,
     get: () => materialized ? { file: createdDuringPatch } : undefined,
     insertCreatedFile: () => { materialized = true; },
@@ -2763,7 +3352,7 @@ try {
 
   // The reactive coordinator must not turn the rename event (or Obsidian's unchanged follow-up
   // metadata event) into indexing work. Persisted navigation paths are still remapped immediately.
-  const renameCoordinator = new ExcaliBrainPlugin();
+  const renameCoordinator = new KplexPlugin();
   const renameHandlers = new Map();
   const rebuildReasons = [];
   const fastRenameCalls = [];

@@ -2,7 +2,7 @@
 
 Thanks for helping improve K-Plex.
 
-K-Plex is a deterministic spatial knowledge graph for Obsidian, not a generic force-directed network. Contributions should preserve its semantic layout, ExcaliBrain compatibility model and large-vault responsiveness.
+K-Plex is a deterministic spatial knowledge graph for Obsidian, not a generic force-directed network. Contributions should preserve its semantic layout, legacy data-migration guarantees and large-vault responsiveness.
 
 ## Setup
 
@@ -124,6 +124,8 @@ The core layout is deterministic:
 Changing a relationship's semantic role or precedence is a graph-contract change. A deliberately selected rotated/mindmap layout can map the same roles to different positions and physical gates without changing graph meaning; preserve the existing views' spatial defaults and test the new layout contract independently.
 
 ### Preserve legacy compatibility
+
+ExcaliBrain compatibility is limited to graph ontology and graph/node/link appearance. Use `importExcaliBrainGraphSettings` for first-run and manual imports; use `migrateAndMergeSettings` for K-Plex's own persisted data. Do not import plugin CSS, commands/hotkeys, navigation, workspace/editor preferences or scheduling. K-Plex commands are registered once with canonical IDs; old shortcuts must be reassigned rather than aliased.
 
 Before changing settings, ontology or graph reconciliation:
 
@@ -375,7 +377,7 @@ For bounded numeric settings, prefer a slider plus current-value display over an
 
 ## Naming and copy
 
-Use **K-Plex** in user-facing strings.
+Use **K-Plex** in user-facing strings, `Kplex` for named types/components, and `kplex` for runtime CSS/SVG/command namespaces. Update selector producers, DOM queries, browser/host tests and current documentation together. Retain legacy identifiers only at documented data-migration boundaries; never rename saved user content or fabricate new terminology in historical validation evidence. The namespace regression gate is `tests/terminology.test.mjs`; it rejects legacy CSS and command aliases. `tests/index-diagnostics-contract.test.mjs` checks the report-facing GraphIndex methods and reproduces the two TS2339 errors when those declarations are removed. This focused type test does not replace the full build.
 
 Use **node** rather than **thought** in new user-facing UI/copy. "ExcaliBrain" should appear only when discussing legacy compatibility/migration.
 

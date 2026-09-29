@@ -1,4 +1,8 @@
-import type { ExcaliBrainSettings } from "../settings";
+/**
+ * Resolves K-Plex node/connector appearance without mutating graph semantics or saved settings.
+ * Imported style dictionaries retain their original keys and alpha channels at this presentation seam.
+ */
+import type { KplexSettings } from "../settings";
 import type { GraphPage, LinkStyle, Neighbour, NodeStyle, Role } from "../types";
 import { RelationType } from "../types";
 
@@ -15,7 +19,8 @@ export const alphaHexToCss = (color?: string, fallback = "transparent"): string 
 };
 
 
-function tagStyle(page: GraphPage, settings: ExcaliBrainSettings): NodeStyle {
+/** Resolve imported tag-style precedence without changing the stored dictionary spelling/order. */
+function tagStyle(page: GraphPage, settings: KplexSettings): NodeStyle {
   if (!page.primaryStyleTag) return {};
   const key = settings.tagStyleList.find((tag) => page.primaryStyleTag?.startsWith(tag));
   if (!key) return {};
@@ -31,7 +36,8 @@ function tagStyle(page: GraphPage, settings: ExcaliBrainSettings): NodeStyle {
   return prefixes.size ? { ...primary, prefix: [...prefixes].join("") } : primary;
 }
 
-function noteTypeStyle(page: GraphPage, settings: ExcaliBrainSettings): NodeStyle {
+/** Resolve the explicit K-Plex property-value style for the already-indexed node facets. */
+function noteTypeStyle(page: GraphPage, settings: KplexSettings): NodeStyle {
   if (!page.noteType) return {};
   const normalizedPageType = page.noteType.trim().replace(/^#/, "");
   const direct = settings.noteTypeStyles[normalizedPageType] ?? settings.noteTypeStyles[page.noteType];
@@ -42,7 +48,8 @@ function noteTypeStyle(page: GraphPage, settings: ExcaliBrainSettings): NodeStyl
   return key ? settings.noteTypeStyles[key] ?? {} : {};
 }
 
-export function resolveNodeStyle(page: GraphPage, relation: Neighbour | null, role: Role | "center", settings: ExcaliBrainSettings): NodeStyle {
+/** Layer defaults, semantic kind, role and explicit property/tag overrides for one rendered node. */
+export function resolveNodeStyle(page: GraphPage, relation: Neighbour | null, role: Role | "center", settings: KplexSettings): NodeStyle {
   const central = role === "center" ? settings.centralNodeStyle : {};
   const sibling = role === "sibling" ? settings.siblingNodeStyle : {};
   if (page.isFolder) {
@@ -70,7 +77,8 @@ export function resolveNodeStyle(page: GraphPage, relation: Neighbour | null, ro
   };
 }
 
-export function resolveLinkStyle(neighbour: Neighbour, settings: ExcaliBrainSettings): LinkStyle {
+/** Layer connector overrides, preserving exact and normalized imported ontology-key precedence. */
+export function resolveLinkStyle(neighbour: Neighbour, settings: KplexSettings): LinkStyle {
   let layered: LinkStyle = {};
   const definitions = neighbour.typeDefinition?.split(",").map((x) => x.trim()).filter(Boolean) ?? [];
   for (const definition of definitions) {

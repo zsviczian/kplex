@@ -4,7 +4,7 @@
 import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
 import { alphaHexToCss } from "../index/style";
-import type { ExcaliBrainSettings } from "../settings";
+import type { KplexSettings } from "../settings";
 import { effectiveLabelLimit, gateDiameter } from "./layout";
 import { ObsidianIcon } from "./ObsidianIcon";
 import type { Translator } from "../lang";
@@ -40,7 +40,7 @@ export function ThoughtNode({
   translate,
 }: {
   node: PositionedNode;
-  settings: ExcaliBrainSettings;
+  settings: KplexSettings;
   selected: boolean;
   highlighted: boolean;
   dimmed: boolean;
@@ -108,8 +108,8 @@ export function ThoughtNode({
   } as CSSProperties;
 
   const classes = [
-    "excalibrain-thought",
-    `excalibrain-role-${node.role}`,
+    "kplex-thought",
+    `kplex-role-${node.role}`,
     selected ? "is-selected" : "",
     highlighted ? "is-highlighted" : "",
     dimmed ? "is-dimmed" : "",
@@ -159,7 +159,7 @@ export function ThoughtNode({
       onClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onDoubleClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onContextMenu={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
-    >{content}</div> : <span className="excalibrain-thought-label">
+    >{content}</div> : <span className="kplex-thought-label">
       {node.page.transient?.kind === "section"
         ? <span className="kplex-section-heading-mark" aria-hidden="true">{(() => {
           const level = node.page.transient?.level ?? 1;
@@ -169,7 +169,7 @@ export function ThoughtNode({
           {visual?.mode === "thumbnail" && <span className="kplex-node-visual is-thumbnail" title={visual.alt}>
             <img src={visual.src} alt="" loading="lazy" decoding="async" draggable={false} />
           </span>}
-          {!visual || visual.mode !== "replace" ? (style.icon && <ObsidianIcon name={style.icon} size={node.role === "center" ? 18 : 13} className="excalibrain-node-icon" />) : null}
+          {!visual || visual.mode !== "replace" ? (style.icon && <ObsidianIcon name={style.icon} size={node.role === "center" ? 18 : 13} className="kplex-node-icon" />) : null}
         </>}
       {visual?.mode === "replace"
         ? <span className="kplex-node-visual is-replace" title={visual.alt}>
@@ -210,9 +210,9 @@ export function ThoughtNode({
           : stat.hasAny
             ? translate("node.gateVisible", { gate: gateLabel, count: stat.visibleCount })
             : translate("node.gateEmpty", { gate: gateLabel });
-      return <span key={gate} className={`excalibrain-gate-wrap gate-wrap-${gate}${stat.hasAny ? "" : " is-empty"}`}>
+      return <span key={gate} className={`kplex-gate-wrap gate-wrap-${gate}${stat.hasAny ? "" : " is-empty"}`}>
         <span
-          className={`excalibrain-gate gate-${gate}${stat.hasAny ? " has-connections" : " is-empty"}${highlightedGates.has(gate) ? " is-highlighted" : ""}${gateDisabled ? " is-link-disabled" : ""}`}
+          className={`kplex-gate gate-${gate}${stat.hasAny ? " has-connections" : " is-empty"}${highlightedGates.has(gate) ? " is-highlighted" : ""}${gateDisabled ? " is-link-disabled" : ""}`}
           data-kplex-gate={gate}
           onPointerEnter={(e: ReactPointerEvent<HTMLSpanElement>) => { e.stopPropagation(); onHoverGate(node, gate); }}
           onPointerLeave={(e: ReactPointerEvent<HTMLSpanElement>) => { e.stopPropagation(); onHoverNode(node); }}
@@ -221,7 +221,7 @@ export function ThoughtNode({
           aria-label={gateTitle}
           data-tooltip-position="top"
         />
-        {settings.showNeighborCount && stat.visibleCount > 0 && <span className="excalibrain-gate-count">{stat.shownCount === undefined ? stat.visibleCount : `${stat.shownCount}/${stat.visibleCount}`}</span>}
+        {settings.showNeighborCount && stat.visibleCount > 0 && <span className="kplex-gate-count">{stat.shownCount === undefined ? stat.visibleCount : `${stat.shownCount}/${stat.visibleCount}`}</span>}
       </span>;
     })}
   </div>;

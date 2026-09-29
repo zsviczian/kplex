@@ -313,12 +313,12 @@ test("production UI sinks reject literal user-facing copy outside localization c
   assert.deepEqual(violations, [], `User-facing literals must live in src/lang/:\n${violations.join("\n")}`);
 });
 
-test("representative production consumers preserve command ids and existing English copy", () => {
+test("representative production consumers use K-Plex command IDs and preserve existing English copy", () => {
   const main = readFileSync(join(root, "src/main.ts"), "utf8");
   const app = readFileSync(join(root, "src/ui/App.tsx"), "utf8");
   const catalog = readFileSync(join(root, "src/lang/en.ts"), "utf8");
 
-  assert(main.includes('id: "excalibrain-start"'));
+  assert(main.includes('id: "kplex-start"'));
   assert(main.includes('name: this.translator("command.openGraph")'));
   assert(main.includes('this.translator("notice.excaliBrainSettingsImported")'));
   assert(main.includes('this.translator("notice.indexedNodes", { count: this.index.size })'));

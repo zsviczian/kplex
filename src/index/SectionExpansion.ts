@@ -2,7 +2,7 @@
  * Host-side heading and transient section projection over indexed relationship evidence. Transient explanation codes reuse the UI language boundary without persisting section nodes.
  */
 import type { App, CachedMetadata } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Neighbour, type Neighborhood, type Relation, type Role } from "../types";
 import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
 import { extractLinksFromValue, parseBodyMetadataCooperative } from "./fieldParser";
@@ -107,7 +107,7 @@ function scanHeadings(content: string): HeadingRange[] {
   return output;
 }
 
-function ontologyRole(plugin: ExcaliBrainPlugin, name: string): EvidenceRole | null {
+function ontologyRole(plugin: KplexPlugin, name: string): EvidenceRole | null {
   const normalized = normalizeFieldName(name);
   const h = plugin.settings.hierarchy;
   const includes = (values: string[]) => values.some((value) => normalizeFieldName(value) === normalized);
@@ -121,7 +121,7 @@ function ontologyRole(plugin: ExcaliBrainPlugin, name: string): EvidenceRole | n
   return null;
 }
 
-function inferredRole(plugin: ExcaliBrainPlugin): Exclude<EvidenceRole, "hidden"> {
+function inferredRole(plugin: KplexPlugin): Exclude<EvidenceRole, "hidden"> {
   if (plugin.settings.inferAllLinksAsFriends) return "left";
   return plugin.settings.inverseInfer ? "parent" : "child";
 }
@@ -172,7 +172,7 @@ function roleDefinition(relation: Relation, role: Exclude<Role, "sibling">): str
 }
 
 function resolveNeighbourhood(
-  plugin: ExcaliBrainPlugin,
+  plugin: KplexPlugin,
   index: GraphIndex,
   center: GraphPage,
   evidenceByTarget: Map<string, { target: GraphPage; evidence: RelationEvidence[] }>,
@@ -222,7 +222,7 @@ function sourceLinks(cache: CachedMetadata | null): CacheLink[] {
  * persistent GraphIndex; the file body is parsed on demand and discarded when the view collapses.
  */
 export async function buildCentralSectionExpansion(
-  plugin: ExcaliBrainPlugin,
+  plugin: KplexPlugin,
   index: GraphIndex,
   centerPage: GraphPage,
   shouldContinue: () => boolean = () => true,
@@ -403,7 +403,7 @@ export async function buildCentralSectionExpansion(
 
 /** Recompute only the visible section projection from cached evidence. No Markdown is read or parsed. */
 export function projectCentralSectionExpansion(
-  plugin: ExcaliBrainPlugin,
+  plugin: KplexPlugin,
   index: GraphIndex,
   expansion: CentralSectionExpansion,
 ): CentralSectionExpansion {

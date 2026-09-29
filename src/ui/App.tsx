@@ -14,7 +14,7 @@ import {
   type RefObject,
 } from "react";
 import { Menu, type TFile, type WorkspaceLeaf } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
 import { isSearchFocusShortcut } from "../core/plex/shortcutPresentation";
@@ -36,10 +36,10 @@ import { compileGraphLensDefinitions, type GraphLensDefinition } from "../lens/G
 import { installKplexLongPressTooltips } from "./LongPressTooltip";
 
 type BooleanToolbarSetting = PlexVisibilitySetting | "renderAlias";
-type IndexStatus = ReturnType<ExcaliBrainPlugin["getIndexStatus"]>;
+type IndexStatus = ReturnType<KplexPlugin["getIndexStatus"]>;
 
 /** Subscribe a visible K-Plex surface to host-owned index status and catch up once on reveal. */
-function useIndexStatus(plugin: ExcaliBrainPlugin, hostLeaf: WorkspaceLeaf): IndexStatus {
+function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStatus {
   const [status, setStatus] = useState(() => plugin.getIndexStatus());
   useEffect(() => {
     /** Refresh only when a visible status fact changed; progressive graph publication can be frequent. */
@@ -107,7 +107,7 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return <button
-    className={`excalibrain-icon-button${on ? " is-on" : ""}`}
+    className={`kplex-icon-button${on ? " is-on" : ""}`}
     aria-label={title}
     disabled={disabled}
     onClick={onClick}
@@ -115,8 +115,8 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
 }
 
 /** Compose the native K-Plex toolbar, filters and scene with injected localization and environment facts; host effects remain plugin-owned. */
-export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environment }: {
-  plugin: ExcaliBrainPlugin;
+export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: {
+  plugin: KplexPlugin;
   surface: KplexViewSurface;
   hostLeaf: WorkspaceLeaf;
   translate: Translator;
@@ -333,7 +333,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 
   const indexStatusInfoOpen = indexStatusInfoMode !== "closed";
   const indexStatusMessage = <div className="kplex-index-status-details">
-    {["indexing", "updating"].includes(indexStatus.phase) &&
+    {["indexing", "saving-cache", "updating"].includes(indexStatus.phase) &&
       <div>{translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })}</div>
     }
     <div>{indexStatus.label}</div>
@@ -555,7 +555,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
   };
 
   if (!page) return <div
-    className="excalibrain-app excalibrain-empty"
+    className="kplex-app kplex-empty"
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
   >
@@ -629,7 +629,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 
   return <div
     ref={rootRef}
-    className={`excalibrain-app kplex-surface-${surface}${condensedBySidecar ? " is-sidecar-condensed" : ""}`}
+    className={`kplex-app kplex-surface-${surface}${condensedBySidecar ? " is-sidecar-condensed" : ""}`}
     data-kplex-tooltip-scope
     tabIndex={-1}
     onKeyDownCapture={handlePlexKeyDown}
@@ -637,9 +637,9 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
   >
-    <div className="excalibrain-main-column">
-      <div className="excalibrain-top-stack">
-        <header className="excalibrain-topbar">
+    <div className="kplex-main-column">
+      <div className="kplex-top-stack">
+        <header className="kplex-topbar">
           <IndexStatusIndicator
             status={indexStatus}
             indicatorRef={indexStatusRef}
@@ -661,7 +661,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
             message={indexStatusMessage}
             onDismiss={dismissIndexStatusInfo}
           />
-          <div className="excalibrain-brand"><ObsidianIcon name="brain-circuit" size={20} className="excalibrain-brand-mark" /><strong>{translate("view.displayName")}</strong></div>
+          <div className="kplex-brand"><ObsidianIcon name="brain-circuit" size={20} className="kplex-brand-mark" /><strong>{translate("view.displayName")}</strong></div>
           <ActionButton
             label={translate("toolbar.navigateBack")}
             icon={<ObsidianIcon name="arrow-big-left" size={17} />}
@@ -677,8 +677,8 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
           <SearchBox
             graph={graphSearchRead}
             icon={<ObsidianIcon name="search" size={16} />}
-            portalSelector=".excalibrain-app"
-            appTopbarSelector=".excalibrain-topbar"
+            portalSelector=".kplex-app"
+            appTopbarSelector=".kplex-topbar"
             revision={renderRevision}
             onActivate={(id) => {
               const target = plugin.index.get(id);
@@ -714,9 +714,9 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
             onSortOrderChange={(order) => void setNodeSortOrder(order)}
             translate={translate}
           />
-          <div className="excalibrain-top-actions is-compact">
+          <div className="kplex-top-actions is-compact">
             <button
-              className={`excalibrain-icon-button${syncMode !== "off" && syncTargetAvailable ? " is-on" : ""}`}
+              className={`kplex-icon-button${syncMode !== "off" && syncTargetAvailable ? " is-on" : ""}`}
               aria-label={translate("app.syncActions", { status: syncTitle })}
               onClick={showDocumentSyncMenu}
             ><ObsidianIcon name={syncIcon} size={17} /></button>
@@ -726,7 +726,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
               on={plugin.settings.renderAlias}
               onClick={() => void toggleToolbarSetting("renderAlias")}
             />
-            <span className="excalibrain-toolbar-divider" />
+            <span className="kplex-toolbar-divider" />
             <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => void toggleExpandedView()} />
             <ToolButton icon="spline" title={translate(plugin.settings.connectorStyle === "bezier" ? "app.useStraightConnectors" : "app.useCurvedConnectors")} on={plugin.settings.connectorStyle === "bezier"} onClick={() => void toggleConnectorStyle()} />
             <ToolButton icon="settings" title={translate("app.settingsMenu")} on={areaSettingsMode} onClick={showSettingsMenu} />
@@ -744,12 +744,12 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
         </div>}
       </div>
 
-      <main className="excalibrain-workspace">
-        <section className="excalibrain-graph-area">
-          <div className="excalibrain-zone-label zone-parent">{translate("app.zoneParents")}</div>
-          <div className="excalibrain-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
-          <div className="excalibrain-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
-          <div className="excalibrain-zone-label zone-child">{translate("app.zoneChildren")}</div>
+      <main className="kplex-workspace">
+        <section className="kplex-graph-area">
+          <div className="kplex-zone-label zone-parent">{translate("app.zoneParents")}</div>
+          <div className="kplex-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
+          <div className="kplex-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
+          <div className="kplex-zone-label zone-child">{translate("app.zoneChildren")}</div>
           <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode} />
         </section>
       </main>
@@ -763,9 +763,9 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
         </>}
       </div>}
 
-      <footer className="excalibrain-history-bar">
-        <span className="excalibrain-history-label">{translate("app.pastNodes")}</span>
-        <div className="excalibrain-history-list">
+      <footer className="kplex-history-bar">
+        <span className="kplex-history-label">{translate("app.pastNodes")}</span>
+        <div className="kplex-history-list">
           {plugin.settings.navigationHistory.slice(-14).reverse().map((path, indexValue) => {
             const item = plugin.index.get(path);
             if (!item) return null;

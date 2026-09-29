@@ -92,7 +92,7 @@ export function classifyRelation<TTarget>(
         ? RelationType.DEFINED
         : ((pi && !pd && ci && !cd && !lfd && !rfd && !nfd && !pfd) || [pd, cd, lfd, rfd, nfd, pfd].filter(Boolean).length >= 2)
           ? RelationType.INFERRED : null;
-      // Classic ExcaliBrain presents a defined Parent+Child conflict laterally. Preserve the
+      // K-Plex presents a defined Parent+Child conflict laterally. Preserve the
       // existing K-Plex behavior but centralize it here instead of fixing it later in the UI view.
       if (type && pd && cd) return RelationType.DEFINED;
       return type;

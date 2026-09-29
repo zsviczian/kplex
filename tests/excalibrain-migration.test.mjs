@@ -1,3 +1,7 @@
+/**
+ * Tests legacy data migration through the real K-Plex settings/style implementations with a
+ * narrow Obsidian boundary double. Temporary bundles are removed independently of test outcomes.
+ */
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -5,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
-import { assertMigratedExcaliBrainSettings } from "./support/excalibrainMigration.mjs";
+import { assertMigratedExcaliBrainSettings, localPreferenceKeys } from "./support/excalibrainMigration.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-migration/data.json"), "utf8"));
@@ -24,16 +28,70 @@ await build({
     `, loader: "js" }));
   } }],
 });
-const { migrateAndMergeSettings, ExcaliBrainSettingTab, resolveNodeStyle, resolveLinkStyle, buildScene } = await import(pathToFileURL(join(temp, "migration.mjs")));
-const migrated = migrateAndMergeSettings(fixture);
+const { migrateAndMergeSettings, importExcaliBrainGraphSettings, KplexSettingTab, resolveNodeStyle, resolveLinkStyle, buildScene } = await import(pathToFileURL(join(temp, "migration.mjs")));
+const defaults = migrateAndMergeSettings(undefined);
+const migrated = importExcaliBrainGraphSettings(fixture);
 
-test("real ExcaliBrain fixture migrates complete ontology, styles and compatible preferences without mutation", () => {
+test("real ExcaliBrain fixture imports complete ontology and graph styles without changing plugin preferences", () => {
   const before = JSON.stringify(fixture);
-  assertMigratedExcaliBrainSettings(migrated, fixture);
+  assertMigratedExcaliBrainSettings(migrated, fixture, defaults);
   assert.equal(Object.keys(migrated.tagNodeStyles).length, 32);
   assert.equal(Object.keys(migrated.hierarchyLinkStyles).length, 297);
   assert.deepEqual(migrateAndMergeSettings(JSON.parse(JSON.stringify(migrated))), migrated, "persisted settings must remain stable on reload");
   assert.equal(JSON.stringify(fixture), before);
+});
+
+test("transient ExcaliBrain drawing paths are discarded from imported and saved settings", () => {
+  assert.equal(Object.hasOwn(migrated, "excalibrainFilepath"), false);
+  assert.equal(Object.hasOwn(migrateAndMergeSettings({ excalibrainFilepath: "Custom transient drawing.md" }), "excalibrainFilepath"), false);
+});
+
+test("manual graph import preserves local UI, navigation, editor, command and scheduling preferences", () => {
+  const current = migrateAndMergeSettings({
+    kplexInitialized: true, navigationHistory: ["Local.md"], lastActivePath: "Local.md", pinnedNodes: ["Pin.md"],
+    documentSyncMode: "pinned", indexUpdateInterval: 120000, embedCentralNode: true,
+    centralNodeMarkdownMode: "preview", sidecarOpen: true, sidecarPosition: "left", startInPopout: true,
+    toolbarExpanded: true, confirmFileDelete: false, allowOntologySuggester: false,
+    ontologySuggesterTrigger: "local::", nodeTitleScript: "local value", newNodeDefaultType: "excalidraw",
+  });
+  const legacy = { ...structuredClone(fixture),
+    kplexInitialized: false, lastActivePath: "Legacy.md", pinnedNodes: ["Legacy pin.md"],
+    documentSyncMode: "recent", sidecarOpen: false, sidecarPosition: "right", startInPopout: false,
+    toolbarExpanded: false, centralNodeMarkdownMode: "source", confirmFileDelete: true,
+    nodeTitleScript: "foreign value", newNodeDefaultType: "markdown",
+    hotkeys: { "excalibrain-start": "Mod+G" }, commandAliases: ["excalibrain-start"],
+    css: ".excalibrain-app {}", unrelatedPreference: "must not import",
+  };
+  const currentBefore = structuredClone(current);
+  const sourceBefore = structuredClone(legacy);
+  const result = importExcaliBrainGraphSettings(legacy, current);
+  assertMigratedExcaliBrainSettings(result, fixture, current);
+  for (const key of ["hotkeys", "commandAliases", "css", "unrelatedPreference"])
+    assert.equal(Object.hasOwn(result, key), false, `${key} must not cross graph migration`);
+  assert.deepEqual(current, currentBefore);
+  assert.deepEqual(legacy, sourceBefore);
+  assert.notStrictEqual(result.tagNodeStyles, legacy.tagNodeStyles, "Imported style dictionaries must be detached");
+  assert.notStrictEqual(result.tagNodeStyles["#person"], legacy.tagNodeStyles["#person"], "Imported style entries must not mutate the running legacy plugin");
+  const reloaded = migrateAndMergeSettings(JSON.parse(JSON.stringify(result)));
+  for (const key of localPreferenceKeys) assert.deepEqual(reloaded[key], current[key], `${key} must survive reload`);
+});
+
+test("manual friends-only imports replace the local left-friend default", () => {
+  const legacy = structuredClone(fixture);
+  delete legacy.hierarchy.leftFriends;
+  legacy.hierarchy.friends = ["Legacy friend field"];
+  const current = migrateAndMergeSettings({ kplexInitialized: true, hierarchy: { leftFriends: ["Local friend field"] } });
+  const imported = importExcaliBrainGraphSettings(legacy, current);
+  assert(imported.hierarchy.leftFriends.includes("Legacy friend field"));
+  assert(!imported.hierarchy.leftFriends.includes("Local friend field"));
+});
+
+test("both first-run and file imports use the bounded graph-import path", () => {
+  const main = readFileSync(join(root, "src/main.ts"), "utf8");
+  const settings = readFileSync(join(root, "src/settings.ts"), "utf8");
+  assert(main.includes("importExcaliBrainGraphSettings(legacySettings, this.settings)"));
+  assert(settings.includes("importExcaliBrainGraphSettings(parsed, this.plugin.settings)"));
+  assert(main.includes("migrateAndMergeSettings(ownData)"), "Own K-Plex settings must not be filtered as foreign data");
 });
 
 test("central editor stays opt-in while its local mode defaults safely", () => {
@@ -123,7 +181,7 @@ test("settings manager exposes imported tag styles without converting their matc
   const settings = structuredClone(migrated);
   settings.noteTypeStyles = { "#person": { icon: "user" } };
   const plugin = { settings, index: { unassignedOntologyFields: () => [], allPages: () => [] } };
-  const tab = new ExcaliBrainSettingTab({}, plugin);
+  const tab = new KplexSettingTab({}, plugin);
   const entries = tab.nodeStyleEntries();
   assert.equal(entries.length, 33);
   assert.deepEqual(entries.filter(entry => entry.name === "#person").map(entry => entry.kind).sort(), ["property", "tag"]);

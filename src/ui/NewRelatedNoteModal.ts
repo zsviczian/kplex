@@ -4,7 +4,7 @@
 import { Modal, Notice, type WorkspaceLeaf } from "obsidian";
 import { createElement, useEffect, useMemo, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { GraphPage, RelationshipRole } from "../types";
 import { FuzzySearchInput, fuzzyFilterStrings } from "./FuzzySearchInput";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
@@ -26,7 +26,7 @@ function RelatedNoteComposer({
   onClose,
   hostLeaf,
 }: {
-  plugin: ExcaliBrainPlugin;
+  plugin: KplexPlugin;
   origin: GraphPage;
   initialRole: RelationshipRole;
   onCommitted?: () => void;
@@ -404,7 +404,7 @@ export class NewRelatedNoteModal extends Modal {
   private releaseDesktopDrag: (() => void) | null = null;
 
   constructor(
-    private plugin: ExcaliBrainPlugin,
+    private plugin: KplexPlugin,
     private origin: GraphPage,
     private role: RelationshipRole,
     private onCommitted?: () => void,

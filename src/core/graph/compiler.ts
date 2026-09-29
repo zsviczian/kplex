@@ -45,7 +45,6 @@ export type GraphCompilerSettings = Readonly<{
   }>;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
-  excalibrainFilepath: string;
   showFullTagName: boolean;
   tagStyleList: readonly string[];
   maxLabelLength: number;
@@ -421,7 +420,6 @@ export class NormalizedGraphCompiler {
     if (!this.nodes.has(record.source.id)) return true;
     const source = this.ensureNode(record.source, this.fallbackName(record.source));
     if (!source) return false;
-    if (record.kind === "unresolved-link" && source.semanticPath === this.settings.excalibrainFilepath) return true;
     if (record.kind === "obsidian-link" && !this.nodes.has(record.target.entity.id)) return true;
     const target = this.ensureNode(record.target.entity, this.fallbackName(record.target.entity, record.target.rawTarget));
     if (!target) return false;
@@ -720,7 +718,7 @@ export class NormalizedGraphCompiler {
   }
 
   private addHidden(record: NormalizedSourceRecord, source: CompiledGraphNode, target: CompiledGraphNode, provenance: EvidenceProvenance): void {
-    if (source.id === target.id || target.semanticPath === this.settings.excalibrainFilepath) return;
+    if (source.id === target.id) return;
     const id = this.evidence.addHidden(this.keyForNode(source), this.keyForNode(target), provenance);
     if (id) this.ownershipByEvidenceId.set(id, this.ownership(record));
   }
@@ -734,7 +732,7 @@ export class NormalizedGraphCompiler {
     direction: LinkDirection,
     provenance: EvidenceProvenance,
   ): void {
-    if (source.id === target.id || target.semanticPath === this.settings.excalibrainFilepath) return;
+    if (source.id === target.id) return;
     const id = this.evidence.addPair(this.keyForNode(source), this.keyForNode(target), role, relationType, direction, provenance);
     if (id) this.ownershipByEvidenceId.set(id, this.ownership(record));
   }
