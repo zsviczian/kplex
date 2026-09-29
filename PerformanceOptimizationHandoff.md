@@ -84,7 +84,7 @@ The builder's semantic-no-op check cannot prevent this earlier work. Even after 
 
 ### F2 — High: “not visible” and “closed” have different indexing behavior
 
-**Evidence:** [main.ts](src/main.ts), 390–426, 539–542, interval at 213; [ExcaliBrainView.tsx](src/ui/ExcaliBrainView.tsx), 39–64.
+**Evidence:** [main.ts](src/main.ts), 390–426, 539–542, interval at 213; [KplexView.tsx](src/ui/KplexView.tsx), 39–64.
 
 `openKplexViews` changes only on view open/close. Switching tabs, collapsing a sidebar, or folding a sidecar does not close its leaf. Those leaves still allow background patches/full rebuilds and retain UI subscriptions. Once initialization is complete and **all leaves are actually closed**, the scheduler already defers reactive work. Desktop/Android's initial session indexing may intentionally continue while closed.
 

@@ -5,7 +5,7 @@
  * Markdown semantics progressively without exposing half-committed source state.
  */
 import { Platform, TFile, type App } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
 import { normalizeFieldName } from "../core/contracts/fieldName";
 import type { ParsedBodyMetadata, ParsedFileMetadata } from "../core/parser/metadata";
@@ -261,7 +261,7 @@ export class GraphBuilder {
   private readonly metadataSourceSettings: ObsidianMetadataSourceSettings;
 
   constructor(
-    private plugin: ExcaliBrainPlugin,
+    private plugin: KplexPlugin,
     private app: App,
     private fieldCache: Map<string, FieldCacheEntry>,
     private metadataParser: MetadataParser,
@@ -781,7 +781,6 @@ export class GraphBuilder {
       },
       inferAllLinksAsFriends: this.plugin.settings.inferAllLinksAsFriends,
       inverseInfer: this.plugin.settings.inverseInfer,
-      excalibrainFilepath: this.plugin.settings.excalibrainFilepath,
       showFullTagName: this.plugin.settings.showFullTagName,
       tagStyleList: [...this.plugin.settings.tagStyleList],
       maxLabelLength: this.plugin.settings.baseNodeStyle.maxLabelLength ?? 30,

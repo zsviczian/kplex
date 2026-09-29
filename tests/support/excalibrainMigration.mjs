@@ -1,17 +1,44 @@
+/**
+ * Independent legacy-import oracle shared by portable and native UI tests. Graph/ontology/style
+ * values are compared exactly; local K-Plex workflow preferences must remain unchanged.
+ */
 import assert from "node:assert/strict";
 
-// Contract assertions shared by the portable test and actual CLI-import test. Compare the entire
-// dictionaries, including empty overrides, alpha channels, casing, prefixes and legacy-only keys.
-export function assertMigratedExcaliBrainSettings(actual, fixture, current = {}) {
-  for (const key of ["tagNodeStyles", "tagStyleList", "hierarchyLinkStyles", "navigationHistory", "excludeFilepaths"])
+/** Graph appearance and ontology scalar values expected from the historical fixture. */
+const graphValueKeys = [
+  "compactView", "compactingFactor", "minLinkLength",
+  "inferAllLinksAsFriends", "inverseInfer", "inverseArrowDirection", "renderAlias", "backgroundColor",
+  "showInferredNodes", "showAttachments", "showURLNodes", "showVirtualNodes", "showFolderNodes",
+  "showTagNodes", "showPageNodes", "showNeighborCount", "showFullTagName", "maxItemCount",
+  "renderSiblings", "primaryTagField", "displayAllStylePrefixes",
+];
+
+/** Plugin workflow settings are not part of legacy graph compatibility. */
+export const localPreferenceKeys = [
+  "navigationHistory", "lastActivePath", "pinnedNodes", "documentSyncMode", "followActiveFile",
+  "autoOpenCentralDocument", "toggleEmbedTogglesAutoOpen", "indexUpdateInterval", "nodeTitleScript",
+  "allowOntologySuggester", "ontologySuggesterParentTrigger", "ontologySuggesterChildTrigger",
+  "ontologySuggesterLeftFriendTrigger", "ontologySuggesterRightFriendTrigger", "ontologySuggesterPreviousTrigger",
+  "ontologySuggesterNextTrigger", "ontologySuggesterTrigger", "ontologySuggesterMidSentenceTrigger",
+  "boldFields", "allowAutozoom", "allowAutofocuOnSearch", "defaultAlwaysOnTop", "applyPowerFilter",
+  "embedCentralNode", "centralNodeMarkdownMode", "centerEmbedWidth", "centerEmbedHeight",
+  "startInPopout", "sidecarOpen", "sidecarPosition", "sidecarLastFilePath", "sidecarLastUrl",
+  "mouseInteractionMode", "toolbarExpanded", "kplexInitialized", "startupIndexInfoBubbleSeen",
+  "deletePromptInitialized", "confirmFileDelete", "editNewNodeAfterCreate", "newNodeDefaultType",
+];
+
+/** Compare complete imported dictionaries and local preferences without masking changed fields. */
+export function assertMigratedExcaliBrainSettings(actual, fixture, current) {
+  assert.equal(Object.hasOwn(actual, "excalibrainFilepath"), false,
+    "Transient ExcaliBrain drawing path must not become K-Plex state");
+  for (const key of ["tagNodeStyles", "tagStyleList", "hierarchyLinkStyles", "excludeFilepaths"])
     assert.deepEqual(actual[key], fixture[key], `Imported ${key} differs`);
-  for (const [key, value] of Object.entries(fixture)) {
-    if (typeof value !== "object" && !["maxZoom", "primaryTagFieldLowerCase", "autoOpenCentralDocument", "embedCentralNode"].includes(key))
-      assert.equal(actual[key], value, `Legacy setting ${key} was lost`);
-  }
-  // ExcaliBrain's embedCentralNode controlled a different presentation. Auto migration starts with
-  // K-Plex's normal center; manual import preserves the already-initialized K-Plex preference.
-  assert.equal(actual.embedCentralNode, current.embedCentralNode ?? false);
+  for (const key of graphValueKeys)
+    assert.deepEqual(actual[key], fixture[key], `Legacy graph setting ${key} was lost`);
+  for (const key of localPreferenceKeys)
+    assert.deepEqual(actual[key], current[key], `Legacy import changed local ${key}`);
+  for (const key of ["ontologySuggesterFriendTrigger", "hierarchyStyleList", "showURLs"])
+    assert.equal(Object.hasOwn(actual, key), Object.hasOwn(current, key), `Unknown legacy key ${key} leaked`);
   for (const key of ["baseNodeStyle", "centralNodeStyle", "inferredNodeStyle", "virtualNodeStyle", "siblingNodeStyle", "baseLinkStyle", "inferredLinkStyle", "folderLinkStyle", "tagLinkStyle"])
     for (const [field, value] of Object.entries(fixture[key])) assert.deepEqual(actual[key][field], value, `${key}.${field}`);
   for (const [key, icon] of [["urlNodeStyle", "globe"], ["attachmentNodeStyle", "paperclip"], ["folderNodeStyle", "folder"], ["tagNodeStyle", "tag"]]) {

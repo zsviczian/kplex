@@ -452,7 +452,7 @@ export class RelationEvidenceStore {
  * and merely marked suppressed; it is never discarded from the evidence store.
  */
 export function applyOntologyPrecedence(evidence: RelationEvidence[]): EvidenceDecision[] {
-  // K-Plex intentionally differs from classic ExcaliBrain here: explicit YAML/frontmatter is the
+  // K-Plex gives explicit YAML/frontmatter precedence: it is the
   // authoritative ontology tier for a note pair. Keep all body evidence for explainability, but
   // suppress a conflicting inline ontology whenever either declaring note supplies a frontmatter
   // role for this same relationship. `item.role` is already normalized to the current source

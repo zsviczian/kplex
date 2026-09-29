@@ -1,10 +1,12 @@
 # Portable UI components
 
+Runtime classes and SVG IDs use `kplex-`; shell custom properties use `--kplex-`. Keep React/native class producers, owning-document queries, portal selectors and CSS in sync. The canonical native view entry point is `src/ui/KplexView.tsx`; serialized workspace view IDs are unchanged.
+
 C03a introduces one deliberately small host-free interaction primitive: `src/ui/components/ActionButton.tsx`.
 
 ## `ActionButton`
 
-`ActionButton` is for an ordinary icon action with four inputs: an accessible `label`, an `icon` React slot, optional native `disabled`, and an ordinary `onClick` callback. It always renders a real `<button type="button">` with the existing `excalibrain-icon-button` class and a `kplex-action-button` token hook, and uses the label as its `aria-label`. It does not implement toggle/pressed state, menus, async/busy behavior, shortcuts, navigation policy, or host effects.
+`ActionButton` is for an ordinary icon action with four inputs: an accessible `label`, an `icon` React slot, optional native `disabled`, and an ordinary `onClick` callback. It always renders a real `<button type="button">` with the canonical `kplex-icon-button` class and a `kplex-action-button` token hook, and uses the label as its `aria-label`. It does not implement toggle/pressed state, menus, async/busy behavior, shortcuts, navigation policy, or host effects.
 
 The component owns no icon library. The icon is React content supplied by the caller. In the current Obsidian composition, `App.tsx` continues to create `ObsidianIcon` elements and passes them into the slot, so Lucide acquisition remains on the host side of the portable component boundary. `ActionButton` does not import Obsidian, `ObsidianIcon`, plugin/settings modules, host globals, or DOM helpers.
 
@@ -26,18 +28,18 @@ The reviewer added only the migrated action hook and its values to `styles.css`.
 
 | Token | Current host mapping | Purpose |
 | --- | --- | --- |
-| `--kplex-action-fg` | `var(--eb-text)` | Current icon/foreground color. |
+| `--kplex-action-fg` | `var(--kplex-text)` | Current icon/foreground color. |
 | `--kplex-action-bg` | `rgba(255, 255, 255, .055)` | Current action surface. |
 | `--kplex-action-bg-hover` | `rgba(255, 255, 255, .11)` | Current hover surface. |
 | `--kplex-action-border` | `rgba(255, 255, 255, .09)` | Current border. |
 | `--kplex-action-focus` | `var(--interactive-accent)` | Obsidian theme-aware focus outline. |
 | `--kplex-action-disabled-opacity` | `.28` | Current disabled opacity. |
 
-The values live on `.excalibrain-app` in each owning document, including pop-outs. If an action button later appears in a body portal, its portal root must receive the same token scope; this checkpoint migrates only the two in-tree navigation buttons.
+The values live on `.kplex-app` in each owning document, including pop-outs. If an action button later appears in a body portal, its portal root must receive the same token scope; this checkpoint migrates only the two in-tree navigation buttons.
 
 ## `FloatingLayer`
 
-C04a adds `src/ui/components/FloatingLayer.tsx` as a host-free owner-document floating-layer primitive and migrates only the Plex Filter panel. The component takes the open state, anchor and panel refs, an explicit inside-root resolver, a dismissal callback, an explicit portal-target policy, positioning values, and a render function for the panel content. It derives the active `Document` and `Window` only from the anchor's `ownerDocument`; it does not read global `document`/`window`, Obsidian APIs, plugin state, or `.excalibrain-app`.
+C04a adds `src/ui/components/FloatingLayer.tsx` as a host-free owner-document floating-layer primitive and migrates only the Plex Filter panel. The component takes the open state, anchor and panel refs, an explicit inside-root resolver, a dismissal callback, an explicit portal-target policy, positioning values, and a render function for the panel content. It derives the active `Document` and `Window` only from the anchor's `ownerDocument`; it does not read global `document`/`window`, Obsidian APIs, plugin state, or `.kplex-app`.
 
 The primitive owns the mechanics that were previously local to `PlexFilter`: React portal creation, fixed positioning below the trigger, viewport width/left/max-height clamping, resize and captured-scroll refresh, outside-pointer detection, Escape dismissal, Escape focus restoration to the trigger, and cleanup of document/window listeners plus its `ResizeObserver`. A handled Escape is consumed so Obsidian's workspace shortcut does not also switch tabs. The explicit inside-root list is the containment contract: the current Plex Filter supplies its trigger and panel; a future consumer may also supply a separate nested portal root so interaction there remains inside. Outside-pointer dismissal does not refocus the trigger, leaving the pointer target free to receive focus. Owner-window `pagehide` tears down listeners and observation even if React does not get an ordinary unmount first; a render after the anchor changes owner document also rebinds those resources to the new document.
 
@@ -45,7 +47,7 @@ The primitive owns the mechanics that were previously local to `PlexFilter`: Rea
 
 ### Why the other floating consumers remain distinct
 
-`FuzzySearchInput` is not migrated in C04a. It owns input focus, result visibility, keyboard selection/dismissal, retained selection behavior, result scrolling, and two distinct portal policies (`viewport` body vs `.excalibrain-app`). Its floating result list can choose above/below placement and sizes itself from the search shell/app geometry. Those are suggester policies rather than the Plex Filter's modal-like panel policy; C05 is the planned checkpoint for making that suggester host-free and can consume the proven mechanics without moving ranking or selection into `FloatingLayer`.
+`FuzzySearchInput` is not migrated in C04a. It owns input focus, result visibility, keyboard selection/dismissal, retained selection behavior, result scrolling, and two distinct portal policies (`viewport` body vs `.kplex-app`). Its floating result list can choose above/below placement and sizes itself from the search shell/app geometry. Those are suggester policies rather than the Plex Filter's modal-like panel policy; C05 is the planned checkpoint for making that suggester host-free and can consume the proven mechanics without moving ranking or selection into `FloatingLayer`.
 
 `RelationPopover` is also not migrated. It is currently host-bound through the plugin, Vault and relationship mutation APIs, auto-focuses its note search input, uses its own window-level Escape listener, and is positioned from caller-provided graph coordinates rather than an anchor element. Folding those behaviors into C04a would hard-code relationship/modal policy into the primitive. If a later C04b review finds a small shared mechanic worth adopting before C05, it should remain a separate consumer migration rather than expanding this primitive's responsibilities.
 
@@ -61,7 +63,7 @@ C04's `FloatingLayer` is intentionally not reused here. Its contract is a fixed 
 
 The old `src/ui/FuzzySearchInput.tsx` path remains a thin Obsidian-facing compatibility facade. It injects the existing 16 px `ObsidianIcon`, preserving the default `search` icon and named icons such as the modal's `tags`, and retains `fuzzyFilterStrings` as caller-side ranking policy. The exact remaining facade consumers are `src/ui/SearchBox.tsx` (toolbar search) and `src/ui/NewRelatedNoteModal.ts` plus its synchronized compatibility twin `src/ui/NewRelatedNoteModal.tsx` (note and ontology fields). C25 is the planned retirement point for this facade after those host compositions can supply icon slots directly.
 
-The toolbar configuration remains open-on-focus and app-portaled inside `.excalibrain-app`, with its topbar-relative placement. The related-note modal remains closed until typing and portals to the owning document body, allowing above-field placement when lower viewport space is insufficient. Enter still chooses only an available result unless a caller explicitly supplies `onEnterWithoutResult`; Ctrl/Cmd+Enter remains a separate caller callback, and an Enter delivered during IME composition does not choose a result. Existing CSS hooks, class names, strings and public facade props are unchanged.
+The toolbar configuration remains open-on-focus and app-portaled inside `.kplex-app`, with its topbar-relative placement. The related-note modal remains closed until typing and portals to the owning document body, allowing above-field placement when lower viewport space is insufficient. Enter still chooses only an available result unless a caller explicitly supplies `onEnterWithoutResult`; Ctrl/Cmd+Enter remains a separate caller callback, and an Enter delivered during IME composition does not choose a result. Interaction contracts, localized strings and public facade props are unchanged; CSS hooks use the current `kplex` namespace.
 
 The browser DOM lane renders the production `FuzzySuggester` directly. It covers both consumer policies, caller result order, icon-slot rendering, app/body portal ownership and geometry, above placement, focus/request and clear/reopen behavior, inside/outside dismissal, Arrow Up/Down and selected-row scrolling, Enter/Escape/Ctrl-or-Cmd+Enter policy, disabled/empty states, composition Enter, and a second-document move followed by rerender to verify portal/listener ownership follows the moved shell. Native Obsidian main/pop-out stacking and physical touch/keyboard delivery remain reviewer-owned checks.
 

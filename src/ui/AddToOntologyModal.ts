@@ -2,14 +2,14 @@
  * Native Obsidian dialog for adding an existing vault field to an ontology role. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
 import { Modal, Setting } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 
 export type OntologyAssignmentRole = "parent" | "child" | "left" | "right" | "previous" | "next" | "hidden" | "excluded";
 
 
 export class AddToOntologyModal extends Modal {
   constructor(
-    private plugin: ExcaliBrainPlugin,
+    private plugin: KplexPlugin,
     private fieldName: string,
     private onSaved?: () => void,
   ) { super(plugin.app); }

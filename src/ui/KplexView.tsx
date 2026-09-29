@@ -3,12 +3,12 @@
  */
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import { createRoot, type Root } from "react-dom/client";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { KplexViewSurface } from "../settings";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
-import { ExcaliBrainApp } from "./App";
+import { KplexApp } from "./App";
 
-export const EXCALIBRAIN_VIEW_TYPE = "k-plex-react-view";
+export const KPLEX_VIEW_TYPE = "k-plex-react-view";
 export const KPLEX_SIDEPANEL_VIEW_TYPE = "k-plex-sidepanel-view";
 
 abstract class BaseKplexView extends ItemView {
@@ -17,28 +17,34 @@ abstract class BaseKplexView extends ItemView {
   private ready = false;
   private readyResolvers: Array<() => void> = [];
 
-  constructor(leaf: WorkspaceLeaf, protected plugin: ExcaliBrainPlugin) { super(leaf); }
+  /** Bind the native leaf and K-Plex owner; React mounts only when Obsidian opens the view. */
+  constructor(leaf: WorkspaceLeaf, protected plugin: KplexPlugin) { super(leaf); }
 
   /** Return the localized native-view title without changing the view registration ID. */
   getDisplayText(): string { return this.plugin.translator("view.displayName"); }
+  /** Return the host Lucide icon ID used for the native K-Plex tab. */
   getIcon(): string { return "brain-circuit"; }
+  /** Identify the owning surface so profile and environment policy stay outside the renderer. */
   protected abstract getSurface(): KplexViewSurface;
 
+  /** Resolve after initial rendering, or on close so pending callers cannot retain a dead view. */
   waitUntilReady(): Promise<void> {
     if (this.ready) return Promise.resolve();
     return new Promise<void>((resolve) => this.readyResolvers.push(resolve));
   }
 
+  /** Mark the initial render ready and release each queued readiness waiter exactly once. */
   private markReady(): void {
     if (this.ready) return;
     this.ready = true;
     for (const resolve of this.readyResolvers.splice(0)) resolve();
   }
 
+  /** Replace the React root in this owning document, releasing any previous root and listeners. */
   protected renderReact(): void {
     this.root?.unmount();
     this.root = createRoot(this.contentEl);
-    this.root.render(<ExcaliBrainApp
+    this.root.render(<KplexApp
       plugin={this.plugin}
       surface={this.getSurface()}
       hostLeaf={this.leaf}
@@ -47,10 +53,11 @@ abstract class BaseKplexView extends ItemView {
     />);
   }
 
+  /** Mount immediately, watch native window migration and start indexing without blocking reveal. */
   async onOpen(): Promise<void> {
     await super.onOpen();
     this.contentEl.empty();
-    this.contentEl.addClass("excalibrain-view-host");
+    this.contentEl.addClass("kplex-view-host");
     this.contentEl.toggleClass("kplex-sidepanel-host", this.getSurface() === "sidepanel");
     if (typeof this.containerEl.onWindowMigrated === "function") {
       this.windowMigrationCleanup = this.containerEl.onWindowMigrated(() => this.renderReact());
@@ -64,6 +71,7 @@ abstract class BaseKplexView extends ItemView {
     void this.plugin.onKplexViewOpened(this.leaf).catch((error) => console.error("K-Plex view initialization failed", error));
   }
 
+  /** Release window hooks, React resources and pending waiters before native view teardown. */
   async onClose(): Promise<void> {
     this.windowMigrationCleanup?.();
     this.windowMigrationCleanup = null;
@@ -76,8 +84,10 @@ abstract class BaseKplexView extends ItemView {
   }
 }
 
-export class ExcaliBrainView extends BaseKplexView {
-  getViewType(): string { return EXCALIBRAIN_VIEW_TYPE; }
+export class KplexView extends BaseKplexView {
+  /** Preserve the serialized normal/pop-out view type so existing workspaces restore unchanged. */
+  getViewType(): string { return KPLEX_VIEW_TYPE; }
+  /** Derive normal versus pop-out ownership from the native content document after each move. */
   protected getSurface(): KplexViewSurface {
     // A regular leaf can migrate into a popout. Its document lives in a different window then.
     return this.contentEl.ownerDocument.defaultView === window ? "leaf" : "popout";
@@ -85,6 +95,8 @@ export class ExcaliBrainView extends BaseKplexView {
 }
 
 export class KplexSidepanelView extends BaseKplexView {
+  /** Preserve the serialized sidepanel view type used by existing workspace state. */
   getViewType(): string { return KPLEX_SIDEPANEL_VIEW_TYPE; }
+  /** Sidepanel shells always use the dedicated sidepanel layout and opening policy. */
   protected getSurface(): KplexViewSurface { return "sidepanel"; }
 }

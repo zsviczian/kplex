@@ -2,7 +2,7 @@
  * Native Obsidian dialog for renaming a real note through the Vault API. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
 import { Modal, Notice, Setting, type TFile, normalizePath } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 
 function fileSuffix(file: TFile): string {
   if (file.name.toLocaleLowerCase().endsWith(".excalidraw.md")) return ".excalidraw.md";
@@ -16,7 +16,7 @@ function editableStem(file: TFile, suffix: string): string {
 }
 
 export class RenameNoteModal extends Modal {
-  constructor(private plugin: ExcaliBrainPlugin, private file: TFile) {
+  constructor(private plugin: KplexPlugin, private file: TFile) {
     super(plugin.app);
   }
 

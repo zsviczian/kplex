@@ -1,3 +1,7 @@
+/**
+ * Tests K-Plex normalized-source compilation against the preserved migration golden and opaque
+ * identity/revision contracts. Host-free bundles and their temporary outputs are owned by the suite.
+ */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync, mkdtempSync, rmSync } from "node:fs";
@@ -46,7 +50,6 @@ const settings = {
   },
   inferAllLinksAsFriends: false,
   inverseInfer: false,
-  excalibrainFilepath: "Excalibrain.md",
   showFullTagName: true,
   noteTypeField: "Note type",
   primaryTagField: "Note type",
@@ -261,6 +264,24 @@ test("streaming accepts later materialized facts, ignores stale host-map rows, a
   assert.equal(await incomplete.acceptBatch(incompleteRead, { boundary: incompleteBoundary, sequence: 0, final: true, records: [fileTree] }), true);
   assert.equal(incomplete.completeRead(incompleteRead, incompleteBoundary), true);
   assert.equal(await incomplete.finish(), null, "materialized references must have entity facts before a full result can publish");
+});
+
+test("Excalibrain.md has no reserved graph meaning", async () => {
+  const rev = core.sourceRevision("ordinary-path:1");
+  const source = { id: core.nodeId("ordinary-source"), kind: "document", state: "materialized", semanticPath: "A.md", physicalPath: "A.md" };
+  const namedLikeOldSurface = { id: core.nodeId("ordinary-excalibrain"), kind: "document", state: "materialized", semanticPath: "Excalibrain.md", physicalPath: "Excalibrain.md" };
+  const unresolved = { id: core.nodeId("ordinary-unresolved"), kind: "unresolved", state: "unresolved", semanticPath: "Missing.md" };
+  const { compilation } = await compileRecords([
+    { kind: "entity", source, sourceRevision: rev, entity: source, name: "A", url: null, file: { name: "A.md", extension: "md", path: "A.md", mtime: 1 } },
+    { kind: "entity", source: namedLikeOldSurface, sourceRevision: rev, entity: namedLikeOldSurface, name: "Excalibrain", url: null, file: { name: "Excalibrain.md", extension: "md", path: "Excalibrain.md", mtime: 1 } },
+    { kind: "obsidian-link", source, sourceRevision: rev, target: { entity: namedLikeOldSurface, rawTarget: "Excalibrain", resolvedBy: "host" }, occurrenceCount: 1 },
+    { kind: "unresolved-link", source: namedLikeOldSurface, sourceRevision: rev, target: { entity: unresolved, rawTarget: "Missing", resolvedBy: "unresolved" }, occurrenceCount: 1 },
+  ]);
+  assert(compilation);
+  assert.equal(compilation.evidenceBetween(source.id, namedLikeOldSurface.id).length, 1,
+    "a same-named user note must remain a normal link target");
+  assert.equal(compilation.evidenceBetween(namedLikeOldSurface.id, unresolved.id).length, 1,
+    "a same-named user note must remain a normal link source");
 });
 
 test("compiler cancellation is checked after awaited yields and during cooperative resolution", async () => {

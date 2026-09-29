@@ -8,7 +8,7 @@
 
 **K-Plex (Knowledge Plex)** is a spatial knowledge navigator for Obsidian. It keeps one note at the center and places related notes in predictable directions, so position carries meaning instead of constantly changing like a force-directed graph.
 
-K-Plex is inspired by the navigation model of TheBrain and is the successor to ExcaliBrain. It preserves the relationship-oriented way of thinking that made ExcaliBrain useful, while providing its own interface and indexing system. **Excalidraw and Dataview are not required.**
+K-Plex is inspired by the navigation model of TheBrain. It provides a relationship-oriented way to explore your knowledge, with its own interface and indexing system. **Excalidraw and Dataview are not required.**
 
 K-Plex is designed for people who want to *move through* their notes rather than stare at an entire vault at once: follow a parent, compare challengers, see siblings, open a related document beside the graph, expand a note into sections, or temporarily reshape the Plex with Graph Lenses.
 
@@ -38,7 +38,7 @@ The same relationship keeps the same spatial meaning as you move from note to no
 - Desktop, tablet or mobile
 - Desktop if you want to use Obsidian pop-out windows
 
-K-Plex can coexist with classic ExcaliBrain because it uses its own plugin ID.
+K-Plex uses its own plugin ID, so you can keep ExcaliBrain installed while migrating your settings.
 
 ![KPLEX Screenshot](docs/KPlex-Screenshot-2.png)
 
@@ -304,9 +304,7 @@ Version 0.0.3 substantially improved startup performance, incremental updates, l
 
 If graph data ever appears stale, use the toolbar refresh button or run **Rebuild K-Plex index**.
 
-If indexing restarts unexpectedly, run **Copy index diagnostics** from the Command Palette and paste the report into an issue. It includes index progress, saved-cache state, and recent decisions, without note names, paths, or content. The report is copied locally; K-Plex does not send it anywhere.
-
-## Ontology and ExcaliBrain compatibility
+## Ontology and legacy settings migration
 
 K-Plex understands configurable relationship field names for:
 
@@ -320,7 +318,7 @@ K-Plex understands configurable relationship field names for:
 
 It supports YAML/frontmatter relationships and compatible Dataview-style body fields without requiring the Dataview plugin.
 
-If classic ExcaliBrain is installed and running, K-Plex can import compatible settings. You can also use **Import ExcaliBrain settings** manually from **Settings → K-Plex → Compatibility**.
+If classic ExcaliBrain is installed and running, K-Plex can import its ontology and graph, node and link styling. You can also use **Import ExcaliBrain settings** manually from **Settings → K-Plex → Compatibility**. Importing does not change K-Plex's navigation, workspace, editor or keyboard preferences. Plugin CSS and command aliases are not imported; assign shortcuts to the K-Plex commands directly.
 
 K-Plex and classic ExcaliBrain can coexist while you migrate.
 

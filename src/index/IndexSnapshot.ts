@@ -1,5 +1,9 @@
+/**
+ * Serializes K-Plex semantic snapshots and captures physical vault inventory for startup
+ * reconciliation. Callers own storage, hydration and publication lifetimes.
+ */
 import { TFile, TFolder, type App } from "obsidian";
-import type { ExcaliBrainSettings } from "../settings";
+import type { KplexSettings } from "../settings";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
 import { createGraphState, type GraphState } from "./GraphState";
 import { resolveEvidenceStore, resolveEvidenceStoreCooperative } from "./RelationResolver";
@@ -139,13 +143,12 @@ export function computeVaultSignature(app: App): string {
 }
 
 /** Settings that alter the semantic graph, rather than only presentation. */
-export function computeIndexSettingsSignature(settings: ExcaliBrainSettings): string {
+export function computeIndexSettingsSignature(settings: KplexSettings): string {
   return JSON.stringify({
     schema: INDEX_SNAPSHOT_VERSION,
     hierarchy: settings.hierarchy,
     inferAllLinksAsFriends: settings.inferAllLinksAsFriends,
     inverseInfer: settings.inverseInfer,
-    excalibrainFilepath: settings.excalibrainFilepath,
     showFullTagName: settings.showFullTagName,
     noteTypeField: settings.noteTypeField,
     primaryTagField: settings.primaryTagField,
@@ -221,7 +224,7 @@ export function persistedPageFromGraphPage(page: GraphPage, semanticSignature?: 
 export function serializeGraphState(
   state: GraphState,
   app: App,
-  settings: ExcaliBrainSettings,
+  settings: KplexSettings,
 ): PersistedIndexSnapshot {
   const pages: PersistedPage[] = [];
   for (const page of state.pages.values()) {

@@ -1,3 +1,7 @@
+/**
+ * Bundles K-Plex UI components into real browser fixtures for interaction, portal and cleanup
+ * assertions. Canonical CSS selectors are shared with production; fixtures are removed after each run.
+ */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -84,7 +88,7 @@ try {
   check(button instanceof HTMLButtonElement, "ActionButton did not render a native button");
   check(button.type === "button", "ActionButton must render type=button");
   check(button.getAttribute("aria-label") === "Navigate back", "accessible label was not rendered");
-  check(button.classList.contains("excalibrain-icon-button"), "existing CSS hook changed");
+  check(button.classList.contains("kplex-icon-button"), "canonical K-Plex button CSS hook is missing");
   check(button.classList.contains("kplex-action-button"), "action token hook missing");
   check(!button.hasAttribute("title"), "ActionButton must not add a second/title tooltip");
   check(button.querySelector('[data-testid="action-icon"]')?.textContent === "←", "icon slot did not render");
@@ -707,13 +711,13 @@ try {
   const toolbarInput = toolbarHost.querySelector("input");
   toolbarShell.getBoundingClientRect = () => ({ left: 100, top: 50, right: 320, bottom: 80, width: 220, height: 30, x: 100, y: 50, toJSON() { return {}; } });
   flushSync(() => toolbarInput.focus());
-  let list = app.querySelector(".excalibrain-search-results");
+  let list = app.querySelector(".kplex-search-results");
   check(list && list.parentElement === app, "toolbar results did not portal inside the app root");
   check([...list.querySelectorAll("button > span")].map((node) => node.textContent).join("|") === "Zulu|Alpha|Mike", "portable suggester reordered caller results");
   check(list.style.left === "50px" && list.style.top === "56px", "toolbar app-relative geometry changed");
   check(toolbarHost.querySelector('[data-testid="slot-icon"]'), "portable icon slot did not render");
   flushSync(() => dispatchPointer(list.querySelector("button")));
-  check(app.querySelector(".excalibrain-search-results"), "inside result pointer was treated as outside");
+  check(app.querySelector(".kplex-search-results"), "inside result pointer was treated as outside");
 
   flushSync(() => key(toolbarInput, "ArrowDown"));
   check(list.querySelector('[data-kplex-fuzzy-index="1"]').classList.contains("is-selected"), "ArrowDown did not move selection");
@@ -727,18 +731,18 @@ try {
   window.addEventListener("keydown", () => { leakedEscape += 1; }, { once: true });
   const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
   flushSync(() => toolbarInput.dispatchEvent(escape));
-  check(!app.querySelector(".excalibrain-search-results"), "Escape did not dismiss visible results");
+  check(!app.querySelector(".kplex-search-results"), "Escape did not dismiss visible results");
   check(document.activeElement === toolbarInput, "Escape blurred the input");
   check(escape.defaultPrevented && leakedEscape === 0, "Escape leaked to the host shortcut path");
 
   flushSync(() => type(toolbarInput, "x"));
-  check(app.querySelector(".excalibrain-search-results"), "editing after Escape did not reopen results");
+  check(app.querySelector(".kplex-search-results"), "editing after Escape did not reopen results");
   const outside = document.createElement("button"); document.body.append(outside);
   flushSync(() => dispatchPointer(outside));
-  check(document.activeElement !== toolbarInput && !app.querySelector(".excalibrain-search-results"), "outside pointer did not close and blur");
+  check(document.activeElement !== toolbarInput && !app.querySelector(".kplex-search-results"), "outside pointer did not close and blur");
   focusRequest += 1;
   flushSync(() => toolbarRoot.render(React.createElement(Toolbar)));
-  check(document.activeElement === toolbarInput && app.querySelector(".excalibrain-search-results"), "focusRequest did not focus and reopen toolbar results");
+  check(document.activeElement === toolbarInput && app.querySelector(".kplex-search-results"), "focusRequest did not focus and reopen toolbar results");
   flushSync(() => key(toolbarInput, "Enter"));
   check(chosen.join("|") === "z", "Enter did not choose the caller-ordered selected result");
 
@@ -901,7 +905,7 @@ try {
   host.querySelector(".kplex-fuzzy-search").getBoundingClientRect = () => ({ left: 10, top: 20, right: 310, bottom: 50, width: 300, height: 30 });
   flushSync(() => input.focus());
   flushSync(() => type(input, "needle"));
-  const rows = () => [...host.querySelectorAll(".excalibrain-search-result")];
+  const rows = () => [...host.querySelectorAll(".kplex-search-result")];
   check(rows().length === 2, "search hits did not render");
   check(rows()[0].querySelector("span").textContent === second.label, "source ranking was changed");
   check(rows()[1].querySelector("small").textContent === first.detail, "opaque ID was used as display detail");

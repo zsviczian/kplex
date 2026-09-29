@@ -3,8 +3,8 @@
  */
 import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { GraphIndex } from "./index/GraphIndex";
-import { DEFAULT_SETTINGS, ExcaliBrainSettingTab, migrateAndMergeSettings, type DocumentSyncMode, type ExcaliBrainSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
-import { EXCALIBRAIN_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, ExcaliBrainView, KplexSidepanelView } from "./ui/ExcaliBrainView";
+import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
+import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelView } from "./ui/KplexView";
 import { RelationModal, type RelationModalOptions } from "./ui/RelationModal";
 import { NewRelatedNoteModal } from "./ui/NewRelatedNoteModal";
 import { CreateFolderNoteModal } from "./ui/CreateFolderNoteModal";
@@ -59,8 +59,8 @@ type RecentIndexedNavigationTarget = {
   file: TFile | null;
 };
 
-export default class ExcaliBrainPlugin extends Plugin {
-  settings: ExcaliBrainSettings = DEFAULT_SETTINGS;
+export default class KplexPlugin extends Plugin {
+  settings: KplexSettings = DEFAULT_SETTINGS;
   index!: GraphIndex;
   translator: Translator = createTranslator("en");
   private rebuildTimer: number | null = null;
@@ -114,7 +114,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private readonly kplexVisibilityListeners = new Set<() => void>();
   private visibleKplexLeaves = new Set<WorkspaceLeaf>();
   private lastIndexStatusKey = "";
-  private readonly graphLensListeners = new Set<(lenses: ExcaliBrainSettings["graphLenses"]) => void>();
+  private readonly graphLensListeners = new Set<(lenses: KplexSettings["graphLenses"]) => void>();
   private readonly managedMetadataWrites = new Map<string, number>();
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
   private readonly managedCreatedPaths = new Map<string, number>();
@@ -133,7 +133,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.dismissKplexMenu();
   };
 
-  private runningExcaliBrainSettings(): unknown {
+  private runningKplexSettings(): unknown {
     // Obsidian does not currently expose the community-plugin registry as public API. The
     // legacy ExcaliBrain plugin does expose its loaded settings on the plugin instance, so keep
     // this guarded bridge isolated here. K-Plex has its own manifest id (k-plex), allowing both
@@ -146,7 +146,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     return legacy.settings ?? null;
   }
 
-  /** Register plugin lifecycle resources, commands and host integrations. Product command/notice copy uses the translator; persisted command IDs remain stable. */
+  /** Register plugin lifecycle resources, commands and host integrations. Product command/notice copy uses the translator; command IDs use the K-Plex namespace. */
   async onload(): Promise<void> {
     this.translator = createObsidianTranslator();
     const ownData: unknown = await this.loadData();
@@ -167,21 +167,21 @@ export default class ExcaliBrainPlugin extends Plugin {
 
     this.index = new GraphIndex(this);
 
-    this.registerView(EXCALIBRAIN_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ExcaliBrainView(leaf, this));
+    this.registerView(KPLEX_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexView(leaf, this));
     this.registerView(KPLEX_SIDEPANEL_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexSidepanelView(leaf, this));
-    this.registerHoverLinkSource(EXCALIBRAIN_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
+    this.registerHoverLinkSource(KPLEX_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
     this.registerHoverLinkSource(KPLEX_SIDEPANEL_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
-    this.addSettingTab(new ExcaliBrainSettingTab(this.app, this));
+    this.addSettingTab(new KplexSettingTab(this.app, this));
     this.registerEditorSuggest(new OntologySuggester(this));
     this.addRibbonIcon("brain-circuit", this.translator("ribbon.open"), () => void this.activateView());
 
-    // Keep legacy command IDs so existing hotkeys continue to work, but expose only actions that
+    // Register canonical K-Plex commands and expose actions that
     // make sense for the current form factor. Phones use the sidepanel as their primary K-Plex
     // surface; tablets can choose between a normal tab and the sidepanel; pop-out windows are
     // desktop-only. Obsidian evaluates checkCallback while building the command palette, so a
     // false result keeps unavailable actions out of the list instead of merely disabling them.
     this.addCommand({
-      id: "excalibrain-start",
+      id: "kplex-start",
       name: this.translator("command.openGraph"),
       checkCallback: (checking) => {
         if (!isGraphTabCommandAvailable(readObsidianPresentationEnvironment())) return false;
@@ -189,9 +189,9 @@ export default class ExcaliBrainPlugin extends Plugin {
         return true;
       },
     });
-    this.addCommand({ id: "excalibrain-rebuild-index", name: this.translator("command.rebuildIndex"), callback: () => void this.rebuildIndex(true) });
+    this.addCommand({ id: "kplex-rebuild-index", name: this.translator("command.rebuildIndex"), callback: () => void this.rebuildIndex(true) });
     this.addCommand({
-      id: "copy-index-diagnostics",
+      id: "kplex-copy-index-diagnostics",
       name: this.translator("command.copyIndexDiagnostics"),
       callback: () => void this.copyIndexDiagnostics(),
     });
@@ -244,12 +244,12 @@ export default class ExcaliBrainPlugin extends Plugin {
     });
     this.registerOntologyCommands();
     this.addCommand({
-      id: "excalibrain-focus-active-note",
+      id: "kplex-focus-active-note",
       name: this.translator("command.focusActiveNote"),
       checkCallback: (checking: boolean) => {
         const file = this.app.workspace.getActiveFile();
         if (!file) return false;
-        if (!checking) void this.focusInBrain(file.path);
+        if (!checking) void this.focusInKplex(file.path);
         return true;
       }
     });
@@ -331,9 +331,9 @@ export default class ExcaliBrainPlugin extends Plugin {
         if (this.unloading) return;
         this.installPreRestoreChangeFence();
         if (!alreadyKplex) {
-          const legacySettings = this.runningExcaliBrainSettings();
+          const legacySettings = this.runningKplexSettings();
           if (legacySettings) {
-            this.settings = migrateAndMergeSettings(legacySettings);
+            this.settings = importExcaliBrainGraphSettings(legacySettings, this.settings);
             new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
           }
           this.settings.kplexInitialized = true;
@@ -347,7 +347,7 @@ export default class ExcaliBrainPlugin extends Plugin {
         // run. This uses only Obsidian's restored workspace geometry/view state; it must not wait
         // for the semantic graph or create a new split.
         if (this.settings.sidecarOpen) {
-          const restoredHost = this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE)[0];
+          const restoredHost = this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE)[0];
           if (restoredHost) {
             try {
               await this.restorePersistedSidecar(restoredHost);
@@ -1101,7 +1101,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private isDocumentLeafCandidate(leaf: WorkspaceLeaf | null): leaf is WorkspaceLeaf {
     if (!leaf || isEmbeddedMarkdownLeaf(leaf) || this.isManagedSidecarLeaf(leaf)) return false;
     const viewState = leaf.getViewState();
-    if (viewState.type === EXCALIBRAIN_VIEW_TYPE || viewState.type === KPLEX_SIDEPANEL_VIEW_TYPE) return false;
+    if (viewState.type === KPLEX_VIEW_TYPE || viewState.type === KPLEX_SIDEPANEL_VIEW_TYPE) return false;
     if (viewState.type === "empty" || leaf.view instanceof FileView) return true;
 
     // Background tabs can be DeferredView instances. Inspect serialized view state instead
@@ -1401,7 +1401,7 @@ export default class ExcaliBrainPlugin extends Plugin {
 
   private currentVisibleKplexLeaves(): Set<WorkspaceLeaf> {
     return new Set([
-      ...this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE),
+      ...this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE),
       ...this.app.workspace.getLeavesOfType(KPLEX_SIDEPANEL_VIEW_TYPE),
     ].filter((leaf) => this.leafIsVisible(leaf)));
   }
@@ -1623,7 +1623,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     const matches = (leaf: WorkspaceLeaf | null): leaf is WorkspaceLeaf => {
       if (!leaf) return false;
       const type = leaf.getViewState().type;
-      return type !== EXCALIBRAIN_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE
+      return type !== KPLEX_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE
         && this.fileForLeaf(leaf)?.path === file.path;
     };
     const recent = this.app.workspace.getMostRecentLeaf();
@@ -1937,7 +1937,7 @@ export default class ExcaliBrainPlugin extends Plugin {
   private isKplexLeaf(leaf: WorkspaceLeaf | null | undefined): leaf is WorkspaceLeaf {
     if (!leaf) return false;
     const type = leaf.getViewState().type;
-    return type === EXCALIBRAIN_VIEW_TYPE || type === KPLEX_SIDEPANEL_VIEW_TYPE;
+    return type === KPLEX_VIEW_TYPE || type === KPLEX_SIDEPANEL_VIEW_TYPE;
   }
 
   private searchTargetLeaf(): WorkspaceLeaf | null {
@@ -2057,12 +2057,12 @@ export default class ExcaliBrainPlugin extends Plugin {
     for (const listener of this.indexStatusListeners) listener();
   }
 
-  subscribeGraphLenses(listener: (lenses: ExcaliBrainSettings["graphLenses"]) => void): () => void {
+  subscribeGraphLenses(listener: (lenses: KplexSettings["graphLenses"]) => void): () => void {
     this.graphLensListeners.add(listener);
     return () => this.graphLensListeners.delete(listener);
   }
 
-  async setGraphLenses(lenses: ExcaliBrainSettings["graphLenses"]): Promise<void> {
+  async setGraphLenses(lenses: KplexSettings["graphLenses"]): Promise<void> {
     this.settings.graphLenses = lenses;
     await this.saveSettings(false, false);
     for (const listener of this.graphLensListeners) listener(lenses);
@@ -2517,7 +2517,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       return;
     }
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
-    let leaf = this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE)[0];
+    let leaf = this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE)[0];
     if (!leaf) {
       if (target === "popout") {
         try { leaf = this.app.workspace.getLeaf("window"); }
@@ -2525,7 +2525,7 @@ export default class ExcaliBrainPlugin extends Plugin {
       } else {
         leaf = this.app.workspace.getLeaf(true);
       }
-      await leaf.setViewState({ type: EXCALIBRAIN_VIEW_TYPE, active: true });
+      await leaf.setViewState({ type: KPLEX_VIEW_TYPE, active: true });
     }
     await this.app.workspace.revealLeaf(leaf);
   }
@@ -2573,14 +2573,14 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
     try {
       const leaf = this.app.workspace.getLeaf("window");
-      await leaf.setViewState({ type: EXCALIBRAIN_VIEW_TYPE, active: true });
+      await leaf.setViewState({ type: KPLEX_VIEW_TYPE, active: true });
       await this.app.workspace.revealLeaf(leaf);
     } catch {
       new Notice(this.translator("notice.popoutUnavailable"), 2200);
     }
   }
 
-  async focusInBrain(path: string): Promise<void> {
+  async focusInKplex(path: string): Promise<void> {
     await this.activateView();
     await this.ensureIndexReady("focus-active-note");
     if (!this.index.get(path)) return;
@@ -2628,7 +2628,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     await this.createGhostNote(page);
   }
 
-  getViewSettings(surface: KplexViewSurface): ExcaliBrainSettings {
+  getViewSettings(surface: KplexViewSurface): KplexSettings {
     return effectiveViewSettings(this.settings, surface, readObsidianPresentationEnvironment());
   }
 
@@ -2765,7 +2765,7 @@ export default class ExcaliBrainPlugin extends Plugin {
 
     const collect = (items: BookmarkItem[] | undefined): void => {
       for (const item of items ?? []) {
-        if (item.type === "file" && item.path && item.path !== this.settings.excalibrainFilepath && this.app.vault.getAbstractFileByPath(item.path)) {
+        if (item.type === "file" && item.path && this.app.vault.getAbstractFileByPath(item.path)) {
           // Keep entry-point paths even while startup is displaying only a partial graph. search()
           // resolves them against the current index later, after full hydration has completed.
           paths.push(item.path);
@@ -2850,7 +2850,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     if (!page.file) return;
     this.app.workspace.trigger("hover-link", {
       event,
-      source: EXCALIBRAIN_VIEW_TYPE,
+      source: KPLEX_VIEW_TYPE,
       hoverParent: this.hoverParent,
       targetEl,
       linktext: page.file.path,
@@ -4108,7 +4108,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     if (!openForEditing || !page.file) return;
     const host = hostLeaf && hostLeaf.view.getViewType() !== KPLEX_SIDEPANEL_VIEW_TYPE
       ? hostLeaf
-      : this.app.workspace.getLeavesOfType(EXCALIBRAIN_VIEW_TYPE)[0];
+      : this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE)[0];
     if (host) {
       await this.openMarkdownInSidecar(host, page.file, 0, true);
       return;

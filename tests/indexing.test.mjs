@@ -473,13 +473,13 @@ function writeRuntimeStub(relativePath, source) {
 }
 writeRuntimeStub("src/settings.js", `
 exports.DEFAULT_SETTINGS = {};
-exports.ExcaliBrainSettingTab = class {};
+exports.KplexSettingTab = class {};
 exports.migrateAndMergeSettings = (_legacy, own) => own ?? {};
 `);
-writeRuntimeStub("src/ui/ExcaliBrainView.js", `
-exports.EXCALIBRAIN_VIEW_TYPE = "kplex";
+writeRuntimeStub("src/ui/KplexView.js", `
+exports.KPLEX_VIEW_TYPE = "kplex";
 exports.KPLEX_SIDEPANEL_VIEW_TYPE = "kplex-sidepanel";
-exports.ExcaliBrainView = class {};
+exports.KplexView = class {};
 exports.KplexSidepanelView = class {};
 `);
 for (const [path, name] of [
@@ -514,7 +514,7 @@ const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
 const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
 const { KplexIndexedDbCache } = require(join(temp, "src/index/IndexedDbCache.js"));
 const { createIndexDiagnosticsReport } = require(join(temp, "src/adapters/obsidian/indexDiagnosticsReport.js"));
-const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
+const KplexPlugin = require(join(temp, "src/main.js")).default;
 
 // Cleanup must never delete a generation when a transient metadata read hides its pointer.
 {
@@ -621,17 +621,17 @@ const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
   assert(!JSON.stringify(report).includes("private-vault"));
   assert(!JSON.stringify(report).includes("private-settings"));
   assert(!JSON.stringify(report).includes("not shared"));
-  const status = ExcaliBrainPlugin.prototype.getIndexDiagnosticsStatus.call({
+  const status = KplexPlugin.prototype.getIndexDiagnosticsStatus.call({
     cachedMarkdownFileCount: null,
-    computeIndexStatusFacts: ExcaliBrainPlugin.prototype.computeIndexStatusFacts,
+    computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: false, indexDirty: true, rebuildTask: null, rebuildTimer: null,
     index: { hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(status, { upToDate: false, phase: "loading-cache", indexedFiles: 8, totalFiles: null });
-  const readyStatus = ExcaliBrainPlugin.prototype.getIndexDiagnosticsStatus.call({
+  const readyStatus = KplexPlugin.prototype.getIndexDiagnosticsStatus.call({
     cachedMarkdownFileCount: null,
-    computeIndexStatusFacts: ExcaliBrainPlugin.prototype.computeIndexStatusFacts,
+    computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
     index: { hasPendingSnapshotHydration: () => false, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
@@ -648,18 +648,18 @@ const ExcaliBrainPlugin = require(join(temp, "src/main.js")).default;
   };
   let assignments = 0;
   const leaf = { async setViewState() { assignments += 1; } };
-  await ExcaliBrainPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  await KplexPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
   assert.equal(assignments, 0, "Unavailable Web Viewer must not be assigned to a native leaf");
   assert.equal(context.settings.sidecarLastFilePath, "Existing.md");
   assert.equal(context.settings.sidecarLastUrl, "");
   context.app.viewRegistry = { getViewCreatorByType: () => () => {} };
-  await ExcaliBrainPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
+  await KplexPlugin.prototype.openPageInSidecarLeaf.call(context, leaf, { url: "https://example.com" });
   assert.equal(assignments, 1, "An available Web Viewer must retain explicit Sidecar preview support");
   assert.equal(context.settings.sidecarLastFilePath, "");
   assert.equal(context.settings.sidecarLastUrl, "https://example.com");
 }
 const indexingStatusContext = {
-  computeIndexStatusFacts: ExcaliBrainPlugin.prototype.computeIndexStatusFacts,
+  computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
   initialIndexComplete: false,
   indexDirty: true,
   rebuildTask: Promise.resolve(),
@@ -687,7 +687,7 @@ const indexingStatusContext = {
     return "Status: updating index";
   },
 };
-assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
+assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
   upToDate: false,
   phase: "indexing",
   label: "Status: indexing 3 of 5 files",
@@ -695,9 +695,9 @@ assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusC
   totalFiles: 5,
 }, "Progressive indexing status must report currently published Markdown-file progress");
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "First status read must capture the Markdown total once");
-ExcaliBrainPlugin.prototype.getIndexStatus.call(indexingStatusContext);
+KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext);
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publications must reuse the cached Markdown total");
-assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
+assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
   index: { ...indexingStatusContext.index, isCheckpointSaving: () => true },
 }), {
@@ -707,7 +707,7 @@ assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
   indexedFiles: 3,
   totalFiles: 5,
 }, "A live checkpoint must explain why the indexing counter pauses without losing its progress count");
-assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
+assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
   rebuildTask: null,
   index: { ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 0 },
@@ -718,7 +718,7 @@ assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
   indexedFiles: 0,
   totalFiles: 5,
 }, "Snapshot hydration must identify cache loading instead of presenting a misleading 0-of-total indexing status");
-assert.deepEqual(ExcaliBrainPlugin.prototype.getIndexStatus.call({
+assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
   rebuildTask: null,
   initialIndexComplete: true,
@@ -738,11 +738,11 @@ const startupBubbleContext = {
   getIndexStatus: () => ({ upToDate: false }),
   saveSettings: () => { startupBubbleSaves += 1; return Promise.resolve(); },
 };
-assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), true, "First incomplete startup must claim the one-time guidance bubble");
+assert.equal(KplexPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), true, "First incomplete startup must claim the one-time guidance bubble");
 assert.equal(startupBubbleContext.settings.startupIndexInfoBubbleSeen, true, "Claiming startup guidance must persist its seen state in settings");
 assert.equal(startupBubbleSaves, 1, "Claiming startup guidance must save the one-time state exactly once");
-assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), false, "The same session must not reclaim startup guidance");
-assert.equal(ExcaliBrainPlugin.prototype.claimStartupIndexInfoBubble.call({
+assert.equal(KplexPlugin.prototype.claimStartupIndexInfoBubble.call(startupBubbleContext), false, "The same session must not reclaim startup guidance");
+assert.equal(KplexPlugin.prototype.claimStartupIndexInfoBubble.call({
   ...startupBubbleContext,
   startupIndexInfoBubbleClaimed: false,
 }), false, "A persisted seen flag must prevent startup guidance from returning after restart");
@@ -760,15 +760,15 @@ for (const axis of ["width", "height"]) {
     splitAxis: () => axis,
     setWorkspaceBasis: (element, extent) => writes.push([element, extent]),
   };
-  ExcaliBrainPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
+  KplexPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
   assert.deepEqual(writes, [[anchor, 200], [pane, 200]], "Collapsed native pane must share its anchor's allocation");
   writes.length = 0;
   paneExtent = 200;
-  ExcaliBrainPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
+  KplexPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
   assert.deepEqual(writes, [], "Usable native allocations must remain unchanged");
   paneExtent = 0;
   pane.parentElement = {};
-  ExcaliBrainPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
+  KplexPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
   assert.deepEqual(writes, [], "Sizing must not cross unrelated workspace splits");
 }
 const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedRelations, computeIndexSettingsSignature, computeVaultSignature, persistedDeclarationFromEvidence } = require(join(temp, "src/index/IndexSnapshot.js"));
@@ -1001,7 +1001,6 @@ const hierarchy = {
 
 const settings = {
   hierarchy,
-  excalibrainFilepath: "Excalibrain.md",
   noteTypeField: "Note type",
   primaryTagField: "Note type",
   tagStyleList: ["#project", "#person"],
@@ -1070,7 +1069,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   { inventoryRevision: 0, fresh: true, remainsDirty: true },
   { inventoryRevision: 0, fresh: false, remainsDirty: true },
 ]) {
-  const startup = new ExcaliBrainPlugin();
+  const startup = new KplexPlugin();
   startup.index = {
     getRestoreInventorySourceRevision: () => inventoryRevision,
     hasPendingSnapshotHydration: () => false,
@@ -1095,7 +1094,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   assert.equal(startup.dirtyMarkdownPaths.size > 0, remainsDirty, "Only uncovered paths may remain queued");
 }
 {
-  const startup = new ExcaliBrainPlugin();
+  const startup = new KplexPlugin();
   startup.index = { getRestoreInventorySourceRevision: () => 1 };
   startup.preRestoreChanged = true;
   startup.indexDirtyRevision = 1;
@@ -1106,7 +1105,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   assert.deepEqual([...startup.indexBacklogReasons], ["manual-rebuild"]);
 }
 {
-  const startup = new ExcaliBrainPlugin();
+  const startup = new KplexPlugin();
   startup.index = { getRestoreInventorySourceRevision: () => 1 };
   startup.preRestoreChanged = true;
   startup.indexDirtyRevision = 2;
@@ -1577,7 +1576,7 @@ try {
     // Startup can observe the already-settled checkpoint task. That state must still select
     // the resumable lane instead of declaring the partial graph a failed preview.
     await Promise.resolve();
-    const coordinator = new ExcaliBrainPlugin();
+    const coordinator = new KplexPlugin();
     coordinator.index = fallback; coordinator.app = app; coordinator.layoutReady = true;
     coordinator.metadataStabilized = true; coordinator.indexDirty = true;
     coordinator.indexBacklogReasons.add("startup:stale-snapshot");
@@ -2414,7 +2413,7 @@ try {
       assert.equal(stalled.getSnapshotHydrationDiagnostics().lastActivePhase, phase);
       assert.equal(watchdogTimers.size, 0);
       owner[method] = original;
-      const coordinator = new ExcaliBrainPlugin();
+      const coordinator = new KplexPlugin();
       coordinator.index = stalled; coordinator.app = app; coordinator.layoutReady = true;
       coordinator.metadataStabilized = true; coordinator.initialIndexComplete = false;
       coordinator.refreshBookmarkedEntryPoints = async () => {};
@@ -2449,7 +2448,7 @@ try {
     cancelled.indexedDb.iterateSnapshotPages = () => new Promise((resolve) => { releaseCancelled = resolve; });
     await cancelled.restoreIndexedDbSnapshot(["Note A.md"]);
     const waiting = cancelled.waitForSnapshotHydration();
-    const unloaded = new ExcaliBrainPlugin();
+    const unloaded = new KplexPlugin();
     unloaded.index = cancelled; unloaded.app = app; unloaded.layoutReady = true;
     unloaded.metadataStabilized = true;
     let unloadRebuilds = 0;
@@ -3256,7 +3255,7 @@ try {
   // P12: exercise the production rebuild coordinator. If the last visible K-Plex surface closes
   // while an incremental patch is awaiting work, cancellation must not fall through to a hidden
   // full rebuild. Reopening resumes the retained backlog exactly once.
-  const coordinator = new ExcaliBrainPlugin();
+  const coordinator = new KplexPlugin();
   let coordinatorVisible = true;
   let coordinatorFullBuilds = 0;
   const coordinatorPatchCalls = [];
@@ -3305,7 +3304,7 @@ try {
   // Creating a Markdown note during another patch must materialize and patch only that source.
   // A missing page used to make this path fall through to an expensive whole-vault rebuild.
   const createdDuringPatch = new TFile("Created During Patch.md", 9000);
-  const creationCoordinator = new ExcaliBrainPlugin();
+  const creationCoordinator = new KplexPlugin();
   let materialized = false;
   let creationFullBuilds = 0;
   const creationPatchCalls = [];
@@ -3353,7 +3352,7 @@ try {
 
   // The reactive coordinator must not turn the rename event (or Obsidian's unchanged follow-up
   // metadata event) into indexing work. Persisted navigation paths are still remapped immediately.
-  const renameCoordinator = new ExcaliBrainPlugin();
+  const renameCoordinator = new KplexPlugin();
   const renameHandlers = new Map();
   const rebuildReasons = [];
   const fastRenameCalls = [];

@@ -1,3 +1,7 @@
+/**
+ * Tests K-Plex environment-driven routing, shortcuts and view profiles with portable contracts
+ * and bounded host doubles. Temporary outputs are test-owned and native device delivery is not inferred.
+ */
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -332,7 +336,7 @@ test("phone maps explicitly to persisted mobile layout profiles and keeps every 
   assert.deepEqual(presentation.selectLayoutProfile(settings, "leaf", desktop), { compactingFactor: 9, parentColumns: 9, childColumns: 9 });
 });
 
-test("persisted layout keys, stable command ids and explicit node-open leaf modes remain unchanged in production sources", () => {
+test("persisted layout keys and node-open leaf modes remain stable with canonical K-Plex command IDs", () => {
   const settingsSource = readFileSync(join(root, "src/settings.ts"), "utf8");
   for (const key of ["mobile:leaf", "mobile:sidepanel", "mobile:popout", "tablet:leaf", "desktop:leaf"]) {
     assert(settingsSource.includes(`"${key}"`), `missing persisted layout profile ${key}`);
@@ -342,7 +346,7 @@ test("persisted layout keys, stable command ids and explicit node-open leaf mode
   assert(settingsSource.includes("old.layoutProfiles?.[key]"), "profile migration must continue reading the same stored keys");
 
   const mainSource = readFileSync(join(root, "src/main.ts"), "utf8");
-  assert(mainSource.includes('id: "excalibrain-start"'));
+  assert(mainSource.includes('id: "kplex-start"'));
   assert(mainSource.includes('id: "kplex-open-popout"'));
   assert(mainSource.includes('id: "kplex-open-sidepanel"'));
   assert(mainSource.includes("primaryOpenSurface(environment, this.settings.startInPopout)"));
@@ -362,7 +366,7 @@ test("persisted layout keys, stable command ids and explicit node-open leaf mode
   assert(plexSource.includes("openState.focusOpenTab"), "focus-open action must remain conditional on an already-open file leaf");
   assert(plexSource.includes("openState.adjacentPane"), "adjacent-pane action must follow presentation availability");
   assert(plexSource.includes("openState.popoutWindow"), "pop-out action must follow presentation availability");
-  assert(mainSource.includes("type !== EXCALIBRAIN_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE"), "Focus open tab excludes graph surfaces but includes actual file tabs such as Sidecars");
+  assert(mainSource.includes("type !== KPLEX_VIEW_TYPE && type !== KPLEX_SIDEPANEL_VIEW_TYPE"), "Focus open tab excludes graph surfaces but includes actual file tabs such as Sidecars");
 });
 
 test("portable presentation code has no Obsidian or window dependency", () => {

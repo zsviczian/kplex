@@ -5,8 +5,8 @@
  * become visible to UI readers.
  */
 import { Platform, TFile, normalizePath, type App } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
-import type { ExcaliBrainSettings } from "../settings";
+import type KplexPlugin from "../main";
+import type { KplexSettings } from "../settings";
 import {
   LinkDirection,
   RelationType,
@@ -226,7 +226,7 @@ export class GraphIndex {
   private previewSnapshotPublished = false;
   private activeSnapshotGeneration: string | null = null;
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
-  constructor(private plugin: ExcaliBrainPlugin, private app: App = plugin.app) {
+  constructor(private plugin: KplexPlugin, private app: App = plugin.app) {
     this.indexedDb = new KplexIndexedDbCache(app.vault.getName());
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
     // cache; localStorage is a poor fit for large vaults because serialization duplicates memory.
@@ -2371,7 +2371,7 @@ export class GraphIndex {
     );
   }
 
-  isVisiblePage(page: GraphPage, settings: ExcaliBrainSettings = this.plugin.settings): boolean {
+  isVisiblePage(page: GraphPage, settings: KplexSettings = this.plugin.settings): boolean {
     if (settings.excludeFilepaths.some((prefix) => page.path.startsWith(prefix))) return false;
     const isVirtual = !page.file && !page.isFolder && !page.isTag && !page.url;
     const isAttachment = Boolean(page.file && page.file.extension !== "md");

@@ -1,3 +1,6 @@
+/**
+ * Defines the host-free semantic settings subset used by K-Plex compilation and cache adapters.
+ */
 export type SemanticHierarchy = Readonly<{
   hidden: readonly string[];
   parents: readonly string[];
@@ -15,7 +18,6 @@ export type SemanticIndexSettings = Readonly<{
   hierarchy: SemanticHierarchy;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
-  excalibrainFilepath: string;
   showFullTagName: boolean;
   noteTypeField: string;
   primaryTagField: string;

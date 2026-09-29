@@ -1,7 +1,7 @@
 /** Native Obsidian view for a Markdown-backed central Plex node, including Excalidraw when installed. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Notice, type TFile, type WorkspaceLeaf } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { Translator } from "../lang";
 import {
   mountEmbeddedMarkdownLeaf,
@@ -26,7 +26,7 @@ export function CentralNodeEditor({
   onNavigate,
   translate,
 }: {
-  plugin: ExcaliBrainPlugin;
+  plugin: KplexPlugin;
   hostLeaf: WorkspaceLeaf;
   file: TFile;
   defaultMode: EmbeddedMarkdownMode;

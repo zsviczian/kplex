@@ -2,10 +2,10 @@
  * Native Obsidian dialog for editing the note-type property. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
 import { Modal, Setting, type TFile } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 
 export class NoteTypeModal extends Modal {
-  constructor(private plugin: ExcaliBrainPlugin, private file: TFile, private currentValue: string | null) { super(plugin.app); }
+  constructor(private plugin: KplexPlugin, private file: TFile, private currentValue: string | null) { super(plugin.app); }
 
   /** Render the note-type property editor with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {

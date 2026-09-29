@@ -3,7 +3,7 @@
  */
 import { useEffect, useMemo, useState, type ChangeEvent, type PointerEvent } from "react";
 import type { TFile } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { GateRole, GraphPage, LinkDirection } from "../types";
 import { ObsidianIcon } from "./ObsidianIcon";
 
@@ -19,7 +19,7 @@ export function RelationPopover({
   onClose,
   onCommitted,
 }: {
-  plugin: ExcaliBrainPlugin;
+  plugin: KplexPlugin;
   origin: GraphPage;
   semanticRole: GateRole;
   fixedTarget?: GraphPage;

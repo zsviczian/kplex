@@ -2,7 +2,7 @@
  * Native Connection details dialog over pair-scoped semantic explanations and provenance. This host UI formats stable reason codes and offers additive ontology/source navigation actions.
  */
 import { Modal, setIcon, type WorkspaceLeaf } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { RelationshipSourceSection } from "../main";
 import { RelationType, type GateRole, type Role } from "../types";
 import { ONTOLOGY_PRECEDENCE_SUPPRESSION, type EvidenceDecision, type EvidenceSourceKind, type EvidenceSuppressionReason } from "../index/RelationEvidence";
@@ -122,7 +122,7 @@ export class RelationshipExplanationModal extends Modal {
   private closed = false;
 
   constructor(
-    private plugin: ExcaliBrainPlugin,
+    private plugin: KplexPlugin,
     private explanation: RelationshipExplanation,
     private displayContext?: {
       role: Role;

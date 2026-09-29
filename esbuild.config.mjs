@@ -1,3 +1,7 @@
+/**
+ * Builds the K-Plex entry point, hardens unused React script-element branches and copies the
+ * installable manifest/styles into dist. The build owns its watch context and artifact writes.
+ */
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules } from "node:module";
@@ -30,7 +34,7 @@ const copyArtifacts = async () => {
 };
 
 const context = await esbuild.context({
-  banner: { js: "/* ExcaliBrain - generated bundle */" },
+  banner: { js: "/* K-Plex - generated bundle */" },
   entryPoints: ["src/main.ts"],
   bundle: true,
   // Keep extensionless imports aligned with TypeScript's resolution order. A legacy

@@ -3,7 +3,7 @@
  */
 import { MarkdownRenderer, type Component } from "obsidian";
 import { useEffect, useRef, useState } from "react";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { GraphPage, Role } from "../types";
 import type { GraphIndex } from "../index/GraphIndex";
 import { ObsidianIcon } from "./ObsidianIcon";
@@ -21,7 +21,7 @@ const CONTENT_ROLE_LABEL: Record<Role, PlainTranslationKey> = {
 
 /** Render the current note/relationship content with localized role headings while preserving user-authored content. */
 export function ContentPane({ plugin, index, page, owner, onOpen, onActivate }: {
-  plugin: ExcaliBrainPlugin;
+  plugin: KplexPlugin;
   index: GraphIndex;
   page: GraphPage;
   owner: Component;
@@ -60,28 +60,28 @@ export function ContentPane({ plugin, index, page, owner, onOpen, onActivate }: 
   ];
   const unique = [...new Map(neighbours.map((n) => [n.page.path, n])).values()].slice(0, 24);
 
-  return <aside className="excalibrain-content-pane">
-    <header className="excalibrain-content-header">
-      <div className="excalibrain-content-kicker">{plugin.translator("content.activeThought")}</div>
+  return <aside className="kplex-content-pane">
+    <header className="kplex-content-header">
+      <div className="kplex-content-kicker">{plugin.translator("content.activeThought")}</div>
       <h2>{index.titleFor(page)}</h2>
-      <div className="excalibrain-content-path">{page.path}</div>
-      <div className="excalibrain-content-actions">
+      <div className="kplex-content-path">{page.path}</div>
+      <div className="kplex-content-actions">
         {(page.file || page.url) && <button onClick={onOpen}>{plugin.translator("common.open")}</button>}
         {!page.file && !page.url && !page.isFolder && !page.isTag && <button onClick={() => void plugin.createGhostNote(page)}>{plugin.translator("content.createNote")}</button>}
       </div>
     </header>
 
-    <div className="excalibrain-content-scroll">
-      {page.url && <div className="excalibrain-special-content"><div className="excalibrain-special-icon"><ObsidianIcon name="globe" size={32} /></div><a className="external-link" href={page.url} target="_blank" rel="noopener">{page.url}</a></div>}
-      {page.isFolder && <div className="excalibrain-special-content"><div className="excalibrain-special-icon"><ObsidianIcon name="folder" size={32} /></div><p>{plugin.translator("content.folderThought")}</p></div>}
-      {page.isTag && <div className="excalibrain-special-content"><div className="excalibrain-special-icon"><ObsidianIcon name="tag" size={32} /></div><p>{plugin.translator("content.tagThought")}</p></div>}
-      {page.file && page.file.extension !== "md" && <div className="excalibrain-special-content"><div className="excalibrain-special-icon"><ObsidianIcon name="paperclip" size={32} /></div><p>{page.file.name}</p></div>}
-      {loading && <div className="excalibrain-loading">{plugin.translator("content.rendering")}</div>}
-      <div ref={contentRef} className="excalibrain-markdown markdown-rendered" />
+    <div className="kplex-content-scroll">
+      {page.url && <div className="kplex-special-content"><div className="kplex-special-icon"><ObsidianIcon name="globe" size={32} /></div><a className="external-link" href={page.url} target="_blank" rel="noopener">{page.url}</a></div>}
+      {page.isFolder && <div className="kplex-special-content"><div className="kplex-special-icon"><ObsidianIcon name="folder" size={32} /></div><p>{plugin.translator("content.folderThought")}</p></div>}
+      {page.isTag && <div className="kplex-special-content"><div className="kplex-special-icon"><ObsidianIcon name="tag" size={32} /></div><p>{plugin.translator("content.tagThought")}</p></div>}
+      {page.file && page.file.extension !== "md" && <div className="kplex-special-content"><div className="kplex-special-icon"><ObsidianIcon name="paperclip" size={32} /></div><p>{page.file.name}</p></div>}
+      {loading && <div className="kplex-loading">{plugin.translator("content.rendering")}</div>}
+      <div ref={contentRef} className="kplex-markdown markdown-rendered" />
 
-      {unique.length > 0 && <section className="excalibrain-mapped-links">
+      {unique.length > 0 && <section className="kplex-mapped-links">
         <h3>{plugin.translator("content.mappedLinks")}</h3>
-        <div className="excalibrain-mapped-list">
+        <div className="kplex-mapped-list">
           {unique.map((n) => <button key={n.page.path} onClick={() => onActivate(n.page)}><span>{index.titleFor(n.page)}</span><small>{plugin.translator(CONTENT_ROLE_LABEL[n.role])}</small></button>)}
         </div>
       </section>}

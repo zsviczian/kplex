@@ -1,3 +1,7 @@
+/**
+ * Exercises legacy settings import through the real K-Plex UI in an explicit disposable vault.
+ * Uses canonical K-Plex selectors/commands and restores test-owned settings, notes and controllers.
+ */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -32,7 +36,7 @@ const cli = (vault, name, ...args) => {
   const executable = process.env.KPLEX_OBSIDIAN_CLI || "obsidian";
   // The start command can await initialization. Focus before invoking it, rather than after the
   // smoke runner has already waited on an occluded renderer's throttled hydration timer slices.
-  if (name === "command" && args.includes("id=k-plex:excalibrain-start") && process.platform === "darwin") {
+  if (name === "command" && args.includes("id=k-plex:kplex-start") && process.platform === "darwin") {
     const result = command(executable, [`vault=${vault}`, "eval", 'code=(()=>{const r=require("@electron/remote");r.app.focus({steal:true});const w=r.getCurrentWindow();w.show();w.focus();return JSON.stringify(true)})()']);
     if (/^Error:/m.test(result)) throw new Error(result);
   }
@@ -211,24 +215,25 @@ try {
   })()`);
   await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "Test-note creation failed");
   await until(`JSON.stringify((()=>{const p=app.plugins.plugins["k-plex"];return p.getIndexStatus().upToDate && p.index.get(${JSON.stringify(sourcePath)})?.primaryStyleTag==="#person"})())`, "Imported settings index did not reconcile");
-  // Exercise the real search activation path: focusInBrain persists history but does not
+  // Exercise the real search activation path: focusInKplex persists history but does not
   // update the active React scene of an already open view.
   evaluate(`(()=>{
-    const input=document.querySelector(".excalibrain-app input.excalibrain-search");
+    const input=document.querySelector(".kplex-app input.kplex-search");
     if(!input)throw new Error("Plex search input missing");
-    input.focus();
-    const win=input.ownerDocument.defaultView;
-    Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype,"value").set.call(input,${JSON.stringify(sourcePath.replace(/\.md$/, ""))});
-    input.dispatchEvent(new win.Event("input",{bubbles:true}));return JSON.stringify(true);
+    input.focus();input.select();return JSON.stringify(true);
   })()`);
+  // Synthetic input events update the DOM value but are ignored by React in the real Electron
+  // host. Insert text through the CLI's CDP bridge so this follows the native input path.
+  cli(target.vaultName, "dev:cdp", "method=Input.insertText",
+    `params=${JSON.stringify({ text: sourcePath.replace(/\.md$/, "") })}`);
   await until(`JSON.stringify((()=>{
-    const result=Array.from(document.querySelectorAll(".excalibrain-search-result")).find(el=>el.querySelector("small")?.textContent===${JSON.stringify(sourcePath)});
+    const result=Array.from(document.querySelectorAll(".kplex-search-result")).find(el=>el.querySelector("small")?.textContent===${JSON.stringify(sourcePath)});
     if(!result)return false;result.click();return true;
   })())`, "Indexed migration note did not appear in Plex search");
   console.log("Checking native Plex node and link rendering");
   const rendered = await until(`JSON.stringify((()=>{
     const node=document.querySelector('[data-kplex-path="${sourcePath}"]');
-    const edge=Array.from(document.querySelectorAll(".excalibrain-edge-visible")).find(el=>el.getAttribute("stroke")?.includes("254, 251, 65"));
+    const edge=Array.from(document.querySelectorAll(".kplex-edge-visible")).find(el=>el.getAttribute("stroke")?.includes("254, 251, 65"));
     if(!node || !edge) return false;
     return {label:node.textContent,border:node.style.borderColor,stroke:edge.getAttribute("stroke"),width:edge.getAttribute("stroke-width")};
   })())`, "Imported node/link styles did not render on the Plex");
@@ -236,11 +241,12 @@ try {
   assert.equal(rendered.width,"2");
   report.scenarios.push({ id: "rendered-plex-styles", status: "passed", ...rendered });
 
+  const beforeReload = evaluate('JSON.stringify(app.plugins.plugins["k-plex"].settings)');
   cli(target.vaultName,"plugin:disable","id=k-plex");cli(target.vaultName,"plugin:enable","id=k-plex");
-  cli(target.vaultName,"command","id=k-plex:excalibrain-start");
+  cli(target.vaultName,"command","id=k-plex:kplex-start");
   const reloaded=evaluate('JSON.stringify(app.plugins.plugins["k-plex"].settings)');
-  // Navigation changes during rendering are intentional; style and ontology assertions stay exact.
-  assertMigratedExcaliBrainSettings({...reloaded,navigationHistory:fixture.navigationHistory},fixture,previousSettings);
+  // Compare local preferences with the actual pre-reload state, including navigation from the test.
+  assertMigratedExcaliBrainSettings(reloaded, fixture, beforeReload);
   console.log("Plugin reload preserved imported settings");
   report.scenarios.push({id:"reload-preserves-import",status:"passed"});
   const errors=cli(target.vaultName,"dev:errors").trim();
@@ -256,11 +262,15 @@ try {
           app.setting.doc.querySelectorAll(".kplex-style-editor,.kplex-style-manager,.kplex-import-settings-modal").forEach(el=>el.closest(".modal").querySelector(".modal-close-button, .modal-header-button").click());
           app.setting.close();
           for(const path of state.owned){const file=app.vault.getFileByPath(path);if(file)await app.vault.delete(file);}
-          const p=app.plugins.plugins["k-plex"];p.settings=state.settings;await p.saveSettings(true);state.done=true;
+          const p=app.plugins.plugins["k-plex"];p.settings=state.settings;await p.saveSettings(false);state.done=true;
         }catch(error){state.error=String(error)}})();return JSON.stringify(true)})()`);
       await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`,"Cleanup failed");
-      await until('JSON.stringify(app.plugins.plugins["k-plex"].getIndexStatus().upToDate)',"Restored settings index did not settle");
       evaluate(`(()=>{delete window.${controller};return JSON.stringify(true)})()`);
+      // Reload against the restored settings so K-Plex can reuse the matching pre-test snapshot.
+      // Forcing a cold rebuild here makes cleanup depend on the size of the disposable vault.
+      cli(target.vaultName,"plugin:disable","id=k-plex");cli(target.vaultName,"plugin:enable","id=k-plex");
+      cli(target.vaultName,"command","id=k-plex:kplex-start");
+      await until('JSON.stringify(app.plugins.plugins["k-plex"].getIndexStatus().upToDate)',"Restored settings index did not settle");
       report.cleanup={settingsRestored:true,notesRemoved:true,controllerRemoved:true,indexSettled:true};
     }catch(error){report.status="failed";report.cleanupError=String(error);}
   }

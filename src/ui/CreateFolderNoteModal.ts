@@ -2,7 +2,7 @@
  * Native Obsidian dialog for creating a real note in a physical folder. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
 import { Modal, Notice, Setting, type ButtonComponent, type WorkspaceLeaf } from "obsidian";
-import type ExcaliBrainPlugin from "../main";
+import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
 import type { GhostMaterializationKind } from "./MaterializeGhostModal";
 
@@ -12,7 +12,7 @@ export class CreateFolderNoteModal extends Modal {
   private readonly createButtons: ButtonComponent[] = [];
 
   constructor(
-    private readonly plugin: ExcaliBrainPlugin,
+    private readonly plugin: KplexPlugin,
     private readonly folder: GraphPage,
     private readonly hostLeaf?: WorkspaceLeaf,
   ) {
