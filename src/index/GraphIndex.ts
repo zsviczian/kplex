@@ -4,6 +4,7 @@
  * semantics privately while this class decides when partial cold-start or authoritative state may
  * become visible to UI readers.
  */
+import { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisition";
 import { Platform, TFile, normalizePath, type App } from "obsidian";
 import type KplexPlugin from "../main";
 import type { KplexSettings } from "../settings";
@@ -216,6 +217,7 @@ export class GraphIndex {
   private snapshotPersistGeneration = 0;
   private bodyWarmGeneration = 0;
   private readonly indexedDb: KplexIndexedDbCache;
+  private readonly sourceAcquisition: ObsidianSourceAcquisition;
   private indexDiagnostics: IndexDiagnosticEntry[] = [];
   private savedSnapshotSummary: {
     storage: "unchecked" | "available" | "unavailable";
@@ -249,10 +251,18 @@ export class GraphIndex {
   constructor(private plugin: KplexPlugin, private app: App = plugin.app) {
     this.presentationSettings = capturePresentationSettings(plugin.settings);
     this.indexedDb = new KplexIndexedDbCache(app.vault.getName());
+    this.sourceAcquisition = new ObsidianSourceAcquisition(app, this.indexedDb, (text) => this.metadataParser.parse(text));
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
     // cache; localStorage is a poor fit for large vaults because serialization duplicates memory.
     void this.indexedDb.clearLegacyLocalStorage(app);
   }
+
+  /** Aggregate-only neutral persistence status, independent of graph snapshot readiness. */
+  getSourceRepositoryDiagnostics() { return this.sourceAcquisition.getDiagnostics(); }
+  /** Aggregate acquisition counters for restart/selective-repair validation; never source contents. */
+  getSourceAcquisitionCounters() { return this.sourceAcquisition.getCounters(); }
+  /** Explicit maintenance durability fence; plugin unload deliberately does not await this. */
+  flushSourceRepository(): Promise<boolean> { return this.sourceAcquisition.flush(); }
 
   get pages(): Map<string, GraphPage> { return this.state.pages; }
   get lowercasePathMap(): Map<string, string> { return this.state.lowercasePathMap; }
@@ -677,6 +687,7 @@ export class GraphIndex {
   }
 
   destroy(): void {
+    this.sourceAcquisition.close();
     this.diagnosticsClosed = true;
     this.presentationRun += 1;
     this.presentationListeners.clear();
@@ -1032,6 +1043,7 @@ export class GraphIndex {
       this.publishRestoredState(next, prepared.search);
     }
     this.fullSnapshotHydrated = !isCheckpoint;
+    if (!isCheckpoint) this.sourceAcquisition.enableInventory();
     this.fullSnapshotFresh = authoritativeFresh;
     this.finishSnapshotHydrationDiagnostics(run, "complete");
     this.semanticFingerprints = restoredFingerprints;
@@ -1386,6 +1398,7 @@ export class GraphIndex {
         if (!file || file.extension !== "md") return { reconciled: false, patched: 0 };
         this.insertCreatedFile(file);
       }
+      this.sourceAcquisition.start();
       const builder = new GraphBuilder(
         this.plugin,
         this.app,
@@ -1394,6 +1407,7 @@ export class GraphIndex {
         this.indexedDb,
         () => run === this.generation,
         this.semanticFingerprints,
+        this.sourceAcquisition,
       );
       const result = await builder.patchMarkdownFiles(this.state, files, {
         useDurableCache: true,
@@ -1449,9 +1463,10 @@ export class GraphIndex {
     let committed = 0;
     const committedPaths = new Set<string>();
     try {
+      this.sourceAcquisition.start();
       const builder = new GraphBuilder(
         this.plugin, this.app, this.fieldCache, this.metadataParser, this.indexedDb,
-        () => run === this.generation, this.semanticFingerprints,
+        () => run === this.generation, this.semanticFingerprints, this.sourceAcquisition,
       );
       const result = await builder.patchMarkdownFiles(this.state, files, {
         useDurableCache: false,
@@ -1722,6 +1737,7 @@ export class GraphIndex {
     try {
       const resuming = this.resumableCheckpointPaths !== null;
       const nextFingerprints = resuming ? this.semanticFingerprints : new Map<string, string>();
+      this.sourceAcquisition.start();
       const builder = new GraphBuilder(
         this.plugin,
         this.app,
@@ -1730,6 +1746,7 @@ export class GraphIndex {
         this.indexedDb,
         isCurrent,
         nextFingerprints,
+        this.sourceAcquisition,
       );
       const next = resuming ? this.state : await builder.buildStructuralBaseline();
       if (!next || !isCurrent()) return false;
@@ -1917,6 +1934,7 @@ export class GraphIndex {
       // completion so standalone attachments/folders/tags and untouched virtual nodes are included.
       this.rebuildSearchIndex();
       this.fullSnapshotHydrated = true;
+      this.sourceAcquisition.enableInventory();
       this.fullSnapshotFresh = true;
       this.previewSnapshotPublished = false;
       this.resumableCheckpointPaths = null;
@@ -1942,8 +1960,10 @@ export class GraphIndex {
     const run = ++this.generation;
     const semanticPolicy = computeIndexSettingsSignature(this.plugin.settings);
     const current = (): boolean => run === this.generation && !this.diagnosticsClosed;
+    const resumeInventory = this.sourceAcquisition.pauseInventory();
     try {
       const nextFingerprints = new Map<string, string>();
+      this.sourceAcquisition.start();
       const builder = new GraphBuilder(
         this.plugin,
         this.app,
@@ -1952,8 +1972,9 @@ export class GraphIndex {
         this.indexedDb,
         current,
         nextFingerprints,
+        this.sourceAcquisition,
       );
-      const next = await builder.build();
+      const next = await builder.build({ acquireSources: false });
       if (!next || !current()) {
         return false;
       }
@@ -1969,6 +1990,7 @@ export class GraphIndex {
       this.publicationRevision += 1;
       this.semanticFingerprints = nextFingerprints;
       this.fullSnapshotHydrated = true;
+      this.sourceAcquisition.enableInventory();
       this.fullSnapshotFresh = true;
       this.previewSnapshotPublished = false;
       this.titleCache.clear();
@@ -1980,6 +2002,7 @@ export class GraphIndex {
       this.scheduleSnapshotPersist();
       return true;
     } finally {
+      this.sourceAcquisition.resumeInventory(resumeInventory);
       this.building = false;
       this.rebuildQueued = false;
     }

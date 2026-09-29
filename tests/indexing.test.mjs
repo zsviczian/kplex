@@ -371,6 +371,9 @@ for (const file of [
   "src/index/GraphState.ts",
   "src/index/IndexSnapshot.ts",
   "src/index/IndexedDbCache.ts",
+  "src/index/SourceFacts.ts",
+  "src/index/SourceRepository.ts",
+  "src/adapters/obsidian/sourceAcquisition.ts",
   "src/index/GraphBuilder.ts",
   "src/index/SourceFingerprint.ts",
   "src/index/GraphIndex.ts",
@@ -965,7 +968,17 @@ for (const [sourcePath, content] of contents) {
   unresolvedLinks[sourcePath] = unresolved;
 }
 
+/** Event ownership matches the public host interface; no indexing behavior is substituted. */
+function fixtureEvents() {
+  const subscriptions = new Set();
+  return {
+    on(name, callback) { const ref = { name, callback }; subscriptions.add(ref); return ref; },
+    offref(ref) { subscriptions.delete(ref); },
+    trigger(name, ...args) { for (const ref of subscriptions) if (ref.name === name) ref.callback(...args); },
+  };
+}
 const metadataCache = {
+  ...fixtureEvents(),
   resolvedLinks,
   unresolvedLinks,
   getFileCache(file) { return caches.get(file.path) ?? null; },
@@ -977,6 +990,7 @@ const metadataCache = {
 
 const app = {
   vault: {
+    ...fixtureEvents(),
     getName() { return "K-Plex test vault"; },
     getRoot() { return rootFolder; },
     getMarkdownFiles() { return [...files.values()]; },

@@ -12,6 +12,7 @@ import type { ParsedBodyMetadata, ParsedFileMetadata } from "../core/parser/meta
 import { mergeFileMetadata } from "./fieldParser";
 import { sourceFingerprint, sourceFingerprintCooperative, type SourceFingerprintInputs } from "./SourceFingerprint";
 import { MetadataParseCancelledError, type MetadataParser } from "./MetadataParser";
+import type { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisition";
 import type { KplexIndexedDbCache } from "./IndexedDbCache";
 import type { EvidenceProvenance, EvidenceSourceKind } from "./RelationEvidence";
 import { resolveEvidencePair } from "./RelationResolver";
@@ -69,6 +70,7 @@ type FileRevision = {
   path: string;
   mtime: number;
   size: number;
+  sourceRevision?: number;
 };
 
 const FILE_OWNED_EVIDENCE = new Set<EvidenceSourceKind>([
@@ -235,6 +237,7 @@ export class GraphBuilder {
     private bodyCache: KplexIndexedDbCache,
     private isCurrent: () => boolean,
     private semanticFingerprints: Map<string, string> = new Map(),
+    private sourceAcquisition: ObsidianSourceAcquisition | null = null,
   ) {
     this.metadataSourceHost = createObsidianMetadataSourceHost(app);
     this.metadataSourceSettings = {
@@ -577,15 +580,17 @@ export class GraphBuilder {
   /**
    * Build the authoritative complete graph privately.
    *
+   * @param options A caller with an independent durable inventory may let that inventory acquire
+   * neutral source heads after graph publication, avoiding a storage transaction per note here.
    * @returns A fully collected state only when every source family remains current through binding;
    * otherwise `null` so the coordinator can retain the previous published graph.
    */
-  async build(): Promise<GraphState | null> {
+  async build(options: Readonly<{ acquireSources?: boolean }> = {}): Promise<GraphState | null> {
     const compiler = this.createFullCompiler();
     const structuralRead = await this.collectStructuralSources(compiler);
     if (!structuralRead) return null;
     if (!(await this.collectHostLinkSources(compiler))) return null;
-    if (!(await this.collectMarkdownSources(compiler))) return null;
+    if (!(await this.collectMarkdownSources(compiler, options.acquireSources !== false))) return null;
     if (!(await this.finalizeStructuralSources(compiler, structuralRead))) return null;
 
     const compiled = await compiler.finish();
@@ -794,13 +799,17 @@ export class GraphBuilder {
     }
   }
 
+  /** Capture observed host events as well as stats before acquiring a body or preparing graph work. */
   private captureFileRevision(file: TFile): FileRevision {
-    return { path: file.path, mtime: file.stat.mtime, size: file.stat.size };
+    return { path: file.path, mtime: file.stat.mtime, size: file.stat.size,
+      sourceRevision: this.sourceAcquisition?.getFileRevision(file) };
   }
 
+  /** Equal-stat host edits still invalidate an awaited private build; published state stays untouched. */
   private fileRevisionMatches(file: TFile, revision: FileRevision): boolean {
     return file.path === revision.path && file.stat.mtime === revision.mtime && file.stat.size === revision.size &&
-      this.app.vault.getFileByPath(revision.path) === file;
+      this.app.vault.getFileByPath(revision.path) === file
+      && this.sourceAcquisition?.getFileRevision(file) === revision.sourceRevision;
   }
 
   private createPage(params: Partial<GraphPage> & Pick<GraphPage, "path" | "name">): GraphPage {
@@ -962,7 +971,7 @@ export class GraphBuilder {
   }
 
   /** Acquire bounded body batches, stream neutral facts and hash cooperatively under source/file fences. */
-  private async collectMarkdownSources(compiler: NormalizedGraphCompiler): Promise<boolean> {
+  private async collectMarkdownSources(compiler: NormalizedGraphCompiler, acquireSources: boolean): Promise<boolean> {
     const files = this.app.vault.getMarkdownFiles();
     const alive = new Set(files.map((file) => file.path));
     for (const cachedPath of this.fieldCache.keys()) {
@@ -1018,12 +1027,23 @@ export class GraphBuilder {
       const misses = batchFiles.filter((file) => {
         const revision = revisions.get(file)!;
         const hot = this.fieldCache.get(revision.path);
-        return hot?.mtime !== revision.mtime;
+        return hot?.mtime !== revision.mtime || this.sourceAcquisition?.needsBodyRead(file);
       });
-      const durable = await this.bodyCache.getBodies(misses.map((file) => {
+      const durable = new Map<string, ParsedBodyMetadata>();
+      // Existing body-v2 records are already batched. On a complete settings rebuild, use those
+      // first, then decode neutral chunks only for actual body-cache misses. Reading and pinning
+      // every neutral source before the batch lookup made large-vault rebuilds IDB-bound.
+      const legacy = await this.bodyCache.getBodies(misses.filter((file) => !this.sourceAcquisition?.needsBodyRead(file)).map((file) => {
         const revision = revisions.get(file)!;
         return { path: revision.path, mtime: revision.mtime };
       }));
+      for (const [path, body] of legacy) durable.set(path, body);
+      if (this.sourceAcquisition) for (const file of misses) {
+        if (durable.has(file.path) || this.sourceAcquisition.needsBodyRead(file)) continue;
+        const body = await this.sourceAcquisition.readBody(file, this.isCurrent);
+        if (!this.isCurrent() || !this.fileRevisionMatches(file, revisions.get(file)!)) return false;
+        if (body) durable.set(file.path, body);
+      }
       if (!this.isCurrent()) return false;
       // TFile.stat is mutable. Never let an old body read be committed under a newer revision.
       // Abort this private full build if a source changed while the durable lookup was in flight;
@@ -1058,13 +1078,18 @@ export class GraphBuilder {
         const revision = revisions.get(file)!;
         if (!this.fileRevisionMatches(file, revision)) return false;
         let entry = this.fieldCache.get(revision.path);
-        if (!entry || entry.mtime !== revision.mtime) {
+        if (!entry || entry.mtime !== revision.mtime || this.sourceAcquisition?.needsBodyRead(file)) {
           const body = durable.get(revision.path) ?? fresh.get(revision.path);
           if (!body) return false;
           entry = { mtime: revision.mtime, body };
           this.rememberFieldCache(revision.path, entry);
         }
 
+        // A complete semantic build already validates its own source revision and publication.
+        // Its durable source inventory runs independently after publication; awaiting one source
+        // activation per file here would put storage latency on every settings rebuild.
+        const acquisition = acquireSources ? await this.sourceAcquisition?.acquire(file, entry.body, this.isCurrent) : undefined;
+        if (acquisition?.current === false || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) return false;
         const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), entry.body);
         const signature = await this.semanticSourceSignatureCooperative(file, entry.body);
         if (!signature || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) return false;
@@ -1144,15 +1169,17 @@ export class GraphBuilder {
       const page = getGraphPage(state, sourcePath);
       if (!page) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
 
-      // Live metadata events imply a new mtime, so a durable lookup is normally guaranteed to
-      // miss and can be badly delayed by unrelated IndexedDB maintenance. Startup reconciliation
-      // opts into durable lookup because it can legitimately hit a body written in the prior run.
+      // Reuse neutral bodies on metadata/target-only changes, but never trust any cached body
+      // across an observed content edit, even if the host preserves mtime and size. Legacy body
+      // lookup remains opt-in; private source staging has an independent bounded storage lifetime.
       const previousEntry = this.fieldCache.get(sourcePath);
       let body: ParsedBodyMetadata | null = null;
-      if (previousEntry && previousEntry.mtime === revision.mtime) {
+      const freshBodyRequired = this.sourceAcquisition?.needsBodyRead(file) === true;
+      if (previousEntry && previousEntry.mtime === revision.mtime && !freshBodyRequired) {
         body = previousEntry.body;
-      } else if (useDurableCache) {
-        body = await this.bodyCache.getBody(sourcePath, revision.mtime);
+      } else if (!freshBodyRequired && (useDurableCache || this.sourceAcquisition)) {
+        body = await this.sourceAcquisition?.readBody(file, this.isCurrent) ?? null;
+        if (!body && useDurableCache) body = await this.bodyCache.getBody(sourcePath, revision.mtime);
         if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         }
@@ -1180,6 +1207,10 @@ export class GraphBuilder {
       }
 
       if (!this.fileRevisionMatches(file, revision)) {
+        return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
+      }
+      const acquisition = await this.sourceAcquisition?.acquire(file, body, this.isCurrent);
+      if (acquisition?.current === false || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
       const signature = await this.semanticSourceSignatureCooperative(file, body);

@@ -2,6 +2,10 @@
 
 K-Plex deliberately separates **what the vault says** from **how K-Plex resolves that evidence into a visible graph**.
 
+## SI3 persistence checkpoint — Accepted
+
+SI3 adds the [version-5 neutral source repository](SOURCE_REPOSITORY.md): immutable per-source families, atomic head activation, independent lexical/host-resolution validity and source inventory. Per-file patches acquire before semantic no-op suppression; complete semantic rebuilds use batched body-v2 first and leave neutral persistence to inventory after publication. It preserves body-v2, graph schemas 1–3 and synchronous graph publication. Complete source heads, not graph snapshots, are the new source-progress boundary; graph snapshots remain the current semantic acceleration. SI3 is **Accepted** with the memory/cleanup limits and [validation evidence](validation/settings-independent-indexing-si3-2026-09-29.md) recorded separately. SI4 settings behavior is unchanged; no settings-change latency or SI5 readiness claim follows.
+
 ## Pipeline
 
 ```text
@@ -118,7 +122,7 @@ The portable `ReferenceSourcePolicyRead` is shared by full compilation and `Norm
 
 Reference output is capped at 256 records and additionally flushed by a 256 KiB retained-byte estimate; raw payload chunks are at most 16,384 UTF-16 code units. Oversized indivisible lexical identities travel alone, so this is not an absolute heap/latency bound. Payload serialization/hashing occurs once per original value, with no whole-frontmatter or whole-vault neutral DTO. Details, ownership and acceptance coverage are in [the source contract](NORMALIZED_SOURCE_CONTRACT.md).
 
-SI2 does **not** persist neutral facts across restarts or remove settings-triggered semantic rebuilds. SI3 owns durable source reuse; SI4 owns demand-driven interpretation/facade integration. Image/hierarchy settings remain conservative semantic invalidations, and the finite SI1 presentation compatibility facade is unchanged.
+SI2 did **not** persist neutral facts across restarts or remove settings-triggered semantic rebuilds. Accepted SI3 adds durable source reuse; SI4 still owns unimplemented demand-driven interpretation/facade integration. Image/hierarchy settings remain conservative semantic invalidations, and the finite SI1 presentation compatibility facade is unchanged.
 
 ## Snapshot publication, demand gating, and startup persistence
 
@@ -180,7 +184,7 @@ Predicate contexts are separated by meaning:
 - `file.*` — physical file metadata;
 - `this.*` — the current center thought.
 
-Arbitrary frontmatter **values are not copied into `GraphPage`, graph snapshots or IndexedDB** for filtering. A predicate that references `note.status`, for example, reads that value from Obsidian's already-parsed metadata cache when evaluating the currently visible Plex. Predicate dependency tracking tells the UI when such cached metadata can affect the current view. That refresh path is separate from semantic graph reconstruction.
+Arbitrary frontmatter **values are not copied into `GraphPage`, graph snapshots or IndexedDB** for filtering. SI3 separately stores original reference-bearing values required for source provenance, never a general property mirror. A predicate that references `note.status`, for example, reads that value from Obsidian's already-parsed metadata cache when evaluating the currently visible Plex. Predicate dependency tracking tells the UI when such cached metadata can affect the current view. That refresh path is separate from semantic graph reconstruction.
 
 The incremental semantic fingerprint likewise distinguishes graph-relevant frontmatter values from arbitrary presentation metadata. Every reference-bearing field participates regardless of ontology/image assignment, alongside aliases/tags, finite note type/style compatibility fields, Date properties and host summaries. Version-3 equality tokens stream each reference-bearing value once plus separate location metadata. Unrelated non-reference property names/values do not participate; explanatory context within a reference-bearing value does. Ontology/image settings themselves do not select fingerprint inputs. A newly seen non-semantic property name may update the lightweight discovered-field catalogue, but that bookkeeping does not emit a semantic graph change or re-resolve relationship evidence.
 

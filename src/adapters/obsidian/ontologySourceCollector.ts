@@ -70,7 +70,7 @@ function decodeInternalCandidate(rawTarget: string): string {
 }
 
 /** Resolve only in the adapter; the neutral fact keeps lexical and resolved targets separately. */
-function resolveTarget(host: ReferenceSourceCollectorHost, sourcePath: string, reference: ExtractedLinkReference): SourceTargetRef | null {
+export function resolveObsidianReferenceTarget(host: ReferenceSourceCollectorHost, sourcePath: string, reference: ExtractedLinkReference): SourceTargetRef | null {
   if (reference.external) {
     if (!reference.rawTarget) return null;
     return { entity: { id: nodeId(reference.rawTarget), kind: "url", state: "materialized", semanticPath: reference.rawTarget },
@@ -194,7 +194,7 @@ export class ObsidianReferenceSourceCollector {
     for (const reference of iterateReferenceScanSteps(value)) {
       if (!(await touch())) return false;
       if (!reference) continue;
-      const target = resolveTarget(this.host, this.capturedFile.path, reference);
+      const target = resolveObsidianReferenceTarget(this.host, this.capturedFile.path, reference);
       if (!target || seen.has(target.entity.id)) continue;
       seen.add(target.entity.id);
       if (!pending) {

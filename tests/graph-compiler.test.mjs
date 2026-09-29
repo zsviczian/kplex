@@ -334,7 +334,7 @@ test("portable compiler modules load without Obsidian or browser globals", () =>
 
 test("production GraphBuilder full build delegates normalized facts to the portable compiler", () => {
   const source = readFileSync(join(root, "src/index/GraphBuilder.ts"), "utf8");
-  const buildStart = source.indexOf("  async build(): Promise<GraphState | null>");
+  const buildStart = source.indexOf("  async build(options: Readonly<{ acquireSources?: boolean }> = {}): Promise<GraphState | null>");
   const settingsStart = source.indexOf("  private fullCompilerSettings()", buildStart);
   assert(buildStart >= 0 && settingsStart > buildStart);
   const body = source.slice(buildStart, settingsStart);
@@ -342,7 +342,7 @@ test("production GraphBuilder full build delegates normalized facts to the porta
     "this.createFullCompiler()",
     "this.collectStructuralSources(compiler)",
     "this.collectHostLinkSources(compiler)",
-    "this.collectMarkdownSources(compiler)",
+    "this.collectMarkdownSources(compiler, options.acquireSources !== false)",
     "this.finalizeStructuralSources(compiler, structuralRead)",
     "compiler.finish()",
     "this.bindCompiledGraph(compiled, structuralRead.collector)",
