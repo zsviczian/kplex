@@ -333,7 +333,7 @@ export function ExcaliBrainApp({ plugin, surface, hostLeaf, translate, environme
 
   const indexStatusInfoOpen = indexStatusInfoMode !== "closed";
   const indexStatusMessage = <div className="kplex-index-status-details">
-    {["indexing", "updating"].includes(indexStatus.phase) &&
+    {["indexing", "saving-cache", "updating"].includes(indexStatus.phase) &&
       <div>{translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })}</div>
     }
     <div>{indexStatus.label}</div>

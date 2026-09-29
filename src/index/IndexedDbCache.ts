@@ -31,6 +31,25 @@ export type IndexedDbSnapshotMeta = {
   completedMarkdownPaths?: string[];
 };
 
+/** Local, bounded decision history. Contains counts and reason codes, never vault paths/content. */
+export type IndexDiagnosticEntry = {
+  at: number;
+  stage: "restore" | "reconcile" | "build" | "persist";
+  reason: string;
+  added?: number;
+  removed?: number;
+  modified?: number;
+  completedMarkdownFiles?: number;
+  durationMs?: number;
+};
+
+/** Path-free reason codes for an unsuccessful snapshot stream. */
+export type SnapshotReadFailureReason = "storage-unavailable" | "missing-chunk" | "invalid-chunk" |
+  "invalid-record" | "read-error" | "cancelled";
+
+/** Path-free reason codes for a failed generation write. */
+export type SnapshotWriteFailureReason = "storage-unavailable" | "cancelled" | "quota-exceeded" | "write-error";
+
 type PageRecord = { generation: string; path: string; value: PersistedPage };
 type EvidenceRecord = { generation: string; key: string; value: PersistedEvidenceDeclaration };
 type BodyRecord = { path: string; mtime: number; parserVersion: number; body: ParsedBodyMetadata };
@@ -243,6 +262,68 @@ export class KplexIndexedDbCache {
     }
   }
 
+  /** Read both generation pointers in one transaction and distinguish missing cache from unavailable storage. */
+  async readSnapshotCatalog(): Promise<{
+    available: boolean;
+    active: IndexedDbSnapshotMeta | null;
+    checkpoint: IndexedDbSnapshotMeta | null;
+    invalidActive: boolean;
+    invalidCheckpoint: boolean;
+  }> {
+    const unavailable = { available: false, active: null, checkpoint: null, invalidActive: false, invalidCheckpoint: false };
+    const db = await this.open();
+    if (!db) return unavailable;
+    try {
+      const tx = db.transaction(META_STORE, "readonly");
+      const done = transactionDone(tx);
+      const store = tx.objectStore(META_STORE);
+      const [rawActive, rawCheckpoint] = await Promise.all([
+        requestUnknownResult(store.get("active")), requestUnknownResult(store.get("checkpoint")),
+      ]);
+      await done;
+      return {
+        available: true,
+        active: isIndexedDbSnapshotMeta(rawActive) && rawActive.key === "active" ? rawActive : null,
+        checkpoint: isIndexedDbSnapshotMeta(rawCheckpoint) && rawCheckpoint.key === "checkpoint" ? rawCheckpoint : null,
+        invalidActive: rawActive !== undefined && (!isIndexedDbSnapshotMeta(rawActive) || rawActive.key !== "active"),
+        invalidCheckpoint: rawCheckpoint !== undefined && (!isIndexedDbSnapshotMeta(rawCheckpoint) || rawCheckpoint.key !== "checkpoint"),
+      };
+    } catch { return unavailable; }
+  }
+
+  async readIndexDiagnostics(): Promise<IndexDiagnosticEntry[]> {
+    const db = await this.open();
+    if (!db) return [];
+    try {
+      const tx = db.transaction(META_STORE, "readonly");
+      const done = transactionDone(tx);
+      const value = await requestUnknownResult(tx.objectStore(META_STORE).get("diagnostics"));
+      await done;
+      if (!isUnknownRecord(value) || !Array.isArray(value.entries)) return [];
+      return value.entries.flatMap((item): IndexDiagnosticEntry[] => {
+        if (!isUnknownRecord(item) || typeof item.at !== "number" || !Number.isFinite(item.at) || typeof item.reason !== "string" ||
+          !/^[a-z0-9:|_-]{1,240}$/.test(item.reason) ||
+          (item.stage !== "restore" && item.stage !== "reconcile" && item.stage !== "build" && item.stage !== "persist")) return [];
+        const sanitized: IndexDiagnosticEntry = { at: item.at, stage: item.stage, reason: item.reason };
+        for (const key of ["added", "removed", "modified", "completedMarkdownFiles", "durationMs"] as const) {
+          const number = item[key];
+          if (typeof number === "number" && Number.isSafeInteger(number) && number >= 0) sanitized[key] = number;
+        }
+        return [sanitized];
+      }).slice(-20);
+    } catch { return []; }
+  }
+
+  async writeIndexDiagnostics(entries: readonly IndexDiagnosticEntry[]): Promise<void> {
+    const db = await this.open();
+    if (!db) return;
+    try {
+      const tx = db.transaction(META_STORE, "readwrite");
+      tx.objectStore(META_STORE).put({ key: "diagnostics", entries: entries.slice(-20) });
+      await transactionDone(tx);
+    } catch { /* Diagnostics must never block indexing. */ }
+  }
+
   async getPages(generation: string, paths: readonly string[]): Promise<Map<string, PersistedPage>> {
     const unique = [...new Set(paths.filter(Boolean))];
     const result = new Map<string, PersistedPage>();
@@ -266,18 +347,28 @@ export class KplexIndexedDbCache {
     return meta.schema >= 3 && Number.isInteger(meta.pageChunkCount) && Number.isInteger(meta.evidenceChunkCount);
   }
 
-  async iterateSnapshotPages(meta: IndexedDbSnapshotMeta, onPage: (page: PersistedPage) => void, isCurrent: () => boolean = () => true): Promise<boolean> {
+  async iterateSnapshotPages(
+    meta: IndexedDbSnapshotMeta,
+    onPage: (page: PersistedPage) => void,
+    isCurrent: () => boolean = () => true,
+    onFailure?: (reason: SnapshotReadFailureReason) => void,
+  ): Promise<boolean> {
     if (meta.schema >= 3 && Number.isInteger(meta.pageChunkCount)) {
-      return this.iterateChunks(meta.generation, "pages", meta.pageChunkCount ?? 0, (value) => onPage(value as PersistedPage), isCurrent);
+      return this.iterateChunks(meta.generation, "pages", meta.pageChunkCount ?? 0, (value) => onPage(value as PersistedPage), isCurrent, onFailure);
     }
-    return this.iteratePages(meta.generation, onPage, isCurrent);
+    return this.iteratePages(meta.generation, onPage, isCurrent, onFailure);
   }
 
-  async iterateSnapshotEvidence(meta: IndexedDbSnapshotMeta, onEvidence: (evidence: PersistedEvidenceDeclaration) => void, isCurrent: () => boolean = () => true): Promise<boolean> {
+  async iterateSnapshotEvidence(
+    meta: IndexedDbSnapshotMeta,
+    onEvidence: (evidence: PersistedEvidenceDeclaration) => void,
+    isCurrent: () => boolean = () => true,
+    onFailure?: (reason: SnapshotReadFailureReason) => void,
+  ): Promise<boolean> {
     if (meta.schema >= 3 && Number.isInteger(meta.evidenceChunkCount)) {
-      return this.iterateChunks(meta.generation, "evidence", meta.evidenceChunkCount ?? 0, (value) => onEvidence(value as PersistedEvidenceDeclaration), isCurrent);
+      return this.iterateChunks(meta.generation, "evidence", meta.evidenceChunkCount ?? 0, (value) => onEvidence(value as PersistedEvidenceDeclaration), isCurrent, onFailure);
     }
-    return this.iterateEvidence(meta.generation, onEvidence, isCurrent);
+    return this.iterateEvidence(meta.generation, onEvidence, isCurrent, onFailure);
   }
 
   private async iterateChunks(
@@ -286,16 +377,20 @@ export class KplexIndexedDbCache {
     chunkCount: number,
     onValue: (value: PersistedPage | PersistedEvidenceDeclaration) => void,
     isCurrent: () => boolean,
+    onFailure?: (reason: SnapshotReadFailureReason) => void,
   ): Promise<boolean> {
     const db = await this.open();
-    if (!db || !db.objectStoreNames.contains(SNAPSHOT_CHUNK_STORE)) return false;
+    if (!db || !db.objectStoreNames.contains(SNAPSHOT_CHUNK_STORE)) {
+      onFailure?.("storage-unavailable");
+      return false;
+    }
     try {
       // Read a handful of chunk records per transaction. This avoids hundreds of thousands of
       // cursor continuations while also avoiding one enormous getAll() allocation on iOS.
       const readBatch = Platform.isIosApp ? 4 : Platform.isMobile ? 8 : 12;
       let sliceStartedAt = performance.now();
       for (let start = 0; start < chunkCount; start += readBatch) {
-        if (!isCurrent()) return false;
+        if (!isCurrent()) { onFailure?.("cancelled"); return false; }
         const end = Math.min(chunkCount, start + readBatch);
         const tx = db.transaction(SNAPSHOT_CHUNK_STORE, "readonly");
         const done = transactionDone(tx);
@@ -305,37 +400,46 @@ export class KplexIndexedDbCache {
         ));
         await done;
         for (const chunk of chunks) {
-          if (!chunk || chunk.generation !== generation || chunk.kind !== kind || !Array.isArray(chunk.values)) return false;
+          if (!chunk) { onFailure?.("missing-chunk"); return false; }
+          if (chunk.generation !== generation || chunk.kind !== kind || !Array.isArray(chunk.values)) {
+            onFailure?.("invalid-chunk");
+            return false;
+          }
           let processed = 0;
           for (const value of chunk.values) {
-            onValue(value);
+            try { onValue(value); } catch { onFailure?.("invalid-record"); return false; }
             processed += 1;
-            if (processed % 128 === 0 && !isCurrent()) return false;
+            if (processed % 128 === 0 && !isCurrent()) { onFailure?.("cancelled"); return false; }
           }
           if (performance.now() - sliceStartedAt >= (Platform.isMobile ? 6 : 8)) {
             await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
             sliceStartedAt = performance.now();
-            if (!isCurrent()) return false;
+            if (!isCurrent()) { onFailure?.("cancelled"); return false; }
           }
         }
       }
       return true;
     } catch {
+      onFailure?.("read-error");
       return false;
     }
   }
 
-  async iteratePages(generation: string, onPage: (page: PersistedPage) => void, isCurrent: () => boolean = () => true): Promise<boolean> {
-    return this.iterateGeneration<PageRecord>(PAGE_STORE, generation, (record) => onPage(record.value), isCurrent);
+  async iteratePages(generation: string, onPage: (page: PersistedPage) => void, isCurrent: () => boolean = () => true,
+    onFailure?: (reason: SnapshotReadFailureReason) => void): Promise<boolean> {
+    return this.iterateGeneration<PageRecord>(PAGE_STORE, generation, (record) => onPage(record.value), isCurrent, onFailure);
   }
 
-  async iterateEvidence(generation: string, onEvidence: (evidence: PersistedEvidenceDeclaration) => void, isCurrent: () => boolean = () => true): Promise<boolean> {
-    return this.iterateGeneration<EvidenceRecord>(EVIDENCE_STORE, generation, (record) => onEvidence(record.value), isCurrent);
+  async iterateEvidence(generation: string, onEvidence: (evidence: PersistedEvidenceDeclaration) => void, isCurrent: () => boolean = () => true,
+    onFailure?: (reason: SnapshotReadFailureReason) => void): Promise<boolean> {
+    return this.iterateGeneration<EvidenceRecord>(EVIDENCE_STORE, generation, (record) => onEvidence(record.value), isCurrent, onFailure);
   }
 
-  private async iterateGeneration<T>(storeName: string, generation: string, onValue: (value: T) => void, isCurrent: () => boolean): Promise<boolean> {
+  private async iterateGeneration<T>(storeName: string, generation: string, onValue: (value: T) => void, isCurrent: () => boolean,
+    onFailure?: (reason: SnapshotReadFailureReason) => void): Promise<boolean> {
     const db = await this.open();
-    if (!db) return false;
+    if (!db) { onFailure?.("storage-unavailable"); return false; }
+    let failureReason: SnapshotReadFailureReason | null = null;
     try {
       const tx = db.transaction(storeName, "readonly");
       const done = transactionDone(tx);
@@ -346,29 +450,41 @@ export class KplexIndexedDbCache {
         request.onsuccess = () => {
           const cursor = request.result;
           if (!cursor) { resolve(); return; }
-          if (!isCurrent()) { try { tx.abort(); } catch { /* cancellation */ } resolve(); return; }
-          onValue(cursor.value as T);
-          cursor.continue();
+          if (!isCurrent()) {
+            failureReason = "cancelled";
+            try { tx.abort(); } catch { /* cancellation */ }
+            resolve();
+            return;
+          }
+          try { onValue(cursor.value as T); cursor.continue(); } catch {
+            failureReason = "invalid-record";
+            try { tx.abort(); } catch { /* invalid record */ }
+            resolve();
+          }
         };
       });
       await done;
-      return true;
+      if (failureReason) onFailure?.(failureReason);
+      return failureReason === null;
     } catch {
+      onFailure?.(failureReason ?? "read-error");
       return false;
     }
   }
 
   /** Serialize one graph generation in bounded transactions, then atomically activate its key.
-   * Cancellation leaves unreachable chunks for later orphan cleanup and preserves prior metadata. */
+   * Cancellation leaves unreachable chunks for later orphan cleanup and preserves prior metadata.
+   * The optional failure callback reports a fixed, path-free code for support diagnostics. */
   async writeSnapshot(
     meta: Omit<IndexedDbSnapshotMeta, "key" | "schema" | "generation" | "pageChunkCount" | "evidenceChunkCount">,
     pages: Iterable<PersistedPage>,
     evidence: Iterable<PersistedEvidenceDeclaration>,
     isCurrent: () => boolean = () => true,
     key: "active" | "checkpoint" = "active",
+    onFailure?: (reason: SnapshotWriteFailureReason) => void,
   ): Promise<boolean> {
     const db = await this.open();
-    if (!db) return false;
+    if (!db) { onFailure?.("storage-unavailable"); return false; }
     const generation = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const batchSize = Platform.isIosApp ? 120 : Platform.isMobile ? 240 : 700;
     const pageChunkSize = Platform.isIosApp ? 256 : Platform.isMobile ? 384 : 512;
@@ -393,6 +509,7 @@ export class KplexIndexedDbCache {
       // Do not launch a large delete transaction in the same moment the user resumes editing.
       // The incomplete generation is unreachable (META_STORE still points at the previous one)
       // and the low-priority orphan sweep will remove it after a long quiet period.
+      onFailure?.("cancelled");
       return false;
     };
 
@@ -485,8 +602,11 @@ export class KplexIndexedDbCache {
       const tx = db.transaction(META_STORE, "readwrite");
       tx.objectStore(META_STORE).put(active);
       await transactionDone(tx);
-      return isCurrent();
-    } catch {
+      // Once the metadata transaction commits, the generation is activated. A later cancellation
+      // cannot retract it; the next restore will validate its physical/file signatures.
+      return true;
+    } catch (error) {
+      onFailure?.(error instanceof DOMException && error.name === "QuotaExceededError" ? "quota-exceeded" : "write-error");
       return false;
     }
   }
@@ -553,7 +673,9 @@ export class KplexIndexedDbCache {
       });
       await done;
       if (!isCurrent()) return;
-      const [active, checkpoint] = await Promise.all([this.readSnapshotMeta(), this.readSnapshotMeta("checkpoint")]);
+      const catalog = await this.readSnapshotCatalog();
+      if (!catalog.available || catalog.invalidActive || catalog.invalidCheckpoint) return;
+      const { active, checkpoint } = catalog;
       const stale = generations.filter((generation) => generation !== activeGeneration &&
         generation !== active?.generation && generation !== checkpoint?.generation);
       for (const generation of stale) {

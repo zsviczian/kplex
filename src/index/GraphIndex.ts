@@ -22,13 +22,15 @@ import {
 import { GraphBuilder, type FieldCacheEntry, type PatchFileCommit, type PatchFilePublisher } from "./GraphBuilder";
 import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
 import { extractLinksFromValue } from "./fieldParser";
-import { KplexIndexedDbCache, type IndexedDbSnapshotMeta } from "./IndexedDbCache";
+import { KplexIndexedDbCache, type IndexedDbSnapshotMeta, type IndexDiagnosticEntry,
+  type SnapshotWriteFailureReason } from "./IndexedDbCache";
 import { createGraphState, getGraphPage } from "./GraphState";
 import type { EvidenceRole, EvidenceSourceKind, RelationEvidence } from "./RelationEvidence";
 import { MetadataParser } from "./MetadataParser";
 import {
   addPersistedEvidenceToState,
   addPersistedPageToState,
+  captureVaultInventory,
   computeIndexSettingsSignature,
   computeVaultSignature,
   finalizeHydratedGraphStateCooperative,
@@ -39,6 +41,7 @@ import {
   type PersistedEvidenceDeclaration,
   type PersistedIndexManifestV2,
   type PersistedPage,
+  type VaultInventory,
 } from "./IndexSnapshot";
 import {
   classifyRelation,
@@ -103,6 +106,8 @@ const SNAPSHOT_HYDRATION_WATCHDOG_POLL_MS = 5 * 1000;
 const COLD_CHECKPOINT_MIN_FILES = 500;
 const COLD_CHECKPOINT_INTERVAL_MS = 2 * 60 * 1000;
 const COLD_CHECKPOINT_MAX_INTERVAL_MS = 5 * 60 * 1000;
+const COLD_CHECKPOINT_PROGRESS_FILES = 2000;
+const COLD_CHECKPOINT_PROGRESS_MIN_INTERVAL_MS = 60 * 1000;
 
 type SnapshotHydrationPhase =
   | "idle"
@@ -177,6 +182,7 @@ export class GraphIndex {
   private semanticFingerprints = new Map<string, string>();
   private generation = 0;
   private building = false;
+  private checkpointSaving = false;
   private rebuildQueued = false;
   private searchEntries: SearchEntry[] = [];
   private searchEntryByPath = new Map<string, SearchEntry>();
@@ -190,8 +196,21 @@ export class GraphIndex {
   private snapshotPersistGeneration = 0;
   private bodyWarmGeneration = 0;
   private readonly indexedDb: KplexIndexedDbCache;
+  private indexDiagnostics: IndexDiagnosticEntry[] = [];
+  private savedSnapshotSummary: {
+    storage: "unchecked" | "available" | "unavailable";
+    invalidActive: boolean;
+    active: { createdAt: number; schema: number } | null;
+    checkpoint: { createdAt: number; schema: number; completedMarkdownFiles: number } | null;
+  } = { storage: "unchecked", invalidActive: false, active: null, checkpoint: null };
+  private diagnosticWriteTask: Promise<void> = Promise.resolve();
+  private diagnosticsClosed = false;
   private searchEntryPointPaths: string[] = [];
   private restoredModifiedMarkdownPaths: string[] = [];
+  private restoredAddedMarkdownPaths: string[] = [];
+  private restoredRemovedMarkdownPaths: string[] = [];
+  private restoredVaultSignature: string | null = null;
+  private restoreInventorySourceRevision: number | null = null;
   private restoredStructuralMismatch = false;
   private restoredPatchPlanAvailable = false;
   private resumableCheckpointPaths: Set<string> | null = null;
@@ -237,6 +256,8 @@ export class GraphIndex {
   get size(): number { return this.state.pages.size; }
   /** Markdown sources represented by the currently published semantic index. */
   indexedMarkdownFileCount(): number { return this.semanticFingerprints.size; }
+  /** The progressive builder pauses source ingestion while a checkpoint is made durable. */
+  isCheckpointSaving(): boolean { return this.checkpointSaving; }
   get(path: string): GraphPage | undefined { return getGraphPage(this.state, path); }
   allPages(): GraphPage[] { return [...this.state.pages.values()]; }
 
@@ -522,6 +543,7 @@ export class GraphIndex {
   }
 
   destroy(): void {
+    this.diagnosticsClosed = true;
     this.generation += 1;
     this.bodyWarmGeneration += 1;
     this.cancelSnapshotHydration?.();
@@ -669,6 +691,7 @@ export class GraphIndex {
     meta: IndexedDbSnapshotMeta,
     fresh: boolean,
     run: number,
+    inventory: VaultInventory,
   ): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }> {
     const isCurrent = () => run === this.snapshotHydrationRun;
     const next = createGraphState();
@@ -695,7 +718,9 @@ export class GraphIndex {
           if (rebound.extension === "md" && typeof page.mtime === "number" && rebound.stat.mtime !== page.mtime) modifiedMarkdownPaths.add(rebound.path);
         } else missingFileBindings.add(page.path);
       }
-    }, isCurrent);
+    }, isCurrent, (reason) => {
+      if (isCurrent()) this.recordIndexDiagnostic("restore", `${meta.key}-pages-${reason}`);
+    });
     if (!pagesOk || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
 
     if (missingFileBindings.size) {
@@ -716,7 +741,7 @@ export class GraphIndex {
       }
     }
 
-    const currentPhysicalPaths = new Set(this.app.vault.getFiles().map((file) => file.path));
+    const currentPhysicalPaths = new Set(inventory.filesByPath.keys());
     let structuralMismatch = currentPhysicalPaths.size !== persistedPhysicalPaths.size;
     if (!structuralMismatch) {
       for (const path of currentPhysicalPaths) {
@@ -724,10 +749,30 @@ export class GraphIndex {
       }
     }
 
+    const addedPaths = [...currentPhysicalPaths].filter((path) => !persistedPhysicalPaths.has(path));
+    const removedPaths = [...persistedPhysicalPaths].filter((path) => !currentPhysicalPaths.has(path));
+    const savedFolders = new Set([...next.pages.values()].filter((page) => page.isFolder)
+      .map((page) => page.path === "folder:/" ? "" : page.path.slice("folder:".length)));
+    const foldersMatch = savedFolders.size === inventory.folderPaths.size &&
+      [...inventory.folderPaths].every((path) => savedFolders.has(path));
+    // A completed graph can absorb note-only additions and deletions. Renames are deliberately
+    // excluded: inbound link resolution can change even when the declaring notes did not change.
+    const markdownDelta = foldersMatch && !(addedPaths.length && removedPaths.length) &&
+      addedPaths.every((path) => inventory.filesByPath.get(path)?.extension === "md") &&
+      removedPaths.every((path) => path.toLowerCase().endsWith(".md")) &&
+      [...missingFileBindings].every((path) => removedPaths.includes(path));
+    const recoverableStructuralDelta = structuralMismatch && markdownDelta;
+
     // A bounded startup preview may already be visible, but never promote/retain a known-invalid
     // full snapshot. Hydrating its relations + evidence only to immediately build a replacement
     // doubles peak memory on iOS and delays the authoritative cold build on every platform.
-    if (structuralMismatch || missingFileBindings.size > 0) {
+    if ((structuralMismatch && !recoverableStructuralDelta) ||
+      (missingFileBindings.size > 0 && !recoverableStructuralDelta) || !foldersMatch) {
+      this.recordIndexDiagnostic("restore", !foldersMatch ? "folder-structure-changed" :
+        addedPaths.length && removedPaths.length ? "possible-file-rename" :
+          addedPaths.some((path) => inventory.filesByPath.get(path)?.extension !== "md") ? "non-markdown-file-added" :
+            missingFileBindings.size ? "missing-file-binding" : "unsupported-physical-change",
+      { added: addedPaths.length, removed: removedPaths.length, modified: modifiedMarkdownPaths.size });
       this.fullSnapshotHydrated = false;
       this.fullSnapshotFresh = false;
       this.restoredModifiedMarkdownPaths = [];
@@ -753,7 +798,9 @@ export class GraphIndex {
           if (!isCurrent()) return;
           this.noteSnapshotHydrationProgress(run, "relations");
           if (!hydratePersistedPageRelations(next, saved)) relationsComplete = false;
-        }, isCurrent);
+        }, isCurrent, (reason) => {
+          if (isCurrent()) this.recordIndexDiagnostic("restore", `${meta.key}-relations-${reason}`);
+        });
         relationsHydrated = relationPassOk && relationsComplete;
       }
       if (retainedPages) relationsHydrated = relationsComplete;
@@ -785,7 +832,9 @@ export class GraphIndex {
       if (!isCurrent()) return;
       this.noteSnapshotHydrationProgress(run, "evidence");
       addPersistedEvidenceToState(next, item);
-    }, isCurrent);
+    }, isCurrent, (reason) => {
+      if (isCurrent()) this.recordIndexDiagnostic("restore", `${meta.key}-evidence-${reason}`);
+    });
     if (!evidenceOk || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
     next.discoveredFields = new Map(meta.discoveredFields);
 
@@ -807,6 +856,10 @@ export class GraphIndex {
     if (isCheckpoint && meta.completedMarkdownPaths?.some((path) => !restoredFingerprints.has(path))) {
       return { restored: false, fresh: false, createdAt: meta.createdAt };
     }
+    if (isCheckpoint) {
+      for (const path of modifiedMarkdownPaths) restoredFingerprints.delete(path);
+      for (const path of removedPaths) restoredFingerprints.delete(path);
+    }
     const authoritativeFresh = fresh && !structuralMismatch && missingFileBindings.size === 0;
     // The earlier page-only publication uses this same `next.pages` map. Evidence hydration does
     // not alter searchable page metadata, so avoid allocating/sorting the 100k+ search index a
@@ -826,9 +879,18 @@ export class GraphIndex {
     this.semanticFingerprints = restoredFingerprints;
     this.previewSnapshotPublished = false;
     this.restoredModifiedMarkdownPaths = [...modifiedMarkdownPaths];
-    this.restoredStructuralMismatch = structuralMismatch || missingFileBindings.size > 0;
+    this.restoredAddedMarkdownPaths = recoverableStructuralDelta ? addedPaths : [];
+    this.restoredRemovedMarkdownPaths = recoverableStructuralDelta ? removedPaths : [];
+    this.restoredStructuralMismatch = false;
     this.restoredPatchPlanAvailable = !isCheckpoint && !this.restoredStructuralMismatch;
-    this.resumableCheckpointPaths = isCheckpoint ? new Set(meta.completedMarkdownPaths) : null;
+    this.restoredVaultSignature = inventory.signature;
+    this.resumableCheckpointPaths = isCheckpoint ? new Set(meta.completedMarkdownPaths?.filter((path) =>
+      inventory.filesByPath.has(path) && !modifiedMarkdownPaths.has(path))) : null;
+    this.recordIndexDiagnostic("restore", isCheckpoint ? "checkpoint-restored" :
+      recoverableStructuralDelta ? "complete-markdown-delta" :
+        modifiedMarkdownPaths.size ? "complete-modified-markdown" : "complete-restored",
+    { added: this.restoredAddedMarkdownPaths.length, removed: this.restoredRemovedMarkdownPaths.length,
+      modified: modifiedMarkdownPaths.size });
 
     if (!isCheckpoint && !relationsHydrated) this.scheduleSnapshotPersist(5000);
     else if (!this.indexedDb.snapshotUsesChunks(meta) && !Platform.isIosApp) {
@@ -851,6 +913,10 @@ export class GraphIndex {
     this.fullSnapshotHydrated = false;
     this.fullSnapshotFresh = false;
     this.restoredPatchPlanAvailable = false;
+    this.restoredAddedMarkdownPaths = [];
+    this.restoredRemovedMarkdownPaths = [];
+    this.restoredVaultSignature = null;
+    this.restoreInventorySourceRevision = null;
     this.resumableCheckpointPaths = null;
     let createdAt: number | null = null;
     type RestoreResult = { restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean };
@@ -859,34 +925,57 @@ export class GraphIndex {
     // Guard metadata and targeted preview reads too: startup must never wait indefinitely before
     // the public full-hydration task has even been installed.
     const restoreTask = (async () => {
-      const [active, checkpoint] = await Promise.all([
-        this.indexedDb.readSnapshotMeta(), this.indexedDb.readSnapshotMeta("checkpoint"),
+      const [catalog, previousDiagnostics] = await Promise.all([
+        this.indexedDb.readSnapshotCatalog(), this.indexedDb.readIndexDiagnostics(),
       ]);
-      const settingsSignature = computeIndexSettingsSignature(this.plugin.settings);
-      const vaultSignature = computeVaultSignature(this.app);
-      // A partial generation is only reusable against the exact structural and file-revision
-      // input it captured. Keep a complete active generation independent of checkpoint writes.
-      const usableCheckpoint = checkpoint?.settingsSignature === settingsSignature &&
-        checkpoint.vaultSignature === vaultSignature &&
-        (!active || active.vaultSignature !== vaultSignature || active.settingsSignature !== settingsSignature);
-      const meta = usableCheckpoint ? checkpoint : active;
       if (!isCurrent()) return { restored: false, fresh: false, createdAt };
-      createdAt = meta?.createdAt ?? null;
-      this.activeSnapshotGeneration = meta?.generation ?? null;
-      if (!meta || meta.settingsSignature !== settingsSignature) {
+      this.rememberSnapshotCatalog(catalog);
+      if (this.indexDiagnostics.length === 0) this.indexDiagnostics = previousDiagnostics;
+      const { active, checkpoint } = catalog;
+      const settingsSignature = computeIndexSettingsSignature(this.plugin.settings);
+      if (active?.settingsSignature !== settingsSignature && checkpoint?.settingsSignature !== settingsSignature) {
+        createdAt = active?.createdAt ?? checkpoint?.createdAt ?? null;
+        this.recordIndexDiagnostic("restore", !catalog.available ? "storage-unavailable" :
+          catalog.invalidActive || catalog.invalidCheckpoint ? "invalid-snapshot-metadata" :
+            active || checkpoint ? "semantic-settings-changed" : "no-complete-snapshot");
         return { restored: false, fresh: false, createdAt };
       }
-      const fresh = meta.key === "active" && meta.vaultSignature === vaultSignature;
-      this.setSnapshotHydrationPhase(run, "preview");
-      const previewPublished = await this.publishSnapshotPreview(meta, seedPaths, isCurrent);
-      if (!isCurrent()) return { restored: false, fresh: false, createdAt };
-      if (previewPublished) reportPreview({ restored: true, fresh, createdAt, partial: true });
-      return this.restoreFullIndexedDbSnapshot(meta, fresh, run);
+      const inventory = captureVaultInventory(this.app);
+      this.restoreInventorySourceRevision = this.plugin.getIndexSourceRevision();
+      const vaultSignature = inventory.signature;
+      // Prefer a fresh checkpoint to a stale complete snapshot. If both are stale, the complete
+      // generation normally preserves more work; the restore below plans its per-file delta.
+      const usableCheckpoint = checkpoint?.settingsSignature === settingsSignature &&
+        (!active || active.settingsSignature !== settingsSignature ||
+          (checkpoint.vaultSignature === vaultSignature && active.vaultSignature !== vaultSignature));
+      const candidates = (usableCheckpoint ? [checkpoint, active] : [active, checkpoint])
+        .filter((meta): meta is IndexedDbSnapshotMeta => Boolean(meta && meta.settingsSignature === settingsSignature));
+      for (const meta of candidates) {
+        if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+        createdAt = meta.createdAt;
+        this.activeSnapshotGeneration = meta.generation;
+        const fresh = meta.key === "active" && meta.vaultSignature === vaultSignature;
+        this.recordIndexDiagnostic("restore", meta.key === "checkpoint" ? "checkpoint-selected" :
+          fresh ? "complete-snapshot-fresh" : "complete-snapshot-stale");
+        this.setSnapshotHydrationPhase(run, "preview");
+        const previewPublished = await this.publishSnapshotPreview(meta, seedPaths, isCurrent);
+        if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+        if (previewPublished) reportPreview({ restored: true, fresh, createdAt, partial: true });
+        const result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory);
+        if (result.restored || !isCurrent()) return result;
+      }
+      return { restored: false, fresh: false, createdAt };
     })().then((result) => {
-      if (!result.restored) this.finishSnapshotHydrationDiagnostics(run, "failed");
+      if (!result.restored) {
+        this.finishSnapshotHydrationDiagnostics(run, "failed");
+        const lastReason = this.indexDiagnostics[this.indexDiagnostics.length - 1]?.reason;
+        if (lastReason === "checkpoint-selected" || lastReason === "complete-snapshot-fresh" ||
+          lastReason === "complete-snapshot-stale") this.recordIndexDiagnostic("restore", "hydration-incomplete");
+      }
       return result;
     }).catch(() => {
       this.finishSnapshotHydrationDiagnostics(run, "failed");
+      this.recordIndexDiagnostic("restore", "restore-exception");
       return { restored: false, fresh: false, createdAt };
     });
     const task = this.watchSnapshotHydration(restoreTask, run, () => createdAt);
@@ -950,6 +1039,54 @@ export class GraphIndex {
     return { ...this.snapshotHydrationDiagnostics };
   }
 
+  /** Inspect recent local index decisions without exposing vault paths or note content. */
+  getIndexDiagnostics(): IndexDiagnosticEntry[] {
+    return this.indexDiagnostics.map((entry) => ({ ...entry }));
+  }
+
+  /** Safe, synchronous snapshot facts for a user-shared report. Clipboard writes need the user gesture. */
+  getSavedSnapshotSummary(): {
+    storage: "unchecked" | "available" | "unavailable";
+    invalidActive: boolean;
+    active: { createdAt: number; schema: number } | null;
+    checkpoint: { createdAt: number; schema: number; completedMarkdownFiles: number } | null;
+  } {
+    return {
+      ...this.savedSnapshotSummary,
+      active: this.savedSnapshotSummary.active && { ...this.savedSnapshotSummary.active },
+      checkpoint: this.savedSnapshotSummary.checkpoint && { ...this.savedSnapshotSummary.checkpoint },
+    };
+  }
+
+  private rememberSnapshotCatalog(catalog: Awaited<ReturnType<KplexIndexedDbCache["readSnapshotCatalog"]>>): void {
+    this.savedSnapshotSummary = {
+      storage: catalog.available ? "available" : "unavailable",
+      invalidActive: catalog.invalidActive,
+      active: catalog.active ? { createdAt: catalog.active.createdAt, schema: catalog.active.schema } : null,
+      checkpoint: catalog.checkpoint ? {
+        createdAt: catalog.checkpoint.createdAt,
+        schema: catalog.checkpoint.schema,
+        completedMarkdownFiles: catalog.checkpoint.completedMarkdownPaths?.length ?? 0,
+      } : null,
+    };
+  }
+
+  /** Record the coordinator's decision without retaining vault paths or note content. */
+  noteBuildDecision(kind: "cold-progressive" | "full-rebuild" | "per-file-patch", reason: string, modified = 0): void {
+    this.recordIndexDiagnostic("build", `${kind}:${reason}`, { modified });
+  }
+
+  private recordIndexDiagnostic(
+    stage: IndexDiagnosticEntry["stage"],
+    reason: string,
+    counts: Pick<IndexDiagnosticEntry, "added" | "removed" | "modified" | "completedMarkdownFiles" | "durationMs"> = {},
+  ): void {
+    this.indexDiagnostics = [...this.indexDiagnostics, { at: Date.now(), stage, reason, ...counts }].slice(-20);
+    const entries = this.getIndexDiagnostics();
+    this.diagnosticWriteTask = this.diagnosticWriteTask.then(() =>
+      this.diagnosticsClosed ? undefined : this.indexedDb.writeIndexDiagnostics(entries));
+  }
+
   private watchSnapshotHydration(
     task: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }>,
     run: number,
@@ -962,6 +1099,7 @@ export class GraphIndex {
         if (timer !== null) window.clearTimeout(timer);
         timer = null;
         this.finishSnapshotHydrationDiagnostics(run, outcome);
+        if (outcome === "timed-out") this.recordIndexDiagnostic("restore", "hydration-stalled");
         if (run === this.snapshotHydrationRun) this.snapshotHydrationRun += 1;
         resolve({ restored: false, fresh: false, createdAt: createdAt() });
       };
@@ -989,6 +1127,11 @@ export class GraphIndex {
     return this.fullSnapshotHydrated;
   }
 
+  /** A validated partial generation can resume even after its hydration task has settled. */
+  hasRestoredCheckpoint(): boolean {
+    return this.resumableCheckpointPaths !== null;
+  }
+
   async waitForSnapshotHydration(): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }> {
     const task = this.snapshotHydrationTask;
     if (!task) return { restored: this.fullSnapshotHydrated, fresh: this.fullSnapshotFresh, createdAt: null };
@@ -997,6 +1140,11 @@ export class GraphIndex {
 
   hasIncrementalRestorePatch(): boolean {
     return this.restoredPatchPlanAvailable && !this.restoredStructuralMismatch;
+  }
+
+  /** Source revision covered by the physical inventory captured during restore. */
+  getRestoreInventorySourceRevision(): number | null {
+    return this.restoreInventorySourceRevision;
   }
 
   /**
@@ -1023,8 +1171,8 @@ export class GraphIndex {
   /** Patch modified Markdown sources into a restored snapshot without rebuilding the whole vault. */
   async reconcileRestoredSnapshot(): Promise<{ reconciled: boolean; patched: number }> {
     if (!this.restoredPatchPlanAvailable || this.restoredStructuralMismatch) return { reconciled: false, patched: 0 };
-    const paths = [...this.restoredModifiedMarkdownPaths];
-    if (!paths.length) return { reconciled: true, patched: 0 };
+    const paths = [...new Set([...this.restoredModifiedMarkdownPaths, ...this.restoredAddedMarkdownPaths])];
+    if (!paths.length && !this.restoredRemovedMarkdownPaths.length) return { reconciled: true, patched: 0 };
     if (this.building) return { reconciled: false, patched: 0 };
 
     const files: TFile[] = [];
@@ -1033,10 +1181,19 @@ export class GraphIndex {
       if (!(file instanceof TFile) || file.extension !== "md") return { reconciled: false, patched: 0 };
       files.push(file);
     }
+    if (this.restoredRemovedMarkdownPaths.some((path) => this.app.vault.getFileByPath(path))) {
+      return { reconciled: false, patched: 0 };
+    }
 
     this.building = true;
     const run = ++this.generation;
     try {
+      for (const path of this.restoredRemovedMarkdownPaths) this.dematerializeFile(path);
+      for (const path of this.restoredAddedMarkdownPaths) {
+        const file = this.app.vault.getFileByPath(path);
+        if (!file || file.extension !== "md") return { reconciled: false, patched: 0 };
+        this.insertCreatedFile(file);
+      }
       const builder = new GraphBuilder(
         this.plugin,
         this.app,
@@ -1051,13 +1208,28 @@ export class GraphIndex {
         awaitBodyWrite: false,
         publishFileCommit: this.publishIncrementalFile,
       });
-      if (!result.ok || run !== this.generation) return { reconciled: false, patched: 0 };
+      if (!result.ok || run !== this.generation) {
+        this.recordIndexDiagnostic("reconcile", "source-changed-during-reconcile", {
+          added: this.restoredAddedMarkdownPaths.length,
+          removed: this.restoredRemovedMarkdownPaths.length,
+          modified: this.restoredModifiedMarkdownPaths.length,
+        });
+        return { reconciled: false, patched: 0 };
+      }
       this.suggestionCatalogCache = null;
+      this.recordIndexDiagnostic("reconcile", "per-file-reconcile-complete", {
+        added: this.restoredAddedMarkdownPaths.length,
+        removed: this.restoredRemovedMarkdownPaths.length,
+        modified: this.restoredModifiedMarkdownPaths.length,
+      });
       this.restoredModifiedMarkdownPaths = [];
+      this.restoredAddedMarkdownPaths = [];
+      this.restoredRemovedMarkdownPaths = [];
       this.restoredPatchPlanAvailable = false;
+      this.fullSnapshotFresh = true;
       this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
       this.deferOrphanCleanup();
-        return { reconciled: true, patched: files.length };
+      return { reconciled: true, patched: files.length };
     } finally {
       this.building = false;
     }
@@ -1235,10 +1407,16 @@ export class GraphIndex {
     } catch { return null; }
   }
 
-  /** Write a complete generation or a resumable cold-build checkpoint without exposing partial work as authoritative. */
-  private async persistIndexedDbSnapshot(run: number, completedMarkdownPaths?: Iterable<string>, isCurrent: () => boolean = () => true): Promise<void> {
+  /** Write a complete generation or resumable checkpoint, returning true only when its pointer activated.
+   * Callers retain unsaved progress and retry after false; a partial generation is never authoritative. */
+  private async persistIndexedDbSnapshot(
+    run: number,
+    completedMarkdownPaths?: Iterable<string>,
+    isCurrent: () => boolean = () => true,
+    knownVaultSignature?: string,
+  ): Promise<boolean> {
     const checkpoint = completedMarkdownPaths !== undefined;
-    if (run !== this.snapshotPersistGeneration || (!checkpoint && !this.fullSnapshotHydrated) || this.state.pages.size === 0) return;
+    if (run !== this.snapshotPersistGeneration || (!checkpoint && !this.fullSnapshotHydrated) || this.state.pages.size === 0) return false;
     const state = this.state;
     const semanticFingerprints = this.semanticFingerprints;
     function* pageRecords(): IterableIterator<PersistedPage> {
@@ -1252,21 +1430,39 @@ export class GraphIndex {
     const pages = pageRecords();
     const evidence = evidenceRecords();
 
-    const vaultSignature = computeVaultSignature(this.app);
+    const vaultSignature = knownVaultSignature ?? computeVaultSignature(this.app);
     const settingsSignature = computeIndexSettingsSignature(this.plugin.settings);
+    const snapshotCreatedAt = Date.now();
+    const completedPaths = completedMarkdownPaths ? [...completedMarkdownPaths] : null;
+    const completedMarkdownFiles = completedPaths?.length;
+    let failureReason: SnapshotWriteFailureReason | null = null;
     const persisted = await this.indexedDb.writeSnapshot({
-      createdAt: Date.now(),
+      createdAt: snapshotCreatedAt,
       vaultSignature,
       settingsSignature,
       discoveredFields: [...this.state.discoveredFields.entries()],
-      ...(checkpoint ? { completedMarkdownPaths: [...completedMarkdownPaths] } : {}),
-    }, pages, evidence, () => run === this.snapshotPersistGeneration && isCurrent(), checkpoint ? "checkpoint" : "active");
+      ...(completedPaths ? { completedMarkdownPaths: completedPaths } : {}),
+    }, pages, evidence, () => run === this.snapshotPersistGeneration && isCurrent(), checkpoint ? "checkpoint" : "active",
+    (reason) => { failureReason = reason; });
 
     if (!persisted || run !== this.snapshotPersistGeneration) {
-      return;
+      this.recordIndexDiagnostic("persist", run !== this.snapshotPersistGeneration || failureReason === "cancelled" ?
+        "snapshot-write-cancelled" : checkpoint ? `checkpoint-${failureReason ?? "write-failed"}` :
+          `complete-${failureReason ?? "write-failed"}`, { completedMarkdownFiles, durationMs: Math.max(0, Date.now() - snapshotCreatedAt) });
+      return false;
     }
-    if (checkpoint) return;
+    this.savedSnapshotSummary = {
+      ...this.savedSnapshotSummary,
+      storage: "available",
+      ...(checkpoint ? { checkpoint: { createdAt: snapshotCreatedAt, schema: 3,
+        completedMarkdownFiles: completedPaths?.length ?? 0 } } :
+        { active: { createdAt: snapshotCreatedAt, schema: 3 } }),
+    };
+    this.recordIndexDiagnostic("persist", checkpoint ? "checkpoint-saved" : "complete-saved",
+      { completedMarkdownFiles, durationMs: Math.max(0, Date.now() - snapshotCreatedAt) });
+    if (checkpoint) return true;
     await this.indexedDb.clearCheckpoint();
+    this.savedSnapshotSummary.checkpoint = null;
     const latestMeta = await this.indexedDb.readSnapshotMeta();
     if (latestMeta?.generation) this.scheduleOrphanCleanup(latestMeta.generation);
     // Clean legacy file-based snapshots only after IndexedDB has had a chance to become
@@ -1277,6 +1473,7 @@ export class GraphIndex {
       if (!path) continue;
       try { if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path); } catch { /* migration cleanup only */ }
     }
+    return true;
   }
 
   private scheduleSnapshotPersist(delayOverride?: number): void {
@@ -1320,8 +1517,11 @@ export class GraphIndex {
     this.cancelPendingPersistence();
     this.building = true;
     const run = ++this.generation;
-    const sourceRevision = this.plugin.getIndexSourceRevision();
-    const isCurrent = (): boolean => run === this.generation && this.plugin.getIndexSourceRevision() === sourceRevision;
+    // The coordinator retains Markdown changes that arrive during cold ingestion as a per-file
+    // backlog. Cancelling the entire pass for each sync/metadata event restarted large vaults at
+    // file zero. GraphBuilder still fences each source by its exact TFile/stat revision; a source
+    // changed during its own read cancels safely, while unrelated events leave committed work intact.
+    const isCurrent = (): boolean => run === this.generation;
     try {
       const resuming = this.resumableCheckpointPaths !== null;
       const nextFingerprints = resuming ? this.semanticFingerprints : new Map<string, string>();
@@ -1336,6 +1536,17 @@ export class GraphIndex {
       );
       const next = resuming ? this.state : await builder.buildStructuralBaseline();
       if (!next || !isCurrent()) return false;
+
+      if (resuming) {
+        for (const path of this.restoredRemovedMarkdownPaths) this.dematerializeFile(path);
+        for (const path of this.restoredAddedMarkdownPaths) {
+          const file = this.app.vault.getFileByPath(path);
+          if (!file || file.extension !== "md" || !isCurrent()) return false;
+          this.insertCreatedFile(file);
+        }
+        this.restoredAddedMarkdownPaths = [];
+        this.restoredRemovedMarkdownPaths = [];
+      }
 
       const markdownFiles = this.app.vault.getMarkdownFiles();
       const markdownByPath = new Map(markdownFiles.map((file) => [file.path, file] as const));
@@ -1439,8 +1650,15 @@ export class GraphIndex {
       const notifyEvery = Platform.isIosApp ? 3 : Platform.isMobile ? 5 : 10;
       let commitsSinceNotify = 0;
       let commitsSinceCheckpoint = 0;
-      let lastCheckpointAt = Date.now();
+      // A restart must not restart the durability clock. A checkpoint restored hours later is
+      // due again after the first 500 new commits, even when this process is only seconds old.
+      let lastCheckpointAt = resuming && this.savedSnapshotSummary.checkpoint
+        ? Math.min(Date.now(), this.savedSnapshotSummary.checkpoint.createdAt)
+        : Date.now();
       let checkpointIntervalMs = COLD_CHECKPOINT_INTERVAL_MS;
+      let checkpointRetryAfter = 0;
+      let checkpointRetryDelayMs = 15_000;
+      let checkpointVaultSignature = resuming ? this.restoredVaultSignature : null;
       const result = await builder.patchMarkdownFiles(this.state, remaining, {
         useDurableCache: true,
         awaitBodyWrite: false,
@@ -1455,16 +1673,37 @@ export class GraphIndex {
           this.emit();
         },
         afterFileCommit: async () => {
+          const elapsedSinceCheckpoint = Date.now() - lastCheckpointAt;
           if (markdownFiles.length - indexedPaths.size < COLD_CHECKPOINT_MIN_FILES ||
             commitsSinceCheckpoint < COLD_CHECKPOINT_MIN_FILES ||
-            Date.now() - lastCheckpointAt < checkpointIntervalMs || !isCurrent()) return;
+            (elapsedSinceCheckpoint < checkpointIntervalMs &&
+              (commitsSinceCheckpoint < COLD_CHECKPOINT_PROGRESS_FILES ||
+                elapsedSinceCheckpoint < COLD_CHECKPOINT_PROGRESS_MIN_INTERVAL_MS)) ||
+            Date.now() < checkpointRetryAfter || !isCurrent()) return;
           // Pause source ingestion while serializing the coherent committed graph. The IndexedDB
           // checkpoint metadata activates only after all page/evidence chunks are durable.
+          let persisted = false;
+          this.checkpointSaving = true;
+          this.emit();
           try {
-            await this.persistIndexedDbSnapshot(this.snapshotPersistGeneration, indexedPaths, isCurrent);
+            checkpointVaultSignature ??= computeVaultSignature(this.app);
+            persisted = await this.persistIndexedDbSnapshot(this.snapshotPersistGeneration, indexedPaths, isCurrent, checkpointVaultSignature);
           } catch { /* checkpoint persistence is an optimization; ingestion must continue */ }
+          finally {
+            this.checkpointSaving = false;
+            this.emit();
+          }
+          if (!persisted) {
+            // A failed or cancelled checkpoint did not save those sources. Retain the commit count
+            // and interval, but avoid retrying a large serialization on every following note.
+            checkpointRetryAfter = Date.now() + checkpointRetryDelayMs;
+            checkpointRetryDelayMs = Math.min(COLD_CHECKPOINT_MAX_INTERVAL_MS, checkpointRetryDelayMs * 2);
+            return;
+          }
           commitsSinceCheckpoint = 0;
           lastCheckpointAt = Date.now();
+          checkpointRetryAfter = 0;
+          checkpointRetryDelayMs = 15_000;
           // A full graph checkpoint took about 31 seconds on the 20k-note desktop fixture. Grow
           // the interval so repeated saves do not dominate the remainder of cold indexing.
           checkpointIntervalMs = Math.min(COLD_CHECKPOINT_MAX_INTERVAL_MS, checkpointIntervalMs * 2);

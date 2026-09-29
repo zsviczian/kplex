@@ -605,6 +605,11 @@ export const englishCatalog = {
     context: "K-Plex host shell, command, toolbar, and status copy.",
     params: [],
   },
+  "command.copyIndexDiagnostics": {
+    message: "Copy index diagnostics",
+    context: "Temporary command palette action for sharing a path-free index support report.",
+    params: [],
+  },
   "command.openPopout": {
     message: "Open in pop-out window",
     context: "K-Plex host shell, command, toolbar, and status copy.",
@@ -665,6 +670,16 @@ export const englishCatalog = {
     context: "K-Plex host shell, command, toolbar, and status copy.",
     params: [],
   },
+  "notice.indexDiagnosticsCopied": {
+    message: "Copied index diagnostics to clipboard.",
+    context: "Shown after the index support report is copied.",
+    params: [],
+  },
+  "notice.indexDiagnosticsCopyFailed": {
+    message: "Could not copy index diagnostics.",
+    context: "Shown if clipboard access or the index support report fails.",
+    params: [],
+  },
   "sidecar.unfoldPlex": {
     message: "Unfold K-Plex",
     context: "K-Plex host shell, command, toolbar, and status copy.",
@@ -694,6 +709,11 @@ export const englishCatalog = {
     message: "Status: indexing {indexed} of {total} files",
     context: "K-Plex index indicator detail showing actual progressive Markdown indexing progress.",
     params: ["indexed", "total"],
+  },
+  "index.statusSavingCache": {
+    message: "Status: saving index to cache",
+    context: "K-Plex index indicator detail shown while a progressive checkpoint pauses file indexing to save the graph.",
+    params: [],
   },
   "index.statusUpdating": {
     message: "Status: updating index",

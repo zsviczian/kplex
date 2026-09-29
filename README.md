@@ -304,6 +304,8 @@ Version 0.0.3 substantially improved startup performance, incremental updates, l
 
 If graph data ever appears stale, use the toolbar refresh button or run **Rebuild K-Plex index**.
 
+If indexing restarts unexpectedly, run **Copy index diagnostics** from the Command Palette and paste the report into an issue. It includes index progress, saved-cache state, and recent decisions, without note names, paths, or content. The report is copied locally; K-Plex does not send it anywhere.
+
 ## Ontology and ExcaliBrain compatibility
 
 K-Plex understands configurable relationship field names for:

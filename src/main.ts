@@ -26,6 +26,7 @@ import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurfac
 import { createAdjacentFileLeaf } from "./adapters/obsidian/adjacentFileLeaf";
 import { isEmbeddedMarkdownLeaf } from "./adapters/obsidian/embeddedMarkdownLeaf";
 import { perfNow } from "./util/perf";
+import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
 
 type LoadAwareView = FileView & { _loaded?: boolean };
 
@@ -70,6 +71,11 @@ export default class ExcaliBrainPlugin extends Plugin {
   private recentLeafHistory: WorkspaceLeaf[] = [];
   private readonly hoverParent: HoverParent = { hoverPopover: null };
   private reactiveIndexListenersRegistered = false;
+  private preRestoreChanged = false;
+  private preRestoreUncoveredChanges = false;
+  private readonly preRestoreReasons = new Map<string, number>();
+  private readonly preRestoreMarkdownPaths = new Map<string, number>();
+  private preRestoreListenerCleanup: (() => void) | null = null;
   private openKplexViews = 0;
   private layoutReady = false;
   private metadataStabilized = false;
@@ -184,6 +190,11 @@ export default class ExcaliBrainPlugin extends Plugin {
       },
     });
     this.addCommand({ id: "excalibrain-rebuild-index", name: this.translator("command.rebuildIndex"), callback: () => void this.rebuildIndex(true) });
+    this.addCommand({
+      id: "copy-index-diagnostics",
+      name: this.translator("command.copyIndexDiagnostics"),
+      callback: () => void this.copyIndexDiagnostics(),
+    });
     this.addCommand({
       id: "kplex-open-popout",
       name: this.translator("command.openPopout"),
@@ -318,6 +329,7 @@ export default class ExcaliBrainPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       void (async () => {
         if (this.unloading) return;
+        this.installPreRestoreChangeFence();
         if (!alreadyKplex) {
           const legacySettings = this.runningExcaliBrainSettings();
           if (legacySettings) {
@@ -368,12 +380,13 @@ export default class ExcaliBrainPlugin extends Plugin {
           await this.refreshBookmarkedEntryPoints();
         }
         if (this.unloading) return;
-        this.indexDirty = !restored.fresh;
+        this.classifyPreRestoreChanges(restored.fresh);
         if (!restored.fresh) {
           this.indexDirtyRevision += 1;
           this.indexBacklogReasons.add(restored.restored ? "startup:stale-snapshot" : "startup:no-snapshot");
         }
 
+        this.preRestoreListenerCleanup?.();
         this.registerReactiveIndexListeners();
         this.registerOntologyContextMenu();
         // Prewarm exactly once per Obsidian session when it is safe to do so. A fresh persisted
@@ -511,6 +524,58 @@ export default class ExcaliBrainPlugin extends Plugin {
       this.rebuildTimer = null;
     }
     this.notifyIndexStatus();
+  }
+
+  /** Discard startup events already covered by the captured physical inventory. */
+  private classifyPreRestoreChanges(snapshotFresh: boolean): void {
+    // The inventory already includes events delivered before its synchronous tree walk.
+    // Keep only events that arrived while snapshot preview/hydration was loading.
+    const inventoryRevision = this.index.getRestoreInventorySourceRevision();
+    this.preRestoreUncoveredChanges = this.preRestoreChanged &&
+      (inventoryRevision === null || inventoryRevision !== this.indexDirtyRevision);
+    if (this.preRestoreUncoveredChanges) {
+      for (const [reason, revision] of this.preRestoreReasons) {
+        if (inventoryRevision === null || revision > inventoryRevision) this.indexBacklogReasons.add(reason);
+      }
+      for (const [path, revision] of this.preRestoreMarkdownPaths) {
+        if (inventoryRevision === null || revision > inventoryRevision) this.dirtyMarkdownPaths.add(path);
+      }
+    }
+    this.preRestoreReasons.clear();
+    this.preRestoreMarkdownPaths.clear();
+    this.indexDirty = !snapshotFresh || this.preRestoreUncoveredChanges || this.indexBacklogReasons.size > 0;
+  }
+
+  /** Capture changes during snapshot inspection before normal event-driven work is registered. */
+  private installPreRestoreChangeFence(): void {
+    if (this.preRestoreListenerCleanup) return;
+    const mark = (reason: string, file?: TFile): void => {
+      this.preRestoreChanged = true;
+      this.indexDirtyRevision += 1;
+      this.preRestoreReasons.set(reason, this.indexDirtyRevision);
+      if (file?.extension === "md") this.preRestoreMarkdownPaths.set(file.path, this.indexDirtyRevision);
+    };
+    const created = this.app.vault.on("create", (item) => mark(
+      item instanceof TFile && item.extension === "md" ? "vault:create-markdown" : "vault:create",
+      item instanceof TFile ? item : undefined,
+    ));
+    const deleted = this.app.vault.on("delete", (item) => mark("vault:delete",
+      item instanceof TFile ? item : undefined));
+    const renamed = this.app.vault.on("rename", (item) => mark("vault:rename",
+      item instanceof TFile ? item : undefined));
+    const metadata = this.app.metadataCache.on("changed", (file) => mark("metadata:changed", file));
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
+      this.app.vault.offref(created);
+      this.app.vault.offref(deleted);
+      this.app.vault.offref(renamed);
+      this.app.metadataCache.offref(metadata);
+      this.preRestoreListenerCleanup = null;
+    };
+    this.preRestoreListenerCleanup = release;
+    this.register(release);
   }
 
   /** Register post-restore vault/metadata listeners and refresh cached vault-wide status facts. */
@@ -764,7 +829,7 @@ export default class ExcaliBrainPlugin extends Plugin {
             this.indexBacklogReasons.add("startup:stale-snapshot");
           }
         }
-      } else if (this.index.size > 0 && !this.index.isFullSnapshotHydrated()) {
+      } else if (this.index.size > 0 && !this.index.isFullSnapshotHydrated() && !this.index.hasRestoredCheckpoint()) {
         // The preview task failed after it had already returned a usable partial scene. Fall back
         // to a normal rebuild instead of ever treating that partial scene as the complete index.
         this.indexDirty = true;
@@ -795,11 +860,18 @@ export default class ExcaliBrainPlugin extends Plugin {
         const patchRevision = this.indexDirtyRevision;
         const patched = await this.index.reconcileRestoredSnapshot();
         if (this.unloading) return;
-        if (patched.reconciled && patchRevision === this.indexDirtyRevision) {
-          this.indexDirty = false;
-          this.indexBacklogReasons.clear();
+        if (patched.reconciled) {
+          this.indexBacklogReasons.delete("startup:stale-snapshot");
           this.initialIndexComplete = true;
+          if (!this.preRestoreUncoveredChanges && patchRevision === this.indexDirtyRevision &&
+              this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
+            this.indexDirty = false;
+          }
           this.notifyIndexStatus();
+          if (!this.indexDirty) return;
+          // A newer reactive event remains in the per-file backlog. Let the normal coordinator
+          // patch it after this startup task releases its guard.
+          if (this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
           return;
         }
       }
@@ -897,6 +969,7 @@ export default class ExcaliBrainPlugin extends Plugin {
         this.dirtyMarkdownPaths.size > 0;
       if (canIncrementalPatch) {
         const paths = [...this.dirtyMarkdownPaths];
+        this.index.noteBuildDecision("per-file-patch", [...this.indexBacklogReasons].sort().join("|") || reason, paths.length);
         const result = await this.index.patchMarkdownPaths(paths);
         if (this.unloading) return;
         if (result.outcome === "patched") {
@@ -945,6 +1018,8 @@ export default class ExcaliBrainPlugin extends Plugin {
       }
       if (showNotice) new Notice(this.translator("notice.rebuildingIndex"), 1200);
       const progressiveStartup = allowClosed && !showNotice && !force && !this.initialIndexComplete && !this.index.isFullSnapshotHydrated();
+      this.index.noteBuildDecision(progressiveStartup ? "cold-progressive" : "full-rebuild",
+        [...this.indexBacklogReasons].sort().join("|") || reason);
       const published = progressiveStartup
         ? await this.index.rebuildProgressively(this.startupGraphSeedPaths(), {
           // Keep the large-iOS low-memory checkpoint strategy, but only after the useful center
@@ -1887,13 +1962,32 @@ export default class ExcaliBrainPlugin extends Plugin {
     return this.indexDirtyRevision;
   }
 
-  /** Return current index readiness/progress facts plus localized status copy; this query does not schedule indexing. */
-  getIndexStatus(): {
+  private async copyIndexDiagnostics(): Promise<void> {
+    try {
+      const report = createIndexDiagnosticsReport(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version);
+      await window.navigator.clipboard.writeText(report);
+      new Notice(this.translator("notice.indexDiagnosticsCopied"));
+    } catch (error) {
+      console.error("K-Plex could not copy index diagnostics", error);
+      new Notice(this.translator("notice.indexDiagnosticsCopyFailed"));
+    }
+  }
+
+  /** Never enumerate Markdown files merely to build a clipboard report. */
+  private getIndexDiagnosticsStatus(): {
     upToDate: boolean;
-    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "updating";
-    label: string;
+    phase: string;
     indexedFiles: number;
-    totalFiles: number;
+    totalFiles: number | null;
+  } {
+    return this.computeIndexStatusFacts(this.cachedMarkdownFileCount);
+  }
+
+  private computeIndexStatusFacts(totalFiles: number | null): {
+    upToDate: boolean;
+    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating";
+    indexedFiles: number;
+    totalFiles: number | null;
   } {
     const loadingCache = this.index.hasPendingSnapshotHydration();
     const upToDate = this.initialIndexComplete
@@ -1901,17 +1995,15 @@ export default class ExcaliBrainPlugin extends Plugin {
       && this.rebuildTask === null
       && this.rebuildTimer === null
       && !loadingCache;
-    // Progressive publication can notify frequently in large vaults. Cache the vault-wide total
-    // between lifecycle changes so status rendering remains O(1) instead of repeatedly allocating
-    // the complete Markdown-file list for every published batch.
-    const totalFiles = this.cachedMarkdownFileCount ??= this.app.vault.getMarkdownFiles().length;
-    const indexedFiles = upToDate
-      ? totalFiles
-      : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
+    const indexedFiles = totalFiles === null
+      ? this.index.indexedMarkdownFileCount()
+      : upToDate ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
     const phase = upToDate
       ? "ready"
       : loadingCache
         ? "loading-cache"
+        : this.index.isCheckpointSaving()
+          ? "saving-cache"
         : !this.initialIndexComplete && this.rebuildTask !== null
           ? "indexing"
           : !this.initialIndexComplete && this.index.size > 0 && this.index.hasIncrementalRestorePatch()
@@ -1919,6 +2011,23 @@ export default class ExcaliBrainPlugin extends Plugin {
             : !this.initialIndexComplete
               ? "preparing"
               : "updating";
+    return { upToDate, phase, indexedFiles, totalFiles };
+  }
+
+  /** Return current index readiness/progress facts plus localized status copy; this query does not schedule indexing. */
+  getIndexStatus(): {
+    upToDate: boolean;
+    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating";
+    label: string;
+    indexedFiles: number;
+    totalFiles: number;
+  } {
+    // Progressive publication can notify frequently in large vaults. Cache the vault-wide total
+    // between lifecycle changes so status rendering remains O(1) instead of repeatedly allocating
+    // the complete Markdown-file list for every published batch.
+    const totalFiles = this.cachedMarkdownFileCount ??= this.app.vault.getMarkdownFiles().length;
+    const facts = this.computeIndexStatusFacts(totalFiles);
+    const { phase, indexedFiles } = facts;
     const label = phase === "ready"
       ? this.translator("index.statusReady")
       : phase === "loading-cache"
@@ -1929,8 +2038,10 @@ export default class ExcaliBrainPlugin extends Plugin {
             ? this.translator("index.statusCheckingCache")
             : phase === "indexing"
               ? this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })
+              : phase === "saving-cache"
+                ? this.translator("index.statusSavingCache")
               : this.translator("index.statusUpdating");
-    return { upToDate, phase, label, indexedFiles, totalFiles };
+    return { ...facts, label, totalFiles };
   }
 
   subscribeIndexStatus(listener: () => void): () => void {

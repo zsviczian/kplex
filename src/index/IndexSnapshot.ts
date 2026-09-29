@@ -91,17 +91,27 @@ function hashText(hash: number, text: string): number {
   return next;
 }
 
-/**
- * Cheap deterministic marker for the physical vault tree. It intentionally includes attachments
- * and empty folders because both participate in the K-Plex file tree. Computing it is O(number of
- * vault entries), but it performs no file reads and is dramatically cheaper than rebuilding.
- */
-export function computeVaultSignature(app: App): string {
+/** Physical vault identity and file lookup captured together for startup reconciliation. */
+export type VaultInventory = {
+  signature: string;
+  filesByPath: Map<string, TFile>;
+  folderPaths: Set<string>;
+};
+
+/** Cheap deterministic marker that includes attachments and empty folders. The tree walk is
+ * O(vault entries), performs no file reads, and is shared with the restore inventory pass. */
+function scanVault(app: App, retainInventory: boolean): VaultInventory {
   let hash = 2166136261 >>> 0;
   let count = 0;
-  const stack: TFolder[] = [app.vault.getRoot()];
+  const filesByPath = new Map<string, TFile>();
+  const folderPaths = new Set<string>();
+  const root = app.vault.getRoot();
+  const stack: TFolder[] = [root];
   while (stack.length) {
     const folder = stack.pop()!;
+    // Obsidian's real root reports "/" while some test/adapter roots report "". Folder graph
+    // identity uses "folder:/" for both; retain that canonical inventory identity only here.
+    if (retainInventory) folderPaths.add(folder === root ? "" : folder.path);
     hash = hashText(hash, `D\0${folder.path}\0`);
     count += 1;
     const children = [...folder.children].sort((a, b) => a.path.localeCompare(b.path));
@@ -111,11 +121,21 @@ export function computeVaultSignature(app: App): string {
         continue;
       }
       if (!(child instanceof TFile)) continue;
+      if (retainInventory) filesByPath.set(child.path, child);
       hash = hashText(hash, `F\0${child.path}\0${child.stat.mtime}\0${child.stat.size}\0`);
       count += 1;
     }
   }
-  return `${count}:${hash.toString(16).padStart(8, "0")}`;
+  return { signature: `${count}:${hash.toString(16).padStart(8, "0")}`, filesByPath, folderPaths };
+}
+
+/** Capture the startup file inventory and signature in one vault-tree pass. */
+export function captureVaultInventory(app: App): VaultInventory {
+  return scanVault(app, true);
+}
+
+export function computeVaultSignature(app: App): string {
+  return scanVault(app, false).signature;
 }
 
 /** Settings that alter the semantic graph, rather than only presentation. */
