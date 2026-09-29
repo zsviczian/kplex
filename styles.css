@@ -58,9 +58,10 @@
 
 .kplex-index-status {
   position: relative;
-  width: 9px;
-  height: 9px;
+  min-height: 9px;
+  max-height: 9px;
   min-width: 9px;
+  max-width: 9px;
   flex: 0 0 9px;
   padding: 0;
   border-radius: 50%;
@@ -1581,8 +1582,9 @@
     padding: 4px 5px;
   }
   .kplex-view-host .kplex-brand strong { display: none; }
-  .kplex-view-host .kplex-topbar button,
-  .kplex-view-host .kplex-icon-button {
+  /* The index dot already has an enlarged invisible hit target; keep its visible size. */
+  .kplex-view-host .kplex-topbar button:where(:not(.kplex-index-status)),
+  .kplex-view-host .kplex-icon-button:where(:not(.kplex-index-status)) {
     min-width: 30px;
     min-height: 30px;
   }
