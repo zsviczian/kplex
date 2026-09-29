@@ -16,254 +16,124 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
+# Offline implementation assignment: SI2 neutral reference candidates and shared policy selection
 
-## Current transfer
+## Checkpoint and base
 
-**State: prepared for offline implementation.**
+Implement **SI2 only** from [`docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`](docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md), especially sections 5.1–5.3 and the checkpoint table. The accepted implementation base is commit `790c179` (`Decouple graph snapshots from presentation settings`). This handoff-only commit may sit on top of that base.
 
-- Sender → recipient: main validation agent → offline development agent.
-- Kind: combined **SI0 characterization/diagnostics + SI1 presentation ownership** checkpoint.
-- Objective: stop presentation settings from rejecting or rebuilding an otherwise semantically compatible saved graph, and establish executable regression/diagnostic contracts for the later settings-independent source-index work.
-- Base branch/revision: `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`.
-- Initial working tree: `Refactor plan.md` modified and `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md` untracked. These are the main agent's design deliverables for this task and form part of the intended change. No runtime source was dirty when this assignment was prepared.
-- Commit authority: none. Return uncommitted changes. The main validation agent reviews, host-validates, records acceptance and commits only after the required evidence or an explicit maintainer decision.
+SI0+SI1 are accepted. Do not revisit their architecture unless SI2 exposes a correctness defect that cannot be fixed within this assignment. Read the accepted validation report at [`docs/validation/settings-independent-indexing-si0-si1-2026-09-29.md`](docs/validation/settings-independent-indexing-si0-si1-2026-09-29.md), [`docs/SETTINGS_PRESENTATION_OWNERSHIP.md`](docs/SETTINGS_PRESENTATION_OWNERSHIP.md), [`docs/INDEXING_ARCHITECTURE.md`](docs/INDEXING_ARCHITECTURE.md), and [`docs/NORMALIZED_SOURCE_CONTRACT.md`](docs/NORMALIZED_SOURCE_CONTRACT.md) before changing source contracts.
 
-## Why SI0 and SI1 are combined
+## Objective
 
-SI0's signature/settings characterization, caller inventory and work counters are direct prerequisites for SI1. Shipping characterization without applying the bounded presentation correction would create an artificial review boundary, while SI1 remains reversible under the existing graph snapshot and body-cache formats.
+Make source collection independent of the currently configured ontology and image-field policies. Collect neutral reference candidates from frontmatter and inline fields once, then use one canonical policy-selection path for both full compilation and incremental patching.
 
-Do **not** include SI2. Neutral collection of unassigned property references changes `core/graph/source.ts`, collectors, compiler input and full/patch equivalence. That is the next recommended offline chunk after this one passes online review. Combining SI2 here would mix presentation migration with a new source-fact contract and make rollback/native diagnosis too broad.
+An unassigned candidate must survive collection but remain dormant. Replaying the same fact stream under another valid policy must be sufficient to activate, move, or deactivate its relationship without reparsing the note. SI2 does not yet persist those neutral facts across restarts and does not yet remove the current settings-triggered semantic rebuild path.
 
-This task intentionally advances only the presentation/settings portion needed by the product correction. It does not resume the general C15–C26 refactor.
+## Required behavior
 
-## Required reading and current evidence
+### Neutral source facts
 
-Read completely before editing:
+- Represent reference candidates from every eligible frontmatter and inline field without embedding the field's current ontology role or current image-selector status in the raw fact.
+- Preserve the exact field spelling, normalized field key, source surface, literal target, subpath, physical occurrence identity, and available source location.
+- Keep lexical and host-resolved targets explicit. The adapter/host resolves paths; portable core code must not guess Obsidian resolution.
+- Reuse the established parser grammar, including `iterateLinkReferencesFromValue()` and existing inline occurrence handling. Do not reinterpret every plain string as a link.
+- Deduplicate repeated discoveries of the same target within one physical value occurrence as the current contract requires, while preserving multiplicity and order between separate physical occurrences.
+- Store shared payload once per original reference-bearing value occurrence. Do not repeat a large nested raw value for every target extracted from it.
+- Continue collecting property-name discovery facts even when a property has no value.
+- Do not introduce an arbitrary property database or a complete frontmatter mirror.
 
-- `AGENTS.md`
-- `CONTRIBUTING.md`
-- `docs/AGENT_WORKFLOW.md`
-- `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`, especially sections 2–4, 7.3, 9–12
-- `docs/INDEXING_ARCHITECTURE.md`
-- `docs/NORMALIZED_SOURCE_CONTRACT.md`
-- relevant contracts and action log in `Refactor plan.md`
+### Shared interpretation
 
-The supplied diagnostic report contains multiple runs. The current/latest run restored a checkpoint successfully. The earlier `semantic-settings-changed` belongs to an earlier run. Commit `98a93e0` removed `excalibrainFilepath` from the exact JSON settings signature around ten minutes before that rejection, which is a concrete upgrade-trigger candidate but is not proven without the installed build and saved signature.
+- Add one canonical, portable policy-selection operation used by both the full compiler and incremental patch path.
+- Apply exact and normalized ontology assignment semantics, configured ordering, multiplicity, frontmatter precedence, inline behavior, and conflict handling at interpretation time rather than collection time.
+- Keep image-only suppression exact. The same neutral candidates must support current thumbnail/node-image policy without configuring the producer. Preserve the existing distinctions among image-only values, prose plus image values, and ontology plus image values.
+- A dormant candidate must create no visible or searchable node, ghost node, URL node, ontology evidence, tag ownership, or URL ownership.
+- Select a candidate before materializing its source/target-dependent graph artifacts. In particular, do not let `compiler.ts` call node materialization or `patch.ts` seed a target entity merely because a dormant fact exists.
+- Full builds and per-file patches must interpret the same fact stream through the same selector and produce equivalent graph/evidence outcomes for the same final settings.
 
-Current known code facts:
+### Fingerprints and bounded processing
 
-- `computeIndexSettingsSignature()` includes semantic policy and presentation fields in one exact `JSON.stringify()` value.
-- `GraphIndex.restoreIndexedDbSnapshot()` rejects candidates before page streaming when neither string equals the current one.
-- `REINDEX_SETTING_KEYS` and the persisted signature cover different sets.
-- legacy tag-style rename/add/remove changes `tagStyleList` through `saveSettings(false)`, which can leave the session apparently fine and reject the graph after restart.
-- `showFullTagName`, `tagStyleList`, `noteTypeField`, `primaryTagField` and `baseNodeStyle.maxLabelLength` currently participate in compiled/persisted page fields even though their desired ownership is presentation.
-- `thumbnailProperty` and `nodeImageProperty` affect image-only link suppression but are absent from the signature/reindex-key list. Characterize this under-invalidation; do not misclassify it as harmless styling.
-- existing parsed-body cache entries contain all parsed inline fields and URLs. SI1 may reuse valid body-cache data and Obsidian `MetadataCache`; it must not read or parse Markdown to refresh presentation facets.
+- Update semantic source fingerprinting so a change to a reference candidate in an unassigned field is detected.
+- The fingerprint must be independent of the currently configured ontology and image fields.
+- Unrelated arbitrary non-reference values must not perturb the semantic fingerprint.
+- Do not duplicate large shared payloads merely to fingerprint each extracted target.
+- Preserve the existing batch size, yield, cancellation, revision/finality, and publication fences. A record-count batch is not a sufficient byte bound by itself; avoid introducing a second whole-vault DTO or an unbounded per-file expansion.
 
-## Product decisions for this checkpoint
+## Areas that require special attention
 
-1. Presentation changes must preserve compatible snapshot/source work and must not schedule `rebuildIndex()`, `GraphIndex.rebuild()`, progressive cold ingestion or per-file semantic patching.
-2. Ontology hierarchy changes and the two inference switches remain semantic in SI1. Keep their conservative current invalidation until SI2–SI4 supply neutral facts and scoped reinterpretation. Do not make them appear fixed by weakening the signature.
-3. Image-field changes are not presentation-only because they affect generic inferred-link suppression. SI0 must cover them. SI1 may introduce a typed `semantic-policy` impact for them or retain conservative semantic invalidation; it must not silently ignore them.
-4. A legacy settings-signature format change is distinct from a user semantic-settings change. Decode recognized legacy JSON locally and compare named, allowlisted fields. Unknown or malformed formats remain conservative and get a distinct path-free reason.
-5. Custom ontology field names and settings values are private. Diagnostics may export static built-in keys such as `hierarchy.leftFriends`, `inverseInfer` and `tagStyleList`; never export custom field names, values, raw signatures or their hashes.
-6. No persisted settings key, command ID, graph evidence meaning, parser grammar, ontology precedence, relationship classification, node identity or snapshot/IndexedDB schema changes are authorized in this checkpoint.
-7. Existing schema-3 graph snapshots remain supported. A compatible old snapshot must be adapted to current presentation after hydration rather than accepted with visibly stale names/styles/label limits.
-8. Keep one canonical setting-impact classifier used by settings UI/managers and startup compatibility. A boolean `saveSettings(reindex)` may remain temporarily as a compatibility facade, but it must not remain the source of truth for invalidation.
+Trace all affected producers and consumers before editing. At minimum review:
 
-## SI0 deliverables: characterization, inventory and diagnostics
+- `src/core/graph/source.ts`: the present occurrence/provenance model and configured-field identity.
+- `src/adapters/obsidian/ontologySourceCollector.ts`: it currently receives configured field names and only visits those fields.
+- `src/adapters/obsidian/metadataSourceCollector.ts`: note/primary/image selectors and presentation-link collection.
+- `src/core/graph/compiler.ts`: `consumeOntology` presently uses `configuredFieldName` and may materialize nodes before assignment is known.
+- `src/core/graph/patch.ts`: ontology and presentation-link targets may be seeded before policy selection.
+- `src/index/GraphBuilder.ts`: configured semantic field sets and settings-dependent semantic fingerprints.
 
-### A. Executable regressions
+The current `SourceProvenance.configuredFieldName` and configured collector identities are symptoms of the dependency SI2 removes. Choose clear source types for a physical field-value occurrence, its shared payload, and its extracted reference candidates. Exact names and layout are implementation decisions, but raw candidates must not carry their current role/selector as identity.
 
-Add focused production-method tests that demonstrate the pre-change failures and protect the final behavior:
+## Scope boundaries
 
-1. A snapshot saved with identical semantic policy but different `showFullTagName`, `tagStyleList`, `noteTypeField`, `primaryTagField` and maximum-label presentation values remains a restore candidate. After restoration, its presentation facets reflect current settings rather than stale persisted values.
-2. Legacy recognized signatures, including a signature with `excalibrainFilepath`, are classified by named fields. A format-only/removed-field difference is not reported as a user semantic change. A real hierarchy or inference difference is rejected.
-3. Unknown/malformed signature input takes the conservative incompatible path with a distinct reason; it never throws or mutates settings/cache metadata.
-4. Changing a legacy tag-style entry/list in-session cannot create a delayed next-restart graph rejection.
-5. Style/name/tag-label/label-limit/type-selector changes call zero full/progressive rebuilds, zero per-file semantic patches, zero Vault body reads and zero parser calls when required cache/MetadataCache inputs are valid.
-6. Characterize image-property changes with image-only, prose-plus-image and ontology-plus-image references. Assert the currently accepted suppression result and the selected invalidation category. Do not “fix” it by treating it as style-only.
-7. Record the current configured-only ontology omission: an unassigned frontmatter/inline reference candidate is absent from compilation input. This is a named expected limitation for SI2, not behavior to change or a test to skip in this checkpoint.
-8. Preserve current equal-settings canonical graph/evidence/search output and existing snapshot fallback/checkpoint behavior.
+Do not implement:
 
-Prefer behavior tests over new source-string assertions. Use production methods where practical. Do not weaken timing guards or regenerate semantic goldens to fit a change.
+- SI3 IndexedDB source persistence, source heads, schema migration, or startup restore.
+- SI4 demand-driven reinterpretation, read-facade integration, or elimination of settings-triggered semantic rebuilds.
+- SI5 performance/lifecycle/device work or performance claims.
+- General C15–C26 refactoring work, unrelated UI/settings changes, or broad graph rewrites.
+- A production shadow graph or a second whole-vault source representation. Shadow comparisons belong in tests.
 
-### B. Settings/read-consumer inventory
+SI2 may still perform a semantic rebuild after an ontology or image selector changes. Its value is that the rebuild can consume neutral in-memory facts correctly; durable restart reuse arrives in SI3 and responsive settings adaptation in SI4. Record this limitation explicitly.
 
-Return a concrete inventory in `HANDOFF.md`, and put durable implemented ownership in `docs/ARCHITECTURE.md` or the indexing design document where appropriate:
+## Required automated acceptance coverage
 
-- every caller that can mutate the affected settings, including manager modals/import paths rather than only generic setting rows;
-- every runtime reader of `GraphPage.name`, `noteType`, `primaryStyleTag`, `styleTags` and `maxLabelLength` that depends on compiled presentation state;
-- every direct semantic read of `GraphPage.neighbours` relevant to a future SI4 revision-aware boundary;
-- exact legacy-signature formats/fields accepted by the compatibility decoder;
-- remaining settings that still require semantic invalidation after SI1, including the reason.
+Add or update portable tests that prove all of the following:
 
-Do not broaden the production change merely to eliminate every future SI4 reader. This inventory is the handoff to later work.
+1. Collector output is identical under two different ontology/image policies and contains unassigned frontmatter and inline candidates, including dense nested reference values.
+2. Replaying one fact stream under different policies produces the expected parent/friend/challenger activation, movement, deactivation, and image selection, matching a clean compiler under each final policy.
+3. Existing full-build and incremental-patch graph, evidence, multiplicity, and search oracles remain unchanged.
+4. Dormant candidates produce no nodes, ghosts, URL nodes, evidence, tag ownership, or URL ownership.
+5. Duplicate exact/normalized assignments, configured order, array order, physical multiplicity, frontmatter precedence, and conflicting inline cases retain their accepted behavior.
+6. Image-only, prose-plus-image, and ontology-plus-image suppression remain exact, with image policy applied during interpretation rather than collection.
+7. Shared payload is represented once per physical value occurrence even when it yields many targets; batch, cancellation, revision, and finality tests still pass.
+8. Neutral fingerprints change when reference candidates in unassigned fields change, remain independent of current role/image selectors, ignore unrelated non-reference property values, and avoid payload duplication.
+9. Full and patch collection remain bounded and do not create a second whole-vault DTO or whole-frontmatter mirror.
+10. Tests and documentation state the expected SI2 limitation: no durable source persistence/restart reuse and semantic setting changes may still schedule a rebuild pending SI3/SI4.
 
-### C. Path-free diagnostics
-
-Extend the bounded local diagnostic model only as needed to distinguish:
-
-- recognized signature-format change;
-- changed allowlisted semantic keys;
-- presentation differences adapted after restore;
-- unknown/incompatible signature format.
-
-If adding `changedKeys`, validate/sanitize it when reading old IndexedDB diagnostic history and again before clipboard export. Keep the last-20 bound. Include counts/timing only where cheaply available. Do not add telemetry, filenames, custom field names, setting values, raw signature JSON, or high-volume logging.
-
-Add test counters/spies for body reads, parser calls and build/patch entry points. Production reporting may expose bounded aggregate counters if they materially improve the user diagnostics and remain path/content-free; do not add permanent instrumentation solely to satisfy a test.
-
-## SI1 deliverables: presentation ownership and settings effects
-
-### A. Typed setting-impact classifier
-
-Introduce narrowly named projections and comparison results, along these lines but adapted to existing owners:
-
-- semantic policy: hierarchy roles plus inference/image-suppression inputs still requiring semantic work;
-- presentation policy: tag display, label limits, style field selectors/list/order, alias/title/search inputs and visual style dictionaries;
-- view-only policy: visibility, lenses, sort, layout, folds/camera where already handled outside the semantic graph.
-
-The classifier returns explicit effects such as semantic invalidation, presentation-facet refresh, search-term refresh, node-visual refresh and render notification. Do not use a single `reindex` boolean internally.
-
-Settings objects are mutated in place by existing UI. Compare against an immutable last-applied projection or pass an explicit pre-mutation snapshot through a narrow API. Ensure manager callbacks, generic declarative settings, import/migration application and direct plugin callers cannot bypass classification. Preserve persisted settings/default/migration compatibility and unknown keys.
-
-### B. Snapshot compatibility
-
-Replace exact string equality with a versioned, explicit signature decoder/comparator:
-
-- newly written signatures contain only the fields that truly determine the schema-3 semantic graph under SI1;
-- recognized legacy signatures can be compared field by field;
-- presentation-only differences permit restore and trigger presentation adaptation;
-- hierarchy/inference and any retained image-suppression semantic difference remain incompatible;
-- `excalibrainFilepath` removal is recognized as a format/retired-policy difference, with a documented reconciliation decision rather than being silently ignored;
-- current active/checkpoint candidate ordering, fallback, watchdog, generation fencing and corruption behavior remain unchanged.
-
-Do not bump IndexedDB or snapshot schema in SI1 unless implementation evidence proves it unavoidable. If it is unavoidable, stop and return the exact migration need instead of slipping it into this checkpoint.
-
-### C. Presentation projection/refresh
-
-Remove these values from semantic snapshot validity and compiler truth where the existing data allows a safe bounded migration:
-
-- tag display name (`showFullTagName`);
-- maximum label length;
-- legacy tag-style list/prefix selection;
-- note-type/style-property selection and primary-tag compatibility selection.
-
-Use a single presentation owner or focused provider rather than adding fixes in each React consumer. Reuse existing `MetadataCache`, field parser DTOs and `KplexIndexedDbCache.getBodies()` batching. No Vault read or parser fallback is allowed on a settings-only refresh. A missing required body-cache entry must produce an explicit incomplete/pending outcome for that facet; it must not silently schedule semantic indexing or claim an empty value. Frontmatter can use current cached metadata; inline style values use valid parsed-body data.
-
-Refresh only consumers that need the changed facet, and keep search invalidation separate from relationship invalidation. Preserve:
-
-- frontmatter-over-inline selection behavior;
-- tag-style list order and prefix precedence;
-- note-type normalization and explicit style override behavior;
-- full/short tag display behavior and canonical tag identity;
-- alternate filename/alias/path search terms;
-- canonical `GraphPage` identity and C14b's synchronous publication rules;
-- main-window/pop-out ownership and hidden-view catch-up.
-
-It is acceptable to retain deprecated presentation fields in schema-3 pages for decoding compatibility, but new runtime reads must not treat stale persisted values as current truth. Document the finite compatibility callers and later retirement owner.
-
-If converting `noteType`/style facets to an asynchronous provider would require a broad SI4 consumer migration, implement the smallest coherent cache/provider boundary and retain a synchronous prepared-value facade. Do not perform IndexedDB reads from React render, publish partial mutations across awaits, or introduce a second complete graph. Return any remaining bounded consumer migration explicitly rather than hiding it.
-
-### D. In-session and restart behavior
-
-For each affected setting, the same classifier/refresh path must work:
-
-- immediately after changing it in Settings or a style manager;
-- after importing compatible legacy appearance settings;
-- after restoring a semantically compatible active snapshot;
-- after restoring a semantically compatible checkpoint;
-- after plugin disable/enable or reload.
-
-No changed or new user-facing string is expected. If one is necessary, use the existing language catalog and update every locale according to repository localization rules.
-
-## Explicit exclusions
-
-Do not implement in this transfer:
-
-- neutral collection/persistence of unassigned property reference candidates (SI2/SI3);
-- ontology role reinterpretation from cached neutral facts (SI4);
-- per-source IndexedDB heads/chunks/postings or DB version 5 (SI3);
-- global inference demand-driven preparation (SI4);
-- a new parser, resolver, classifier, search engine, layout/projector or settings framework;
-- generic storage/refactor checkpoints C15–C26;
-- performance claims based only on unit timers or desktop mobile emulation;
-- release notes, version bumps, commit, push, PR, merge or deployment to a personal vault.
-
-Do not remove hierarchy/inference compatibility checks merely to make the presentation tests green. Do not persist arbitrary frontmatter. Do not add fallback Markdown reads for missing body-cache presentation data.
-
-## Architecture and code-quality requirements
-
-- Extend the canonical parser/compiler/resolver/settings/GraphIndex owners. Do not create a second semantic classifier or property grammar.
-- Portable modules stay free of Obsidian, DOM/browser globals, IndexedDB, Node APIs and plugin recovery. Host adapters supply MetadataCache/body storage.
-- Preserve exact opaque `NodeId`, separate semantic/physical paths, evidence multiplicity, incoming contributions, shared tag/URL lifetimes and source-relative host resolution.
-- Awaited presentation preparation remains private and revision/lifetime checked; publication is coherent and synchronous. No consumer sees mixed old/new policy state.
-- New or changed modules/functions require meaningful module TSDoc/function TSDoc and comments explaining compatibility/invalidation boundaries.
-- Inspect every touched caller and remove unused imports/types. Keep scanner-compatible DOM/style patterns.
-- Update documentation to describe implemented behavior only. Do not mark SI0/SI1 accepted in `Refactor plan.md`; the main agent owns acceptance after independent validation.
+Treat the accepted compiler/patch fixtures as the behavior oracle. If a proposed neutral representation would change existing graph semantics, first establish whether the difference is an actual pre-existing defect; do not silently redefine behavior inside this checkpoint.
 
 ## Offline verification
 
-Check and report the actual Node/npm versions, dependency state, Git metadata, browser availability and network limits before claiming results.
+Use Node `v22.22.2` when available and record the actual Node/npm versions. Run at least:
 
-When dependencies and the required runtime are available, run:
-
-```bash
-node --version
-npm run check:architecture
-npm run check:core
-npm test
-npm run lint:obsidian
-npm run build
+```text
 npm run verify
 git diff --check
 ```
 
-Run focused new tests during development. The final claimed aggregate must use repository Node `22.22.2` or be clearly marked non-authoritative. A stub/transpile-only check is partial evidence. No Obsidian CLI/native result may be claimed by the offline agent.
+Run narrower tests during development as useful. Record every unavailable dependency, browser check, native-host check, and skipped command as pending rather than passed. Do not claim native Obsidian, IndexedDB lifecycle, mobile, or performance validation from portable tests.
 
-At minimum, tests must cover:
+Update affected architecture/source-contract documents and add an action-log entry to `Refactor plan.md`, but mark SI2 **Review**, not accepted. Do not commit. Return the implementation and tests as uncommitted changes for the main agent.
 
-- recognized legacy/current signature parsing and compatibility decisions;
-- presentation-only versus semantic setting classification;
-- active and checkpoint restore under presentation differences;
-- adapted tag names/label limits/tag styles/note-type facets after restore;
-- in-session manager/generic setting paths;
-- search refresh separation;
-- zero build/patch/read/parse calls for settings-only changes with valid inputs;
-- image-field invalidation category;
-- unknown signature and corrupt snapshot fallback;
-- unload/supersession during awaited presentation preparation;
-- equal-settings graph/evidence/search oracle parity.
+Before returning, overwrite this assignment body below the standing header with:
 
-Do not weaken existing strict assertions or timing limits. If a baseline timing test fails unchanged in the offline environment, demonstrate that against the untouched base and return both results.
+- concise implementation summary and principal design decisions;
+- complete changed-file list;
+- exact commands, versions, and pass/fail/skip results;
+- known limitations and review concerns;
+- focused main-agent runtime validation instructions;
+- the precise final `git status --short`.
 
-## Required return in this HANDOFF
+## Planned main-agent validation after return
 
-When implementation is complete, preserve the standing header and replace this assignment body with a concise but complete return addressed to the main validation agent. Include:
+The main agent will independently review the source boundaries and run the exact repository verification plus `npm run verify:obsidian:migration`. Native checks will include:
 
-1. **State and identity:** `returned for main-agent review`, actual base/diff identity, initial and final dirty files, and whether the supplied design-doc changes were preserved.
-2. **Implementation:** final setting-impact categories, signature formats/compatibility table, presentation provider/cache behavior, all production callers migrated, retained compatibility facades and explicit SI2/SI4 limitations.
-3. **Changed files:** grouped by production, tests and docs.
-4. **Actual verification:** exact commands, Node/npm/browser/dependency versions, pass/fail counts, failures, reruns and unavailable lanes. Never relabel a skip as a pass.
-5. **Privacy/schema/compatibility:** persisted keys/schema/DB/version changes (expected none), diagnostics fields/sanitization, legacy snapshot behavior and downgrade/rollback considerations.
-6. **Consumer inventory:** remaining direct presentation-field and neighbor-map readers with their later owner.
-7. **Required main-agent review:** exact source risks to inspect and any suspected defects.
-8. **Online validation and commit instructions:** the scenarios below, exact expected observations, cleanup, evidence to record, and the statement that commit follows only after review and required validation/accepted limitations.
+- comparing a clean build and patch result on the large fixture under identical final settings;
+- creating owned notes with currently unassigned frontmatter and inline references, confirming no dormant graph artifacts, then assigning/moving/removing the field policy and comparing each result with a clean build;
+- exercising image-only, prose-plus-image, and ontology-plus-image fixtures;
+- confirming cancellation/publication behavior and checking Obsidian errors;
+- restoring settings and deleting all validation-owned notes.
 
-## Required online-agent validation after return
+The accepted SI0+SI1 host observation was 20,015 Markdown files, 20,703 nodes, and 715,032 declarations. These counts describe that fixture and are not a semantic hash or a required SI2 outcome if the fixture changes.
 
-The offline return should refine these based on the implementation. The main validation agent must independently inspect the full diff and then:
-
-1. Use Node `22.22.2`, installed lockfile dependencies and the real Obsidian declarations. Run `npm run verify`, `git diff --check`, and exact-build `npm run verify:obsidian` in the explicitly configured disposable `kplex-test` vault. Run `npm run verify:obsidian:migration` because compatible legacy appearance import/settings application is affected.
-2. Capture exact source/build/staged hashes, Obsidian/OS versions, index readiness, graph/evidence counts and captured JavaScript errors. Reacquire plugin/index references after every reload.
-3. With a ready large-vault graph, record baseline counters and then change, one at a time: `showFullTagName`, maximum label length, legacy tag-style list/order, style property (`noteTypeField`), primary-tag compatibility selector, alias/name fields and representative style values. Expected: correct visible/search/style result, zero full/progressive builds, zero per-file semantic patches, zero Vault body reads and zero parser calls. Repeat after plugin reload and inspect diagnostics.
-4. Restore deliberately constructed recognized legacy active/checkpoint signatures, including the retired `excalibrainFilepath` member and presentation differences. Expected: compatible graph restore plus current presentation adaptation. Change one hierarchy role and each inference switch separately. Expected in SI1: conservative semantic incompatibility/rebuild remains, with the correct allowlisted changed-key diagnostic.
-5. Test an unknown/malformed signature and a missing/corrupt graph chunk. Expected: safe conservative fallback, distinct reason codes, no exception, no raw signature/value leakage and unchanged candidate fallback/watchdog behavior.
-6. Exercise image-field behavior with image-only and prose-plus-image fixtures. Expected: accepted suppression parity and the implemented semantic-policy invalidation route; no claim that SI1 makes it presentation-only.
-7. In main window and a temporary pop-out, change a presentation setting while one view is hidden and then reveal it. Expected: both views converge on the same current presentation without mixed settings, camera/fold reset, duplicate graph or detached listeners. Clean up the pop-out, temporary notes/settings and diagnostic controllers in `finally`.
-8. Review memory and responsiveness on the 20k fixture as observations. SI1 must not retain a second complete graph. This checkpoint does not claim physical iOS/Android acceptance of the full redesign; request a device check only if the implementation introduces a new lifecycle/memory risk that automation cannot cover.
-9. Update `Refactor plan.md` with accepted results, limitations, rollback scope and the next checkpoint. Update implemented architecture docs. Then commit the complete accepted SI0+SI1 change if authorized; do not commit on a failed required gate without an explicit maintainer acceptance of the recorded limitation.
-
-## Next recommended chunk after acceptance
-
-Prepare **SI2 alone** for the next offline-agent transfer: introduce settings-neutral reference candidates and shared selection while preserving full/per-source semantic parity. Keep SI3 persistence separate so the online agent can first prove the neutral source vocabulary and compiler behavior against the accepted oracle. If SI2 reveals that the proposed source record cannot be persisted within the byte/provenance bounds, revise the SI3 design before implementing storage rather than silently expanding SI2.
+No maintainer manual test is planned merely for SI2 because it adds no UI or durable storage path. The main agent must reassess that after reviewing the returned implementation.
