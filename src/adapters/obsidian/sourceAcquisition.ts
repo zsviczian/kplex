@@ -26,7 +26,7 @@ import { SOURCE_FAMILIES, SourceFactError, sourceFieldNames, sourceValueSteps, t
 import type { SourceFamilyProducer, SourceInspection, SourceRepositoryDiagnostics } from "../../index/SourceRepository";
 import { createObsidianMetadataSourceHost, normalizedBodyUrl, ObsidianMetadataSourceCollector, type ObsidianMetadataSourceSettings } from "./metadataSourceCollector";
 import { entityFactForFile, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "./structuralSourceCollector";
-import { hostLinkRecord } from "./hostLinkSourceCollector";
+import { hostLinkRecord, ObsidianHostLinkSourceCollector } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
 type FileObservation = { identity: string | null; revision: number; dirty: boolean; bodyDirty: boolean; path: string; oldPath?: string; created: boolean };
@@ -284,6 +284,7 @@ export class ObsidianSourceAcquisition {
     const catalog: ContributorHostCatalog = {
       stamp: { epoch: this.epoch, revision, token: this.repository.createIdentity() },
       markdownOrderVersion: 1,
+      hostLinkOwnerOrderVersion: 1,
       isCurrent: current,
       /** Check all observed Date and non-Date fields; policy-only changes do not enter this fence. */
       validate: () => {
@@ -353,6 +354,14 @@ export class ObsidianSourceAcquisition {
           if ((ordinal & 255) === 255) { await runtime.yield(); if (!current()) return false; }
         }
         return current() && collector.isBoundaryCurrent(collector.boundary) && sourceReadCanPublish(cursor, collector.boundary);
+      },
+      /** Capture original whole-map owner order only during this explicit catalog acquisition. */
+      captureHostLinkOwnerOrder: async () => {
+        const collector = new ObsidianHostLinkSourceCollector(this.app, {
+          isCurrent: current, sourceRevision: () => this.hostRevision,
+          checkpoint: async () => { await runtime.yield(); return current(); },
+        });
+        return collector.captureOwnerOrder();
       },
       /** Capture one already-acquired document and its complete frontmatter field-type vocabulary. */
       capture: async (entity) => {

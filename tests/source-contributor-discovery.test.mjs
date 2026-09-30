@@ -146,18 +146,33 @@ test("canonical full host inventory preserves an empty root physical path and at
   const f = replayFixture();
   try {
     f.add("picture.png", "");
+    // Own-property enumeration is the oracle: integer-like keys precede later string keys, and
+    // empty/non-Markdown owners remain part of the complete acquisition coordinate.
+    f.app.metadataCache.resolvedLinks = { "10": {}, "2": { "picture.png": 1 }, "A.md": {} };
+    f.app.metadataCache.unresolvedLinks = { "Z.md": {}, "picture.png": { Ghost: 1 }, "B.md": {} };
     const producer = f.acquisition.contributorDiscovery(runtime());
     const storage = catalogFixture();
     // Only the catalog storage port is a fixture. The inventory/finality comes from the actual
     // acquisition adapter and full structural collector, including its empty-path root contract.
     const discovery = new C.SourceContributorDiscovery(storage.repository, producer.host, runtime());
     const built = await discovery.rebuild(); assert.equal(built.outcome, "ready", JSON.stringify(built));
+    const persisted = JSON.parse(storage.state.root.data);
+    assert.equal(persisted.version, C.CONTRIBUTOR_CATALOG_VERSION);
+    assert.deepEqual(persisted.hostLinkOwnerOrder, {
+      resolved: ["2", "10", "A.md"],
+      unresolved: ["Z.md", "picture.png", "B.md"],
+    });
     const root = { ...ref("folder:/", "container"), physicalPath: "" };
     const found = await discovery.discover({ kind: "pair", endpoints: [root, ref("no-match")] });
     assert.equal(found.outcome, "ready", JSON.stringify(found));
     assert.deepEqual(found.sourceIds, []);
     assert(found.hostFacts.some(value => value.fact.kind === "entity" && value.fact.entity.id === root.id && value.fact.entity.physicalPath === ""));
     assert(found.hostFacts.some(value => value.fact.kind === "file-tree" && value.fact.source.physicalPath === "" && value.fact.target.entity.id === "picture.png"));
+    const malformed = JSON.parse(storage.state.root.data);
+    malformed.hostLinkOwnerOrder.resolved = ["A.md", "A.md"];
+    storage.state.root.data = JSON.stringify(malformed); storage.state.root.digest = sha(storage.state.root.data);
+    const rejected = await discovery.discover({ kind: "pair", endpoints: [root, ref("no-match")] });
+    assert.equal(rejected.outcome, "invalid"); assert.equal(rejected.reason, "dependency-invalid");
     assert.deepEqual(f.reads, []); assert.deepEqual(f.parses, []);
   } finally { f.close(); }
 });

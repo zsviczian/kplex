@@ -42,7 +42,8 @@ export type HostLinkSignatureEntries = Readonly<{
   unresolved: ReadonlyArray<readonly [string, number]>;
 }>;
 
-type HostLinkScanResult = Readonly<{ digest: string }>;
+export type HostLinkOwnerOrder = Readonly<{ resolved: readonly string[]; unresolved: readonly string[] }>;
+type HostLinkScanResult = Readonly<{ digest: string; ownerOrder: HostLinkOwnerOrder }>;
 type HostLinkEmitter = (record: HostLinkOccurrence) => Promise<boolean>;
 
 let collectorRunSequence = 0;
@@ -281,15 +282,30 @@ export class ObsidianHostLinkSourceCollector {
     }
   }
 
+  /** Capture both whole-map owner permutations under the same order-sensitive double scan as collection. */
+  async captureOwnerOrder(): Promise<HostLinkOwnerOrder | null> {
+    if (this.state !== "new" || this.startingSourcePath !== null || !this.isCurrent()) return null;
+    this.state = "collecting";
+    const initial = await this.scan();
+    if (!initial || !(await this.checkpoint())) { this.state = "failed"; return null; }
+    const verification = await this.scan();
+    if (!verification || !this.isCurrent() || verification.digest !== initial.digest) { this.state = "failed"; return null; }
+    this.state = "finalized";
+    return { resolved: [...initial.ownerOrder.resolved], unresolved: [...initial.ownerOrder.unresolved] };
+  }
+
   private async scan(emit?: HostLinkEmitter): Promise<HostLinkScanResult | null> {
     const digest = new HostLinkDigest();
+    const ownerOrder: { resolved: string[]; unresolved: string[] } = { resolved: [], unresolved: [] };
     let processed = 0;
     const families: ReadonlyArray<readonly [HostLinkOccurrence["kind"], HostLinkMap]> = [
       ["obsidian-link", this.host.metadataCache.resolvedLinks],
       ["unresolved-link", this.host.metadataCache.unresolvedLinks],
     ];
     for (const [kind, map] of families) {
+      const phase = kind === "obsidian-link" ? ownerOrder.resolved : ownerOrder.unresolved;
       for (const [sourcePath, targets] of this.sourceEntries(map)) {
+        phase.push(sourcePath);
         if (!this.isCurrent()) return null;
         digest.update(kind);
         digest.update(sourcePath);
@@ -308,6 +324,6 @@ export class ObsidianHostLinkSourceCollector {
         if (!(await this.checkpoint())) return null;
       }
     }
-    return this.isCurrent() ? { digest: digest.value() } : null;
+    return this.isCurrent() ? { digest: digest.value(), ownerOrder } : null;
   }
 }

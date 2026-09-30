@@ -215,6 +215,32 @@ readiness by being readable. A future additive derivative must preserve them and
 without original authority; source/body/graph/journal schemas and accepted certificates must not be
 rewritten merely to attach an ordinal.
 
+## SI4 acquisition return — persisted host-owner coordinate
+
+The bounded SI4 acquisition slice now captures the original **outer owner order** of the complete
+`resolvedLinks` and `unresolvedLinks` maps only during explicit contributor-catalog rebuild. The
+production `ObsidianHostLinkSourceCollector` is the oracle: `captureOwnerOrder()` reuses its exact
+own-property traversal, cooperative checkpoints, source-revision fence and order-sensitive digest,
+then performs the same full scan again before returning either complete phase arrays or `null`. Empty
+owner maps remain represented because owner paths are recorded before target iteration; empty whole
+maps are authenticated as empty arrays. Numeric-looking owner keys therefore follow JavaScript own-
+property enumeration rather than a path/source sort.
+
+Contributor catalog **v4** adds only `hostLinkOwnerOrder: { resolved, unresolved }` to the authenticated
+root. Its strict decoder rejects missing/extra fields, malformed owner values and duplicate owners; the
+existing root digest/build activation authenticates the complete coordinate and interrupted rebuilds do
+not activate a partial root. v2 and v3 roots remain readable for their accepted capabilities. v4 retains
+the existing v3 Markdown-order behavior; no current query/certificate consumes the new host coordinate.
+Thus this slice does **not** create an ordered-neighbor reader, pair-birth reconstruction, current ordered-
+list certificate, or new SI4 ready outcome.
+
+The coordinate is bound to the contributor host stamp/revision and to the same explicit rebuild that
+selects source heads, but it intentionally contains owner paths rather than duplicating per-owner source
+heads or graph facts. A later reader would still need to authenticate selected source identity/incarnation,
+negative support and order currentness after its final await. Native `MetadataCache` event semantics do
+not establish that an otherwise invisible owner reorder raises a revision; this remains an online/native
+contract question, not something the portable fixture proves.
+
 ## Returned scope and validation
 
 Only a new test module, its source-lane registration and documentation change. No `src/`, source/body

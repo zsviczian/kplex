@@ -52,9 +52,10 @@ export type ContributorImpactResult = ContributorFailure
   | Readonly<{ outcome: "known"; certificate: ContributorImpactCertificate; work: ContributorImpactWork }>;
 
 /** Only derivative page/root content changes. Database v7 and source/body formats stay intact. */
-export const CONTRIBUTOR_CATALOG_VERSION = 3;
-/** Existing closed v2 roots remain safe for relation discovery, never URL-title order authority. */
+export const CONTRIBUTOR_CATALOG_VERSION = 4;
+/** Existing closed v2/v3 roots remain readable for their accepted capabilities only. */
 export const CONTRIBUTOR_LEGACY_CATALOG_VERSION = 2;
+const CONTRIBUTOR_MARKDOWN_CATALOG_VERSION = 3;
 const MAX_BUFFER_BYTES = 2 * 1024 * 1024;
 const MAX_IDENTITY_BYTES = 8 * 1024 * 1024;
 const MAX_CATALOG_ROWS = 2_000_000;
@@ -67,6 +68,7 @@ const MAX_QUERY_KEY_BYTES = 256 * 1024;
 export type ContributorStructuralFact = SourceEntityFact | FileTreeOccurrence | TagTreeOccurrence;
 /** A host capability is session-local. A disk root alone cannot certify current topology or Dates. */
 export type ContributorHostStamp = Readonly<{ epoch: string; revision: number; token: string }>;
+export type ContributorHostLinkOwnerOrder = Readonly<{ resolved: readonly string[]; unresolved: readonly string[] }>;
 export type ContributorHostCatalog = Readonly<{
   stamp: ContributorHostStamp;
   isCurrent(): boolean;
@@ -74,6 +76,9 @@ export type ContributorHostCatalog = Readonly<{
   validate(): boolean;
   /** Opt in only when collect supplies a complete permutation of the same Markdown inventory. */
   markdownOrderVersion?: 1;
+  /** Opt in only when captureHostLinkOwnerOrder double-scans both complete host maps under this stamp. */
+  hostLinkOwnerOrderVersion?: 1;
+  captureHostLinkOwnerOrder?(): Promise<ContributorHostLinkOwnerOrder | null>;
   /**
    * Emit structural facts in their existing order. With markdownOrderVersion, every document has
    * its distinct zero-based Markdown inventory ordinal; non-document facts have no ordinal.
@@ -112,9 +117,10 @@ export type ContributorDiscoveryResult = ContributorFailure | (ContributorCertif
   work: Readonly<{ buckets: number; pages: number; bytes: number; sourceOwners: number; hostFacts: number }>;
 }>);
 type CatalogRoot = Readonly<{
-  version: 2 | 3; build: SourceDependencyBuild; host: ContributorHostStamp;
+  version: 2 | 3 | 4; build: SourceDependencyBuild; host: ContributorHostStamp;
   sources: number; hostFacts: number; rows: number;
   buckets: readonly SourceDependencyBucketManifest[];
+  hostLinkOwnerOrder?: ContributorHostLinkOwnerOrder;
 }>;
 type DependencyRow =
   | Readonly<{ kind: "link"; key: string; owner: string }>
@@ -173,7 +179,7 @@ function row(value: unknown, version: CatalogRoot["version"]): value is Dependen
     && Array.isArray(value.keys) && value.keys.length > 0 && value.keys.length <= SOURCE_MAX_BATCH_RECORDS
     && value.keys.every(validContributorMembershipKey);
   if (!sourceCount(value.order)) return false;
-  if (value.kind === "source") return exact(value, ["kind", "key", "order", "head", "source", "summary", ...(version === 3 ? ["markdownOrdinal"] : [])])
+  if (value.kind === "source") return exact(value, ["kind", "key", "order", "head", "source", "summary", ...(version >= 3 ? ["markdownOrdinal"] : [])])
     && (version === 2 || sourceCount(value.markdownOrdinal))
     && decodeSourceHead(value.head) !== null && entity(value.source) && value.source.kind === "document"
     && value.source.state === "materialized" && validContributorSummaryManifest(value.summary);
@@ -200,13 +206,25 @@ function failure(error: unknown): ContributorFailure {
   return { outcome, reason };
 }
 /** Root validation proves fixed coverage, page framing and total counts before consulting any bucket. */
+function validHostLinkOwnerOrder(value: unknown): value is ContributorHostLinkOwnerOrder {
+  if (!sourceObject(value) || !exact(value, ["resolved", "unresolved"]) || !Array.isArray(value.resolved) || !Array.isArray(value.unresolved)) return false;
+  for (const owners of [value.resolved, value.unresolved]) {
+    if (owners.length > MAX_CATALOG_ROWS || owners.some((owner: unknown) => typeof owner !== "string" || owner.length === 0)) return false;
+    if (new Set(owners).size !== owners.length) return false;
+  }
+  return true;
+}
+/** Root validation proves fixed coverage, page framing and total counts before consulting any bucket. */
 function decodeRoot(data: string): CatalogRoot {
   const value: unknown = JSON.parse(data);
-  if (!sourceObject(value) || !exact(value, ["version", "build", "host", "sources", "hostFacts", "rows", "buckets"])
-    || (value.version !== CONTRIBUTOR_CATALOG_VERSION && value.version !== CONTRIBUTOR_LEGACY_CATALOG_VERSION) || !validSourceDependencyBuild(value.build) || !hostStamp(value.host)
+  if (!sourceObject(value) || ![2, 3, CONTRIBUTOR_CATALOG_VERSION].includes(value.version as number)) throw new SourceFactError("dependency-invalid");
+  const version = value.version as CatalogRoot["version"];
+  const fields = ["version", "build", "host", "sources", "hostFacts", "rows", "buckets", ...(version === 4 ? ["hostLinkOwnerOrder"] : [])];
+  if (!exact(value, fields) || !validSourceDependencyBuild(value.build) || !hostStamp(value.host)
     || !sourceCount(value.sources) || !sourceCount(value.hostFacts) || !sourceCount(value.rows)
     || value.rows > MAX_CATALOG_ROWS || value.sources + value.hostFacts > value.rows
-    || !Array.isArray(value.buckets) || value.buckets.length !== SOURCE_DEPENDENCY_BUCKETS) throw new SourceFactError("dependency-invalid");
+    || !Array.isArray(value.buckets) || value.buckets.length !== SOURCE_DEPENDENCY_BUCKETS
+    || version === 4 && !validHostLinkOwnerOrder(value.hostLinkOwnerOrder)) throw new SourceFactError("dependency-invalid");
   let count = 0, totalBytes = 0;
   const buckets: SourceDependencyBucketManifest[] = [];
   for (const bucket of value.buckets) {
@@ -220,7 +238,8 @@ function decodeRoot(data: string): CatalogRoot {
     count += bucket.records; totalBytes += bucket.bytes;
   }
   if (count !== value.rows || totalBytes > SOURCE_DEPENDENCY_MAX_BYTES) throw new SourceFactError("dependency-invalid");
-  return { version: value.version, build: value.build, host: value.host, sources: value.sources, hostFacts: value.hostFacts, rows: value.rows, buckets };
+  return { version, build: value.build, host: value.host, sources: value.sources, hostFacts: value.hostFacts, rows: value.rows, buckets,
+    ...(version === 4 ? { hostLinkOwnerOrder: value.hostLinkOwnerOrder as ContributorHostLinkOwnerOrder } : {}) };
 }
 
 /** Chain original page commitments in emission order; the fixed-size root also authenticates absence. */
@@ -305,7 +324,10 @@ export class SourceContributorDiscovery {
       this.check();
       if (!hostStamp(this.host.stamp) || !this.host.validate()) throw new SourceFactError("host-catalog-stale");
       if (this.host.markdownOrderVersion !== undefined && this.host.markdownOrderVersion !== 1) throw new SourceFactError("dependency-invalid");
-      const version = this.host.markdownOrderVersion === 1 ? CONTRIBUTOR_CATALOG_VERSION : CONTRIBUTOR_LEGACY_CATALOG_VERSION;
+      if (this.host.hostLinkOwnerOrderVersion !== undefined && this.host.hostLinkOwnerOrderVersion !== 1) throw new SourceFactError("dependency-invalid");
+      if (this.host.hostLinkOwnerOrderVersion === 1 && this.host.markdownOrderVersion !== 1) throw new SourceFactError("dependency-invalid");
+      const version: CatalogRoot["version"] = this.host.hostLinkOwnerOrderVersion === 1 ? CONTRIBUTOR_CATALOG_VERSION
+        : this.host.markdownOrderVersion === 1 ? CONTRIBUTOR_MARKDOWN_CATALOG_VERSION : CONTRIBUTOR_LEGACY_CATALOG_VERSION;
       const markdownOrdinals = new Set<number>();
       const build = await this.repository.beginDependencyBuild(this.current);
       const writer = new DependencyWriter(this.repository, build, this.current);
@@ -331,7 +353,7 @@ export class SourceContributorDiscovery {
             if (markdownOrdinal !== undefined) throw new SourceFactError("dependency-invalid");
             return true;
           }
-          if (version === 3) {
+          if (version >= 3) {
             if (!sourceCount(markdownOrdinal) || markdownOrdinals.has(markdownOrdinal)) throw new SourceFactError("dependency-invalid");
             markdownOrdinals.add(markdownOrdinal);
           } else if (markdownOrdinal !== undefined) throw new SourceFactError("dependency-invalid");
@@ -340,7 +362,7 @@ export class SourceContributorDiscovery {
           if (request.host.source.id !== fact.entity.id || request.host.source.physicalPath !== fact.entity.physicalPath
             || request.host.observation.epoch !== this.host.stamp.epoch || request.host.observation.revision !== this.host.stamp.revision
             || owners.has(fact.entity.id) || sourceIds.has(request.sourceId)) throw new SourceFactError("dependency-invalid");
-          identityBytes += (fact.entity.id.length + request.sourceId.length) * 2 + (version === 3 ? 192 : 128);
+          identityBytes += (fact.entity.id.length + request.sourceId.length) * 2 + (version >= 3 ? 192 : 128);
           if (identityBytes > MAX_IDENTITY_BYTES) throw new SourceFactError("memory-budget");
           const owner = contributorKey("source", request.sourceId), sourceOrder = sources++;
           owners.set(fact.entity.id, owner); sourceIds.add(request.sourceId);
@@ -353,19 +375,23 @@ export class SourceContributorDiscovery {
           for (const key of selected.value.summary.keys) await link(key, owner);
           await writer.emit({ kind: "source", key: owner, order: sourceOrder,
             head: { ...selected.stamp.head, sequence: selected.stamp.sequence }, source: selected.value.summary.source, summary,
-            ...(version === 3 ? { markdownOrdinal } : {}) });
+            ...(version >= 3 ? { markdownOrdinal } : {}) });
           return this.current();
         });
       this.check();
       if (!complete || !this.host.validate()) throw new SourceFactError("host-catalog-stale");
       // Distinct nonnegative ordinals, all below the exact document count, prove [0, sources).
       // This acquisition-time proof is committed once; settings reads never enumerate all owners.
-      if (version === 3 && (markdownOrdinals.size !== sources || [...markdownOrdinals].some(/** Uniqueness plus this bound proves complete inventory coverage. */
+      if (version >= 3 && (markdownOrdinals.size !== sources || [...markdownOrdinals].some(/** Uniqueness plus this bound proves complete inventory coverage. */
         (ordinal) => ordinal >= sources))) {
         throw new SourceFactError("dependency-invalid");
       }
+      const hostLinkOwnerOrder = version === 4 ? await this.host.captureHostLinkOwnerOrder?.() : undefined;
+      this.check();
+      if (version === 4 && (!hostLinkOwnerOrder || !validHostLinkOwnerOrder(hostLinkOwnerOrder))) throw new SourceFactError("host-catalog-stale");
       await writer.finish();
-      const root: CatalogRoot = { version, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows, buckets: writer.manifests };
+      const root: CatalogRoot = { version, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows, buckets: writer.manifests,
+        ...(version === 4 ? { hostLinkOwnerOrder } : {}) };
       const data = JSON.stringify(root);
       if (bytes(data) > SOURCE_DEPENDENCY_ROOT_BYTES) throw new SourceFactError("decode-budget");
       const digest = await this.repository.observationDigest(data);
@@ -738,7 +764,7 @@ export class SourceContributorDiscovery {
       }
       if (keys.size > MAX_QUERY_KEYS || [...keys].reduce((total, key) => total + bytes(key), 0) > MAX_QUERY_KEY_BYTES) throw new SourceFactError("backpressure");
       const { root, record } = await this.root();
-      if (markdown && root.version !== 3) throw new SourceFactError("dependency-pending");
+      if (markdown && root.version < 3) throw new SourceFactError("dependency-pending");
       const budget: QueryBudget = { buckets: new Map(), pages: 0, bytes: 0 };
       const ownerKeys = new Set<string>();
       for (const value of await this.lookup(root, keys, budget)) {
@@ -766,7 +792,7 @@ export class SourceContributorDiscovery {
       }
       if (sources.length > SOURCE_MAX_BATCH_RECORDS || hostFacts.length > MAX_HOST_FACTS) throw new SourceFactError("backpressure");
       const ordinals = new Set<number>();
-      if (root.version === 3) for (const source of sources) {
+      if (root.version >= 3) for (const source of sources) {
         const ordinal = source.markdownOrdinal;
         if (ordinal === undefined || ordinal >= root.sources || ordinals.has(ordinal)) throw new SourceFactError("dependency-invalid");
         ordinals.add(ordinal);
@@ -817,7 +843,7 @@ export class SourceContributorDiscovery {
         || certificate.selectionIdentity !== await this.repository.observationDigest(JSON.stringify(certificate.markdownOrder === undefined
           ? [certificate.sources, certificate.hostFacts] : [certificate.sources, certificate.hostFacts, certificate.markdownOrder]))) return "dependency-invalid";
       const { record, root } = await this.root();
-      if (certificate.markdownOrder !== undefined && (root.version !== 3
+      if (certificate.markdownOrder !== undefined && (root.version < 3
         || certificate.markdownOrder.length !== certificate.sources.length
         || certificate.markdownOrder.some(/** Revalidation must not accept a reordered or duplicate title cover. */
           (ordinal, index, values) => !sourceCount(ordinal) || ordinal >= root.sources
