@@ -56,6 +56,8 @@ const MAX_BUFFER_BYTES = 2 * 1024 * 1024;
 const MAX_IDENTITY_BYTES = 8 * 1024 * 1024;
 const MAX_CATALOG_ROWS = 2_000_000;
 const MAX_HOST_FACTS = 1024;
+/** A finite combined request, shared with private closure readers; no truncated endpoint prefix. */
+export const MAX_CONTRIBUTOR_ENDPOINTS = 32;
 const MAX_QUERY_KEYS = 256;
 const MAX_QUERY_PAGES = 256;
 const MAX_QUERY_KEY_BYTES = 256 * 1024;
@@ -133,7 +135,7 @@ function entity(value: unknown): value is SourceEntityRef {
 function validRequest(value: unknown): value is ContributorRequest {
   if (!sourceObject(value) || Object.keys(value).some((key) => !["kind", "endpoints", "fields", "literals"].includes(key))
     || value.kind !== "pair" && value.kind !== "neighborhood" || !Array.isArray(value.endpoints)
-    || value.endpoints.length === 0 || value.endpoints.length > 32
+    || value.endpoints.length === 0 || value.endpoints.length > MAX_CONTRIBUTOR_ENDPOINTS
     || value.kind === "pair" && value.endpoints.length !== 2
     || !value.endpoints.every((ref: unknown) => entity(ref))) return false;
   for (const field of ["fields", "literals"] as const) {

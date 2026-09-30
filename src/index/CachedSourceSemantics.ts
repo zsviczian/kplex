@@ -3,7 +3,7 @@
  * replay feeds the portable source-scope preparer, and source/host/policy stamps fence the result.
  * An explicitly supplied complete structural supplement replaces per-owner structure exactly once;
  * host-only/empty scopes use the same compiler without manufacturing a source. This still supplies
- * only private inputs: contributor authentication and pair finality belong to the requested reader.
+ * only private inputs: contributor authentication and scope finality belong to the requested readers.
  * No live GraphIndex, settings route, search index or persisted head is changed by this module.
  */
 import { NormalizedGraphCompiler, type GraphCompilerRuntime, type GraphCompilerSettings, type PortableGraphCompilation } from "../core/graph/compiler";
@@ -38,7 +38,7 @@ export type CachedSemanticPreparation = Readonly<{
 }> | (Exclude<SelectedSourceResult<never>, { outcome: "ready" }> & Readonly<{ sourceId?: string }>);
 
 /** Copy all finite compiler policy inputs; never read mutable settings across an awaited batch. */
-function capturePolicy(settings: GraphCompilerSettings): GraphCompilerSettings {
+export function captureCachedSemanticSettings(settings: GraphCompilerSettings): GraphCompilerSettings {
   return { ...settings, hierarchy: {
     hidden: [...settings.hierarchy.hidden], parents: [...settings.hierarchy.parents], children: [...settings.hierarchy.children],
     leftFriends: [...settings.hierarchy.leftFriends], rightFriends: [...settings.hierarchy.rightFriends],
@@ -114,7 +114,7 @@ export class CachedSourceSemanticReader {
       : owners.some((request) => !request.host.isCurrent()) ? "stale" : "ready";
     const current = (): boolean => reason() === "ready";
     if (!current()) return selectedSourceFailure(reason());
-    const settings = capturePolicy(policy.settings);
+    const settings = captureCachedSemanticSettings(policy.settings);
     const scopedRuntime = { ...runtime, isCurrent: current };
     if (!owners.length) {
       const compilation = await this.prepareHostOnly(structure ?? [], settings, readPort, scopedRuntime);

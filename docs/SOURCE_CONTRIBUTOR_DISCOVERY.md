@@ -5,7 +5,8 @@ C2 remain incomplete. The all-owner S2b return was rejected.** Its canonical
 reobservation atlas and terminal member-group implementation have been excluded from the clean
 SI4 package; the historical experiment remains documented below and in the preserved incoming
 archive. The independent historical-lease correction and private clean-host requested-pair reader
-remain. This isolation is not SI4b1 acceptance. The host-relevance finding is an accepted
+remain. A private requested-neighborhood relation-closure reader is now returned for review below;
+its gate/presentation exclusions are deliberate. This isolation is not SI4b1 acceptance. The host-relevance finding is an accepted
 **design decision, not a checkpoint**; no ordinary-edit certification, local root publication or
 public query/settings route is added. S2a still certifies only an
 unchanged canonical host. See the [review and native trace](validation/settings-independent-indexing-si4-lease-and-host-probe-2026-09-30.md).
@@ -157,6 +158,147 @@ Two lifetime details are regression-tested: host capture receives only parent po
 hosts; and a host change after final certificate revalidation rejects an empty cover via the explicit
 synchronous host fence. No reobserver, acquisition fallback or consumer migration was added. Changed-host BREF-1/topology remain UNKNOWN;
 SI4b2 publication, SI4c routing and SI5 exact-build/device acceptance are separate work.
+
+## Private requested-neighborhood relation closure — design-first invariant
+
+**2026-09-30, returned for review, not checkpoint acceptance.** This extends the isolated
+clean-host pair experiment only. Fix one exact center ref A, a complete current immutable root R,
+its live host/environment observation H, an immutable compiler-policy snapshot P with a monotonic
+caller revision, and a live request D. Every source/host journal must be closed; KNOWN is still an
+open ticket. SourceId, NodeId and both path facets remain separate. A real host edit is UNKNOWN;
+no changed-host observation atlas, root repair or source acquisition is part of this read.
+
+### Exact invariant and finite ranges
+
+Write I(X) for the **complete neutral direct-incidence range** of X at R/H, not its current
+visible neighbors. It contains every selected source owner and every original structural owner
+that can contribute to an ordered pair touching X. Whole source families retain dormant field
+candidates, both declaring endpoints, hidden/overridden evidence, image/host occurrence counts,
+provenance and multiplicity. Ordinary/ontology/Date contributions touch their source or target;
+URL-origin support additionally posts the origin; tag endpoints require the existing complete
+`family:tag-tree` range because the compiler derives ancestor identities. Structural file/tree
+memberships retain their original order and contribution ownership. Empty buckets and missing
+keys are authenticated against the complete original bucket/page commitments, not inferred from
+zero returned heads. Missing/corrupt pages are failure, never negative evidence.
+
+Let F(P) be an independent all-owner canonical compile at the same R/H/P. Let Parents(A,P)
+be **all**, not top-N, non-hidden A relations that the canonical `classifyRelation` classifies as
+`parent`. It includes inferred parents even when a presentation setting would hide them. The
+required cover is:
+
+`I(A) union (union over p in Parents(A,P) of I(p))`.
+
+The private relation certificate promises equality with F(P) for both directed perspectives,
+original declarations, precedence decisions and multiplicity of every pair incident to A and
+every pair incident to one of those parents. In particular, the full child range of every parent
+is closed, including an empty child range. Parent/child witness pairs therefore suffice to derive
+all parent-based sibling candidates, reconcile repeated witnesses and exclude direct neighbors.
+They also over-cover the current UI's subset of displayed parents. No parent of a sibling or
+sibling's unrelated neighbor is required for this relation proof. Pair resolution is pair-local;
+image suppression is declaring-owner/pair-local. An owner outside the union cannot alter any of
+these pairs at unchanged H/P. The projection does not replace the canonical classifier/precedence.
+
+**One `discover({kind:'neighborhood', endpoints:[A]})` is not this proof.** It certifies only
+I(A). A direct-neighbor list from an old policy cannot seed dormant-field coverage. Instead, first
+compile authenticated I(A) under the captured **final** policy, obtain its complete semantic
+parent frontier, then issue one second discovery for `[A, ...parents]`. That combined lookup
+supplies the union in the original global source and structural order; concatenating separately
+sorted owner lists would lose that order and can change first-contributor provenance. Both roots
+and host coordinates must match exactly. Replay the combined cover through the same compiler;
+its parent frontier must still equal the first frontier. Only this final combined certificate is
+retained. If there are no parents, the first preparation is terminal. The first graph is discarded
+before a second is prepared: this is at most two sequential bounded canonical compilations, not
+a retained graph mirror or another semantic implementation.
+
+### Scope exclusions and admission
+
+The result is named **`complete-neighborhood-relations`**, not a complete visible scene. It
+certifies relationship inputs for center neighbors and parent-derived siblings, not every target's
+metadata, lazy properties, names/styles, lens/presentation filters, sorting, cross-links among
+arbitrary displayed nodes, expanded descendants, search, edit eligibility or publication. It does
+not replace `GraphIndex.getNeighborhood`, whose visibility/top-N behavior remains unchanged.
+Exact gate totals are explicitly **not certified**: visible totals require current presentation
+inputs for the entire incident target range; gates on a neighbor/sibling additionally require that
+node's own complete incidence. Neither an over-cover compilation's node count nor a displayed
+prefix is such a proof. Those are separate authenticated read contracts, not fabricated zeroes.
+
+The existing 32-endpoint discovery limit admits at most **31 semantic parents** plus A. Both
+passes retain the existing 256 selected-source, 1,024 structural-fact, 256-page/query and discovery
+decode limits; the final union must fit those limits, not merely each parent separately. Each
+canonical semantic pass retains its 32 MiB estimated-input limit. Two passes may reread a selected
+source, so total read/compile work can be twice that of one admitted scope; work reports both
+passes rather than claiming one replay per request. Each source is captured at most once. The
+parent-frontier scan uses the supplied clock/yield/currentness runtime even when most incident
+relations are not parents. These input limits are not a measured heap or latency guarantee. No
+arbitrary parent prefix, per-parent paging loop, automatic retry, all-owner fallback or early
+`maxItemCount` is allowed. Hot parent/tag/hash-bucket ranges return non-ready with no certificate
+or partial graph. The missing liveness contract for larger scopes is an authenticated terminal
+continuation (fixed root/range identity, complete ordered pages and negative end, shared aggregate
+budgets and final root/head/host/P/D checks); current C1 discovery does not supply that contract.
+
+### Caller/owner inventory before implementation
+
+| Capability / caller | Responsibility and finite boundary |
+| --- | --- |
+| New private `CachedRequestedNeighborhoodReader.prepare` | Sole orchestration entry: one exact center, at most two discoveries/semantic passes, one final private result; no production caller |
+| `SourceContributorDiscovery.discover/revalidate/isHostCurrent` | Original neutral source/structural order; authenticated positive/negative ranges; current complete root, exact heads, all journal masks and host observation; no new storage operation |
+| Existing `CachedPairCapture` capability / `ObsidianSourceAcquisition.captureForReplay` | Exact already-current source observations only, once per selected SourceId; capture lifetime closes over P/D, not the owners it creates |
+| `CachedSourceSemanticReader` / `CachedSourceReplay` | Complete four-family selected-head reads; canonical policy snapshot; explicit structure replaces per-owner supplements once per compile; existing source leases/budgets |
+| `NormalizedSourceScopePreparer`, `NormalizedGraphCompiler`, `classifyRelation`, evidence precedence | Only semantic owners; final-policy parent classification and canonical pair resolution, never a test/adapter role heuristic |
+| `SourcePatchReadPort.entity` | Exact-ID canonical host entity facts at H; no relationship maps, vault enumeration or inferred path/ID conversion |
+| New portable and real-IDB tests | Only callers of the new reader; independent live-collector all-owner oracle, full relation/witness comparisons, read-only counters and negative/finality adversaries |
+| `GraphIndex`, `GraphBuilder`, settings/UI/search/edit callers | Unchanged and not connected; SI4b2/SI4c and C15–C26 remain outside scope |
+
+### Finality and failure proof
+
+Copy A and all compiler-policy inputs before the first await. Both passes share P/D and every
+captured source-host lifetime; capture callbacks depend only on P/D to avoid a capture/owner
+recursion. Pin each selected source revision/sequence and compare the prepared stamps to the
+ordered discovery stamps. The second combined lookup must have the first exact R/H and the same
+center/frontier, and must include the first selected sources and structural facts unchanged.
+The canonical final frontier must equal the first frontier. Revalidate the final combined
+certificate **after** all replay/compilation, closing scope/selection hashes, exact complete root,
+global revision/sequence, all selected heads and all journals. Then synchronously recheck P/D,
+captured hosts and `isHostCurrent`, including empty/host-only results. A certificate is valid only
+at this return boundary, not a reusable later publication permission. Backpressure, missing input,
+any open journal, source/root/host mutation, policy supersession or demand loss returns no partial
+scope and performs no repair/write/fallback.
+
+### Implemented private composition and review evidence
+
+`src/index/CachedRequestedNeighborhood.ts` implements this invariant without a public caller. The
+only existing runtime changes export the already-existing compiler-settings copier and name the
+unchanged 32-endpoint discovery limit. No source format, schema, posting key, journal behavior,
+lease handling, compiler policy, GraphIndex method or settings route changes. The returned
+certificate carries its center, complete semantic parent frontier, policy revision, final contributor
+certificate and literal `gateTotals: "not-certified"`. Its `preparation.compilation` is an over-cover:
+only the certified center/parent incidence is complete, never every pair in that graph.
+
+The new shared oracle independently feeds **all** live structural, host-link, metadata, reference
+and relation collectors into `NormalizedGraphCompiler` under the same final policy. It does not
+use cached replay or the reader's selected owners/parents to choose the expected graph. Comparisons
+retain both directed perspectives, hidden and overridden declarations, canonical precedence,
+occurrence multiplicity, locations, original owners and sibling parent/child witnesses. Only
+attempt-local declaration IDs/contribution revisions and object property order are normalized.
+Tests also verify a newly activated parent absent from the old active graph, repeated third-party
+URL/tag ownership, derived tag ancestors and an authenticated parent with no other child.
+
+Offline diagnostic results on Node 22.16.0 / TypeScript 5.8.3: the source lane passes **122/122**
+(including **29** new neighborhood cases); architecture passes **7/7**, zero violations; restricted
+core and strict new-module TypeScript pass. Hot owner, structural and semantic-parent ranges,
+negative pages, between-pass mutations, final root/head/host/policy/demand fences, and cooperative
+frontier cancellation fail closed. Valid policy-only runs assert zero body reads, parser calls,
+source-head writes and source/catalog rebuilds. The portable suite uses explicit catalog coordinates
+over real memory-repository family reads; it is not durable-transaction evidence.
+
+The offline environment could not run the new real IndexedDB suite: Chromium
+144.0.7559.96 blocked its test page, and dependencies needed for build/lint were absent.
+The main-agent review on Node 22.22.3 ran all 28 browser subcases successfully, after fixing
+one missing test-bundle entry. Source 122/122, serial Chromium 96/96, architecture/core,
+official lint and production build pass. Aggregate verify remains red only on the unchanged
+strict URL-heavy timer (53.3 ms against 50 ms). The exact review evidence is in
+[the neighborhood review](validation/settings-independent-indexing-si4-neighborhood-review-2026-09-30.md). This is a validated private slice, not
+SI4b1/SI4b2/SI4c, native, performance or physical-device acceptance. Changed-host BREF-1 remains UNKNOWN.
 
 ## Named modify class: BREF-1 (body/inline reference edit only)
 

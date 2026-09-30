@@ -1551,3 +1551,49 @@ are in `HANDOFF.md` and the contributor-discovery contract. No commit/publicatio
 - **Scope/verdict:** the main agent constructed a source package from committed S2a/HEAD `140398f` with only the independently validated historical-lease repair and private clean-host requested-pair preparation. The rejected S2b all-owner observation atlas, transition-member transaction, changed-host acquisition/frontier adapters and their prototype suites are excluded. Their historical design and negative locality evidence remain documented; an exact snapshot of the mixed incoming tree was preserved separately before isolation. This is a clean development base, not SI4b1/SI4b2/SI4c acceptance or a live settings fix. C15–C26 remain paused.
 - **Evidence:** on required Node 22.22.3 with real dependencies, source tests pass 93/93; architecture 7/7 and core 6/6 pass; Obsidian lint and real TypeScript/esbuild build pass. Real Chromium source suites pass 67/67, including a new S2b-independent IndexedDB abort/retry/version-safety lease regression and the clean-base requested-pair parity/fences. `npm run verify` still stops at the unchanged strict URL-heavy patch timer (57.7 ms versus 50 ms); no threshold, golden or production scheduler was altered. See [the isolation report](docs/validation/settings-independent-indexing-si4-isolation-2026-09-30.md).
 - **Next bounded SI4 task:** design and, only if a complete bounded cover can be proved, implement a private requested-neighborhood/parent-sibling closure under a current complete journal-free root and one policy. A direct pair certificate cannot authorize gate totals or a whole Plex. Do not add public publication, settings routing, changed-host BREF-1 certification or the rejected all-owner reobserver. No maintainer manual test is needed for this private package.
+
+### 2026-09-30 — SI4 private requested-neighborhood relation closure returned for review
+
+- **Proof/scope:** wrote the before-code invariant and finite caller/owner inventory in
+  [the contributor contract](docs/SOURCE_CONTRIBUTOR_DISCOVERY.md). At one clean complete root/host
+  and final policy, complete center incidence determines all semantic parents; the combined center
+  plus parent incidence closes both directions and all sibling parent/child witnesses, including
+  negative child ranges. `complete-neighborhood-relations` does not certify scene metadata,
+  presentation/filtering, cross-links, gate totals, search, edits or later publication. Exact gate
+  totals remain explicitly not certified. This is not SI4b1/SI4b2/SI4c acceptance or a live settings fix.
+- **Private implementation:** `CachedRequestedNeighborhoodReader` uses at most two bounded
+  discoveries/canonical compilations, snapshots settings/center before awaiting, preserves original
+  global contributor/structure order, captures each selected owner once and discards the first graph
+  before the second. It revalidates the final root, exact heads, all journal masks, host, policy and
+  demand, including empty scopes; parent scanning yields and remains cancellable. Existing limits
+  admit at most 31 parents plus the center, 256 union source owners and 1,024 host facts; hot ranges
+  fail without partial readiness. Two passes may replay the same source twice; work reports that
+  cost. Larger-range liveness needs authenticated terminal continuation, not an all-owner fallback.
+  Only the existing policy-copy helper and endpoint-cap constant are exposed; schemas, leases,
+  accepted semantic code and public consumers remain unchanged. Rejected changed-host S2b is absent.
+- **Diagnostic evidence, not required-runtime acceptance:** Node 22.16.0 / TypeScript 5.8.3;
+  source **122/122** (29 new neighborhood cases), architecture **7/7**, restricted core and strict
+  new-module TypeScript pass. The independent all-owner full oracle exercises dormant role changes,
+  inference, images, reciprocal conflicts, third-party tags/URLs, empty and sibling ranges; valid
+  cached runs assert zero reads/parses/head writes/source builds. Core runtime has 36 passes/3
+  failures: two missing-esbuild imports and an unchanged normalized-source target assertion,
+  independently reproduced in a pristine extraction (6/7). Chromium 144.0.7559.96 fails all six
+  source-browser parent bootstraps before assertions (initially six administrator-blocked errors;
+  the final rerun has five `ERR_BLOCKED_BY_ADMINISTRATOR` errors and one `ENOTEMPTY` bootstrap-profile
+  cleanup error). The new real-IDB suite's 28 subcases are pending. ESLint is unavailable; actual build fails
+  on missing dependencies. Aggregate verify stops at core. Separately `npm test` passes 24
+  settings-independence scenarios and the restore watchdog, then fails the unchanged 50 ms URL-heavy
+  graph-patch timer at **56.9 ms**. No threshold, golden, fixture or harness policy was weakened.
+- **Next/review boundary:** rerun with required Node and real dependencies/Chromium, starting with
+  the center A -> dormant parent P -> incoming child T closure and both directed evidence/witness
+  parity, then every negative/finality/hot-range case and actual build/verify. No native consumer
+  exists, so no maintainer manual workflow is requested; the main agent decides any exact-build
+  native verification. These are uncommitted archive-relative changes, not a commit, merge, release,
+  latency/memory/device result or changed-host certification. BREF-1/topology remain UNKNOWN;
+  C15–C26 stay paused, and SI5 retains performance/physical-device acceptance.
+
+### 2026-09-30 — SI4 private neighborhood relation slice reviewed
+
+- **Verdict:** accepted as a bounded, uncalled private relation-input slice, not SI4b1/SI4b2/SI4c acceptance or a live settings fix. The center and all canonical semantic-parent incidence ranges are authenticated under one clean root/host and final policy; exact gate totals, presentation and full scene remain uncertified. Changed-host BREF-1 remains UNKNOWN. C15–C26 stay paused.
+- **Review correction/evidence:** added the missing `CachedSourceSemanticReader` entry to the new Chromium test bundle. On Node 22.22.3 with real dependencies, source 122/122, serial real Chromium 96/96 (including all 28 new subcases), architecture 7/7, core 60/60, Obsidian lint and production build pass. The default parallel browser command stalled and was stopped; it is not a pass. `npm run verify` still fails the unchanged URL-heavy timer at 53.3 ms versus 50 ms; no threshold or golden changed. See [the review](docs/validation/settings-independent-indexing-si4-neighborhood-review-2026-09-30.md).
+- **Next:** prove the exact inputs for one visible requested scene and its gate statistics under one policy, including presentation/target metadata and complete negative ranges. Implement a bounded private projection only if the current contracts close; otherwise return the specific missing authenticated range or continuation contract. Keep publication, settings/UI routing, changed-host S2b and broader refactoring out of scope. No maintainer manual test applies to this uncalled slice.

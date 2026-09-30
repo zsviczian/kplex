@@ -11,6 +11,20 @@ recorded in [the isolation review](validation/settings-independent-indexing-si4-
 SI4b1 is not accepted, changed-host BREF-1/topology remain UNKNOWN, and SI4b2 publication and SI4c
 routing are not implemented. The rejected all-owner S2b implementation is excluded from this package.
 
+**Private SI4 neighborhood relation slice (2026-09-30; reviewed, not SI4b1 acceptance):**
+[The design-first coverage/finality invariant](SOURCE_CONTRIBUTOR_DISCOVERY.md) now has an uncalled
+private reader. One final-policy center-incidence compile discovers every semantic parent; a second
+combined center/parent lookup closes all parent-child sibling witnesses in the original contributor
+order at the same current root/host. It certifies only both directions of center/parent relations,
+not a visible scene or exact gate totals (`not-certified`). Existing bounds fail closed without
+partial scopes or an all-owner fallback. No retained second graph, changed-host work, GraphIndex
+publication or settings/consumer routing is added. Offline source tests pass 122/122, including 29
+new cases. Main-agent Node 22.22.3 review passes 122/122 source cases, all 96 real Chromium cases
+when run serially (including the 28 new browser subcases), architecture/core, lint and build. The
+review fixed one missing browser-bundle entry; the aggregate `verify` still fails the unchanged
+50 ms URL-heavy timer at 53.3 ms. See [the neighborhood review](validation/settings-independent-indexing-si4-neighborhood-review-2026-09-30.md).
+SI4b1/SI4b2/SI4c and SI5 are not advanced.
+
 Design review and implementation brief for Sol, 2026-09-29.
 
 **Original design baseline (historical; current implementation status is above).** Reviewed on `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`, initially clean. The maintainer requires ordinary ontology and presentation changes to preserve indexed source data. This document proposes the implementation and acceptance sequence; it does not resume C15–C26, claim a fix, or authorize a release.
