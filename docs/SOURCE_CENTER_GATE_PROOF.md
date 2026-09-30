@@ -4,6 +4,11 @@ Status: bounded private implementation reviewed, not SI4 acceptance or public ro
 This extends the [settings-independent design](INDEX_SETTINGS_INDEPENDENCE_DESIGN.md) and the
 [private relation cover](SOURCE_CONTRIBUTOR_DISCOVERY.md). C15–C26 remain paused.
 
+The subsequent [selected-title proof](SOURCE_SELECTED_TITLE_PROOF.md) returns a missing-contract
+result, not a new reader: live selected scalar/absence inputs lack a source-bound completion
+observation, and even complete URL support can replay in a different order from the full builder.
+These title limitations do not widen or change the accepted center-gate certificate.
+
 ## Before-code invariant
 
 For **one exact requested center ID**, let R be the authenticated, current, journal-free contributor

@@ -1650,3 +1650,50 @@ are in `HANDOFF.md` and the contributor-discovery contract. No commit/publicatio
 - **Verdict/scope:** accepted as an uncalled bounded private center-gate input, not SI4b1/SI4b2/SI4c or SI5 acceptance. Exact pre-top-N `hasAny` and unique visible-path counts are proven for one present center under current clean host/semantic/presentation/demand fences. Sorted visible lists and other nodes' gates remain uncertified because target presentation inputs and complete candidate degrees are absent. Changed-host BREF-1 remains UNKNOWN; C15–C26 stay paused.
 - **Review evidence:** Node 22.22.3 with real dependencies: source 151/151, six serial real Chromium suites 111/111, architecture 7/7, core 60/60, Obsidian lint and production build pass. A focused browser run once lingered after reporting all passing assertions; a temporary handle probe found only standard output sockets and the serial full run exited. `npm run verify` still fails the unchanged strict URL-heavy timer at 59.7 ms versus 50 ms. See [the review](docs/validation/settings-independent-indexing-si4-center-gates-review-2026-09-30.md). No native/manual test applies to uncalled private code.
 - **Next bounded SI4 task:** authenticate finite exact-ID selected presentation inputs for one candidate, including alias/selected-field precedence and negative evidence, under the same source/host/presentation lifetime. Preserve the existing title owner and do not claim complete sorted lists, candidate degrees, UI routing or publication. A later separate contract must close raw candidate degree and hot-range continuation before top-N/list parity.
+
+
+### 2026-09-30 — SI4 exact selected-title proof returned with missing premises
+
+- **Verdict/scope:** the assignment's missing-contract branch applies; no exact-title reader,
+  canonical selector change, schema or production route is returned. The before-code input/caller
+  inventory and smallest correction are in [the selected-title proof](docs/SOURCE_SELECTED_TITLE_PROOF.md).
+  Existing relation and center-gate certificates are unchanged, not widened to titles or sorted lists.
+  This is an uncommitted archive-relative return for review, not checkpoint acceptance.
+- **Concrete source-order gap:** production contributor rebuild records source order on structural
+  document arrival, while the actual full GraphBuilder reads Markdown metadata in inventory order.
+  A nested/root two-owner URL case gives `Second label` from complete catalog-ordered replay versus
+  `First label` from the fresh full-built GraphIndex. The new test runs the actual catalog writer,
+  discovery, source replay, compiler and binder; replaying the same owners in Markdown order restores
+  parity. This is selected-label precedence, separate from global stable neighbor tie order. The
+  minimum proposed derivative-catalog correction is an authenticated, acquisition-time full-builder
+  source ordinal with its own versioned contract, not a settings-time scan or lexical owner sort.
+- **Live-input/bounds gap:** durable aliases preserve canonical order, but arbitrary dormant scalar
+  title values are intentionally not mirrored. Current live cache identity/event/environment fences
+  do not supply a source-bound per-file metadata-completion/absence observation. Host-double traces
+  show reacquisition before completion and in-place non-Date scalar mutation escaping that premise;
+  they are not native-event findings. The canonical Object.entries/recursive-array selector is not
+  a bounded private observation merely because its output is capped. A future adapter needs finite
+  selected inputs/negative evidence, same-source completion correlation and independent root/head,
+  host, semantic/presentation and final-await demand fences, sharing the existing selector policy.
+- **Diagnostic evidence:** Node 22.16.0 / global TypeScript 5.8.3; all source files pass individually,
+  exit-confirmed **186/186**, including **35 new characterization cases**. A default aggregate reports
+  all 186 passes but its wrapper times out; a combined serial retry is also interrupted, so only the
+  per-file runs are exit-confirmed. Architecture **7/7** passes using a temporary link to actual global
+  TypeScript. Core-only compilation passes; core runtime is **36 pass / 3 fail** (two missing-esbuild
+  imports and the same normalized-source target assertion reproduced **6/7** in the pristine archive).
+  Real dependencies cannot install offline; lint/build remain pending. Six serial real Chromium
+  bootstraps fail `ERR_BLOCKED_BY_ADMINISTRATOR`. Full verify stops at core. Separate npm test reaches
+  the unchanged URL-heavy timer and fails **90.8 ms / 50 ms**, after settings-independence/watchdog
+  checks pass. No thresholds, fixtures, goldens or browser policy were changed.
+- **Next:** main-agent required-runtime review of the production order counterexample and all normal
+  lanes, plus one narrowly correlated native metadata-completion trace before implementing the host
+  observation. No new consumer means no maintainer manual workflow. No all-owner fallback, generic
+  frontmatter mirror, second semantics, changed-host S2b or publication is authorized. BREF-1 remains
+  UNKNOWN; candidate degrees, stable neighbor order and hot continuation remain separate;
+  SI4b1/SI4b2/SI4c/SI5 stay open and C15–C26 remain paused.
+
+### 2026-09-30 — SI4 selected-title proof reviewed; input contracts missing
+
+- **Verdict:** accepted the design finding and production characterization tests, not an exact-title reader or SI4b1/SI4b2/SI4c/SI5 checkpoint. Complete catalog owner coverage can still choose the wrong first URL label because structural source order differs from the full builder's Markdown inventory order. Live selected scalar/absence values lack a source-bound MetadataCache completion observation; host-double traces identify the missing guarantee but do not claim native event behavior. No production source, schema, settings or public consumer changed; C15–C26 remain paused.
+- **Review evidence:** Node 22.22.3 with real dependencies: new 35/35, source 186/186, architecture 7/7, core 60/60, Obsidian lint and production build pass. Browser/runtime code is unchanged from the previously validated 111/111 serial Chromium base. Full `verify` fails the unchanged URL-heavy timer at 70.9 ms versus 50 ms. Installed Obsidian declarations confirm nullable cache/changed-callback signatures. CLI is installed but Obsidian was not running; the native event-order probe remains pending. See [the review](docs/validation/settings-independent-indexing-si4-selected-title-review-2026-09-30.md).
+- **Next:** assign an offline bounded derivative-catalog Markdown encounter-order coordinate and URL-label parity proof; do not replace full-builder ordering or scan all owners at settings time. Independently, the main agent must capture the native MetadataCache completion/physical-revision trace in an explicitly selected disposable vault before a scalar/absence reader can be authorized. Candidate degrees, hot-range continuation, visible lists and public routing remain later SI4 work. No maintainer manual test applies to this documentation/test slice.

@@ -34,6 +34,20 @@ the center/parent relation cover. Main-agent source 151/151, serial real Chromiu
 architecture/core/lint/build pass; full `verify` remains red on the unchanged URL-heavy timer.
 There is no production caller, graph publication or settings route.
 
+**SI4 selected-title proof (2026-09-30; reviewed missing-contract finding, no reader):**
+[The exact-input inventory and counterexamples](SOURCE_SELECTED_TITLE_PROOF.md) identify two missing
+premises: source-bound, bounded live MetadataCache property/absence observations, and authenticated
+full-builder source order for synthetic URL label precedence. A complete contributor cover alone
+can replay a different first meaningful label because catalog order is structural, not Markdown
+inventory order. Characterization tests exercise the actual full builder, catalog writer, replay
+and fresh GraphIndex; host-double metadata traces are not native event-order evidence. The smallest
+proposed corrections stay in acquisition/host observation and the derivative catalog. No production
+selector, title reader, schema, settings/UI/search route or prior certificate is changed. Main-agent
+source 186/186, architecture/core/lint/build pass; full verify remains red on the unchanged timer.
+Native MetadataCache event-order proof is pending because Obsidian was not running. See
+[the review](validation/settings-independent-indexing-si4-selected-title-review-2026-09-30.md).
+Sorted lists, candidate degrees, continuation and SI4b1/SI4b2/SI4c/SI5 remain open.
+
 Design review and implementation brief for Sol, 2026-09-29.
 
 **Original design baseline (historical; current implementation status is above).** Reviewed on `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`, initially clean. The maintainer requires ordinary ontology and presentation changes to preserve indexed source data. This document proposes the implementation and acceptance sequence; it does not resume C15–C26, claim a fix, or authorize a release.
