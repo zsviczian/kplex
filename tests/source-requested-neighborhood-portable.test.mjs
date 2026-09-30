@@ -389,3 +389,364 @@ for (const fence of ["demand", "policy"]) {
     } finally { f.close(); }
   });
 }
+
+// Gate-only proof uses the same acquired facts, but never upgrades a relation certificate to lists.
+/** Independent full GraphIndex binding and deliberately narrower private gate inputs. */
+const { centerGateSettings, centerGatePolicy, fullCenterIndex, currentNeighborhoodView, centerVisibilityCases } =
+  await import("./support/requestedCenterGateFixture.mjs");
+
+/** Assert canonical relation equality as well as each independently computed full GraphIndex gate. */
+function compareGates(result, full, scope, semantic, expected, presentationRevision = "presentation:1") {
+  assert.equal(result.outcome, "ready", JSON.stringify(result));
+  assert.equal(result.coverage, "complete-center-gates");
+  assert.equal(result.certificate.visibleLists, "not-certified");
+  assert.equal(result.certificate.relations.gateTotals, "not-certified", "Relation-only certificate is not relabelled");
+  assert.equal(result.certificate.presentationRevision, presentationRevision);
+  assert.deepEqual(result.gates, expected);
+  assert(!("neighborhood" in result) && !("siblings" in result), "No uncertified visible lists escape");
+  assert.deepEqual(neighborhoodView(M, result.preparation.compilation, scope.center, semantic), neighborhoodView(M, full, scope.center, semantic));
+  assert.deepEqual(result.preparation.sources, result.certificate.relations.contributors.sources);
+}
+
+test("private center gates equal the full current GraphIndex across visibility, sort and top-N policies", async () => {
+  const f = await fixture(false, f => {
+    configureNeighborhood(f);
+    Object.assign(f.metadata.get("A.md").frontmatter, { Children: ["[[image.png]]", "[[Missing]]"],
+      Previous: "[[T]]", Next: "[[S]]", Hidden: "[[D]]" });
+  });
+  try {
+    const semantic = assigned(), full = await fullNeighborhoodOracle(M, f, semantic, runtime());
+    const views = centerVisibilityCases().map(centerGateSettings), expected = [];
+    for (const view of views) {
+      const index = await fullCenterIndex(M, f, full, semantic, view);
+      try { expected.push(currentNeighborhoodView(index, "A.md").gates); } finally { index.destroy(); }
+    }
+    assert.notDeepEqual(expected[0], expected[10], "All-excluded policy must change visible counts");
+    const check = guard(f);
+    for (const [i, view] of views.entries()) {
+      const result = await f.makeReader().prepareCenterGates(request(), policy({ settings: semantic }), centerGatePolicy(view), runtime());
+      compareGates(result, full, request(), semantic, expected[i]);
+      assert(result.work.gateEntityReads > 0);
+    }
+    check();
+  } finally { f.close(); }
+});
+
+test("gate-only requests retain dormant role/image changes, hidden conflicts, and third-party tag/URL support", async () => {
+  const f = await fixture();
+  try {
+    const semantics = [settings, assigned(), { ...assigned(), hierarchy: { ...assigned().hierarchy, hidden: ["Hidden", "Dormant"] } },
+      { ...settings, inferAllLinksAsFriends: true }, { ...settings, inverseInfer: true },
+      { ...settings, thumbnailProperty: "Image", nodeImageProperty: "Image" }];
+    const view = centerGateSettings({ showInferredNodes: false }), expected = [];
+    for (const semantic of semantics) {
+      const full = await fullNeighborhoodOracle(M, f, semantic, runtime());
+      const scopes = [request(), ...[...full.nodes.values()].filter(n => ["tag", "url"].includes(n.kind))
+        .map(center => ({ kind: "neighborhood", center }))];
+      const index = await fullCenterIndex(M, f, full, semantic, view);
+      try { expected.push({ semantic, full, scopes: scopes.map(scope => ({ scope, gates: structuredClone(index.gateStats(index.get(scope.center.semanticPath))) })) }); }
+      finally { index.destroy(); }
+    }
+    const check = guard(f);
+    for (const { semantic, full, scopes } of expected) for (const { scope, gates } of scopes) {
+      compareGates(await f.makeReader().prepareCenterGates(scope, policy({ settings: semantic }), centerGatePolicy(view), runtime()), full, scope, semantic, gates);
+    }
+    check();
+  } finally { f.close(); }
+});
+
+test("no-other-child and empty existing center have proved gates; a negative relation range does not prove center existence", async () => {
+  const f = await fixture(false, f => { f.add("P.md", "", { Children: "[[Ghost]]" }); f.add("D.md", ""); });
+  try {
+    const full = await fullNeighborhoodOracle(M, f, settings, runtime()), view = centerGateSettings();
+    const ghost = [...full.nodes.values()].find(n => n.kind === "unresolved"), scope = { kind: "neighborhood", center: ghost };
+    const index = await fullCenterIndex(M, f, full, settings, view);
+    const expected = structuredClone(index.gateStats(index.get(ghost.semanticPath))); index.destroy();
+    const check = guard(f), reader = f.makeReader();
+    const result = await reader.prepareCenterGates(scope, policy(), centerGatePolicy(view), runtime());
+    compareGates(result, full, scope, settings, expected);
+    assert.equal(result.gates.bottom.visibleCount, 0); assert.equal(result.gates.bottom.hasAny, false);
+    assert.deepEqual(neighborhoodView(M, result.preparation.compilation, ghost, settings).siblings, []);
+    rejected(await reader.prepareCenterGates(empty(), policy(), centerGatePolicy(view), runtime()), "missing");
+    check();
+  } finally { f.close(); }
+  // A real empty root container is present even though its relation range has no owners/edges.
+  const f2 = await fixture(false, () => {});
+  try {
+    const scope = { kind: "neighborhood", center: f2.entities.get("folder:/").entity }, check = guard(f2);
+    const result = await f2.makeReader().prepareCenterGates(scope, policy(), centerGatePolicy(centerGateSettings()), runtime());
+    assert.equal(result.outcome, "ready", JSON.stringify(result));
+    assert.deepEqual(Object.values(result.gates), Array(4).fill({ hasAny: false, visibleCount: 0 }));
+    assert.equal(result.work.gateEntityReads, 0); check();
+  } finally { f2.close(); }
+});
+
+for (const path of ["A.md", "B.md"]) for (const fault of ["missing", "wrong-id", "wrong-path", "wrong-extension"]) {
+  test(`gate visibility rejects ${fault} exact physical facts for ${path} rather than pretending the target is virtual`, async () => {
+    const f = await fixture();
+    try {
+      const validate = f.port.validateSelections; let readyForProjection = false, validations = 0;
+      f.port.validateSelections = async (...args) => {
+        const result = await validate(...args); if (++validations === 2) readyForProjection = true; return result;
+      };
+      let projectionReads = 0;
+      const entity = ref => {
+        const fact = f.entities.get(ref.id);
+        if (!readyForProjection || ref.id !== path) return fact;
+        projectionReads++;
+        if (fault === "missing") return undefined;
+        if (fault === "wrong-id") return { ...fact, entity: { ...fact.entity, id: "wrong" } };
+        if (fault === "wrong-path") return { ...fact, file: { ...fact.file, path: "elsewhere.md" } };
+        return { ...fact, file: { ...fact.file, extension: "png" } };
+      };
+      const reader = new M.CachedRequestedNeighborhoodReader(f.port, f.catalog.discovery, f.capture, { entity });
+      const result = await reader.prepareCenterGates(request(), policy({ settings: assigned() }), centerGatePolicy(centerGateSettings()), runtime());
+      rejected(result, fault === "missing" ? "missing" : "stale"); assert.equal(projectionReads, 1);
+      assert(!("gates" in result));
+    } finally { f.close(); }
+  });
+}
+
+for (const fence of ["source", "host", "journal", "root", "semantic", "presentation", "presentation-token", "demand", "captured-host"]) {
+  test(`center-gate final awaited ${fence} mutation discards computed totals`, async () => {
+    const f = await fixture();
+    try {
+      let semanticCurrent = true, presentationCurrent = true, demand = true, hostCurrent = true, calls = 0, projectedReads = 0;
+      const semantic = policy({ settings: assigned(), isCurrent: () => semanticCurrent });
+      const presentationPolicy = centerGatePolicy(centerGateSettings(), { isCurrent: () => presentationCurrent });
+      const revalidate = f.catalog.discovery.revalidate.bind(f.catalog.discovery);
+      f.catalog.discovery.revalidate = async certificate => {
+        if (++calls !== 3) return revalidate(certificate);
+        assert(projectedReads > 0, "Projection precedes the final awaited fence");
+        const after = ["semantic", "presentation", "presentation-token", "demand", "captured-host"].includes(fence);
+        const validated = after ? await revalidate(certificate) : null;
+        if (fence === "source") f.catalog.state.heads.set("T.md", { ...f.catalog.state.heads.get("T.md"), sourceRevision: "later" });
+        if (fence === "host") f.catalog.environmentChanged();
+        if (fence === "journal") f.catalog.repository.readDependencyRoot = async () => { throw new C.SourceFactError("dependency-pending"); };
+        if (fence === "root") await f.catalog.seal();
+        if (fence === "semantic") semanticCurrent = false;
+        if (fence === "presentation") presentationCurrent = false;
+        if (fence === "presentation-token") presentationPolicy.revision = "presentation:2";
+        if (fence === "demand") demand = false;
+        if (fence === "captured-host") hostCurrent = false;
+        return after ? validated : revalidate(certificate);
+      };
+      const capture = async (id, rt) => {
+        const result = await f.capture(id, rt);
+        if (result.outcome === "ready") {
+          const current = result.request.host.isCurrent;
+          result.request = { ...result.request, host: { ...result.request.host, isCurrent: () => hostCurrent && current() } };
+        }
+        return result;
+      };
+      const reader = new M.CachedRequestedNeighborhoodReader(f.port, f.catalog.discovery, capture, { entity: ref => {
+        if (calls === 2) projectedReads++; return f.entities.get(ref.id);
+      } });
+      const result = await reader.prepareCenterGates(request(), semantic, presentationPolicy, runtime({ isCurrent: () => demand }));
+      rejected(result); assert(!("gates" in result)); assert.equal(calls, 3); assert.equal(f.repository.readers.size, 0);
+      if (fence === "demand") assert.equal(result.reason, "cancelled");
+      if (fence === "semantic" || fence.startsWith("presentation")) assert.equal(result.reason, "superseded");
+    } finally { f.close(); }
+  });
+}
+
+test("gate visibility is captured before discovery; S1-S2-S3 presentation tokens supersede old requests", async () => {
+  const f = await fixture();
+  try {
+    const full = await fullNeighborhoodOracle(M, f, settings, runtime()), view = centerGateSettings({ excludeFilepaths: ["B.md"] });
+    const index = await fullCenterIndex(M, f, full, settings, view), expected = structuredClone(index.gateStats(index.get("A.md"))); index.destroy();
+    const p = centerGatePolicy(structuredClone(view)), discover = f.catalog.discovery.discover.bind(f.catalog.discovery);
+    let calls = 0;
+    f.catalog.discovery.discover = async scope => { if (++calls === 1) { p.settings.excludeFilepaths.length = 0; p.settings.showPageNodes = false; } return discover(scope); };
+    compareGates(await f.makeReader().prepareCenterGates(request(), policy(), p, runtime()), full, request(), settings, expected);
+    let generation = 1;
+    const old = centerGatePolicy(view, { isCurrent: () => generation === 1 });
+    f.catalog.discovery.discover = async scope => { generation = 3; return discover(scope); };
+    rejected(await f.makeReader().prepareCenterGates(request(), policy(), old, runtime()), "superseded");
+    const obsolete = centerGatePolicy(view, { revision: "presentation:2", isCurrent: () => generation === 2 });
+    rejected(await f.makeReader().prepareCenterGates(request(), policy(), obsolete, runtime()), "superseded");
+    const latest = centerGatePolicy(view, { revision: "presentation:3", isCurrent: () => generation === 3 });
+    compareGates(await f.makeReader().prepareCenterGates(request(), policy(), latest, runtime()), full, request(), settings, expected, "presentation:3");
+  } finally { f.close(); }
+});
+
+test("full GraphIndex demonstrates why partial candidate metadata and degrees cannot certify sorted visible lists", async () => {
+  const f = await fixture(false, f => {
+    f.add("A.md", "", { Children: ["[[B]]", "[[C]]"] });
+    f.add("B.md", "", { aliases: ["Zebra"], Display: "Zulu" });
+    f.add("C.md", "", { aliases: ["Alpha"], Display: "Alpha" });
+    for (const letter of ["X", "Y", "Z"]) f.add(letter + ".md", "", { Friends: "[[B]]" });
+    for (const file of f.files.values()) f.resolutions.set(file.basename, file.path);
+  });
+  try {
+    const full = await fullNeighborhoodOracle(M, f, settings, runtime());
+    const privateResult = await f.makeReader().prepare(request(), policy(), runtime());
+    assert.equal(privateResult.outcome, "ready");
+    const partial = privateResult.preparation.compilation;
+    assert(full.node("B.md").neighbours.size > partial.node("B.md").neighbours.size, "Third-party degree is outside center/parent incidence");
+    assert.deepEqual(partial.node("B.md").aliases, []); assert.deepEqual(full.node("B.md").aliases, ["Zebra"]);
+    for (const nodeSortOrder of ["name-asc", "name-desc", "modified-asc", "modified-desc", "created-asc", "created-desc", "connections-asc", "connections-desc"]) {
+      const view = centerGateSettings({ nodeSortOrder, maxItemCount: 1, showFolderNodes: false });
+      const index = await fullCenterIndex(M, f, full, settings, view);
+      const undercovered = await fullCenterIndex(M, f, partial, settings, view);
+      try {
+        const actual = currentNeighborhoodView(index, "A.md"), incomplete = currentNeighborhoodView(undercovered, "A.md");
+        if (nodeSortOrder === "name-asc" || nodeSortOrder === "connections-asc") assert.notDeepEqual(actual.children, incomplete.children);
+        assert.equal(actual.gates.bottom.visibleCount, 2, "Top-N=1 must not truncate gate totals");
+        compareGates(await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(view), runtime()), full, request(), settings, actual.gates);
+      } finally { index.destroy(); undercovered.destroy(); }
+    }
+    // A non-reference scalar title field is host metadata, absent from every SourceEntityFact.
+    const view = centerGateSettings({ renderAlias: true, nameFields: "Display", maxItemCount: 1, showFolderNodes: false });
+    const first = await fullCenterIndex(M, f, full, settings, view);
+    const before = currentNeighborhoodView(first, "A.md"); first.destroy();
+    f.metadata.get("B.md").frontmatter.Display = "000 first";
+    const second = await fullCenterIndex(M, f, full, settings, view);
+    const after = currentNeighborhoodView(second, "A.md"); second.destroy();
+    assert.notDeepEqual(before.children, after.children, "Equal relation/entity facts cannot determine configured-field order");
+    assert.deepEqual(before.gates, after.gates);
+  } finally { f.close(); }
+});
+
+/** Gate readiness must never reinterpret missing or oversized relation coverage as zero. */
+test("gate requests inherit missing-root, incomplete-range and hot-parent rejection without source work", async () => {
+  const f = await fixture();
+  try {
+    const reader = f.makeReader(), p = centerGatePolicy(centerGateSettings()), root = f.catalog.state.root;
+    const check = guard(f);
+    f.catalog.state.root = null;
+    rejected(await reader.prepareCenterGates(request(), policy(), p, runtime()), "dependency-pending");
+    f.catalog.state.root = root;
+    const bucket = C.sourceDependencyBucket(C.contributorKey("node", "A.md"));
+    const key = JSON.stringify([root.build.slot, bucket, 0]), page = f.catalog.state.pages.get(key), pages = new Map(f.catalog.state.pages);
+    assert(page); f.catalog.state.pages.delete(key);
+    rejected(await reader.prepareCenterGates(request(), policy(), p, runtime()), "dependency-invalid");
+    f.catalog.state.pages = pages; check();
+  } finally { f.close(); }
+  const hot = await fixture(false, f => {
+    f.add("A.md", "");
+    for (let i = 0; i < 1025; i++) f.add("Image-" + i + ".png", "");
+  });
+  try {
+    const check = guard(hot);
+    const result = await hot.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(centerGateSettings()), runtime());
+    rejected(result, "backpressure"); assert(!("gates" in result)); check();
+  } finally { hot.close(); }
+});
+
+test("bounded gate visibility capture rejects oversized prefixes before discovery", async () => {
+  const f = await fixture();
+  try {
+    let discoveries = 0;
+    const discover = f.catalog.discovery.discover.bind(f.catalog.discovery);
+    f.catalog.discovery.discover = scope => { discoveries++; return discover(scope); };
+    const check = guard(f);
+    for (const excludeFilepaths of [Array(257).fill("A"), ["A".repeat(32769)]]) {
+      rejected(await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(centerGateSettings({ excludeFilepaths })), runtime()), "backpressure");
+    }
+    assert.equal(discoveries, 0); check();
+  } finally { f.close(); }
+});
+
+for (const fence of ["demand", "presentation"]) {
+  test(`gate projection yields and discards already-read physical inputs on ${fence} loss`, async () => {
+    const f = await fixture();
+    try {
+      let validations = 0, projecting = false, demand = true, presentationCurrent = true, time = 0, yields = 0;
+      const validate = f.port.validateSelections;
+      f.port.validateSelections = async (...args) => { const result = await validate(...args); validations++; return result; };
+      const reader = new M.CachedRequestedNeighborhoodReader(f.port, f.catalog.discovery, f.capture, { entity: ref => {
+        if (validations === 2) projecting = true;
+        return f.entities.get(ref.id);
+      } });
+      const rt = runtime({ isCurrent: () => demand, now: () => projecting ? ++time : 0, sliceBudgetMs: 1, yield: async () => {
+        if (!projecting) return;
+        yields++; if (fence === "demand") demand = false; else presentationCurrent = false;
+      } });
+      const check = guard(f);
+      const result = await reader.prepareCenterGates(request(), policy({ settings: assigned() }),
+        centerGatePolicy(centerGateSettings(), { isCurrent: () => presentationCurrent }), rt);
+      rejected(result, fence === "demand" ? "cancelled" : "superseded");
+      assert(!("gates" in result)); assert.equal(yields, 1); check();
+    } finally { f.close(); }
+  });
+}
+
+test("low-level gate projection rejects oversized, pathless and path-colliding inputs rather than claiming bound-page parity", async () => {
+  const f = await fixture(false, f => { f.add("A.md", "", { Children: ["[[Ghost1]]", "[[Ghost2]]"] }); });
+  try {
+    const full = await fullNeighborhoodOracle(M, f, settings, runtime()), center = full.node("A.md");
+    const original = center.neighbours, relation = [...original.values()].find(r => r.target.kind === "unresolved"); assert(relation);
+    let reads = 0;
+    const entities = { entity: ref => { reads++; return f.entities.get(ref.id); } };
+    const project = () => M.projectCachedCenterGates(full, request().center, false, centerGateSettings(), entities, runtime());
+    center.neighbours = new Map(Array.from({ length: M.MAX_CENTER_GATE_RELATIONS + 1 }, (_, i) => [String(i), relation]));
+    assert.deepEqual(await project(), { outcome: "unproved", reason: "backpressure" }); assert.equal(reads, 0);
+    center.neighbours = original;
+    const ghost = relation.target, path = ghost.semanticPath;
+    ghost.semanticPath = "x".repeat(524289);
+    assert.deepEqual(await project(), { outcome: "unproved", reason: "backpressure" });
+    ghost.semanticPath = undefined;
+    assert.deepEqual(await project(), { outcome: "unproved", reason: "unsupported-scope" });
+    ghost.semanticPath = path;
+    const other = [...original.values()].find(r => r.target.kind === "unresolved" && r.target.id !== ghost.id);
+    assert(other); other.target.semanticPath = path; other.isHidden = true;
+    assert.deepEqual(await project(), { outcome: "unproved", reason: "unsupported-scope" }, "A hidden collision could overwrite a visible edge in the legacy path binder");
+    reads = 0;
+    assert.deepEqual(await M.projectCachedCenterGates(full, request().center, false, centerGateSettings(), entities, runtime({ isCurrent: () => false })),
+      { outcome: "unproved", reason: "cancelled" }); assert.equal(reads, 0);
+  } finally { f.close(); }
+});
+
+test("duplicate declarations count once, target filters retain gate fill, and hidden relations contribute nothing", async () => {
+  const f = await fixture(false, f => {
+    f.add("A.md", "Children:: [[B]]\nChildren:: [[B]]", { Children: ["[[B]]", "[[B]]"], Hidden: "[[H]]" });
+    f.add("B.md", "", { Parent: "[[A]]" }); f.add("H.md", ""); f.add("I.md", "");
+    f.app.metadataCache.resolvedLinks["A.md"] = { "I.md": 1 };
+    for (const file of f.files.values()) f.resolutions.set(file.basename, file.path);
+  });
+  try {
+    const full = await fullNeighborhoodOracle(M, f, settings, runtime());
+    const view = centerGateSettings({ showFolderNodes: false, showInferredNodes: false });
+    const index = await fullCenterIndex(M, f, full, settings, view);
+    try {
+      assert(full.node("A.md").neighbours.get("H.md").isHidden);
+      assert.equal(index.gateStats(index.get("A.md")).bottom.visibleCount, 1);
+      const check = guard(f);
+      compareGates(await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(view), runtime()), full, request(), settings,
+        structuredClone(index.gateStats(index.get("A.md"))));
+      const hiddenTargets = centerGateSettings({ ...view, excludeFilepaths: [""] });
+      const result = await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(hiddenTargets), runtime());
+      assert.equal(result.outcome, "ready"); assert.deepEqual(result.gates.bottom, { hasAny: true, visibleCount: 0 });
+      assert(Object.values(result.gates).every(gate => gate.visibleCount === 0)); check();
+    } finally { index.destroy(); }
+  } finally { f.close(); }
+});
+
+test("full visible lists use displayed parents and role concatenation, unlike the complete semantic gate cover", async () => {
+  const f = await fixture(false, f => {
+    f.add("A.md", "", { Parent: ["[[P]]", "[[Q]]"], Children: ["[[B]]", "[[C]]"], Friends: "[[Zed]]", Previous: "[[Alpha]]" });
+    f.add("P.md", "", { Children: ["[[C]]", "[[Ponly]]", "[[Shared]]"] });
+    f.add("Q.md", "", { Children: ["[[Qonly]]", "[[Shared]]"] });
+    for (const name of ["B", "C", "Ponly", "Qonly", "Shared", "Zed", "Alpha"]) f.add(name + ".md", "");
+    for (const file of f.files.values()) f.resolutions.set(file.basename, file.path);
+  });
+  try {
+    const full = await fullNeighborhoodOracle(M, f, settings, runtime());
+    for (const nodeSortOrder of ["name-asc", "name-desc"]) {
+      const view = centerGateSettings({ nodeSortOrder, maxItemCount: 1, showFolderNodes: false, excludeFilepaths: ["Shared"] });
+      const index = await fullCenterIndex(M, f, full, settings, view);
+      try {
+        const visible = currentNeighborhoodView(index, "A.md"), ascending = nodeSortOrder === "name-asc";
+        assert.deepEqual(visible.parents.map(n => n.path), [ascending ? "P.md" : "Q.md"]);
+        assert.deepEqual(visible.siblings.map(n => n.path), [ascending ? "C.md" : "Qonly.md"]);
+        assert.deepEqual(visible.leftFriends.map(n => n.path), ["Zed.md"], "Left role precedes previous role, even if its title sorts later");
+        assert.equal(visible.gates.top.visibleCount, 2); assert.equal(visible.gates.bottom.visibleCount, 2); assert.equal(visible.gates.left.visibleCount, 2);
+        const result = await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(view), runtime());
+        compareGates(result, full, request(), settings, visible.gates);
+        assert(result.certificate.relations.parents.some(p => p.id === "P.md"));
+        assert(result.certificate.relations.parents.some(p => p.id === "Q.md"));
+      } finally { index.destroy(); }
+    }
+  } finally { f.close(); }
+});

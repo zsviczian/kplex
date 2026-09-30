@@ -2,14 +2,17 @@
  * Private clean-host neighborhood relation closure. Complete neutral center incidence is compiled
  * under one captured policy; a second combined center/parent range closes sibling witnesses in
  * original contributor order. Both passes use the canonical cached compiler, never a graph mirror.
- * Only final root/head/journal/host/policy/demand-fenced relation inputs escape. Presentation, gate
- * totals, GraphIndex publication, source acquisition and changed-host repair are not capabilities.
+ * Only final root/head/journal/host/policy/demand-fenced inputs escape. A separate private gate
+ * request also captures visibility policy and proves physical target facets; sorted visible lists,
+ * GraphIndex publication, source acquisition and changed-host repair are not capabilities.
  */
 import type { GraphCompilerRuntime, PortableGraphCompilation } from "../core/graph/compiler";
 import type { SourcePatchReadPort } from "../core/graph/patch";
 import { classifyRelation } from "../core/graph/resolver";
 import type { SourceEntityRef } from "../core/graph/source";
 import type { CachedPairCapture } from "./CachedRequestedPair";
+import { captureCachedCenterGateSettings, projectCachedCenterGates,
+  type CachedCenterGatePolicy, type CachedCenterGates } from "./CachedCenterGateProjection";
 import { CachedSourceSemanticReader, captureCachedSemanticSettings,
   type CachedSemanticPolicy, type CachedSemanticPreparation } from "./CachedSourceSemantics";
 import { MAX_CONTRIBUTOR_ENDPOINTS, type ContributorCertificate, type ContributorDiscoveryResult,
@@ -38,6 +41,21 @@ export type CachedNeighborhoodPreparation = Failure | Readonly<{
   certificate: CachedNeighborhoodCertificate;
   preparation: Extract<CachedSemanticPreparation, { outcome: "ready" }>;
   work: Readonly<{ passes: number; sourceReplays: number; familyVisits: number }>;
+}>;
+
+/** Distinct from the relation-only result: counts are certified for this center and visibility only. */
+export type CachedCenterGatePreparation = Failure | Readonly<{
+  outcome: "ready";
+  coverage: "complete-center-gates";
+  certificate: Readonly<{
+    coverage: "complete-center-gates";
+    relations: CachedNeighborhoodCertificate;
+    presentationRevision: string;
+    visibleLists: "not-certified";
+  }>;
+  gates: CachedCenterGates;
+  preparation: Extract<CachedSemanticPreparation, { outcome: "ready" }>;
+  work: Readonly<{ passes: number; sourceReplays: number; familyVisits: number; gateRelations: number; gateEntityReads: number }>;
 }>;
 
 /** Preserve exact identity facets without retaining a compiled node or its relationship map. */
@@ -103,13 +121,36 @@ export class CachedRequestedNeighborhoodReader {
    * concatenated. The first private compilation goes out of scope before a second is constructed.
    * Empty/no-parent scopes take one pass. Any failure discards everything and triggers no fallback.
    */
-  async prepare(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
+  prepare(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
     runtime: GraphCompilerRuntime): Promise<CachedNeighborhoodPreparation> {
-    const revision = policy.revision;
+    return this.prepareScope(request, policy, runtime);
+  }
+
+  /**
+   * Prepare only the center's four pre-top-N gate totals under a separate captured visibility policy.
+   * This adds no sorted-list, other-node, editing or publication authority. Projection happens inside
+   * the original lifetime, before its final awaited contributor revalidation, not after a ready read.
+   */
+  prepareCenterGates(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
+    presentation: CachedCenterGatePolicy, runtime: GraphCompilerRuntime): Promise<CachedCenterGatePreparation> {
+    return this.prepareScope(request, policy, runtime, presentation);
+  }
+
+  /** Relation-only overload retains the existing private API without adding gate authority. */
+  private prepareScope(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
+    runtime: GraphCompilerRuntime): Promise<CachedNeighborhoodPreparation>;
+  /** Gate overload shares the complete source/host lifetime with the additional projection. */
+  private prepareScope(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
+    runtime: GraphCompilerRuntime, presentation: CachedCenterGatePolicy): Promise<CachedCenterGatePreparation>;
+  /** Run one canonical closure; expose neither variant until all of its inputs survive finality. */
+  private async prepareScope(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
+    runtime: GraphCompilerRuntime, presentation?: CachedCenterGatePolicy): Promise<CachedNeighborhoodPreparation | CachedCenterGatePreparation> {
+    const revision = policy.revision, presentationRevision = presentation?.revision;
     const owners = new Map<string, CachedSourceRequest>();
     /** Capture callbacks retain only parent demand/policy, avoiding a cycle through their own hosts. */
     const requestReason = (): SourceReason => !runtime.isCurrent() ? "cancelled"
-      : !policy.isCurrent() || policy.revision !== revision ? "superseded" : "ready";
+      : !policy.isCurrent() || policy.revision !== revision
+        || (presentation && (!presentation.isCurrent() || presentation.revision !== presentationRevision)) ? "superseded" : "ready";
     /** Previously captured owners stay live across both passes, including the final awaited fence. */
     const reason = (): SourceReason => {
       const parent = requestReason();
@@ -128,6 +169,8 @@ export class CachedRequestedNeighborhoodReader {
     if (!request || request.kind !== "neighborhood" || !request.center) return selectedSourceFailure("unsupported-scope");
     try {
       const center = copyRef(request.center);
+      const visibility = presentation ? captureCachedCenterGateSettings(presentation.settings) : null;
+      if (presentation && !visibility) return selectedSourceFailure("backpressure");
       const capturedPolicy: CachedSemanticPolicy = { revision, settings: captureCachedSemanticSettings(policy.settings),
         /** One immutable settings snapshot is used across both canonical compilations. */
         isCurrent: (): boolean => requestReason() === "ready",
@@ -171,15 +214,27 @@ export class CachedRequestedNeighborhoodReader {
           // Keep only bounded refs/owner stamps/work, not this preparation or its graph, across passes.
           continue;
         }
+        const projected = visibility ? await projectCachedCenterGates(prepared.compilation, center,
+          capturedPolicy.settings.inferAllLinksAsFriends, visibility, this.entities, scopedRuntime) : null;
+        if (!current()) return selectedSourceFailure(reason());
+        if (projected && projected.outcome !== "ready") return selectedSourceFailure(projected.reason);
         const validated = await this.discovery.revalidate(discovered);
         if (!current()) return selectedSourceFailure(reason());
         if (validated !== "ready") return selectedSourceFailure(validated);
         // No source callbacks exist for empty/host-only scopes, but their host observation must close.
         if (!this.discovery.isHostCurrent()) return selectedSourceFailure("host-catalog-stale");
         if (!current()) return selectedSourceFailure(reason());
-        return { outcome: "ready", coverage: "complete-neighborhood-relations",
-          certificate: { coverage: "complete-neighborhood-relations", center, parents, policyRevision: revision,
-            gateTotals: "not-certified", contributors: discovered }, preparation: prepared,
+        const certificate: CachedNeighborhoodCertificate = { coverage: "complete-neighborhood-relations",
+          center, parents, policyRevision: revision, gateTotals: "not-certified", contributors: discovered };
+        if (projected && presentationRevision !== undefined) return {
+          outcome: "ready", coverage: "complete-center-gates",
+          certificate: { coverage: "complete-center-gates", relations: certificate,
+            presentationRevision, visibleLists: "not-certified" },
+          gates: projected.gates, preparation: prepared,
+          work: { passes: pass + 1, sourceReplays, familyVisits,
+            gateRelations: projected.work.relations, gateEntityReads: projected.work.entityReads },
+        };
+        return { outcome: "ready", coverage: "complete-neighborhood-relations", certificate, preparation: prepared,
           work: { passes: pass + 1, sourceReplays, familyVisits } };
       }
       return selectedSourceFailure("dependency-invalid");

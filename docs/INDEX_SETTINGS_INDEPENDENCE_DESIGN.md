@@ -25,6 +25,15 @@ review fixed one missing browser-bundle entry; the aggregate `verify` still fail
 50 ms URL-heavy timer at 53.3 ms. See [the neighborhood review](validation/settings-independent-indexing-si4-neighborhood-review-2026-09-30.md).
 SI4b1/SI4b2/SI4c and SI5 are not advanced.
 
+**Private SI4 center-gate slice (2026-09-30; reviewed, not SI4b1 acceptance):**
+[The center-gate proof](SOURCE_CENTER_GATE_PROOF.md) adds a separate private, finality-fenced result
+for the requested center's four pre-top-N gate fills and visible-path counts. It requires exact
+current physical facts and rejects missing/hot/colliding scopes. Sorted visible lists remain
+uncertified because selected title inputs and complete candidate degrees are not available from
+the center/parent relation cover. Main-agent source 151/151, serial real Chromium 111/111,
+architecture/core/lint/build pass; full `verify` remains red on the unchanged URL-heavy timer.
+There is no production caller, graph publication or settings route.
+
 Design review and implementation brief for Sol, 2026-09-29.
 
 **Original design baseline (historical; current implementation status is above).** Reviewed on `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`, initially clean. The maintainer requires ordinary ontology and presentation changes to preserve indexed source data. This document proposes the implementation and acceptance sequence; it does not resume C15–C26, claim a fix, or authorize a release.

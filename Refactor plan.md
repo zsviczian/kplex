@@ -1597,3 +1597,56 @@ are in `HANDOFF.md` and the contributor-discovery contract. No commit/publicatio
 - **Verdict:** accepted as a bounded, uncalled private relation-input slice, not SI4b1/SI4b2/SI4c acceptance or a live settings fix. The center and all canonical semantic-parent incidence ranges are authenticated under one clean root/host and final policy; exact gate totals, presentation and full scene remain uncertified. Changed-host BREF-1 remains UNKNOWN. C15–C26 stay paused.
 - **Review correction/evidence:** added the missing `CachedSourceSemanticReader` entry to the new Chromium test bundle. On Node 22.22.3 with real dependencies, source 122/122, serial real Chromium 96/96 (including all 28 new subcases), architecture 7/7, core 60/60, Obsidian lint and production build pass. The default parallel browser command stalled and was stopped; it is not a pass. `npm run verify` still fails the unchanged URL-heavy timer at 53.3 ms versus 50 ms; no threshold or golden changed. See [the review](docs/validation/settings-independent-indexing-si4-neighborhood-review-2026-09-30.md).
 - **Next:** prove the exact inputs for one visible requested scene and its gate statistics under one policy, including presentation/target metadata and complete negative ranges. Implement a bounded private projection only if the current contracts close; otherwise return the specific missing authenticated range or continuation contract. Keep publication, settings/UI routing, changed-host S2b and broader refactoring out of scope. No maintainer manual test applies to this uncalled slice.
+
+
+### 2026-09-30 — SI4 private center-gate proof returned for review
+
+- **Scope/invariant:** inventoried the existing GraphIndex/PlexGraph reads before coding in
+  [the center-gate proof](docs/SOURCE_CENTER_GATE_PROOF.md). A complete center/semantic-parent
+  relation cover plus bounded, same-clean-host exact physical entity reads proves only the requested
+  center's four pre-top-N `hasAny`/unique-visible-path totals under captured semantic and presentation
+  policies. Hidden targets retain fill; hidden relations contribute nothing. Negative relation
+  coverage does not prove center existence. Duplicate declarations count once; pathless or
+  distinct-ID/path-colliding scopes fail closed. This is a returned private proposal, not checkpoint
+  acceptance or a live settings fix.
+- **Missing visible-list premise:** candidate aliases and selected non-reference title fields, URL
+  base-label support/order, and complete raw candidate degrees are not all owned by the two-pass
+  relation certificate. Sorting connection counts from the partial candidate maps is unsound.
+  Displayed/top-N parents differ from the complete semantic frontier; occupied sets contain only
+  displayed direct neighbors. The next minimum contracts are exact selected presentation reads and
+  authenticated candidate-incidence/degree continuation at one root/host/policy. No candidate prefix
+  may authorize top-N or totals. Full sorted lists, other nodes' gates, cross-links, search, edit
+  eligibility and publication remain explicitly outside the returned capability.
+- **Implementation:** added a separate `prepareCenterGates` path inside the original private reader's
+  lifetime and a bounded visibility/count projection that delegates classification to the canonical
+  resolver. It snapshots visibility/presentation revision, reads each required physical identity once,
+  rejects missing/inconsistent facts, yields through the injected runtime, and closes final root,
+  heads, journals, host, captured-host callbacks, semantic/presentation policy and demand fences
+  after projection. Limits add 4,096 incident relations, 1 MiB estimated path storage, and 256/64 KiB
+  excluded-prefix admission; existing parent/contributor/replay limits still apply. The old relation
+  certificate retains `gateTotals: not-certified`; the distinct gate certificate retains
+  `visibleLists: not-certified`. No production/UI route, schema, second semantic engine, all-owner
+  fallback or rejected S2b transition was added.
+- **Diagnostic evidence, not required-runtime acceptance:** Node 22.16.0 / TypeScript 5.8.3; source
+  **151/151**, including **58/58** requested-neighborhood cases (29 added); architecture **7/7** and
+  strict private-module/core-only compilation pass. Full actual GraphIndex binding plus independent
+  full canonical collection verifies the gate oracle and exhibits the missing list premises. Core
+  runtime is **36 pass / 3 fail**: two missing-esbuild imports and the unchanged normalized-source
+  target assertion, reproduced in the pristine archive (**6/7**). Lint has no ESLint executable;
+  production build lacks real Obsidian/React dependencies; aggregate verify stops at core. A separate
+  `npm test` run passes its entire indexing fixture including the unchanged strict timers, then
+  fails the following test group (**97 pass / 5 fail**, four missing-esbuild imports and that same
+  assertion). This single diagnostic run does not clear the main agent's earlier strict-timer
+  failure. Six serial Chromium bootstraps all fail with `ERR_BLOCKED_BY_ADMINISTRATOR`; the 15 new
+  real-IDB gate subcases remain pending. No test, threshold, golden or browser policy was weakened.
+- **Next/review:** rerun with required Node and real dependencies/Chromium, first the full-view/gate
+  comparison and final awaited presentation/physical-target faults, then all source/browser suites
+  and actual build/verify. No native consumer exists and no maintainer manual workflow is requested.
+  The return is uncommitted and archive-relative; BREF-1/topology remain UNKNOWN, C15–C26 stay paused,
+  SI4b1/SI4b2/SI4c remain open and SI5 retains latency/memory/device acceptance.
+
+### 2026-09-30 — SI4 private center-gate proof reviewed
+
+- **Verdict/scope:** accepted as an uncalled bounded private center-gate input, not SI4b1/SI4b2/SI4c or SI5 acceptance. Exact pre-top-N `hasAny` and unique visible-path counts are proven for one present center under current clean host/semantic/presentation/demand fences. Sorted visible lists and other nodes' gates remain uncertified because target presentation inputs and complete candidate degrees are absent. Changed-host BREF-1 remains UNKNOWN; C15–C26 stay paused.
+- **Review evidence:** Node 22.22.3 with real dependencies: source 151/151, six serial real Chromium suites 111/111, architecture 7/7, core 60/60, Obsidian lint and production build pass. A focused browser run once lingered after reporting all passing assertions; a temporary handle probe found only standard output sockets and the serial full run exited. `npm run verify` still fails the unchanged strict URL-heavy timer at 59.7 ms versus 50 ms. See [the review](docs/validation/settings-independent-indexing-si4-center-gates-review-2026-09-30.md). No native/manual test applies to uncalled private code.
+- **Next bounded SI4 task:** authenticate finite exact-ID selected presentation inputs for one candidate, including alias/selected-field precedence and negative evidence, under the same source/host/presentation lifetime. Preserve the existing title owner and do not claim complete sorted lists, candidate degrees, UI routing or publication. A later separate contract must close raw candidate degree and hot-range continuation before top-N/list parity.

@@ -5,7 +5,10 @@ import { chromiumHarness } from "./support/browserTypeScript.mjs";
 import { contributorBrowserBundle, contributorBrowserInitialize } from "./support/contributorBrowserFixture.mjs";
 import { configureNeighborhood, fullNeighborhoodOracle, neighborhoodView } from "./support/requestedNeighborhoodFixture.mjs";
 
+import { centerGateSettings, centerGatePolicy, fullCenterIndex, currentNeighborhoodView, centerVisibilityCases } from "./support/requestedCenterGateFixture.mjs";
+
 const bundle = await contributorBrowserBundle([
+  "src/index/CachedCenterGateProjection.ts", "src/index/GraphIndex.ts", "src/index/GraphBuilder.ts",
   "src/index/CachedRequestedNeighborhood.ts", "src/index/CachedSourceSemantics.ts", "src/core/graph/compiler.ts", "src/core/graph/resolver.ts",
   "src/core/graph/evidence.ts", "src/adapters/obsidian/hostLinkSourceCollector.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts", "src/adapters/obsidian/metadataSourceCollector.ts",
@@ -15,6 +18,25 @@ const bundle = await contributorBrowserBundle([
 const initialize = `(() => {
   const M=sourceModules;
   window.configureNeighborhood=${configureNeighborhood.toString()};
+  window.centerGateSettings=${centerGateSettings.toString()};
+  window.centerGatePolicy=${centerGatePolicy.toString()};
+  window.fullCenterIndex=${fullCenterIndex.toString()};
+  window.currentNeighborhoodView=${currentNeighborhoodView.toString()};
+  window.centerVisibilityCases=${centerVisibilityCases.toString()};
+  window.nGateCompare=(result,full,scope,settings,expected)=>{
+    equal(result.outcome,'ready','Complete center gate proof: '+JSON.stringify(result));
+    equal(result.coverage,'complete-center-gates','Distinct gate coverage');
+    equal(result.certificate.visibleLists,'not-certified','No sorted list authority');
+    equal(result.certificate.relations.gateTotals,'not-certified','Relation-only certificate unchanged');
+    equal(result.certificate.presentationRevision,'presentation:1','Independent visibility token');
+    equal(Object.keys(result.gates).sort(),['bottom','left','right','top'],'Exactly four center gates');
+    for(const gate of ['top','bottom','left','right']){
+      equal(result.gates[gate].hasAny,expected[gate].hasAny,'Full current GraphIndex '+gate+' fill');
+      equal(result.gates[gate].visibleCount,expected[gate].visibleCount,'Full current GraphIndex '+gate+' count');
+    }
+    ok(!('neighborhood'in result)&&!('siblings'in result),'No unproved lists');
+    equal(neighborhoodView(M,result.preparation.compilation,scope.center,settings),neighborhoodView(M,full,scope.center,settings),'Full canonical semantic oracle');
+  };
   window.fullNeighborhoodOracle=${fullNeighborhoodOracle.toString()};
   window.neighborhoodView=${neighborhoodView.toString()};
   window.nSettings={hierarchy:{hidden:['Hidden'],parents:['Parent'],children:['Children'],leftFriends:['Friends'],
@@ -315,6 +337,159 @@ test("real Chromium private requested-neighborhood closure and every terminal fe
           const check=nGuard(f),original=f.discovery.discover.bind(f.discovery);let calls=0;
           f.discovery.discover=scope=>{calls++;return original(scope);};
           nFailed(await nReader(f).prepare(nRequest(),nPolicy(),runtime()),'backpressure');equal(calls,1,'No displayed parent prefix');check();return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+    await t.test("private gates equal full GraphIndex visibility/sort/top-N views without source writes", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await nSeed('center-gates-views',false,f=>{
+          configureNeighborhood(f);Object.assign(f.metadata.get('A.md').frontmatter,{Children:['[[image.png]]','[[Missing]]'],Previous:'[[T]]',Next:'[[S]]',Hidden:'[[D]]'});
+        });
+        try{
+          const settings=nAssigned(),full=await fullNeighborhoodOracle(M,f,settings,runtime());
+          const views=centerVisibilityCases().map(centerGateSettings),expected=[];
+          for(const view of views){const index=await fullCenterIndex(M,f,full,settings,view);
+            try{expected.push(currentNeighborhoodView(index,'A.md').gates);}finally{index.destroy();}}
+          const before=await nSnapshot(f),check=nGuard(f);
+          for(const [i,view] of views.entries()){
+            const result=await nReader(f).prepareCenterGates(nRequest(),nPolicy(settings),centerGatePolicy(view),runtime());
+            nGateCompare(result,full,nRequest(),settings,expected[i]);ok(result.work.gateEntityReads>0,'Exact current physical reads');
+          }
+          check();equal(await nSnapshot(f),before,'Zero source-head/chunk/posting/root writes');return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("gate totals retain dormant/image/inferred/hidden policies and third-party synthetic support", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await nSeed('center-gates-semantics');
+        try{
+          const variants=[nSettings,nAssigned(),{...nAssigned(),hierarchy:{...nAssigned().hierarchy,hidden:['Hidden','Dormant']}},
+            {...nSettings,inferAllLinksAsFriends:true},{...nSettings,inverseInfer:true},{...nSettings,nodeImageProperty:'Image',thumbnailProperty:'Image'}];
+          const view=centerGateSettings({showInferredNodes:false}),cases=[];
+          for(const settings of variants){
+            const full=await fullNeighborhoodOracle(M,f,settings,runtime());
+            const scopes=[nRequest(),...[...full.nodes.values()].filter(n=>['tag','url'].includes(n.kind)).map(center=>({kind:'neighborhood',center}))];
+            const index=await fullCenterIndex(M,f,full,settings,view);
+            try{cases.push({settings,full,scopes:scopes.map(scope=>({scope,gates:structuredClone(index.gateStats(index.get(scope.center.semanticPath)))}))});}finally{index.destroy();}
+          }
+          const before=await nSnapshot(f),check=nGuard(f);
+          for(const {settings,full,scopes} of cases)for(const {scope,gates} of scopes)
+            nGateCompare(await nReader(f).prepareCenterGates(scope,nPolicy(settings),centerGatePolicy(view),runtime()),full,scope,settings,gates);
+          check();equal(await nSnapshot(f),before,'No synthetic or policy source rewrites');return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("negative relation coverage is not center existence; real empty center has four zero gates", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await nSeed('center-gates-empty',false,()=>{});
+        try{
+          const before=await nSnapshot(f),check=nGuard(f),view=centerGatePolicy(centerGateSettings());
+          nFailed(await nReader(f).prepareCenterGates(nEmpty(),nPolicy(),view,runtime()),'missing');
+          const scope={kind:'neighborhood',center:f.entities.get('folder:/').entity};
+          const result=await nReader(f).prepareCenterGates(scope,nPolicy(),view,runtime());
+          equal(result.outcome,'ready','Existing empty root is a center');equal(Object.values(result.gates),Array(4).fill({hasAny:false,visibleCount:0}),'Proved empty counts');
+          equal(result.work.gateEntityReads,0,'No manufactured physical file');
+          check();equal(await nSnapshot(f),before,'Negative read is read-only');return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("center gates preserve the complete no-other-child witness range", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await nSeed('center-gates-no-child',false,f=>{f.add('P.md','',{Children:'[[Ghost]]'});f.add('D.md','');});
+        try{
+          const full=await fullNeighborhoodOracle(M,f,nSettings,runtime()),view=centerGateSettings();
+          const ghost=[...full.nodes.values()].find(n=>n.kind==='unresolved'),scope={kind:'neighborhood',center:ghost};
+          const index=await fullCenterIndex(M,f,full,nSettings,view),expected=structuredClone(index.gateStats(index.get(ghost.semanticPath)));index.destroy();
+          const before=await nSnapshot(f),check=nGuard(f);
+          const result=await nReader(f).prepareCenterGates(scope,nPolicy(),centerGatePolicy(view),runtime());nGateCompare(result,full,scope,nSettings,expected);
+          equal(result.work.passes,2,'Negative parent range authenticated');equal(neighborhoodView(M,result.preparation.compilation,ghost,nSettings).siblings,[],'No other child');
+          check();equal(await nSnapshot(f),before,'No source changes');return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    for (const fence of ["source", "host", "journal", "root", "semantic", "presentation", "presentation-token", "demand", "captured-host"]) {
+      await t.test(`computed gate totals are discarded after final awaited ${fence} mutation`, async () => {
+        assert.equal(await browser.evaluate(`(async()=>{
+          const M=sourceModules,f=await nSeed('center-gates-fence-${fence}');
+          try{
+            let semanticCurrent=true,presentationCurrent=true,demand=true,hostCurrent=true,calls=0;
+            const semantic=nPolicy(nAssigned());semantic.isCurrent=()=>semanticCurrent;
+            const presentation=centerGatePolicy(centerGateSettings(),{isCurrent:()=>presentationCurrent});
+            const revalidate=f.discovery.revalidate.bind(f.discovery);
+            f.discovery.revalidate=async certificate=>{
+              if(++calls!==3)return revalidate(certificate);
+              const after=['semantic','presentation','presentation-token','demand','captured-host'].includes('${fence}');
+              const validated=after?await revalidate(certificate):null;
+              const db=await f.cache.open();
+              if('${fence}'==='source')await edit(db,['sourceHeads'],async tx=>{const store=tx.objectStore('sourceHeads'),head=await value(store.get('T.md'));store.put({...head,sourceRevision:'later'});});
+              if('${fence}'==='host')f.app.metadataCache.trigger('changed',f.files.get('D.md'));
+              if('${fence}'==='journal')equal((await f.repository.tombstone('D.md')).outcome,'activated','Real UNKNOWN journal ticket');
+              if('${fence}'==='root'){
+                const root=await f.repository.readDependencyRoot(()=>true),data=JSON.parse(root.data),build={...root.build,generation:root.build.generation+'-gate-replacement'};
+                data.build=build;const text=JSON.stringify(data),digest=await f.repository.observationDigest(text);
+                await edit(db,['meta'],tx=>tx.objectStore('meta').put({...root,build,data:text,digest}));
+              }
+              if('${fence}'==='semantic')semanticCurrent=false;
+              if('${fence}'==='presentation')presentationCurrent=false;
+              if('${fence}'==='presentation-token')presentation.revision='presentation:2';
+              if('${fence}'==='demand')demand=false;
+              if('${fence}'==='captured-host')hostCurrent=false;
+              return after?validated:revalidate(certificate);
+            };
+            const capture=async(id,rt)=>{const result=await f.acquisition.captureForReplay(id,nPresentation,rt);
+              if(result.outcome==='ready'){const current=result.request.host.isCurrent;result.request={...result.request,host:{...result.request.host,isCurrent:()=>hostCurrent&&current()}};}return result;};
+            const result=await nReader(f,f.discovery,capture).prepareCenterGates(nRequest(),semantic,presentation,{...runtime(),isCurrent:()=>demand});
+            nFailed(result);ok(!('gates'in result),'No partial totals');equal(calls,3,'Mutation at final closure fence');equal(f.repository.readers.size,0,'Read leases released');
+            if('${fence}'==='demand')equal(result.reason,'cancelled','Demand reason');
+            if(['semantic','presentation','presentation-token'].includes('${fence}'))equal(result.reason,'superseded','Policy reason');return true;
+          }finally{f.close();}
+        })()`), true);
+      });
+    }
+
+    await t.test("unavailable physical facts never become virtual targets or ready zero counts", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await nSeed('center-gates-missing-facet');
+        try{
+          let validations=0,projectionReads=0;
+          const port={readSelected:f.repository.readSelected.bind(f.repository),validateSelections:async(...args)=>{
+            const result=await f.repository.validateSelections(...args);validations++;return result;
+          }};
+          const reader=new M.CachedRequestedNeighborhoodReader(port,f.discovery,(id,rt)=>f.acquisition.captureForReplay(id,nPresentation,rt),
+            {entity:ref=>{if(validations===2&&ref.id==='B.md'){projectionReads++;return undefined;}return f.entities.get(ref.id);}});
+          const before=await nSnapshot(f),check=nGuard(f);
+          const result=await reader.prepareCenterGates(nRequest(),nPolicy(nAssigned()),centerGatePolicy(centerGateSettings()),runtime());
+          nFailed(result,'missing');equal(projectionReads,1,'Missing physical target at gate projection');ok(!('gates'in result),'No empty substitute');check();equal(await nSnapshot(f),before,'No fallback acquisition');return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("full GraphIndex exposes missing candidate alias/degree contracts while gate proof remains exact", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await nSeed('center-gates-counterexample',false,f=>{
+          f.add('A.md','',{Children:['[[B]]','[[C]]']});f.add('B.md','',{aliases:['Zebra'],Display:'Zulu'});f.add('C.md','',{aliases:['Alpha'],Display:'Alpha'});
+          for(const letter of ['X','Y','Z'])f.add(letter+'.md','',{Friends:'[[B]]'});
+        });
+        try{
+          const full=await fullNeighborhoodOracle(M,f,nSettings,runtime()),partialResult=await nReader(f).prepare(nRequest(),nPolicy(),runtime());
+          equal(partialResult.outcome,'ready','Relation cover ready');const partial=partialResult.preparation.compilation;
+          ok(full.node('B.md').neighbours.size>partial.node('B.md').neighbours.size,'Partial degree is not complete');
+          equal(partial.node('B.md').aliases,[],'Target aliases not acquired by incoming contributors');equal(full.node('B.md').aliases,['Zebra'],'Full target metadata');
+          const cases=[];
+          for(const nodeSortOrder of ['name-asc','name-desc','modified-asc','modified-desc','created-asc','created-desc','connections-asc','connections-desc']){
+            const view=centerGateSettings({nodeSortOrder,maxItemCount:1,showFolderNodes:false}),index=await fullCenterIndex(M,f,full,nSettings,view),undercovered=await fullCenterIndex(M,f,partial,nSettings,view);
+            try{const expected=currentNeighborhoodView(index,'A.md'),incomplete=currentNeighborhoodView(undercovered,'A.md');
+              if(nodeSortOrder==='name-asc'||nodeSortOrder==='connections-asc')ok(JSON.stringify(expected.children)!==JSON.stringify(incomplete.children),'Visible list counterexample');
+              equal(expected.gates.bottom.visibleCount,2,'No top-N count truncation');cases.push({view,gates:expected.gates});
+            }finally{index.destroy();undercovered.destroy();}
+          }
+          const before=await nSnapshot(f),check=nGuard(f);
+          for(const {view,gates} of cases)nGateCompare(await nReader(f).prepareCenterGates(nRequest(),nPolicy(),centerGatePolicy(view),runtime()),full,nRequest(),nSettings,gates);
+          check();equal(await nSnapshot(f),before,'Read-only gate proof despite unsupported lists');return true;
         }finally{f.close();}
       })()`), true);
     });
