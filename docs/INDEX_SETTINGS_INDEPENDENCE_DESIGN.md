@@ -60,6 +60,17 @@ This is not a scalar MetadataCache reader, title facade,
 sorted-list certificate, settings route or incremental catalog implementation. All SI4 checkpoint
 and C15–C26 exclusions above remain in force.
 
+**SI4 finite candidate raw degrees (2026-09-30; private slice reviewed, not SI4b1 acceptance):**
+[The finite-incidence proof](SOURCE_CANDIDATE_DEGREE_PROOF.md) composes one clean-root candidate
+union with canonical replay and path-injective binding checks. It returns only exact raw map sizes
+and a distinct private certificate, never visible counts or sorted lists. Both existing v2/v3 formats
+suffice; no storage/schema, production caller or settings route changes. Main-agent source 269/269,
+serial real Chromium/IndexedDB 145/145, architecture/core/lint/build and full `verify` pass.
+See [the review](validation/settings-independent-indexing-si4-candidate-degrees-review-2026-09-30.md).
+A fresh full GraphIndex counterexample separately proves that tied
+candidate encounter order can differ even when these degrees agree. Scalar/alias completion, stable
+list order and hot-range continuation remain open; no SI4 checkpoint is advanced.
+
 Design review and implementation brief for Sol, 2026-09-29.
 
 **Original design baseline (historical; current implementation status is above).** Reviewed on `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`, initially clean. The maintainer requires ordinary ontology and presentation changes to preserve indexed source data. This document proposes the implementation and acceptance sequence; it does not resume C15–C26, claim a fix, or authorize a release.

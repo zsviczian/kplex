@@ -11,6 +11,16 @@ its gate/presentation exclusions are deliberate. This isolation is not SI4b1 acc
 public query/settings route is added. S2a still certifies only an
 unchanged canonical host. See the [review and native trace](validation/settings-independent-indexing-si4-lease-and-host-probe-2026-09-30.md).
 
+**Finite candidate-degree follow-up (2026-09-30; private slice reviewed):**
+[The separate proof and bounds](SOURCE_CANDIDATE_DEGREE_PROOF.md) use a single existing neighborhood
+lookup over exact candidates to authenticate the complete union of their incidence. Canonical replay
+supplies raw neighbor-map sizes; path-injective legacy binding, exact physical facts and every final
+root/head/journal/host/policy/demand fence remain required. This is not the center/parent cover and
+never certifies candidate order, visible lists or a continuation. V2/v3 and all storage/source/body
+formats are unchanged. The new reader has no production caller; changed-host/SI4/publication status
+above is unchanged. Required-runtime and real-browser checks passed in the
+[main-agent review](validation/settings-independent-indexing-si4-candidate-degrees-review-2026-09-30.md).
+
 The accepted S1/S2a baseline uses an additive database-v7 upgrade that preserves source/body/graph
 data and derivative root format 2.
 After catalog bootstrap, source mutations retain the original root and owner evidence for private

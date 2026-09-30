@@ -1755,3 +1755,68 @@ are in `HANDOFF.md` and the contributor-discovery contract. No commit/publicatio
 - **Verdict:** accepted only the uncalled URL-label order coordinate and exact URL-name input reader. Full Markdown inventory order is captured once during explicit catalog acquisition as a complete, authenticated derivative-v3 ordinal permutation; structural relation order remains separate. V2 roots retain relation reads but cannot certify URL titles. No scalar MetadataCache reader, sorted list, public/settings route or SI4b1/SI4b2/SI4c/SI5 checkpoint is accepted. C15–C26 remain paused.
 - **Independent evidence:** Node 22.22.3 with real dependencies: source 228/228, architecture 7/7, core 60/60, lint/build pass, and all seven serial real Chromium/IndexedDB suites 131/131 (including 19 new URL cases). `verify` fails only the unchanged strict URL-heavy timer at 57.7 ms versus 50 ms. The sandbox-only localhost denial was resolved for the browser validation. No configured disposable Obsidian vault was available; no native workflow is reached by this private reader. See [the review](docs/validation/settings-independent-indexing-si4-url-title-review-2026-09-30.md).
 - **Next:** offline finite candidate raw-degree proof is the next independent SI4 input. The online native MetadataCache completion/physical-revision trace remains required before scalar/absence reads. Hot continuation, visible lists, changed-host certification and production publication remain open. No maintainer manual test is needed for this private slice.
+
+### 2026-09-30 — SI4 finite candidate raw-degree input returned; unaccepted
+
+- **Scope/proof:** unaccepted offline return for independent main-agent review. The
+  [finite-degree proof](docs/SOURCE_CANDIDATE_DEGREE_PROOF.md) traces full GraphBuilder binding and
+  GraphIndex connection sorting. One existing complete neutral candidate-incidence union, whole-owner
+  canonical replay and exact path-injective binding yield raw map cardinalities, including hidden
+  relations and zero-degree present nodes. Missing is not zero; the center/parent relation cover can
+  undercount candidate incidence. Directed hidden, duplicate/opposite declarations, inference,
+  structural/tag/URL/Date and image-suppression cases use the canonical compiler, never a new classifier.
+- **Implementation:** `CachedRequestedCandidateDegreeReader` has no production caller. It copies the
+  exact finite candidate set and policy before awaiting, captures each selected SourceId once, checks
+  physical/source/entity facets independently, compiles once and returns only `{id, rawDegree}` inputs,
+  bounded work counters and a separate `complete-candidate-raw-degrees` certificate. All root, selected
+  heads, source observations, host, policy and demand fences survive the last await; any open ticket,
+  including known unrelated impact, still blocks ready. No graph, source write, title selection,
+  visibility, sorting, top-N, publication, query-time inventory or acquisition is added.
+- **Bounds/compatibility:** existing 32 endpoints, 256 owners, 1,024 structural facts, 256 query pages,
+  8 MiB charged discovery decode and 32 MiB estimated replay scope bounds remain. Additional limits:
+  8,192 compiled nodes, 4,096 aggregate candidate map entries, 32,768 entity reads, 1 MiB charged
+  request identity and separately node identities, 1,024 policy entries/64 KiB policy strings.
+  Hot ranges fail without a prefix or fallback; graph caps follow the existing bounded compilation,
+  not a newly claimed early-allocation or device-latency bound. Storage/database/source/body/journal,
+  neutral projection and v2/v3 formats are unchanged. No continuation is implemented.
+- **Separate order counterexample:** full all-host-link collection inserts tied candidate B before A;
+  per-owner cached replay inserts A before B. The actual binder and GraphIndex connection sorter show
+  different stable orders despite equal raw degrees and titles. Raw degree is therefore a strictly
+  smaller input than an exact list; neither the old structural order nor v3 URL-label order grants
+  general neighbor/witness order authority.
+- **Actual portable evidence:** final focused tests **41/41** and source suite **269/269**, zero skips;
+  architecture **7/7**, 60 migrated roots/113 reachable files/0 violations. Strict direct TypeScript
+  check of the new reader and its portable dependency closure passes. Full-count expectations come
+  from fresh actual full GraphBuilder/GraphIndex instances per policy. Explicit guards trap even
+  caught source/head/body writes, body IO/parsing, inventory, querySources/headPage and rebuild calls;
+  every selected reader is retired. Catalog saved-envelope doubles are not durable-storage evidence.
+- **Actual environment/check limitations:** Node **22.16.0** (below required >=22.22.2 <23), npm
+  **10.9.2**, actual global TypeScript **5.8.3** via temporary local symlinks, Chromium **144.0.7559.96**,
+  Git **2.47.3** without archive `.git`; no Obsidian CLI/runtime. Registry DNS is unavailable; normal
+  install was interrupted without completion and offline `npm ci` fails `ENOTCACHED`. Core compilation
+  passes, core runtime **36 pass/3 fail** (two missing-esbuild imports and the unchanged normalized
+  source assertion `Assets/picture.png` versus `Never There`, reproduced **6 pass/1 fail** on the
+  untouched archive). Obsidian lint exits 127 (`eslint` missing); production build exits 2 on missing
+  actual dependencies/types. Full `verify` stops at core. Separate `npm test` completes the indexing
+  driver including its unchanged timing assertions and 24 settings scenarios, then its next Node
+  group has **97 pass/5 fail** (four missing-esbuild imports and the same normalized assertion).
+  Later chained UI/source/browser stages do not run in that command. No golden/timing bound changed.
+- **Browser gate:** new suite defines **13 real Chromium/IndexedDB subcases** for v2/v3 full parity,
+  same-host storage reopen, source/head/body preservation, missing/checksum pages and missing source
+  chunks, plus final root/head/source/known-unrelated/host-journal and policy/demand/host changes.
+  Focused bootstrap and all eight suites in `npm run test:sources:browser` fail
+  `ERR_BLOCKED_BY_ADMINISTRATOR` before subcases. These are pending, not passes or skips; browser
+  policy is untouched. Existing upgrade/abort/corruption cases remain required, not replaced.
+- **Next:** main must review the finite-incidence and cardinality-versus-order proof, validate with
+  required Node/real dependencies, run all source/core/lint/build/verify checks and serial actual
+  Chromium suites, and fix any failures before accepting this return. Native selected scalar/alias
+  completion still needs its separately configured disposable vault trace. No maintainer manual
+  workflow or Git action is requested for an uncalled slice. Stable exact lists, hot continuation,
+  changed-host S2b, public/settings routing and publication remain out of scope. SI4b1/SI4b2/SI4c/SI5
+  stay open; C15–C26 remain paused.
+
+### 2026-09-30 — SI4 private finite candidate degrees reviewed
+
+- **Verdict:** accepted only the uncalled finite raw-degree input. One complete current-root incidence union and canonical replay yield exact raw neighbor-map sizes for admitted path-injective candidates; missing and hot scopes fail without a prefix. V2/v3 and all storage/source/body/graph/journal formats are unchanged. The center-gate certificate is not widened. A full-GraphIndex counterexample shows equal-degree/equal-title candidate order can still differ; no exact visible list, production caller or SI4b1/SI4b2/SI4c/SI5 checkpoint is accepted. C15–C26 remain paused.
+- **Independent evidence and review fixes:** Node 22.22.3 with installed dependencies: source 269/269, architecture 7/7, core 60/60, Obsidian lint and production build pass; all eight serial real Chromium/IndexedDB suites 145/145, including 13 new subcases; full `verify` passes. Corrected TypeScript lint narrowing in the new reader, supplied the root-folder entity fact and proper cleanup in the browser fixture, and serialized the browser script after the parallel runner stalled. No production semantic behavior or test assertion was relaxed. See [the review](docs/validation/settings-independent-indexing-si4-candidate-degrees-review-2026-09-30.md).
+- **Next:** offline stable full-builder neighbor/witness encounter-order proof is the next independent SI4 input. The native selected scalar/alias MetadataCache completion trace remains a separate online prerequisite. Hot continuation, complete visible lists, changed-host certification and public settings routing remain open. No maintainer manual test is needed for this uncalled slice.

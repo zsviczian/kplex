@@ -9,6 +9,11 @@ result, not a new reader: live selected scalar/absence inputs lack a source-boun
 observation, and even complete URL support can replay in a different order from the full builder.
 These title limitations do not widen or change the accepted center-gate certificate.
 
+The subsequent [finite candidate-degree input](SOURCE_CANDIDATE_DEGREE_PROOF.md) is a **reviewed private
+slice** for the small union that fits current complete-incidence bounds. It does not change
+the gate certificate or recover missing full-builder tie order. The URL-specific title premise was
+separately closed by the [reviewed URL input](SOURCE_URL_TITLE_PROOF.md), not by a scalar/alias reader.
+
 ## Before-code invariant
 
 For **one exact requested center ID**, let R be the authenticated, current, journal-free contributor
@@ -93,7 +98,8 @@ The full visible lists are **not certified** by the current contracts:
    may omit third-party relations not touching the center or its semantic parents. Counting that
    partial map is not connection-count sorting, even when every displayed center edge is correct.
    Degree ties still need titles and stable encounter order. Querying a candidate's complete
-   incidence is possible individually, but is not part of the current two-pass certificate.
+   incidence is possible individually, but is not part of the current two-pass certificate. The
+   separate finite-union degree reader has been reviewed; it does not widen this certificate.
 3. **Bounded continuation.** Before top-N one needs every visibility/sort candidate, and for sibling
    sorting every child of the selected displayed parents. The catalog caps combined endpoints at
    32, owners at 256, host facts at 1024, query pages at 256 and decoded scope bytes at 32 MiB.
@@ -101,7 +107,7 @@ The full visible lists are **not certified** by the current contracts:
    pending/backpressured; neither the first 32 targets nor the first N displayed parents can stand
    in for a complete input to sorting/totals.
 
-### Smallest next authenticated contracts (not implemented here)
+### Remaining authenticated contracts (not implemented by the gate reader)
 
 A finite exact-ID **selected presentation read** should return an explicit ready/pending/unsupported
 result, immutable canonical title inputs (including complete alias and first-match selected-field
@@ -111,9 +117,11 @@ presentation revision it observed, plus a final currentness check. It must use o
 and authenticated neutral facts; do not persist a generic frontmatter mirror or infer missing as
 empty. Reuse the existing title selection semantics rather than introducing another title engine.
 
-A finite **candidate-incidence/degree continuation** should bind the exact candidate set to one R/H/S,
-retain original canonical encounter order, authenticate every positive **and negative** completed
-range, count raw unique neighbor paths (not filtered roles), and mark pending until all ranges finish.
+The reviewed finite-degree input closes only an admitted small union. A larger
+**candidate-incidence/degree continuation** must bind the exact candidate set to one R/H/S,
+authenticate every positive **and negative** completed range, use canonical raw maps with valid
+legacy binding (not filtered roles), and stay pending until all ranges finish. Original full-builder
+encounter order requires a separate proof even when every raw degree is complete.
 Chunked reads must retain the same root/selected-head/journal/host/demand proof across chunks. It may
 stream/discard candidate compilations and keep bounded keys; it must not retain another full graph,
 scan every source owner, silently switch roots or cap the candidate set before comparison. When the
