@@ -7,6 +7,7 @@
 import { TFile } from "obsidian";
 import { nodeId, type GraphNodeKind, type NodeId } from "../../core/graph/model";
 import {
+  estimateReferenceRecordBytes,
   MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH,
   MAX_REFERENCE_BATCH_ESTIMATED_BYTES,
   MAX_REFERENCE_PAYLOAD_CHARS,
@@ -88,17 +89,8 @@ export function resolveObsidianReferenceTarget(host: ReferenceSourceCollectorHos
   };
 }
 
-/** Estimate transient retained value bytes without serializing/copying the record's strings. */
-export function estimateReferenceRecordBytes(value: unknown): number {
-  if (typeof value === "string") return 16 + value.length * 2;
-  if (!value || typeof value !== "object") return 8;
-  let bytes = 32;
-  for (const key in value) {
-    if (Object.prototype.hasOwnProperty.call(value, key)) bytes += 16 + key.length * 2
-      + estimateReferenceRecordBytes((value as Record<string, unknown>)[key]);
-  }
-  return bytes;
-}
+/** Compatibility export; live collection and cached replay share the portable byte estimator. */
+export { estimateReferenceRecordBytes } from "../../core/graph/source";
 
 /**
  * One terminal, revision-fenced source attempt. Record and byte budgets bound the output queue;

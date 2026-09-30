@@ -1,3 +1,8 @@
+/**
+ * Obsidian aggregate link-map normalization and coherent collection. Count maps are not lexical
+ * Markdown occurrences. Cached replay shares the same record constructor; no semantic role is
+ * selected here, and the caller owns host revisions and publication.
+ */
 import { TFile } from "obsidian";
 import { nodeId, type GraphNodeKind } from "../../core/graph/model";
 import {
@@ -122,7 +127,8 @@ function sourceMapRevision(sourcePath: string, hostRevision: number): SourceRevi
   return sourceRevision(`host-links:${sourcePath}\u0000${hostRevision}`);
 }
 
-function hostLinkRecord(
+/** Normalize one genuine aggregate count using exact current host identity, never a lexical guess. */
+export function hostLinkRecord(
   host: HostLinkSourceCollectorHost,
   source: SourceEntityRef,
   revision: SourceRevision,

@@ -54,7 +54,7 @@ export type ObsidianMetadataSourceHost = Readonly<{
   formatDailyDate(isoDate: string, format: string): string | null;
 }>;
 
-export type MetadataSourceFamily = "metadata" | "relations" | "field-names";
+export type MetadataSourceFamily = "metadata" | "relations" | "field-names" | "presentation";
 
 type ObsidianMomentInstance = Readonly<{
   isValid(): boolean;
@@ -180,6 +180,34 @@ function metadataValue(value: unknown): SemanticMetadataValue {
   return Array.isArray(value) ? value.map(scalar) : scalar(value);
 }
 
+/** Canonical body-URL normalization shared by live collection and validated cached replay. */
+export function normalizedBodyUrl(source: SourceEntityRef, revision: SourceRevision,
+  reference: Readonly<{ url: string; label?: string; line?: number }>): BodyUrlOccurrence {
+  const target: SourceTargetRef = {
+    entity: urlRef(reference.url),
+    rawTarget: reference.url,
+    resolvedBy: "url",
+  };
+  let origin: SourceTargetRef | undefined;
+  try {
+    const originUrl = new URL(reference.url).origin;
+    origin = { entity: urlRef(originUrl), rawTarget: originUrl, resolvedBy: "url" };
+  } catch { /* malformed URL: retain raw URL node without origin input */ }
+  return {
+    kind: "body-url",
+    source,
+    sourceRevision: revision,
+    target,
+    ...(origin ? { origin } : {}),
+    ...(reference.label ? { label: reference.label } : {}),
+    provenance: {
+      surface: "body",
+      rawValue: reference.url,
+      ...(reference.line === undefined ? {} : { location: { line: reference.line } }),
+    },
+  };
+}
+
 /**
  * Source-scoped C12c adapter over already-acquired ParsedFileMetadata. Parser/cache ownership stays
  * in GraphBuilder/C16; this adapter owns only Obsidian-specific Date normalization plus
@@ -245,6 +273,7 @@ export class ObsidianMetadataSourceCollector {
 
       const ok = this.family === "relations"
         ? await this.collectRelations(emit, touch)
+        : this.family === "presentation" ? await this.collectPresentationMetadata(emit, touch)
         : await this.collectMetadata(emit, touch, this.family === "field-names");
       if (!ok || !this.isCurrent() || !(await flush(true))) {
         this.state = "failed";
@@ -329,6 +358,14 @@ export class ObsidianMetadataSourceCollector {
     }
     if (fieldNamesOnly) return this.isCurrent();
 
+    return this.collectPresentationMetadata(emit, touch);
+  }
+
+  /** Emit only selector-dependent metadata from cached frontmatter/inline values, without parsing. */
+  private async collectPresentationMetadata(
+    emit: (record: NormalizedSourceRecord) => Promise<boolean>,
+    touch: () => Promise<boolean>,
+  ): Promise<boolean> {
     const noteTypeField = normalizeFieldName(this.settings.noteTypeField);
     const primaryTagField = normalizeFieldName(this.settings.primaryTagField);
     for (const [fieldName, value] of Object.entries(this.metadata.frontmatter)) {
@@ -420,29 +457,7 @@ export class ObsidianMetadataSourceCollector {
     }
 
     for (const reference of this.metadata.urls) {
-      const target: SourceTargetRef = {
-        entity: urlRef(reference.url),
-        rawTarget: reference.url,
-        resolvedBy: "url",
-      };
-      let origin: SourceTargetRef | undefined;
-      try {
-        const originUrl = new URL(reference.url).origin;
-        origin = { entity: urlRef(originUrl), rawTarget: originUrl, resolvedBy: "url" };
-      } catch { /* malformed URL: retain raw URL node without origin input */ }
-      const record: BodyUrlOccurrence = {
-        kind: "body-url",
-        source: this.source,
-        sourceRevision: this.sourceRevision,
-        target,
-        ...(origin ? { origin } : {}),
-        ...(reference.label ? { label: reference.label } : {}),
-        provenance: {
-          surface: "body",
-          rawValue: reference.url,
-          ...(reference.line === undefined ? {} : { location: { line: reference.line } }),
-        },
-      };
+      const record = normalizedBodyUrl(this.source, this.sourceRevision, reference);
       if (!(await emit(record))) return false;
     }
 

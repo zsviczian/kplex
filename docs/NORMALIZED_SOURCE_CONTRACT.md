@@ -8,6 +8,14 @@ The runtime contract is `src/core/graph/source.ts`. Raw facts carry no ontology 
 
 [Source repository](SOURCE_REPOSITORY.md) defines a separate strict on-disk vocabulary rather than mechanically persisting current host-selected SI2 targets. Lexical value/payload/candidate frames retain every distinct spelling before host destination deduplication. Host resolution/counts and Date facts have a separately replaceable family. The accepted compiler-facing SI2 protocol, its finality and selector semantics remain unchanged. Finite immutable inline parser inputs share payloads with provenance; arbitrary frontmatter values and semantic settings are not mirrored. Per-file patches acquire even on a semantic no-op; complete builds may reuse neutral bodies on a legacy-cache miss while independent inventory persists source heads after publication. Synchronous graph publication remains outside IndexedDB.
 
+## SI4a cached producer and scope preparer — Review
+
+`index/SourceReplay.ts` is an additional producer of this same normalized protocol, not a second parser or semantic implementation. It validates a single selected SI3 head, joins lexical candidates to explicit stored resolution ordinals, preserves physical value IDs/payload finality and deduplicates host-selected targets exactly as the live reference collector does. Inline field-name provenance retains line/start/end coordinates. Missing entity, structural and presentation inputs are supplied by the existing revision-fenced Obsidian collectors; stored parent paths are not promoted into invented folder topology.
+
+`core/graph/scoped.ts` composes `NormalizedSourcePatchPreparer` and the full compiler for one finite, deduplicated owner set. The existing reference selector still gates materialization, and the existing evidence/resolver owns duplicate counts, frontmatter/inline precedence and inverse views. Source-owner coverage is explicit: this private result is not a complete pair query or a publishable replacement for the live graph. The record-byte estimator now resides in `core/graph/source.ts` and is shared with the live collector; the protocol and its established limits are unchanged.
+
+[Cached-source replay](CACHED_SOURCE_REPLAY.md) records source/host/policy fences, bounded-work evidence, exact oracle projections, data gaps and the SI4b/c consumer inventory. Live settings routing, GraphIndex queries, startup and snapshot compatibility remain unchanged. Review does not imply native/browser acceptance or SI5 performance acceptance.
+
 ## Current source-family inventory and future ownership
 
 | Existing evidence/source family | Current collector / host fact | Facts currently consumed | C11 normalized mapping | Future owner |

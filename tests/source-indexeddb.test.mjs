@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { browserBundle, chromiumHarness } from "./support/browserTypeScript.mjs";
 
-const bundle = await browserBundle(["src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/core/parser/metadata.ts"], {
+const bundle = await browserBundle(["src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/core/parser/metadata.ts", "src/index/CachedSourceSemantics.ts"], {
   obsidian: "exports.Platform={isMobile:false,isIosApp:false};",
 });
 
@@ -189,6 +189,9 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
         const masked=await r.inspect('A');equal(masked.reason,'unsaved','Evicted A masks old disk head');equal(masked.head,null,'No stale head exposed');
         equal(await r.readBody('A',()=>true),null,'No stale body replay after eviction');
         r.storage.open=originalOpen;
+        const leaked=[];equal(await r.querySources('literal','Old',ids=>{leaked.push(...ids);return true;}),false,'Evicted unsaved lookup is incomplete');
+        equal(leaked,[],'No old durable owner leak');
+        equal((await r.readSelected('A',()=> 'ready',async()=>true)).outcome,'pending-acquisition','New multi-family path respects eviction');
         const expected=await r.catalogExpectation('A');
         equal((await r.replace(await make(r,'A',expected,'',large('Changed')))).outcome,'activated','A selectively reacquired');
         const restored=await r.inspect('A');ok(restored.sequence>old.sequence,'Reacquisition advances durable sequence');
@@ -212,6 +215,102 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
         const task=r.replace(pending);await ready;r.cancelSource('cancelled');release();equal((await task).outcome,'cancelled','Cancellation prevents activation');equal((await r.inspect('cancelled')).head,null,'No cancelled head');
         const closing=await fresh('close');const closed=closing.sources.replace(await make(closing.sources,'closed'));closing.close();equal((await closed).outcome,'cancelled','Unload fence');
         return true;
+      })()`), true);
+    });
+
+    await t.test("SI4a selected-head replay is coherent across connections and releases pins on all terminal paths", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const first=await fresh('si4a-selection'),second=await fresh('si4a-selection'),r=first.sources,other=second.sources;
+        await r.replace(await make(r,'A'));await r.replace(await make(r,'B'));
+        const a=await r.inspect('A'),b=await r.inspect('B');const db=await second.open();
+        const leases=()=>requestValue(db.transaction('meta').objectStore('meta').index('sourceLease').count(['A',a.head.sourceRevision]));
+        let held,seen=[];
+        const changed=await r.readSelected('A',()=> 'ready',async selected=>{
+          held=selected;ok(await leases()>0,'Reader lease exists during multi-family callback');
+          equal(await selected.visit('values',records=>{seen.push(...records);return true;}),'ready','Initial family');
+          equal((await other.replace(await make(other,'A',a.expected,'Field:: [[Replacement]]'))).outcome,'activated','Other connection changes head');
+          equal(await other.cleanupRevision('A',a.head.sourceRevision),false,'Pinned retired family cannot be reclaimed');
+          equal(await selected.visit('metadata',records=>{seen.push(...records);return true;}),'superseded','Different head rejects the entire read');
+          return 'not published';
+        });
+        equal(changed.outcome,'stale','No mixed-head result');ok(!('value' in changed),'No partial value');
+        ok(!JSON.stringify(seen).includes('Replacement'),'One selected revision only');equal(await leases(),0,'Stale read released lease');
+        equal(await held.visit('values',()=>true),'cancelled','Reader capability cannot escape lifetime');
+        ok(await other.cleanupRevision('A',a.head.sourceRevision),'Retired revision can be reclaimed after release');
+        const current=await r.inspect('A');
+        const currentLeases=()=>requestValue(db.transaction('meta').objectStore('meta').index('sourceLease').count(['A',current.head.sourceRevision]));
+        const ready=await r.readSelected('A',()=> 'ready',async selected=>{
+          for(const family of sourceModules.SOURCE_FAMILIES)equal(await selected.visit(family,()=>true),'ready','Validated family '+family);return 'complete';
+        });equal(ready.outcome,'ready','Success');equal(await currentLeases(),0,'Success released lease');
+        const rejected=await r.readSelected('A',()=> 'ready',async()=>{throw new sourceModules.SourceFactError('invalid-frame','resolution');});
+        equal(rejected.outcome,'invalid-family','Consumer rejection');equal(await currentLeases(),0,'Rejection released lease');
+        let valid=true;
+        const cancelled=await r.readSelected('A',()=> 'ready',async selected=>{await selected.visit('values',()=>true);valid=false;return true;},()=>valid);
+        equal(cancelled.outcome,'cancelled','Cancellation');equal(await currentLeases(),0,'Cancellation released lease');
+        const closed=await r.readSelected('A',()=> 'ready',async()=>{first.close();return true;});
+        equal(closed.outcome,'cancelled','Unload');equal(await currentLeases(),0,'Unload released lease using original connection');
+        equal((await other.inspect('B')).sequence,b.sequence,'Independent source intact');second.close();return true;
+      })()`), true);
+    });
+
+    await t.test("SI4a selected reads reject corrupt durable families and newer format without publishing", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('si4a-corruption'),r=owner.sources,db=await owner.open();
+        await r.replace(await make(r,'intact'));const intact=await r.inspect('intact');
+        for(const fault of ['missing-chunk','invalid-chunk','missing-posting','invalid-posting','format-version']){
+          await r.replace(await make(r,fault));const selected=await r.inspect(fault),revision=selected.head.families.values.revision;
+          if(fault==='format-version')await edit(db,['sourceHeads'],tx=>tx.objectStore('sourceHeads').put({...selected.head,sequence:selected.sequence,formatVersion:99}));
+          else {const store=fault.includes('posting')?'sourcePostings':'sourceChunks',key=[fault,revision,'values',0];
+            await edit(db,[store],async tx=>{const value=await requestValue(tx.objectStore(store).get(key));
+              if(fault.startsWith('missing'))tx.objectStore(store).delete(key);else tx.objectStore(store).put({...value,[store==='sourcePostings'?'key':'digest']:'corrupt'});
+            });}
+          const result=await r.readSelected(fault,()=> 'ready',async reader=>{await reader.visit('values',()=>true);return 'must not escape';});
+          equal(result.outcome,'invalid-family','Closed failure '+fault);ok(!('value' in result),'No partial value '+fault);
+          equal(await requestValue(db.transaction('meta').objectStore('meta').index('sourceLease').count([fault,selected.head.sourceRevision])),0,'Failure released all leases');
+          equal((await r.inspect('intact')).sequence,intact.sequence,'Intact source preserved');
+        }owner.close();return true;
+      })()`), true);
+    });
+
+    await t.test("SI4a postings union competing endpoints and durable replay changes policy without changing source heads", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('si4a-semantics'),r=owner.sources,M=sourceModules;
+        const refs=Object.fromEntries(['A','B'].map(id=>[id,{id,kind:'document',state:'materialized',semanticPath:id+'.md',physicalPath:id+'.md'}]));
+        const entities=Object.fromEntries(['A','B'].map(id=>[id,{kind:'entity',source:refs[id],sourceRevision:'physical:1',entity:refs[id],name:id,url:null,semanticMtime:1,
+          file:{path:id+'.md',name:id+'.md',extension:'md',mtime:1,ctime:1,size:100,basename:id}}]));
+        for(const [id,field,target] of [['A','Friends','B'],['B','Opposes','A']]){
+          const input=await make(r,id,{kind:'missing'},'',{[field]:'[['+target+']]'});
+          const metadata={...M.parseBodyMetadata(''),frontmatter:{[field]:'[['+target+']]'},aliases:[],tags:[]};
+          input.families.metadata=async emit=>{for(const name of M.sourceFieldNames(metadata))if(!await emit(name))return false;return true;};
+          input.families.resolution=async emit=>{for(const fact of M.sourceValueSteps(metadata))if(fact?.kind==='reference-candidate'){
+            if(!await emit({kind:'reference-resolution',valueId:fact.valueId,ordinal:fact.ordinal,target:{entity:refs[target],rawTarget:fact.rawTarget,resolvedBy:'host'},hostOccurrenceCount:0}))return false;
+          }return true;};
+          equal((await r.replace(input)).outcome,'activated','Durable source '+id);
+        }
+        const reader=new M.CachedSourceSemanticReader(r);
+        const queries=[{kind:'field',key:'friends'},{kind:'target',key:'A'},{kind:'literal',key:'A'},{kind:'field',key:'friends'}];
+        const candidates=await reader.discover(queries,()=>true);equal(candidates.outcome,'candidates','Indexed discovery');
+        equal(candidates.coverage,'candidates-only','Never claim pair completeness');equal([...candidates.sourceIds].sort(),['A','B'],'Both endpoints exactly once');
+        const families=await reader.discover([{kind:'family',key:'values'}],()=>true);equal([...families.sourceIds].sort(),['A','B'],'Family posting discovery');
+        const heads=await Promise.all(['A','B'].map(id=>r.inspect(id)));
+        const requests=heads.map((selected,index)=>{const id=['A','B'][index];return {sourceId:id,host:{source:refs[id],physical:selected.head.physical,observation:selected.head.observation,isCurrent:()=>true,
+          structure:emit=>emit(entities[id]),presentation:async()=>true,hostLink:()=>{throw Error('No host-link in fixture');},bodyUrl:()=>{throw Error('No body URL in fixture');}}};});
+        const config={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:['Opposes'],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const runtime={now:()=>performance.now(),yield:()=>new Promise(resolve=>setTimeout(resolve,0)),isCurrent:()=>true,sliceBudgetMs:8,resolverBatchSize:50};
+        const write=r.replace;r.replace=async()=>{throw Error('Policy must not write source facts');};
+        for(let index=0;index<2;index++){
+          const settings=index?{...config,hierarchy:{...config.hierarchy,leftFriends:[],rightFriends:['Friends','Opposes']}}:config;
+          const result=await reader.prepare([...requests,requests[0]],{revision:'policy:'+index,settings,isCurrent:()=>true},{entity:ref=>entities[ref.id]},runtime);
+          equal(result.outcome,'ready','Durable cached semantics');equal(result.work.map(work=>work.familyVisits),[4,4],'Exactly one replay per owner');
+          equal([...result.compilation.declarations()].length,2,'Two genuine endpoint declarations, no duplicate requested owner');
+          const roles=[...result.compilation.declarations()].map(d=>d.role).sort();equal(roles,index?['right','right']:['left','right'],'Current policy semantics');
+          for(let source=0;source<2;source++){equal(result.sources[source].sequence,heads[source].sequence,'Policy leaves completion sequence unchanged');equal(result.sources[source].head.sourceRevision,heads[source].head.sourceRevision,'Same neutral head');}
+        }
+        r.replace=write;
+        const invalidPosting=await requestValue((await owner.open()).transaction('sourcePostings').objectStore('sourcePostings').index('lookup').get(IDBKeyRange.bound(['field','friends'],['field','friends',[]],false,true)));
+        await edit(await owner.open(),['sourcePostings'],tx=>tx.objectStore('sourcePostings').put({...invalidPosting,unexpected:true}));
+        const incomplete=await reader.discover(queries,()=>true);equal(incomplete.outcome,'pending-acquisition','Malformed indexed candidate makes discovery incomplete');ok(!('sourceIds' in incomplete),'No partial candidate list');
+        owner.close();return true;
       })()`), true);
     });
 

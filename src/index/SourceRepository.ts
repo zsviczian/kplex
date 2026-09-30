@@ -90,6 +90,32 @@ export type SourceInspection = Readonly<{
   families: Readonly<Partial<Record<SourceFamily, SourceReason>>>;
 }>;
 
+/** Identity of one selected source; a policy revision deliberately is not a storage revision. */
+export type SelectedSourceStamp = Readonly<{
+  head: SourceManifest;
+  sequence: number | null;
+  saved: boolean;
+}>;
+/** A private multi-family read. Consumers must not publish records before the terminal result. */
+export type SelectedSourceReader = SelectedSourceStamp & Readonly<{
+  visit(family: SourceFamily, consume: (records: readonly StoredSourceFact[]) => Promise<boolean> | boolean): Promise<SourceReason>;
+}>;
+/** Closed outcomes prevent an unavailable or incomplete source from masquerading as an empty one. */
+export type SelectedSourceResult<T> =
+  | Readonly<{ outcome: "ready"; stamp: SelectedSourceStamp; value: T }>
+  | Readonly<{ outcome: "pending-acquisition" | "stale" | "cancelled" | "invalid-family" | "storage-unavailable";
+      reason: SourceReason; family?: SourceFamily }>;
+
+/** Classify only stable storage reasons; never expose raw exceptions or partial prepared values. */
+export function selectedSourceFailure(reason: SourceReason, family?: SourceFamily): Exclude<SelectedSourceResult<never>, { outcome: "ready" }> {
+  const outcome = reason === "cancelled" ? "cancelled"
+    : reason === "stale" || reason === "superseded" ? "stale"
+    : ["missing", "pending-metadata", "tombstone", "unsaved", "memory-budget", "backpressure"].includes(reason) ? "pending-acquisition"
+    : ["storage-unavailable", "newer-database", "read-error", "write-error", "quota-exceeded", "catalog-uncertain"].includes(reason) ? "storage-unavailable"
+    : "invalid-family";
+  return { outcome, reason, ...(family ? { family } : {}) };
+}
+
 type SourceLease = { key: string; sourceId: string; revision: string; owner: string };
 type SourceView = {
   head: SourceManifest;
@@ -98,6 +124,8 @@ type SourceView = {
   expected: SourceHeadExpectation;
   leases: string[];
   memory?: MemorySource;
+  connection?: IDBDatabase;
+  release?: Promise<void>;
 };
 type MemorySource = {
   head: SourceManifest;
@@ -227,6 +255,7 @@ export class NeutralSourceRepository {
   private readonly lanes = new Map<string, SourceWriteLane>();
   private readonly transactions = new Map<IDBTransaction, string>();
   private readonly cancelledTransactions = new WeakSet<IDBTransaction>();
+  private readonly readers = new Set<SourceView>();
   private readonly memory = new Map<string, MemorySource>();
   private readonly unsaved = new Set<string>();
   private readonly pendingDeletes = new Map<string, { current: () => boolean; retain: boolean }>();
@@ -274,6 +303,9 @@ export class NeutralSourceRepository {
       this.cancelledTransactions.add(transaction);
       try { transaction.abort(); } catch { /* already completed */ }
     }
+    // Start lease deletion synchronously, before the cache owner closes its connection. Failed
+    // transactions remain conservatively protective; a clean unload must not leak healthy pins.
+    for (const view of this.readers) void this.releaseLeases(view);
     this.memory.clear(); this.pendingDeletes.clear(); this.memoryBytes = 0;
   }
   /** Translate one outcome without accidentally reporting a durable sequence for memory-only facts. */
@@ -342,6 +374,8 @@ export class NeutralSourceRepository {
     const memory = this.memory.get(sourceId);
     if (memory?.head.state === "tombstone" && !includeTombstone) return { view: null, expected: memory.expected, reason: "tombstone" };
     if (memory && (includeTombstone || memory.head.state !== "tombstone")) {
+      const reason = sourceHeadReason({ ...memory.head, sequence: 1 });
+      if (reason !== "ready" && !(includeTombstone && reason === "tombstone")) return { view: null, expected: memory.expected, reason };
       return { view: { head: memory.head, sequence: null, saved: false, expected: memory.expected, leases: [], memory }, expected: memory.expected, reason: "ready" };
     }
     // An unsaved source whose bounded memory payload was evicted must mask its older disk head.
@@ -349,9 +383,10 @@ export class NeutralSourceRepository {
     // pass, but no reader may mistake the previous durable revision for the current source.
     if (this.unsaved.has(sourceId)) return { view: null, expected: { kind: "unavailable" }, reason: "unsaved" };
     const db = await this.open();
-    if (!db) return { view: null, expected: { kind: "unavailable" }, reason: "storage-unavailable" };
+    if (!db) return { view: null, expected: { kind: "unavailable" }, reason: this.storage.unavailableReason?.() ?? "storage-unavailable" };
+    let leased: SourceView | undefined;
     try {
-      return await this.transaction(db, [SOURCE_HEAD_STORE, META_STORE], "readwrite", sourceId, async (transaction) => {
+      const selected = await this.transaction(db, [SOURCE_HEAD_STORE, META_STORE], "readwrite", sourceId, async (transaction) => {
         const raw = await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId));
         const expected = expectation(raw); const reason = sourceHeadReason(raw); const head = decodeSourceHead(raw);
         if (!head || head.sourceId !== sourceId || head.state === "tombstone" && !includeTombstone) return { view: null, expected, reason: head?.sourceId !== sourceId && head ? "invalid-head" as const : reason };
@@ -360,20 +395,190 @@ export class NeutralSourceRepository {
           const lease: SourceLease = { key: `source-lease:${this.runtime.uniqueId()}`, sourceId, revision, owner: this.owner };
           transaction.objectStore(META_STORE).add(lease); leases.push(lease.key);
         }
-        return { view: { head, sequence: head.sequence, saved: true, expected, leases }, expected, reason };
+        leased = { head, sequence: head.sequence, saved: true, expected, leases, connection: db };
+        // Register before commit completion: unload may run before the pin promise resumes.
+        this.readers.add(leased);
+        return { view: leased, expected, reason };
       });
-    } catch (error) { return { view: null, expected: { kind: "unavailable" }, reason: this.fail(errorReason(error, "read-error")) }; }
+      if (selected.view && this.closed) void this.releaseLeases(selected.view);
+      return selected;
+    } catch (error) {
+      if (leased) await this.releaseLeases(leased);
+      return { view: null, expected: { kind: "unavailable" }, reason: this.fail(errorReason(error, "read-error")) };
+    }
   }
-  /** Drop only this reader's leases. Failed release leaks conservatively rather than risking deletion. */
-  private async unpin(view: SourceView): Promise<void> {
-    if (!view.leases.length) return;
-    const db = await this.open();
-    if (!db) return;
+  /** Delete only this reader's leases using its original connection, including during unload. */
+  private releaseLeases(view: SourceView): Promise<void> {
+    if (view.release) return view.release;
+    this.readers.delete(view);
+    if (!view.leases.length || !view.connection) return Promise.resolve();
+    const leases = view.leases.splice(0);
     try {
-      await this.transaction(db, [META_STORE], "readwrite", view.head.sourceId, (transaction) => {
-        for (const key of view.leases) transaction.objectStore(META_STORE).delete(key);
+      const transaction = view.connection.transaction([META_STORE], "readwrite");
+      for (const key of leases) transaction.objectStore(META_STORE).delete(key);
+      view.release = new Promise<void>((resolve) => {
+        const timer = this.runtime.schedule(() => {
+          try { transaction.abort(); } catch { /* already terminal */ }
+          resolve();
+        }, TRANSACTION_TIMEOUT_MS);
+        /** Release failures leave conservative leases, never permission to delete a live revision. */
+        const finish = (): void => { this.runtime.cancel(timer); resolve(); };
+        transaction.oncomplete = finish;
+        transaction.onabort = transaction.onerror = finish;
       });
-    } catch { /* An uncertain lease stays protective, including after an interrupted process. */ }
+      return view.release;
+    } catch { return Promise.resolve(); }
+  }
+  /** Always release the selected lifetime, independent of caller cancellation or repository close. */
+  private async unpin(view: SourceView): Promise<void> { await this.releaseLeases(view); }
+
+  /** Recheck an immutable selection against its current memory overlay or exact durable head. */
+  async selectionReason(stamp: SelectedSourceStamp, current: () => boolean = () => true): Promise<SourceReason> {
+    if (this.closed || !current()) return "cancelled";
+    const id = stamp.head.sourceId;
+    if (this.pendingDeletes.has(id)) return "tombstone";
+    const memory = this.memory.get(id);
+    if (memory) return memory.head === stamp.head && memory.current() ? "ready" : "superseded";
+    if (this.unsaved.has(id)) return "unsaved";
+    if (!stamp.saved || stamp.sequence === null) return "superseded";
+    const db = await this.open();
+    if (this.closed || !current()) return "cancelled";
+    if (!db) return this.storage.unavailableReason?.() ?? "storage-unavailable";
+    try {
+      const raw = await this.transaction(db, [SOURCE_HEAD_STORE], "readonly", id,
+        (transaction) => unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(id)));
+      if (this.closed || !current()) return "cancelled";
+      if (this.memory.has(id) || this.unsaved.has(id) || this.pendingDeletes.has(id)) return "superseded";
+      const reason = sourceHeadReason(raw);
+      if (reason !== "ready") return reason;
+      return expectedHeadMatches({ kind: "head", revision: stamp.head.sourceRevision, sequence: stamp.sequence }, raw) ? "ready" : "superseded";
+    } catch (error) { return errorReason(error, "read-error"); }
+  }
+
+  /**
+   * Validate a finite multi-source scope in one head transaction. Rechecking sources separately
+   * would miss an earlier head changed while a later check awaited. Memory overlays are checked
+   * on both sides of that transaction; no graph or whole-vault catalog is retained.
+   */
+  async validateSelections(stamps: readonly SelectedSourceStamp[], current: () => boolean): Promise<{ reason: SourceReason; sourceId?: string }> {
+    if (stamps.length > SOURCE_MAX_BATCH_RECORDS) return { reason: "backpressure" };
+    const disk: SelectedSourceStamp[] = [];
+    /** Check local masks without opening storage or treating an evicted source as a disk hit. */
+    const localReason = (stamp: SelectedSourceStamp): SourceReason => {
+      const id = stamp.head.sourceId;
+      if (this.closed || !current()) return "cancelled";
+      if (this.pendingDeletes.has(id)) return "tombstone";
+      const memory = this.memory.get(id);
+      if (memory) return memory.head === stamp.head && memory.current() ? "ready" : "superseded";
+      if (this.unsaved.has(id)) return "unsaved";
+      return stamp.saved && stamp.sequence !== null ? "ready" : "superseded";
+    };
+    for (const stamp of stamps) {
+      const reason = localReason(stamp);
+      if (reason !== "ready") return { reason, sourceId: stamp.head.sourceId };
+      if (stamp.saved) disk.push(stamp);
+    }
+    if (disk.length) {
+      const db = await this.open();
+      if (this.closed || !current()) return { reason: "cancelled" };
+      if (!db) return { reason: this.storage.unavailableReason?.() ?? "storage-unavailable" };
+      try {
+        const result = await this.transaction(db, [SOURCE_HEAD_STORE], "readonly", "", async (transaction) => {
+          const heads = await Promise.all(disk.map((stamp) => unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(stamp.head.sourceId))));
+          for (let index = 0; index < disk.length; index += 1) {
+            const stamp = disk[index]; const raw = heads[index];
+            const reason = sourceHeadReason(raw);
+            if (reason !== "ready") return { reason, sourceId: stamp.head.sourceId };
+            if (!expectedHeadMatches({ kind: "head", revision: stamp.head.sourceRevision, sequence: stamp.sequence! }, raw)) {
+              return { reason: "superseded" as const, sourceId: stamp.head.sourceId };
+            }
+          }
+          return { reason: "ready" as const };
+        });
+        if (result.reason !== "ready") return result;
+      } catch (error) { return { reason: errorReason(error, "read-error") }; }
+    }
+    for (const stamp of stamps) {
+      const reason = localReason(stamp);
+      if (reason !== "ready") return { reason, sourceId: stamp.head.sourceId };
+    }
+    return { reason: this.closed || !current() ? "cancelled" : "ready" };
+  }
+
+  /**
+   * Read any required families under ONE selected head/pin. Every callback is private and fenced;
+   * family failure poisons the result even if a consumer ignores its visit return. Head/host checks
+   * occur before work, between families and after work. Pins are released on every terminal path.
+   */
+  async readSelected<T>(sourceId: string, matches: (stamp: SelectedSourceStamp) => SourceReason,
+    work: (reader: SelectedSourceReader) => Promise<T>, current: () => boolean = () => true): Promise<SelectedSourceResult<T>> {
+    if (this.closed || !current()) return selectedSourceFailure("cancelled");
+    const pinned = await this.pin(sourceId);
+    if (!pinned.view) return selectedSourceFailure(this.closed || !current() ? "cancelled" : pinned.reason);
+    const view = pinned.view;
+    const stamp: SelectedSourceStamp = { head: view.head, sequence: view.sequence, saved: view.saved };
+    let failure: ReturnType<typeof selectedSourceFailure> | undefined;
+    let active = true;
+    let released = false;
+    let visiting = false;
+    /** Preserve the cause of a failed fence; source replacement is not demand cancellation. */
+    const localReason = (): SourceReason => {
+      if (this.closed || !current()) return "cancelled";
+      const matched = matches(stamp);
+      if (matched !== "ready") return matched;
+      if (this.pendingDeletes.has(sourceId)) return "tombstone";
+      const memory = this.memory.get(sourceId);
+      if (this.unsaved.has(sourceId) && !memory) return "unsaved";
+      if (view.memory && memory !== view.memory || !view.memory && memory) return "superseded";
+      return view.memory && !view.memory.current() ? "stale" : "ready";
+    };
+    /** Fence callback lifetime as well as observed source/host/policy changes. */
+    const valid = (): boolean => active && localReason() === "ready";
+    try {
+      const matched = matches(stamp);
+      if (matched !== "ready") return selectedSourceFailure(matched);
+      const observedBefore = localReason();
+      if (observedBefore !== "ready") return selectedSourceFailure(observedBefore);
+      const initial = await this.selectionReason(stamp, valid);
+      const observedInitial = localReason();
+      if (observedInitial !== "ready" || initial !== "ready") return selectedSourceFailure(observedInitial === "ready" ? initial : observedInitial);
+      const value = await work({ ...stamp,
+        /** Serialize families so a caller cannot multiply the decoded-chunk reservation. */
+        visit: async (family, consume) => {
+          if (!active || failure) return "cancelled";
+          if (visiting) { failure = selectedSourceFailure("invalid-frame", family); return "invalid-frame"; }
+          visiting = true;
+          try {
+            const reason = await this.visitFamily(view, family, consume, valid);
+            if (reason !== "ready") {
+              const observed = localReason();
+              failure = selectedSourceFailure(observed === "ready" ? reason : observed, family);
+              return failure.reason;
+            }
+            const selected = await this.selectionReason(stamp, valid);
+            const observed = localReason();
+            const result = observed === "ready" ? selected : observed;
+            if (result !== "ready") failure = selectedSourceFailure(result, family);
+            return result;
+          } finally { visiting = false; }
+        },
+      });
+      if (failure) return failure;
+      if (visiting) return selectedSourceFailure("invalid-frame");
+      // Lease release itself awaits storage; validate the selection again after that await.
+      await this.unpin(view);
+      released = true;
+      const matchedAfter = matches(stamp);
+      if (matchedAfter !== "ready") return selectedSourceFailure(matchedAfter);
+      const selected = await this.selectionReason(stamp, valid);
+      const observedAfter = localReason();
+      if (observedAfter !== "ready" || selected !== "ready") return selectedSourceFailure(observedAfter === "ready" ? selected : observedAfter);
+      return { outcome: "ready", stamp, value };
+    } catch (error) {
+      const observed = localReason();
+      return selectedSourceFailure(observed === "ready" ? errorReason(error, "invalid-frame") : observed,
+        error instanceof SourceFactError ? error.family : undefined);
+    } finally { active = false; if (!released) await this.unpin(view); }
   }
   /** Account for disk heads independently of graph snapshot completion and live publication. */
   private rememberDurable(head: SourceHead): void {
@@ -856,12 +1061,22 @@ export class NeutralSourceRepository {
   async querySources(kind: SourcePostingKind, key: string, consume: (sourceIds: readonly string[]) => Promise<boolean> | boolean,
     current: () => boolean = () => true): Promise<boolean> {
     const seen = new Set<string>();
+    let incomplete = [...this.unsaved].some((id) => !this.memory.has(id) && !this.pendingDeletes.has(id));
     // Unsaved current facts mask an older disk head using the same activated-view boundary.
     for (const source of this.memory.values()) {
       if (!current() || this.closed) return false;
+      if (!source.current()) { incomplete = true; continue; }
       if (source.head.state !== "complete" || this.pendingDeletes.has(source.head.sourceId)) continue;
       let matched = false;
-      for (const posting of source.postings.values()) if (posting.kind === kind && posting.key === key) { matched = true; break; }
+      let scanned = 0;
+      for (const posting of source.postings.values()) {
+        if (posting.kind === kind && posting.key === key) { matched = true; break; }
+        if (++scanned % SOURCE_MAX_BATCH_RECORDS === 0) {
+          await this.runtime.yield();
+          if (!current() || this.closed) return false;
+        }
+      }
+      if (this.memory.get(source.head.sourceId) !== source || !source.current()) { incomplete = true; continue; }
       if (matched) {
         seen.add(source.head.sourceId);
         if (!(await consume([source.head.sourceId]))) return false;
@@ -883,11 +1098,13 @@ export class NeutralSourceRepository {
               next = cursor.key; visited += 1;
               /** Advance only after this posting has been checked against the currently selected head. */
               const advance = (): void => { if (visited >= SOURCE_MAX_BATCH_RECORDS) resolve({ ids, next }); else cursor.continue(); };
-              if (!validSourcePosting(raw) || raw.kind !== kind || raw.key !== key || seen.has(raw.sourceId) || this.memory.has(raw.sourceId) || this.pendingDeletes.has(raw.sourceId)) { advance(); return; }
+              if (!validSourcePosting(raw) || raw.kind !== kind || raw.key !== key) { incomplete = true; advance(); return; }
+              if (seen.has(raw.sourceId) || this.memory.has(raw.sourceId) || this.unsaved.has(raw.sourceId) || this.pendingDeletes.has(raw.sourceId)) { advance(); return; }
               const headRequest = transaction.objectStore(SOURCE_HEAD_STORE).get(raw.sourceId);
               headRequest.onerror = () => reject(headRequest.error ?? new SourceFactError("read-error"));
               headRequest.onsuccess = () => {
                 const head = decodeSourceHead(headRequest.result);
+                if (!head && headRequest.result !== undefined) incomplete = true;
                 const manifest = head?.families[raw.family];
                 if (head?.state === "complete" && manifest?.revision === raw.revision && raw.index < manifest.postings) { seen.add(raw.sourceId); ids.push(raw.sourceId); }
                 advance();
@@ -895,7 +1112,10 @@ export class NeutralSourceRepository {
             };
           }));
         if (!current() || this.closed || !(await consume(page.ids))) return false;
-        if (page.next === null || after !== null && indexedDB.cmp(page.next, after) === 0) return true;
+        if (page.next === null || after !== null && indexedDB.cmp(page.next, after) === 0) {
+          incomplete ||= [...this.unsaved].some((id) => !this.memory.has(id) && !this.pendingDeletes.has(id));
+          return !incomplete && current() && !this.closed;
+        }
         after = page.next;
         await this.runtime.yield();
       }

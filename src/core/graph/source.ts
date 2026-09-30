@@ -277,3 +277,15 @@ export function acceptSourceBatch(cursor: SourceBatchCursor, batch: NormalizedSo
  */
 export const sourceReadCanPublish = (cursor: SourceBatchCursor, currentBoundary: SourceReadBoundary): boolean =>
   cursor.complete && sameBoundary(cursor.boundary, currentBoundary);
+
+/** Estimate transient retained value bytes without serializing/copying the record's strings. */
+export function estimateReferenceRecordBytes(value: unknown): number {
+  if (typeof value === "string") return 16 + value.length * 2;
+  if (!value || typeof value !== "object") return 8;
+  let bytes = 32;
+  for (const key in value) {
+    if (Object.prototype.hasOwnProperty.call(value, key)) bytes += 16 + key.length * 2
+      + estimateReferenceRecordBytes((value as Record<string, unknown>)[key]);
+  }
+  return bytes;
+}

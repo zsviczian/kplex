@@ -3,15 +3,25 @@
  * references have a different lifetime from host target resolution. This adapter uses the existing
  * parser/Date collector/host resolver, never semantic settings or custom path guessing. It owns its
  * event fence independently of graph no-op suppression, plus a single cooperative inventory task.
+ * Its read-only cached semantic capability supplies missing host facts without changing live routing.
  */
 import { Platform, TFile, type App, type CachedMetadata } from "obsidian";
+import type { GraphCompilerRuntime } from "../../core/graph/compiler";
+import { acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type NormalizedSourceBatch,
+  type NormalizedSourceRecord, type SourceReadBoundary } from "../../core/graph/source";
+import { CachedSourceSemanticReader, MAX_CACHED_SCOPE_SOURCES, type CachedSemanticPolicy,
+  type CachedSemanticPreparation } from "../../index/CachedSourceSemantics";
+import type { CachedSourceHost, CachedSourceRequest } from "../../index/SourceReplay";
+import { selectedSourceFailure, type SelectedSourceResult } from "../../index/SourceRepository";
 import type { ParsedBodyMetadata, ParsedFileMetadata } from "../../core/parser/metadata";
 import { mergeFileMetadata } from "../../index/fieldParser";
 import type { KplexIndexedDbCache } from "../../index/IndexedDbCache";
 import { SOURCE_FAMILIES, SourceFactError, sourceFieldNames, sourceValueSteps, type SourceFamily, type SourceFamilyManifest,
   type SourcePhysical, type SourceReason, type StoredMetadataFact, type StoredSourceFact } from "../../index/SourceFacts";
 import type { SourceFamilyProducer, SourceInspection, SourceRepositoryDiagnostics } from "../../index/SourceRepository";
-import { createObsidianMetadataSourceHost, ObsidianMetadataSourceCollector } from "./metadataSourceCollector";
+import { createObsidianMetadataSourceHost, normalizedBodyUrl, ObsidianMetadataSourceCollector, type ObsidianMetadataSourceSettings } from "./metadataSourceCollector";
+import { entityFactForFile, ObsidianStructuralPatchSourceCollector } from "./structuralSourceCollector";
+import { hostLinkRecord } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
 type FileObservation = { identity: string | null; revision: number; dirty: boolean; bodyDirty: boolean; path: string; oldPath?: string; created: boolean };
@@ -153,6 +163,90 @@ export class ObsidianSourceAcquisition {
     return JSON.stringify({ daily: this.metadataHost.dailyNotesSettings(), dates: Object.keys(cache.frontmatter ?? {})
       .filter((name) => name !== "position" && this.metadataHost.isDateProperty(name)).sort() });
   }
+  /**
+   * Capture the host inputs not represented by v5 source facts. This read never starts acquisition,
+   * reads Markdown or writes a head. A new host epoch or dirty/pending source must first be acquired
+   * through the existing lifecycle. Presentation selectors are copied independently from storage.
+   */
+  async captureForReplay(sourceId: string, settings: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<
+    Readonly<{ outcome: "ready"; request: CachedSourceRequest }> | Exclude<SelectedSourceResult<never>, { outcome: "ready" }>> {
+    if (!runtime.isCurrent() || this.closed) return selectedSourceFailure("cancelled");
+    const file = this.app.vault.getFileByPath(sourceId);
+    if (!(file instanceof TFile) || file.extension !== "md") return selectedSourceFailure("missing");
+    const capture = this.capture(file);
+    const cache = this.app.metadataCache.getFileCache(file);
+    if (!cache) return selectedSourceFailure("pending-metadata");
+    if (!capture.state.identity || capture.state.dirty || capture.state.bodyDirty || capture.state.created) return selectedSourceFailure("unsaved");
+    const environmentText = this.environment(cache);
+    const current = (): boolean => this.current(capture, runtime.isCurrent)
+      && this.app.metadataCache.getFileCache(file) === cache && this.environment(cache) === environmentText;
+    try {
+      const environment = await this.repository.observationDigest(environmentText);
+      if (!current()) return selectedSourceFailure(runtime.isCurrent() ? "stale" : "cancelled");
+      const physical = { ...capture.physical, identity: capture.state.identity };
+      const presentation = { noteTypeField: settings.noteTypeField, primaryTagField: settings.primaryTagField };
+      const source = entityFactForFile(file).entity;
+      const collectorRuntime = { isCurrent: current, sourceRevision: () => this.hostRevision,
+        checkpoint: async (): Promise<boolean> => { await runtime.yield(); return current(); } };
+      /** Validate supplemental producers with the same normalized cursor as stored replay batches. */
+      const relay = async (collector: Readonly<{ boundary: SourceReadBoundary;
+        collectBatches(consume: (batch: NormalizedSourceBatch) => Promise<boolean>): Promise<boolean>;
+        isBoundaryCurrent(boundary: SourceReadBoundary): boolean }>, emit: (record: NormalizedSourceRecord) => Promise<boolean>): Promise<boolean> => {
+        let cursor = beginSourceRead(collector.boundary);
+        const complete = await collector.collectBatches(async (batch) => {
+          if (!current()) return false;
+          const accepted = acceptSourceBatch(cursor, batch);
+          if (!accepted.accepted) return false;
+          for (const record of batch.records) if (!current() || !(await emit(record)) || !current()) return false;
+          cursor = accepted.cursor;
+          return current();
+        });
+        return complete && current() && collector.isBoundaryCurrent(collector.boundary) && sourceReadCanPublish(cursor, collector.boundary);
+      };
+      const host: CachedSourceHost = {
+        source, physical, observation: { epoch: this.epoch, revision: capture.hostRevision, environment }, isCurrent: current,
+        structure: (emit) => relay(new ObsidianStructuralPatchSourceCollector(this.app, collectorRuntime, file), emit),
+        presentation: (body, emit) => relay(new ObsidianMetadataSourceCollector(this.metadataHost, collectorRuntime, file,
+          mergeFileMetadata(cache, body), presentation, "presentation"), emit),
+        hostLink: (record, revision) => hostLinkRecord(this.app, source, revision, record.target, record.count,
+          record.state === "resolved" ? "obsidian-link" : "unresolved-link"),
+        bodyUrl: (record, revision) => normalizedBodyUrl(source, revision, record),
+      };
+      return { outcome: "ready", request: { sourceId, host } };
+    } catch { return selectedSourceFailure(current() ? "storage-unavailable" : "stale"); }
+  }
+
+  /**
+   * Internal, read-only SI4a entry point. Replay each requested owner once and return private
+   * semantics, not a GraphIndex patch/publication. Only exact current physical entities are seeded;
+   * dormant references and synthetic nodes from an older policy are never imported from GraphState.
+   */
+  async prepareCachedSemantics(sourceIds: readonly string[], policy: CachedSemanticPolicy,
+    presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CachedSemanticPreparation> {
+    const unique = [...new Set(sourceIds)];
+    if (unique.length > MAX_CACHED_SCOPE_SOURCES) return selectedSourceFailure("backpressure");
+    const requests: CachedSourceRequest[] = [];
+    const policyRevision = policy.revision;
+    const current = (): boolean => runtime.isCurrent() && policy.isCurrent() && policy.revision === policyRevision;
+    const scopedRuntime = { ...runtime, isCurrent: current };
+    for (const sourceId of unique) {
+      const captured = await this.captureForReplay(sourceId, presentation, scopedRuntime);
+      if (!runtime.isCurrent()) return selectedSourceFailure("cancelled");
+      if (!policy.isCurrent() || policy.revision !== policyRevision) return selectedSourceFailure("superseded");
+      if (captured.outcome !== "ready") return { ...captured, sourceId };
+      requests.push(captured.request);
+    }
+    return new CachedSourceSemanticReader(this.repository).prepare(requests, policy, {
+      entity: (ref) => {
+        if (!current() || !ref.physicalPath) return undefined;
+        const file = this.app.vault.getFileByPath(ref.physicalPath);
+        if (!(file instanceof TFile)) return undefined;
+        const fact = entityFactForFile(file);
+        return fact.entity.id === ref.id ? fact : undefined;
+      },
+    }, runtime);
+  }
+
   /** Reuse immutable body inputs before the mutable legacy cache, including an observed pure move. */
   async readBody(file: TFile, caller: () => boolean = () => true): Promise<ParsedBodyMetadata | null> {
     if (this.needsBodyRead(file)) return null;

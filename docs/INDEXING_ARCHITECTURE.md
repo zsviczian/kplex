@@ -6,6 +6,14 @@ K-Plex deliberately separates **what the vault says** from **how K-Plex resolves
 
 SI3 adds the [version-5 neutral source repository](SOURCE_REPOSITORY.md): immutable per-source families, atomic head activation, independent lexical/host-resolution validity and source inventory. Per-file patches acquire before semantic no-op suppression; complete semantic rebuilds use batched body-v2 first and leave neutral persistence to inventory after publication. It preserves body-v2, graph schemas 1–3 and synchronous graph publication. Complete source heads, not graph snapshots, are the new source-progress boundary; graph snapshots remain the current semantic acceleration. SI3 is **Accepted** with the memory/cleanup limits and [validation evidence](validation/settings-independent-indexing-si3-2026-09-29.md) recorded separately. SI4 settings behavior is unchanged; no settings-change latency or SI5 readiness claim follows.
 
+## SI4a private cached-source preparation — Review
+
+The additive internal path is `ObsidianSourceAcquisition.captureForReplay/prepareCachedSemantics` → `CachedSourceSemanticReader` → single-head `CachedSourceReplay` → portable `NormalizedSourceScopePreparer` → the existing patch preparer/compiler/selector/evidence/resolver. Validated stored references are never read from Markdown or reparsed. Missing source entity, genuine tag memberships and finite presentation inputs come from current, revision-fenced host collectors. Source completion/durable sequence are not changed by policy-only preparation; reader leases still require storage bookkeeping.
+
+Postings identify candidate source owners, which are deduplicated and replayed once per scope, including competing endpoint declarations when those owners are requested. A ready result carries source/host/policy stamps and **source-owner** coverage, not a complete neighborhood, gate count or edit certificate. v5 lacks bounded exact pair, structural and URL-referrer coverage; no schema change or performance claim is hidden in this seam. See [the replay contract and finite read-consumer inventory](CACHED_SOURCE_REPLAY.md).
+
+This path is not called by live settings dispatch or UI code in SI4a. Existing GraphIndex rebuilds, search membership, C14 synchronous publication, graph snapshots and SI1 presentation behavior remain unchanged. Independent full/browser/native validation is required before SI4a acceptance; query/index/publication work remains SI4b, with settings/read-consumer migration in SI4c.
+
 ## Pipeline
 
 ```text
@@ -122,7 +130,7 @@ The portable `ReferenceSourcePolicyRead` is shared by full compilation and `Norm
 
 Reference output is capped at 256 records and additionally flushed by a 256 KiB retained-byte estimate; raw payload chunks are at most 16,384 UTF-16 code units. Oversized indivisible lexical identities travel alone, so this is not an absolute heap/latency bound. Payload serialization/hashing occurs once per original value, with no whole-frontmatter or whole-vault neutral DTO. Details, ownership and acceptance coverage are in [the source contract](NORMALIZED_SOURCE_CONTRACT.md).
 
-SI2 did **not** persist neutral facts across restarts or remove settings-triggered semantic rebuilds. Accepted SI3 adds durable source reuse; SI4 still owns unimplemented demand-driven interpretation/facade integration. Image/hierarchy settings remain conservative semantic invalidations, and the finite SI1 presentation compatibility facade is unchanged.
+SI2 did **not** persist neutral facts across restarts or remove settings-triggered semantic rebuilds. Accepted SI3 adds durable source reuse; SI4a adds private cached interpretation in Review, while live demand-driven interpretation/facade integration remains later SI4 work. Image/hierarchy settings remain conservative semantic invalidations, and the finite SI1 presentation compatibility facade is unchanged.
 
 ## Snapshot publication, demand gating, and startup persistence
 

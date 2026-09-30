@@ -1,3 +1,8 @@
+/**
+ * Canonical Obsidian physical entity and structural source facts. Full collection owns folder
+ * topology; the scoped producer supplies one file and its genuine host tag memberships. Cached
+ * source replay shares these producers without constructing a second structural interpretation.
+ */
 import { getAllTags, TFile, TFolder, type MetadataCache, type Vault } from "obsidian";
 import { nodeId, type FileFacet, type GraphNodeKind } from "../../core/graph/model";
 import {
@@ -166,7 +171,8 @@ function entityFactForFolder(folder: TFolder, revision = folderSourceRevision(fo
   };
 }
 
-function entityFactForFile(file: TFile): SourceEntityFact {
+/** Construct one exact current physical entity; paths are interpreted only at the host boundary. */
+export function entityFactForFile(file: TFile): SourceEntityFact {
   const entity = fileRef(file);
   const facet = fileFacet(file);
   return {

@@ -1,6 +1,6 @@
 # SI3 neutral source repository — Accepted
 
-This is the accepted SI3 implementation contract. SI4 demand-driven interpretation and SI5 lifecycle/performance acceptance are not implemented. The existing hierarchy/image settings route still rebuilds semantic graph state; neutral acquisition can be reused along that route.
+This is the accepted SI3 implementation contract. The additive SI4a cached-source replay capability below is **Review**, not SI4 acceptance. Live demand-driven query/publication integration and SI5 lifecycle/performance acceptance remain unimplemented. The existing hierarchy/image settings route still rebuilds semantic graph state; neutral acquisition can be reused along that route.
 
 ## Ownership and the transitional graph path
 
@@ -9,6 +9,14 @@ This is the accepted SI3 implementation contract. SI4 demand-driven interpretati
 `src/adapters/obsidian/sourceAcquisition.ts` owns observed file incarnations/events, MetadataCache readiness, legacy migration, inventory and host resolution. It calls the existing exported `resolveObsidianReferenceTarget()` and Date collector. No path/basename guesser, Date grammar or semantic classifier is added.
 
 `KplexIndexedDbCache` remains the single connection owner. Incremental `GraphBuilder` calls acquisition **before semantic no-op suppression**. A complete semantic rebuild uses neutral facts for body reuse but leaves source activation to the independent inventory after authoritative publication; it does not wait for a source write per note. `GraphIndex` also starts inventory after complete snapshot hydration. Preview/checkpoint hydration does not claim source completeness. The C14 publication callback remains synchronous; private source staging and graph preparation are asynchronous and separately fenced. Staging can add private-path latency; no latency improvement is claimed.
+
+## SI4a selected-head read capability — Review
+
+[Cached-source replay](CACHED_SOURCE_REPLAY.md) documents the fact inventory, missing host inputs, bounded owner scope and later GraphIndex read consumers. `readSelected()` holds one selected head and its family leases across serialized family visits, preserving the existing hash/frame/posting validation. It returns a finite ready/pending/stale/cancelled/invalid-family/storage-unavailable result. Expected durable sequence, source incarnation and host observations are independent of semantic policy. Final multi-owner validation reads at most 256 selected heads in one transaction and rechecks local masks and caller fences after the await.
+
+Reader release uses the original connection and is initiated synchronously on repository close; success awaits release before its final fence. Release failure remains conservative orphan protection, not a new crash-reclamation guarantee. Evicted unsaved facts mask posting results as well as head reads. Known incomplete posting queries fail rather than certify empty relationships. The v5 posting vocabulary still cannot certify bounded exact pair coverage, structural/URL referrer completeness or absence after a missing lookup row; every discovered list is explicitly candidate-only.
+
+`SourceReplay.ts` reconstructs normalized facts without Markdown IO/parsing or source-head writes. `CachedSourceSemantics.ts` composes the portable scope preparer under source/host/policy revisions. The Obsidian acquisition adapter supplies only missing revision-fenced current entity/structural/presentation facts. No live GraphIndex route, database schema, graph snapshot format or C14 publication owner changes in this checkpoint. Browser lease/integrity cases require independent execution before acceptance.
 
 ## Version-5 database and compatibility
 
