@@ -6,7 +6,7 @@ export async function contributorBrowserBundle() {
   return browserBundle([
     "src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/index/SourceContributorDiscovery.ts",
     "src/adapters/obsidian/sourceAcquisition.ts", "src/core/parser/metadata.ts",
-    "src/adapters/obsidian/structuralSourceCollector.ts",
+    "src/adapters/obsidian/structuralSourceCollector.ts", "src/index/SourceReplay.ts", "src/index/SourceContributorSummary.ts",
   ], { obsidian: `exports.Platform={isMobile:false,isIosApp:false}; exports.TFile=class TFile {
     constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=this.name.replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent=null;}
   }; exports.TFolder=class TFolder {constructor(){this.path='';this.name='';this.children=[];this.parent=null;}};

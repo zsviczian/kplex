@@ -1,7 +1,7 @@
 # SI4a cached-source replay — Accepted
 
 SI4a prepares private **source-owned** semantics. It does not change GraphIndex settings dispatch,
-live publication, snapshot compatibility, search membership or UI reads. SI4b1 discovery is a rejected prototype with a smaller C1 correction in Review; SI4b2 publication, SI4c consumers and SI5 remain pending.
+live publication, snapshot compatibility, search membership or UI reads. SI4b1 discovery retains a rejected lifecycle; its C2-S1 owner-summary prerequisite is accepted as an isolated slice. SI4b2 publication, SI4c consumers and SI5 remain pending.
 
 ## Investigation before implementation
 
@@ -143,35 +143,50 @@ cleanup, durable fault rejection, dependency union and two-policy reuse. Executi
 and the main-agent acceptance evidence are recorded in
 [the SI4a validation report](validation/settings-independent-indexing-si4a-2026-09-30.md).
 
-## SI4b1 discovery supplement — rejected lifecycle; no new publication route
+## SI4b1-C2-S1 neutral observer and summaries — accepted prerequisite, no publication route
 
-[Contributor discovery](SOURCE_CONTRIBUTOR_DISCOVERY.md) documents the rejected v6 prototype, the C1
-deletion correction, and the proposed incremental/warm replacement. Neither C1 nor the first return
-changes `CachedSourceReplay`, `CachedSourceSemanticReader.prepare()` or SI4a's candidate-only
-`discover()`. The prototype still performs a complete canonical structural scan and validates every
-document through replay, plus extra lexical/resolution visits, whenever its root needs rebuilding.
-All-source work after one edit or restart is an SI4b1 blocker, not acceptable preparation for SI4b2.
+[Contributor discovery](SOURCE_CONTRIBUTOR_DISCOVERY.md) records the retained full-rebuild lifecycle,
+the validated focused C1 correction and this smaller C2 prerequisite. Incremental C2 is still not
+implemented. `CachedSourceReplay.read(request, runtime, consume, observe?)` adds one optional neutral
+stored-fact observer; existing call sites, `CachedSourceSemanticReader.prepare()` and candidate-only
+`discover()` retain their accepted semantics and return contracts. No live consumer is connected.
 
-C1 fixes a source repository mask that prevented durable tombstones, protects coalesced/cancelled
-requests and uses an authoritative flush fence in the browser lifecycle test. It does not establish
-incremental negative proofs, warm replay authority or consumer closure. Source/host facts stay
-separate from configured roles, and no live caller is wired to the new catalog.
+The observer runs once per already chunk/posting-validated batch, before canonical consumption. Its
+promise is awaited under the same selected read and lease; false cancels and exceptions reject the
+read. It cannot mutate or retain supplied records, publish a prefix, open another lifetime or assume
+a final callback. Family framing/counts/digests, the remaining families, normalized finality and final
+source/host fences after lease release can still reject all observed work. Caller/host cancellation
+is rechecked around its await. The repository remains the sole pin/decode-reservation owner.
 
-The proposed replacement needs a reviewed observation seam to produce neutral owner summaries
-during the existing four-family replay, avoiding three extra lexical passes. Warm validation must
-bind immutable selected heads to freshly observed host structure, lexical resolutions, Date/non-Date
-fields and Daily Notes without replaying unchanged families. The accepted `captureForReplay()` still
-requires the current session's observation stamp; **do not remove that guard, fabricate an old epoch,
-or rewrite every unchanged source head to claim warm reuse**. No such new authority is implemented.
+`SourceContributorSummary.summarizeContributorOwner()` uses that observer plus the ordinary normalized
+sink to collect the exact neutral dependency set in **four family visits**, including lexical/null/
+dormant bindings and targets hidden by normalized deduplication. It changes no canonical parser,
+resolver, reference ordering, provenance or declaration multiplicity. It reserves encoded key strings,
+UTF-16 storage and bookkeeping under a separate 8 MiB/owner budget. This is not a total-process heap
+budget. It returns no summary on cancellation, missing frames, terminal family corruption, host/head
+supersession or exhausted reservation. Unsaved ready reads keep `sequence=null` and cannot authorize
+durable catalog selection.
 
-A direct owner cover is not a sibling, transitive, gate-count or global-search certificate. Future
-composition must close all required ranges/parents, preserve canonical ordering/provenance and
-check both source/host and semantic-policy fences. The accepted preparer's 256-owner/32 MiB one-shot
-budget must not be bypassed: hot ranges need paged private preparation and one terminal coherent
-result, not partial graph publication or silent truncation. These are C2/C3 obligations **within the
-SI4b1 blocker**; SI4b2 remains blocked until they and the relevant automated/native gates pass.
+The twelve new portable tests include exact before/after normalized batch/work equality, observer
+backpressure/cancellation/faults, late commitment failure, source/head supersession, a legacy seven-
+visit key-set oracle, opaque-ID/path separation, paged summary integrity, delta/absence handling,
+budgets and the unchanged-C host-revision counterexample. The five-policy full-compiler oracle now
+uses actual fused summaries to populate its explicit catalog port. The fixture setup deliberately
+runs an independent normalized oracle; its work is not claimed as the bootstrap's four-visit count.
+All **52 source tests** and **30 real-Chromium IndexedDB tests** pass on the reviewed tree. The
+real-browser cases cover observer leases, summary durability, old-root rejection, corruption and
+interrupted staging. The full aggregate `verify` still fails the unchanged URL-heavy timer assertion;
+the exact-build Obsidian command/render/error smoke passes. This validates the isolated prerequisite,
+not incremental catalog maintenance.
 
-The unchanged five-policy discovery-driven source oracle passes in C1's 40-test source suite. That
-finite fixture does not prove full-neighborhood/search closure or durable behavior. Real-IDB cases
-remain unexecuted under the local browser administrator block; required-Node lint/build/native
-validation is pending. SI4a's accepted validation above does not approve the new schema or catalog.
+The exact old/new union is only a source-local delta plan. The adapter still increments a global host
+revision after an edit: an unchanged C head cannot be replayed under the new host observation without
+a certified transition. Do not delete that guard or reuse an old epoch to make a local index look
+ready. Persisted key sets also lack the source-relative binding descriptors needed for complete fresh-
+session resolver/Date/topology validation. Same-session host-impact/root transactions remain C2;
+fresh-session validation, hot-key/long-ID continuation and terminal scope closure remain C3.
+
+A direct cover is not a sibling, transitive, gate-count or global-search certificate. The accepted
+256-owner/32 MiB one-shot preparer must not be bypassed by partial graph publication. SI4b2 remains
+blocked until incremental maintenance, host authority and terminal composition have their own
+applicable automated/native acceptance. Prior accepted SI4a validation does not approve this extension.

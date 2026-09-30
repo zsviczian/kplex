@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { loadPortableModules } from "./portableTypeScript.mjs";
-export const { exports: C } = loadPortableModules(["src/index/SourceContributorDiscovery.ts", "src/index/SourceFacts.ts"]);
+export const { exports: C } = loadPortableModules(["src/index/SourceContributorDiscovery.ts", "src/index/SourceContributorSummary.ts", "src/index/SourceFacts.ts"]);
 export const sha = text => createHash("sha256").update(text).digest("hex");
 export const ref = (id, kind = "document", physicalPath = id) => ({ id, kind, state: "materialized", semanticPath: id,
   ...(kind === "document" || kind === "attachment" || kind === "container" ? { physicalPath } : {}) });
@@ -26,9 +26,17 @@ export function rowsFor(sources, structural = []) {
   const rows = [];
   for (const [order, value] of sources.entries()) {
     const owner = C.contributorKey("source", value.sourceId);
-    rows.push({ kind: "source", key: owner, order, head: value.head });
-    rows.push({ kind: "link", key: C.contributorKey("node", value.source.id), owner });
-    for (const record of value.records ?? []) for (const key of C.contributorRecordKeys(record)) rows.push({ kind: "link", key, owner });
+    const keys = new Set(value.summary?.keys ?? [C.contributorKey("node", value.source.id)]);
+    for (const record of value.records ?? []) for (const key of C.contributorRecordKeys(record)) keys.add(key);
+    let summary = { pages: 0, records: 0, bytes: 0, digest: "" };
+    for (const page of C.contributorSummaryPages([...keys].sort(), 128 * 1024)) {
+      const commitment = { digest: sha(page.data), bytes: page.bytes, records: page.keys.length };
+      rows.push({ kind: "summary", key: C.contributorKey("summary", value.sourceId), index: page.index, keys: page.keys });
+      summary = { pages: summary.pages + 1, records: summary.records + page.keys.length, bytes: summary.bytes + page.bytes,
+        digest: sha(C.contributorSummaryPageCommitment(summary.digest, value.sourceId, value.head.sourceRevision, value.head.sequence, page.index, commitment)) };
+    }
+    rows.push({ kind: "source", key: owner, order, head: value.head, source: value.source, summary });
+    for (const key of keys) rows.push({ kind: "link", key, owner });
   }
   for (const [order, fact] of structural.entries()) {
     const owner = C.contributorKey("host", String(order));
@@ -92,7 +100,7 @@ export function catalogFixture(sources = [], structural = []) {
           bytes: previous.bytes + page.bytes, records: previous.records + page.records, pages: previous.pages + 1 };
       }
     }
-    const data = JSON.stringify({ version: 1, build, host: stamp, sources: sources.length, hostFacts: structural.length, rows: rows.length, buckets });
+    const data = JSON.stringify({ version: C.CONTRIBUTOR_CATALOG_VERSION, build, host: stamp, sources: sources.length, hostFacts: structural.length, rows: rows.length, buckets });
     await repository.activateDependencyBuild({ key: C.SOURCE_DEPENDENCY_ROOT_KEY, build, data, digest: sha(data) }, buckets.reduce((sum, bucket) => sum + bucket.pages, 0));
   };
   return { discovery, state, seal, repository, host, runtime, cancel: () => { current = false; }, environmentChanged: () => { environment = false; } };

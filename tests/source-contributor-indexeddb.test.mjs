@@ -37,6 +37,122 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
       })()`), true);
     });
 
+    /** The fused producer is measured on real durable facts, not an in-memory catalog facade. */
+    await t.test("four-family bootstrap persists authenticated owner summaries without rewriting accepted source or body data", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await seed('contributor-summary-fused'),db=await f.cache.open(),before={};
+        const names=['sourceHeads','sourceChunks','sourcePostings','bodies'];
+        for(const name of names)before[name]=await value(db.transaction(name).objectStore(name).getAll());
+        let visits=0;const visit=f.repository.visitFamily.bind(f.repository);
+        f.repository.visitFamily=(...args)=>{visits++;return visit(...args);};
+        const d=f.acquisition.contributorDiscovery(runtime()),built=await d.rebuild();
+        equal(built.outcome,'ready','Complete bootstrap');equal(built.familyVisits,12,'Four visits per owner');equal(visits,12,'Measured actual family traversal count');
+        const owner=await d.readOwnerSummary('A.md');equal(owner.outcome,'ready','Authenticated source-local snapshot');
+        ok(owner.stamp.saved&&owner.summary.sequence!==null,'Durable stamp is not a memory fixture coordinate');
+        equal(owner.summary.sourceId,'A.md','Source identity');ok(owner.summary.keys.includes(M.contributorKey('literal','B')),'Dormant lexical dependency');
+        equal((await d.discover({kind:'pair',endpoints:[ref('A.md'),ref('B.md')]})).outcome,'ready','Summary-authenticated direct cover');
+        equal(visits,12,'Summary read and discovery perform zero family visits');
+        for(const name of names)equal(await value(db.transaction(name).objectStore(name).getAll()),before[name],name+' unchanged');
+        equal(f.reads,[],'Zero Markdown reads');equal(f.parses,[],'Zero parser calls');
+        equal(f.repository.readers.size,0,'All durable readers released');equal(f.repository.decodeBytes,0,'Decode reservations released');f.close();return true;
+      })()`), true);
+    });
+
+    /** A format change rejects only derivative authority; database and accepted records are retained. */
+    await t.test("an existing v6 database with a v1 derivative root is not reset or misread as a v2 summary certificate", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await seed('contributor-summary-v6'),d=await f.build(),db=await f.cache.open(),before={};
+        const names=['sourceHeads','sourceChunks','sourcePostings','bodies'];
+        for(const name of names)before[name]=await value(db.transaction(name).objectStore(name).getAll());
+        await edit(db,['meta'],tx=>tx.objectStore('meta').put({key:'checkpoint',schema:3,pageChunkCount:0,evidenceChunkCount:0,generation:'summary-migration-kept',createdAt:1,vaultSignature:'v',settingsSignature:'s',discoveredFields:[],completedMarkdownPaths:[]}));
+        const old=await f.repository.readDependencyRoot(()=>true),oldData=JSON.stringify({...JSON.parse(old.data),version:1});
+        const downgraded={...old,data:oldData,digest:await f.repository.observationDigest(oldData)};
+        await edit(db,['meta'],tx=>tx.objectStore('meta').put(downgraded));
+        equal((await d.discover(absent())).reason,'dependency-invalid','A v1 negative is not v2 authority');
+        equal((await d.readOwnerSummary('A.md')).reason,'dependency-invalid','No synthesized owner summary');
+        equal(db.version,6,'No accepted schema bump');
+        equal((await f.cache.readSnapshotMeta('checkpoint')).generation,'summary-migration-kept','Graph snapshot preserved');
+        equal((await d.rebuild()).outcome,'ready','Explicit derivative bootstrap can select v2');
+        for(const name of names)equal(await value(db.transaction(name).objectStore(name).getAll()),before[name],name+' byte-shape preservation');
+        equal(JSON.parse((await f.repository.readDependencyRoot(()=>true)).data).version,M.CONTRIBUTOR_CATALOG_VERSION,'Only derivative root format changes');f.close();return true;
+      })()`), true);
+    });
+
+    /** Missing stored summary pages must break both positive selection and a colliding empty lookup. */
+    await t.test("missing summary pages or rows cannot authenticate an owner or an empty bucket lookup", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules;
+        for(const fault of ['page','row']){
+          const f=await seed('contributor-summary-missing-'+fault),d=await f.build(),db=await f.cache.open();
+          const key=M.contributorKey('summary','A.md'),bucket=M.sourceDependencyBucket(key),root=await f.repository.readDependencyRoot(()=>true);
+          const before=await value(db.transaction('sourceHeads').objectStore('sourceHeads').get('B.md'));
+          let index=0;while(M.sourceDependencyBucket(M.contributorKey('node','summary-empty:'+index))!==bucket)index++;
+          const negative={kind:'pair',endpoints:[ref('summary-empty:'+index),ref('unrelated-missing')]};
+          equal((await d.discover(negative)).outcome,'ready','Intact original empty-range proof');
+          equal((await d.readOwnerSummary('A.md')).outcome,'ready','Intact independent owner proof');
+          const pages=await value(db.transaction('sourceDependencies').objectStore('sourceDependencies').getAll());
+          const page=pages.find(page=>page.slot===root.build.slot&&page.bucket===bucket&&JSON.parse(page.data).some(row=>row.kind==='summary'&&row.key===key));
+          ok(page,'Original summary page is present');
+          await edit(db,['sourceDependencies'],tx=>{
+            const store=tx.objectStore('sourceDependencies');
+            if(fault==='page')store.delete([page.slot,page.bucket,page.index]);
+            else store.put({...page,data:JSON.stringify(JSON.parse(page.data).filter(row=>row.kind!=='summary'||row.key!==key))});
+          });
+          const owner=await d.readOwnerSummary('A.md'),positive=await d.discover({kind:'pair',endpoints:[ref('A.md'),ref('B.md')]}),empty=await d.discover(negative);
+          for(const result of [owner,positive,empty]){ok(result.outcome!=='ready','Fault cannot select a surviving subset');ok(!('sourceIds'in result)&&!('summary'in result),'No partial result');}
+          equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').get('B.md')),before,'Unrelated source data intact');
+          f.close();
+        }return true;
+      })()`), true);
+    });
+
+    /** Awaited observation holds the original leases; a competing real connection can invalidate finality. */
+    await t.test("an awaited observer retains its real selected lease and rejects cross-connection head activation", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await seed('contributor-summary-observer'),db=await f.cache.open();
+        const other=new M.KplexIndexedDbCache('contributor-summary-observer');ok(await other.open(),'Independent real connection');
+        const captured=await f.acquisition.captureForReplay('A.md',{noteTypeField:'',primaryTagField:''},runtime());equal(captured.outcome,'ready','Host request');
+        const selected=await f.repository.inspect('A.md'),metadata=[];
+        equal((await f.repository.readSelected('A.md',()=> 'ready',reader=>reader.visit('metadata',records=>{metadata.push(...records);return true;}))).outcome,'ready','Valid metadata frame capture');
+        let enter,release,settled=false,calls=0;
+        const entered=new Promise(resolve=>enter=resolve),gate=new Promise(resolve=>release=resolve);
+        const reading=new M.CachedSourceReplay(f.repository).read(captured.request,runtime(),()=>true,async()=>{calls++;if(calls===1){enter();await gate;}return true;});
+        reading.then(()=>settled=true);await entered;
+        try{
+          equal(settled,false,'Observer is awaited');equal(f.repository.readers.size,1,'One actual durable read lifetime');
+          ok((await value(db.transaction('meta').objectStore('meta').getAll())).some(row=>row.sourceId==='A.md'&&row.owner===f.repository.owner),'Persistent lease retained across await');
+          equal(await other.sources.cleanupRevision('A.md',selected.head.families.values.revision),false,'Other connection cannot reclaim pinned family');
+          const replacement={sourceId:'A.md',physical:selected.head.physical,observation:selected.head.observation,expected:selected.expected,
+            families:{...selected.head.families,metadata:async emit=>{for(const record of metadata)if(!await emit(record))return false;return emit({kind:'alias',value:'after-observer'});}}};
+          equal((await other.sources.replace(replacement)).outcome,'activated','Competing head selected atomically');
+        }finally{release();}
+        const result=await reading;ok(result.outcome!=='ready','Private old observation is not terminal');ok(!('value'in result),'No partial summary or semantic stream');
+        equal(f.repository.readers.size,0,'Reader lifetime released');equal(f.repository.decodeBytes,0,'Decoded bytes released');
+        ok(!(await value(db.transaction('meta').objectStore('meta').getAll())).some(row=>row.sourceId&&row.owner),'No persistent reader or writer leases leaked');
+        equal((await f.repository.inspect('B.md')).reason,'ready','Unrelated source remains readable');other.close();f.close();return true;
+      })()`), true);
+    });
+
+    /** A failed summary-page stage cannot publish its prefix or retire the previous selected root. */
+    await t.test("interrupted summary-page staging leaves the prior root, owner snapshot and unrelated source intact", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await seed('contributor-summary-stage'),d=await f.build(),db=await f.cache.open();
+        const root=await f.repository.readDependencyRoot(()=>true),owner=await d.readOwnerSummary('A.md');equal(owner.outcome,'ready','Selected original owner');
+        const certificate=await d.discover({kind:'pair',endpoints:[ref('A.md'),ref('B.md')]});equal(certificate.outcome,'ready','Selected original cover');
+        const before=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
+        const put=f.repository.putDependencyPage.bind(f.repository);let interrupted=false;
+        f.repository.putDependencyPage=async(build,page,current)=>{await put(build,page,current);if(!interrupted&&JSON.parse(page.data).some(row=>row.kind==='summary')){interrupted=true;throw new M.SourceFactError('write-error');}};
+        let result;try{result=await d.rebuild();}finally{f.repository.putDependencyPage=put;}
+        ok(interrupted,'A real summary-containing page committed before interruption');ok(result.outcome!=='ready','An incomplete prefix never activates');
+        equal(await f.repository.readDependencyRoot(()=>true),root,'Original root remains selected');
+        equal(await d.revalidate(certificate),'ready','Original exact cover remains valid with unchanged host');
+        equal((await d.readOwnerSummary('A.md')).summary,owner.summary,'Original independently committed owner remains readable');
+        equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll()),before,'No accepted heads rewritten');
+        equal(f.repository.readers.size,0,'No pin leak');equal((await d.rebuild()).outcome,'ready','Explicit bootstrap can replace interrupted inactive slot');
+        ok(await d.revalidate(certificate)!=='ready','Successfully replaced root invalidates old certificate');f.close();return true;
+      })()`), true);
+    });
+
     await t.test("individual host literal bindings remain discoverable even without aggregate host-map entries", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const f=await fixture('contributor-literal');f.add('A.md');f.add('B.md');

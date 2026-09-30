@@ -2,6 +2,8 @@
  * Validated SI3 facts -> bounded canonical normalized batches. This storage adapter joins lexical
  * frames to their selected resolution family, without Markdown reads, scanning or semantic policy.
  * It owns one source pin at a time; callers supply current host facts and keep compilation private.
+ * An optional neutral-fact observer shares the same four validated family visits and pin. Observer
+ * effects are private until the entire selected read succeeds; it cannot authorize publication.
  */
 import {
   acceptSourceBatch, beginSourceRead, estimateReferenceRecordBytes, MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH,
@@ -13,7 +15,7 @@ import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import { normalizeFieldName } from "../core/parser/metadata";
 import {
   SOURCE_DECODE_BUDGET_BYTES, SOURCE_FAMILIES, SourceBodyDecoder, SourceFactError,
-  type SourceObservation, type SourcePhysical, type SourceReason, type StoredSourceFact, type StoredValueHeader,
+  type SourceFamily, type SourceObservation, type SourcePhysical, type SourceReason, type StoredSourceFact, type StoredValueHeader,
 } from "./SourceFacts";
 import {
   type NeutralSourceRepository, type SelectedSourceReader, type SelectedSourceResult, type SelectedSourceStamp,
@@ -44,6 +46,15 @@ export type SourceReplayWork = Readonly<{
   maxBatchRecords: number; maxBatchEstimatedBytes: number; retainedJoinBytes: number;
 }>;
 export type CachedSourceRead = Readonly<{ boundary: SourceReadBoundary; work: SourceReplayWork }>;
+/**
+ * Observe each already chunk/posting-validated batch once, before canonical replay consumes it.
+ * The observer must await its own bounded work, must not mutate or retain the supplied records,
+ * and must keep all derived output private. A family may still fail its terminal framing/digest
+ * check, or the selected head may change, after this callback. Only read()'s terminal ready result
+ * closes those checks. False rejects the read as cancelled; exceptions abort it and release the
+ * existing source pin. No separate final callback, detached task or second family pass is owned here.
+ */
+export type CachedSourceFactObserver = (family: SourceFamily, records: readonly StoredSourceFact[]) => Promise<boolean> | boolean;
 type Resolution = Extract<StoredSourceFact, { kind: "reference-resolution" }>;
 type LiteralResolution = Extract<StoredSourceFact, { kind: "literal-resolution" }>;
 type ResolutionGroup = { records: Resolution[]; hasTarget: boolean; next: number };
@@ -132,23 +143,37 @@ export class CachedSourceReplay {
   /** Keep storage ownership separate from compiler and host capabilities. */
   constructor(private readonly repository: NeutralSourceRepository) {}
 
-  /** Validate all families under one head and never return a partial normalized read as ready. */
+  /**
+   * Validate all families under one head, awaiting the observer before canonical consumption of
+   * each stored batch. Neither observer nor normalized output is usable unless this whole read is
+   * ready. With no observer, the accepted SI4a ordering, batches and work counts are unchanged.
+   */
   async read(request: CachedSourceRequest, runtime: SourceReplayRuntime,
-    consume: (batch: NormalizedSourceBatch) => Promise<boolean> | boolean): Promise<SelectedSourceResult<CachedSourceRead>> {
+    consume: (batch: NormalizedSourceBatch) => Promise<boolean> | boolean,
+    observe?: CachedSourceFactObserver): Promise<SelectedSourceResult<CachedSourceRead>> {
+    /** The observer, canonical writer and selected read share the same caller/host lifetime. */
     const current = (): boolean => runtime.isCurrent() && request.host.isCurrent();
     const label = `cached-source:${++replaySequence}`;
     const boundary = { generation: sourceGeneration(label), snapshotRevision: sourceSnapshotRevision(label) };
     const writer = new ReplayBatchWriter(boundary, { ...runtime, isCurrent: current }, consume);
-    return this.repository.readSelected(request.sourceId, (stamp) => cachedSourceMatches(request, stamp), async (reader) => {
-      const work = await this.replay(reader, request.host, writer, current);
-      if (!current() || !(await writer.finish()) || !current()) throw new SourceFactError("cancelled");
-      return { boundary, work: { ...work, ...writer.counts } };
-    }, current);
+    return this.repository.readSelected(request.sourceId,
+      /** A stored-fact callback does not relax any selected source/physical/host observation fence. */
+      (stamp) => cachedSourceMatches(request, stamp),
+      /** Keep both streams private until canonical finality and the repository's final lease fence. */
+      async (reader) => {
+        const work = await this.replay(reader, request.host, writer, current, observe);
+        if (!current() || !(await writer.finish()) || !current()) throw new SourceFactError("cancelled");
+        return { boundary, work: { ...work, ...writer.counts } };
+      }, current);
   }
 
-  /** Join stored facts by explicit value identity; all classification is left to the normalized sink. */
+  /**
+   * Join stored facts by explicit value identity; classification remains in the normalized sink.
+   * The observer shares each validated chunk and its lease, and is awaited inside the same
+   * cancellation/error boundary. It does not change canonical target deduplication or multiplicity.
+   */
   private async replay(reader: SelectedSourceReader, host: CachedSourceHost, writer: ReplayBatchWriter,
-    current: () => boolean): Promise<Omit<SourceReplayWork, keyof ReplayBatchWriter["counts"]>> {
+    current: () => boolean, observe?: CachedSourceFactObserver): Promise<Omit<SourceReplayWork, keyof ReplayBatchWriter["counts"]>> {
     const revision = sourceRevision(reader.head.sourceRevision);
     const base = { source: host.source, sourceRevision: revision };
     const groups = new Map<string, ResolutionGroup>();
@@ -166,18 +191,21 @@ export class CachedSourceReplay {
     const visit = async (family: typeof SOURCE_FAMILIES[number], accept: (record: StoredSourceFact) => Promise<boolean>): Promise<void> => {
       familyVisits += 1;
       let joinFailure: SourceFactError | undefined;
-      const reason = await reader.visit(family, async (records) => {
-        chunks += 1; storedRecords += records.length;
-        try {
-          for (const record of records) if (!current() || !(await accept(record)) || !(await writer.touch())) return false;
-          return current();
-        } catch (error) {
-          // The repository identifies the family being read; a cross-family join must retain the
-          // originating resolution/metadata failure instead of blaming an intact values chunk.
-          if (error instanceof SourceFactError) joinFailure = error;
-          throw error;
-        }
-      });
+      const reason = await reader.visit(family,
+        /** Await neutral observation before canonical consumption under this validated chunk lease. */
+        async (records) => {
+          chunks += 1; storedRecords += records.length;
+          try {
+            if (!current() || observe && (!(await observe(family, records)) || !current())) return false;
+            for (const record of records) if (!current() || !(await accept(record)) || !(await writer.touch())) return false;
+            return current();
+          } catch (error) {
+            // The repository identifies the family being read; a cross-family join must retain the
+            // originating resolution/metadata failure instead of blaming an intact values chunk.
+            if (error instanceof SourceFactError) joinFailure = error;
+            throw error;
+          }
+        });
       if (joinFailure) throw joinFailure;
       if (reason !== "ready") throw new SourceFactError(reason, family);
       if (!current()) throw new SourceFactError("cancelled", family);

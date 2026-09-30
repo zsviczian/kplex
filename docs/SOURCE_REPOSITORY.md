@@ -18,7 +18,7 @@ Reader release uses the original connection and is initiated synchronously on re
 
 `SourceReplay.ts` reconstructs normalized facts without Markdown IO/parsing or source-head writes. `CachedSourceSemantics.ts` composes the portable scope preparer under source/host/policy revisions. The Obsidian acquisition adapter supplies only missing revision-fenced current entity/structural/presentation facts. SI4a changed no live GraphIndex route, database schema, graph snapshot format or C14 publication owner. Its accepted validation is recorded in the linked replay document; the separate SI4b1 prototype below remains rejected; C1 does not change replay authority.
 
-## SI4b1 exact discovery — rejected lifecycle; C1 in Review
+## SI4b1 exact discovery — rejected lifecycle; C2-S1 summary prerequisite accepted
 
 [Contributor discovery](SOURCE_CONTRIBUTOR_DISCOVERY.md) records the rejection, delivered C1 slice,
 positive/negative proof obligations, and proposed replacement index. The internal prototype returns
@@ -29,12 +29,37 @@ publication, search, gates or UI consumers use the new path.
 The unaccepted database-v6 `sourceDependencies` store still holds two immutable catalog slots.
 A SHA-256-committed bucket manifest detects omitted lookup pages/rows. Every source mutation deletes
 the root, and unfinished writes have durable dirty tickets. Head activation and final invalidation
-are atomic across connections. **C1 does not replace this full-rebuild lifecycle:** edits and new
-sessions still require replay of all source owners before catalog readiness. At 20,000 Markdown
-owners, one catalog build visits 140,000 families. This blocks SI4b1 acceptance and SI4b2 publication;
-it is not an SI5-only performance limitation.
+are atomic across connections. **Neither C1 nor C2-S1 replaces this full-rebuild lifecycle:** edits
+and new sessions still require all-owner replay before exact readiness. Fusing owner summaries into
+the four-family replay reduces one 20,000-owner catalog build from 140,000 to 80,000 family visits,
+not to four visits per edit. Host reacquisition is additional work. This remains an SI4b1 blocker,
+not an SI5-only performance limitation.
 
-### C1 deletion capability and authoritative completion — Review
+### C2-S1 persisted owner summaries — accepted prerequisite, no local transaction protocol
+
+`SourceRepository` is unchanged by this slice. The discovery layer now selects derivative root
+format 2, with an independent original commitment for each owner's sorted key pages. It binds those
+pages to the exact source revision/durable sequence and authenticates them under the existing root.
+`readOwnerSummary()` and source-owner discovery require all original summary pages and final head/
+root fences. A missing owner is pending/missing, not authoritative absence; a selected owner with a
+missing summary lookup is invalid. No whole-source-family or Markdown read is needed to read an
+intact selected summary, but whole colliding hash buckets are still authenticated within query caps.
+
+Summary preparation shares `readSelected()` through the canonical replay's awaited observer. It
+never opens a second pin or rewrites a head; cancellation and late family/head failures release the
+existing lifetime and expose no summary. Independent 8 MiB owner-key reservations do not replace the
+repository's aggregate decode, replay-join or body-reconstruction guards. Zero family visits for a
+summary lookup or deletion delta does not mean zero durable lease/head/root transactions.
+
+`prepareContributorOwnerDelta()` computes private removed/added/affected key sets from explicitly
+validated old/new states. It neither retires tickets nor activates an index. Once the existing writer
+has deleted the old root, the new public summary reader does not bypass that fence to recover old
+pages. The eventual C2 coordinator still needs a durable old-summary/impact journal, source/host/root
+CAS, atomic selection or explicit repair state, and safe immutable tree-page reclamation. SourceId,
+NodeId and path facets remain distinct; source and host owners are not merged. The full protocol and
+executable A-adds-B/unchanged-C counterexample are in the discovery document.
+
+### C1 deletion capability and authoritative completion — focused main-agent validation recorded
 
 A tombstone immediately masks its owner, then uses an identity-current pending-deletion capability
 to pin a masked disk head **only as CAS input**. Previously its own `unsaved` mask prevented that pin,
@@ -58,8 +83,9 @@ presence/absence operation exists, not a timer-based cleanup of arbitrary dirty 
 durable completion must await `repository.flush()` and require `true`; failure/backpressure remains
 non-ready. Flush is a fence for this repository's known work, not proof of a complete host inventory,
 remote writer completion or exact contributor coverage. C1's browser lifecycle test uses that fence
-rather than sleeping or deleting masks. The new real-IDB cases remain unexecuted here because the
-browser test page is blocked by administrator policy; portable tests are not durable evidence.
+rather than sleeping or deleting masks. C1's prior main-agent browser/native validation is recorded
+in `Refactor plan.md`. This return preserves those cases; the main-agent real-Chromium run passed
+30/30 IndexedDB tests on the reviewed tree. Portable tests alone would not establish durability.
 
 A tombstone itself visits zero source families. It selects one head, owns at most four family-revision
 leases, and affects only that source's families; later retained-body reads and retired-chunk cleanup
@@ -78,7 +104,12 @@ The existing vault-local database name is retained. The version-4-to-5 upgrade c
 | `sourceDependencies` (v6, unaccepted) | `[slot,bucket,index]` | Two reusable derivative catalog generations; explicit checksum/absence proofs |
 | `meta` (existing) | `key` | Adds `sourceLease` on `[sourceId,revision]`; source sequence and persistent lease records are separate from graph pointers; v6 also adds catalog root/build/mutation control records |
 
-Version domains remain distinct: database **6** in the unaccepted prototype (accepted SI3/SI4a used **5**), source-fact format **1**, source-fact compiler **1**, immutable body parser **2**, host-resolution format **1**, graph-snapshot schemas **1/2/3**, and the unchanged semantic/settings signature versions. Unsupported source versions reject that source, not other heads or graph stores.
+Old derivative root format 1 is rejected without resetting an already-created v6 database. Explicit
+bootstrap can replace only the derivative root/pages with format 2; accepted source/body/graph records
+are not rewritten. The v5→v6 upgrade itself is unchanged. Main-agent real-Chromium migration and
+preservation checks passed; the overall SI4b1 migration/lifecycle is still not accepted.
+
+Version domains remain distinct: database **6** in the unaccepted prototype (accepted SI3/SI4a used **5**), derivative root **2**, owner summary **1**, source-fact format **1**, source-fact compiler **1**, immutable body parser **2**, host-resolution format **1**, graph-snapshot schemas **1/2/3**, and the unchanged semantic/settings signature versions. Unsupported source versions reject that source, not other heads or graph stores.
 
 Failed opens/upgrades, blocked/time-limited opens and failed transactions invalidate the owning handle/readiness promise. Late connections are closed. Retry delays are 1, 5 and then 30 seconds. A newer database's `VersionError` makes this process persistence-unavailable; it never deletes or downgrades the database. Source and legacy methods share this owner, including synchronous transaction-open failures.
 

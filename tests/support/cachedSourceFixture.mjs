@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { browserBundle } from "./browserTypeScript.mjs";
 
 const bundle = await browserBundle([
-  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/core/parser/metadata.ts", "src/index/SourceReplay.ts", "src/index/CachedSourceSemantics.ts",
+  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/core/parser/metadata.ts", "src/index/SourceReplay.ts", "src/index/CachedSourceSemantics.ts", "src/index/SourceContributorSummary.ts",
   "src/core/graph/compiler.ts", "src/core/graph/source.ts", "src/index/fieldParser.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts", "src/adapters/obsidian/hostLinkSourceCollector.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts", "src/adapters/obsidian/metadataSourceCollector.ts",

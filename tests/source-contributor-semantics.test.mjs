@@ -31,9 +31,14 @@ async function fixture() {
     const records = [];
     const replay = await new M.CachedSourceReplay(f.repository).read(captured.request, runtime(), batch => { records.push(...batch.records); return true; });
     assert.equal(replay.outcome, "ready");
+    // Setup deliberately runs an independent canonical replay oracle and the new fused producer.
+    // This is not measured bootstrap work; policy-only assertions below begin after setup.
+    const summarized = await M.summarizeContributorOwner(f.repository, captured.request, runtime());
+    assert.equal(summarized.outcome, "ready"); assert.equal(summarized.value.work.familyVisits, 4);
     // Sequence is a catalog-port fixture coordinate only. The compiler uses the actual production
     // memory repository and its real unsaved stamps; no production storage gate is represented here.
-    sources.push({ sourceId: id, source: captured.request.host.source, head: { ...replay.stamp.head, sequence: index + 1 }, records });
+    sources.push({ sourceId: id, source: captured.request.host.source, head: { ...replay.stamp.head, sequence: index + 1 },
+      summary: summarized.value.summary, records });
     structure.push(...records.filter(record => record.kind === "tag-tree"));
   }
   const catalog = catalogFixture(sources, structure); await catalog.seal();

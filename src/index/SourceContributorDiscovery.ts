@@ -1,10 +1,13 @@
 /**
  * Internal SI4b1 closed-world contributor discovery. Canonical cached replay and the finalized host
  * structural collector supply policy-neutral dependencies; immutable hash-bucket pages certify both
- * presence and absence. This module never classifies relationships, parses Markdown, publishes a
+ * presence and absence. Per-owner summary pages preserve the original sorted dependency set,
+ * collected in the canonical four-family replay rather than an additional lexical pass. The v2
+ * derivative root remains a rejected full-build lifecycle, not an incremental C2 certificate.
+ * This module never classifies relationships, parses Markdown, publishes a
  * graph, or schedules acquisition. SourceRepository owns all disk effects and existing source leases.
  */
-import type { FileTreeOccurrence, NormalizedSourceRecord, SourceEntityFact, SourceEntityRef, TagTreeOccurrence } from "../core/graph/source";
+import type { FileTreeOccurrence, SourceEntityFact, SourceEntityRef, TagTreeOccurrence } from "../core/graph/source";
 import {
   SOURCE_CHUNK_TARGET_BYTES, SOURCE_DECODE_BUDGET_BYTES, SOURCE_MAX_BATCH_RECORDS,
   SOURCE_DEPENDENCY_BUCKETS, SOURCE_DEPENDENCY_MAX_PAGES, SOURCE_DEPENDENCY_ROOT_BYTES, SOURCE_DEPENDENCY_MAX_BYTES,
@@ -13,9 +16,17 @@ import {
   type SourceDependencyBuild, type SourceDependencyPageManifest, type SourceDependencyBucketManifest, type SourceDependencyRootRecord,
   type SourceHead, type SourceReason,
 } from "./SourceFacts";
-import { CachedSourceReplay, cachedSourceMatches, type CachedSourceRequest, type SourceReplayRuntime } from "./SourceReplay";
+import type { CachedSourceRequest, SourceReplayRuntime } from "./SourceReplay";
+import {
+  contributorKey, contributorRecordKeys, contributorSummaryPageCommitment, contributorSummaryPages,
+  summarizeContributorOwner, validContributorMembershipKey, validContributorOwnerSummary, validContributorSummaryManifest,
+  type ContributorOwnerSummary, type ContributorSummaryManifest,
+} from "./SourceContributorSummary";
+export { contributorKey, contributorRecordKeys } from "./SourceContributorSummary";
 import type { NeutralSourceRepository, SelectedSourceStamp } from "./SourceRepository";
 
+/** Only the unaccepted derivative root changes; v5/v6 stores and all accepted source data survive. */
+export const CONTRIBUTOR_CATALOG_VERSION = 2;
 const MAX_BUFFER_BYTES = 2 * 1024 * 1024;
 const MAX_IDENTITY_BYTES = 8 * 1024 * 1024;
 const MAX_CATALOG_ROWS = 2_000_000;
@@ -63,20 +74,17 @@ export type ContributorDiscoveryResult = ContributorFailure | (ContributorCertif
   work: Readonly<{ buckets: number; pages: number; bytes: number; sourceOwners: number; hostFacts: number }>;
 }>);
 type CatalogRoot = Readonly<{
-  version: 1; build: SourceDependencyBuild; host: ContributorHostStamp;
+  version: 2; build: SourceDependencyBuild; host: ContributorHostStamp;
   sources: number; hostFacts: number; rows: number;
   buckets: readonly SourceDependencyBucketManifest[];
 }>;
 type DependencyRow =
   | Readonly<{ kind: "link"; key: string; owner: string }>
-  | Readonly<{ kind: "source"; key: string; order: number; head: SourceHead }>
+  | Readonly<{ kind: "source"; key: string; order: number; head: SourceHead; source: SourceEntityRef; summary: ContributorSummaryManifest }>
+  | Readonly<{ kind: "summary"; key: string; index: number; keys: readonly string[] }>
   | Readonly<{ kind: "host"; key: string; order: number; fact: ContributorStructuralFact }>;
 type QueryBudget = { buckets: Map<number, readonly DependencyRow[]>; pages: number; bytes: number };
 
-/** Exact JSON tuples keep kind, opaque ID and physical/semantic spellings in separate namespaces. */
-export function contributorKey(kind: "node" | "field" | "literal" | "family" | "source" | "host", value: string): string {
-  return JSON.stringify([kind, value]);
-}
 /** Measure the actual encoded page size, including JSON escape expansion. */
 function bytes(value: string): number { return new TextEncoder().encode(value).byteLength; }
 /** Small strict shape guard used only for this module's finite persisted vocabulary. */
@@ -120,8 +128,13 @@ function structural(value: unknown): value is ContributorStructuralFact {
 function row(value: unknown): value is DependencyRow {
   if (!sourceObject(value) || typeof value.key !== "string" || !value.key.length) return false;
   if (value.kind === "link") return exact(value, ["kind", "key", "owner"]) && typeof value.owner === "string" && value.owner.length > 0;
+  if (value.kind === "summary") return exact(value, ["kind", "key", "index", "keys"]) && sourceCount(value.index)
+    && Array.isArray(value.keys) && value.keys.length > 0 && value.keys.length <= SOURCE_MAX_BATCH_RECORDS
+    && value.keys.every(validContributorMembershipKey);
   if (!sourceCount(value.order)) return false;
-  if (value.kind === "source") return exact(value, ["kind", "key", "order", "head"]) && decodeSourceHead(value.head) !== null;
+  if (value.kind === "source") return exact(value, ["kind", "key", "order", "head", "source", "summary"])
+    && decodeSourceHead(value.head) !== null && entity(value.source) && value.source.kind === "document"
+    && value.source.state === "materialized" && validContributorSummaryManifest(value.summary);
   return value.kind === "host" && exact(value, ["kind", "key", "order", "fact"]) && structural(value.fact);
 }
 /** Separate global host observations from per-source physical heads and semantic policy tokens. */
@@ -133,20 +146,6 @@ function hostStamp(value: unknown): value is ContributorHostStamp {
 /** Compare explicit host coordinates; neither locale nor JSON object insertion order defines identity. */
 function sameHost(left: ContributorHostStamp, right: ContributorHostStamp): boolean {
   return left.epoch === right.epoch && left.revision === right.revision && left.token === right.token;
-}
-/** Projection is deliberately role-neutral; ancestor tags use a conservative family, not copied grammar. */
-export function* contributorRecordKeys(record: NormalizedSourceRecord): IterableIterator<string> {
-  if (record.kind === "entity") { yield contributorKey("node", record.entity.id); return; }
-  if (record.kind === "reference-value" || record.kind === "field-name") yield contributorKey("field", record.normalizedFieldName);
-  if (record.kind === "reference-candidate" || record.kind === "obsidian-link" || record.kind === "unresolved-link"
-    || record.kind === "date-property" || record.kind === "body-url" || record.kind === "file-tree" || record.kind === "tag-tree") {
-    yield contributorKey("node", record.target.entity.id);
-    yield contributorKey("literal", record.target.rawTarget);
-  }
-  if (record.kind === "body-url" && record.origin) yield contributorKey("node", record.origin.entity.id);
-  if (record.kind === "file-tree" || record.kind === "tag-tree") yield contributorKey("node", record.source.id);
-  if (record.kind === "tag-tree") yield contributorKey("family", "tag-tree");
-  if (record.kind === "date-property" && record.provenance?.normalizedFieldName) yield contributorKey("field", record.provenance.normalizedFieldName);
 }
 /** Close failures without exposing source contents, exception messages or a partial owner list. */
 function failure(error: unknown): ContributorFailure {
@@ -162,7 +161,7 @@ function failure(error: unknown): ContributorFailure {
 function decodeRoot(data: string): CatalogRoot {
   const value: unknown = JSON.parse(data);
   if (!sourceObject(value) || !exact(value, ["version", "build", "host", "sources", "hostFacts", "rows", "buckets"])
-    || value.version !== 1 || !validSourceDependencyBuild(value.build) || !hostStamp(value.host)
+    || value.version !== CONTRIBUTOR_CATALOG_VERSION || !validSourceDependencyBuild(value.build) || !hostStamp(value.host)
     || !sourceCount(value.sources) || !sourceCount(value.hostFacts) || !sourceCount(value.rows)
     || value.rows > MAX_CATALOG_ROWS || value.sources + value.hostFacts > value.rows
     || !Array.isArray(value.buckets) || value.buckets.length !== SOURCE_DEPENDENCY_BUCKETS) throw new SourceFactError("dependency-invalid");
@@ -179,7 +178,7 @@ function decodeRoot(data: string): CatalogRoot {
     count += bucket.records; totalBytes += bucket.bytes;
   }
   if (count !== value.rows || totalBytes > SOURCE_DEPENDENCY_MAX_BYTES) throw new SourceFactError("dependency-invalid");
-  return { version: 1, build: value.build, host: value.host, sources: value.sources, hostFacts: value.hostFacts, rows: value.rows, buckets };
+  return { version: CONTRIBUTOR_CATALOG_VERSION, build: value.build, host: value.host, sources: value.sources, hostFacts: value.hostFacts, rows: value.rows, buckets };
 }
 
 /** Chain original page commitments in emission order; the fixed-size root also authenticates absence. */
@@ -250,10 +249,12 @@ export class SourceContributorDiscovery {
   private current = (): boolean => this.runtime.isCurrent() && this.host.isCurrent();
   /**
    * Explicit O(inventory + facts) acquisition of the query index, with no Markdown reads/parses.
-   * Every current document is replayed under an existing selected-head lease. Any incomplete owner,
+   * Every current document is replayed under one existing selected-head lease in exactly four
+   * family visits. Its authenticated summary pages share this selection. Any incomplete owner,
    * host inventory, mutation or interrupted page write prevents activation of the entire catalog.
+   * This explicit bootstrap is not per-edit incremental maintenance and is never run by a query.
    */
-  async rebuild(): Promise<ContributorFailure | Readonly<{ outcome: "ready"; dependency: SourceDependencyBuild; sources: number; hostFacts: number; rows: number; pages: number }>> {
+  async rebuild(): Promise<ContributorFailure | Readonly<{ outcome: "ready"; dependency: SourceDependencyBuild; sources: number; hostFacts: number; rows: number; pages: number; familyVisits: number }>> {
     if (this.building) return failure(new SourceFactError("backpressure"));
     this.building = true;
     try {
@@ -263,69 +264,47 @@ export class SourceContributorDiscovery {
       const writer = new DependencyWriter(this.repository, build, this.current);
       const owners = new Map<string, string>();
       const sourceIds = new Set<string>();
-      let identityBytes = 0, sources = 0, hostFacts = 0;
+      let identityBytes = 0, sources = 0, hostFacts = 0, familyVisits = 0;
       /** Dependency links are a superset independent of policy; duplicate occurrences remain harmless. */
       const link = async (key: string, owner: string): Promise<void> => writer.emit({ kind: "link", key, owner });
-      const replay = new CachedSourceReplay(this.repository);
-      const complete = await this.host.collect(async (fact) => {
-        this.check();
-        if (!structural(fact)) throw new SourceFactError("dependency-invalid");
-        const order = hostFacts++, hostOwner = contributorKey("host", String(order));
-        await writer.emit({ kind: "host", key: hostOwner, order, fact });
-        for (const key of contributorRecordKeys(fact)) await link(key, hostOwner);
-        if (fact.kind === "tag-tree" && fact.contribution) {
-          const owner = owners.get(fact.contribution.source.id);
-          if (!owner) throw new SourceFactError("dependency-invalid");
-          for (const key of contributorRecordKeys(fact)) await link(key, owner);
-        }
-        if (fact.kind !== "entity" || fact.entity.kind !== "document") return true;
-        const request = await this.host.capture(fact);
-        this.check();
-        if (request.host.source.id !== fact.entity.id || request.host.source.physicalPath !== fact.entity.physicalPath
-          || request.host.observation.epoch !== this.host.stamp.epoch || request.host.observation.revision !== this.host.stamp.revision
-          || owners.has(fact.entity.id) || sourceIds.has(request.sourceId)) throw new SourceFactError("dependency-invalid");
-        identityBytes += (fact.entity.id.length + request.sourceId.length) * 2 + 128;
-        if (identityBytes > MAX_IDENTITY_BYTES) throw new SourceFactError("memory-budget");
-        const owner = contributorKey("source", request.sourceId), sourceOrder = sources++;
-        owners.set(fact.entity.id, owner); sourceIds.add(request.sourceId);
-        await link(contributorKey("node", request.host.source.id), owner);
-        const selected = await replay.read(request, { ...this.runtime, isCurrent: this.current }, async (batch) => {
-          for (const record of batch.records) for (const key of contributorRecordKeys(record)) await link(key, owner);
+      const complete = await this.host.collect(
+        /** Preserve canonical host order and bind each document to one complete selected summary. */
+        async (fact) => {
+          this.check();
+          if (!structural(fact)) throw new SourceFactError("dependency-invalid");
+          const order = hostFacts++, hostOwner = contributorKey("host", String(order));
+          await writer.emit({ kind: "host", key: hostOwner, order, fact });
+          for (const key of contributorRecordKeys(fact)) await link(key, hostOwner);
+          if (fact.kind === "tag-tree" && fact.contribution) {
+            const owner = owners.get(fact.contribution.source.id);
+            if (!owner) throw new SourceFactError("dependency-invalid");
+            for (const key of contributorRecordKeys(fact)) await link(key, owner);
+          }
+          if (fact.kind !== "entity" || fact.entity.kind !== "document") return true;
+          const request = await this.host.capture(fact);
+          this.check();
+          if (request.host.source.id !== fact.entity.id || request.host.source.physicalPath !== fact.entity.physicalPath
+            || request.host.observation.epoch !== this.host.stamp.epoch || request.host.observation.revision !== this.host.stamp.revision
+            || owners.has(fact.entity.id) || sourceIds.has(request.sourceId)) throw new SourceFactError("dependency-invalid");
+          identityBytes += (fact.entity.id.length + request.sourceId.length) * 2 + 128;
+          if (identityBytes > MAX_IDENTITY_BYTES) throw new SourceFactError("memory-budget");
+          const owner = contributorKey("source", request.sourceId), sourceOrder = sources++;
+          owners.set(fact.entity.id, owner); sourceIds.add(request.sourceId);
+          const selected = await summarizeContributorOwner(this.repository, request, { ...this.runtime, isCurrent: this.current });
+          if (selected.outcome !== "ready") throw new SourceFactError(selected.reason);
+          if (!selected.stamp.saved || selected.stamp.sequence === null) throw new SourceFactError("unsaved");
+          if (selected.stamp.sequence > build.sequence) throw new SourceFactError("superseded");
+          familyVisits += selected.value.work.familyVisits;
+          const summary = await this.writeSummary(writer, selected.value.summary, selected.stamp.sequence);
+          for (const key of selected.value.summary.keys) await link(key, owner);
+          await writer.emit({ kind: "source", key: owner, order: sourceOrder,
+            head: { ...selected.stamp.head, sequence: selected.stamp.sequence }, source: selected.value.summary.source, summary });
           return this.current();
         });
-        if (selected.outcome !== "ready") throw new SourceFactError(selected.reason);
-        if (!selected.stamp.saved || selected.stamp.sequence === null) throw new SourceFactError("unsaved");
-        if (selected.stamp.sequence > build.sequence) throw new SourceFactError("superseded");
-        // Normalized replay deduplicates host-selected targets and does not emit individual host
-        // literal bindings. These validated visits retain every neutral spelling and resolved
-        // identity, including null/duplicate aliases and literals absent from an aggregate host map.
-        const lexical = await this.repository.readSelected(request.sourceId, (stamp) => {
-          const matched = cachedSourceMatches(request, stamp);
-          return matched !== "ready" ? matched : stamp.head.sourceRevision !== selected.stamp.head.sourceRevision
-            || stamp.sequence !== selected.stamp.sequence ? "superseded" : "ready";
-        }, async (reader) => {
-          for (const family of ["values", "metadata", "resolution"] as const) {
-            const reason = await reader.visit(family, async (records) => {
-              for (const record of records) {
-                if (record.kind === "reference-candidate" || record.kind === "host-literal") {
-                  await link(contributorKey("literal", record.rawTarget), owner);
-                } else if ((record.kind === "reference-resolution" || record.kind === "literal-resolution") && record.target) {
-                  await link(contributorKey("node", record.target.entity.id), owner);
-                }
-              }
-              return this.current();
-            });
-            if (reason !== "ready") throw new SourceFactError(reason, family);
-          }
-        }, this.current);
-        if (lexical.outcome !== "ready") throw new SourceFactError(lexical.reason);
-        await writer.emit({ kind: "source", key: owner, order: sourceOrder, head: { ...selected.stamp.head, sequence: selected.stamp.sequence } });
-        return this.current();
-      });
       this.check();
       if (!complete || !this.host.validate()) throw new SourceFactError("host-catalog-stale");
       await writer.finish();
-      const root: CatalogRoot = { version: 1, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows, buckets: writer.manifests };
+      const root: CatalogRoot = { version: CONTRIBUTOR_CATALOG_VERSION, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows, buckets: writer.manifests };
       const data = JSON.stringify(root);
       if (bytes(data) > SOURCE_DEPENDENCY_ROOT_BYTES) throw new SourceFactError("decode-budget");
       const digest = await this.repository.observationDigest(data);
@@ -335,9 +314,30 @@ export class SourceContributorDiscovery {
       await this.repository.activateDependencyBuild({ key: SOURCE_DEPENDENCY_ROOT_KEY, build, data, digest }, pages, this.current);
       this.check();
       if (!this.host.validate()) throw new SourceFactError("host-catalog-stale");
-      return { outcome: "ready", dependency: build, sources, hostFacts, rows: writer.rows, pages };
+      return { outcome: "ready", dependency: build, sources, hostFacts, rows: writer.rows, pages, familyVisits };
     } catch (error) { return failure(error); }
     finally { this.building = false; }
+  }
+  /**
+   * Persist sorted key pages with an independent original commitment bound to this exact head.
+   * Page framing accounts for the escaped SourceId envelope; no key is split, truncated or omitted.
+   * The root/head selection is still owned by the existing complete-build transaction boundary.
+   */
+  private async writeSummary(writer: DependencyWriter, summary: ContributorOwnerSummary, sequence: number): Promise<ContributorSummaryManifest> {
+    const key = contributorKey("summary", summary.sourceId);
+    const envelope = bytes(JSON.stringify({ kind: "summary", key, index: 0, keys: [] })) + 32;
+    let manifest: ContributorSummaryManifest = { pages: 0, records: 0, bytes: 0, digest: "" };
+    for (const page of contributorSummaryPages(summary.keys, SOURCE_CHUNK_TARGET_BYTES - envelope)) {
+      const digest = await this.repository.observationDigest(page.data);
+      const pageManifest = { digest, bytes: page.bytes, records: page.keys.length };
+      const commitment = await this.repository.observationDigest(contributorSummaryPageCommitment(manifest.digest,
+        summary.sourceId, summary.sourceRevision, sequence, page.index, pageManifest));
+      await writer.emit({ kind: "summary", key, index: page.index, keys: page.keys });
+      manifest = { pages: manifest.pages + 1, records: manifest.records + page.keys.length,
+        bytes: manifest.bytes + page.bytes, digest: commitment };
+    }
+    if (!validContributorSummaryManifest(manifest)) throw new SourceFactError("dependency-invalid");
+    return manifest;
   }
   /** Validate the manifest checksum and host certificate before an empty bucket can mean absence. */
   private async root(): Promise<{ record: SourceDependencyRootRecord; root: CatalogRoot }> {
@@ -393,6 +393,94 @@ export class SourceContributorDiscovery {
     return rows;
   }
   /**
+   * Authenticate every selected owner's sorted summary pages against the source-row commitment.
+   * All pages must exist exactly once, in order, including the mandatory self-node key. Missing
+   * summary rows, page truncation and reordered/duplicated keys fail closed; surviving rows never
+   * define a new commitment. The outer bucket proof independently authenticates a missing lookup.
+   */
+  private async summaries(root: CatalogRoot, sources: readonly Extract<DependencyRow, { kind: "source" }>[],
+    budget: QueryBudget): Promise<Map<string, ContributorOwnerSummary>> {
+    // Reserve nested key bookkeeping and reconstructed arrays, in addition to decoded bucket bytes.
+    for (const source of sources) {
+      budget.bytes += source.summary.records * 104 + 256;
+      if (budget.bytes > SOURCE_DECODE_BUDGET_BYTES) throw new SourceFactError("decode-budget");
+    }
+    const keys = new Set(sources.map(
+      /** Derive an exact lookup tuple; neither path facet is an owner identity. */
+      (source) => contributorKey("summary", source.head.sourceId)));
+    const pages = new Map<string, Array<Extract<DependencyRow, { kind: "summary" }>>>();
+    for (const value of await this.lookup(root, keys, budget)) {
+      if (value.kind !== "summary") throw new SourceFactError("dependency-invalid");
+      let group = pages.get(value.key);
+      if (!group) { group = []; pages.set(value.key, group); }
+      group.push(value);
+    }
+    const result = new Map<string, ContributorOwnerSummary>();
+    for (const source of sources) {
+      const group = pages.get(contributorKey("summary", source.head.sourceId));
+      if (!group || group.length !== source.summary.pages || source.source.physicalPath !== source.head.physical.path) {
+        throw new SourceFactError("dependency-invalid");
+      }
+      group.sort(
+        /** Restore committed page order independently of bucket traversal order. */
+        (left, right) => left.index - right.index);
+      const ownerKeys: string[] = [];
+      let digest = "", totalBytes = 0;
+      for (let index = 0; index < group.length; index++) {
+        const page = group[index];
+        if (page.index !== index) throw new SourceFactError("dependency-invalid");
+        const data = JSON.stringify(page.keys), pageBytes = bytes(data);
+        totalBytes += pageBytes;
+        if (totalBytes > source.summary.bytes || ownerKeys.length + page.keys.length > source.summary.records) throw new SourceFactError("dependency-invalid");
+        digest = await this.repository.observationDigest(contributorSummaryPageCommitment(digest, source.head.sourceId,
+          source.head.sourceRevision, source.head.sequence, index,
+          { digest: await this.repository.observationDigest(data), bytes: pageBytes, records: page.keys.length }));
+        ownerKeys.push(...page.keys);
+        this.check();
+      }
+      const summary: ContributorOwnerSummary = { version: 1, sourceId: source.head.sourceId,
+        sourceRevision: source.head.sourceRevision, sequence: source.head.sequence, source: source.source, keys: ownerKeys };
+      if (digest !== source.summary.digest || totalBytes !== source.summary.bytes || ownerKeys.length !== source.summary.records
+        || !validContributorOwnerSummary(summary)) throw new SourceFactError("dependency-invalid");
+      result.set(source.head.sourceId, summary);
+    }
+    return result;
+  }
+  /**
+   * Capture one authenticated old-owner summary for private local-delta preparation. A missing
+   * source row is pending/missing, never certified absence. The returned historical snapshot cannot
+   * close dirty impacts or select a root after the host/head changes; the eventual C2 transaction
+   * protocol must provide those separate proofs. No families, Markdown or host inventory are read.
+   */
+  async readOwnerSummary(sourceId: string): Promise<ContributorFailure | Readonly<{
+    outcome: "ready"; summary: ContributorOwnerSummary; stamp: SelectedSourceStamp;
+    dependency: SourceDependencyBuild & Readonly<{ digest: string }>;
+  }>> {
+    if (this.queries >= 2) return failure(new SourceFactError("backpressure"));
+    this.queries++;
+    try {
+      if (typeof sourceId !== "string" || !sourceId || sourceId.length > MAX_QUERY_KEY_BYTES
+        || bytes(contributorKey("summary", sourceId)) > MAX_QUERY_KEY_BYTES) throw new SourceFactError("unsupported-scope");
+      const { root, record } = await this.root();
+      const budget: QueryBudget = { buckets: new Map(), pages: 0, bytes: 0 };
+      const found = await this.lookup(root, new Set([contributorKey("source", sourceId)]), budget);
+      if (!found.length) throw new SourceFactError("missing");
+      if (found.length !== 1 || found[0].kind !== "source") throw new SourceFactError("dependency-invalid");
+      const owner = found[0];
+      if (owner.head.sourceId !== sourceId || owner.head.state !== "complete" || owner.head.sequence > root.build.sequence
+        || owner.order >= root.sources) throw new SourceFactError("dependency-invalid");
+      const summary = (await this.summaries(root, [owner], budget)).get(sourceId);
+      if (!summary) throw new SourceFactError("dependency-invalid");
+      const stamp: SelectedSourceStamp = { head: owner.head, sequence: owner.head.sequence, saved: true };
+      const checked = await this.repository.validateSelections([stamp], this.current);
+      if (checked.reason !== "ready") throw new SourceFactError(checked.reason);
+      const after = await this.root();
+      if (after.record.digest !== record.digest || after.record.build.generation !== record.build.generation) throw new SourceFactError("superseded");
+      return { outcome: "ready", summary, stamp, dependency: { ...record.build, digest: record.digest } };
+    } catch (error) { return failure(error); }
+    finally { this.queries--; }
+  }
+  /**
    * Return a complete conservative owner cover for a finite direct scope. Each owner is returned
    * once, both endpoint declarations are considered, and host-only records remain separate. Budget
    * or freshness failures discard all partial results; no parser, head scan or implicit rebuild runs.
@@ -423,9 +511,9 @@ export class SourceContributorDiscovery {
         ownerKeys.add(value.owner);
         if (ownerKeys.size > SOURCE_MAX_BATCH_RECORDS + MAX_HOST_FACTS) throw new SourceFactError("backpressure");
       }
-      const selected = new Map<string, Exclude<DependencyRow, { kind: "link" }>>();
+      const selected = new Map<string, Extract<DependencyRow, { kind: "source" | "host" }>>();
       for (const value of await this.lookup(root, ownerKeys, budget)) {
-        if (value.kind === "link" || selected.has(value.key)) throw new SourceFactError("dependency-invalid");
+        if (value.kind === "link" || value.kind === "summary" || selected.has(value.key)) throw new SourceFactError("dependency-invalid");
         selected.set(value.key, value);
       }
       if (selected.size !== ownerKeys.size) throw new SourceFactError("dependency-invalid");
@@ -443,6 +531,9 @@ export class SourceContributorDiscovery {
       }
       if (sources.length > SOURCE_MAX_BATCH_RECORDS || hostFacts.length > MAX_HOST_FACTS) throw new SourceFactError("backpressure");
       sources.sort((a, b) => a.order - b.order); hostFacts.sort((a, b) => a.order - b.order);
+      // A source lookup row without its complete original summary is not a selectable owner.
+      // In particular, an empty summary-page lookup cannot be reinterpreted as an empty key set.
+      await this.summaries(root, sources, budget);
       const stamps = sources.map((value) => ({ head: value.head, sequence: value.head.sequence, saved: true }));
       const certificate: ContributorCertificate = {
         coverage: "complete-direct-contributors", scope, scopeIdentity: await this.repository.observationDigest(JSON.stringify(scope)),
