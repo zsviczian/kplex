@@ -3,10 +3,18 @@
  * validated, then selected by one compare-and-swap source head. Disk activation and live publication
  * are explicitly different outcomes. This module owns source transactions, cross-connection reader
  * leases, conservative cleanup, bounded unsaved facts/backoff and aggregate-only diagnostics; it
- * never reads a Vault, selects a relationship policy, or serializes a graph.
+ * never reads a Vault, selects a relationship policy, or serializes a graph. The additive SI4b1
+ * catalog uses this same transaction owner and is invalidated atomically with source mutations.
+ * A deletion-only pin capability can retire a masked head without making it readable as live data.
  */
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import {
+  SOURCE_DEPENDENCY_STORE, SOURCE_DEPENDENCY_STATE_KEY, SOURCE_DEPENDENCY_ROOT_KEY,
+  SOURCE_DEPENDENCY_BUILD_KEY, SOURCE_DEPENDENCY_BUCKETS, SOURCE_DEPENDENCY_MAX_PAGES,
+  sourceDependencyState, validSourceDependencyState, validSourceDependencyBuild,
+  validSourceDependencyPage, validSourceDependencyRoot,
+  type SourceDependencyBuild, type SourceDependencyPage, type SourceDependencyRootRecord,
+  type SourceDependencyState,
   SOURCE_BODY_PARSER_VERSION, SOURCE_CHUNK_TARGET_BYTES, SOURCE_DECODE_BUDGET_BYTES, SOURCE_FACT_COMPILER_VERSION,
   SOURCE_FACT_FORMAT_VERSION, SOURCE_FAMILIES, SOURCE_FLUSH_INTERVAL_MS, SOURCE_MAX_BATCH_RECORDS,
   SOURCE_MAX_RECORD_BYTES, SOURCE_REASONS, SOURCE_RESOLUTION_VERSION, SourceBodyDecoder, SourceFactError,
@@ -135,6 +143,8 @@ type MemorySource = {
   bytes: number;
   current: () => boolean;
 };
+/** An identity-fenced deletion capability, distinct from a normal include-tombstone body reader. */
+type PendingSourceDeletion = Readonly<{ current: () => boolean; retain: boolean }>;
 type SourceWriteLane = {
   ticket: number;
   active: Promise<SourceWriteResult>;
@@ -145,7 +155,7 @@ type StagedSourceChunk = Readonly<{ chunk: SourceChunk; batches: readonly Source
 /** Export only finite aggregate numbers and this module's closed reason/family vocabularies. */
 export type SourceRepositoryDiagnostics = {
   formatVersion: 1;
-  databaseVersion: 5;
+  databaseVersion: 6;
   factFormatVersion: number;
   factCompilerVersion: number;
   bodyParserVersion: number;
@@ -168,7 +178,7 @@ export type SourceRepositoryDiagnostics = {
 export function sanitizeSourceRepositoryDiagnostics(value: unknown): SourceRepositoryDiagnostics {
   const input = sourceObject(value) ? value : {};
   const result: SourceRepositoryDiagnostics = {
-    formatVersion: 1, databaseVersion: 5, factFormatVersion: SOURCE_FACT_FORMAT_VERSION,
+    formatVersion: 1, databaseVersion: 6, factFormatVersion: SOURCE_FACT_FORMAT_VERSION,
     factCompilerVersion: SOURCE_FACT_COMPILER_VERSION, bodyParserVersion: SOURCE_BODY_PARSER_VERSION,
     resolutionVersion: SOURCE_RESOLUTION_VERSION, storage: "unchecked", activated: 0, unsaved: 0,
     empty: 0, chunksWritten: 0, bytesWritten: 0, familiesReused: 0, readFailures: 0,
@@ -187,6 +197,11 @@ export function sanitizeSourceRepositoryDiagnostics(value: unknown): SourceRepos
   return result;
 }
 
+/** Compare only explicit dependency-generation coordinates, never serialized object key order. */
+function sameDependencyBuild(left: SourceDependencyBuild, right: SourceDependencyBuild): boolean {
+  return left.generation === right.generation && left.slot === right.slot
+    && left.revision === right.revision && left.sequence === right.sequence;
+}
 /** Exact UTF-8 sizes bound JSON storage, including escape expansion rather than UTF-16 estimates. */
 function encodedBytes(text: string): number { return new TextEncoder().encode(text).byteLength; }
 /** Stable local map keys never contain producer-controlled delimiters. */
@@ -258,7 +273,7 @@ export class NeutralSourceRepository {
   private readonly readers = new Set<SourceView>();
   private readonly memory = new Map<string, MemorySource>();
   private readonly unsaved = new Set<string>();
-  private readonly pendingDeletes = new Map<string, { current: () => boolean; retain: boolean }>();
+  private readonly pendingDeletes = new Map<string, PendingSourceDeletion>();
   private deleteTask: Promise<SourceWriteResult> | null = null;
   private readonly knownHeads = new Map<string, number>();
   private memoryBytes = 0;
@@ -276,6 +291,161 @@ export class NeutralSourceRepository {
   getDiagnostics(): SourceRepositoryDiagnostics {
     return sanitizeSourceRepositoryDiagnostics({ ...this.diagnostics, activated: this.knownHeads.size, unsaved: this.unsaved.size });
   }
+  /** Reject local writes/evictions before consulting a disk-only closed-world certificate. */
+  private dependencyAvailable(current: () => boolean): void {
+    if (this.closed || !current()) throw new SourceFactError("cancelled");
+    if (this.unsaved.size || this.pendingDeletes.size) throw new SourceFactError("unsaved");
+    if (this.lanes.size || this.deleteTask) throw new SourceFactError("dependency-pending");
+  }
+  /** Read the independent mutation fence and head sequence within the caller's IDB transaction. */
+  private async dependencyControl(transaction: IDBTransaction): Promise<SourceDependencyState & { sequence: number }> {
+    const meta = transaction.objectStore(META_STORE);
+    const [state, sequence] = await Promise.all([
+      unknownValue(meta.get(SOURCE_DEPENDENCY_STATE_KEY)), unknownValue(meta.get(SOURCE_SEQUENCE_KEY)),
+    ]);
+    if (!validSourceDependencyState(state)) throw new SourceFactError("dependency-invalid");
+    if (sequence !== undefined && (!sourceObject(sequence) || sequence.key !== SOURCE_SEQUENCE_KEY
+      || !sourceCount(sequence.value) || Object.keys(sequence).length !== 2)) throw new SourceFactError("dependency-invalid");
+    return { ...state, sequence: sourceObject(sequence) && sourceCount(sequence.value) ? sequence.value : 0 };
+  }
+  /** Register an unsettled source across connections before staging; failures never erase source data. */
+  private async beginDependencyMutation(db: IDBDatabase, sourceId: string, current: () => boolean): Promise<string | undefined> {
+    try {
+      return await this.transaction(db, [META_STORE], "readwrite", sourceId, async (transaction) => {
+        const meta = transaction.objectStore(META_STORE);
+        meta.delete(SOURCE_DEPENDENCY_ROOT_KEY);
+        const raw = await unknownValue(meta.get(SOURCE_DEPENDENCY_STATE_KEY));
+        if (!validSourceDependencyState(raw) || raw.revision >= Number.MAX_SAFE_INTEGER || raw.dirty >= Number.MAX_SAFE_INTEGER) return undefined;
+        const key = `source-dependency-dirty:${JSON.stringify(sourceId)}`;
+        const previous = await unknownValue(meta.get(key));
+        if (previous !== undefined && (!sourceObject(previous) || previous.key !== key || typeof previous.ticket !== "string" || Object.keys(previous).length !== 2)) return undefined;
+        if (!current() || this.closed) throw new SourceFactError("cancelled");
+        const ticket = this.runtime.uniqueId();
+        meta.put({ key, ticket });
+        meta.put(sourceDependencyState(raw.revision + 1, raw.dirty + (previous === undefined ? 1 : 0)));
+        return ticket;
+      });
+    } catch { return undefined; }
+  }
+  /** Head selection and catalog invalidation are atomic; only this writer may retire its dirty mark. */
+  private async finishDependencyMutation(transaction: IDBTransaction, sourceId: string, ticket?: string): Promise<void> {
+    const meta = transaction.objectStore(META_STORE);
+    meta.delete(SOURCE_DEPENDENCY_ROOT_KEY);
+    const raw = await unknownValue(meta.get(SOURCE_DEPENDENCY_STATE_KEY));
+    if (!validSourceDependencyState(raw) || raw.revision >= Number.MAX_SAFE_INTEGER) return;
+    const key = `source-dependency-dirty:${JSON.stringify(sourceId)}`;
+    const dirty = await unknownValue(meta.get(key));
+    const owned = ticket !== undefined && sourceObject(dirty) && dirty.key === key && dirty.ticket === ticket && Object.keys(dirty).length === 2;
+    if (owned && raw.dirty === 0) { meta.delete(SOURCE_DEPENDENCY_STATE_KEY); return; }
+    if (owned) meta.delete(key);
+    meta.put(sourceDependencyState(raw.revision + 1, raw.dirty - (owned ? 1 : 0)));
+  }
+  /** Verify staging ownership and both global fences before every bounded catalog write/cleanup. */
+  private async dependencyBuildCurrent(transaction: IDBTransaction, build: SourceDependencyBuild): Promise<void> {
+    const control = await this.dependencyControl(transaction);
+    const raw = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_DEPENDENCY_BUILD_KEY));
+    if (control.dirty || control.revision !== build.revision || control.sequence !== build.sequence
+      || !sourceObject(raw) || raw.key !== SOURCE_DEPENDENCY_BUILD_KEY || Object.keys(raw).length !== 2
+      || !validSourceDependencyBuild(raw.build) || !sameDependencyBuild(raw.build, build)) throw new SourceFactError("superseded");
+  }
+  /**
+   * Begin an explicit catalog rebuild in the other of two reusable slots. A later builder can
+   * supersede an interrupted one; each cleanup/write checks its generation in the same transaction.
+   * This is never called implicitly by a query and never touches source chunks or reader leases.
+   */
+  async beginDependencyBuild(current: () => boolean): Promise<SourceDependencyBuild> {
+    this.dependencyAvailable(current);
+    const db = await this.open();
+    if (!db) throw new SourceFactError("storage-unavailable");
+    const build = await this.transaction(db, [META_STORE], "readwrite", "", async (transaction) => {
+      this.dependencyAvailable(current);
+      const control = await this.dependencyControl(transaction);
+      if (control.dirty) throw new SourceFactError("dependency-pending");
+      const meta = transaction.objectStore(META_STORE);
+      const previous = await unknownValue(meta.get(SOURCE_DEPENDENCY_ROOT_KEY));
+      const slot = validSourceDependencyRoot(previous) && previous.build.slot === 0 ? 1 : 0;
+      const build: SourceDependencyBuild = { revision: control.revision, sequence: control.sequence, slot, generation: this.runtime.uniqueId() };
+      meta.put({ key: SOURCE_DEPENDENCY_BUILD_KEY, build });
+      return build;
+    });
+    // A slot has a fixed maximum page count; corruption cannot turn cleanup into an unbounded loop.
+    for (let removed = 0; removed <= SOURCE_DEPENDENCY_BUCKETS * SOURCE_DEPENDENCY_MAX_PAGES; removed += SOURCE_MAX_BATCH_RECORDS) {
+      this.dependencyAvailable(current);
+      const count = await this.transaction(db, [META_STORE, SOURCE_DEPENDENCY_STORE], "readwrite", "", async (transaction) => {
+        await this.dependencyBuildCurrent(transaction, build);
+        const store = transaction.objectStore(SOURCE_DEPENDENCY_STORE);
+        const range = IDBKeyRange.bound([build.slot], [build.slot + 1], false, true);
+        const keys = await requestValue(store.getAllKeys(range, SOURCE_MAX_BATCH_RECORDS));
+        for (const key of keys) store.delete(key);
+        return keys.length;
+      });
+      if (!count) return build;
+      await this.runtime.yield();
+    }
+    throw new SourceFactError("dependency-invalid");
+  }
+  /** Add one immutable original page; producer backpressure bounds queue depth to one transaction. */
+  async putDependencyPage(build: SourceDependencyBuild, page: SourceDependencyPage, current: () => boolean): Promise<void> {
+    this.dependencyAvailable(current);
+    if (!validSourceDependencyPage(page) || page.slot !== build.slot || page.generation !== build.generation
+      || encodedBytes(page.data) !== page.bytes) throw new SourceFactError("dependency-invalid");
+    const db = await this.open();
+    if (!db) throw new SourceFactError("storage-unavailable");
+    await this.transaction(db, [META_STORE, SOURCE_DEPENDENCY_STORE], "readwrite", "", async (transaction) => {
+      await this.dependencyBuildCurrent(transaction, build);
+      this.dependencyAvailable(current);
+      await requestValue(transaction.objectStore(SOURCE_DEPENDENCY_STORE).add(page));
+    });
+  }
+  /** Seal only the fully emitted page set at the same head/mutation fence; never activate a prefix. */
+  async activateDependencyBuild(root: SourceDependencyRootRecord, pages: number, current: () => boolean): Promise<void> {
+    this.dependencyAvailable(current);
+    if (!validSourceDependencyRoot(root) || !sourceCount(pages)
+      || pages > SOURCE_DEPENDENCY_BUCKETS * SOURCE_DEPENDENCY_MAX_PAGES) throw new SourceFactError("dependency-invalid");
+    const db = await this.open();
+    if (!db) throw new SourceFactError("storage-unavailable");
+    await this.transaction(db, [META_STORE, SOURCE_DEPENDENCY_STORE], "readwrite", "", async (transaction) => {
+      await this.dependencyBuildCurrent(transaction, root.build);
+      const range = IDBKeyRange.bound([root.build.slot], [root.build.slot + 1], false, true);
+      if (await requestValue(transaction.objectStore(SOURCE_DEPENDENCY_STORE).count(range)) !== pages) throw new SourceFactError("dependency-invalid");
+      this.dependencyAvailable(current);
+      const meta = transaction.objectStore(META_STORE);
+      meta.put(root); meta.delete(SOURCE_DEPENDENCY_BUILD_KEY);
+    });
+    this.dependencyAvailable(current);
+  }
+  /** Select a root and its independent source/mutation fence atomically, including certified emptiness. */
+  async readDependencyRoot(current: () => boolean): Promise<SourceDependencyRootRecord> {
+    this.dependencyAvailable(current);
+    const db = await this.open();
+    if (!db) throw new SourceFactError("storage-unavailable");
+    const root = await this.transaction(db, [META_STORE], "readonly", "", async (transaction) => {
+      const control = await this.dependencyControl(transaction);
+      if (control.dirty) throw new SourceFactError("dependency-pending");
+      const raw = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_DEPENDENCY_ROOT_KEY));
+      if (raw === undefined) throw new SourceFactError("dependency-pending");
+      if (!validSourceDependencyRoot(raw)) throw new SourceFactError("dependency-invalid");
+      if (raw.build.revision !== control.revision || raw.build.sequence !== control.sequence) throw new SourceFactError("superseded");
+      return raw;
+    });
+    this.dependencyAvailable(current);
+    return root;
+  }
+  /** Read one bounded generation-tagged page; missing/reused slot data is never an empty bucket. */
+  async readDependencyPage(build: SourceDependencyBuild, bucket: number, index: number,
+    current: () => boolean): Promise<SourceDependencyPage> {
+    this.dependencyAvailable(current);
+    if (!sourceCount(bucket) || bucket >= SOURCE_DEPENDENCY_BUCKETS || !sourceCount(index) || index >= SOURCE_DEPENDENCY_MAX_PAGES) throw new SourceFactError("dependency-invalid");
+    const db = await this.open();
+    if (!db) throw new SourceFactError("storage-unavailable");
+    const raw = await this.transaction(db, [SOURCE_DEPENDENCY_STORE], "readonly", "", (transaction) =>
+      unknownValue(transaction.objectStore(SOURCE_DEPENDENCY_STORE).get([build.slot, bucket, index])));
+    this.dependencyAvailable(current);
+    if (!validSourceDependencyPage(raw) || raw.slot !== build.slot || raw.generation !== build.generation
+      || raw.bucket !== bucket || raw.index !== index) throw new SourceFactError("dependency-invalid");
+    return raw;
+  }
+
   /** Hash a narrow host observation descriptor without exposing its settings/property text in a head. */
   async observationDigest(value: string): Promise<string> { return this.runtime.digest(value); }
   /** Allocate an opaque source incarnation; the Obsidian adapter alone binds it to a physical file. */
@@ -368,8 +538,16 @@ export class NeutralSourceRepository {
       if (transaction) this.transactions.delete(transaction);
     }
   }
-  /** Record and select a head plus persistent reader leases atomically against concurrent cleanup. */
-  private async pin(sourceId: string, includeTombstone = false): Promise<{ view: SourceView | null; expected: SourceHeadExpectation; reason: SourceReason }> {
+  /**
+   * Record and select a head plus persistent reader leases atomically against concurrent cleanup.
+   * Only the current deletion capability may inspect a masked disk head for a tombstone CAS. It
+   * does not unmask that head for readers; includeTombstone alone never grants this authority.
+   */
+  private async pin(sourceId: string, includeTombstone = false, deletion?: PendingSourceDeletion): Promise<{ view: SourceView | null; expected: SourceHeadExpectation; reason: SourceReason }> {
+    /** Match this request by identity after every asynchronous boundary; retention is not authority. */
+    const deleting = (): boolean => deletion !== undefined && this.pendingDeletes.get(sourceId) === deletion
+      && deletion.current() && !this.closed;
+    if (deletion && !deleting()) return { view: null, expected: { kind: "unavailable" }, reason: "cancelled" };
     if (this.pendingDeletes.has(sourceId) && !includeTombstone) return { view: null, expected: { kind: "unavailable" }, reason: "tombstone" };
     const memory = this.memory.get(sourceId);
     if (memory?.head.state === "tombstone" && !includeTombstone) return { view: null, expected: memory.expected, reason: "tombstone" };
@@ -381,13 +559,15 @@ export class NeutralSourceRepository {
     // An unsaved source whose bounded memory payload was evicted must mask its older disk head.
     // The acquisition owner can rebuild that one source from its body cache on a later inventory
     // pass, but no reader may mistake the previous durable revision for the current source.
-    if (this.unsaved.has(sourceId)) return { view: null, expected: { kind: "unavailable" }, reason: "unsaved" };
+    if (this.unsaved.has(sourceId) && !deleting()) return { view: null, expected: { kind: "unavailable" }, reason: "unsaved" };
     const db = await this.open();
     if (!db) return { view: null, expected: { kind: "unavailable" }, reason: this.storage.unavailableReason?.() ?? "storage-unavailable" };
     let leased: SourceView | undefined;
     try {
       const selected = await this.transaction(db, [SOURCE_HEAD_STORE, META_STORE], "readwrite", sourceId, async (transaction) => {
+        if (deletion && !deleting()) throw new SourceFactError("cancelled");
         const raw = await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId));
+        if (deletion && !deleting()) throw new SourceFactError("cancelled");
         const expected = expectation(raw); const reason = sourceHeadReason(raw); const head = decodeSourceHead(raw);
         if (!head || head.sourceId !== sourceId || head.state === "tombstone" && !includeTombstone) return { view: null, expected, reason: head?.sourceId !== sourceId && head ? "invalid-head" as const : reason };
         const leases: string[] = [];
@@ -785,6 +965,7 @@ export class NeutralSourceRepository {
   /** Prepare bounded immutable families, validate them, and select the manifest with one short CAS. */
   private async write(input: SourceReplacement, current: () => boolean): Promise<SourceWriteResult> {
     const revision = this.runtime.uniqueId();
+    let dependencyTicket: string | undefined;
     const families: Partial<Record<SourceFamily, SourceFamilyManifest>> = {};
     const chunks = new Map<string, SourceChunk>(); const postings = new Map<string, SourcePosting>();
     let staged: StagedSourceChunk[] = []; let stagedBytes = 0; let stagedRecords = 0;
@@ -825,6 +1006,7 @@ export class NeutralSourceRepository {
     };
     try {
       db = await this.open();
+      if (db) dependencyTicket = await this.beginDependencyMutation(db, input.sourceId, current);
       if (!current() || this.closed) return this.result("cancelled", "cancelled");
       if (SOURCE_FAMILIES.some((family) => typeof input.families[family] !== "function")) {
         const pinned = await this.pin(input.sourceId, true);
@@ -902,8 +1084,12 @@ export class NeutralSourceRepository {
           // Producers and frame codecs validated the exact encoded records before staging.
           // Activation atomically proves that every bounded chunk/posting write committed; a later
           // process still performs full digest/frame/posting validation before reuse.
-          const result = await this.activate(db, head, input.expected, current);
-          if (result.outcome === "activated") { this.forgetMemory(input.sourceId); return result; }
+          const result = await this.activate(db, head, input.expected, current, dependencyTicket);
+          if (result.outcome === "activated") {
+            // An activation that is no longer live must not erase a newer deletion/unsaved mask.
+            if (current() && !this.closed) this.forgetMemory(input.sourceId);
+            return result;
+          }
           if (result.outcome !== "unsaved") return result;
           storageReason = result.reason;
         } catch (error) { storageReason = errorReason(error, "write-error"); }
@@ -926,7 +1112,7 @@ export class NeutralSourceRepository {
    * digests and regenerated postings before treating the selected head as reusable.
    */
   private async activate(db: IDBDatabase, head: SourceManifest, expected: SourceHeadExpectation,
-    current: () => boolean): Promise<SourceWriteResult> {
+    current: () => boolean, dependencyTicket?: string): Promise<SourceWriteResult> {
     if (!current() || this.closed) return this.result("cancelled", "cancelled");
     try {
       const activated = await this.transaction(db, [SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE, META_STORE], "readwrite", head.sourceId, async (transaction) => {
@@ -953,6 +1139,7 @@ export class NeutralSourceRepository {
         const previousSequence = sourceObject(sequenceRecord) && sourceCount(sequenceRecord.value) ? sequenceRecord.value : 0;
         if (previousSequence >= Number.MAX_SAFE_INTEGER || !current() || this.closed) throw new SourceFactError("cancelled");
         const activated: SourceHead = { ...head, sequence: previousSequence + 1 };
+        await this.finishDependencyMutation(transaction, head.sourceId, dependencyTicket);
         meta.put({ key: SOURCE_SEQUENCE_KEY, value: activated.sequence });
         await requestValue(heads.put(activated));
         if (!current() || this.closed) throw new SourceFactError("cancelled");
@@ -978,19 +1165,32 @@ export class NeutralSourceRepository {
   tombstone(sourceId: string, caller: () => boolean = () => true, retainFamilies = false): Promise<SourceWriteResult> {
     if (this.closed || !caller()) return Promise.resolve(this.result("cancelled", "cancelled"));
     this.cancelSource(sourceId);
-    const pending = { current: caller, retain: retainFamilies };
+    const previous = this.pendingDeletes.get(sourceId);
+    // A lost unsaved payload may not turn an older disk body into a reusable rename input. Read
+    // that disk head only to retire it. Repeated requests can drop retention, never restore it.
+    const canRetain = previous ? previous.retain : !this.unsaved.has(sourceId) || this.memory.has(sourceId);
+    const pending: PendingSourceDeletion = { current: caller, retain: retainFamilies && canRetain };
     this.pendingDeletes.set(sourceId, pending); this.unsaved.add(sourceId); this.knownHeads.delete(sourceId);
     if (this.deleteTask) { this.scheduleRetry(); return Promise.resolve(this.result("unsaved", "backpressure", null, true)); }
+    /** Fence every continuation against the exact coalesced absence request. */
     const current = (): boolean => !this.closed && caller() && this.pendingDeletes.get(sourceId) === pending;
     let retired: string[] = [];
+    /** Retire only the selected owner; a masked disk head is CAS input, never a live read result. */
     const work = async (): Promise<SourceWriteResult> => {
-      const pinned = await this.pin(sourceId, true);
+      const mutationDb = await this.open();
+      const dependencyTicket = mutationDb ? await this.beginDependencyMutation(mutationDb, sourceId, current) : undefined;
+      const pinned = await this.pin(sourceId, true, pending);
       if (!current()) {
         if (pinned.view) await this.unpin(pinned.view);
         return this.result("cancelled", "cancelled");
       }
       if (!pinned.view) {
         if (pinned.expected.kind === "missing") {
+          if (mutationDb) await this.transaction(mutationDb, [SOURCE_HEAD_STORE, META_STORE], "readwrite", sourceId, async (transaction) => {
+            if (!current() || await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId)) !== undefined) throw new SourceFactError("superseded");
+            await this.finishDependencyMutation(transaction, sourceId, dependencyTicket);
+          });
+          if (!current()) return this.result("cancelled", "cancelled");
           this.pendingDeletes.delete(sourceId); this.forgetMemory(sourceId);
           return this.result("absent", "missing", null, true);
         }
@@ -999,18 +1199,21 @@ export class NeutralSourceRepository {
       const view = pinned.view;
       try {
         const head: SourceManifest = { ...view.head, sourceRevision: this.runtime.uniqueId(), state: "tombstone",
-          families: retainFamilies ? view.head.families : {} };
+          families: pending.retain ? view.head.families : {} };
         const db = await this.open();
         if (!current()) return this.result("cancelled", "cancelled");
         if (db) {
           // A fresh, still-authoritative absence observation may capture the recovered disk head.
           const expected = view.saved ? view.expected : await this.catalogExpectation(sourceId);
           if (!current()) return this.result("cancelled", "cancelled");
-          const result = await this.activate(db, head, expected, current);
+          const result = await this.activate(db, head, expected, current, dependencyTicket);
           if (result.outcome === "activated") {
-            if (!retainFamilies) retired = [...new Set(Object.values(view.head.families).map(family => family.revision))];
+            // Commit completion can race a new request/recreation. A retiring capability may not
+            // erase another request's mask or install old retained memory over a newer source.
+            if (!current()) return result;
+            if (!pending.retain) retired = [...new Set(Object.values(view.head.families).map(family => family.revision))];
             this.pendingDeletes.delete(sourceId);
-            if (retainFamilies && view.memory) {
+            if (pending.retain && view.memory) {
               this.rememberMemory({ ...view.memory, head, current: () => false });
               this.unsaved.delete(sourceId);
             } else this.forgetMemory(sourceId);
@@ -1179,7 +1382,14 @@ export class NeutralSourceRepository {
   private async retryMemory(): Promise<void> {
     for (const [sourceId, pending] of [...this.pendingDeletes]) {
       if (this.closed) return;
-      if (!pending.current()) { this.pendingDeletes.delete(sourceId); this.unsaved.delete(sourceId); continue; }
+      if (this.pendingDeletes.get(sourceId) !== pending) continue;
+      if (!pending.current()) {
+        // Cancellation is not an authoritative observation of either presence or absence. Stop
+        // retrying this request, but keep its unsaved/durable dirty masks until a real replacement
+        // or a newly authorized deletion settles them. Never delete a newer request from a snapshot.
+        this.pendingDeletes.delete(sourceId);
+        continue;
+      }
       await this.tombstone(sourceId, pending.current, pending.retain);
     }
     for (const source of [...this.memory.values()]) {

@@ -375,6 +375,7 @@ for (const file of [
   "src/index/SourceFacts.ts",
   "src/index/SourceRepository.ts",
   "src/index/SourceReplay.ts",
+  "src/index/SourceContributorDiscovery.ts",
   "src/index/CachedSourceSemantics.ts",
   "src/adapters/obsidian/sourceAcquisition.ts",
   "src/index/GraphBuilder.ts",

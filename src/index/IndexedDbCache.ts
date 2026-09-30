@@ -7,10 +7,11 @@ import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/g
 import { Platform } from "obsidian";
 import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE,
   SOURCE_REVISION_INDEX, SOURCE_FAMILY_INDEX, SOURCE_LOOKUP_INDEX, SOURCE_LEASE_INDEX } from "./SourceRepository";
+import { SOURCE_DEPENDENCY_STORE, sourceDependencyState } from "./SourceFacts";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
 
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const BODY_CACHE_VERSION = 2;
 const META_STORE = "meta";
 const PAGE_STORE = "pages";
@@ -210,7 +211,7 @@ export class KplexIndexedDbCache {
     catch (error) { this.storageFailed(db); throw error; }
   }
 
-  /** Lazily open v5 with bounded backoff and reject late, blocked or newer-version connections. */
+  /** Lazily open v6 with bounded backoff and reject late, blocked or newer-version connections. */
   private open(): Promise<IDBDatabase | null> {
     if (this.closed || this.newerDatabase) return Promise.resolve(null);
     if (this.dbPromise) return this.dbPromise;
@@ -269,6 +270,12 @@ export class KplexIndexedDbCache {
             store.createIndex(SOURCE_REVISION_INDEX, ["sourceId", "revision"]);
             store.createIndex(SOURCE_FAMILY_INDEX, ["sourceId", "revision", "family"]);
             if (name === SOURCE_POSTING_STORE) store.createIndex(SOURCE_LOOKUP_INDEX, ["kind", "key", "sourceId", "revision", "family", "index"]);
+          }
+          // v6 adds an independently rebuildable, two-slot dependency catalog. No source head,
+          // body, graph pointer or reader lease is rewritten by this upgrade.
+          if (!db.objectStoreNames.contains(SOURCE_DEPENDENCY_STORE)) {
+            db.createObjectStore(SOURCE_DEPENDENCY_STORE, { keyPath: ["slot", "bucket", "index"] });
+            request.transaction?.objectStore(META_STORE).put(sourceDependencyState(0, 0));
           }
           const meta = request.transaction?.objectStore(META_STORE);
           if (meta && !meta.indexNames.contains(SOURCE_LEASE_INDEX)) meta.createIndex(SOURCE_LEASE_INDEX, ["sourceId", "revision"]);

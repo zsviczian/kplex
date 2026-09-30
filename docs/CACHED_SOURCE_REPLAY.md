@@ -1,7 +1,7 @@
 # SI4a cached-source replay — Accepted
 
 SI4a prepares private **source-owned** semantics. It does not change GraphIndex settings dispatch,
-live publication, snapshot compatibility, search membership or UI reads. SI4b/c and SI5 remain pending.
+live publication, snapshot compatibility, search membership or UI reads. SI4b1 discovery is a rejected prototype with a smaller C1 correction in Review; SI4b2 publication, SI4c consumers and SI5 remain pending.
 
 ## Investigation before implementation
 
@@ -142,3 +142,36 @@ is changed. Real IndexedDB tests additionally cover multi-connection head replac
 cleanup, durable fault rejection, dependency union and two-policy reuse. Execution/host prerequisites
 and the main-agent acceptance evidence are recorded in
 [the SI4a validation report](validation/settings-independent-indexing-si4a-2026-09-30.md).
+
+## SI4b1 discovery supplement — rejected lifecycle; no new publication route
+
+[Contributor discovery](SOURCE_CONTRIBUTOR_DISCOVERY.md) documents the rejected v6 prototype, the C1
+deletion correction, and the proposed incremental/warm replacement. Neither C1 nor the first return
+changes `CachedSourceReplay`, `CachedSourceSemanticReader.prepare()` or SI4a's candidate-only
+`discover()`. The prototype still performs a complete canonical structural scan and validates every
+document through replay, plus extra lexical/resolution visits, whenever its root needs rebuilding.
+All-source work after one edit or restart is an SI4b1 blocker, not acceptable preparation for SI4b2.
+
+C1 fixes a source repository mask that prevented durable tombstones, protects coalesced/cancelled
+requests and uses an authoritative flush fence in the browser lifecycle test. It does not establish
+incremental negative proofs, warm replay authority or consumer closure. Source/host facts stay
+separate from configured roles, and no live caller is wired to the new catalog.
+
+The proposed replacement needs a reviewed observation seam to produce neutral owner summaries
+during the existing four-family replay, avoiding three extra lexical passes. Warm validation must
+bind immutable selected heads to freshly observed host structure, lexical resolutions, Date/non-Date
+fields and Daily Notes without replaying unchanged families. The accepted `captureForReplay()` still
+requires the current session's observation stamp; **do not remove that guard, fabricate an old epoch,
+or rewrite every unchanged source head to claim warm reuse**. No such new authority is implemented.
+
+A direct owner cover is not a sibling, transitive, gate-count or global-search certificate. Future
+composition must close all required ranges/parents, preserve canonical ordering/provenance and
+check both source/host and semantic-policy fences. The accepted preparer's 256-owner/32 MiB one-shot
+budget must not be bypassed: hot ranges need paged private preparation and one terminal coherent
+result, not partial graph publication or silent truncation. These are C2/C3 obligations **within the
+SI4b1 blocker**; SI4b2 remains blocked until they and the relevant automated/native gates pass.
+
+The unchanged five-policy discovery-driven source oracle passes in C1's 40-test source suite. That
+finite fixture does not prove full-neighborhood/search closure or durable behavior. Real-IDB cases
+remain unexecuted under the local browser administrator block; required-Node lint/build/native
+validation is pending. SI4a's accepted validation above does not approve the new schema or catalog.

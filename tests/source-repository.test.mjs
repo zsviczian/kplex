@@ -9,19 +9,22 @@ const { NeutralSourceRepository, SourceFrameValidator, SourceBodyDecoder, source
 
 /** Drive the real producer with storage backpressure and genuine canonical parser inputs. */
 function values(metadata) { return async emit => { for (const record of sourceValueSteps(metadata)) if (!await emit(record)) return false; return true; }; }
+/** Keep fixture parser data canonical; only storage availability is controlled here. */
 function metadata(text, frontmatter = {}) { return { ...parseBodyMetadata(text), frontmatter, aliases: [], tags: [] }; }
+/** Exercise production scheduling/masks with an explicitly unavailable storage port, not fake IDB. */
 function fixture() {
-  let time = 0, yields = 0;
+  let time = 0, yields = 0, opens = 0;
   const timers = new Map();
   const runtime = { now: () => time, yield: async () => { yields++; }, digest: async text => createHash("sha256").update(text).digest("hex"),
     uniqueId: randomUUID, schedule: (callback, delay) => { const id = timers.size + 1; timers.set(id, { callback, delay }); return id; }, cancel: id => timers.delete(id) };
-  const repository = new NeutralSourceRepository({ open: async () => null, failed() { assert.fail("No transaction exists when storage is unavailable"); } }, runtime);
+  const storage = { open: async () => { opens++; return null; }, failed() { assert.fail("No transaction exists when storage is unavailable"); } };
+  const repository = new NeutralSourceRepository(storage, runtime);
   const input = async (id = "source", meta = metadata("Field:: [[Alpha]]\nStatus:: dormant")) => ({ sourceId: id,
     physical: { identity: id + "-identity", path: id + ".md", mtime: 1, size: 42 },
     observation: { epoch: "session", revision: 1, environment: await runtime.digest("host") }, expected: { kind: "missing" },
     families: { values: values(meta), "body-urls": async emit => { for (const url of meta.urls) if (!await emit({ kind: "body-url", ...url })) return false; return true; },
       metadata: async emit => emit({ kind: "field-name", fieldName: "Field", normalizedFieldName: "field", surface: "inline" }), resolution: async () => true } });
-  return { repository, runtime, timers, input, tick: ms => { time += ms; }, yields: () => yields };
+  return { repository, runtime, storage, timers, input, tick: ms => { time += ms; }, yields: () => yields, opens: () => opens };
 }
 
 /** Validate a complete family using the same strict incremental validator as disk reads. */
@@ -186,4 +189,85 @@ test("storage-unavailable tombstones immediately mask postings, retain only rena
     assert.equal(state.repository.getDiagnostics().activated, 0);
     assert(state.timers.size <= 1);
   } finally { state.repository.close(); }
+});
+
+
+test("deletion pin authority is identity-fenced; includeTombstone never bypasses an evicted unsaved mask", async () => {
+  const state = fixture();
+  try {
+    await state.repository.replace(await state.input("evicted"));
+    state.repository.memory.delete("evicted"); // Model only payload eviction, never remove the mask.
+    let current = true;
+    assert.equal((await state.repository.tombstone("evicted", () => current, true)).outcome, "unsaved");
+    const pending = state.repository.pendingDeletes.get("evicted");
+    assert.equal(pending.retain, false, "An older disk body must not become a rename input after eviction");
+    const before = state.opens();
+    assert.equal((await state.repository.pin("evicted", true)).reason, "unsaved");
+    assert.equal((await state.repository.pin("evicted", true, { ...pending })).reason, "cancelled");
+    assert.equal(state.opens(), before, "Ordinary/stale capabilities do not reach the disk port");
+    assert.equal((await state.repository.pin("evicted", true, pending)).reason, "storage-unavailable");
+    assert.equal(state.opens(), before + 1, "Only the current deletion may select its masked CAS input");
+    assert(state.repository.unsaved.has("evicted"));
+    current = false;
+    assert.equal((await state.repository.pin("evicted", true, pending)).reason, "cancelled");
+    assert.equal(state.opens(), before + 1);
+  } finally { state.repository.close(); }
+});
+
+test("cancelling a deletion stops retrying but cannot certify durability or reveal an older disk head", async () => {
+  const state = fixture();
+  try {
+    let current = true;
+    assert.equal((await state.repository.tombstone("cancelled", () => current)).outcome, "unsaved");
+    current = false;
+    assert.equal(await state.repository.flush(), false, "Cancellation is not an authoritative completion fence");
+    assert.equal(state.repository.pendingDeletes.has("cancelled"), false, "No retry of an invalid absence observation");
+    assert(state.repository.unsaved.has("cancelled"), "The dirty source must remain masked");
+    assert.equal((await state.repository.inspect("cancelled")).reason, "unsaved");
+    assert.equal(await state.repository.readBody("cancelled", () => true, () => true, true), null);
+    assert.equal(state.timers.size, 0, "A cancelled predicate must not create an endless retry timer");
+    await state.repository.replace(await state.input("cancelled"));
+    assert.equal((await state.repository.inspect("cancelled")).reason, "ready", "New authoritative facts can replace the mask");
+    assert.equal(await state.repository.flush(), false, "Memory-only replacement still is not durable");
+  } finally { state.repository.close(); }
+});
+
+test("coalesced delete requests cannot restore retention that an earlier final delete removed", async () => {
+  const state = fixture();
+  try {
+    await state.repository.replace(await state.input("retired"));
+    await state.repository.tombstone("retired", () => true, false);
+    await state.repository.tombstone("retired", () => true, true);
+    assert.equal(state.repository.pendingDeletes.get("retired").retain, false);
+    assert.equal(await state.repository.readBody("retired", () => true, () => true, true), null);
+    assert.equal(await state.repository.flush(), false);
+  } finally { state.repository.close(); }
+});
+
+
+test("a retry snapshot cannot discard a newer coalesced deletion or its unsaved mask", async () => {
+  const state = fixture();
+  let release;
+  try {
+    let oldCurrent = true;
+    await state.repository.tombstone("first");
+    await state.repository.tombstone("second", () => oldCurrent);
+    let signal, pause = true;
+    const paused = new Promise(resolve => { signal = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    const open = state.storage.open;
+    state.storage.open = async () => {
+      if (pause) { pause = false; signal(); await gate; }
+      return open();
+    };
+    const flushing = state.repository.flush();
+    await paused;
+    oldCurrent = false;
+    assert.equal((await state.repository.tombstone("second", () => true)).reason, "backpressure");
+    const latest = state.repository.pendingDeletes.get("second");
+    release();
+    assert.equal(await flushing, false);
+    assert.equal(state.repository.pendingDeletes.get("second"), latest, "The stale snapshot may not consume the current capability");
+    assert(state.repository.unsaved.has("second"), "A cancelled older predicate is not authority to clear the new mask");
+  } finally { release?.(); state.repository.close(); }
 });

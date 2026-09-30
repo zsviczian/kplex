@@ -28,6 +28,7 @@ export const SOURCE_REASONS = [
   "decode-budget", "unsupported-body-value", "storage-unavailable", "newer-database", "quota-exceeded",
   "read-error", "write-error", "cancelled", "superseded", "backpressure", "unsaved", "memory-budget",
   "catalog-uncertain", "activated", "activated-not-live",
+  "dependency-pending", "dependency-invalid", "host-catalog-stale", "unsupported-scope",
 ] as const;
 export type SourceReason = typeof SOURCE_REASONS[number];
 
@@ -445,4 +446,71 @@ export function* sourceFieldNames(metadata: ParsedFileMetadata): IterableIterato
     const normalizedFieldName = normalizeFieldName(occurrence.name);
     if (normalizedFieldName) yield { kind: "field-name", fieldName: occurrence.name, normalizedFieldName, surface: "inline" };
   }
+}
+
+/** SI4b1 immutable dependency pages; v5 facts and candidate postings retain their original schema. */
+export const SOURCE_DEPENDENCY_STORE = "sourceDependencies";
+export const SOURCE_DEPENDENCY_STATE_KEY = "source-dependency-state";
+export const SOURCE_DEPENDENCY_ROOT_KEY = "source-dependency-root";
+export const SOURCE_DEPENDENCY_BUILD_KEY = "source-dependency-build";
+export const SOURCE_DEPENDENCY_BUCKETS = 1024;
+export const SOURCE_DEPENDENCY_MAX_PAGES = 256;
+export const SOURCE_DEPENDENCY_ROOT_BYTES = 1024 * 1024;
+export const SOURCE_DEPENDENCY_MAX_BYTES = 128 * 1024 * 1024;
+/** A dependency revision includes in-progress/unsaved mutations, unlike the durable head sequence. */
+export type SourceDependencyFence = Readonly<{ revision: number; sequence: number }>;
+/** Two reusable slots bound on-disk generations; generation tags prevent reuse from aliasing readers. */
+export type SourceDependencyBuild = SourceDependencyFence & Readonly<{ generation: string; slot: 0 | 1 }>;
+export type SourceDependencyPageManifest = Readonly<{ digest: string; bytes: number; records: number }>;
+export type SourceDependencyBucketManifest = SourceDependencyPageManifest & Readonly<{ pages: number }>;
+export type SourceDependencyPage = SourceDependencyPageManifest & Readonly<{
+  slot: 0 | 1; generation: string; bucket: number; index: number; data: string;
+}>;
+/** A catalog root is checked against its checksum before any bucket can prove absence. */
+export type SourceDependencyRootRecord = Readonly<{
+  key: typeof SOURCE_DEPENDENCY_ROOT_KEY; build: SourceDependencyBuild; data: string; digest: string;
+}>;
+/** Duplicate finite control fields detect damaged counters without asynchronous hashing inside IDB. */
+export type SourceDependencyState = Readonly<{
+  key: typeof SOURCE_DEPENDENCY_STATE_KEY; revision: number; dirty: number; guard: string;
+}>;
+/** Produce the small mutation control record; its revision is independent of policy/settings. */
+export function sourceDependencyState(revision: number, dirty: number): SourceDependencyState {
+  return { key: SOURCE_DEPENDENCY_STATE_KEY, revision, dirty, guard: JSON.stringify([revision, dirty]) };
+}
+/** Reject missing/corrupt control records rather than treating an uncertain catalog as empty. */
+export function validSourceDependencyState(value: unknown): value is SourceDependencyState {
+  return sourceObject(value) && keys(value, ["key", "revision", "dirty", "guard"])
+    && value.key === SOURCE_DEPENDENCY_STATE_KEY && sourceCount(value.revision) && sourceCount(value.dirty)
+    && value.guard === JSON.stringify([value.revision, value.dirty]);
+}
+/** Strict generation/fence coordinates never normalize or derive a source identity. */
+export function validSourceDependencyBuild(value: unknown): value is SourceDependencyBuild {
+  return sourceObject(value) && keys(value, ["revision", "sequence", "generation", "slot"])
+    && sourceCount(value.revision) && sourceCount(value.sequence) && text(value.generation)
+    && (value.slot === 0 || value.slot === 1);
+}
+/** Validate page framing before decoding its bounded JSON payload or trusting its checksum. */
+export function validSourceDependencyPage(value: unknown): value is SourceDependencyPage {
+  return sourceObject(value) && keys(value, ["slot", "generation", "bucket", "index", "data", "digest", "bytes", "records"])
+    && (value.slot === 0 || value.slot === 1) && text(value.generation)
+    && sourceCount(value.bucket) && value.bucket < SOURCE_DEPENDENCY_BUCKETS
+    && sourceCount(value.index) && value.index < SOURCE_DEPENDENCY_MAX_PAGES
+    && typeof value.data === "string" && value.data.length <= SOURCE_CHUNK_TARGET_BYTES
+    && typeof value.digest === "string" && /^[a-f0-9]{64}$/.test(value.digest)
+    && sourceCount(value.bytes) && value.bytes <= SOURCE_CHUNK_TARGET_BYTES
+    && sourceCount(value.records) && value.records > 0 && value.records <= SOURCE_MAX_BATCH_RECORDS;
+}
+/** Root validation is structural only; the discovery owner also verifies the full SHA-256 digest. */
+export function validSourceDependencyRoot(value: unknown): value is SourceDependencyRootRecord {
+  return sourceObject(value) && keys(value, ["key", "build", "data", "digest"])
+    && value.key === SOURCE_DEPENDENCY_ROOT_KEY && validSourceDependencyBuild(value.build)
+    && typeof value.data === "string" && value.data.length <= SOURCE_DEPENDENCY_ROOT_BYTES
+    && typeof value.digest === "string" && /^[a-f0-9]{64}$/.test(value.digest);
+}
+/** A non-cryptographic shard selector only; integrity comes from the independent SHA-256 manifests. */
+export function sourceDependencyBucket(key: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < key.length; index += 1) hash = Math.imul(hash ^ key.charCodeAt(index), 16777619);
+  return hash >>> 0 & (SOURCE_DEPENDENCY_BUCKETS - 1);
 }

@@ -75,7 +75,8 @@ export async function chromiumHarness(bundle) {
       `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
     let stderr = ""; child.stderr.on("data", data => { stderr = (stderr + data).slice(-8192); });
     let port;
-    for (let i = 0; i < 200; i++) {
+    // Launch can exceed five seconds on a busy macOS renderer; keep test assertions unchanged.
+    for (let i = 0; i < 600; i++) {
       if (child.exitCode !== null) throw new Error("Chromium exited: " + stderr);
       try { port = (await readFile(join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]; break; } catch { await new Promise(r => setTimeout(r, 25)); }
     }

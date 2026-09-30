@@ -1,6 +1,6 @@
 # SI3 neutral source repository — Accepted
 
-This is the accepted SI3 implementation contract. The additive SI4a cached-source replay capability below is **Review**, not SI4 acceptance. Live demand-driven query/publication integration and SI5 lifecycle/performance acceptance remain unimplemented. The existing hierarchy/image settings route still rebuilds semantic graph state; neutral acquisition can be reused along that route.
+This is the accepted SI3 implementation contract. SI4a cached-source replay is accepted. The additive SI4b1 discovery prototype below is **rejected**, not accepted infrastructure. The C1 deletion correction is **Review**; incremental certificate maintenance and warm validation are still SI4b1 blockers. Live demand-driven query/publication integration and SI5 lifecycle/performance acceptance remain unimplemented. The existing hierarchy/image settings route still rebuilds semantic graph state; neutral acquisition can be reused along that route.
 
 ## Ownership and the transitional graph path
 
@@ -10,15 +10,63 @@ This is the accepted SI3 implementation contract. The additive SI4a cached-sourc
 
 `KplexIndexedDbCache` remains the single connection owner. Incremental `GraphBuilder` calls acquisition **before semantic no-op suppression**. A complete semantic rebuild uses neutral facts for body reuse but leaves source activation to the independent inventory after authoritative publication; it does not wait for a source write per note. `GraphIndex` also starts inventory after complete snapshot hydration. Preview/checkpoint hydration does not claim source completeness. The C14 publication callback remains synchronous; private source staging and graph preparation are asynchronous and separately fenced. Staging can add private-path latency; no latency improvement is claimed.
 
-## SI4a selected-head read capability — Review
+## SI4a selected-head read capability — Accepted
 
 [Cached-source replay](CACHED_SOURCE_REPLAY.md) documents the fact inventory, missing host inputs, bounded owner scope and later GraphIndex read consumers. `readSelected()` holds one selected head and its family leases across serialized family visits, preserving the existing hash/frame/posting validation. It returns a finite ready/pending/stale/cancelled/invalid-family/storage-unavailable result. Expected durable sequence, source incarnation and host observations are independent of semantic policy. Final multi-owner validation reads at most 256 selected heads in one transaction and rechecks local masks and caller fences after the await.
 
 Reader release uses the original connection and is initiated synchronously on repository close; success awaits release before its final fence. Release failure remains conservative orphan protection, not a new crash-reclamation guarantee. Evicted unsaved facts mask posting results as well as head reads. Known incomplete posting queries fail rather than certify empty relationships. The v5 posting vocabulary still cannot certify bounded exact pair coverage, structural/URL referrer completeness or absence after a missing lookup row; every discovered list is explicitly candidate-only.
 
-`SourceReplay.ts` reconstructs normalized facts without Markdown IO/parsing or source-head writes. `CachedSourceSemantics.ts` composes the portable scope preparer under source/host/policy revisions. The Obsidian acquisition adapter supplies only missing revision-fenced current entity/structural/presentation facts. No live GraphIndex route, database schema, graph snapshot format or C14 publication owner changes in this checkpoint. Browser lease/integrity cases require independent execution before acceptance.
+`SourceReplay.ts` reconstructs normalized facts without Markdown IO/parsing or source-head writes. `CachedSourceSemantics.ts` composes the portable scope preparer under source/host/policy revisions. The Obsidian acquisition adapter supplies only missing revision-fenced current entity/structural/presentation facts. SI4a changed no live GraphIndex route, database schema, graph snapshot format or C14 publication owner. Its accepted validation is recorded in the linked replay document; the separate SI4b1 prototype below remains rejected; C1 does not change replay authority.
 
-## Version-5 database and compatibility
+## SI4b1 exact discovery — rejected lifecycle; C1 in Review
+
+[Contributor discovery](SOURCE_CONTRIBUTOR_DISCOVERY.md) records the rejection, delivered C1 slice,
+positive/negative proof obligations, and proposed replacement index. The internal prototype returns
+finite conservative direct-incidence owner covers plus separate host facts, or closed non-ready
+results. Existing `querySources()` and SI4a `discover()` remain candidate-only. No settings,
+publication, search, gates or UI consumers use the new path.
+
+The unaccepted database-v6 `sourceDependencies` store still holds two immutable catalog slots.
+A SHA-256-committed bucket manifest detects omitted lookup pages/rows. Every source mutation deletes
+the root, and unfinished writes have durable dirty tickets. Head activation and final invalidation
+are atomic across connections. **C1 does not replace this full-rebuild lifecycle:** edits and new
+sessions still require replay of all source owners before catalog readiness. At 20,000 Markdown
+owners, one catalog build visits 140,000 families. This blocks SI4b1 acceptance and SI4b2 publication;
+it is not an SI5-only performance limitation.
+
+### C1 deletion capability and authoritative completion — Review
+
+A tombstone immediately masks its owner, then uses an identity-current pending-deletion capability
+to pin a masked disk head **only as CAS input**. Previously its own `unsaved` mask prevented that pin,
+so a disk-only deletion could never settle. `includeTombstone` is not the new capability: ordinary
+readers, including retained-body readers, cannot bypass an evicted unsaved mask. Selection still
+pins existing family revisions; expected-head and exact dirty-ticket checks still govern activation.
+
+If a newer unsaved payload was evicted, the older disk body's families cannot be retained for a
+rename. A coalesced delete can drop retention but never restore it. A stale retry snapshot cannot
+delete a newer pending request. After any awaited activation/absence transaction, only the still
+current request may clear its memory/unsaved mask; an older writer must not clear a newer deletion.
+
+Cancelling an absence predicate is not an authoritative observation of the owner's current state.
+Stop retrying that predicate, but leave its unsaved mask and durable dirty ticket until a fresh valid
+replacement or absence operation repairs them. A stale request cannot consume another writer's
+newer ticket. An authoritative missing-head deletion rechecks absence and settles its ticket in the
+same transaction. Crash recovery therefore remains owner-specific when a fresh authoritative
+presence/absence operation exists, not a timer-based cleanup of arbitrary dirty control records.
+
+`acquisition.reconcile()` can return while an event-side tombstone is queued. A caller requiring
+durable completion must await `repository.flush()` and require `true`; failure/backpressure remains
+non-ready. Flush is a fence for this repository's known work, not proof of a complete host inventory,
+remote writer completion or exact contributor coverage. C1's browser lifecycle test uses that fence
+rather than sleeping or deleting masks. The new real-IDB cases remain unexecuted here because the
+browser test page is blocked by administrator policy; portable tests are not durable evidence.
+
+A tombstone itself visits zero source families. It selects one head, owns at most four family-revision
+leases, and affects only that source's families; later retained-body reads and retired-chunk cleanup
+are separate work. No new lease expiry, source codec, host freshness rule or semantic owner is added.
+See the discovery document for the next C2/C3 implementation gates and unchanged full-rebuild limits.
+
+## Database compatibility: accepted v5 and unaccepted prototype v6
 
 The existing vault-local database name is retained. The version-4-to-5 upgrade creates all new stores/indexes in the one IndexedDB upgrade transaction. It preserves `meta`, `pages`, `evidence`, `bodies` and `snapshotChunks`, graph schemas 1–3, active/checkpoint meanings and body parser version 2.
 
@@ -27,9 +75,10 @@ The existing vault-local database name is retained. The version-4-to-5 upgrade c
 | `sourceHeads` | `sourceId` | Selected complete or tombstone manifest for a physical binding |
 | `sourceChunks` | `[sourceId, revision, family, index]` | `sourceRevision`, `sourceFamilyRevision`; immutable JSON fact frames |
 | `sourcePostings` | `[sourceId, revision, family, index]` | Same revision indexes plus composite `lookup` on `[kind,key,sourceId,revision,family,index]` |
-| `meta` (existing) | `key` | Adds `sourceLease` on `[sourceId,revision]`; source sequence and persistent lease records are separate from graph pointers |
+| `sourceDependencies` (v6, unaccepted) | `[slot,bucket,index]` | Two reusable derivative catalog generations; explicit checksum/absence proofs |
+| `meta` (existing) | `key` | Adds `sourceLease` on `[sourceId,revision]`; source sequence and persistent lease records are separate from graph pointers; v6 also adds catalog root/build/mutation control records |
 
-Version domains remain distinct: database **5**, source-fact format **1**, source-fact compiler **1**, immutable body parser **2**, host-resolution format **1**, graph-snapshot schemas **1/2/3**, and the unchanged semantic/settings signature versions. Unsupported source versions reject that source, not other heads or graph stores.
+Version domains remain distinct: database **6** in the unaccepted prototype (accepted SI3/SI4a used **5**), source-fact format **1**, source-fact compiler **1**, immutable body parser **2**, host-resolution format **1**, graph-snapshot schemas **1/2/3**, and the unchanged semantic/settings signature versions. Unsupported source versions reject that source, not other heads or graph stores.
 
 Failed opens/upgrades, blocked/time-limited opens and failed transactions invalidate the owning handle/readiness promise. Late connections are closed. Retry delays are 1, 5 and then 30 seconds. A newer database's `VersionError` makes this process persistence-unavailable; it never deletes or downgrades the database. Source and legacy methods share this owner, including synchronous transaction-open failures.
 

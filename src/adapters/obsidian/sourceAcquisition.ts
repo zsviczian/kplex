@@ -4,6 +4,7 @@
  * parser/Date collector/host resolver, never semantic settings or custom path guessing. It owns its
  * event fence independently of graph no-op suppression, plus a single cooperative inventory task.
  * Its read-only cached semantic capability supplies missing host facts without changing live routing.
+ * SI4b1 adds an explicit, finalized structural inventory and bounded Date-registry observation fence.
  */
 import { Platform, TFile, type App, type CachedMetadata } from "obsidian";
 import type { GraphCompilerRuntime } from "../../core/graph/compiler";
@@ -11,6 +12,7 @@ import { acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type Normaliz
   type NormalizedSourceRecord, type SourceReadBoundary } from "../../core/graph/source";
 import { CachedSourceSemanticReader, MAX_CACHED_SCOPE_SOURCES, type CachedSemanticPolicy,
   type CachedSemanticPreparation } from "../../index/CachedSourceSemantics";
+import { SourceContributorDiscovery, type ContributorHostCatalog } from "../../index/SourceContributorDiscovery";
 import type { CachedSourceHost, CachedSourceRequest } from "../../index/SourceReplay";
 import { selectedSourceFailure, type SelectedSourceResult } from "../../index/SourceRepository";
 import type { ParsedBodyMetadata, ParsedFileMetadata } from "../../core/parser/metadata";
@@ -20,7 +22,7 @@ import { SOURCE_FAMILIES, SourceFactError, sourceFieldNames, sourceValueSteps, t
   type SourcePhysical, type SourceReason, type StoredMetadataFact, type StoredSourceFact } from "../../index/SourceFacts";
 import type { SourceFamilyProducer, SourceInspection, SourceRepositoryDiagnostics } from "../../index/SourceRepository";
 import { createObsidianMetadataSourceHost, normalizedBodyUrl, ObsidianMetadataSourceCollector, type ObsidianMetadataSourceSettings } from "./metadataSourceCollector";
-import { entityFactForFile, ObsidianStructuralPatchSourceCollector } from "./structuralSourceCollector";
+import { entityFactForFile, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "./structuralSourceCollector";
 import { hostLinkRecord } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
@@ -247,6 +249,76 @@ export class ObsidianSourceAcquisition {
     }, runtime);
   }
 
+  /**
+   * Create an internal SI4b1 catalog capability for the current host revision. Rebuild is explicit;
+   * neither construction nor querying schedules acquisition or changes any live graph consumer.
+   * Canonical topology finalization closes the inventory; a bounded field vocabulary checks Date
+   * registry changes without scanning all files per query. A new host revision needs a new capability.
+   */
+  contributorDiscovery(runtime: GraphCompilerRuntime): SourceContributorDiscovery {
+    this.start();
+    const revision = this.hostRevision;
+    const daily = JSON.stringify(this.metadataHost.dailyNotesSettings());
+    const fields = new Map<string, boolean>();
+    let fieldBytes = 0;
+    /** Source events, cancellation and unload cheaply fence every awaited source/structure batch. */
+    const current = (): boolean => !this.closed && runtime.isCurrent() && this.hostRevision === revision;
+    const scopedRuntime = { ...runtime, isCurrent: current };
+    const catalog: ContributorHostCatalog = {
+      stamp: { epoch: this.epoch, revision, token: this.repository.createIdentity() },
+      isCurrent: current,
+      /** Check all observed Date and non-Date fields; policy-only changes do not enter this fence. */
+      validate: () => current() && JSON.stringify(this.metadataHost.dailyNotesSettings()) === daily
+        && [...fields].every(([field, wasDate]) => this.metadataHost.isDateProperty(field) === wasDate),
+      /** Reuse the canonical full structural scan and its second-pass topology/tag finalization. */
+      collect: async (emit) => {
+        const collector = new ObsidianStructuralSourceCollector(this.app, {
+          isCurrent: current, sourceRevision: () => this.hostRevision,
+          checkpoint: async () => { await runtime.yield(); return current(); },
+        });
+        let cursor = beginSourceRead(collector.boundary);
+        let documents = 0;
+        /** Consume finite canonical batches without retaining a second full structural graph. */
+        const consume = async (batch: NormalizedSourceBatch): Promise<boolean> => {
+          const accepted = acceptSourceBatch(cursor, batch);
+          if (!accepted.accepted || !current()) return false;
+          for (const record of batch.records) {
+            if (record.kind !== "entity" && record.kind !== "file-tree" && record.kind !== "tag-tree") return false;
+            if (record.kind === "entity" && record.entity.kind === "document") documents++;
+            if (!(await emit(record)) || !current()) return false;
+          }
+          cursor = accepted.cursor;
+          return current();
+        };
+        if (!(await collector.collectBatches(consume))) return false;
+        const final = await collector.finalize();
+        return final !== null && await consume(final) && current()
+          && documents === this.app.vault.getMarkdownFiles().length
+          && collector.isBoundaryCurrent(collector.boundary) && sourceReadCanPublish(cursor, collector.boundary);
+      },
+      /** Capture one already-acquired document and its complete frontmatter field-type vocabulary. */
+      capture: async (entity) => {
+        const path = entity.entity.physicalPath;
+        const file = path ? this.app.vault.getFileByPath(path) : null;
+        if (!(file instanceof TFile) || file.extension !== "md") throw new SourceFactError("host-catalog-stale");
+        const metadata = this.app.metadataCache.getFileCache(file);
+        if (!metadata) throw new SourceFactError("pending-metadata");
+        for (const field of Object.keys(metadata.frontmatter ?? {})) {
+          if (field === "position" || fields.has(field)) continue;
+          fieldBytes += field.length * 2 + 64;
+          if (fields.size >= 4096 || fieldBytes > 1024 * 1024) throw new SourceFactError("memory-budget");
+          fields.set(field, this.metadataHost.isDateProperty(field));
+        }
+        // These presentation records are irrelevant to dependency discovery. Do not persist or
+        // index configured semantic roles or arbitrary frontmatter presentation values.
+        const captured = await this.captureForReplay(file.path, { noteTypeField: "", primaryTagField: "" }, scopedRuntime);
+        if (captured.outcome !== "ready") throw new SourceFactError(captured.reason);
+        return captured.request;
+      },
+    };
+    return new SourceContributorDiscovery(this.repository, catalog, runtime);
+  }
+
   /** Reuse immutable body inputs before the mutable legacy cache, including an observed pure move. */
   async readBody(file: TFile, caller: () => boolean = () => true): Promise<ParsedBodyMetadata | null> {
     if (this.needsBodyRead(file)) return null;
@@ -427,7 +499,11 @@ export class ObsidianSourceAcquisition {
     if (!this.enabled || this.closed || this.inventory || this.timer !== null) return;
     this.timer = window.setTimeout(() => { this.timer = null; void this.reconcile(); }, 350);
   }
-  /** Reconcile a captured inventory, reusing valid parsed inputs and repairing only local misses. */
+  /**
+   * Reconcile a captured inventory, reusing valid parsed inputs and repairing local misses.
+   * Event-side tombstones may still be queued when this task returns; repository.flush() is their
+   * durable completion fence. Neither an inventory result nor a delay proves tombstone activation.
+   */
   async reconcile(): Promise<boolean> {
     this.start();
     if (this.inventory) return this.inventory;
