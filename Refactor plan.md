@@ -1884,3 +1884,28 @@ are in `HANDOFF.md` and the contributor-discovery contract. No commit/publicatio
 - **Verdict:** accept only the design proof and 32 production-oracle regression cases. The exact fresh full-build tie order is each unordered pair's first actual evidence insertion, restricted to finally center-directed relations. Existing v2/v3 persisted facts omit the resolved/unresolved host outer-owner permutations, so no general sorted direct-list certificate follows from current facts. No reader, schema, caller or SI4b1/SI4b2/SI4c/SI5 checkpoint is accepted; C15–C26 remain paused.
 - **Independent checks:** reviewed collector, compiler, evidence-store, resolver, binder and GraphIndex ordering paths. Required Node 22.22.3 and installed dependencies: full `npm run verify` passes, including source 301/301, eight serial real Chromium suites 145/145, architecture/core/lint and production build. See [the review](docs/validation/settings-independent-indexing-si4-direct-neighbor-order-review-2026-09-30.md). No manual test is needed for this uncalled tests/design slice.
 - **Next:** acquire and authenticate original host-family owner-order coordinates during explicit host acquisition, without widening any reader's readiness. Prove host order currentness and bounded phase-preserving consumption separately before any ordered certificate. Native MetadataCache event-order and selected scalar/alias completion remain online evidence gaps.
+
+
+### SI4 original host-owner order acquisition — offline return 2026-09-30
+
+Implemented the bounded acquisition-only input requested by the SI4 handoff. Explicit contributor
+catalog rebuilds now double-scan the complete resolved/unresolved host-link maps through the production
+collector and persist their original outer-owner permutations in additive catalog v4 root data. Existing
+v2/v3 roots remain readable; v4 preserves existing v3 Markdown-order consumers but exposes no new
+ordered-neighbor reader or readiness result. Empty owners/maps, independent resolved/unresolved
+permutations and JavaScript numeric-key enumeration are preserved. The capture remains fenced only by
+the existing host revision/currentness plus the collector's terminal digest re-scan; native host event-order
+currentness after an unobserved reorder is still unproved and must not be inferred from this coordinate.
+
+Offline validation on Node v22.16.0: focused SI4/source tests 82/82 pass; `npm run test:sources` 301/301
+passes. Required Node >=22.22.2 was unavailable. `npm run check:architecture` could not run because the
+ZIP has no installed local `typescript` package. `npm run check:core` compiled the core TS stage but its
+Node tests were not a valid gate in this environment because local `esbuild` is missing; one unrelated
+normalized-source fixture assertion also failed in that partial run. Browser/real IndexedDB, lint, build,
+verify and native Obsidian validation remain for the online agent. No checkpoint is accepted by this entry.
+
+### 2026-09-30 — SI4 host-owner order return reviewed; correction required
+
+- **Verdict:** not accepted. Interim commit `a6c1aac` records the delivery so the next agent's diff has a clean base; it is not a passing checkpoint. The acquisition path captures the right host traversal, but unpaged owner arrays exceed the 1 MiB derivative-root limit at large-vault scale; ordinary full builds also allocate unused arrays. No order reader/readiness is present, so the native order-currentness gap remains explicit. See [the review](docs/validation/settings-independent-indexing-si4-host-order-return-review-2026-09-30.md).
+- **Independent checks:** Node 22.22.3 architecture 7/7, core 60/60, lint, general Node 133/133, UI 7/7 and source 301/301 pass. Real Chromium/IndexedDB is 139/145: v4 breaks three legacy-root fixture cases and one current-version expectation (six failed assertions/subtests). Real build fails TS2322 on nullable root coordinate. `verify` fails; no native acceptance or manual test is claimed.
+- **Next:** one larger offline correction/forward slice: bounded paged coordinate plus v2/v3/v4 real-storage compatibility and fault tests, then private phase-preserving direct-order preparation with fail-closed finality. No SI4 checkpoint, public route or C15–C26 work is authorized.
