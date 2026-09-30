@@ -6,6 +6,16 @@ inputs to one exact candidate's full-build title. No production route, selector,
 existing certificate is changed. In particular, `complete-neighborhood-relations` and the separate
 center-gate certificate must not be interpreted as title or sorted-list certificates.
 
+## Bounded URL-order follow-up
+
+The historical negative proof below and its 35 characterization tests are retained unchanged.
+[The subsequent URL-title slice](SOURCE_URL_TITLE_PROOF.md) adds derivative v3 encounter
+coordinates and an uncalled URL-only input reader. Its portable and real IndexedDB tests restore
+the full builder's label precedence without changing structural relation order; the private slice
+has been [independently reviewed](validation/settings-independent-indexing-si4-url-title-review-2026-09-30.md).
+The general scalar/alias completion and absence contract below is still missing, and this
+follow-up supplies no visible-list authority.
+
 ## Inventory before implementation
 
 The title policy is owned by `src/index/GraphIndex.ts`, not by source replay. The active full path is

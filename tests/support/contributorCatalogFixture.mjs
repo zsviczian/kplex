@@ -100,7 +100,7 @@ export function catalogFixture(sources = [], structural = []) {
           bytes: previous.bytes + page.bytes, records: previous.records + page.records, pages: previous.pages + 1 };
       }
     }
-    const data = JSON.stringify({ version: C.CONTRIBUTOR_CATALOG_VERSION, build, host: stamp, sources: sources.length, hostFacts: structural.length, rows: rows.length, buckets });
+    const data = JSON.stringify({ version: C.CONTRIBUTOR_LEGACY_CATALOG_VERSION, build, host: stamp, sources: sources.length, hostFacts: structural.length, rows: rows.length, buckets });
     await repository.activateDependencyBuild({ key: C.SOURCE_DEPENDENCY_ROOT_KEY, build, data, digest: sha(data) }, buckets.reduce((sum, bucket) => sum + bucket.pages, 0));
   };
   return { discovery, state, seal, repository, host, runtime, cancel: () => { current = false; }, environmentChanged: () => { environment = false; } };

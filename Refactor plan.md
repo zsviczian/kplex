@@ -1697,3 +1697,61 @@ are in `HANDOFF.md` and the contributor-discovery contract. No commit/publicatio
 - **Verdict:** accepted the design finding and production characterization tests, not an exact-title reader or SI4b1/SI4b2/SI4c/SI5 checkpoint. Complete catalog owner coverage can still choose the wrong first URL label because structural source order differs from the full builder's Markdown inventory order. Live selected scalar/absence values lack a source-bound MetadataCache completion observation; host-double traces identify the missing guarantee but do not claim native event behavior. No production source, schema, settings or public consumer changed; C15–C26 remain paused.
 - **Review evidence:** Node 22.22.3 with real dependencies: new 35/35, source 186/186, architecture 7/7, core 60/60, Obsidian lint and production build pass. Browser/runtime code is unchanged from the previously validated 111/111 serial Chromium base. Full `verify` fails the unchanged URL-heavy timer at 70.9 ms versus 50 ms. Installed Obsidian declarations confirm nullable cache/changed-callback signatures. CLI is installed but Obsidian was not running; the native event-order probe remains pending. See [the review](docs/validation/settings-independent-indexing-si4-selected-title-review-2026-09-30.md).
 - **Next:** assign an offline bounded derivative-catalog Markdown encounter-order coordinate and URL-label parity proof; do not replace full-builder ordering or scan all owners at settings time. Independently, the main agent must capture the native MetadataCache completion/physical-revision trace in an explicitly selected disposable vault before a scalar/absence reader can be authorized. Candidate degrees, hot-range continuation, visible lists and public routing remain later SI4 work. No maintainer manual test applies to this documentation/test slice.
+
+### 2026-09-30 — SI4 URL encounter-order coordinate and private input returned; validation pending
+
+- **Scope/status:** offline return for independent main-agent review, not an accepted SI4 checkpoint.
+  The [URL-title proof](docs/SOURCE_URL_TITLE_PROOF.md) traces full structural/all-host-link phases,
+  Markdown inventory consumption, parser duplicate/empty-label behavior, canonical first-meaningful
+  labels and independent origins. The full builder, parser, compiler and `GraphIndex.titleFor()` are
+  unchanged. The original v2 nested/root counterexample remains: structural order chooses `Second
+  label`, while full Markdown order chooses `First label`. A complete support cover replayed in the
+  new coordinate restores full-title parity; it does not certify unrelated relation/neighbor order.
+- **Derivative decision:** format 3 adds `markdownOrdinal` on each exact SourceId/selected-head row,
+  authenticated by existing pages/bucket commitments/root. Structural `order` stays independent.
+  Only explicit host catalog acquisition captures the copied Markdown array, validates registry
+  identity and final exact membership/order, and supplies a complete unique ordinal permutation.
+  The temporary map has an 8 MiB bound and cooperative 256-entry checks; writer identity accounting
+  includes the coordinate. Query-time inventory scans, parsers and source acquisition are forbidden.
+  V2 roots remain relation-readable but cannot certify even an empty URL-title range; legacy
+  producers without the opt-in remain v2. No fallback to structural order or eager rebuild occurs.
+  Database v7, source/body/graph/journal formats, original summaries and atomic two-slot activation
+  are unchanged. This is derivative replacement, not a new source migration or incremental repair.
+- **Private proof:** `CachedRequestedUrlTitleReader` composes existing complete contributor
+  discovery, exact source capture and canonical semantic replay. It returns only one detached URL
+  name input and certificate, not an over-cover graph or replacement title selector. All supporting
+  owners, including origins, are replayed within existing finite budgets. Missing pages/ordinals,
+  hot support, any open journal (including known/unrelated impacts), root/head/host/policy/demand
+  changes and late cancellation fail closed. It has no production consumer. Scalar/alias live
+  MetadataCache completion/absence and native ordering guarantees are not inferred from host doubles.
+- **Actual evidence:** Node 22.16.0, npm 10.9.2, global TypeScript 5.8.3, Chromium 144.0.7559.96,
+  Git 2.47.3/no `.git`, no Obsidian CLI/runtime. Node is below required 22.22.2. Offline dependency
+  installation fails `ENOTCACHED`; registry DNS is unavailable. Final source lane **228/228** passes,
+  including **42 new URL cases**, with zero skips; architecture **7/7**, 60 migrated roots/113
+  reachable files/0 violations. Core-only compilation and a strict direct type check of the private
+  reader's portable dependency tree pass using actual global TypeScript; this is not a host build.
+  Core runtime is **36 pass/3 fail**: two missing-esbuild imports and an unchanged normalized-source
+  assertion (`Assets/picture.png` versus `Never There`), reproduced **6/7** in the untouched archive.
+  Obsidian lint cannot run without eslint; production build fails on absent actual dependencies.
+  Full verify stops at core. Separate `npm test` passes its 24 settings-independence scenarios and
+  restore watchdog, then fails the unchanged URL-heavy timer at **54.3 ms versus 50 ms**. No baseline
+  assertion, threshold, fixture golden or browser policy was weakened.
+- **Durability gate remains open:** the new suite defines 19 actual Chromium/IndexedDB subcases for
+  upgrade/reopen, v2 coexistence, source/body preservation, aborted writes, malformed/missing pages,
+  mutations and final journals. All seven browser suite bootstraps in the explicit serial run fail
+  `ERR_BLOCKED_BY_ADMINISTRATOR` before subcases execute. These are pending tests, not passes or skips;
+  managed browser policy was not altered. The schema-compatible design is not a substitute for this
+  required validation. Existing portable catalog envelopes are explicitly memory doubles.
+- **Next:** main agent must independently review the acquisition/order proof and format coexistence,
+  run required-runtime source/core/lint/build/full checks and all serial real-browser cases, and fix
+  any actual defects before accepting this return. The separate native source-bound MetadataCache
+  completion trace still needs an explicitly selected disposable vault; do not implement scalar
+  reads from this result. No maintainer manual workflow is needed for an uncalled internal proof.
+  Changed-host S2b, candidate degrees, hot-range continuation, stable visible lists, public routing
+  and settings-time publication remain outside scope. SI4b1/SI4b2/SI4c/SI5 stay open; C15–C26 paused.
+
+### 2026-09-30 — SI4 private URL-title input reviewed
+
+- **Verdict:** accepted only the uncalled URL-label order coordinate and exact URL-name input reader. Full Markdown inventory order is captured once during explicit catalog acquisition as a complete, authenticated derivative-v3 ordinal permutation; structural relation order remains separate. V2 roots retain relation reads but cannot certify URL titles. No scalar MetadataCache reader, sorted list, public/settings route or SI4b1/SI4b2/SI4c/SI5 checkpoint is accepted. C15–C26 remain paused.
+- **Independent evidence:** Node 22.22.3 with real dependencies: source 228/228, architecture 7/7, core 60/60, lint/build pass, and all seven serial real Chromium/IndexedDB suites 131/131 (including 19 new URL cases). `verify` fails only the unchanged strict URL-heavy timer at 57.7 ms versus 50 ms. The sandbox-only localhost denial was resolved for the browser validation. No configured disposable Obsidian vault was available; no native workflow is reached by this private reader. See [the review](docs/validation/settings-independent-indexing-si4-url-title-review-2026-09-30.md).
+- **Next:** offline finite candidate raw-degree proof is the next independent SI4 input. The online native MetadataCache completion/physical-revision trace remains required before scalar/absence reads. Hot continuation, visible lists, changed-host certification and production publication remain open. No maintainer manual test is needed for this private slice.

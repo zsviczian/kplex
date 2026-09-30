@@ -48,6 +48,18 @@ Native MetadataCache event-order proof is pending because Obsidian was not runni
 [the review](validation/settings-independent-indexing-si4-selected-title-review-2026-09-30.md).
 Sorted lists, candidate degrees, continuation and SI4b1/SI4b2/SI4c/SI5 remain open.
 
+**SI4 URL-title order (2026-09-30; private slice reviewed, not SI4b1 acceptance):**
+[The bounded follow-up](SOURCE_URL_TITLE_PROOF.md) captures a complete Markdown encounter
+permutation only at catalog acquisition, authenticates it in derivative v3 and keeps structural order
+independent. V2 stays relation-readable but cannot authorize URL titles. An uncalled private reader
+reuses the canonical compiler for one URL-name input; source/body/database formats and all journal
+fences are unchanged. Main-agent source 228/228, serial real Chromium/IndexedDB 131/131,
+architecture/core/lint/build pass; aggregate `verify` remains red on the unchanged URL-heavy timer.
+See [the review](validation/settings-independent-indexing-si4-url-title-review-2026-09-30.md).
+This is not a scalar MetadataCache reader, title facade,
+sorted-list certificate, settings route or incremental catalog implementation. All SI4 checkpoint
+and C15–C26 exclusions above remain in force.
+
 Design review and implementation brief for Sol, 2026-09-29.
 
 **Original design baseline (historical; current implementation status is above).** Reviewed on `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`, initially clean. The maintainer requires ordinary ontology and presentation changes to preserve indexed source data. This document proposes the implementation and acceptance sequence; it does not resume C15–C26, claim a fix, or authorize a release.

@@ -11,12 +11,24 @@ its gate/presentation exclusions are deliberate. This isolation is not SI4b1 acc
 public query/settings route is added. S2a still certifies only an
 unchanged canonical host. See the [review and native trace](validation/settings-independent-indexing-si4-lease-and-host-probe-2026-09-30.md).
 
-An additive database-v7 upgrade preserves source/body/graph data and derivative root format 2.
+The accepted S1/S2a baseline uses an additive database-v7 upgrade that preserves source/body/graph
+data and derivative root format 2.
 After catalog bootstrap, source mutations retain the original root and owner evidence for private
 repair instead of deleting it. Every open repair ticket, including a known impact, still masks
 public exact discovery. No ordered copy-on-write index, local root publication, disjoint-query
 continuity, settings, GraphIndex, gate, search or UI routing is added. Prior main-agent changes and
 C1 tests are preserved; the independent S2a validation is recorded in `Refactor plan.md`.
+
+## URL encounter-order follow-up — private slice reviewed
+
+[The URL-title proof](SOURCE_URL_TITLE_PROOF.md) adds derivative format 3 with one authenticated
+Markdown encounter ordinal per exact selected source, separate from structural `order`. The host
+captures it only during explicit catalog acquisition. V2 remains relation-readable; URL-title reads
+require v3 and never trigger acquisition. An uncalled private reader reuses the canonical compiler
+and exposes only the exact URL name input, not scalar titles, a graph or a sorted list. Database v7,
+source/body formats and existing journal fences are unchanged. Real upgrade/reopen/fault execution
+and the required-runtime build passed in the [main-agent review](validation/settings-independent-indexing-si4-url-title-review-2026-09-30.md);
+all checkpoint exclusions above still apply.
 
 ## SI4 decision: requested-read correctness, not catalog completion
 
@@ -590,8 +602,9 @@ non-ready result and complete lease release. This assertion passed in the main-a
 
 ### Persisted original owner commitments
 
-The **derivative root format remains 2**. S1 introduced this format without changing source/graph
-schemas; S2 adds journal storage in database v7. `sourceDependencies` retains its two existing slots. Each source lookup row contains its selected head,
+At the accepted S1/S2a baseline, the **derivative root format is 2**. The reviewed private
+[URL-order follow-up](SOURCE_URL_TITLE_PROOF.md) adds v3 while retaining v2 relation reads. S1
+introduced v2 without changing source/graph schemas; S2 adds journal storage in database v7. `sourceDependencies` retains its two existing slots. Each source lookup row contains its selected head,
 canonical source reference and an original owner-summary manifest: page count, key count, encoded
 bytes and a SHA-256 chain. Summary rows use exact `['summary', sourceId]` lookup tuples and contiguous
 page indices. The chain binds every page to the exact SourceId, selected source revision, durable

@@ -4,7 +4,8 @@
  * parser/Date collector/host resolver, never semantic settings or custom path guessing. It owns its
  * event fence independently of graph no-op suppression, plus a single cooperative inventory task.
  * Its read-only cached semantic capability supplies missing host facts without changing live routing.
- * SI4b1 adds an explicit structural inventory and bounded Date-registry observation fence. C2
+ * SI4b1 adds an explicit structural inventory and bounded Date-registry observation fence. V3
+ * catalogs capture full-builder Markdown encounter order only within that explicit acquisition. C2
  * host events also raise a coalesced durable UNKNOWN-impact ticket; no inverse resolver is invented.
  */
 import { Platform, TFile, type App, type CachedMetadata } from "obsidian";
@@ -265,6 +266,8 @@ export class ObsidianSourceAcquisition {
   /**
    * Create an internal SI4b1 catalog capability for the current host revision. Rebuild is explicit;
    * neither construction nor querying schedules acquisition or changes any live graph consumer.
+   * Explicit collection captures Markdown encounter ordinals separately from structural order,
+   * and rechecks exact inventory identity/order before activating the derivative catalog.
    * Canonical topology finalization closes the inventory; a bounded field vocabulary checks Date
    * registry changes without scanning all files per query. A new host revision needs a new capability.
    */
@@ -280,6 +283,7 @@ export class ObsidianSourceAcquisition {
     const scopedRuntime = { ...runtime, isCurrent: current };
     const catalog: ContributorHostCatalog = {
       stamp: { epoch: this.epoch, revision, token: this.repository.createIdentity() },
+      markdownOrderVersion: 1,
       isCurrent: current,
       /** Check all observed Date and non-Date fields; policy-only changes do not enter this fence. */
       validate: () => {
@@ -294,8 +298,25 @@ export class ObsidianSourceAcquisition {
         if (!environmentDirty) { environmentDirty = true; this.markContributorHostChange("environment"); }
         return false;
       },
-      /** Reuse the canonical full structural scan and its second-pass topology/tag finalization. */
+      /**
+       * Capture ordinals only during explicit acquisition, never a settings query. The same host
+       * revision encloses both inventories. Exact TFile membership and final enumeration equality
+       * prevent equal-length replacements, duplicates or traversal order from supplying ordinals.
+       */
       collect: async (emit) => {
+        if (!current()) return false;
+        const markdown = this.app.vault.getMarkdownFiles().slice();
+        const ordinals = new Map<TFile, number>();
+        let inventoryBytes = 0;
+        for (const [ordinal, file] of markdown.entries()) {
+          if (!current()) return false;
+          if (!(file instanceof TFile) || file.extension !== "md" || ordinals.has(file)
+            || this.app.vault.getFileByPath(file.path) !== file) throw new SourceFactError("host-catalog-stale");
+          inventoryBytes += file.path.length * 2 + 128;
+          if (inventoryBytes > 8 * 1024 * 1024) throw new SourceFactError("memory-budget");
+          ordinals.set(file, ordinal);
+          if ((ordinal & 255) === 255) { await runtime.yield(); if (!current()) return false; }
+        }
         const collector = new ObsidianStructuralSourceCollector(this.app, {
           isCurrent: current, sourceRevision: () => this.hostRevision,
           checkpoint: async () => { await runtime.yield(); return current(); },
@@ -308,17 +329,30 @@ export class ObsidianSourceAcquisition {
           if (!accepted.accepted || !current()) return false;
           for (const record of batch.records) {
             if (record.kind !== "entity" && record.kind !== "file-tree" && record.kind !== "tag-tree") return false;
-            if (record.kind === "entity" && record.entity.kind === "document") documents++;
-            if (!(await emit(record)) || !current()) return false;
+            let ordinal: number | undefined;
+            if (record.kind === "entity" && record.entity.kind === "document") {
+              documents++;
+              const path = record.entity.physicalPath;
+              const file = path === undefined ? null : this.app.vault.getFileByPath(path);
+              ordinal = file instanceof TFile ? ordinals.get(file) : undefined;
+              if (ordinal === undefined) return false;
+            }
+            if (!(await emit(record, ordinal)) || !current()) return false;
           }
           cursor = accepted.cursor;
           return current();
         };
         if (!(await collector.collectBatches(consume))) return false;
         const final = await collector.finalize();
-        return final !== null && await consume(final) && current()
-          && documents === this.app.vault.getMarkdownFiles().length
-          && collector.isBoundaryCurrent(collector.boundary) && sourceReadCanPublish(cursor, collector.boundary);
+        if (final === null || !(await consume(final)) || !current() || documents !== markdown.length) return false;
+        const after = this.app.vault.getMarkdownFiles();
+        if (after.length !== markdown.length) return false;
+        // Recheck the exact encounter stream cooperatively, not just its length or sorted paths.
+        for (const [ordinal, file] of after.entries()) {
+          if (!current() || file !== markdown[ordinal] || this.app.vault.getFileByPath(file.path) !== file) return false;
+          if ((ordinal & 255) === 255) { await runtime.yield(); if (!current()) return false; }
+        }
+        return current() && collector.isBoundaryCurrent(collector.boundary) && sourceReadCanPublish(cursor, collector.boundary);
       },
       /** Capture one already-acquired document and its complete frontmatter field-type vocabulary. */
       capture: async (entity) => {
