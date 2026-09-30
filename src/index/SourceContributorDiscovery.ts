@@ -736,6 +736,15 @@ export class SourceContributorDiscovery {
     finally { this.queries--; }
   }
   /**
+   * Synchronous host fence for a private caller's final return, including zero-source scopes.
+   * This observes the existing session/environment capability only: it authenticates no root,
+   * journal or selected head, repairs nothing, and must follow full certificate revalidation.
+   */
+  isHostCurrent(): boolean {
+    try { return this.current() && this.host.validate(); }
+    catch { return false; }
+  }
+  /**
    * Recheck a later publication candidate: exact scope hash, host observations, selected source
    * stamps, selected host-fact identity, root identity and both global fences. This validates only;
    * it cannot publish anything. Certificates are internal capabilities, not adversarial credentials.

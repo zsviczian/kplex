@@ -7,6 +7,8 @@
  * catalog uses this same transaction owner. v7 retains its original summary/root proof in a durable
  * repair journal before mutation, with a separate non-queryable impact certificate and root leases.
  * A deletion-only pin capability can retire a masked head without making it readable as live data.
+ * Retired impact leases retain bounded retry ownership until an exact deletion commits; a cleanup-
+ * only storage port can release them after a failed/closed normal connection, without new authority.
  */
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import {
@@ -33,6 +35,8 @@ import {
   type ContributorJournalOwner, type ContributorJournalRecord, type ContributorJournalSelection, type ContributorHostChange,
 } from "./SourceContributorJournal";
 
+import { releaseContributorRootLease, type ContributorRootLease } from "./SourceContributorLease";
+
 export const SOURCE_HEAD_STORE = "sourceHeads";
 export const SOURCE_CHUNK_STORE = "sourceChunks";
 export const SOURCE_POSTING_STORE = "sourcePostings";
@@ -51,6 +55,8 @@ export type SourceStorage = Readonly<{
   open(): Promise<IDBDatabase | null>;
   failed(db: IDBDatabase, error: unknown): void;
   unavailableReason?(): SourceReason;
+  /** Cleanup-only existing-database reopen; the repository supplies only its retired exact lease. */
+  releaseContributorLease?(lease: ContributorRootLease): Promise<boolean>;
 }>;
 /** Real runtime capabilities, also usable with deterministic clocks; no fault controller is shipped. */
 export type SourceRepositoryRuntime = Readonly<{
@@ -298,7 +304,8 @@ export class NeutralSourceRepository {
   private retryTask: Promise<void> | null = null;
   private decodeBytes = 0;
   private impactReadReservations = 0;
-  private readonly impactReaders = new Map<string, { db: IDBDatabase; release?: Promise<void> }>();
+  private readonly impactReaders = new Map<string, { db: IDBDatabase; lease: ContributorRootLease | null;
+    active: boolean; release?: Promise<void> }>();
   private hostChange: ContributorHostChange | null = null;
   private hostJournalTask: Promise<SourceReason> | null = null;
   private diagnostics = sanitizeSourceRepositoryDiagnostics(null);
@@ -604,16 +611,24 @@ export class NeutralSourceRepository {
   /**
    * Hold a persistent root-slot lease across authenticated historical page reads and impact work.
    * Each page and terminal result rechecks the exact ticket; full bootstrap or a newer writer may
-   * supersede it but cannot reclaim a leased slot. Close starts release on the original connection.
+   * supersede it but cannot reclaim a leased slot. Page capabilities expire before retirement.
+   * A failed cleanup retains its ticket for bounded retry; it never expires an active reader.
    */
   async withContributorJournal<T>(owner: ContributorJournalOwner, current: () => boolean,
     consume: (reader: ContributorJournalReader) => Promise<T>): Promise<T> {
     if (this.impactReadReservations >= 2) throw new SourceFactError("backpressure");
     this.impactReadReservations++;
     try {
+      await this.retryRetiredContributorLeases();
       const db = await this.open(); if (!db) throw new SourceFactError("storage-unavailable");
+      // Active and unreleased retired pins share one bound. Failure must not accumulate a queue.
+      if (this.impactReaders.size >= 2) throw new SourceFactError("backpressure");
       const key = `source-impact-lease:${this.runtime.uniqueId()}`;
-      this.impactReaders.set(key, { db });
+      const pin: { db: IDBDatabase; lease: ContributorRootLease | null; active: boolean; release?: Promise<void> }
+        = { db, lease: null, active: true };
+      this.impactReaders.set(key, pin);
+      /** Escaped page callbacks cannot outlive their lease, even if the host stays unchanged. */
+      const readable = (): boolean => pin.active && !this.closed && current();
       try {
         const selected = await this.transaction(db, [META_STORE, SOURCE_IMPACT_STORE], "readwrite", "", async (transaction) => {
           const record = await unknownValue(transaction.objectStore(SOURCE_IMPACT_STORE).get(contributorJournalKey(owner)));
@@ -629,7 +644,8 @@ export class NeutralSourceRepository {
               || !sameDependencyBuild(anchor.root.build, record.root.build)) throw new SourceFactError("dependency-invalid");
             root = anchor.root;
           }
-          transaction.objectStore(META_STORE).put({ key, impactSlot: record.slot });
+          pin.lease = { key, impactSlot: record.slot };
+          transaction.objectStore(META_STORE).put(pin.lease);
           return { record, root, fence: { revision: fence.revision, sequence: fence.sequence } };
         });
         // Keep private coordinates separate from values passed to a caller that could mutate them.
@@ -639,39 +655,63 @@ export class NeutralSourceRepository {
           fence: { ...selected.fence },
           /** Historical pages are available only under this retained ticket, not a public root bypass. */
           page: async (bucket, index) => {
+            if (!readable()) throw new SourceFactError("cancelled");
             const root = selected.root;
             if (!root || !sourceCount(bucket) || bucket >= SOURCE_DEPENDENCY_BUCKETS
               || !sourceCount(index) || index >= SOURCE_DEPENDENCY_MAX_PAGES) throw new SourceFactError("dependency-invalid");
-            return this.transaction(db, [SOURCE_IMPACT_STORE, SOURCE_DEPENDENCY_STORE], "readonly", "", async (transaction) => {
-              await this.checkContributorJournal(transaction, selected.record, current);
+            const page = await this.transaction(db, [SOURCE_IMPACT_STORE, SOURCE_DEPENDENCY_STORE], "readonly", "", async (transaction) => {
+              await this.checkContributorJournal(transaction, selected.record, readable);
               const raw = await unknownValue(transaction.objectStore(SOURCE_DEPENDENCY_STORE).get([root.build.slot, bucket, index]));
               if (!validSourceDependencyPage(raw) || raw.generation !== root.build.generation || raw.slot !== root.build.slot
                 || raw.bucket !== bucket || raw.index !== index) throw new SourceFactError("dependency-invalid");
+              if (!readable()) throw new SourceFactError("cancelled");
               return raw;
             });
+            if (!readable()) throw new SourceFactError("cancelled");
+            return page;
           },
         });
+        pin.active = false;
         await this.releaseImpactLease(key);
         await this.transaction(db, [SOURCE_IMPACT_STORE], "readonly", "", (transaction) => this.checkContributorJournal(transaction, selected.record, current));
         return value;
-      } finally { await this.releaseImpactLease(key); }
+      } finally {
+        if (pin.active) { pin.active = false; await this.releaseImpactLease(key); }
+        else if (pin.release) await pin.release;
+      }
     } finally { this.impactReadReservations--; }
   }
-  /** Release on the pin's original connection even during unload; failed release stays protective. */
+  /**
+   * Retire only an ended reader. Try its original handle first, then one cleanup-only reopen.
+   * Failure retains the exact ticket; no error/abort callback may masquerade as successful cleanup.
+   */
   private releaseImpactLease(key: string): Promise<void> {
     const reader = this.impactReaders.get(key);
-    if (!reader) return Promise.resolve();
+    if (!reader || reader.active) return Promise.resolve();
     if (reader.release) return reader.release;
-    reader.release = new Promise<void>((resolve) => {
-      /** A release failure never licenses wall-clock-based reclamation of its durable pin. */
-      const done = (): void => { this.impactReaders.delete(key); resolve(); };
-      try {
-        const transaction = reader.db.transaction(META_STORE, "readwrite");
-        transaction.oncomplete = done; transaction.onabort = done; transaction.onerror = done;
-        transaction.objectStore(META_STORE).delete(key);
-      } catch { done(); }
-    });
+    reader.release = (/** Keep the retired pin registered until storage acknowledges its removal. */ async () => {
+      const lease = reader.lease;
+      let released = lease === null;
+      if (lease) {
+        released = await releaseContributorRootLease(reader.db, lease, this.runtime);
+        if (!released && this.storage.releaseContributorLease) {
+          try { released = await this.storage.releaseContributorLease(lease); } catch { /* Keep retry ownership. */ }
+        }
+      }
+      if (released) this.impactReaders.delete(key);
+    })().finally(/** A failed attempt remains retryable at the next explicit storage boundary. */ () => { reader.release = undefined; });
     return reader.release;
+  }
+  /**
+   * Retry at most two ended readers, never active or foreign leases. Explicit flush and the next
+   * journal read drive recovery after storage returns; no timer guesses whether a reader is alive.
+   */
+  async retryRetiredContributorLeases(): Promise<boolean> {
+    // Snapshot the bounded queue: concurrent retirements cannot extend this attempt indefinitely.
+    const retired = [...this.impactReaders].filter(/** Never borrow another reader's active lifetime. */ ([, reader]) => !reader.active);
+    for (const [key] of retired) await this.releaseImpactLease(key);
+    for (const reader of this.impactReaders.values()) if (!reader.active) return false;
+    return true;
   }
   /** An observed host transition has no complete fan-out certificate in S2; it must stay UNKNOWN. */
   private async requireUnchangedContributorHost(transaction: IDBTransaction): Promise<void> {
@@ -751,7 +791,10 @@ export class NeutralSourceRepository {
     // Start lease deletion synchronously, before the cache owner closes its connection. Failed
     // transactions remain conservatively protective; a clean unload must not leak healthy pins.
     for (const view of this.readers) void this.releaseLeases(view);
-    for (const key of this.impactReaders.keys()) void this.releaseImpactLease(key);
+    for (const [key, reader] of this.impactReaders) {
+      reader.active = false;
+      void this.releaseImpactLease(key);
+    }
     this.hostChange = null;
     this.memory.clear(); this.pendingDeletes.clear(); this.memoryBytes = 0;
   }
@@ -1642,8 +1685,11 @@ export class NeutralSourceRepository {
   /**
    * Explicit durable stop/retry boundary. A successful return means no known unsaved source remains;
    * unload does not await this. Retry regenerates bounded writes from the identical encoded facts.
+   * Retired impact pins are also retried; their outcome does not redefine the source-durability result.
    */
   async flush(): Promise<boolean> {
+    if (this.closed) return false;
+    await this.retryRetiredContributorLeases();
     if (this.closed) return false;
     // Include active and replaceable pending lanes; draining a completed promise may install the
     // next lane, so repeat until producers have crossed their explicit final-family boundary.

@@ -1,10 +1,14 @@
 # SI4b1 contributor discovery — S1 and S2a journal prerequisite accepted
 
-**SI4a, C1, C2-S1 and the isolated C2-S2a journal prerequisite are accepted. SI4b1 and incremental C2 remain
-incomplete.** S2a adds a durable owner repair journal and a read-only impact certificate
-for a provably **unchanged** canonical host capability. Complete changed-host/referrer closure is
-not implemented; actual source/host events remain unknown. This is a narrower S2 prerequisite,
-not an accepted incremental indexing lifecycle.
+**SI4a, C1, C2-S1 and the isolated C2-S2a journal prerequisite are accepted. SI4b1 and incremental
+C2 remain incomplete. The all-owner S2b return was rejected.** Its canonical
+reobservation atlas and terminal member-group implementation have been excluded from the clean
+SI4 package; the historical experiment remains documented below and in the preserved incoming
+archive. The independent historical-lease correction and private clean-host requested-pair reader
+remain. This isolation is not SI4b1 acceptance. The host-relevance finding is an accepted
+**design decision, not a checkpoint**; no ordinary-edit certification, local root publication or
+public query/settings route is added. S2a still certifies only an
+unchanged canonical host. See the [review and native trace](validation/settings-independent-indexing-si4-lease-and-host-probe-2026-09-30.md).
 
 An additive database-v7 upgrade preserves source/body/graph data and derivative root format 2.
 After catalog bootstrap, source mutations retain the original root and owner evidence for private
@@ -12,6 +16,396 @@ repair instead of deleting it. Every open repair ticket, including a known impac
 public exact discovery. No ordered copy-on-write index, local root publication, disjoint-query
 continuity, settings, GraphIndex, gate, search or UI routing is added. Prior main-agent changes and
 C1 tests are preserved; the independent S2a validation is recorded in `Refactor plan.md`.
+
+## SI4 decision: requested-read correctness, not catalog completion
+
+**Accepted design decision, not an implemented SI4 checkpoint.** The authority is
+[SI4 and the requested-read contract](INDEX_SETTINGS_INDEPENDENCE_DESIGN.md#7-derived-relationships-and-foreground-responsiveness).
+The product requirement is to reinterpret valid facts for a requested scope under one policy,
+without source acquisition or a whole-graph rebuild. A contributor catalog is one possible way
+to prove that scope complete; finishing a catalog is not the product exit condition.
+
+Three different proofs are needed. Do not replace one with another:
+
+- **Coverage:** every source/host contribution that can affect the requested result is covered,
+  including authenticated absence. This includes incoming and third-party support, not only
+  the center's own outgoing declarations.
+- **Freshness:** those facts, their selected source heads and any negative lookup belong to the
+  current source/host observation. A root digest proves stored bytes, not host relevance.
+- **Interpretation/publication:** the canonical selector/resolver has consumed the complete
+  required scope under policy P; all exposed readers use that same prepared revision and demand
+  generation. A contributor certificate neither classifies a pair nor publishes a scene.
+
+### Mapping the machinery to the SI4 acceptance cases
+
+| SI4 case | Needed scope/negative proof | Existing boundary and missing work |
+| --- | --- | --- |
+| Assign, move, remove/re-add an ontology field; duplicates/hidden assignments | Complete neutral postings for the normalized field, including dormant frontmatter and inline values; both endpoints' competing evidence for every affected pair. An empty field range must mean no qualifying occurrence, not only no currently active edge. | SI2's shared reference-policy selector reinterprets the facts; SI4a prepares explicitly supplied sources. C1 can supply a conservative direct/field owner cover only at a valid complete root. Discovery alone supplies no terminal semantics. The private pair composition below is returned for review; gate closure and incremental root maintenance are still missing. |
+| Toggle either inference setting | All ordinary, explicit and structural declarations that can affect each requested pair, including reciprocal evidence and precedence. A pair with no current inferred edge may acquire one; stale classified neighbors are not the scope index. | Reuse the shared compiler/resolver on the current neutral cover. Policy invalidation alone needs no changed-host transition. Complete requested-neighborhood/gate/sibling preparation and coherent publication remain unimplemented. |
+| Change either image selector | Neutral occurrences in the old/new selected fields and competing prose/ontology evidence on affected targets, with occurrence counts/provenance. Previously suppressed image-only targets may become active and newly image-only targets may disappear. | SI2 policy selection and SI4a replay already permit reclassification. Coverage must not be derived only from the old active graph. This changes relationship suppression, unlike a presentation-only color/name update. |
+| Foreground view and exact gates | Complete incoming/outgoing incidence plus parent/child dependencies needed for siblings, exact totals and filtering/top-N. A direct-cover result is not proof that expansion is terminal. | C1 direct discovery plus SI4a preparation are private inputs, not ready UI data. C3 terminal closure, SI4b2 revision-aware publication and SI4c consumer migration remain outstanding and are not started here. |
+| Search | Current materialized entities plus active selected-reference support, including virtual/URL nodes and independent referrers. A dormant candidate must not appear solely because it was collected; removing one owner must not remove another owner's supported target. | Node/field incidence is a building block, not a global-search completeness or active-membership certificate. Search readiness/invalidation still needs its own dependency scope and policy revision. Presentation search terms keep SI1 ownership. |
+| Explanations and edit eligibility | All declarations competing for the viewed pair, with multiplicity, overrides/direction and current source locations. Eligibility must revalidate the same policy/source revision before a write. | SI4a private preparation and journal knowledge cannot authorize a relationship write. GraphIndex and inventoried callers must consume a common ready scope; no raw-neighbor or stale-evidence bypass is permitted. |
+
+The foreground revision must bind the relevant source selections, host observation, policy and
+request lifetime, not merely repeat the policy number on unrelated caches. Gates, search and
+explanations may need different scopes; each exposed result must prove its own scope terminal
+under compatible revisions. A previous coherent view can remain visibly updating, but its old
+roles/counts must not be relabelled current or enable a current-policy write.
+
+### What fails if the machine is removed?
+
+Removing the **rejected S2b all-owner reobserver** removes no production requested-read path: it
+has no such caller. It loses the experimental small-catalog changed-host certificate, not SI4a
+replay or the accepted unchanged-host proof. Keeping a real host change UNKNOWN remains safe,
+but it does not meet the final SI4 freshness/liveness requirement after ordinary edits.
+
+Removing **all discovery/coverage machinery without an equivalent proof** leaves SI4a with only
+an arbitrary source list. Successful replay of that list does not establish this negative:
+
+> For every owner outside the prepared cover, no declaration or structural/synthetic support
+> under the requested policy can change the requested result at the selected host/source state.
+
+For example, A's dormant `Friends:: [[B]]` is not part of B's own source facts or the currently
+selected explicit evidence, even if the host also exposes an inferred A/B link. Assigning Friends
+can change B's roles, filtered gate totals, explanation and edit eligibility while B's file is unchanged.
+A third owner's shared URL/tag support can also affect membership without being an endpoint
+document. Validating only B, or only sources already
+returned by an old root, misses these cases. Even a wholly empty discovery result needs coverage
+and freshness; validating its zero selected heads proves nothing about omitted owners.
+
+**Pure policy change is a different case from a host edit.** With a current complete root, valid
+source facts and no open journal, a settings-only change does not change the host bindings or
+source ownership. It can reuse the neutral cover under the new policy; it does not need S2b's
+changed-host reobservation. If source acquisition or a host event races that change, this premise
+fails. The existing global journal mask must remain: an open source/host ticket, even KNOWN,
+blocks public discovery. Do not call every settings-only request UNKNOWN merely because S2b is
+unfinished, but do not bypass an actually pending ticket to make it ready either.
+
+This separates the remaining work: clean-host scoped semantic/consumer proofs can be characterized
+without an all-owner atlas, while changed-host reuse needs a relevance premise. The bounded
+private pair implementation below addresses only the former; no live consumer is connected.
+C1's one-shot limits and C3 continuation/closure gaps still apply; passing a small clean-host
+case is not the SI4 exit condition.
+
+## Private clean-host requested-pair preparation — implementation contract
+
+**Design-first invariant (2026-09-30; implementation returned for review, not SI4b1
+acceptance).** Fix two distinct, exact endpoint identities `A` and `B`, a complete immutable
+current derivative root `R`, its session-local host observation `H`, one monotonic policy
+revision `P`, and one request lifetime `D`. There must be zero open source/host journals,
+including known tickets, and no concurrent Vault, MetadataCache or host-environment change.
+The concrete document pair in the parity tests is `A.md` ↔ `B.md`; identities are supplied as
+refs, never inferred by splitting a SourceId or treating a path as an opaque NodeId.
+
+**Coverage/finality proof.** `SourceContributorDiscovery.discover({kind: 'pair',
+endpoints: [A, B]})` authenticates the complete neutral direct incidence cover, including
+both endpoint owners, dormant resolved candidates, incoming third-party owners, host-only
+structural facts and negative bucket ranges. Ordinary/explicit/Date declarations touch their
+source and target; body-URL declarations also post their canonical origin; tag hierarchy uses
+the existing conservative tag-family cover. The compiler selects configured fields and image
+suppression from each *whole selected owner*, preserving counts and competing declarations.
+`resolveEvidencePairByKey()` and `applyOntologyPrecedence()` reconcile evidence for an exact
+ordered pair only. Consequently, at unchanged H, omitted owners cannot add a declaration or
+change precedence/count suppression for A ↔ B. No further neighbor expansion is necessary
+for this pair. This proves neither node metadata/search completeness nor siblings, transitive
+closure, total gate counts or a whole Plex. An over-cover is intentionally not an all-owner scan.
+
+**Precisely composing the inputs.** `CachedRequestedPairReader.prepare()` invokes discovery; it
+does not accept v5 `candidates-only` lookups. It captures each returned SourceId once, pins the
+certificate's exact source revision/sequence in `CachedSourceRequest.expected`, and validates
+physical identity and host observation against the selected stamp. The certificate's ordered
+structural facts are fed exactly once into `CachedSourceSemanticReader.prepare()`; per-owner
+structural supplements are replaced for this invocation so repeated tag memberships are not
+doubled. The existing exact-ID entity read port supplies only canonical host entity facts at H,
+never relationship maps; it must remain stable under the same host fence. Source/host ownership
+and provenance on structural records are retained, not reassigned to the first replay owner.
+All semantic selection, compilation and reconciliation remain in the accepted canonical owners.
+
+An explicitly supplied, authenticated empty structural/source cover must reach the canonical
+compiler as a finalized empty read, not invent a source, bypass root authentication or reinterpret
+`missing`/`pending` as absence. A host-only cover uses the same compiler, with exact entity
+seeding from the host read port. The existing source-only SI4a entry point still rejects an
+unqualified empty owner request. Existing owner/byte caps and discovery budgets remain in force;
+structural inputs are additionally capped at 1,024 records and charged to the scope byte budget.
+
+**Final fences.** Hold R/H/P/D plus all captured host capabilities throughout preparation. After
+cached preparation, require its exact selected stamps to match discovery, then revalidate the
+certificate (scope/fact identity, complete root, global mutation sequence, source selections and
+all journal masks). Recheck policy, demand and captured host capabilities synchronously after
+that final await. `SourceContributorDiscovery.isHostCurrent()` also closes the session/environment
+fence when there are no source callbacks (empty or structural-only cover). It does not authenticate
+a root or bypass any journal. Any failure discards the entire private compilation. No fallback acquisition,
+root rebuild, ticket retirement, source-head write, or GraphIndex publication exists. A ready
+return is a point-in-time private pair proof, not a later publication capability.
+
+**Implemented focused evidence; browser acceptance pending.** Equal-input canonical full-versus-cached comparisons retain both
+directions, declarations, active/overridden decisions, multiplicity and provenance under dormant
+field assignment/movement, competing explicit/inferred policies and image-only suppression.
+Separate cases cover third-party URL-origin ownership, host-only structure, authenticated empty
+covers, missing/corrupt negative pages and source/head, host, journal, policy and demand races.
+Policy-only measurements begin after explicit fixture acquisition/catalog setup; zero body reads,
+parser calls, source-head writes and source/catalog rebuilds are asserted. The portable lane uses
+an explicitly documented catalog/read-port coordinate fixture over actual memory-repository family
+reads. Its 21 cases pass; this is not real durable-head or transaction evidence. The new real
+IndexedDB suite contains 19 subcases, including UNKNOWN/KNOWN source journals and host tickets;
+all browser suites fail before assertions on this environment's administrator-blocked test page.
+Actual command results and unavailable gates are in the transient HANDOFF.
+
+Two lifetime details are regression-tested: host capture receives only parent policy/demand currentness
+(to avoid a callback cycle through the owners it creates), while replay additionally checks captured
+hosts; and a host change after final certificate revalidation rejects an empty cover via the explicit
+synchronous host fence. No reobserver, acquisition fallback or consumer migration was added. Changed-host BREF-1/topology remain UNKNOWN;
+SI4b2 publication, SI4c routing and SI5 exact-build/device acceptance are separate work.
+
+## Named modify class: BREF-1 (body/inline reference edit only)
+
+The proposed first class is **one existing Markdown file A changes body/reference text while its
+physical identity and path stay fixed**. To avoid silently widening that statement, require:
+
+1. The same TFile incarnation, extension, parent and ctime; only the expected A content/mtime/size
+   change. No other file edit and no create/delete/rename/materialization anywhere during the
+   attempt. Same physical path alone does not establish a stable namespace or source incarnation.
+2. Identical frontmatter, aliases, tags, headings and block identifiers before/after. Body/inline
+   reference occurrences, URLs, offsets and aggregate counts may change. Tag edits, frontmatter
+   reference edits and Date-value edits are separate classes. This is a proposed admission rule,
+   **not an implemented diff classifier**; a bare `modify`/`changed` callback cannot establish it.
+3. Unchanged Date/non-Date classification, Daily Notes enabled/folder/format inputs and the host
+   services used by canonical Date formatting; unchanged K-Plex policy during this host test.
+   Missing observations or a superseding event abort the attempt. This is stronger than observing
+   no settings event: private Date/Daily compatibility reads have no established complete public
+   invalidation event.
+
+An actual content edit may acquire/parse A once through the existing source owner. SI4's zero
+body-read/parser rule applies to the later **settings-only** reinterpretation of valid facts,
+not to pretending that newly edited text is already cached. Never update A's source revision by
+replaying its old body. Unchanged owners must not be reacquired merely to make this class appear
+local.
+
+### Conditional local rule and the one missing host premise
+
+The desired acquisition/host-impact candidate set for BREF-1 is `{A}`. This is **not** the semantic
+read scope: after A adds B, preparing B still needs A and B's other competing contributors.
+Removing an edge also needs old support; A's own complete old/new key union is useful only *after*
+proving that no omitted source's canonical host inputs changed.
+
+For each unchanged owner s, let `I_H(s)` be the canonical normalized input at host observation H:
+original lexical occurrence identities and resolution outcomes, aggregate keys/counts and target
+identity, Date outputs, and intrinsic entity/tag facts. Compare semantic/input content, not the
+observation sequence labels that deliberately advance at an event. The missing premise is:
+
+```text
+For every admitted BREF-1 transition H0 -> H1 and every s != A:
+  I_H1(s) = I_H0(s).
+```
+
+The equality must include dormant and null/unresolved occurrences and every original sourcePath,
+not only queries found in a materialized backlink map. A supported, complete host impact set that
+contains all exceptions could replace the equality and enlarge `{A}`. No such impact capability
+has been established by the installed-host evidence/public contract reviewed here.
+
+The current canonical code lets us narrow precisely what remains unproved:
+
+| Input of an omitted unchanged owner | What follows under BREF-1's stated premises | Remaining limitation |
+| --- | --- | --- |
+| Neutral parsed/property values and their genuine locations | The owner's bytes and source context did not change. Reuse the selected neutral source facts, preserving occurrence multiplicity. | A stored head must still pass current host authority; equal bytes do not authorize rebasing its observation. |
+| External references/body URLs; empty internal candidate | These branches use lexical values and the existing URL normalization. `resolveObsidianReferenceTarget` returns null for an empty decoded, fragment-stripped candidate without calling the host. | This proves these branches only, not an entire owner or the missing incoming-owner negative. Do not generalize from a URL-only requested source to every omitted source. |
+| Internal references and genuine host literals | `decodeInternalCandidate` trims, URI-decodes and strips the fragment, then the canonical resolver supplies the **original sourcePath** to `getFirstLinkpathDest`. The argument can remain equal. | The public best-match contract does not say that stable paths/frontmatter make all results stable, or specify reindex/mtime/body independence and duplicate-name tie rules. Equal arguments do not prove an unchanged hidden resolver state. |
+| Resolved/unresolved aggregate maps | A selected map can be compared exactly, including empty maps and counts; `hostLinkRecord` retains materialized/missing/unresolved target distinctions. | Reading A's map or observing `resolve(A)`/`resolved()` does not establish that every omitted owner's maps are unchanged. No complete change-owner guarantee for all K-Plex inputs has been supplied. |
+| Date facts | The canonical Date collector uses the owner's unchanged frontmatter value, Date classification, Daily folder/format and host Moment, then **exact `getFileByPath`**, not basename/alias resolution. With those inputs and physical namespace fixed, its target/provenance content stays equal. | Stable namespace/environment is a real premise, not a consequence of A's path or missing events. A Date value edit on A changes A's own facts; a Date registry/Daily configuration change is a different transition. Do not rewrite this collector. |
+| Intrinsic structure/tags | Unchanged owners retain their own entity/tag inputs; only A's physical facets/own contribution revisions need refresh. File-tree membership is unchanged. | Changes to A's mtime/size may affect A's presentation/sorting dependencies, not every referrer's source facts. Do not enumerate A's parent's siblings as a substitute for a host proof. |
+
+The unresolved part is thus the universal **internal binding and aggregate-map stability** premise,
+plus enforceable admission/finality. The public API allows observation of a selected result, not
+this quantified negative. Two abstract resolver states can agree on every queried candidate and
+the supplied alias trace but differ on an unqueried source-relative duplicate-name lookup after
+reindexing. The contract does not exclude that possibility; this is not a claim that native
+Obsidian actually makes that change. A mutable test map is an adversarial model, not native proof.
+
+**Outcome: BREF-1 remains UNKNOWN; no local implementation is justified yet.** Do not add a
+`bodyOnly => known` branch, retain an old host epoch, manufacture a transition by comparing only A,
+or start paged inverse storage. If the missing stability rule is established later, `{A}` would
+be a candidate rule to review and test; if the host returns a complete larger impact set, validate
+that superset instead. A finite set of unchanged native lookups alone cannot certify either rule.
+
+## S2b correction: candidate invariant and missing host premise
+
+**Design finding, not an implemented candidate index.** The excluded all-owner
+`ObsidianContributorHostTransitions.prepare()` must not be restored as an ordinary-edit optimization. The small-vault
+experiments do not establish locality: a 20,000-owner vault with ordinary links/fields can exceed
+the retained atlas envelope, and raising it would still do O(all owners) host work. No ordinary changed-host edit
+is newly certified by this correction. The unchanged-host S2a path and durable UNKNOWN journal
+remain the accepted fallback. No production caller is switched to S2b.
+
+### Necessary candidate-index invariant
+
+For an authenticated original catalog R and a completed, same-session host transition H0 -> H1,
+let `O(s)` contain the *original* neutral lexical occurrences of owner s and its aggregate/Date
+inputs. Define `changed(s)` as any change in the canonical resolver outputs, aggregate target
+identity/counts, Date classification/destination, entity/tag facts, or the selected source head.
+A candidate set C may authorize exclusions only with the following two independent premises:
+
+1. **Storage completeness:** every original occurrence and relevant host input is covered by an
+   authenticated, terminal, paged inverse index bound to R's exact head/revision/sequence. Empty
+   candidate ranges are authenticated negatives, not a missing row interpreted as empty.
+2. **Host relevance:** for the admitted mutation class, `changed(s) => s in C`. This implication
+   must follow from a supported host rule or an explicit complete host impact observation, not
+   from the result of validating only C. Re-running the canonical resolver for C proves selected
+   candidates' new values; it cannot prove that an omitted owner was unaffected.
+
+C must include direct dirty owners plus a *superset* of potentially changed referrers. Candidate
+membership deduplicates owners, never declarations. Occurrence rows retain opaque SourceId,
+physical source-relative context, family, valueId/ordinal, the canonical input spelling, null and
+unresolved outcomes, and exact old target identity. Reuse selected four-family observers and the
+production `resolveObsidianSourceInput`, `hostLinkRecord`, Date and structural collectors. Do not
+create a second path-resolution, Markdown, Date or relationship engine. An old/new node-key union,
+old materialized backlinks, and source-relative paths guessed from NodeId all fail this invariant.
+
+Only after the host-relevance premise is established should a future storage design stream these
+rows at bootstrap into immutable bounded pages,
+indexed by *proved host candidate keys*, plus field-presence and Date-owner ranges. Persist
+original field presence even when the field is not Date. Page manifests must authenticate coverage,
+ordering, total count and absence, and bind the original head and root. An original owner locator
+allows bounded observation reads for C without a vault-sized in-memory map. New occurrences from
+dirty owners enter the same private transaction's member proof. Per-page memory is bounded;
+indivisible oversized inputs and hot ranges yield UNKNOWN/continuation, never a complete prefix.
+This proposes no schema change in this return; it requires a separately reviewed storage slice.
+
+### Public contract and supplied native evidence
+
+The current official [API declarations](https://github.com/obsidianmd/obsidian-api/blob/master/obsidian.d.ts)
+describe a best-match linkpath resolver. Their `changed` event exposes an indexed file's cache;
+`resolve(file)` concerns that file's aggregate link maps; `resolved()` reports completion. None
+of those declarations supplies the BREF-1 dependency rule or an observation token with a complete
+K-Plex dormant-candidate impact set. The [official alias guide](https://github.com/obsidianmd/obsidian-help/blob/master/en/Linking%20notes%20and%20files/Aliases.md)
+describes saved explicit-target links with alias display text, not a raw alias inverse index.
+
+**Version/evidence limit:** the repository pins `obsidian` 1.13.0 and the main agent reports a
+real build against its installed dependencies. This offline export has no installed Obsidian
+package. The current public declarations were checked as corroborating documentation, not
+misrepresented as an independent inspection of that installed 1.13.0 artifact. The next reviewer
+must compare the relevant installed declarations before relying on a host rule. The native
+runtime in the supplied report is Obsidian **1.14.3 (installer 1.14.0)**; API-package version and
+runtime version are not interchangeable.
+
+In the [five-note native observation](validation/settings-independent-indexing-si4-lease-and-host-probe-2026-09-30.md),
+raw `Alias` resolved to null from both C paths before and after One/A gained `aliases: [Alias]`,
+then `Other`. `A` kept selecting the nearer A; `../B` kept selecting B. C's Alias map entries
+remained unresolved. A emitted `changed`, `resolve` and `resolved`; no C event was captured.
+This refutes using that alias mutation as an observed native retarget of raw `[[Alias]]`.
+It supplies **no body-only edit observation**, no equal-distance duplicate-name guarantee, no
+all-owner negative and no event-completeness theorem. Retained synthetic Alias retarget tests
+remain useful fault-model tests only; do not label their behavior native or use them to choose
+alias candidate keys.
+
+### Per-mutation invalidation matrix
+
+All changed-host rows below remain **uncertified by this decision**. The candidate columns are
+proposed requirements, not claims about the retained rejected atlas.
+
+| Mutation | Required candidate/validation work | Missing premise or explicit boundary |
+| --- | --- | --- |
+| BREF-1 body/inline reference edit; admission above | Direct owner A would suffice for acquisition only if omitted owners' canonical host inputs are stable | Internal resolver and aggregate-map stability is unproved; UNKNOWN, not a `{A}` implementation |
+| Frontmatter alias add/remove/retarget | Direct owner aliases/presentation facts; ordinary neutral reference extraction still applies if a value itself contains link syntax | The supplied raw-Alias probe stayed unresolved. Do not build an alias inverse index from the test double, or infer a universal no-referrer-impact rule from that observation |
+| Source-relative or duplicate-basename lookup | Retain sourcePath in every occurrence; use a coarse proven superset then canonical validation | Global literal->current-target backlinks cannot exclude another source context or a null/unresolved original result |
+| Null/unresolved -> resolved or reverse | Original lexical ranges, including owners absent from materialized backlink maps | Absence from `resolvedLinks` is not negative evidence; canonical null and unresolved entities stay distinct |
+| Duplicate declarations | Validate each original declaration/ordinal; deduplicate only candidate owner IDs | No set-of-targets substitute for provenance/multiplicity |
+| Resolved/unresolved aggregate changes | Direct map owners plus complete host-notified/candidate map owners, preserving empty maps | Need complete map-owner change observation; validate normalized materialized/missing target identity even when map strings/counts match |
+| Frontmatter/body tag-only edit | Direct item/tag memberships, duplicate provenance, shared tag support and affected ancestor keys | Separate from BREF-1; no sibling enumeration. Omitted-owner resolver/map stability still needs a host premise |
+| Frontmatter Date value edit, classification and Daily settings unchanged | Direct owner via canonical Date collector; exact Daily target may change without filename resolution | Separate from BREF-1. Direct Date output is not a global host-stability proof; no per-unchanged-owner Date loop |
+| Date/non-Date registry transition or Daily Notes option change | All owners in the changed field/Date range, paged, or UNKNOWN | No reliable public complete environment-change event is established; unbounded/hot environment changes remain UNKNOWN in the first local chunk |
+| Create/delete/rename; attachment materialization; folder move | Original/new topology and lexical/aggregate target frontiers, fully continued | Explicitly out of the first ordinary-modify chunk; no create/rename/delete closure claim |
+| Missing `resolved`, newer event, lost/restarted session, unknown event participant | Retain durable UNKNOWN; discard any private candidate prefix | Event silence is not completion; persisted KNOWN alone never restores same-session authority |
+| Storage abort, quota, concurrent head/root/member CAS | No partial member group; retain/release reader leases by actual lifetime | Independent bounded retirement correction described in `SOURCE_REPOSITORY.md`; no publication authority |
+
+### Non-topology structure and proposed topology continuation
+
+An ordinary modification changes an item and its tag memberships, not its parent's complete
+child list. Pass **no parent-folder frontier** to structural collection and never read `parent.children`
+for this class; a flat root with 20,000 children must cost zero sibling visits. The existing 1,024
+child guard is not a topology solution and must not be raised to make a benchmark pass.
+
+For a future topology slice, use immutable original structural pages plus a current topology
+snapshot token, sorted child identities and a durable continuation `(root, ticket, parent, cursor,
+pageDigest, emittedCount)`. Read/validate a bounded page of old/new membership at a time. Capture
+new memberships under that same token; a mutable `TFolder.children` array offset without a stable
+identity/fence is not a continuation proof. Stage facts privately and leave the journal UNKNOWN
+until *all* affected parents/subtrees and candidate ranges have terminal manifests. A later event
+invalidates the entire attempt; slot leases protect original pages until consumers retire. Missing
+snapshot/continuation support is an explicit blocker. This is a proposed design only: topology
+continuation, C2-S3 root publication and C3 hot-range query work are not implemented here.
+
+### Smallest next reviewer observation: BREF-1, not another alias matrix
+
+**First inspect the missing contract.** In the actual dependency installation, record
+`node -p "require('./node_modules/obsidian/package.json').version"`, hash `obsidian.d.ts`, and inspect
+`MetadataCache.getFirstLinkpathDest`, the resolved/unresolved maps and the `changed`/`resolve`/
+`resolved` declarations. Seek a supported host dependency statement or complete impact capability
+for the BREF-1 equality above, including duplicate-name ties and map updates. Do not invent an API
+or substitute undocumented private internals as a production dependency. If no rule is available,
+report that explicitly; more positive examples cannot by themselves close the proof.
+
+The smallest useful **new falsification observation** is a body-only edit, absent from the supplied
+trace. Use only disposable `kplex-test`, the exact reviewed build and a collision-checked owned
+prefix `KPLEX-SI4-BREF1-<run-id>`. The fixture is six Markdown files:
+
+| Owned path | Purpose/content |
+| --- | --- |
+| `One/A.md`, `Two/A.md` | Duplicate basenames; initially `# Stable heading` plus ordinary prose and no frontmatter |
+| `B.md` | Fixed target for the added relative reference |
+| `One/C.md`, `Two/C.md`, `C.md` | Unchanged referrers; two near contexts and one equal-folder-distance context |
+
+Give each C unchanged dormant frontmatter and repeated inline occurrences of `[[A]]`, plus an
+explicit missing target and an explicit full owned path to One/A with display text `Alias`.
+For the two nested Cs also include `[[../B]]`. Include `[[A#Stable heading]]` and `[[#Stable heading]]`
+as canonical normalization controls. Keep Dormant unassigned initially. Preserve raw occurrences;
+let the existing parser/collector determine deduplication within a value and multiplicity between
+values. Do not make the fixture oracle a set of targets. Snapshot the exact fixture bytes and
+selected source stamps before editing, and do not change any host/K-Plex settings during capture.
+
+1. Register temporary Vault create/modify/rename/delete and MetadataCache changed/resolve/resolved
+   observers **before** the write. Log event order, fixture-relative paths, host observation/source
+   revisions, original/current TFile identity and file stats. Do not log unrelated vault content.
+   An unrelated event invalidates this isolated-class attempt rather than disappearing from the
+   evidence. Record relevant field classification/Daily inputs around each awaited boundary.
+2. After baseline resolution, record `(sourcePath, exact resolver argument, returned path/null)`
+   for each C's `A`, `Alias`, missing and explicit-path queries, plus nested `../B`. Read complete
+   resolved/unresolved maps for these three Cs and A, preserving empty versus absent entries and
+   all counts. For heading/fragment/display controls, also use the **canonical** collector path:
+   do not pass `A#Stable heading` or `A|Alias` directly as though it were the stripped linkpath.
+   Host null for a nonempty missing name becomes an unresolved canonical target; fragment-only
+   canonical input is null without a resolver call. Record those as different outcomes.
+3. Modify only `One/A.md`: append two separate `Dormant:: [[../B]]` lines after its existing prose.
+   Its frontmatter/tags/headings/block IDs remain unchanged. Observe A's metadata completion and
+   the following resolved boundary, repeat exactly the same lookups/maps, and reject a later
+   superseding event or lost completion. A timeout is UNKNOWN, not proof of stability. Compare
+   all original C queries/maps, including the third C's basename tie, without generalizing beyond
+   this run. No fixture-wide scan is proposed for the production edit path.
+4. **Negative read check, not a certification attempt:** after the first resolved boundary, acquire
+   only changed A through the normal source owner. Capture a fresh private replay of A and hold
+   it in the existing `CachedSourceReplay.read()` stored-fact observer before it returns. Deliver
+   a second A body edit, then release the observer. Require non-ready/no stale value. Under the current code, post-edit public discovery must
+   also remain non-ready while the journal is open, even if a private impact says KNOWN. An
+   unchanged C head cannot simply be replayed with the new global host revision. Do not clear the
+   journal or reacquire every C to turn this negative assertion into a pass.
+5. In `finally`, unregister hooks, release controlled awaits, restore any temporary instrumentation
+   and remove only the owned prefix. Report cleanup success, actual build/API/runtime identities,
+   exact before/after data, supersession outcome and any missing prerequisites. No personal-vault
+   or maintainer manual test is needed.
+
+A changed C binding/map **falsifies `{A}`** for this run and identifies a required wider impact.
+No change merely fails to falsify it; certification still requires the supported relevance rule
+and admission/finality proof. The supersession check establishes rejection behavior, not liveness.
+If the rule remains unavailable, return this class UNKNOWN and select the next bounded SI4
+clean-host requested-read characterization in review; do not commission another atlas or paged
+inverse index merely to continue the catalog work.
+
+Only **after** a class is justified should implementation add canonical full-versus-cached parity
+under final field/inference/image policies, source-relative/duplicate/null/unresolved cases, and
+supersession negatives. Then use a 20,000-owner equal-input fixture and report affected/candidate
+owners, resolver/map/Date work, all family visits/head writes, sibling visits and bounded working
+storage before claiming algorithmic locality. No such result is claimed here. Exact-build latency,
+retained-memory/storage and physical-device acceptance remain SI5, not this design decision.
 
 ## Implemented boundary: prepare and authenticate one owner's keys
 
@@ -120,14 +514,16 @@ remaining adapter boundary: acquire A, B and C; modify/reacquire only A; C's sou
 unchanged, but `captureForReplay(C)` supplies the incremented global host revision. Cached replay
 correctly rejects C as stale before visiting any family. Retaining an old catalog root cannot fix this.
 
-Merely relaxing that guard is also unsound. For example, C can contain `[[Alias]]`; an alias/file
-change in A can change C's host-selected binding while A's own direct key set contains no C key.
-Date classification, Daily Notes and structural facts provide other third-party dependencies.
+Merely relaxing that guard is also unsound: C can contain a source-relative dormant reference
+whose host inputs are not represented in A's direct key set. Topology, Date classification and
+Daily Notes changes provide third-party dependencies. The retained test double can also retarget
+Alias, but the supplied native alias-only edit did not; that synthetic example is not native
+evidence for a BREF-1 or alias-modification rule.
 Canonical host/referrer impact closure and a same-session authority linking unaffected old heads to
 the new host observation are required. The key-only summaries in this return do not preserve enough
 source-relative binding descriptors to prove fresh-session zero-family resolver validation.
 
-## C2-S2 delivered boundary — review, incomplete host transition support
+## Accepted C2-S2a boundary — unchanged-host journal proof
 
 `SourceContributorJournal.ts` defines storage-only strict envelopes and authority coordinates.
 `SourceRepository` owns all journal/head/root transactions and historical leases. Discovery uses
@@ -161,8 +557,12 @@ original bucket/summary pages remain immutable and are protected by the owner in
 readers also create `meta` leases indexed by `sourceImpactSlot`. Slot cleanup checks both kinds of
 pin in the same transaction as its generation fence. Active readers therefore survive a concurrent
 full repair without allowing reclamation of their old pages; their final ticket check rejects the
-superseded result. Unload starts lease release on the original connection. Failed releases remain
-protective; no wall-clock expiry is introduced.
+superseded result. Unload invalidates the page capability and starts lease release on the original
+connection. The independent correction retries via a cleanup-only existing-database handle after
+failure and retains a bounded retirement ticket until exact deletion commits. Failed releases
+remain protective and retry on explicit recovery/flush/next journal read; no wall-clock expiry is
+introduced. Cross-process orphan reclamation remains unproved. See the retirement protocol in
+[SOURCE_REPOSITORY.md](SOURCE_REPOSITORY.md).
 
 `contributorJournalOwners(after, limit)` reads at most 64 dirty IDs, not unchanged heads/families.
 The journal has one disk row per dirty owner, not an arbitrary 256-owner admission ceiling that
@@ -180,7 +580,7 @@ a durable enabled marker also ensures root eviction cannot make later source mut
 uncertified initial acquisition. Before any catalog has existed, unchanged C1 source acquisition
 continues without a fictitious old-root anchor.
 
-### Host observations, and what still cannot be proved
+### S2a host observations and the separate S2b extension
 
 Vault/metadata events synchronously invalidate the adapter's existing host capability and enqueue
 one active journal write plus one replaceable pending observation. Completion cannot erase a newer
@@ -191,7 +591,7 @@ ticket is not reversible and still blocks known-impact CAS. Events before their 
 have the synchronous local mask and old host-capability invalidation; the adapter cannot transact
 atomically with the host event itself. Fresh-session validation remains C3.
 
-The implemented positive proof is deliberately narrow: **no host transition** under the original
+The accepted S2a positive proof is deliberately narrow: **no host transition** under the original
 complete capability, plus no open host journal. The certificate then carries direct old/new keys,
 its source owner, and no third-party host owners. This is meaningful for isolated source-cache
 maintenance under unchanged host inputs, not a claim that ordinary vault edits are closed. A real
@@ -199,14 +599,16 @@ edit/rename/create/delete/resolution change invalidates that capability and leav
 four-family preparation. An ordinary delete also remains unknown; the zero-visit absence branch is
 not a replacement for topology closure.
 
-The missing capability must return a complete same-session transition, not merely changed TFiles:
-source-relative old/new/null resolver bindings and incoming referrer owners, materialized structural
-participants, Date/non-Date field effects, Daily Notes effects, and an exact finality/cancellation
-fence. The concrete C→`[[Alias]]` counterexample must return C when A changes alias resolution despite
-A having no direct C key. Add this at the canonical host boundary; do not implement a second resolver
-or assume `resolvedLinks` alone enumerates dormant/null/Date dependencies. Until then, S2 is incomplete.
+The rejected S2b experiment below reobserves every admitted owner to build its small-catalog
+same-session transition: source-relative old/new/null bindings, materialized structural participants,
+Date/non-Date field effects, Daily Notes effects, and finality/cancellation fences. Its test double
+makes the C→`[[Alias]]` counterexample include C when A changes alias resolution despite having no
+direct C key; this is not native alias behavior or an indexed locality proof. The required scalable
+replacement must retain canonical ownership without assuming `resolvedLinks` enumerates dormant,
+null or Date dependencies. The missing premise and requested probe are explicit above. S2b remains
+unaccepted; the unchanged-host S2a authority is not broadened by this correction.
 
-## Remaining C2-S2 closure and C2-S3 index protocol — proposed, not shipped
+## Remaining C2-S3 index protocol — proposed, not shipped
 
 Keep source-head/lease/transaction ownership in `SourceRepository`, with separate persisted source
 and host owners. Replace the full-generation hash buckets with ordered authenticated copy-on-write
@@ -337,6 +739,101 @@ build. The 131-owner browser fixture measured one changed source's four family v
 read, two dependency page reads and 20 repository transactions; event-side deletion measured zero
 family visits and four transactions. Those fixture counts are not a 20,000-file latency/heap result.
 The exact built plugin passed disposable-vault Obsidian command/render/error smoke and an owned-note
-rename/tombstone/retained-body probe. Changed-host impact certification and local root publication
-remain missing, so the narrower journal cannot make ordinary edits exactly ready. C2-S2b must close
-host/referrer fan-out before C2-S3 and SI4b2.
+rename/tombstone/retained-body probe. That accepted S2a build did not provide changed-host impact
+certification or local root publication. The later S2b experiment below was rejected for whole-
+catalog work and abort cleanup; neither it nor the prior build makes ordinary edits exactly ready.
+The independent retirement correction and unresolved indexed-relevance proof are described above.
+S2b acceptance still precedes C2-S3 and SI4b2.
+
+## Rejected S2b experiment: complete small-catalog same-session reobservation
+
+The preserved, rejected `ContributorHostTransitions` experiment supported **explicit**
+`prepareHostImpact()` and `readHostImpact()` on its original discovery instance; those APIs are
+absent from the clean SI4 source package. This is not a
+public query certificate. It is not accepted for ordinary-edit locality. The 131-owner browser review exposed global host
+work and abort cleanup failure; the correction above does not claim a replacement candidate proof. S2a's
+`prepareOwnerImpact()` still refuses a changed host. No caller, GraphIndex or settings route was
+switched to the new capability.
+
+### Observation and ownership proof
+
+During the original explicit bootstrap, the existing four-family summary observer captures a
+bounded atlas of reference-candidate/host-literal inputs and resolution-family outputs. It keeps
+source-relative spellings, duplicate original declarations, null results, resolved and unresolved
+aggregate counts, and canonical Date outputs. It also captures **normalized aggregate target
+identities** through `hostLinkRecord`: unchanged map text can mean a materialized target before
+and a missing target after deletion. It does not retain Markdown or arbitrary property payloads.
+The atlas is sealed only after the canonical full structural finalization and root activation.
+
+Vault/metadata events accumulate explicit physical item/parent ownership from that original
+atlas and the bounded changed subtree. Event capture for ordinary file edits performs exact map
+lookup, but later transition preparation still scans the entire admitted observation atlas. Folder moves retain old and new descendant SourceIds and both parent frontiers.
+The original SourceId, entity NodeId and path facets remain separate. The Obsidian adapter alone
+knows that its acquisition SourceId is the physical document path; portable discovery never
+reconstructs an entity from it.
+
+A source/topology event is not a resolver-completion proof. A transition waits for MetadataCache's
+`resolved` event, then reobserves **every admitted source owner's original source-relative inputs**
+using the production resolver. This intentionally scans the bounded observation atlas, not the
+vault inventory or unchanged source families. Empty aggregate maps are checked too. Per-source
+field names include previously non-Date properties; canonical Date registry/Daily Notes services
+are rechecked and the existing Date collector processes narrowly projected, bounded Date inputs.
+No alias inverse-index heuristic or second Date/resolver grammar is introduced.
+
+Changed lexical destinations, aggregate targets/counts, Date outputs/classification, event owners
+and already-dirty journal sources enter the frontier. A adds B even when the original B-negative
+cover excluded A. If C contains `[[Alias]]`, changes in C's actual host binding include C regardless
+of A's direct keys. An unchanged C binding is excluded only after complete canonical reobservation.
+An edit retaining the same key set still refreshes and binds its source head. Canonical structural
+constructors produce old/new item entity/tag memberships and all immediate edges of changed
+parent folders; duplicate tag provenance is preserved. Missing items remain explicit absence.
+
+### Private sequence and atomic terminal group
+
+1. Enumerate bounded durable journal subjects and prepare the complete host observation frontier.
+2. Explicitly reacquire only frontier documents through the existing source writer (UNKNOWN before
+   staging, head plus UNKNOWN selected atomically). Reuse bodies/intrinsic families where valid;
+   a deleted source is not replayed. Summarize each present owner in four visits and verify its
+   newly stored frames against the current canonical host.
+3. Flush pending source/host journal work, then acquire one historical root-slot lease. Authenticate
+   the original root, exact source heads/summary commitments and selected structural owner rows.
+   Old and new dependencies form a conservative union, never semantic relationship decisions.
+4. Close one terminal host observation proof. Persist a version-2 `complete-host-impact` blob on
+   the host row and small version-2 `host-transition-member` references on every source row in
+   **one** readwrite transaction across `sourceImpacts`, `sourceHeads` and `meta`.
+5. The transaction checks exact host/source tickets and authorities, original root-anchor bytes,
+   selected heads, global revision/sequence, no incomplete staging, exact journal membership
+   count, and the current same-session/environment fence. An omitted/new dirty owner or any
+   abort defeats the entire terminal write. It never selects a derivative root or retires tickets.
+
+`readHostImpact()` requires the same live completed observation seal and exact persisted blob
+bytes, reauthenticates old pages and checks the entire persisted member group/head/root CAS again.
+It visits no source families. A newly constructed discovery instance, unload or restart cannot
+adopt a disk KNOWN record as current host authority. A newer event invalidates the seal; retained
+old member rows cannot certify a narrower group. Public discovery remains non-ready for **every**
+open journal, including KNOWN. C2-S3/C3 are unchanged future boundaries.
+
+### Admission, work and evidence limits
+
+| Envelope | Limit / consequence |
+| --- | --- |
+| Session observation atlas | 8 MiB charged strings/JSON/bookkeeping and 16,384 retained host frames; overflow disables the whole optional atlas until an explicit bootstrap |
+| Field vocabulary | 4,096 names; each source's name walk is capped at 1 MiB; global names also consume the atlas budget |
+| Transition sources / physical items | At most 256 sources, 256 items and bounded parent/subtree participation; no ready prefix |
+| Structural frontier | At most 1,024 emitted facts and 1,024 immediate children per parent; a hot root-folder create/delete may stay UNKNOWN |
+| Private observations / summaries | Separate 8 MiB charged bounds for affected observations and newly prepared summaries/structure; these are not a total-process heap claim |
+| Reobservation output work | At most 65,536 emitted observation steps, cooperative checkpoints, plus bounded per-owner Date/environment validation |
+| Historical reads | Existing 256-page limit and repository decode budget; hot buckets/long IDs may fail admission |
+| Persisted terminal proof | Existing 256 KiB impact blob; existing 2 MiB row/member preparation bounds; one active transition per discovery |
+
+The algorithm is O(admitted lexical observations + per-owner aggregate/Date checks + affected
+source refresh/replay + admitted structural/pages), **not** O(affected owners) host work. The
+portable 131-owner alias scenario measured 7 actual reobservation resolver calls, 264 map checks
+and 132 Date collector invocations; only A/C heads changed. The separate three-owner storage-port
+orchestration measured 8 summary-family visits, 7 historical pages and 17,747 charged query bytes.
+These are portable adapter/port measurements, **not** IndexedDB transaction, native, device,
+20,000-file latency or whole-process memory evidence. New browser tests instrument actual total
+family visits (including acquisition), Markdown reads/parses, head puts, resolver calls,
+transactions, request operations and written JSON bytes; their run is pending because Chromium
+navigation is administratively blocked in the offline environment. Hash-bucket amplification,
+long exact IDs and terminal hot-range continuation remain C3, not hidden behind these counts.

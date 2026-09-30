@@ -1,7 +1,8 @@
 # SI4a cached-source replay — Accepted
 
 SI4a prepares private **source-owned** semantics. It does not change GraphIndex settings dispatch,
-live publication, snapshot compatibility, search membership or UI reads. SI4b1 discovery retains a rejected lifecycle; its C2-S1 owner-summary prerequisite is accepted as an isolated slice. SI4b2 publication, SI4c consumers and SI5 remain pending.
+live publication, snapshot compatibility, search membership or UI reads. The optional private pair
+composition described below is returned for review, not covered by the earlier SI4a acceptance. SI4b1 discovery retains a rejected lifecycle; its C2-S1 owner-summary prerequisite is accepted as an isolated slice. SI4b2 publication, SI4c consumers and SI5 remain pending.
 
 ## Investigation before implementation
 
@@ -54,6 +55,36 @@ and tag-ancestor contributions can be owned by third-party documents; incoming u
 differ from a resolved ID. Candidate query success therefore never certifies a complete neighborhood,
 gate count, absence of a relationship, or edit eligibility. SI4b needs an independently reviewed index
 and real-browser migration/integrity evidence; SI4a changes no schema.
+
+## Clean-host requested-pair composition — review only
+
+`CachedRequestedPairReader` composes the complete-direct certificate from contributor discovery
+with cached preparation for exactly two distinct endpoint identities. It pins each selected head's
+revision/sequence, captures each owner once, feeds the certificate's ordered structural stream once,
+and finally revalidates the certificate plus policy, demand and host currentness. The full coverage
+and pair-local finality argument is in [the contributor-discovery contract](SOURCE_CONTRIBUTOR_DISCOVERY.md).
+A ready result is explicitly `complete-pair`, not a complete graph, neighborhood, gate or search read.
+There is no production caller or publication callback; all exposed readers remain unchanged.
+
+The additive fifth argument to `CachedSourceSemanticReader.prepare()` is an explicit canonical
+structural stream, not a completeness token. Omitted structure preserves the accepted SI4a behavior,
+including rejection of an empty owner request. Supplied structure replaces every per-owner structural
+supplement: the first replay emits that stream once, without changing any record's original source
+or contribution ownership. Subsequent owners still replay their four selected families once each.
+This avoids duplicating genuine tag memberships. It never scans a host inventory to fill the stream.
+
+Only this explicit mode permits zero owners. A structural-only/empty cover uses the same canonical
+compiler, exact-ID canonical entity seeding and a finalized (possibly empty) read. It creates no dummy
+source. Structural inputs are bounded at 1,024 records and share the 32 MiB scope estimate; selected
+owners retain the 256-owner bound. Missing materialized entity facts and incorrect IDs fail closed.
+The requested-pair wrapper, not this generic reader, authenticates an empty cover against the complete
+root/negative pages and all journal masks. `isHostCurrent()` closes the final synchronous host fence
+even when there are no source host callbacks; it does not replace asynchronous root validation.
+
+Portable parity/fence tests pass using a declared catalog-coordinate fixture and real memory-source
+replay. The main agent subsequently ran the real IndexedDB pair tests against the isolated clean base;
+see [the isolation review](validation/settings-independent-indexing-si4-isolation-2026-09-30.md).
+No SI4b1/b2/c acceptance, changed-host BREF-1 certification or SI5 performance claim follows. Earlier SI4a results remain evidence for that earlier exact build.
 
 ## Finite SI4b/c read-consumer inventory
 
@@ -148,7 +179,7 @@ and the main-agent acceptance evidence are recorded in
 [Contributor discovery](SOURCE_CONTRIBUTOR_DISCOVERY.md) records the retained full-rebuild lifecycle,
 the validated focused C1 correction and this smaller C2 prerequisite. Incremental C2 is still not
 implemented. `CachedSourceReplay.read(request, runtime, consume, observe?)` adds one optional neutral
-stored-fact observer; existing call sites, `CachedSourceSemanticReader.prepare()` and candidate-only
+stored-fact observer; existing call sites, `CachedSourceSemanticReader.prepare()` in its default owner-only mode and candidate-only
 `discover()` retain their accepted semantics and return contracts. No live consumer is connected.
 
 The observer runs once per already chunk/posting-validated batch, before canonical consumption. Its

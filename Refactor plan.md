@@ -1405,3 +1405,149 @@ state, budget, lease and incomplete-authority boundaries.
 - **Automated verification:** Node 22.22.3 full `npm run verify` **passed**: architecture 7/7, restricted core 60/60, official Obsidian lint, settings-independence 24 scenarios, indexing/integration 133/133, UI 7/7, source 63/63, real Chromium IndexedDB 44/44 and production TypeScript/esbuild. `git diff --check` passed. The 131-owner real-IDB locality scenario measured four changed-source family visits, one selected read, two dependency page reads and 20 repository transactions; event-side deletion measured zero family visits and four transactions. These are fixture work counts, not 20,000-file latency or mobile memory results.
 - **Exact native evidence:** built `main.js` SHA-256 `e2a86b363640a55c059a87a4c58a77a0057bc35628fda5d43148cc645da31311` was staged in disposable `kplex-test`. Obsidian CLI command/render/error smoke passed without captured JavaScript errors. An owned note acquired a durable head, was renamed, and after repository flush the old path was tombstoned, the new path existed and its retained body remained readable; the note/controller were cleaned up. This validates host integration and C1 regression on the exact artifact, not changed-host journal certification in a live catalog.
 - **Remaining work/manual:** C2-S2b must supply a complete canonical same-session host transition, including null/resolved lexical referrers, structural participants, Date/non-Date and Daily Notes effects; `C` containing `[[Alias]]` must be included when `A` changes Alias despite direct-key disjointness. Keep changed-host tickets UNKNOWN until this proof exists. C2-S3 then adds ordered local membership/root selection and disjoint-query continuity; C3 remains fresh-session/continuation/terminal closure. No maintainer manual test is needed for this internal prerequisite. Physical mobile and 20,000-file performance remain later acceptance gates.
+
+### 2026-09-30 — SI4b1-C2-S2b bounded changed-host implementation returned for review
+
+**Not accepted; SI4b1/C2 remain blocked.** The archive claims baseline `23a1f0b`; it has no Git
+metadata, so this return does not independently establish HEAD/branch. S2b now supplies a complete
+bounded same-session host observation capability rather than an old/new direct-key union. It
+retains lexical/null/aggregate/Date frames from the original four-family bootstrap, reobserves
+all admitted source-relative bindings with canonical resolver/collectors after the host completion
+event, and refreshes only changed/event/journal owners. Alias-driven inverse referrers, normalized
+aggregate materialized/missing targets, non-Date/Date classification, Daily Notes, old/new folder
+ownership and duplicate tag provenance are explicit. Overflow, incomplete host completion and
+supersession cannot emit a ready prefix. Host work scans the admitted atlas, not a per-event vault
+inventory; it is not claimed to be constant or solely proportional to affected sources.
+
+One historical root-slot lease authenticates old source summaries and structural owners. One
+transaction marks the terminal host proof and all source member references KNOWN only after
+exact journal membership/ticket/head/global/root-anchor/current-host CAS. The database stays v7,
+root stays format 2, and journal envelope stays v1 with additive v2 impact bodies. KNOWN still
+leaves every ticket/root unselected and public discovery non-ready. No C2-S3 root selection,
+C3 restart adoption, SI4b2 graph publication or SI4c read/settings route was implemented.
+
+**Evidence:** 72 portable source tests pass (63 unchanged + 9 new), including production canonical
+adapter and separately labelled catalog/journal-port tests. Five-policy cached/full-compiler
+semantic equality passes after Alias retargeting. The 131-owner portable observation case measures
+7 resolver calls, 264 map checks and 132 Date collector invocations, with unchanged owners' heads
+untouched. The three-owner proof-port case measures 8 summary-family visits, 7 authenticated pages
+and 17,747 charged query bytes; neither is real-IDB evidence. New real Chromium tests cover full
+fan-out, 131-owner instrumentation, two-connection atomic visibility/CAS, queued-put quota/abort,
+delete/recreate, old-page/root corruption, completion/environment loss and process reopen. All
+four browser suites fail before assertions at `ERR_BLOCKED_BY_ADMINISTRATOR`, with zero skips.
+
+**Outstanding validation:** Node 22.16.0/npm 10.9.2 are below the required engine. Available TS 5.8.3
+runs the portable transpiler/core typecheck; actual Obsidian/React/esbuild/ESLint dependencies are
+missing. Architecture 7/7 passes. `verify` stops at core tests (36 pass, 3 fail: missing esbuild twice
+and the supplied fixture lacking `Assets/picture.png`; that assertion failure reproduces in the
+pristine archive). Official lint and full production build are unavailable. The indexing runner
+passes 24 settings-independence scenarios then fails the unchanged URL-heavy timer bound at
+50.2 ms; the threshold/golden were not changed. Required-Node/full-dependency checks, real-IDB
+transaction/byte evidence and exact-build disposable-vault host probes remain mandatory before
+acceptance. No maintainer manual check is requested. Limits and the precise main-agent action
+are in `HANDOFF.md` and the contributor-discovery contract. No commit/publication was performed.
+
+### 2026-09-30 — SI4b1-C2-S2b main-agent review: return not accepted
+
+- **Verdict:** leave the S2b return uncommitted and SI4b1/C2 blocked. The implementation is a useful small-catalog correctness experiment, but it does not meet the indexing-locality objective. Every ordinary changed-host preparation traverses every admitted unchanged owner and performs two aggregate-map reads and one Date collection per owner. In the 131-owner real Chromium case, only A/C needed source-family replay and head writes, yet observation made 264 map checks and 132 Date collections. This is still whole-catalog host work on every edit. The complete in-memory atlas is capped at 8 MiB/16,384 retained frames and disables changed-host certification on overflow. A root-folder event with more than 1,024 immediate children cannot pass the structural collector. Raising these limits would exchange fail-closed fallback for high memory and edit latency, not establish locality for a 20,000-note vault.
+- **Validation:** required Node 22.22.3: 72/72 portable source tests and the real TypeScript/esbuild production build pass after correcting one new ESLint unsafe spread. `npm run verify` passes architecture, core and lint, then stops at the existing strict URL-heavy timer (55.5 ms); the threshold was not changed. Real Chromium source browser lane passes the existing suites and six of seven new S2b cases, but the quota/abort case fails. Review corrected its harness teardown (`cleanup()`, not nonexistent `close()`) and made abort verification use a fresh database connection because the faulted cache closes its handle. The remaining assertion finds a persistent `source-impact-lease:` after abort. `withContributorJournal()` releases via its original connection, while storage failure closes that connection, so the pin remains conservatively. That avoids unsafe slot reuse but contradicts the test/handoff's release claim and can indefinitely block slot reuse without a recovery path. No accepted native S2b authority or 20,000-note latency/memory evidence exists; the exact-build host probe was not run after these acceptance blockers.
+- **Next bounded correction:** revise S2b around a complete, indexed candidate/referrer proof for an ordinary Markdown modification without scanning all unchanged owners or retaining a whole-vault atlas. Preserve null/unresolved, source-relative, aggregate-target and Date/Daily correctness and UNKNOWN on unprovable transitions. Specify a separate bounded topology continuation for root/hot folders and durable lease recovery after storage abort. Demonstrate a 20,000-owner locality fixture with measured host calls, heap/admission and affected-family work before claiming scalability. Do not start C2-S3, C3 or SI4b2. No maintainer manual test is useful while this internal proof and browser fault remain unresolved.
+
+
+### 2026-09-30 — SI4b1-C2-S2b correction: retired-lease recovery returned; locality premise blocked
+
+- **Scope/verdict:** uncommitted correction against the newly supplied `140398f55cc24aea17166b361c09a83fa96fd7dc` handoff export (identity from its handoff; no `.git` is present). The earlier rejected S2b working tree and main-agent fixes are preserved. No scalable ordinary-edit proof is claimed: the current public host contract does not establish a complete inverse relevance rule for excluding dormant source-relative owners. The discovery design now specifies separate authenticated storage-completeness and host-relevance invariants, a per-mutation invalidation matrix, paged candidate requirements, zero-sibling ordinary modification, and proposed topology continuation. The all-owner atlas is explicitly still rejected; its cap is not raised and no replacement semantic engine is introduced. A finite native probe must separate frontmatter alias completion/display links from raw resolver behavior before a sound candidate class can be certified. No 20,000-owner result is fabricated or extrapolated from the 131-owner experiment.
+- **Independent storage correction:** `SourceContributorLease.ts` implements exact-envelope, commit-acknowledged retirement. Repository page capabilities expire before release; errors/aborts no longer discard local retirement ownership. Original-handle failure permits one cleanup-only exact-version reopen, without normal writer availability, creation/upgrade, backoff reset or root selection. Active and unreleased retired tickets share the two-reader bound; concurrent retries share a promise. Explicit retry, source flush and the next journal read retry only ended local readers once. Failure remains protective. This covers live-owner storage-abort recovery, not cross-process orphan reclamation when the process is lost with storage unavailable. v7/root-v2/journal/source/graph formats, source-family leases, global CAS and public non-readiness are unchanged.
+- **Executable evidence:** `npm run test:sources` passes **81/81** (72 preserved + nine new control-flow tests). Architecture passes **7/7**, 62 migrated roots/116 reachable files/zero violations. TS 5.8.3 strict/no-unused checking of the real storage dependency closure passes using DOM libraries and an empty ambient-type directory; restricted core TypeScript also passes. Syntax checks pass for both changed/new lease test files. The retained real Chromium abort/quota assertion is not weakened; three additional browser cases exercise failed deletion retention, active foreign-reader protection, deterministic later retry, deletion abort/flush recovery, expired page callbacks, and missing/older/newer database behavior. **Browser execution is not validated:** all four parent suites fail before assertions at `net::ERR_BLOCKED_BY_ADMINISTRATOR` (Chromium 144.0.7559.96).
+- **Required gates remain failed/pending:** available Node is 22.16.0/npm 10.9.2, below the declared Node range. `npm ci` could not finish with registry networking unavailable; real Obsidian/React/esbuild/ESLint dependencies are absent. `npm run check:core` has 36 passes/3 failures: two missing-esbuild imports and the normalized-source fixture assertion (`Assets/picture.png` versus `Never There`), reproduced in a fresh, unchanged extraction of the incoming archive (6/7 pass there). `npm run lint:obsidian` exits 127; `npm run build` exits 2 for missing type dependencies. `npm run verify` passes architecture then stops on those core failures. No build artifact/native Obsidian result exists for this correction. No test timer/golden/fixture or browser policy is changed to conceal a gate.
+- **Review and next action:** self-reviewed against AGENTS, CONTRIBUTING, mixed-agent workflow and architecture: storage lifetime stays with the repository/cache owner; no host semantics or UI policy moves, no extra vault copy, no settings/GraphIndex route, no schema upgrade and no C2-S3/C3/SI4b2 work. New/touched production functions have lifetime/error comments; official scanner acceptance remains pending, not inferred from review. Main must independently validate the lease correction with real dependencies/required Node and Chromium, then return the bounded exact-host dependency probe from `SOURCE_CONTRIBUTOR_DISCOVERY.md`. A sound supported candidate rule and actual 20,000-owner equal-input work/time/admission/heap measurements remain prerequisites for scalable S2b. No maintainer personal-vault/manual check, commit, merge or release is requested.
+
+### 2026-09-30 — SI4b1 lease correction main-agent review; SI4 locality still open
+
+- **SI scope/verdict:** the lease-retirement correction is independently validated as a narrow storage repair, but the combined dirty return is not an accepted or commit-ready SI4b1 checkpoint. The rejected all-owner S2b atlas is still present, has no production caller, and no sound indexed referrer candidate rule has been implemented. Neither settings reinterpretation nor revision-aware public read routing has changed. This entry records SI4 progress under `INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`; C15–C26 remain paused.
+- **Evidence:** Node 22.22.3 passed 81/81 source tests, 55/55 real Chromium IndexedDB tests, architecture/core/lint and the real TypeScript/esbuild build. `npm run verify` stopped at the unchanged strict URL-heavy timer (70.3 ms); a focused rerun measured 63.2 ms, so the aggregate gate remains failed without a source attribution claim. Built `main.js` SHA-256 `d9debf8f0ac229626172634c02118ac710610ccd1bd222b6dcea341ec994be74` was staged in disposable `kplex-test`; its command, render and captured-error assertions passed by direct CLI. The strict native wrapper did not pass. The bounded five-note Obsidian 1.14.3 probe found that adding/changing a frontmatter alias did not retarget raw `[[Alias]]` in either tested source folder; `[[A]]` remained source-relative. Owned notes were removed, vault returned to 20,015 Markdown files, no captured errors. [Exact checks and limits](docs/validation/settings-independent-indexing-si4-lease-and-host-probe-2026-09-30.md).
+- **Next:** use the native counterexample to separate raw resolver behavior from alias-completion/display behavior, then establish an explicit supported candidate-relevance rule for the first SI4 ordinary-edit class or keep that class UNKNOWN. Do not commit the mixed rejected S2b tree or proceed to derived publication on this evidence. No maintainer manual check is needed now; exact SI5 latency/memory/device acceptance remains later.
+
+
+### 2026-09-30 — SI4 requested-read proof and BREF-1 host relevance: design-only return
+
+- **Review-pending decision, not SI4 acceptance:** against the newly supplied export identified by
+  its handoff as `140398f55cc24aea17166b361c09a83fa96fd7dc` plus the existing dirty S2b/lease work;
+  no local Git metadata. All runtime/test/configuration bytes are preserved. The
+  [SI4 implementation contract](docs/SOURCE_CONTRIBUTOR_DISCOVERY.md#si4-decision-requested-read-correctness-not-catalog-completion)
+  now maps ontology, inference and image-policy reinterpretation to coverage, freshness and
+  same-revision foreground/gates/search/explanation/edit proofs. A current clean-host policy
+  change does not require S2b; removing all coverage proofs still loses the omitted-contributor
+  negative. The catalog is a means, not the SI4 product objective.
+- **Named class and blocker:** BREF-1 admits only one stable-identity/path Markdown body/inline
+  reference edit, with fixed topology, frontmatter/aliases/tags/headings/block IDs and Date/Daily
+  environment. `{A}` could bound acquisition impact only with a supported universal stability
+  rule for omitted owners' internal resolver results and aggregate maps. Date outputs instead
+  follow the existing exact-path collector. The supplied native alias-only trace narrows the
+  evidence but supplies no body-only result or universal rule. BREF-1 remains UNKNOWN; no code,
+  atlas expansion, inverse storage, journal bypass, settings routing or publication is added.
+- **Diagnostic checks, not required-runtime acceptance:** Node 22.16.0/TS 5.8.3; source tests
+  81/81 and architecture 7/7 (zero violations) pass; restricted core TypeScript passes. Full core
+  has 36 passes/3 failures (two missing-esbuild imports and the unchanged normalized-source target
+  assertion). Chromium 144.0.7559.96 fails all four parent-suite bootstraps with
+  `ERR_BLOCKED_BY_ADMINISTRATOR`; no real-IDB assertions run. Official lint is unavailable and
+  production build fails with missing dependencies. Aggregate verify stops at core, not at the
+  main agent's separately documented strict timer. No build/native/device acceptance is claimed.
+- **Next:** review the [installed-contract/body-only probe](docs/SOURCE_CONTRIBUTOR_DISCOVERY.md#smallest-next-reviewer-observation-bref-1-not-another-alias-matrix).
+  A six-note falsification trace plus controlled supersession does not replace a relevance proof.
+  Keep UNKNOWN if the premise cannot be established; select the next bounded SI4 clean-host
+  requested-read characterization rather than another catalog expansion. C2-S3/C3/SI4b2 and
+  settings/consumer routing are not advanced; C15–C26 remain paused. No maintainer manual test,
+  commit, merge or release is requested. SI5 retains latency/memory/physical-device acceptance.
+
+### 2026-09-30 — SI4 requested-read proof main-agent review; clean-host path next
+
+- **Verdict/scope:** accepted the BREF-1 finding as a design decision, not an implemented or accepted SI4 checkpoint. Compared the returned checkout against its supplied `repository.zip` (`b2ef3f4bd835bfb7711f793ae9e74846ba0872e3a79cf6aebeba567986842199`): only `HANDOFF.md`, this ledger and `docs/SOURCE_CONTRIBUTOR_DISCOVERY.md` changed; runtime, tests and configuration are byte-identical. The SI4 contract now correctly separates contributor coverage, host/source freshness and current-policy publication. The rejected S2b reobserver has no production requested-read caller. A current complete, journal-free host root can serve policy-only requests without changed-host S2b; a real host edit remains UNKNOWN until its impact is proved. The BREF-1 body-only class stays UNKNOWN because selected resolver/map observations do not prove all omitted owners invariant. This does not start C15–C26.
+- **Review evidence:** independently inspected installed `obsidian` declaration package 1.13.0 (`obsidian.d.ts` SHA-256 `13827948460423b67bdd551091c516f25b72f19c3c9042dd774528dc0d37b965`). `getFirstLinkpathDest` promises a best match; `changed`, `resolve` and `resolved` do not promise a complete inverse impact set for dormant K-Plex occurrences. The prior five-note native alias trace is a falsification of one synthetic assumption, not BREF-1 certification. Relative links and anchors resolve, `git diff --check` passes, and the returned delta is documentation only; no new runtime/build/browser/native result is claimed from this return. Corrected one wording error separating SI4b2 publication from SI4c consumer migration. No commit: the working tree still contains the rejected S2b implementation mixed with the independently validated lease fix.
+- **Next SI4 slice/manual:** characterize and, if sound, implement one private clean-host requested-pair preparation by composing complete direct contributor discovery with SI4a cached replay under an immutable policy and source/host revision. Compare its exact declarations/provenance to a full compile for ontology, inference and image-policy changes, including an authenticated empty cover and cancellation. Keep public readers unchanged and refuse pending host/source tickets; do not pursue BREF-1 host impact or the paused refactor. No maintainer manual test is needed for this design-only review.
+
+
+### 2026-09-30 — SI4 private clean-host requested-pair preparation returned for review
+
+- **Scope/decision:** implemented the accepted design distinction between coverage, freshness and
+  interpretation for one exact pair only. The design-first invariant is in
+  [the contributor contract](docs/SOURCE_CONTRIBUTOR_DISCOVERY.md). A complete current journal-free
+  root can supply a terminal pair cover without changed-host S2b; it cannot authorize complete
+  neighborhoods, siblings, gates, search, explanations or edits. SI4b1 remains incomplete; this is
+  not SI4b2 publication or SI4c routing. BREF-1/topology remain UNKNOWN and C15–C26 remain paused.
+- **Private implementation:** `CachedRequestedPairReader` pins the certificate's exact selections,
+  replays each selected owner once through the canonical path, and consumes certified host structure
+  once with original ownership. Explicit empty/host-only streams use the canonical compiler rather
+  than a dummy source. Final certificate validation retains S2a's global journal masks, followed by
+  policy/demand/captured-host and synchronous catalog-host checks. The latter is needed even with
+  zero owners. No acquisition, catalog rebuild, head write, storage schema or live consumer changed.
+  The only discovery edit adds that read-only synchronous host fence; retained S2b methods and the
+  independently reviewed lease implementation are unchanged.
+- **Diagnostic evidence, not acceptance:** Node 22.16.0 / TypeScript 5.8.3; source 102/102 (21 new
+  pair cases), architecture 7/7 with zero violations, restricted core TypeScript and strict new-module
+  TypeScript pass. Real Chromium 144.0.7559.96 fails all five suite bootstraps at
+  `ERR_BLOCKED_BY_ADMINISTRATOR`; no IndexedDB assertion runs. Core runtime tests have 36 passes and
+  three failures (two missing esbuild imports; the source-contract target assertion also fails in the
+  pristine upload). ESLint is missing. Real production build fails on missing Obsidian/React types;
+  aggregate verify stops at core. Separately, `npm test` passes 24 settings-independence scenarios
+  and the restore watchdog before the unchanged strict URL-heavy timer fails at 54.7 ms. No timer,
+  golden, fixture asset or harness policy was weakened. The temporary real-TypeScript symlink is
+  diagnostic tooling only and is not included in the return.
+- **Review boundary:** independently rerun on required Node with real dependencies and real Chromium,
+  especially negative/empty coverage, 19 authored IDB pair subcases and all lifetime fences, then
+  run the full build/verify and applicable exact-build native checks. Portable catalog coordinates
+  are protocol/semantic evidence, not durable transaction acceptance. This returns uncommitted changes
+  against the supplied archive; no native install, checkpoint acceptance, commit, merge, release or
+  maintainer manual test is claimed or requested. SI5 retains latency/memory/device acceptance.
+
+### 2026-09-30 — SI4 private pair main-agent review; isolate accepted slice next
+
+- **Verdict:** private clean-host exact-pair preparation passes targeted source and real IndexedDB review, but no formal SI4 checkpoint or commit is recorded. The result is uncalled private code; it does not make neighborhoods, gates, search, explanations, edit eligibility or settings revision-aware. S2b changed-host certification remains rejected and BREF-1/topology remain UNKNOWN. C15–C26 remain paused.
+- **Correction/evidence:** the first browser parity failure compared `JSON.stringify()` property insertion order for equal edge objects. The test now normalizes edge key order while retaining values, declarations, provenance and directed decisions. On Node 22.22.3 with real dependencies, source tests pass 102/102, architecture 7/7, core 6/6, lint and production build pass, and a confirming full Chromium run passes 75/75. A clean committed-HEAD extraction containing only this pair slice passes 21/21 portable cases, 19/19 real IndexedDB subcases and the production build, proving it does not depend on rejected all-owner S2b. Earlier Chromium teardown `ENOTEMPTY` errors did not fail assertions and cleared on rerun. See [the review evidence](docs/validation/settings-independent-indexing-si4-private-pair-review-2026-09-30.md).
+- **Remaining gate/next:** `npm run verify` still stops at the unchanged strict URL-heavy timer (69.0 ms versus 50 ms); a standalone run hit the unchanged list-whitespace timer. No threshold or golden was weakened. Separate the validated pair and lease fixes from the unaccepted S2b experiment on the accepted S2a base, then review and commit only that clean result. After isolation, the next SI4 implementation chunk is a bounded private requested-neighborhood/gate coverage proof, before publication or consumer routing. No maintainer manual test is useful for this uncalled private slice.
+
+### 2026-09-30 — SI4 clean-package isolation for the next offline handoff
+
+- **Scope/verdict:** the main agent constructed a source package from committed S2a/HEAD `140398f` with only the independently validated historical-lease repair and private clean-host requested-pair preparation. The rejected S2b all-owner observation atlas, transition-member transaction, changed-host acquisition/frontier adapters and their prototype suites are excluded. Their historical design and negative locality evidence remain documented; an exact snapshot of the mixed incoming tree was preserved separately before isolation. This is a clean development base, not SI4b1/SI4b2/SI4c acceptance or a live settings fix. C15–C26 remain paused.
+- **Evidence:** on required Node 22.22.3 with real dependencies, source tests pass 93/93; architecture 7/7 and core 6/6 pass; Obsidian lint and real TypeScript/esbuild build pass. Real Chromium source suites pass 67/67, including a new S2b-independent IndexedDB abort/retry/version-safety lease regression and the clean-base requested-pair parity/fences. `npm run verify` still stops at the unchanged strict URL-heavy patch timer (57.7 ms versus 50 ms); no threshold, golden or production scheduler was altered. See [the isolation report](docs/validation/settings-independent-indexing-si4-isolation-2026-09-30.md).
+- **Next bounded SI4 task:** design and, only if a complete bounded cover can be proved, implement a private requested-neighborhood/parent-sibling closure under a current complete journal-free root and one policy. A direct pair certificate cannot authorize gate totals or a whole Plex. Do not add public publication, settings routing, changed-host BREF-1 certification or the rejected all-owner reobserver. No maintainer manual test is needed for this private package.

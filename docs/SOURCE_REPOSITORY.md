@@ -1,6 +1,6 @@
 # SI3 neutral source repository — Accepted
 
-This is the accepted SI3 implementation contract. SI4a cached-source replay is accepted. The additive SI4b1 discovery prototype below is **rejected**, not accepted infrastructure. C1, C2-S1 and the narrower C2-S2a journal are accepted as isolated prerequisites; changed-host impact closure, incremental certificate maintenance and warm validation are still SI4b1 blockers. Live demand-driven query/publication integration and SI5 lifecycle/performance acceptance remain unimplemented. The existing hierarchy/image settings route still rebuilds semantic graph state; neutral acquisition can be reused along that route.
+This is the accepted SI3 implementation contract. SI4a cached-source replay is accepted. The additive SI4b1 discovery prototype below is **rejected**, not accepted infrastructure. C1, C2-S1 and the narrower C2-S2a journal are accepted as isolated prerequisites; changed-host impact closure, incremental certificate maintenance and warm validation are still SI4b1 blockers. The all-owner S2b experiment was rejected and excluded from this clean package; the independent historical-lease retirement remains. The locality design blocker is recorded, not turned into ordinary-edit certification. Live demand-driven query/publication integration and SI5 lifecycle/performance acceptance remain unimplemented. The existing hierarchy/image settings route still rebuilds semantic graph state; neutral acquisition can be reused along that route.
 
 ## Ownership and the transitional graph path
 
@@ -8,7 +8,7 @@ This is the accepted SI3 implementation contract. SI4a cached-source replay is a
 
 `src/adapters/obsidian/sourceAcquisition.ts` owns observed file incarnations/events, MetadataCache readiness, legacy migration, inventory and host resolution. It calls the existing exported `resolveObsidianReferenceTarget()` and Date collector. No path/basename guesser, Date grammar or semantic classifier is added.
 
-`KplexIndexedDbCache` remains the single connection owner. Incremental `GraphBuilder` calls acquisition **before semantic no-op suppression**. A complete semantic rebuild uses neutral facts for body reuse but leaves source activation to the independent inventory after authoritative publication; it does not wait for a source write per note. `GraphIndex` also starts inventory after complete snapshot hydration. Preview/checkpoint hydration does not claim source completeness. The C14 publication callback remains synchronous; private source staging and graph preparation are asynchronous and separately fenced. Staging can add private-path latency; no latency improvement is claimed.
+`KplexIndexedDbCache` remains the single connection owner. It also owns narrowly scoped, temporary existing-database handles used only to retire an ended contributor reader after normal-handle failure; they cannot make the normal writer available. Incremental `GraphBuilder` calls acquisition **before semantic no-op suppression**. A complete semantic rebuild uses neutral facts for body reuse but leaves source activation to the independent inventory after authoritative publication; it does not wait for a source write per note. `GraphIndex` also starts inventory after complete snapshot hydration. Preview/checkpoint hydration does not claim source completeness. The C14 publication callback remains synchronous; private source staging and graph preparation are asynchronous and separately fenced. Staging can add private-path latency; no latency improvement is claimed.
 
 ## SI4a selected-head read capability — Accepted
 
@@ -59,7 +59,7 @@ selection plus authenticated tree-path reclamation remain outstanding. SourceId,
 NodeId and path facets remain distinct; source and host owners are not merged. The full protocol and
 executable A-adds-B/unchanged-C counterexample are in the discovery document.
 
-### C2-S2 durable owner repair — review, narrower prerequisite
+### C2-S2a durable owner repair — accepted narrower prerequisite
 
 `SourceContributorJournal.ts` contains strict version-1 storage envelopes only; `SourceRepository`
 owns their transactions. Once a catalog exists, the source begin transaction writes UNKNOWN with
@@ -80,9 +80,11 @@ not with total root size per owner; per-record/read limits and storage quota rem
 
 Recovery enumerates up to 64 dirty IDs per call without scanning unchanged heads. A journal row is
 at most 2 MiB encoded; impact payloads are at most 256 KiB. There are two historical-read reservations
-per repository, taken before opening storage. C1 source-family leases, source-memory bounds, retained
-rename bodies and tombstone authority remain separate. Interrupted/failed-release root leases are
-not expired by a timer; they can conservatively block future slot reuse.
+per repository, taken before opening storage. Active and unreleased retired readers share this bound;
+a failed retirement cannot create an unbounded retry queue. C1 source-family leases, source-memory
+bounds, retained rename bodies and tombstone authority remain separate. Historical root leases
+are not expired by a timer. The correction below adds acknowledged deletion and deterministic
+live-instance retry; a lost process with unavailable storage can still leave a conservative pin.
 
 The host adapter has one active plus one coalesced pending journal observation and uses the existing
 retry timer. `flush()` also drains observed host writes but does not prove host coverage or retire
@@ -91,10 +93,12 @@ Date/Daily input validation remains reversible; its durable host UNKNOWN is not 
 restoring the setting. Before source-head activation, unfinished host journaling causes unsaved
 backpressure rather than a new durable head without the corresponding repair fence.
 
-Discovery can certify a source impact only under the unchanged original canonical host capability
-and with no open host ticket. Changed-host resolver/structural/Date/Daily fan-out is not complete;
-normal edit/create/rename/delete and host-only transitions stay unknown. See the discovery contract
-for the C→Alias counterexample, exact CAS, scopes and pending validation. No source/body/graph format,
+The accepted S2a single-owner API certifies impact only under the unchanged original canonical
+host capability and with no open host ticket. The excluded S2b terminal-group API, described historically below,
+was a rejected small-catalog changed-host resolver/structural/Date/Daily experiment. It reobserved
+all admitted owners and is not accepted incremental closure. Incomplete or stale transitions still
+stay UNKNOWN; the correction adds no new certified mutation class. See the discovery contract for the C→Alias counterexample,
+exact CAS, scopes and pending validation. No source/body/graph format,
 canonical parser/compiler/resolver, GraphIndex, settings or UI consumer is changed.
 
 ### C1 deletion capability and authoritative completion — focused main-agent validation recorded
@@ -218,3 +222,84 @@ Diagnostics expose only fixed versions, counts, chunk/byte totals, sequence rang
 Run `npm run test:sources` for production-codec/storage-unavailable, host acquisition and actual GraphBuilder integration tests. Run `npm run test:sources:browser` for real Chromium migration, immutable writes, faults, CAS/pins, corruption, new-process restart and VersionError tests. `KPLEX_TEST_BROWSER` (or `KPLEX_CHROMIUM`) selects the executable. The browser suite fails if the browser is absent or administratively blocked; it does not replace real IndexedDB with a mock.
 
 Main-agent acceptance used Node 22.22.3: the complete `npm run verify` lane, all 15 focused source tests, nine real-Chrome IndexedDB scenarios, official lint and the production build passed. The exact installed bundle passed the strict Obsidian migration suite in the 20,015-note `kplex-test` vault. One owned note was acquired, survived plugin reload with zero source Vault reads/parses, and was removed; the test vault returned to ready with no captured errors. The [SI3 validation report](validation/settings-independent-indexing-si3-2026-09-29.md) records hashes, corrections and limits. Physical-device and whole-vault inventory throughput acceptance remain SI5 work.
+
+### S2b terminal changed-host group — preserved historical experiment, absent from this package
+
+The following describes the rejected prototype, not a current callable API.
+`storeContributorHostImpact()` was a separate explicit repair operation. It hashes one bounded
+host proof and small per-source member references before opening a single `sourceImpacts` +
+`sourceHeads` + `meta` transaction. The transaction verifies every captured journal authority,
+selected source head, original shared root-anchor bytes, global dependency revision/sequence,
+zero staging dirtiness, exact journal membership count and the live host completion fence. Only
+then are all source member references and the terminal host row marked KNOWN atomically. A
+source omitted from the group, concurrent ticket/head/root change or transaction abort cannot
+expose a complete smaller group. Member data and digests are both compared during revalidation.
+
+The journal envelope stays version 1, database version stays **7**, and derivative root format
+stays **2**. The impact field holds additive version-2 `complete-host-impact` or
+`host-transition-member` bodies under existing size limits; no store, index or upgrade changes
+are required. The old unchanged-host version-1 impact API remains separate. Historical pins and
+all tickets survive the new write. No source/body/graph data or root is deleted/reselected.
+`validateContributorHostImpact()` rechecks the complete group without source-family replay.
+The discovery layer additionally requires its original live completion seal and authenticated
+historical pages; a disk KNOWN status alone never grants authority after reopen or unload.
+
+
+### Contributor root-lease retirement correction — returned, not accepted
+
+The incoming abort/quota failure closed the normal cache connection before journal-reader cleanup.
+The old release path then tried the closed handle and forgot its in-memory ticket on error/abort,
+leaving a disk pin with no deterministic live-instance retry. This correction changes **only the
+historical contributor reader's retirement**, not source-family leases or semantic proof authority.
+Database **v7**, derivative root format **2**, and the persisted `{ key, impactSlot }` lease envelope
+are unchanged. No destructive store reset, migration, or root publication is added.
+
+The repository now retains the exact lease and its `active` state. Every escaped historical `page`
+capability checks that state before reading and after awaited transaction work. Callback completion
+or repository close ends the capability *before* retirement; cleanup cannot race with a still-valid
+late page callback. A final journal CAS still uses the original transaction owner and original
+current/ticket fences. Cleanup on a fresh handle cannot turn a failed normal operation into KNOWN.
+
+`SourceContributorLease.ts` owns a bounded, storage-only deletion transaction. It reads the exact
+key in `meta` and compares the complete original envelope. It queues deletion only on an exact
+match; a different slot, malformed or extended envelope remains protected. Absence is idempotent.
+**Only transaction completion** acknowledges deletion/absence. Request success, error, abort,
+synchronous exception and timeout cannot discard the repository's retirement ticket.
+
+A retirement attempt first uses the original handle. On failure it can make one cleanup-only open
+through `KplexIndexedDbCache`, at the exact existing database name and version. Upgrade/creation is
+aborted; a newer version, blocked open or unavailable storage yields failure. A late open closes
+its eventual handle. All successful temporary handles close after the deletion transaction, even
+on failure. Normal connection state, unavailable/newer-database state and writer backoff are not
+reset. The open and each transaction have owned five-second *operation* timeouts; they abort/stop
+work and retain the pin, never infer a reader's death from elapsed time. An attempt has at most one
+original transaction and one fresh open/transaction; it does not immediately loop on failure.
+
+Failed cleanup retains at most two retired/active tickets per repository. Concurrent attempts share
+the same promise. `retryRetiredContributorLeases()` snapshots this bounded queue and retries only
+ended readers once; it returns false while any ended ticket remains. The next journal read and
+`flush()` invoke it, providing a deterministic later reclamation boundary after storage recovery.
+`close()` invalidates readers and starts cleanup but does not promise an awaited durable flush.
+No persistent scan or background retry timer is introduced. A normal source `flush()` result still
+means no known unsaved source/host work; it does **not** certify that every lease was reclaimed.
+Use the explicit retirement result when that distinction matters. Additional journal admission
+fails closed rather than accumulating more pins when both retirement slots remain occupied.
+
+This is **live-owner recovery**, not cross-process orphan reclamation. A different connection can
+observe the pin but may not delete it without proof of its owner's ended lifetime. If the owning
+process is lost while all deletion attempts fail, its in-memory retirement authority is lost and
+the disk pin stays conservative. Persisting a retirement intention safely through an unavailable
+database, or proving a crashed owner using a supported cross-context lifetime protocol, remains a
+separate design task. No crash-reclamation guarantee, wall-clock expiry, active-reader eviction or
+newer-database adoption is claimed.
+
+The new portable tests exercise actual production cleanup/retry control flow through explicitly
+controlled event ports; they are not IndexedDB atomicity evidence. Real Chromium tests retain the
+original no-KNOWN-prefix/zero-lease assertion after abort/quota and add failed-cleanup retention,
+two-connection active-reader protection, explicit later reclamation, aborted-deletion/flush retry,
+escaped page-capability cancellation, and missing/older/newer database behavior. In this return all
+81 source tests and architecture checks pass. Chromium assertions remain **pending** because all
+four suite launches fail at `ERR_BLOCKED_BY_ADMINISTRATOR`. Real build/lint are dependency-blocked;
+see HANDOFF and the action log for exact checks. The main agent must validate the lease slice
+independently; none of this accepts the retained atlas, supplies a 20,000-owner locality result,
+or completes C2-S3/C3.

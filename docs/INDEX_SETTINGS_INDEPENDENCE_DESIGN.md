@@ -2,6 +2,15 @@
 
 **Implementation checkpoint (2026-09-30):** SI0–SI3 and SI4a are accepted. SI2 supplies neutral reference acquisition, one full/patch policy selector, settings-neutral reference fingerprints and complete value-frame finality; its protocol is documented in [NORMALIZED_SOURCE_CONTRACT.md](NORMALIZED_SOURCE_CONTRACT.md). SI3 persists those facts per source under the [source repository contract](SOURCE_REPOSITORY.md), with [independent acceptance evidence](validation/settings-independent-indexing-si3-2026-09-29.md). SI4a adds private cached-source replay and source-scoped semantic preparation, with [its contract](CACHED_SOURCE_REPLAY.md) and [validation](validation/settings-independent-indexing-si4a-2026-09-30.md). SI4b/c demand-driven publication/settings routing and SI5 lifecycle/performance work remain unimplemented; the design below is not a claim that settings-independent indexing has shipped.
 
+**Private SI4 pair slice (2026-09-30; review only):** [The clean-host pair contract](SOURCE_CONTRIBUTOR_DISCOVERY.md)
+now has a private implementation composing complete direct discovery and cached canonical semantics,
+including authenticated empty/structural-only covers. It is scoped to a current complete journal-free
+root, one policy and one demand lifetime. Required-Node source, real-browser and production-build
+checks pass for the isolated private slice; the aggregate strict timing gate remains unresolved as
+recorded in [the isolation review](validation/settings-independent-indexing-si4-isolation-2026-09-30.md).
+SI4b1 is not accepted, changed-host BREF-1/topology remain UNKNOWN, and SI4b2 publication and SI4c
+routing are not implemented. The rejected all-owner S2b implementation is excluded from this package.
+
 Design review and implementation brief for Sol, 2026-09-29.
 
 **Original design baseline (historical; current implementation status is above).** Reviewed on `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`, initially clean. The maintainer requires ordinary ontology and presentation changes to preserve indexed source data. This document proposes the implementation and acceptance sequence; it does not resume C15–C26, claim a fix, or authorize a release.

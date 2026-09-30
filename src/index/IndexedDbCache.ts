@@ -1,7 +1,9 @@
 /**
  * Vault-local IndexedDB storage for neutral source facts, parsed bodies and graph snapshots.
  * Complete and partial checkpoint metadata point to independent chunk generations only after
- * their writes finish; callers own semantic validity and plugin-lifetime cancellation.
+ * their writes finish; callers own semantic validity and plugin-lifetime cancellation. Retired
+ * contributor pins may use one cleanup-only existing-database connection after normal-handle
+ * failure; cleanup never resets write backoff or acquires source/publication authority.
  */
 import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
 import { Platform } from "obsidian";
@@ -12,6 +14,8 @@ import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
 
 import { SOURCE_IMPACT_STORE, SOURCE_IMPACT_SLOT_INDEX, SOURCE_IMPACT_LEASE_INDEX } from "./SourceContributorJournal";
+
+import { releaseContributorRootLeaseFresh, type ContributorRootLease } from "./SourceContributorLease";
 
 const DB_VERSION = 7;
 const BODY_CACHE_VERSION = 2;
@@ -193,7 +197,23 @@ export class KplexIndexedDbCache {
   /** Share one recoverable connection owner without coupling source progress to graph snapshots. */
   constructor(private vaultName: string) {
     this.sources = new NeutralSourceRepository({ open: () => this.open(), failed: (db) => this.storageFailed(db),
-      unavailableReason: () => this.newerDatabase ? "newer-database" : "storage-unavailable" });
+      unavailableReason: () => this.newerDatabase ? "newer-database" : "storage-unavailable",
+      /** Cleanup borrows no normal writer authority and accepts only an ended reader's lease. */
+      releaseContributorLease: lease => this.releaseContributorLease(lease) });
+  }
+
+  /**
+   * Retired-reader cleanup is allowed after unload or normal connection failure. The temporary
+   * handle cannot create/upgrade a database, clear backoff, or make this cache available for writes.
+   */
+  private releaseContributorLease(lease: ContributorRootLease): Promise<boolean> {
+    if (typeof indexedDB === "undefined") return Promise.resolve(false);
+    return releaseContributorRootLeaseFresh(indexedDB, safeDbName(this.vaultName), DB_VERSION, lease, {
+      /** Use the storage owner's window, matching the normal connection lifetime. */
+      schedule: (callback, delay) => window.setTimeout(callback, delay),
+      /** Every settled attempt disposes its owned timeout. */
+      cancel: timer => window.clearTimeout(timer),
+    });
   }
 
   /** Clear only the failed handle; never erase stores or neutral heads on a cache failure. */
