@@ -3,8 +3,9 @@
  * structural collector supply policy-neutral dependencies; immutable hash-bucket pages certify both
  * presence and absence. Per-owner summary pages preserve the original sorted dependency set,
  * collected in the canonical four-family replay rather than an additional lexical pass. V3 adds a
- * separately authenticated Markdown encounter ordinal; v2 remains relation-only readable. Neither
- * derivative format closes the rejected full-build lifecycle or supplies an incremental C2 certificate.
+ * separately authenticated Markdown encounter ordinal; v4 additionally commits the complete resolved
+ * and unresolved host-map owner permutations in bounded derivative pages. V2 remains relation-only
+ * readable. None of these derivative formats closes the rejected full-build lifecycle or supplies an incremental C2 certificate.
  * Journal repair authenticates retained old summaries, prepares one new owner and certifies only
  * unchanged-host impact; changed-host fan-out remains explicitly unknown. This module never
  * classifies relationships, parses Markdown, publishes a
@@ -60,6 +61,10 @@ const MAX_BUFFER_BYTES = 2 * 1024 * 1024;
 const MAX_IDENTITY_BYTES = 8 * 1024 * 1024;
 const MAX_CATALOG_ROWS = 2_000_000;
 const MAX_HOST_FACTS = 1024;
+/** Acquisition may retain at most this much complete host-owner coordinate payload before paging. */
+const MAX_HOST_ORDER_BYTES = 8 * 1024 * 1024;
+const MAX_HOST_ORDER_OWNERS = 100_000;
+const HOST_ORDER_PAGE_OWNERS = SOURCE_MAX_BATCH_RECORDS;
 /** A finite combined request, shared with private closure readers; no truncated endpoint prefix. */
 export const MAX_CONTRIBUTOR_ENDPOINTS = 32;
 const MAX_QUERY_KEYS = 256;
@@ -69,6 +74,17 @@ export type ContributorStructuralFact = SourceEntityFact | FileTreeOccurrence | 
 /** A host capability is session-local. A disk root alone cannot certify current topology or Dates. */
 export type ContributorHostStamp = Readonly<{ epoch: string; revision: number; token: string }>;
 export type ContributorHostLinkOwnerOrder = Readonly<{ resolved: readonly string[]; unresolved: readonly string[] }>;
+/** Native authority required before any caller may expose a current host-owner order coordinate. */
+export type ContributorHostOrderValidity = Readonly<{ isCurrent(): boolean }>;
+export type ContributorHostLinkOwnerOrderPageManifest = Readonly<{
+  pages: number; owners: number; bytes: number; digest: string; unsupported: number;
+}>;
+/** Compact v4 root commitment. Complete owner strings live only in authenticated derivative rows. */
+export type ContributorHostLinkOwnerOrderManifest = Readonly<{
+  version: 1;
+  resolved: ContributorHostLinkOwnerOrderPageManifest;
+  unresolved: ContributorHostLinkOwnerOrderPageManifest;
+}>;
 export type ContributorHostCatalog = Readonly<{
   stamp: ContributorHostStamp;
   isCurrent(): boolean;
@@ -116,16 +132,29 @@ export type ContributorDiscoveryResult = ContributorFailure | (ContributorCertif
   sourceIds: readonly string[];
   work: Readonly<{ buckets: number; pages: number; bytes: number; sourceOwners: number; hostFacts: number }>;
 }>);
+/** Authenticated v4 phase coordinate for one finite direct incidence scope. */
+export type ContributorDirectOrderDiscoveryResult = ContributorFailure | (ContributorCertificate & Readonly<{
+  outcome: "ready";
+  sourceIds: readonly string[];
+  resolvedSourceIds: readonly string[];
+  resolvedAbsentSourceIds: readonly string[];
+  unresolvedSourceIds: readonly string[];
+  unresolvedAbsentSourceIds: readonly string[];
+  markdownSourceIds: readonly string[];
+  work: Readonly<{ buckets: number; pages: number; bytes: number; sourceOwners: number; hostFacts: number; orderOwners: number; orderPages: number }>;
+}>);
 type CatalogRoot = Readonly<{
   version: 2 | 3 | 4; build: SourceDependencyBuild; host: ContributorHostStamp;
   sources: number; hostFacts: number; rows: number;
   buckets: readonly SourceDependencyBucketManifest[];
-  hostLinkOwnerOrder?: ContributorHostLinkOwnerOrder;
+  hostLinkOwnerOrder?: ContributorHostLinkOwnerOrderManifest;
 }>;
 type DependencyRow =
   | Readonly<{ kind: "link"; key: string; owner: string }>
   | Readonly<{ kind: "source"; key: string; order: number; head: SourceHead; source: SourceEntityRef; summary: ContributorSummaryManifest; markdownOrdinal?: number }>
   | Readonly<{ kind: "summary"; key: string; index: number; keys: readonly string[] }>
+  | Readonly<{ kind: "host-order"; key: string; family: "resolved" | "unresolved"; index: number; owners: readonly string[]; proof: readonly string[] }>
+  | Readonly<{ kind: "host-order-rank"; key: string; family: "resolved" | "unresolved"; owner: string; rank: number; page: number; offset: number }>
   | Readonly<{ kind: "host"; key: string; order: number; fact: ContributorStructuralFact }>;
 type QueryBudget = {
   buckets: Map<number, readonly DependencyRow[]>; pages: number; bytes: number;
@@ -134,6 +163,13 @@ type QueryBudget = {
 
 /** Measure the actual encoded page size, including JSON escape expansion. */
 function bytes(value: string): number { return new TextEncoder().encode(value).byteLength; }
+const sha256 = /^[a-f0-9]{64}$/;
+function hostOrderPageKey(family: "resolved" | "unresolved", index: number): string {
+  return JSON.stringify(["source-host-owner-page-v2", family, index]);
+}
+function hostOrderRankKey(family: "resolved" | "unresolved", owner: string): string {
+  return JSON.stringify(["source-host-owner-rank-v2", family, owner]);
+}
 /** Small strict shape guard used only for this module's finite persisted vocabulary. */
 function exact(value: Record<string, unknown>, fields: readonly string[]): boolean {
   return Object.keys(value).length === fields.length && fields.every((field) => Object.prototype.hasOwnProperty.call(value, field));
@@ -178,6 +214,17 @@ function row(value: unknown, version: CatalogRoot["version"]): value is Dependen
   if (value.kind === "summary") return exact(value, ["kind", "key", "index", "keys"]) && sourceCount(value.index)
     && Array.isArray(value.keys) && value.keys.length > 0 && value.keys.length <= SOURCE_MAX_BATCH_RECORDS
     && value.keys.every(validContributorMembershipKey);
+  if (value.kind === "host-order") return version === 4 && exact(value, ["kind", "key", "family", "index", "owners", "proof"])
+    && (value.family === "resolved" || value.family === "unresolved") && sourceCount(value.index)
+    && value.key === hostOrderPageKey(value.family, value.index) && Array.isArray(value.owners) && value.owners.length > 0 && value.owners.length <= HOST_ORDER_PAGE_OWNERS
+    && value.owners.every((owner: unknown) => typeof owner === "string" && owner.length > 0)
+    && new Set(value.owners).size === value.owners.length && Array.isArray(value.proof) && value.proof.length <= 16
+    && value.proof.every((digest: unknown) => typeof digest === "string" && sha256.test(digest));
+  if (value.kind === "host-order-rank") return version === 4
+    && exact(value, ["kind", "key", "family", "owner", "rank", "page", "offset"])
+    && (value.family === "resolved" || value.family === "unresolved") && typeof value.owner === "string" && value.owner.length > 0
+    && sourceCount(value.rank) && sourceCount(value.page) && sourceCount(value.offset) && value.offset < HOST_ORDER_PAGE_OWNERS
+    && value.rank === value.page * HOST_ORDER_PAGE_OWNERS + value.offset && value.key === hostOrderRankKey(value.family, value.owner);
   if (!sourceCount(value.order)) return false;
   if (value.kind === "source") return exact(value, ["kind", "key", "order", "head", "source", "summary", ...(version >= 3 ? ["markdownOrdinal"] : [])])
     && (version === 2 || sourceCount(value.markdownOrdinal))
@@ -205,26 +252,61 @@ function failure(error: unknown): ContributorFailure {
     : "invalid";
   return { outcome, reason };
 }
-/** Root validation proves fixed coverage, page framing and total counts before consulting any bucket. */
-function validHostLinkOwnerOrder(value: unknown): value is ContributorHostLinkOwnerOrder {
+/** Validate the transient complete capture before any owner strings are emitted to derivative pages. */
+function validCapturedHostLinkOwnerOrder(value: unknown): value is ContributorHostLinkOwnerOrder {
   if (!sourceObject(value) || !exact(value, ["resolved", "unresolved"]) || !Array.isArray(value.resolved) || !Array.isArray(value.unresolved)) return false;
+  let totalBytes = 0, totalOwners = 0;
   for (const owners of [value.resolved, value.unresolved]) {
-    if (owners.length > MAX_CATALOG_ROWS || owners.some((owner: unknown) => typeof owner !== "string" || owner.length === 0)) return false;
+    if (owners.length > MAX_HOST_ORDER_OWNERS || owners.some((owner: unknown) => typeof owner !== "string" || owner.length === 0)) return false;
     if (new Set(owners).size !== owners.length) return false;
+    totalOwners += owners.length; totalBytes += bytes(JSON.stringify(owners));
   }
-  return true;
+  return totalOwners <= MAX_HOST_ORDER_OWNERS && totalBytes <= MAX_HOST_ORDER_BYTES;
+}
+/** Strict compact v4 coordinate framing. Empty families are explicitly committed as all-zero. */
+function validHostLinkOwnerOrderPageManifest(value: unknown): value is ContributorHostLinkOwnerOrderPageManifest {
+  if (!sourceObject(value) || !exact(value, ["pages", "owners", "bytes", "digest", "unsupported"])
+    || !sourceCount(value.pages) || !sourceCount(value.owners) || !sourceCount(value.bytes) || !sourceCount(value.unsupported)
+    || value.owners > MAX_HOST_ORDER_OWNERS || value.bytes > MAX_HOST_ORDER_BYTES || value.unsupported > value.owners
+    || typeof value.digest !== "string") return false;
+  if (value.owners === 0) return value.pages === 0 && value.bytes === 0 && value.digest === "" && value.unsupported === 0;
+  return value.pages === Math.ceil(value.owners / HOST_ORDER_PAGE_OWNERS)
+    && value.bytes > 0 && sha256.test(value.digest);
+}
+/** Root carries only bounded commitments; owner strings are authenticated independently in rows. */
+function validHostLinkOwnerOrderManifest(value: unknown): value is ContributorHostLinkOwnerOrderManifest {
+  return sourceObject(value) && exact(value, ["version", "resolved", "unresolved"]) && value.version === 1
+    && validHostLinkOwnerOrderPageManifest(value.resolved) && validHostLinkOwnerOrderPageManifest(value.unresolved)
+    && value.resolved.owners + value.unresolved.owners <= MAX_HOST_ORDER_OWNERS
+    && value.resolved.bytes + value.unresolved.bytes <= MAX_HOST_ORDER_BYTES;
+}
+/** Bind one logical page leaf independently from physical dependency-page framing. */
+export function contributorHostOrderPageCommitment(family: "resolved" | "unresolved", index: number,
+  page: Readonly<{ digest: string; bytes: number; records: number }>): string {
+  return JSON.stringify(["source-host-owner-page-v2", family, index, page.digest, page.bytes, page.records]);
+}
+/** Domain-separated Merkle node used only for the compact host-owner coordinate commitment. */
+export function contributorHostOrderNodeCommitment(left: string, right: string): string {
+  return JSON.stringify(["source-host-owner-node-v2", left, right]);
 }
 /** Root validation proves fixed coverage, page framing and total counts before consulting any bucket. */
 function decodeRoot(data: string): CatalogRoot {
   const value: unknown = JSON.parse(data);
-  if (!sourceObject(value) || ![2, 3, CONTRIBUTOR_CATALOG_VERSION].includes(value.version as number)) throw new SourceFactError("dependency-invalid");
-  const version = value.version as CatalogRoot["version"];
+  if (!sourceObject(value) || value.version !== 2 && value.version !== 3 && value.version !== CONTRIBUTOR_CATALOG_VERSION) {
+    throw new SourceFactError("dependency-invalid");
+  }
+  const version = value.version;
   const fields = ["version", "build", "host", "sources", "hostFacts", "rows", "buckets", ...(version === 4 ? ["hostLinkOwnerOrder"] : [])];
   if (!exact(value, fields) || !validSourceDependencyBuild(value.build) || !hostStamp(value.host)
     || !sourceCount(value.sources) || !sourceCount(value.hostFacts) || !sourceCount(value.rows)
     || value.rows > MAX_CATALOG_ROWS || value.sources + value.hostFacts > value.rows
-    || !Array.isArray(value.buckets) || value.buckets.length !== SOURCE_DEPENDENCY_BUCKETS
-    || version === 4 && !validHostLinkOwnerOrder(value.hostLinkOwnerOrder)) throw new SourceFactError("dependency-invalid");
+    || !Array.isArray(value.buckets) || value.buckets.length !== SOURCE_DEPENDENCY_BUCKETS) throw new SourceFactError("dependency-invalid");
+  let hostLinkOwnerOrder: ContributorHostLinkOwnerOrderManifest | undefined;
+  if (version === 4) {
+    const candidate = value.hostLinkOwnerOrder;
+    if (!validHostLinkOwnerOrderManifest(candidate)) throw new SourceFactError("dependency-invalid");
+    hostLinkOwnerOrder = candidate;
+  }
   let count = 0, totalBytes = 0;
   const buckets: SourceDependencyBucketManifest[] = [];
   for (const bucket of value.buckets) {
@@ -238,8 +320,12 @@ function decodeRoot(data: string): CatalogRoot {
     count += bucket.records; totalBytes += bucket.bytes;
   }
   if (count !== value.rows || totalBytes > SOURCE_DEPENDENCY_MAX_BYTES) throw new SourceFactError("dependency-invalid");
-  return { version, build: value.build, host: value.host, sources: value.sources, hostFacts: value.hostFacts, rows: value.rows, buckets,
-    ...(version === 4 ? { hostLinkOwnerOrder: value.hostLinkOwnerOrder as ContributorHostLinkOwnerOrder } : {}) };
+  const common = { build: value.build, host: value.host, sources: value.sources, hostFacts: value.hostFacts, rows: value.rows, buckets };
+  if (version === 4) {
+    if (!hostLinkOwnerOrder) throw new SourceFactError("dependency-invalid");
+    return { version, ...common, hostLinkOwnerOrder };
+  }
+  return { version, ...common };
 }
 
 /** Chain original page commitments in emission order; the fixed-size root also authenticates absence. */
@@ -333,6 +419,7 @@ export class SourceContributorDiscovery {
       const writer = new DependencyWriter(this.repository, build, this.current);
       const owners = new Map<string, string>();
       const sourceIds = new Set<string>();
+      const markdownPaths = new Set<string>();
       let identityBytes = 0, sources = 0, hostFacts = 0, familyVisits = 0;
       /** Dependency links are a superset independent of policy; duplicate occurrences remain harmless. */
       const link = async (key: string, owner: string): Promise<void> => writer.emit({ kind: "link", key, owner });
@@ -364,8 +451,10 @@ export class SourceContributorDiscovery {
             || owners.has(fact.entity.id) || sourceIds.has(request.sourceId)) throw new SourceFactError("dependency-invalid");
           identityBytes += (fact.entity.id.length + request.sourceId.length) * 2 + (version >= 3 ? 192 : 128);
           if (identityBytes > MAX_IDENTITY_BYTES) throw new SourceFactError("memory-budget");
+          const physicalPath = fact.entity.physicalPath;
+          if (!physicalPath || markdownPaths.has(physicalPath)) throw new SourceFactError("dependency-invalid");
           const owner = contributorKey("source", request.sourceId), sourceOrder = sources++;
-          owners.set(fact.entity.id, owner); sourceIds.add(request.sourceId);
+          owners.set(fact.entity.id, owner); sourceIds.add(request.sourceId); markdownPaths.add(physicalPath);
           const selected = await summarizeContributorOwner(this.repository, request, { ...this.runtime, isCurrent: this.current });
           if (selected.outcome !== "ready") throw new SourceFactError(selected.reason);
           if (!selected.stamp.saved || selected.stamp.sequence === null) throw new SourceFactError("unsaved");
@@ -386,12 +475,24 @@ export class SourceContributorDiscovery {
         (ordinal) => ordinal >= sources))) {
         throw new SourceFactError("dependency-invalid");
       }
-      const hostLinkOwnerOrder = version === 4 ? await this.host.captureHostLinkOwnerOrder?.() : undefined;
-      this.check();
-      if (version === 4 && (!hostLinkOwnerOrder || !validHostLinkOwnerOrder(hostLinkOwnerOrder))) throw new SourceFactError("host-catalog-stale");
+      let hostLinkOwnerOrder: ContributorHostLinkOwnerOrderManifest | undefined;
+      if (version === 4) {
+        const captured = await this.host.captureHostLinkOwnerOrder?.();
+        this.check();
+        if (!captured || !validCapturedHostLinkOwnerOrder(captured)) throw new SourceFactError("host-catalog-stale");
+        hostLinkOwnerOrder = { version: 1,
+          resolved: await this.writeHostLinkOwnerOrder(writer, "resolved", captured.resolved, markdownPaths),
+          unresolved: await this.writeHostLinkOwnerOrder(writer, "unresolved", captured.unresolved, markdownPaths) };
+      }
       await writer.finish();
-      const root: CatalogRoot = { version, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows, buckets: writer.manifests,
-        ...(version === 4 ? { hostLinkOwnerOrder } : {}) };
+      let root: CatalogRoot;
+      if (version === 4) {
+        if (!hostLinkOwnerOrder) throw new SourceFactError("dependency-invalid");
+        root = { version, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows,
+          buckets: writer.manifests, hostLinkOwnerOrder };
+      } else {
+        root = { version, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows, buckets: writer.manifests };
+      }
       const data = JSON.stringify(root);
       if (bytes(data) > SOURCE_DEPENDENCY_ROOT_BYTES) throw new SourceFactError("decode-budget");
       const digest = await this.repository.observationDigest(data);
@@ -410,6 +511,82 @@ export class SourceContributorDiscovery {
    * Page framing accounts for the escaped SourceId envelope; no key is split, truncated or omitted.
    * The root/head selection is still owned by the existing complete-build transaction boundary.
    */
+  /** Build one bounded Merkle tree and a proof for every logical owner page. */
+  private async hostOrderMerkle(leaves: readonly string[]): Promise<Readonly<{ root: string; proofs: readonly (readonly string[])[] }>> {
+    if (!leaves.length) return { root: "", proofs: [] };
+    const levels: string[][] = [[...leaves]];
+    while (levels[levels.length - 1].length > 1) {
+      const current = levels[levels.length - 1], next: string[] = [];
+      for (let index = 0; index < current.length; index += 2) {
+        const left = current[index], right = current[index + 1] ?? left;
+        next.push(await this.repository.observationDigest(contributorHostOrderNodeCommitment(left, right)));
+        this.check();
+      }
+      levels.push(next);
+      await this.runtime.yield();
+      this.check();
+    }
+    const proofs = leaves.map((_, leafIndex) => {
+      const proof: string[] = [];
+      let index = leafIndex;
+      for (let level = 0; level < levels.length - 1; level++) {
+        const values = levels[level], sibling = index ^ 1;
+        proof.push(values[sibling] ?? values[index]);
+        index = Math.floor(index / 2);
+      }
+      return proof;
+    });
+    return { root: levels[levels.length - 1][0], proofs };
+  }
+  /**
+   * Persist one complete host-owner permutation in bounded logical pages plus exact owner ranks.
+   * The root stores only the Merkle root/counts. A later finite query reads rank rows for selected
+   * owners and only the logical pages needed to prove those ranks; it never reconstructs the vault-wide
+   * permutation. Unsupported non-Markdown owners remain represented and make direct-order use fail closed.
+   */
+  private async writeHostLinkOwnerOrder(writer: DependencyWriter, family: "resolved" | "unresolved",
+    owners: readonly string[], markdownPaths: ReadonlySet<string>): Promise<ContributorHostLinkOwnerOrderPageManifest> {
+    if (!owners.length) return { pages: 0, owners: 0, bytes: 0, digest: "", unsupported: 0 };
+    const pages: Array<Readonly<{ owners: readonly string[]; bytes: number; leaf: string }>> = [];
+    let totalBytes = 0, unsupported = 0;
+    for (let start = 0; start < owners.length; start += HOST_ORDER_PAGE_OWNERS) {
+      this.check();
+      const index = pages.length, pageOwners = owners.slice(start, start + HOST_ORDER_PAGE_OWNERS);
+      const data = JSON.stringify(pageOwners), pageBytes = bytes(data);
+      if (pageBytes > SOURCE_CHUNK_TARGET_BYTES || totalBytes + pageBytes > MAX_HOST_ORDER_BYTES) throw new SourceFactError("decode-budget");
+      const pageDigest = await this.repository.observationDigest(data);
+      this.check();
+      const leaf = await this.repository.observationDigest(contributorHostOrderPageCommitment(family, index,
+        { digest: pageDigest, bytes: pageBytes, records: pageOwners.length }));
+      this.check();
+      pages.push({ owners: pageOwners, bytes: pageBytes, leaf });
+      totalBytes += pageBytes;
+      unsupported += pageOwners.filter((owner) => !markdownPaths.has(owner)).length;
+      await this.runtime.yield();
+      this.check();
+    }
+    const merkle = await this.hostOrderMerkle(pages.map((page) => page.leaf));
+    this.check();
+    const manifest: ContributorHostLinkOwnerOrderPageManifest = {
+      pages: pages.length, owners: owners.length, bytes: totalBytes, digest: merkle.root, unsupported,
+    };
+    if (!validHostLinkOwnerOrderPageManifest(manifest)) throw new SourceFactError("dependency-invalid");
+    let rank = 0;
+    for (let index = 0; index < pages.length; index++) {
+      const page = pages[index];
+      await writer.emit({ kind: "host-order", key: hostOrderPageKey(family, index), family, index,
+        owners: page.owners, proof: merkle.proofs[index] });
+      for (let offset = 0; offset < page.owners.length; offset++, rank++) {
+        const owner = page.owners[offset];
+        await writer.emit({ kind: "host-order-rank", key: hostOrderRankKey(family, owner), family, owner, rank, page: index, offset });
+        if ((rank & 255) === 255) { await this.runtime.yield(); this.check(); }
+      }
+      this.check();
+    }
+    if (rank !== owners.length) throw new SourceFactError("dependency-invalid");
+    return manifest;
+  }
+
   private async writeSummary(writer: DependencyWriter, summary: ContributorOwnerSummary, sequence: number): Promise<ContributorSummaryManifest> {
     const key = contributorKey("summary", summary.sourceId);
     const envelope = bytes(JSON.stringify({ kind: "summary", key, index: 0, keys: [] })) + 32;
@@ -481,6 +658,79 @@ export class SourceContributorDiscovery {
     for (const index of buckets) for (const value of await this.bucket(root, index, budget)) if (keys.has(value.key)) rows.push(value);
     return rows;
   }
+  /** Authenticate one selected logical page against the compact v4 Merkle root. */
+  private async verifyHostOrderPage(manifest: ContributorHostLinkOwnerOrderPageManifest,
+    family: "resolved" | "unresolved", page: Extract<DependencyRow, { kind: "host-order" }>): Promise<void> {
+    if (page.family !== family || page.index >= manifest.pages || page.key !== hostOrderPageKey(family, page.index)) {
+      throw new SourceFactError("dependency-invalid");
+    }
+    const remaining = manifest.owners - page.index * HOST_ORDER_PAGE_OWNERS;
+    const expectedOwners = Math.min(HOST_ORDER_PAGE_OWNERS, remaining);
+    if (remaining <= 0 || page.owners.length !== expectedOwners) throw new SourceFactError("dependency-invalid");
+    const data = JSON.stringify(page.owners), pageBytes = bytes(data);
+    if (pageBytes > manifest.bytes) throw new SourceFactError("dependency-invalid");
+    let digest = await this.repository.observationDigest(contributorHostOrderPageCommitment(family, page.index,
+      { digest: await this.repository.observationDigest(data), bytes: pageBytes, records: page.owners.length }));
+    this.check();
+    let index = page.index, width = manifest.pages, proofIndex = 0;
+    while (width > 1) {
+      const sibling = page.proof[proofIndex++];
+      if (!sibling) throw new SourceFactError("dependency-invalid");
+      const siblingIndex = index ^ 1;
+      if (siblingIndex >= width && sibling !== digest) throw new SourceFactError("dependency-invalid");
+      digest = await this.repository.observationDigest(index & 1
+        ? contributorHostOrderNodeCommitment(sibling, digest)
+        : contributorHostOrderNodeCommitment(digest, sibling));
+      this.check();
+      index = Math.floor(index / 2); width = Math.ceil(width / 2);
+    }
+    if (proofIndex !== page.proof.length || digest !== manifest.digest) throw new SourceFactError("dependency-invalid");
+  }
+  /**
+   * Resolve only selected Markdown owners to authenticated host-map ranks. Missing ranks remain an
+   * explicit finite set; the private caller must replay those sources for this phase and prove that
+   * they emit zero host-link records before treating their absent coordinate as semantically harmless.
+   */
+  private async selectedHostOwnerOrder(root: CatalogRoot, budget: QueryBudget, family: "resolved" | "unresolved",
+    selectedByPath: ReadonlyMap<string, string>): Promise<Readonly<{ ordered: readonly string[]; absent: readonly string[]; pages: number }>> {
+    if (root.version !== 4 || !root.hostLinkOwnerOrder) throw new SourceFactError("dependency-pending");
+    const manifest = root.hostLinkOwnerOrder[family];
+    const rankKeys = new Set([...selectedByPath.keys()].map((owner) => hostOrderRankKey(family, owner)));
+    if (rankKeys.size > MAX_QUERY_KEYS || [...rankKeys].reduce((total, key) => total + bytes(key), 0) > MAX_QUERY_KEY_BYTES) {
+      throw new SourceFactError("backpressure");
+    }
+    const ranks = new Map<string, Extract<DependencyRow, { kind: "host-order-rank" }>>();
+    for (const value of await this.lookup(root, rankKeys, budget)) {
+      if (value.kind !== "host-order-rank" || value.family !== family || !selectedByPath.has(value.owner)
+        || ranks.has(value.owner) || value.rank >= manifest.owners || value.page >= manifest.pages) throw new SourceFactError("dependency-invalid");
+      ranks.set(value.owner, value);
+    }
+    if (!manifest.pages && ranks.size) throw new SourceFactError("dependency-invalid");
+    const pageKeys = new Set([...ranks.values()].map((rank) => hostOrderPageKey(family, rank.page)));
+    if (pageKeys.size > MAX_QUERY_KEYS) throw new SourceFactError("backpressure");
+    const pages = new Map<number, Extract<DependencyRow, { kind: "host-order" }>>();
+    for (const value of await this.lookup(root, pageKeys, budget)) {
+      if (value.kind !== "host-order" || value.family !== family || pages.has(value.index) || !pageKeys.has(value.key)) {
+        throw new SourceFactError("dependency-invalid");
+      }
+      pages.set(value.index, value);
+    }
+    if (pages.size !== pageKeys.size) throw new SourceFactError("dependency-invalid");
+    for (const page of pages.values()) await this.verifyHostOrderPage(manifest, family, page);
+    const present: Array<Readonly<{ sourceId: string; rank: number }>> = [];
+    const absent: string[] = [];
+    for (const [owner, sourceId] of selectedByPath) {
+      const rank = ranks.get(owner);
+      if (!rank) { absent.push(sourceId); continue; }
+      const page = pages.get(rank.page);
+      if (!page || page.owners[rank.offset] !== owner) throw new SourceFactError("dependency-invalid");
+      present.push({ sourceId, rank: rank.rank });
+    }
+    present.sort((left, right) => left.rank - right.rank);
+    if (new Set(present.map((value) => value.rank)).size !== present.length) throw new SourceFactError("dependency-invalid");
+    return { ordered: present.map((value) => value.sourceId), absent, pages: pages.size };
+  }
+
   /**
    * Authenticate every selected owner's sorted summary pages against the source-row commitment.
    * All pages must exist exactly once, in order, including the mandatory self-node key. Missing
@@ -744,6 +994,57 @@ export class SourceContributorDiscovery {
       || !endpoint.semanticPath || endpoint.physicalPath !== undefined) return failure(new SourceFactError("unsupported-scope"));
     return this.discoverOrdered({ kind: "neighborhood", endpoints: [endpoint] }, true);
   }
+  /**
+   * Authenticate the v4 phase coordinates for one finite direct-incidence cover. This returns only
+   * ordered selected source IDs; it does not replay facts, compile semantics or certify host-order
+   * currentness after a caller's later awaits. Non-Markdown host owners therefore fail closed.
+   */
+  async discoverDirectOrder(request: ContributorRequest, hostOrderValidity?: ContributorHostOrderValidity): Promise<ContributorDirectOrderDiscoveryResult> {
+    if (!hostOrderValidity?.isCurrent()) return failure(new SourceFactError("host-catalog-stale"));
+    try {
+      const discovered = await this.discover(request);
+      if (discovered.outcome !== "ready") return discovered;
+      const { root, record } = await this.root();
+      if (root.version !== 4 || !root.hostLinkOwnerOrder) throw new SourceFactError("dependency-pending");
+      if (record.digest !== discovered.dependency.digest || JSON.stringify(root.build) !== JSON.stringify({
+        revision: discovered.dependency.revision, sequence: discovered.dependency.sequence,
+        slot: discovered.dependency.slot, generation: discovered.dependency.generation,
+      })) throw new SourceFactError("superseded");
+      if (root.hostLinkOwnerOrder.resolved.unsupported || root.hostLinkOwnerOrder.unresolved.unsupported) {
+        throw new SourceFactError("dependency-pending");
+      }
+      const budget: QueryBudget = { buckets: new Map(), pages: 0, bytes: 0 };
+      const keys = new Set(discovered.sourceIds.map((sourceId) => contributorKey("source", sourceId)));
+      const rows = await this.lookup(root, keys, budget);
+      if (rows.length !== discovered.sourceIds.length) throw new SourceFactError("dependency-invalid");
+      const selectedById = new Map<string, Extract<DependencyRow, { kind: "source" }>>();
+      const selectedByPath = new Map<string, string>();
+      for (const value of rows) {
+        if (value.kind !== "source" || typeof value.source.physicalPath !== "string" || value.source.physicalPath.length === 0
+          || selectedById.has(value.head.sourceId) || selectedByPath.has(value.source.physicalPath)) throw new SourceFactError("dependency-invalid");
+        selectedById.set(value.head.sourceId, value); selectedByPath.set(value.source.physicalPath, value.head.sourceId);
+      }
+      const markdownRows: Array<Readonly<{ sourceId: string; ordinal: number }>> = [];
+      for (const [index, sourceId] of discovered.sourceIds.entries()) {
+        const value = selectedById.get(sourceId), stamp = discovered.sources[index];
+        if (!value || JSON.stringify(value.head) !== JSON.stringify(stamp.head) || value.markdownOrdinal === undefined) throw new SourceFactError("dependency-invalid");
+        markdownRows.push({ sourceId, ordinal: value.markdownOrdinal });
+      }
+      const resolved = await this.selectedHostOwnerOrder(root, budget, "resolved", selectedByPath);
+      const unresolved = await this.selectedHostOwnerOrder(root, budget, "unresolved", selectedByPath);
+      const markdown = markdownRows.sort((left, right) => left.ordinal - right.ordinal).map((value) => value.sourceId);
+      if (new Set(markdown).size !== discovered.sourceIds.length) throw new SourceFactError("dependency-invalid");
+      const validated = await this.revalidate(discovered);
+      if (validated !== "ready") throw new SourceFactError(validated);
+      if (!this.isHostCurrent() || !hostOrderValidity.isCurrent()) throw new SourceFactError("host-catalog-stale");
+      return { ...discovered, resolvedSourceIds: resolved.ordered, resolvedAbsentSourceIds: resolved.absent,
+        unresolvedSourceIds: unresolved.ordered, unresolvedAbsentSourceIds: unresolved.absent,
+        markdownSourceIds: markdown, work: { buckets: discovered.work.buckets + budget.buckets.size,
+          pages: discovered.work.pages + budget.pages, bytes: discovered.work.bytes + budget.bytes,
+          sourceOwners: discovered.work.sourceOwners, hostFacts: discovered.work.hostFacts,
+          orderOwners: resolved.ordered.length + unresolved.ordered.length, orderPages: resolved.pages + unresolved.pages } };
+    } catch (error) { return failure(error); }
+  }
   /** Share authenticated pages, summaries and all final fences; change only selected owner order. */
   private async discoverOrdered(request: ContributorRequest, markdown: boolean): Promise<ContributorDiscoveryResult> {
     if (this.queries >= 2) return failure(new SourceFactError("backpressure"));
@@ -774,7 +1075,7 @@ export class SourceContributorDiscovery {
       }
       const selected = new Map<string, Extract<DependencyRow, { kind: "source" | "host" }>>();
       for (const value of await this.lookup(root, ownerKeys, budget)) {
-        if (value.kind === "link" || value.kind === "summary" || selected.has(value.key)) throw new SourceFactError("dependency-invalid");
+        if (value.kind !== "source" && value.kind !== "host" || selected.has(value.key)) throw new SourceFactError("dependency-invalid");
         selected.set(value.key, value);
       }
       if (selected.size !== ownerKeys.size) throw new SourceFactError("dependency-invalid");

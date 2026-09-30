@@ -1,8 +1,8 @@
 /**
- * SI4 direct-neighbor encounter-order characterization, not an order reader/certificate. Fresh full
- * GraphBuilder and GraphIndex own the oracle, classification, binding and sorting. Equal title keys
- * are supplied explicitly; no title selector is implemented. Acquired families and catalog envelopes
- * use the existing portable fixtures, not native MetadataCache timing or real IndexedDB evidence.
+ * SI4 direct-neighbor encounter-order proof. Fresh full GraphBuilder and GraphIndex remain the
+ * semantic/sorting oracle. V4 exercises the private authenticated phase-order reader through the
+ * existing canonical compiler; v2/v3 cases remain counterexamples. Equal title keys are supplied
+ * explicitly. Native MetadataCache timing/currentness remains outside this portable evidence.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -82,10 +82,10 @@ async function neutralInputs(f) {
  * result. Never use the cached selection as the full oracle's input. All fixtures/readers retire.
  */
 async function compareOrder(configure, options = {}) {
-  const { center = ref("Center.md"), version = 3, semantic = settings, view = {}, inspectInputs = false,
+  const { center = ref("Center.md"), version = 4, semantic = settings, view = {}, inspectInputs = false,
     diagnosticSources } = options;
   const f = await titleFixture(configure, version);
-  let full, cached, diagnostic, check;
+  let full, cached, ordered, diagnostic, check;
   try {
     const presentation = centerGateSettings({ showFolderNodes: false, ...view });
     full = await fullTitleIndex(f, { ...semantic, ...presentation });
@@ -98,6 +98,18 @@ async function compareOrder(configure, options = {}) {
     assert.equal(result.outcome, "ready", JSON.stringify(result));
     cached = await fullCenterIndex(M, f, result.preparation.compilation, semantic, presentation);
     const cachedResult = observeCenter(cached, center);
+    let orderedResult;
+    if (version === 4) {
+      const prepared = await new M.CachedRequestedDirectOrderReader(f.port, f.discovery, f.capture, entities,
+        { isCurrent: /** Portable tests explicitly stand in for the still-missing native host-order proof. */ () => true })
+        .prepare({ kind: "direct-order", center }, policy({ settings: semantic }), runtime());
+      assert.equal(prepared.outcome, "ready", JSON.stringify(prepared));
+      ordered = await fullCenterIndex(M, f, prepared.preparation.compilation, semantic, presentation);
+      orderedResult = observeCenter(ordered, center);
+      const withoutDegree = snapshot => snapshot.raw.map(({ degree: _degree, ...item }) => item);
+      assert.deepEqual(withoutDegree(orderedResult), withoutDegree(fullResult), "V4 raw direct-neighbor order must match the fresh full builder");
+      assert.deepEqual(orderedResult.views, fullResult.views, "Equal-key visible lists must preserve the full builder's stable encounter order");
+    }
     let diagnosticResult;
     if (diagnosticSources) {
       // This deliberately does not mint/widen any certificate or claim selected-head finality.
@@ -112,12 +124,33 @@ async function compareOrder(configure, options = {}) {
       diagnostic = await fullCenterIndex(M, f, prepared.compilation, semantic, presentation);
       diagnosticResult = observeCenter(diagnostic, center);
     }
-    return { full: fullResult, cached: cachedResult, diagnostic: diagnosticResult, inputs };
+    return { full: fullResult, cached: cachedResult, ordered: orderedResult, diagnostic: diagnosticResult, inputs };
   } finally {
-    diagnostic?.destroy(); cached?.destroy(); full?.destroy();
+    diagnostic?.destroy(); ordered?.destroy(); cached?.destroy(); full?.destroy();
     try { check?.(); } finally { f.close(); }
   }
 }
+
+test("direct-order production path stays non-ready without a native host-order finality capability", async () => {
+  const f = await titleFixture(hostBeforeMarkdown, 4);
+  try {
+    const coordinate = await f.discovery.discoverDirectOrder({ kind: "neighborhood", endpoints: [ref("Center.md")] });
+    assert.notEqual(coordinate.outcome, "ready"); assert.equal(coordinate.reason, "host-catalog-stale");
+    assert(!("resolvedSourceIds" in coordinate)); assert(!("unresolvedSourceIds" in coordinate));
+    const result = await new M.CachedRequestedDirectOrderReader(f.port, f.discovery, f.capture,
+      { entity: input => f.entities.get(input.id) }).prepare({ kind: "direct-order", center: ref("Center.md") }, policy(), runtime());
+    assert.notEqual(result.outcome, "ready"); assert.equal(result.reason, "host-catalog-stale");
+    assert(!("preparation" in result)); assert(!("certificate" in result));
+  } finally { f.close(); }
+});
+
+test("v4 direct-order certifies a relation-free center without inventing a source-order prefix", async () => {
+  const result = await compareOrder(
+    /** A lone document has structural identity/folder facts but no selected relationship contributor. */
+    f => { f.add("Center.md", ""); resolveFiles(f); });
+  assert.deepEqual(result.ordered.raw, result.full.raw);
+  for (const role of roles) assert.deepEqual(result.ordered.views[role], result.full.views[role]);
+});
 
 /** A's later Markdown declaration and B's earlier global-host declaration have equal target degrees. */
 function hostBeforeMarkdown(f) {

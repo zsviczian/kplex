@@ -71,14 +71,22 @@ A fresh full GraphIndex counterexample separately proves that tied
 candidate encounter order can differ even when these degrees agree. Scalar/alias completion, stable
 list order and hot-range continuation remain open; no SI4 checkpoint is advanced.
 
-**SI4 direct-neighbor encounter order (2026-09-30; reviewed missing-contract finding, no reader):**
-[The direct-order proof](SOURCE_DIRECT_NEIGHBOR_ORDER_PROOF.md) and 32 production-oracle tests show
-that full-builder equal-key ties follow each unordered pair's first actual evidence insertion.
-Existing v2/v3 source facts and Markdown ordinals omit the resolved/unresolved host maps' outer-owner
-order, so they cannot certify general exact direct-list order. A future input needs original
-host-family coordinates, complete order-sensitive host currentness and phase-preserving canonical
-consumption. No source/schema change, certificate, settings route or SI4b1/SI4b2/SI4c/SI5 acceptance
-is claimed. See [the review](validation/settings-independent-indexing-si4-direct-neighbor-order-review-2026-09-30.md).
+**SI4 durable host order + direct-neighbor input (2026-09-30; reviewed private input, not SI4b1 acceptance):**
+[The direct-order proof](SOURCE_DIRECT_NEIGHBOR_ORDER_PROOF.md) now carries the reviewed pair-birth
+characterization forward into bounded code. Contributor catalog v4 persists the complete resolved/
+unresolved host-map owner permutations as authenticated logical pages plus deterministic per-owner
+rank rows; compact Merkle roots keep the catalog root below 1 MiB at the executable 20,000+20,000-owner
+scale. Ordinary full/per-file host collection does not allocate owner arrays. A private uncalled
+direct-order reader looks up only selected owner ranks and their referenced pages, combines those
+coordinates with structural and Markdown order, and replays only the finite selected sources through
+the existing canonical compiler in full-builder phase order. A selected source missing a phase rank
+is replayed for that phase and must emit zero host records, so negative coverage cannot silently drop
+evidence. Portable tests match fresh full raw/equal-key lists under an explicit test-only host-validity
+capability without reconstructing either whole persisted owner permutation. Production supplies no
+native host-order-currentness authority, so it remains non-ready without a prefix. V2/v3 compatibility
+and real-IDB v4 fault/reopen tests passed [independent review](validation/settings-independent-indexing-si4-direct-order-input-review-2026-09-30.md). No settings/public route or
+SI4b1/SI4b2/SI4c/SI5 acceptance is claimed; native selected scalar/alias completion and MetadataCache
+host-order/currentness remain separate online prerequisites.
 
 Design review and implementation brief for Sol, 2026-09-29.
 

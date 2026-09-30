@@ -23,6 +23,7 @@ export class NormalizedSourceScopePreparer {
   private readonly started = new Set<NodeId>();
   private readonly completed = new Set<NodeId>();
   private readonly owners = new Map<GraphCompilerSourceRead, NodeId>();
+  private readonly phaseReads = new Set<GraphCompilerSourceRead>();
   private rejected = false;
 
   /** Snapshot finite scope identity; no caller mutation can add owners to an in-flight preparation. */
@@ -44,9 +45,25 @@ export class NormalizedSourceScopePreparer {
     return read;
   }
 
+  /** Open an additional ordered phase read without consuming any source owner's one Markdown slot. */
+  beginPhase(boundary: SourceReadBoundary): GraphCompilerSourceRead | null {
+    if (!this.delegate || this.rejected || !this.runtime.isCurrent()) { this.rejected = true; return null; }
+    const read = this.delegate.beginRead(boundary);
+    this.phaseReads.add(read);
+    return read;
+  }
+
+  /** Close one ordered phase after its producer has reached canonical terminal finality. */
+  completePhase(read: GraphCompilerSourceRead, boundary: SourceReadBoundary): boolean {
+    if (!this.delegate || this.rejected || !this.phaseReads.has(read) || !this.delegate.completeRead(read, boundary)) {
+      this.rejected = true; return false;
+    }
+    this.phaseReads.delete(read); return true;
+  }
+
   /** Delegate cursor/finality, reference selection and lazy exact-ID seeding to the accepted owner. */
   async acceptBatch(read: GraphCompilerSourceRead, batch: NormalizedSourceBatch): Promise<boolean> {
-    if (!this.delegate || this.rejected || !this.owners.has(read)) return false;
+    if (!this.delegate || this.rejected || !this.owners.has(read) && !this.phaseReads.has(read)) return false;
     const accepted = await this.delegate.acceptBatch(read, batch);
     if (!accepted || !this.runtime.isCurrent()) this.rejected = true;
     return !this.rejected;
@@ -67,7 +84,8 @@ export class NormalizedSourceScopePreparer {
   /** Return no partial semantics: every requested source must finish under the same caller fence. */
   async finish(): Promise<SourceScopePreparationResult> {
     if (!this.runtime.isCurrent()) return { outcome: "cancelled" };
-    if (!this.delegate || this.rejected || this.completed.size !== this.sourceIds.length) return { outcome: "rejected" };
+    if (!this.delegate || this.rejected || this.phaseReads.size || this.owners.size
+      || this.completed.size !== this.sourceIds.length) return { outcome: "rejected" };
     const result = await this.delegate.finish();
     if (!this.runtime.isCurrent() || result.outcome === "cancelled") return { outcome: "cancelled" };
     if (result.outcome === "rebuild-required") return { outcome: "missing-entity" };

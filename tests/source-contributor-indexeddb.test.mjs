@@ -3,13 +3,103 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { chromiumHarness } from "./support/browserTypeScript.mjs";
 import { contributorBrowserBundle, contributorBrowserInitialize } from "./support/contributorBrowserFixture.mjs";
+import { reframeTitleCatalog } from "./support/urlTitleFixture.mjs";
 
 const bundle = await contributorBrowserBundle();
+const v4Initialize = `window.reframeContributorCatalog=${reframeTitleCatalog.toString()};true`;
 
 test("real Chromium contributor catalogs: migration, integrity, mutation fences and lifetime", { timeout: 180000 }, async t => {
   const browser = await chromiumHarness(bundle);
   try {
-    await browser.evaluate(contributorBrowserInitialize);
+    await browser.evaluate(contributorBrowserInitialize); await browser.evaluate(v4Initialize);
+    await t.test("v4 host-owner coordinates write/reopen exactly, including authenticated empty coordinates, without source/body rewrites", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,orderValidity={isCurrent:()=>true};
+        for(const empty of [false,true]){
+          const name='contributor-v4-coordinate-'+(empty?'empty':'nonempty'),f=await seed(name),db=await f.cache.open(),before={};
+          for(const store of ['sourceHeads','sourceChunks','sourcePostings','bodies'])before[store]=await value(db.transaction(store).objectStore(store).getAll());
+          if(!empty){f.app.metadataCache.resolvedLinks={'B.md':{'A.md':1},'A.md':{}};f.app.metadataCache.unresolvedLinks={'C.md':{}};}
+          const d=await f.build(),root=await f.repository.readDependencyRoot(()=>true),data=JSON.parse(root.data);
+          equal(data.version,4,'Current derivative format');equal(data.hostLinkOwnerOrder.version,1,'Coordinate manifest format');
+          const expected=empty?{resolved:[],unresolved:[]}:{resolved:['B.md','A.md'],unresolved:['C.md']};
+          for(const family of ['resolved','unresolved']){
+            const manifest=data.hostLinkOwnerOrder[family];
+            equal(manifest.owners,expected[family].length,'Exact '+family+' owner count');
+            equal(manifest.pages,expected[family].length?1:0,'Explicit '+family+' empty/nonempty coverage');
+          }
+          const pages=await value(db.transaction('sourceDependencies').objectStore('sourceDependencies').getAll()),rows=pages
+            .filter(page=>page.slot===root.build.slot&&page.generation===root.build.generation).flatMap(page=>JSON.parse(page.data));
+          for(const family of ['resolved','unresolved'])equal(rows.filter(row=>row.kind==='host-order'&&row.family===family)
+            .sort((a,b)=>a.index-b.index).flatMap(row=>row.owners),expected[family],'Persisted '+family+' owner permutation');
+          equal(rows.filter(row=>row.kind==='host-order-rank').length,expected.resolved.length+expected.unresolved.length,'One durable rank per coordinate owner');
+          const direct=await d.discoverDirectOrder({kind:'neighborhood',endpoints:[ref('A.md')]},orderValidity);equal(direct.outcome,'ready','Current v4 coordinate reads');
+          const connection=await f.cache.open();connection.close();const other=new M.KplexIndexedDbCache(name);ok(await other.open(),'Real reopen');
+          const reopened=new M.SourceContributorDiscovery(other.sources,d.host,runtime());
+          const again=await reopened.discoverDirectOrder({kind:'neighborhood',endpoints:[ref('A.md')]},orderValidity);equal(again.outcome,'ready','Reopened coordinate reads');
+          equal(again.resolvedSourceIds,direct.resolvedSourceIds,'Resolved coordinate stable after reopen');
+          equal(again.unresolvedSourceIds,direct.unresolvedSourceIds,'Unresolved coordinate stable after reopen');
+          equal(again.markdownSourceIds,direct.markdownSourceIds,'Markdown coordinate stable after reopen');
+          const reopenedDb=await other.open();for(const [store,records] of Object.entries(before))equal(await value(reopenedDb.transaction(store).objectStore(store).getAll()),records,store+' unchanged');
+          other.close();f.close();
+        }return true;
+      })()`), true);
+    });
+
+    await t.test("v4 coordinate page/root/build/head faults fail closed and pre-activation abort preserves the prior root", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,orderValidity={isCurrent:()=>true},faults=['missing','corrupt','duplicate','truncated','out-of-order','wrong-root','wrong-build','wrong-head'];
+        for(const fault of faults){
+          const f=await seed('contributor-v4-fault-'+fault),db=await f.cache.open(),before={};
+          f.app.metadataCache.resolvedLinks={'B.md':{'A.md':1},'A.md':{}};f.app.metadataCache.unresolvedLinks={'C.md':{}};
+          const d=await f.build(),baseline=await d.discoverDirectOrder({kind:'neighborhood',endpoints:[ref('A.md')]},orderValidity);equal(baseline.outcome,'ready','Baseline '+fault);
+          for(const store of ['sourceHeads','sourceChunks','sourcePostings','bodies'])before[store]=await value(db.transaction(store).objectStore(store).getAll());
+          const root=await f.repository.readDependencyRoot(()=>true),pages=await value(db.transaction('sourceDependencies').objectStore('sourceDependencies').getAll());
+          const active=pages.filter(page=>page.slot===root.build.slot&&page.generation===root.build.generation);
+          const hostPage=active.find(page=>JSON.parse(page.data).some(row=>row.kind==='host-order'&&row.family==='resolved'));ok(hostPage,'Resolved coordinate physical page');
+          if(fault==='missing'||fault==='corrupt'||fault==='wrong-build')await edit(db,['sourceDependencies'],tx=>{
+            const store=tx.objectStore('sourceDependencies'),key=[hostPage.slot,hostPage.bucket,hostPage.index];
+            if(fault==='missing')store.delete(key);
+            else if(fault==='corrupt')store.put({...hostPage,data:hostPage.data+' '});
+            else store.put({...hostPage,generation:'wrong-generation'});
+          });
+          else {
+            const transform=rows=>{
+              const coordinate=rows.find(row=>row.kind==='host-order'&&row.family==='resolved');ok(coordinate,'Logical resolved coordinate');
+              if(fault==='duplicate')return [...rows,structuredClone(coordinate)];
+              if(fault==='truncated')return rows.filter(row=>row!==coordinate);
+              if(fault==='out-of-order')return rows.map(row=>row===coordinate?{...row,index:row.index+1}:row);
+              if(fault==='wrong-head')return rows.map(row=>row.kind==='source'&&row.head.sourceId==='A.md'?{...row,head:{...row.head,sequence:row.head.sequence+100}}:row);
+              return rows;
+            };
+            if(fault==='wrong-root'){
+              const data=JSON.parse(root.data);data.hostLinkOwnerOrder.resolved.digest='0'.repeat(64);const text=JSON.stringify(data);
+              const digest=await f.repository.observationDigest(text);await edit(db,['meta'],tx=>tx.objectStore('meta').put({...root,data:text,digest}));
+            }else{
+              const changed=await reframeContributorCatalog(M,root,pages,transform,text=>f.repository.observationDigest(text),4);
+              await edit(db,['meta','sourceDependencies'],tx=>{const store=tx.objectStore('sourceDependencies');for(const page of active)store.delete([page.slot,page.bucket,page.index]);for(const page of changed.pages)store.put(page);tx.objectStore('meta').put(changed.root);});
+            }
+          }
+          const rejected=await d.discoverDirectOrder({kind:'neighborhood',endpoints:[ref('A.md')]},orderValidity);ok(rejected.outcome!=='ready','Fault rejected: '+fault);ok(!('resolvedSourceIds'in rejected),'No ordered prefix: '+fault);
+          for(const [store,records] of Object.entries(before))equal(await value(db.transaction(store).objectStore(store).getAll()),records,store+' unchanged after '+fault);
+          f.close();
+        }
+
+        const f=await seed('contributor-v4-abort-before-activation');f.app.metadataCache.resolvedLinks={'B.md':{'A.md':1},'A.md':{}};const d=await f.build(),db=await f.cache.open(),add=IDBObjectStore.prototype.add;
+        const previous=await f.repository.readDependencyRoot(()=>true),certificate=await d.discoverDirectOrder({kind:'neighborhood',endpoints:[ref('A.md')]},orderValidity);equal(certificate.outcome,'ready','Prior coordinate selected');
+        const before={};for(const store of ['sourceHeads','sourceChunks','sourcePostings','bodies'])before[store]=await value(db.transaction(store).objectStore(store).getAll());
+        let aborted=false;IDBObjectStore.prototype.add=function(...args){const request=add.apply(this,args);if(this.name==='sourceDependencies'&&!aborted){aborted=true;this.transaction.abort();}return request;};
+        let failed;try{failed=await d.rebuild();}finally{IDBObjectStore.prototype.add=add;}
+        ok(aborted,'Actual inactive dependency transaction aborted before activation');ok(failed.outcome!=='ready','Aborted build never activates');
+        // An IDB transaction error deliberately closes/backoffs the failed connection. A fresh
+        // storage owner must recover the committed root; immediate reads on f.repository are unavailable.
+        const recovered=new M.KplexIndexedDbCache('contributor-v4-abort-before-activation');ok(await recovered.open(),'Real reopen after abort');
+        const recoveredDiscovery=new M.SourceContributorDiscovery(recovered.sources,d.host,runtime());
+        equal(await recovered.sources.readDependencyRoot(()=>true),previous,'Previous v4 root remains selected');
+        equal((await recoveredDiscovery.discoverDirectOrder({kind:'neighborhood',endpoints:[ref('A.md')]},orderValidity)).outcome,'ready','Previous coordinate remains usable');
+        const recoveredDb=await recovered.open();for(const [store,records] of Object.entries(before))equal(await value(recoveredDb.transaction(store).objectStore(store).getAll()),records,store+' unchanged across abort');
+        recovered.close();f.close();return true;
+      })()`), true);
+    });
     await t.test("v5 upgrade preserves every neutral head/chunk/posting and legacy graph/body record; no root implies pending", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const seed=await window.seed('contributor-copy');const db=await seed.cache.open();

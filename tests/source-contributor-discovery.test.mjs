@@ -22,6 +22,19 @@ function fixture() {
   return { ...catalogFixture(sources, structure), a, b, c, tag, origin, url, sources, structure };
 }
 
+/** Decode only rows authenticated by the currently active dependency generation. */
+function activeRows(state) {
+  const root = JSON.parse(state.root.data);
+  return [...state.pages.values()].filter(page => page.generation === root.build.generation)
+    .flatMap(page => JSON.parse(page.data));
+}
+
+/** Restore one logical host-owner coordinate from its authenticated row indices. */
+function hostOrder(state, family) {
+  return activeRows(state).filter(row => row.kind === "host-order" && row.family === family)
+    .sort((left, right) => left.index - right.index).flatMap(row => row.owners);
+}
+
 test("opaque opposite-endpoint owners and third-party tag/URL contributors are complete and deduplicated", async () => {
   const f = fixture(); await f.seal();
   const pair = await f.discovery.discover({ kind: "pair", endpoints: [f.a, f.b] });
@@ -158,10 +171,19 @@ test("canonical full host inventory preserves an empty root physical path and at
     const built = await discovery.rebuild(); assert.equal(built.outcome, "ready", JSON.stringify(built));
     const persisted = JSON.parse(storage.state.root.data);
     assert.equal(persisted.version, C.CONTRIBUTOR_CATALOG_VERSION);
-    assert.deepEqual(persisted.hostLinkOwnerOrder, {
-      resolved: ["2", "10", "A.md"],
-      unresolved: ["Z.md", "picture.png", "B.md"],
+    assert.deepEqual({ version: persisted.hostLinkOwnerOrder.version,
+      resolved: { pages: persisted.hostLinkOwnerOrder.resolved.pages, owners: persisted.hostLinkOwnerOrder.resolved.owners,
+        unsupported: persisted.hostLinkOwnerOrder.resolved.unsupported },
+      unresolved: { pages: persisted.hostLinkOwnerOrder.unresolved.pages, owners: persisted.hostLinkOwnerOrder.unresolved.owners,
+        unsupported: persisted.hostLinkOwnerOrder.unresolved.unsupported } }, {
+      version: 1, resolved: { pages: 1, owners: 3, unsupported: 3 }, unresolved: { pages: 1, owners: 3, unsupported: 3 },
     });
+    assert.deepEqual(hostOrder(storage.state, "resolved"), ["2", "10", "A.md"]);
+    assert.deepEqual(hostOrder(storage.state, "unresolved"), ["Z.md", "picture.png", "B.md"]);
+    const unsupportedOrder = await discovery.discoverDirectOrder(
+      { kind: "neighborhood", endpoints: [ref("picture.png", "attachment")] }, { isCurrent: () => true });
+    assert.notEqual(unsupportedOrder.outcome, "ready"); assert.equal(unsupportedOrder.reason, "dependency-pending");
+    assert(!("resolvedSourceIds" in unsupportedOrder));
     const root = { ...ref("folder:/", "container"), physicalPath: "" };
     const found = await discovery.discover({ kind: "pair", endpoints: [root, ref("no-match")] });
     assert.equal(found.outcome, "ready", JSON.stringify(found));
@@ -169,10 +191,40 @@ test("canonical full host inventory preserves an empty root physical path and at
     assert(found.hostFacts.some(value => value.fact.kind === "entity" && value.fact.entity.id === root.id && value.fact.entity.physicalPath === ""));
     assert(found.hostFacts.some(value => value.fact.kind === "file-tree" && value.fact.source.physicalPath === "" && value.fact.target.entity.id === "picture.png"));
     const malformed = JSON.parse(storage.state.root.data);
-    malformed.hostLinkOwnerOrder.resolved = ["A.md", "A.md"];
+    malformed.hostLinkOwnerOrder.resolved.digest = "";
     storage.state.root.data = JSON.stringify(malformed); storage.state.root.digest = sha(storage.state.root.data);
     const rejected = await discovery.discover({ kind: "pair", endpoints: [root, ref("no-match")] });
     assert.equal(rejected.outcome, "invalid"); assert.equal(rejected.reason, "dependency-invalid");
     assert.deepEqual(f.reads, []); assert.deepEqual(f.parses, []);
   } finally { f.close(); }
+});
+
+test("v4 stores two complete 20,000-owner coordinates in bounded pages while the root stays below 1 MiB", async () => {
+  const storage = catalogFixture();
+  const owners = Array.from({ length: 20_000 }, (_, index) => `note-${String(index).padStart(5, "0")}-${"x".repeat(32)}.md`);
+  const resolved = [...owners], unresolved = [...owners].reverse();
+  const host = { ...storage.host, markdownOrderVersion: 1, hostLinkOwnerOrderVersion: 1,
+    captureHostLinkOwnerOrder: async () => ({ resolved, unresolved }) };
+  const discovery = new C.SourceContributorDiscovery(storage.repository, host, storage.runtime);
+  const built = await discovery.rebuild(); assert.equal(built.outcome, "ready", JSON.stringify(built));
+  const rootBytes = Buffer.byteLength(storage.state.root.data), persisted = JSON.parse(storage.state.root.data);
+  assert(rootBytes < 1024 * 1024, `compact root used ${rootBytes} bytes`);
+  assert.equal(persisted.hostLinkOwnerOrder.resolved.owners, 20_000);
+  assert.equal(persisted.hostLinkOwnerOrder.unresolved.owners, 20_000);
+  assert(persisted.hostLinkOwnerOrder.resolved.pages > 1); assert(persisted.hostLinkOwnerOrder.unresolved.pages > 1);
+  assert.deepEqual(hostOrder(storage.state, "resolved"), resolved);
+  assert.deepEqual(hostOrder(storage.state, "unresolved"), unresolved);
+  assert.equal(activeRows(storage.state).filter(row => row.kind === "host-order").reduce((total, row) => total + row.owners.length, 0), 40_000);
+  assert.equal(activeRows(storage.state).filter(row => row.kind === "host-order-rank").length, 40_000,
+    "Every durable coordinate owner has one authenticated finite-lookup rank");
+
+  // White-box the private coordinate primitive to prove the settings-time read is selected-owner
+  // bounded. Reconstructing either 20k permutation here would require dozens of dependency buckets.
+  storage.state.reads = 0;
+  const { root } = await discovery.root();
+  const budget = { buckets: new Map(), pages: 0, bytes: 0 };
+  const selected = await discovery.selectedHostOwnerOrder(root, budget, "resolved", new Map([[resolved[12_345], "selected-owner"]]));
+  assert.deepEqual(selected.ordered, ["selected-owner"]); assert.deepEqual(selected.absent, []); assert.equal(selected.pages, 1);
+  assert(storage.state.reads < persisted.hostLinkOwnerOrder.resolved.pages,
+    `one selected rank/page must stay below full-coordinate enumeration; read ${storage.state.reads} physical pages for ${persisted.hostLinkOwnerOrder.resolved.pages} logical pages`);
 });

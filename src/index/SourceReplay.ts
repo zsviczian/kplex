@@ -55,6 +55,8 @@ export type CachedSourceRead = Readonly<{ boundary: SourceReadBoundary; work: So
  * existing source pin. No separate final callback, detached task or second family pass is owned here.
  */
 export type CachedSourceFactObserver = (family: SourceFamily, records: readonly StoredSourceFact[]) => Promise<boolean> | boolean;
+/** Private SI4 phase projection; "all" preserves the accepted replay byte-for-byte behavior. */
+export type CachedSourceReplayPhase = "all" | "host-resolved" | "host-unresolved" | "markdown";
 type Resolution = Extract<StoredSourceFact, { kind: "reference-resolution" }>;
 type LiteralResolution = Extract<StoredSourceFact, { kind: "literal-resolution" }>;
 type ResolutionGroup = { records: Resolution[]; hasTarget: boolean; next: number };
@@ -150,7 +152,7 @@ export class CachedSourceReplay {
    */
   async read(request: CachedSourceRequest, runtime: SourceReplayRuntime,
     consume: (batch: NormalizedSourceBatch) => Promise<boolean> | boolean,
-    observe?: CachedSourceFactObserver): Promise<SelectedSourceResult<CachedSourceRead>> {
+    observe?: CachedSourceFactObserver, phase: CachedSourceReplayPhase = "all"): Promise<SelectedSourceResult<CachedSourceRead>> {
     /** The observer, canonical writer and selected read share the same caller/host lifetime. */
     const current = (): boolean => runtime.isCurrent() && request.host.isCurrent();
     const label = `cached-source:${++replaySequence}`;
@@ -161,7 +163,7 @@ export class CachedSourceReplay {
       (stamp) => cachedSourceMatches(request, stamp),
       /** Keep both streams private until canonical finality and the repository's final lease fence. */
       async (reader) => {
-        const work = await this.replay(reader, request.host, writer, current, observe);
+        const work = await this.replay(reader, request.host, writer, current, observe, phase);
         if (!current() || !(await writer.finish()) || !current()) throw new SourceFactError("cancelled");
         return { boundary, work: { ...work, ...writer.counts } };
       }, current);
@@ -173,7 +175,8 @@ export class CachedSourceReplay {
    * cancellation/error boundary. It does not change canonical target deduplication or multiplicity.
    */
   private async replay(reader: SelectedSourceReader, host: CachedSourceHost, writer: ReplayBatchWriter,
-    current: () => boolean, observe?: CachedSourceFactObserver): Promise<Omit<SourceReplayWork, keyof ReplayBatchWriter["counts"]>> {
+    current: () => boolean, observe?: CachedSourceFactObserver,
+    phase: CachedSourceReplayPhase = "all"): Promise<Omit<SourceReplayWork, keyof ReplayBatchWriter["counts"]>> {
     const revision = sourceRevision(reader.head.sourceRevision);
     const base = { source: host.source, sourceRevision: revision };
     const groups = new Map<string, ResolutionGroup>();
@@ -210,9 +213,12 @@ export class CachedSourceReplay {
       if (reason !== "ready") throw new SourceFactError(reason, family);
       if (!current()) throw new SourceFactError("cancelled", family);
     };
-    /** Emit only through the bounded queue; a rejected compiler cannot be silently bypassed. */
+    /** Emit only through the bounded queue; phase projection never changes stored-frame validation. */
     const emit = (record: NormalizedSourceRecord): Promise<boolean> => writer.emit(record);
-    if (!(await host.structure(emit)) || !current()) throw new SourceFactError("cancelled");
+    const markdown = phase === "all" || phase === "markdown";
+    const emitMarkdown = (record: NormalizedSourceRecord): Promise<boolean> => markdown ? emit(record) : Promise.resolve(true);
+    const emitStructure = phase === "all" ? emit : async (): Promise<boolean> => true;
+    if (!(await host.structure(emitStructure)) || !current()) throw new SourceFactError("cancelled");
 
     await visit("resolution", async (record) => {
       if (record.kind === "reference-resolution") {
@@ -229,16 +235,20 @@ export class CachedSourceReplay {
         if (normalizeFieldName(record.fieldName) !== record.normalizedFieldName) throw new SourceFactError("invalid-frame", "resolution");
         reserve(record); dates.push(record);
       }
-      else if (record.kind === "host-link") return emit(host.hostLink(record, revision));
+      else if (record.kind === "host-link") {
+        const selected = phase === "all" || phase === "host-resolved" && record.state === "resolved"
+          || phase === "host-unresolved" && record.state === "unresolved";
+        return !selected || emit(host.hostLink(record, revision));
+      }
       return true;
     });
     await visit("metadata", async (record) => {
-      if (record.kind === "alias" || record.kind === "tag") return emit({ ...base, kind: "semantic-metadata",
+      if (record.kind === "alias" || record.kind === "tag") return emitMarkdown({ ...base, kind: "semantic-metadata",
         metadataKind: record.kind, value: record.value, provenance: { surface: record.kind === "alias" ? "frontmatter" : "host" } });
       if (record.kind === "field-name") {
         if (normalizeFieldName(record.fieldName) !== record.normalizedFieldName) throw new SourceFactError("invalid-frame", "metadata");
         if (record.surface === "inline") { reserve(record); inlineNames.push(record); return true; }
-        return emit({ ...base, ...record, provenance: { surface: record.surface,
+        return emitMarkdown({ ...base, ...record, provenance: { surface: record.surface,
           fieldName: record.fieldName, normalizedFieldName: record.normalizedFieldName } });
       }
       if (record.kind === "host-literal") {
@@ -264,7 +274,7 @@ export class CachedSourceReplay {
         if (record.surface === "inline" && record.origin === "physical") {
           const field = inlineNames[inlineIndex++];
           if (!field || field.fieldName !== record.fieldName || field.normalizedFieldName !== record.normalizedFieldName) throw new SourceFactError("invalid-frame", "metadata");
-          if (!(await emit({ ...base, ...field, provenance: { surface: "inline", fieldName: field.fieldName,
+          if (!(await emitMarkdown({ ...base, ...field, provenance: { surface: "inline", fieldName: field.fieldName,
             normalizedFieldName: field.normalizedFieldName, location: { line: record.location?.line, start: record.location?.start, end: record.location?.end } } }))) return false;
         }
         if (record.kind === "inline-value") {
@@ -272,9 +282,9 @@ export class CachedSourceReplay {
           return true;
         }
         if (!active) throw new SourceFactError("invalid-frame", "resolution");
-        return !active.hasTarget || emit({ ...record, ...base, kind: "reference-value", valueId: referenceValueId(record.valueId) });
+        return !active.hasTarget || emitMarkdown({ ...record, ...base, kind: "reference-value", valueId: referenceValueId(record.valueId) });
       }
-      if (record.kind === "reference-payload") return !active?.hasTarget || emit({ ...record, ...base, kind: "reference-payload", valueId: referenceValueId(record.valueId) });
+      if (record.kind === "reference-payload") return !active?.hasTarget || emitMarkdown({ ...record, ...base, kind: "reference-payload", valueId: referenceValueId(record.valueId) });
       if (record.kind !== "reference-candidate") return true;
       const resolved = active?.records[record.ordinal];
       if (!header || !active || !resolved || active.next++ !== record.ordinal
@@ -282,28 +292,28 @@ export class CachedSourceReplay {
           || !record.external && resolved.target.subpath !== record.subpath)) throw new SourceFactError("invalid-frame", "resolution");
       if (resolved.target && !seen.has(resolved.target.entity.id)) {
         seen.add(resolved.target.entity.id);
-        if (pending && !(await emit({ ...pending, ordinal: ordinal++, final: false }))) return false;
+        if (pending && !(await emitMarkdown({ ...pending, ordinal: ordinal++, final: false }))) return false;
         pending = { ...base, kind: "reference-candidate", valueId: referenceValueId(record.valueId),
           target: resolved.target, hostOccurrenceCount: resolved.hostOccurrenceCount };
       }
       if (record.final) {
         if (active.next !== active.records.length) throw new SourceFactError("invalid-frame", "resolution");
         groups.delete(record.valueId);
-        if (pending && !(await emit({ ...pending, ordinal, final: true }))) return false;
+        if (pending && !(await emitMarkdown({ ...pending, ordinal, final: true }))) return false;
         pending = undefined;
       }
       return true;
     });
     if (groups.size || pending || inlineIndex !== inlineNames.length) throw new SourceFactError("invalid-frame", "resolution");
     const decodedBody = body.finish();
-    if (!(await host.presentation(decodedBody, emit)) || !current()) throw new SourceFactError("cancelled");
+    if (!(await host.presentation(decodedBody, emitMarkdown)) || !current()) throw new SourceFactError("cancelled");
     for (const record of dates) {
-      if (!(await emit({ ...base, kind: "date-property", target: record.target, provenance: {
+      if (!(await emitMarkdown({ ...base, kind: "date-property", target: record.target, provenance: {
         surface: "frontmatter", definition: record.fieldName, fieldName: record.fieldName,
         normalizedFieldName: record.normalizedFieldName, rawValue: record.rawValue,
       } }))) throw new SourceFactError("cancelled");
     }
-    await visit("body-urls", async (record) => record.kind !== "body-url" || emit(host.bodyUrl(record, revision)));
+    await visit("body-urls", async (record) => record.kind !== "body-url" || emitMarkdown(host.bodyUrl(record, revision)));
     return { familyVisits, chunks, storedRecords, retainedJoinBytes };
   }
 }

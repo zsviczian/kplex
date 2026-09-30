@@ -86,7 +86,7 @@ test("real IndexedDB URL-title order, compatibility and terminal fences", { time
           for(const options of variants)expected.push(await titleFull(f,titleUrl,options));equal(expected,['First label','First label','First label','First label'],'Fresh full GraphIndex');
           const relation=await f.discovery.discover({kind:'neighborhood',endpoints:[titleRef()]});equal(relation.sourceIds,['Root.md','Nested/First.md'],'Structural relation order preserved');
           const before=await titleSnapshot(f),root=await f.repository.readDependencyRoot(()=>true),check=titleGuard(f);
-          equal(JSON.parse(root.data).version,3,'Derivative v3');equal((await f.cache.open()).version,7,'No IDB schema bump');
+          equal(JSON.parse(root.data).version,4,'Derivative v4');equal((await f.cache.open()).version,7,'No IDB schema bump');
           for(let i=0;i<variants.length;i++){
             const policy=titlePolicy();Object.assign(policy.settings,variants[i]);const result=await titleReader(f).prepare(titleRef(),policy,runtime());
             equal(result.outcome,'ready','Bounded title input '+JSON.stringify(result));equal(result.input.name,expected[i],'Full title parity');

@@ -1,10 +1,12 @@
-# SI4 direct-neighbor encounter order — missing-contract proof
+# SI4 direct-neighbor encounter order — bounded v4 input return
 
-**Status (2026-09-30): reviewed characterization/design finding.** This slice stops at the
-assignment's missing-contract branch. It adds production-oracle tests, not an order input reader,
-certificate, source codec or public route. The accepted [finite raw-degree input](SOURCE_CANDIDATE_DEGREE_PROOF.md),
-[URL-name input](SOURCE_URL_TITLE_PROOF.md) and original relation/gate certificates keep their existing
-scope. SI4b1/SI4b2/SI4c/SI5 remain open; C15–C26 remain paused.
+**Status (2026-09-30): reviewed private input; SI4b1 remains open.** The
+previously reviewed pair-birth characterization is now backed by a bounded contributor-catalog v4
+coordinate and an uncalled private direct-order preparer. Portable tests can exercise that preparer
+only by injecting an explicit test host-order-validity capability. Production supplies no such
+capability yet, so the production path remains non-ready without an order prefix. The accepted
+finite raw-degree, URL-name and relation/gate certificates keep their existing scope. No
+settings/UI/public route is added; SI4b1/SI4b2/SI4c/SI5 remain open and C15–C26 remain paused.
 
 ## Question and answer
 
@@ -17,11 +19,13 @@ active, winning or center-forward declaration. Configured-field reconciliation s
 *inside* a pair; it does not reorder the pair map. Filtering removes entries, and GraphIndex's stable
 fallback preserves their remaining order.
 
-Current source/catalog contracts do not encode the full host maps' cross-owner enumeration. Two
+V2/v3 source/catalog contracts do not encode the full host maps' cross-owner enumeration. Two
 independently acquired clean inputs can have identical original source payloads, structural facts
-and v3 Markdown ordinals, yet produce different full direct tie orders. Thus no general order
-certificate can be derived from those facts. A settings-time host/inventory scan, a cached-graph
-copy or a deterministic substitute sort would evade, not solve, the missing contract.
+and v3 Markdown ordinals, yet produce different full direct tie orders. Contributor catalog v4 now
+adds that missing acquisition coordinate in bounded authenticated pages. What remains missing for a
+production ready result is a native authority that proves the same host ordering is still current
+after the last await. A settings-time host/inventory scan, cached-graph copy or deterministic
+substitute sort remains outside the contract.
 
 ## Production trace: fresh full build only
 
@@ -105,33 +109,39 @@ head sequence/creation order is not an original acquisition phase coordinate. Th
 path-injective legacy binding restriction remains; opaque/pathless portable identity is not coerced
 into a legacy path to obtain an order.
 
-## Which existing coordinates help?
+## Which coordinates now participate?
 
-[SourceReplay](../src/index/SourceReplay.ts) preserves original local facts but replays one whole owner:
-local structure if needed, resolution/host links, metadata, reference values, presentation counts,
-Dates, body URLs. [CachedSourceSemanticReader](../src/index/CachedSourceSemantics.ts) can supply explicit
-structure once, but still compiles each selected owner in turn. Merely permuting those owners cannot
-restore full global phases.
+[SourceReplay](../src/index/SourceReplay.ts) still validates the complete stored owner frame. Its
+private SI4 phase projection can emit only resolved host, unresolved host, or Markdown-phase records
+while retaining the existing decoder/finality checks. [CachedRequestedDirectOrder](../src/index/CachedRequestedDirectOrder.ts)
+uses that seam only for the finite selected source set; it does not replay every host-map owner.
 
-| Existing authority | Sufficient part | Missing part |
+| Authority | What it now supplies | Boundary |
 | --- | --- | --- |
-| Original catalog structural fact `order` | Exact file-tree/tag structural emission sequence, including canonical tag expansion/deduplication | Host-map outer order and per-file Markdown inventory order are different observations. |
-| Structural source-row `order` (v2/v3 ordinary contributor selection) | Stable contributor selection in that catalog's structural traversal | Not the full builder's host or Markdown owner order; nested folders exhibit the distinction. |
-| Original framed source-family order | Within-owner host target enumeration; selected neutral value/target sequence and original ordinals; Date and body-URL sequences | Does not identify where that owner appeared in either whole host map. Nor does it turn a whole-owner replay into a phase-aware replay. |
-| V3 authenticated `markdownOrdinal` | Per-file Markdown-phase order, combined with existing local record identities; the accepted URL-label purpose remains valid | Not either host-map owner order, not all-host-before-Markdown, and not pair birth when earlier host/structural evidence exists. V2 does not supply this Markdown coordinate. |
-| Selected heads, source revisions, semantic/physical refs and host capability | Selection, identity, content and lifetime fences under their existing contracts | They do not carry the missing order permutation. A nonce, revision or count is not a decoding of that permutation. |
+| Original catalog structural fact `order` | Exact file-tree/tag structural emission sequence, including canonical tag expansion/deduplication | Structural order is independent of host-map and Markdown owner order. |
+| Original framed source-family order | Within-owner host target enumeration, selected neutral value/target sequence and original ordinals, Dates and body URLs | It does not identify where the owner appeared in either whole host map. |
+| V3+ authenticated `markdownOrdinal` | Per-file Markdown-phase owner order, combined with existing local record identities | V2 cannot authorize this coordinate; it does not encode host owner order. |
+| V4 `hostLinkOwnerOrder` pages | Complete resolved and unresolved outer-owner permutations, including empty and non-Markdown owners, with independent compact root commitments | This is an acquisition coordinate, not native proof that host order is still current later. Unsupported non-Markdown owners make direct-order preparation non-ready. |
+| Selected heads, source revisions, semantic/physical refs and host capability | Exact selected source incarnation/content and existing lifetime fences | A nonce/revision is not by itself evidence that outer-map order cannot change invisibly. |
 
-Within one owner, the original body-URL sequence also orders canonical URL-origin child emissions;
-the body parser's duplicate policy remains authoritative. Across owners, v3 Markdown order supplies
-that phase's owner coordinate. No URL-title ordinal is promoted to a complete-neighbor certificate.
+The private reader combines these coordinates as **structure → all selected resolved-host owners in
+original host order → all selected unresolved-host owners in original host order → all selected
+Markdown owners in original Markdown order**. Local record order remains owned by the existing
+replay/compiler. SourceId denotes ownership; NodeId denotes exact semantic identity; physical path
+selects the host file incarnation. None is repurposed as an ordinal.
+
+Within one owner, the original body-URL sequence still orders canonical URL-origin child emissions;
+the body parser's duplicate policy remains authoritative. No URL-title ordinal, source head sequence,
+path sort or structural traversal order is promoted into a host-order substitute.
 
 ### Executable counterexamples
 
-The new [portable suite](../tests/source-direct-neighbor-order.test.mjs) uses fresh, independently
-owned full GraphBuilder/GraphIndex instances. The cached path uses the existing requested-neighborhood
-reader, canonical compiler and actual binder/GraphIndex. Its existing `ready` means its original
-relation/gate contract, **not ordered-list readiness**. Explicit request-order diagnostics use the
-unchanged semantic reader, never emit a certificate and never substitute for the full oracle.
+The [portable suite](../tests/source-direct-neighbor-order.test.mjs) uses fresh, independently
+owned full GraphBuilder/GraphIndex instances. V2/v3 cases remain counterexamples. Every v4 case also
+runs the private direct-order preparer with an explicit **test-only** host-validity capability, then
+binds its canonical compilation through the existing GraphIndex and compares both raw direct-map
+order and all equal-key visible role lists to the fresh full oracle. The ordinary requested-neighborhood
+reader remains a control for its narrower relation/gate contract.
 
 * In all eight sort modes, B's incoming host link precedes A's incoming selected property in the full
   build: `[B,A]`. Whole-owner replay yields `[A,B]`, even with an explicitly supplied Markdown-order
@@ -147,6 +157,12 @@ unchanged semantic reader, never emit a certificate and never substitute for the
   Markdown-only nested-folder case is repaired by an explicit original Markdown request order; the
   host-before-Markdown case is not. Local host targets, structure, tags, Date/body and URL-origin
   cases characterize where original order already suffices.
+* Under v4, the bounded preparer reproduces the fresh full raw direct-neighbor order and every
+  equal-key visible role list across all eight sort modes plus the hidden/suppressed/duplicate/
+  reciprocal/field/image/inference/Date/body/URL-origin cases. A relation-free center is a ready
+  negative under the test capability without inventing a source-order prefix. Without that explicit
+  host-validity capability, the production reader returns `host-catalog-stale` before discovery or
+  preparation and exposes neither a certificate nor ordered prefix.
 
 Additional cases cover duplicate/reciprocal declarations, both directed perspectives, all four
 inference-policy combinations, field reconciliation, inactive inline evidence, directed hidden
@@ -156,113 +172,122 @@ fixture revision fixed: terminal `finalize()` rejects, and a fresh collector see
 That proves the collector's order-sensitive digest behavior, **not** a native MetadataCache event
 sequence, atomicity guarantee or an existing persistent order observation.
 
-## Smallest missing contract — design only
+## Returned implementation — bounded v4 coordinate and private canonical preparation
 
-The information deficit is an **original host phase/owner coordinate plus its currentness authority**.
-The least additional reusable coordinate is a root/head-bound rank for each participating owner in
-**each** whole host family: resolved-owner rank and unresolved-owner rank, paired with the already
-stored owner-local target record position. Equivalently, store an original full host-record locator.
-The two owner permutations can differ, so one shared owner rank is not a general substitute. Fixed
-phase tags distinguish structure, resolved, unresolved and Markdown; existing structural order and,
-where available, v3 Markdown ordinals cover the other cross-owner coordinates. Canonical expansion
-within a record stays with the compiler; do not persist policy-selected roles or winning evidence.
+### Acquisition and storage
 
-This is an informational minimum, **not a chosen schema or a claim of a byte-minimal encoding**.
-Relative positions suffice mathematically, but omitted owners/records must be authenticated, not
-renumbered according to a settings-time selection. A concrete future contract must provide:
+The production [ObsidianHostLinkSourceCollector](../src/adapters/obsidian/hostLinkSourceCollector.ts)
+remains the only owner-order oracle. Ordinary whole-map collection and source-scoped reads do **not**
+allocate owner-order arrays. Only explicit contributor-catalog acquisition calls `captureOwnerOrder()`.
+That capture walks actual JavaScript own-property order for the complete resolved map and then the
+complete unresolved map, records empty owners before target iteration, keeps non-Markdown owners,
+and performs a terminal second scan under the same source-revision/currentness fence. Any digest
+change, cancellation, malformed occurrence count or capture-budget failure returns no coordinate.
+The transient capture is capped at 100,000 owners combined and an exact 8 MiB UTF-8 JSON owner-path
+budget; it is never truncated.
 
-1. **Acquisition identity and completeness.** During explicit acquisition, observe the same complete
-   original host sequence as the full collector. Bind owner rank/local record identity to the exact
-   SourceId, source head/incarnation, SourceEntityRef and host observation. Commit the family and
-   original owner/record coverage, including empty/absent owners and endpoint incidence needed for
-   negative support. Authenticate unique ranks and complete original membership, not merely surviving
-   lookup rows. Cover every accepted host owner; if an accepted non-Markdown owner has no stored
-   source representation, it is unsupported, not silently absent. Empty maps and ignored stale-owner
-   entries need explicit producer semantics; filtered output alone does not prove complete input.
-2. **Order-sensitive host currentness.** Capture and terminally validate the actual sequence under
-   one coherent host observation, as the full collector does with its initial/final digest. A future
-   read capability must certify that observation after its last await, or reject. Current per-owner
-   map facts, signatures, clean journal stamps and v3 inventory validation cannot be relabelled as
-   this authority. Do not promise that a reorder necessarily raises a particular native event; that
-   host contract must be established independently. An unobserved reorder cannot be repaired by a
-   source-head equality check. Query-time global host-map/inventory enumeration is not allowed.
-3. **Canonical phase-preserving consumption.** A future bounded private consumer must feed the
-   existing canonical owner a phase-preserving stream (or obtain original pair-birth observations
-   from that owner). Existing whole-owner replay has no such cross-owner phase contract. Do not add
-   a parallel role classifier, sort final evidence IDs, take the first surviving declaration, copy
-   the full graph or invoke a new presentation sorter. Work must be bounded to complete supported
-   direct incidence and existing authenticated coordinates, not an all-owner settings replay.
+Contributor catalog v4 persists the two complete permutations as `host-order` logical rows, up to
+256 owners per row, plus one deterministic `host-order-rank` row per owner. Every logical page has a
+domain-separated Merkle leaf/proof; the compact root stores only the per-family Merkle root, page/
+owner/byte counts and unsupported-owner count. Existing physical dependency-page commitments still
+authenticate each rank/page bucket and negative lookup. Empty families are explicit all-zero
+manifests. Strict decoding rejects malformed page/rank coordinates, duplicate exact selected rows and
+bad Merkle paths. Rebuild activation remains the existing atomic dependency-build boundary, so stale,
+failed, aborted or over-budget work never replaces the prior accepted root. V2/v3 roots remain readable
+for their previously accepted capabilities and genuine downgrade fixtures strip both v4 root fields
+and both v4-only row kinds.
 
-No new paged index, atlas, host-event implementation or replay facade is commissioned by this return.
-A smallest follow-up should first settle those contracts and their bounded canonical seam. It should
-not use sibling closure or a hot-range continuation implementation to manufacture a ready result.
+The executable scale case persists **20,000 resolved plus 20,000 unresolved owners**, reconstructs
+both full permutations from logical pages, verifies 40,000 durable rank rows, and keeps the active v4
+root below the existing 1 MiB limit. Its selected-owner white-box check resolves one rank and one
+logical page while reading strictly fewer physical pages than the 79-page resolved coordinate. No
+limit increase, path truncation, settings-time live host scan or settings-time full-coordinate
+reconstruction is used.
 
-### Finality and fail-closed requirements for any later reader
+### Private direct-order preparation
 
-Before any order certificate, independently authenticate positive **and negative** contributor
-support, structural order pages, original local source framing and the new host coordinate coverage.
-At termination, **after the final await**, validate the same root selection/identity, every selected
-head and exact source/physical observation, complete host capability including order currentness,
-all source/host journal fences, captured policy and live demand. Even a known unrelated open impact
-remains blocking under the current clean-host contract. Empty candidate/negative scopes still need
-root/host/journal finality; empty output is not self-authenticating.
+`SourceContributorDiscovery.discoverDirectOrder()` requires the same explicit host-order-validity
+capability before it reads or exposes any order coordinate. Under that capability it first obtains
+the existing complete direct contributor/negative certificate and binds it to the same v4 root/build.
+For each selected source path it reads only the exact resolved/unresolved rank keys, authenticates only
+the referenced logical pages against the v4 Merkle roots, and derives the selected host permutations.
+Selected sources with no rank are returned in an explicit per-phase negative set. The private caller
+must replay those sources for that host phase and prove they emit **zero** host-link records; a missing
+selected rank therefore cannot silently drop real host evidence. Markdown order still comes from the
+existing authenticated ordinal coordinate. The method conservatively returns `dependency-pending` if
+any complete host-family coordinate contains a non-Markdown owner because there is no canonical
+persisted source replay for that owner. Query work is finite selected-rank/page work; it neither scans
+the live host maps, reconstructs the whole persisted permutation nor replays unselected source owners.
 
-Missing/corrupt coordinates, missing original ranges, stale heads, wrong identities, unclosed negative
-support, changed policy/demand, unsupported host owners or a hot/incomplete scope must return non-ready
-**without an order prefix**. Bounded private work can be discarded, never published as a partial proof.
-An older root remains valid only for its original capabilities: neither v2 nor v3 gains general order
-readiness by being readable. A future additive derivative must preserve them and reject order demands
-without original authority; source/body/graph/journal schemas and accepted certificates must not be
-rewritten merely to attach an ordinal.
+The uncalled `CachedRequestedDirectOrderReader` captures each exact selected source incarnation, adds
+only identity-seeding entity facts needed for dormant owners, then feeds the **existing canonical
+compiler** in full-builder phase order: authenticated structural facts, selected resolved-host owner
+records, selected unresolved-host owner records, then each selected source's Markdown families in
+authenticated Markdown order. Phase projection changes emission only; SourceReplay still validates the
+complete stored frame. `NormalizedSourceScopePreparer` supplies extra ordered phase reads to the same
+accepted compiler rather than implementing another classifier, evidence store, resolver or sorter.
+There is no sibling closure, graph copy, public route or all-owner source replay. Existing memory/read
+bounds fail closed without publishing partial order.
 
-## SI4 acquisition return — persisted host-owner coordinate
+After compilation the reader compares replayed selected stamps to the discovered stamps, awaits the
+existing contributor revalidation, then performs a final **non-awaited** currentness fence. A test can
+inject `CachedDirectOrderHostValidity` to exercise the algorithm. Production has no implementation of
+that authority, so the constructor without it immediately returns non-ready `host-catalog-stale`.
 
-The bounded SI4 acquisition slice now captures the original **outer owner order** of the complete
-`resolvedLinks` and `unresolvedLinks` maps only during explicit contributor-catalog rebuild. The
-production `ObsidianHostLinkSourceCollector` is the oracle: `captureOwnerOrder()` reuses its exact
-own-property traversal, cooperative checkpoints, source-revision fence and order-sensitive digest,
-then performs the same full scan again before returning either complete phase arrays or `null`. Empty
-owner maps remain represented because owner paths are recorded before target iteration; empty whole
-maps are authenticated as empty arrays. Numeric-looking owner keys therefore follow JavaScript own-
-property enumeration rather than a path/source sort.
+### Precise remaining native host contract
 
-Contributor catalog **v4** adds only `hostLinkOwnerOrder: { resolved, unresolved }` to the authenticated
-root. Its strict decoder rejects missing/extra fields, malformed owner values and duplicate owners; the
-existing root digest/build activation authenticates the complete coordinate and interrupted rebuilds do
-not activate a partial root. v2 and v3 roots remain readable for their accepted capabilities. v4 retains
-the existing v3 Markdown-order behavior; no current query/certificate consumes the new host coordinate.
-Thus this slice does **not** create an ordered-neighbor reader, pair-birth reconstruction, current ordered-
-list certificate, or new SI4 ready outcome.
+Before this private input can become a production-ready ordered certificate, native/online evidence
+must justify a host-order validity capability with all of these properties:
 
-The coordinate is bound to the contributor host stamp/revision and to the same explicit rebuild that
-selects source heads, but it intentionally contains owner paths rather than duplicating per-owner source
-heads or graph facts. A later reader would still need to authenticate selected source identity/incarnation,
-negative support and order currentness after its final await. Native `MetadataCache` event semantics do
-not establish that an otherwise invisible owner reorder raises a revision; this remains an online/native
-contract question, not something the portable fixture proves.
+1. It covers the complete own-property owner permutation of both `MetadataCache.resolvedLinks` and
+   `MetadataCache.unresolvedLinks`, including owner insertion/deletion/reordering, empty owners and
+   non-Markdown owners, plus owner-local target/count changes relevant to the collector digest.
+2. The acquisition fence and event/revision/currentness mechanism guarantee that the v4 coordinate
+   came from one coherent host observation and that any later change capable of altering those two
+   permutations or their local host-link records invalidates the capability **synchronously enough
+   that the final non-awaited check cannot return ready on stale order**.
+3. The authority remains valid through the final publication fence without a query-time enumeration
+   of the whole live host map. If Obsidian does not expose such a contract, production direct-order
+   readiness must remain unavailable rather than inferred from source-head equality or a plausible
+   event pattern.
+
+This is separate from the still-pending native selected scalar/alias MetadataCache completion and
+physical-revision evidence. The portable test capability is not evidence for either native contract.
+
+### Finality and fail-closed behavior
+
+Missing/corrupt/duplicate/truncated/out-of-order v4 coordinate rows, wrong root/build/head, stale
+selected sources, unsupported owners, policy/demand supersession, cancellation or host-currentness
+failure return non-ready **without an order prefix**. Empty/negative direct scopes still require the
+same authenticated root/host finality. The previous accepted root remains usable after aborted rebuilds.
+Older v2/v3 roots retain relation/URL-title/degree behavior at their accepted versions but cannot
+authorize v4 direct order.
 
 ## Returned scope and validation
 
-Only a new test module, its source-lane registration and documentation change. No `src/`, source/body
-bytes, persistence format, certificate shape, policy route, UI/search surface or existing assertion/
-timer changes. Test-only guards trap body IO/parsing, source/head/body writes, inventory and fallback
-scans/rebuilds during cached work, including caught calls; readers/indexes/fixtures are retired.
-Source frames and saved catalog envelopes in these portable fixtures are not real-IDB or native
-MetadataCache evidence. No performance, device, complete-list or production-readiness result is claimed.
+This is an offline return, not acceptance. Portable evidence on Node **22.16.0** (below the required
+>=22.22.2 lane) is: focused direct-order **34/34**, contributor-catalog **9/9**, host-link collector
+**1/1**, and full portable source **304/304**. With the actually installed global TypeScript 5.8.3
+exposed temporarily at the local package path, architecture is **7/7** with 60 migrated roots, 113
+reachable files and 0 violations. Targeted full-project diagnostics for the changed SI4 files show no
+internal errors; the only changed-file diagnostic is the absent local `obsidian` package. The core
+TypeScript compile stage also completes.
 
-The offline run supplies **32/32** focused cases and **301/301** portable source tests on Node 22.16.0
-with actual global TypeScript 5.8.3, not the required Node >=22.22.2 <23/installed-dependency acceptance
-lane. Architecture/core type checks pass under that limitation; other failures and exact commands are
-recorded in the [return ledger](../Refactor%20plan.md) and transient [handoff](../HANDOFF.md). All eight
-existing real-browser suites fail at administratively blocked Chromium navigation, before IndexedDB
-subcases. They are pending, not skips or passes; browser policy was not changed. Because no derivative
-format is changed here, no new upgrade suite is added. Any later persisted coordinate requires genuine
-Chromium v2/v3 coexistence, reopen/upgrade/abort/missing-page and no-source/body-rewrite validation.
+Real Chromium/IndexedDB cases were added for v4 write/reopen, empty coordinates, legacy v2/v3
+downgrade, missing/corrupt/duplicate/truncated/out-of-order coordinate data, wrong root/build/head,
+transaction abort before activation, previous-root preservation and unchanged source/body stores.
+This environment blocks Chromium navigation with `net::ERR_BLOCKED_BY_ADMINISTRATOR`, so all eight
+browser-suite bootstraps fail before IndexedDB assertions execute; they are pending, not passes.
+The normal `verify` command stops at architecture because the ZIP has no local `typescript`; the
+architecture command itself passes when temporarily pointed at the installed global TypeScript.
+`check:core` runtime is **36 pass/3 fail**: two missing-`esbuild` suite imports plus one unrelated
+normalized-source assertion reproduced **6 pass/1 fail** from the untouched input. `npm test` is
+**77 pass/7 fail** for the same missing local `esbuild`/`typescript` causes plus that baseline
+assertion. Obsidian lint has no local `eslint`; production build lacks local Obsidian/React dependency
+types. Exact commands and reviewer instructions are in [HANDOFF.md](../HANDOFF.md).
 
-Independent review must verify the unordered-pair birth premise, especially opposite hidden and
-removed-first-host cases, and rerun the focused/source and repository acceptance lanes with required
-Node/dependencies. The native selected scalar/alias MetadataCache completion and physical-revision
-trace remains its separately configured disposable-vault prerequisite, not evidence supplied here.
-No maintainer manual workflow is necessary for this uncalled tests/design return. Scalar/absence
-reads, sibling order, hot continuation, changed-host S2b, complete visible lists, settings routing,
-publication, SI5 and C15–C26 remain outside the assignment.
+Independent review must rerun the required Node/dependency/browser/build lanes, inspect the v4 fault
+matrix and legacy compatibility, and capture the native host-order/currentness contract above before
+any production order route is considered. No native Obsidian claim, SI4 checkpoint acceptance,
+settings/public routing, hot continuation, changed-host S2b, sibling ordering, SI5 or C15–C26 work is
+part of this return.
