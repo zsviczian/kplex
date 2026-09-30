@@ -1820,3 +1820,67 @@ are in `HANDOFF.md` and the contributor-discovery contract. No commit/publicatio
 - **Verdict:** accepted only the uncalled finite raw-degree input. One complete current-root incidence union and canonical replay yield exact raw neighbor-map sizes for admitted path-injective candidates; missing and hot scopes fail without a prefix. V2/v3 and all storage/source/body/graph/journal formats are unchanged. The center-gate certificate is not widened. A full-GraphIndex counterexample shows equal-degree/equal-title candidate order can still differ; no exact visible list, production caller or SI4b1/SI4b2/SI4c/SI5 checkpoint is accepted. C15–C26 remain paused.
 - **Independent evidence and review fixes:** Node 22.22.3 with installed dependencies: source 269/269, architecture 7/7, core 60/60, Obsidian lint and production build pass; all eight serial real Chromium/IndexedDB suites 145/145, including 13 new subcases; full `verify` passes. Corrected TypeScript lint narrowing in the new reader, supplied the root-folder entity fact and proper cleanup in the browser fixture, and serialized the browser script after the parallel runner stalled. No production semantic behavior or test assertion was relaxed. See [the review](docs/validation/settings-independent-indexing-si4-candidate-degrees-review-2026-09-30.md).
 - **Next:** offline stable full-builder neighbor/witness encounter-order proof is the next independent SI4 input. The native selected scalar/alias MetadataCache completion trace remains a separate online prerequisite. Hot continuation, complete visible lists, changed-host certification and public settings routing remain open. No maintainer manual test is needed for this uncalled slice.
+
+### 2026-09-30 — SI4 direct-neighbor encounter-order characterization returned; unaccepted
+
+- **Scope/verdict:** unaccepted offline tests/design return, taking the assigned missing-contract
+  branch. The [direct-order proof](docs/SOURCE_DIRECT_NEIGHBOR_ORDER_PROOF.md) traces fresh full
+  GraphBuilder phases, canonical evidence reconciliation/resolution, legacy binding and GraphIndex
+  direct-role stable sorting for one exact finite center scope. No order reader/certificate, new
+  production caller or checkpoint acceptance is introduced. SI4b1/SI4b2/SI4c/SI5 remain open;
+  C15–C26 remain paused.
+- **Invariant and obstruction:** the relevant order is the first emitted declaration of each
+  unordered pair, restricted to finally supported center-directed entries. Suppressed inline,
+  removed-first-host and opposite hidden declarations can retain a surviving pair's early position;
+  configured-field sorting changes only bucket contents. Two independently clean v2/v3 acquisitions
+  with equal source payloads, structural facts and existing ordinals give different full direct
+  orders when only host outer-map enumeration changes. Local target sequence and v3 Markdown order
+  cannot recover that missing permutation or repair whole-owner replay's phase interleaving.
+- **Smallest missing contract, not implemented:** root/head-bound original resolved/unresolved
+  owner ranks (or equivalent original host-record identities), existing local record positions,
+  complete positive/negative support and an order-sensitive host observation valid after the last
+  await. A future bounded canonical consumer must preserve full phase/pair-birth order; no substitute
+  sorter/classifier, settings-time scan, all-owner replay or native event guarantee is supplied.
+  Current structural/v3 authorities keep their narrower family-specific uses. Missing/incomplete/
+  hot support must remain non-ready without a prefix. Sibling witness order is a separate task.
+- **Tests and unchanged boundaries:** 32 new portable cases use independently fresh production
+  GraphBuilder/GraphIndex oracles, actual canonical replay/binding/classification/sorting and explicit
+  equal comparator inputs. All eight sort modes, v2/v3 indistinguishable-input counterexamples,
+  host subphases, local numeric-key enumeration, fields/inline/dormant/duplicate/reciprocal/hidden/
+  image/inference cases, structural/tag and Date/body/URL-origin order are covered. Explicit diagnostic
+  request permutations are not certificates. Existing no-IO/write/inventory/fallback guards and
+  cleanup are reused. No source/body/graph/journal format, accepted relation/URL-title/degree
+  certificate, strict golden or timer bound changes; `src/` remains byte-identical to the archive.
+- **Actual checks:** final focused **32/32**, portable source **301/301**, zero skipped; architecture
+  **7/7**, 60 migrated roots/113 reachable files/0 violations; core-only TypeScript compilation passes.
+  The new JavaScript module parses, and a TypeScript AST audit finds TSDoc on all 70 function
+  declarations/expressions/callbacks. Core runtime is **36 pass/3 fail**: two missing-esbuild imports
+  and the unchanged normalized-source assertion (`Assets/picture.png` versus `Never There`), reproduced
+  **6 pass/1 fail** from a separate untouched archive extraction. Obsidian lint exits 127 (`eslint`
+  missing); production build exits 2 on missing actual dependencies/types. Full `verify` passes
+  architecture then stops at core; it does not run later gates. Separate `npm test` completes its
+  24 settings-independence scenarios and restore watchdog, then fails the unchanged URL-heavy timer
+  at **65.8 ms versus 50 ms**; later chained groups do not execute. Source/browser were run explicitly.
+- **Environment and browser limitation:** Node **22.16.0**, npm **10.9.2**, actual installed global
+  TypeScript **5.8.3** exposed through `NODE_PATH` and a temporary local symlink for ESM architecture
+  imports, Chromium **144.0.7559.96**, Git **2.47.3**, no Obsidian CLI/runtime or archive `.git`.
+  Required Node **>=22.22.2 <23** and real repository dependency acceptance remain pending. Registry DNS
+  fails; `npm ci --offline` fails `ENOTCACHED` (yocto-queue). All eight existing serial real-browser
+  suite bootstraps fail **ERR_BLOCKED_BY_ADMINISTRATOR** before IndexedDB subcases; no browser pass,
+  skip or policy bypass is claimed. No new persistence format means no new migration suite here;
+  future persisted order work still requires real reopen/upgrade/abort/missing-page/no-rewrite tests.
+- **Delivery/review:** the maintainer's replacement ZIP instruction supersedes the earlier Git
+  delivery. Only changed/new repository-relative files are returned, with source identities/checks
+  in the transient handoff; no fetch/fast-forward/base-commit verification, commit, push, PR, merge or
+  release was performed on the archive. Main must independently review pair-birth and missing-host-
+  order claims, rerun required-runtime/dependency/source/core/lint/build/full and real-browser checks,
+  and resolve failures before acceptance. The native selected scalar/alias completion/physical-
+  revision trace remains its separate disposable-vault prerequisite. No maintainer manual workflow
+  is needed for this tests/design return. Hot continuation, complete visible lists, changed-host
+  S2b, public/settings routes and publication remain excluded.
+
+### 2026-09-30 — SI4 direct-neighbor encounter-order finding reviewed
+
+- **Verdict:** accept only the design proof and 32 production-oracle regression cases. The exact fresh full-build tie order is each unordered pair's first actual evidence insertion, restricted to finally center-directed relations. Existing v2/v3 persisted facts omit the resolved/unresolved host outer-owner permutations, so no general sorted direct-list certificate follows from current facts. No reader, schema, caller or SI4b1/SI4b2/SI4c/SI5 checkpoint is accepted; C15–C26 remain paused.
+- **Independent checks:** reviewed collector, compiler, evidence-store, resolver, binder and GraphIndex ordering paths. Required Node 22.22.3 and installed dependencies: full `npm run verify` passes, including source 301/301, eight serial real Chromium suites 145/145, architecture/core/lint and production build. See [the review](docs/validation/settings-independent-indexing-si4-direct-neighbor-order-review-2026-09-30.md). No manual test is needed for this uncalled tests/design slice.
+- **Next:** acquire and authenticate original host-family owner-order coordinates during explicit host acquisition, without widening any reader's readiness. Prove host order currentness and bounded phase-preserving consumption separately before any ordered certificate. Native MetadataCache event-order and selected scalar/alias completion remain online evidence gaps.

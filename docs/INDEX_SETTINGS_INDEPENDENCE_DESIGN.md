@@ -71,6 +71,15 @@ A fresh full GraphIndex counterexample separately proves that tied
 candidate encounter order can differ even when these degrees agree. Scalar/alias completion, stable
 list order and hot-range continuation remain open; no SI4 checkpoint is advanced.
 
+**SI4 direct-neighbor encounter order (2026-09-30; reviewed missing-contract finding, no reader):**
+[The direct-order proof](SOURCE_DIRECT_NEIGHBOR_ORDER_PROOF.md) and 32 production-oracle tests show
+that full-builder equal-key ties follow each unordered pair's first actual evidence insertion.
+Existing v2/v3 source facts and Markdown ordinals omit the resolved/unresolved host maps' outer-owner
+order, so they cannot certify general exact direct-list order. A future input needs original
+host-family coordinates, complete order-sensitive host currentness and phase-preserving canonical
+consumption. No source/schema change, certificate, settings route or SI4b1/SI4b2/SI4c/SI5 acceptance
+is claimed. See [the review](validation/settings-independent-indexing-si4-direct-neighbor-order-review-2026-09-30.md).
+
 Design review and implementation brief for Sol, 2026-09-29.
 
 **Original design baseline (historical; current implementation status is above).** Reviewed on `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`, initially clean. The maintainer requires ordinary ontology and presentation changes to preserve indexed source data. This document proposes the implementation and acceptance sequence; it does not resume C15–C26, claim a fix, or authorize a release.
