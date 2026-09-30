@@ -4,7 +4,8 @@
  * parser/Date collector/host resolver, never semantic settings or custom path guessing. It owns its
  * event fence independently of graph no-op suppression, plus a single cooperative inventory task.
  * Its read-only cached semantic capability supplies missing host facts without changing live routing.
- * SI4b1 adds an explicit, finalized structural inventory and bounded Date-registry observation fence.
+ * SI4b1 adds an explicit structural inventory and bounded Date-registry observation fence. C2
+ * host events also raise a coalesced durable UNKNOWN-impact ticket; no inverse resolver is invented.
  */
 import { Platform, TFile, type App, type CachedMetadata } from "obsidian";
 import type { GraphCompilerRuntime } from "../../core/graph/compiler";
@@ -13,6 +14,7 @@ import { acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type Normaliz
 import { CachedSourceSemanticReader, MAX_CACHED_SCOPE_SOURCES, type CachedSemanticPolicy,
   type CachedSemanticPreparation } from "../../index/CachedSourceSemantics";
 import { SourceContributorDiscovery, type ContributorHostCatalog } from "../../index/SourceContributorDiscovery";
+import type { ContributorHostChange } from "../../index/SourceContributorJournal";
 import type { CachedSourceHost, CachedSourceRequest } from "../../index/SourceReplay";
 import { selectedSourceFailure, type SelectedSourceResult } from "../../index/SourceRepository";
 import type { ParsedBodyMetadata, ParsedFileMetadata } from "../../core/parser/metadata";
@@ -70,6 +72,7 @@ export class ObsidianSourceAcquisition {
   private readonly cleanup: Array<() => void> = [];
   private epoch = "";
   private hostRevision = 0;
+  private contributorObservation = 0;
   private closed = false;
   private started = false;
   private enabled = false;
@@ -95,9 +98,10 @@ export class ObsidianSourceAcquisition {
     if (this.started || this.closed) return;
     this.started = true;
     this.epoch = this.repository.createIdentity();
-    const changed = (file?: TFile, created = false, oldPath?: string, bodyChanged = false): void => {
-      this.hostRevision += 1;
-      this.inventoryRevision += 1;
+    /** Observe host changes before scheduling acquisition; no event implies closed referrer fan-out. */
+    const changed = (file?: TFile, created = false, oldPath?: string, bodyChanged = false,
+      kind: ContributorHostChange["kind"] = "source"): void => {
+      this.markContributorHostChange(created || oldPath ? "topology" : kind);
       if (file) {
         const state = this.state(file);
         state.revision += 1; state.dirty = true; state.bodyDirty ||= bodyChanged || created;
@@ -115,17 +119,26 @@ export class ObsidianSourceAcquisition {
       if (file instanceof TFile) void this.repository.tombstone(oldPath, () => !this.closed && !this.app.vault.getFileByPath(oldPath), true);
     });
     const remove = this.app.vault.on("delete", (file) => {
-      changed(file instanceof TFile ? file : undefined);
+      changed(file instanceof TFile ? file : undefined, false, undefined, false, "topology");
       if (file instanceof TFile) {
         const path = file.path;
         void this.repository.tombstone(path, () => !this.closed && !this.app.vault.getFileByPath(path));
       }
     });
     const metadata = this.app.metadataCache.on("changed", (file) => changed(file));
-    const resolved = this.app.metadataCache.on("resolved", () => changed());
+    const resolved = this.app.metadataCache.on("resolved", () => changed(undefined, false, undefined, false, "resolution"));
     this.cleanup.push(() => this.app.vault.offref(create), () => this.app.vault.offref(modify),
       () => this.app.vault.offref(rename), () => this.app.vault.offref(remove),
       () => this.app.metadataCache.offref(metadata), () => this.app.metadataCache.offref(resolved));
+  }
+  /** Synchronously fence host authority and persist a bounded, coalesced unknown-impact observation. */
+  private markContributorHostChange(kind: ContributorHostChange["kind"]): void {
+    // Environment validation is reversible; its journal is not. These event coordinates are
+    // deliberately separate from the accepted resolver/catalog revision contract.
+    if (kind !== "environment") { this.hostRevision++; this.inventoryRevision += 1; }
+    const from = this.contributorObservation++;
+    // The repository owns retries/unload and never clears a newer coalesced observation on completion.
+    void this.repository.markContributorHostDirty({ epoch: this.epoch, from, to: this.contributorObservation, kind });
   }
   /** Cancel every continuation and release event/timer ownership; unload does not await persistence. */
   close(): void {
@@ -261,6 +274,7 @@ export class ObsidianSourceAcquisition {
     const daily = JSON.stringify(this.metadataHost.dailyNotesSettings());
     const fields = new Map<string, boolean>();
     let fieldBytes = 0;
+    let environmentDirty = false;
     /** Source events, cancellation and unload cheaply fence every awaited source/structure batch. */
     const current = (): boolean => !this.closed && runtime.isCurrent() && this.hostRevision === revision;
     const scopedRuntime = { ...runtime, isCurrent: current };
@@ -268,8 +282,18 @@ export class ObsidianSourceAcquisition {
       stamp: { epoch: this.epoch, revision, token: this.repository.createIdentity() },
       isCurrent: current,
       /** Check all observed Date and non-Date fields; policy-only changes do not enter this fence. */
-      validate: () => current() && JSON.stringify(this.metadataHost.dailyNotesSettings()) === daily
-        && [...fields].every(([field, wasDate]) => this.metadataHost.isDateProperty(field) === wasDate),
+      validate: () => {
+        if (!current()) return false;
+        if (JSON.stringify(this.metadataHost.dailyNotesSettings()) === daily
+          && [...fields].every(([field, wasDate]) => this.metadataHost.isDateProperty(field) === wasDate)) {
+          environmentDirty = false;
+          return true;
+        }
+        // Demand observes canonical inputs without changing the accepted reversible validator.
+        // A restored environment cannot retire its persisted UNKNOWN host transition ticket.
+        if (!environmentDirty) { environmentDirty = true; this.markContributorHostChange("environment"); }
+        return false;
+      },
       /** Reuse the canonical full structural scan and its second-pass topology/tag finalization. */
       collect: async (emit) => {
         const collector = new ObsidianStructuralSourceCollector(this.app, {

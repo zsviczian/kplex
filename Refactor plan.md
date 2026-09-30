@@ -1352,3 +1352,56 @@ Final aggregate rerun on the same available Node: `npm test` failed the unchange
 - **Independent verification:** required Node 22.22.3: architecture 7/7 and restricted core 60/60 passed, official Obsidian lint passed after the guard fix, source tests 52/52 passed, real Chromium IndexedDB tests 30/30 passed (including five new summary/migration/lease/interruption cases), production TypeScript/esbuild passed, and `git diff --check` passed. Full `npm run verify` remains **failed** at the unchanged URL-heavy post-parse timer assertion, measuring 163.1 ms; neither its threshold nor its test changed. This is a known variable timing gate, not evidence of a green aggregate run.
 - **Exact-build native evidence:** `main.js` SHA-256 `37ee4298acb14b2338abea71a49e701126831870a2b0f31228fd7b79e7f8dcfd` was staged in disposable `kplex-test`; the Obsidian CLI command/render/error smoke passed with zero captured JavaScript errors. The direct runner skipped its duplicate portable gate because that independent aggregate run had failed; this is an exact-artifact smoke result, not a passing `verify:obsidian`. The new catalog remains internal and has no live consumer, so native smoke does not prove per-edit behavior. No fixture content was changed by this smoke beyond staging the plugin artifact.
 - **Next/manual:** prepare one bounded **C2-S2** offline chunk for durable old-summary/unknown-impact journaling and certified same-session host/referrer closure, with an explicit repair state if source-head publication precedes derivative-root selection. It must show A-adds-B impact and alias-driven third-party fan-out through edit/rename/delete/recreate and crash/concurrency faults without all-owner replay. The ordered copy-on-write membership/owner-path update, atomic local root selection and disjoint-query continuity form **C2-S3** after S2 is accepted; a faster full bootstrap is insufficient. C3 fresh-session validation and hot/long/terminal continuation follow, within SI4b1. No maintainer manual check is needed for this internal prerequisite; physical mobile and 20,000-file performance acceptance remain later gates.
+
+### 2026-09-30 — SI4b1-C2-S2 durable journal prerequisite returned for Review
+
+**Review only; S2 and SI4b1 remain incomplete.** Based on the exported `d0a0132` S1 baseline (no Git
+metadata), the source writer now persists a typed owner UNKNOWN ticket with its first original head
+and root commitment before staging, then selects the new head plus explicit repair state atomically.
+The derivative root is retained privately; all journal rows, including known impacts, keep public
+queries pending. Original summaries are authenticated through pinned historical pages. Additive
+IndexedDB v7 introduces a journal store and slot/lease indexes without changing accepted source/body/
+graph formats or root-format-2 interpretation. One disk row per dirty owner shares at most two full
+root anchors; there is no fixed dirty-owner cap that could block its own full-repair recovery.
+
+`prepareOwnerImpact()` uses the accepted four-family summary path (zero for authoritative absence),
+keeps copied deltas private, and persists a read-only certificate only under the **unchanged original
+canonical host capability**, exact head/ticket/global CAS and absence of any open host ticket. Live
+source/topology/resolution/Date/Daily events persist separate UNKNOWN host ownership with bounded
+coalescing/retry. A reversible Date validator does not erase that durable unknown. Known impact is
+neither a selected root nor ticket retirement; explicit complete all-owner bootstrap remains the
+compatibility repair. Recovery enumerates dirty IDs without unchanged-family replay, and historical
+root leases protect concurrent readers without wall-clock expiry.
+
+**Remaining counterexample and cost:** when C contains `[[Alias]]` and A changes its binding, direct
+A old/new keys cannot prove that C is unaffected. No complete canonical changed-host inverse-referrer/
+structure/Date/Daily transition capability exists in this return, so ordinary edits/deletions stay
+unknown. The smallest next host-boundary probe must enumerate and fence those actual effects, not
+infer closure from `resolvedLinks` alone. S3 ordered trees, local root publication and disjoint C
+continuity are not implemented. Exact readiness after an ordinary 20,000-owner edit still requires
+80,000 family visits plus host work (arithmetic); this journal is not an incremental lifecycle claim.
+C3 fresh-session validation and hot/long/terminal consumer closure remain outstanding.
+
+**Actual validation:** 63/63 portable source tests (accepted 52 plus 11 new) and architecture 7/7
+(60 roots/112 reachable/zero violations) pass. Restricted-core and focused strict/no-unused TS 5.8.3
+compiles pass. A portable storage-port deletion measures zero family visits, two authenticated bucket
+pages and 6,189 charged bytes; this is not IDB evidence. Thirteen real-IDB cases are authored for
+source/host mutations, two-connection CAS, faults/restart, actual v6 migration, root leases, 300 shared-
+anchor dirty owners and 131-owner locality, but all three browser suites fail before assertions at
+`ERR_BLOCKED_BY_ADMINISTRATOR`. No browser durability or real per-edit page/transaction count passes
+here. Node 22.16.0/npm 10.9.2 are below requirements and dependency installation did not complete;
+`verify` fails at core tests (36 pass/3 fail: esbuild unavailable twice, unchanged fixture image absent),
+ESLint is unavailable, and full build fails with missing real Obsidian/React dependencies. Equivalent
+no-index whitespace checking passes; no Git HEAD, production build or native smoke is claimed. Main-
+agent required-Node/full-dependency/Chromium/exact-build review remains mandatory; accepted S1 results
+are not relabeled as validation of this return. No timing bound, golden, live settings/GraphIndex or
+semantic policy changed. See the contributor-discovery and source-repository contracts for exact
+state, budget, lease and incomplete-authority boundaries.
+
+### 2026-09-30 — SI4b1-C2-S2a durable journal accepted as a prerequisite; changed-host S2b pending
+
+- **Verdict/scope:** reviewed the return against clean handoff HEAD `e65609f9ad34db7429afff3a4e810bd5476acda1`. Accepted the additive v7 journal and original-root anchor, source-head/UNKNOWN repair transaction, historical summary authentication, bounded host UNKNOWN coalescing and read-only impact certificate **only when the original canonical host capability is unchanged**. Public exact discovery remains pending for every journal row, including KNOWN. Actual Obsidian edits/alias/topology/Date/Daily transitions are deliberately UNKNOWN; the requested complete same-session host/referrer closure was not delivered. Therefore SI4b1/C2 and SI4b2 remain blocked; this is S2a, not a completed S2 or a settings-independent per-edit index.
+- **Review fixes:** added `SourceContributorJournal.ts` to the indexing harness's fixed TypeScript compile list. Corrected a real-IDB assertion to require `stale`/`host-catalog-stale` from an old discovery capability after a topology event and independently require `dependency-pending` from the retained root; no ready path or golden was relaxed. Reviewed source/host ownership, exact head/ticket/global CAS, root-slot pins, original summary commitment, retry/coalescing and additive migration. The journal's current proof does not use a new resolver or policy classifier, and its 2 MiB row/256 KiB impact caps fail closed.
+- **Automated verification:** Node 22.22.3 full `npm run verify` **passed**: architecture 7/7, restricted core 60/60, official Obsidian lint, settings-independence 24 scenarios, indexing/integration 133/133, UI 7/7, source 63/63, real Chromium IndexedDB 44/44 and production TypeScript/esbuild. `git diff --check` passed. The 131-owner real-IDB locality scenario measured four changed-source family visits, one selected read, two dependency page reads and 20 repository transactions; event-side deletion measured zero family visits and four transactions. These are fixture work counts, not 20,000-file latency or mobile memory results.
+- **Exact native evidence:** built `main.js` SHA-256 `e2a86b363640a55c059a87a4c58a77a0057bc35628fda5d43148cc645da31311` was staged in disposable `kplex-test`. Obsidian CLI command/render/error smoke passed without captured JavaScript errors. An owned note acquired a durable head, was renamed, and after repository flush the old path was tombstoned, the new path existed and its retained body remained readable; the note/controller were cleaned up. This validates host integration and C1 regression on the exact artifact, not changed-host journal certification in a live catalog.
+- **Remaining work/manual:** C2-S2b must supply a complete canonical same-session host transition, including null/resolved lexical referrers, structural participants, Date/non-Date and Daily Notes effects; `C` containing `[[Alias]]` must be included when `A` changes Alias despite direct-key disjointness. Keep changed-host tickets UNKNOWN until this proof exists. C2-S3 then adds ordered local membership/root selection and disjoint-query continuity; C3 remains fresh-session/continuation/terminal closure. No maintainer manual test is needed for this internal prerequisite. Physical mobile and 20,000-file performance remain later acceptance gates.

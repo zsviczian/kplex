@@ -1,14 +1,17 @@
-# SI4b1 contributor discovery — rejected lifecycle; C2-S1 summary prerequisite accepted
+# SI4b1 contributor discovery — S1 and S2a journal prerequisite accepted
 
-**SI4a and the isolated C2-S1 prerequisite are accepted. SI4b1 and incremental C2 are not complete.** This slice implements a
-smaller owner-summary boundary permitted by the C2 handoff: one four-family selected read, persisted
-and independently authenticated owner-key pages, and exact old/new source-local delta preparation.
-It does **not** implement an ordered copy-on-write membership index, a dirty-impact ledger, local
-root publication or disjoint-query continuity after an edit. The retained prototype still deletes its
-root on every source mutation. No settings, GraphIndex, gate, search, publication or UI route changes.
+**SI4a, C1, C2-S1 and the isolated C2-S2a journal prerequisite are accepted. SI4b1 and incremental C2 remain
+incomplete.** S2a adds a durable owner repair journal and a read-only impact certificate
+for a provably **unchanged** canonical host capability. Complete changed-host/referrer closure is
+not implemented; actual source/host events remain unknown. This is a narrower S2 prerequisite,
+not an accepted incremental indexing lifecycle.
 
-C1's deletion/retry corrections and the main agent's request/fixture fixes are preserved unchanged.
-The main-agent review of this slice is recorded in `Refactor plan.md`.
+An additive database-v7 upgrade preserves source/body/graph data and derivative root format 2.
+After catalog bootstrap, source mutations retain the original root and owner evidence for private
+repair instead of deleting it. Every open repair ticket, including a known impact, still masks
+public exact discovery. No ordered copy-on-write index, local root publication, disjoint-query
+continuity, settings, GraphIndex, gate, search or UI routing is added. Prior main-agent changes and
+C1 tests are preserved; the independent S2a validation is recorded in `Refactor plan.md`.
 
 ## Implemented boundary: prepare and authenticate one owner's keys
 
@@ -51,8 +54,8 @@ non-ready result and complete lease release. This assertion passed in the main-a
 
 ### Persisted original owner commitments
 
-The **derivative root format is now 2**, not a database/source/graph schema change. `sourceDependencies`
-still has the prototype's two slots in database v6. Each source lookup row contains its selected head,
+The **derivative root format remains 2**. S1 introduced this format without changing source/graph
+schemas; S2 adds journal storage in database v7. `sourceDependencies` retains its two existing slots. Each source lookup row contains its selected head,
 canonical source reference and an original owner-summary manifest: page count, key count, encoded
 bytes and a SHA-256 chain. Summary rows use exact `['summary', sourceId]` lookup tuples and contiguous
 page indices. The chain binds every page to the exact SourceId, selected source revision, durable
@@ -78,10 +81,11 @@ An unrelated empty bucket need not read every owner's summary; its unchanged ori
 commitment is the relevant absence proof.
 
 Old root-format-1 data is `dependency-invalid`; it is not silently interpreted as a summary-capable
-root. Explicit bootstrap may replace only derivative data. The v5→v6 additive migration, accepted v5
-source heads/chunks/postings, body-v2, graph schemas 1–3, leases, source sequences and newer-database
-handling are unchanged. No database reset or source rewrite is used. Real-browser additions cover
-an existing v6 database with a v1 root and byte-shape preservation; the existing v5 migration remains.
+root. Explicit bootstrap may replace only derivative data. The additive v7 upgrade leaves accepted
+v5 source heads/chunks/postings, body-v2, graph schemas 1–3, source leases/sequences and existing v6
+catalog bytes intact. The newer-database sentinel test now uses v8. No database reset or source
+rewrite is used. The added real-browser suite constructs an actual v6 database before upgrading it;
+its execution remains pending, alongside the preserved v5 migration and old-root rejection cases.
 
 ### Exact private delta, not a publication capability
 
@@ -98,9 +102,9 @@ root-selection method or authority to retire a dirty ticket. Its direct owner ke
 structural owners, resolver referrers or other dirty owners.
 
 A snapshot from `readOwnerSummary()` is valid at its returned selection. It does not remain current
-after a source/host change. The existing writer deletes the root, so this API cannot recover a usable
-old selected summary after that deletion. A future coordinator must preserve the old commitment in
-its transaction/journal protocol; this return does not add a hidden historical-root escape hatch.
+after a source/host change. This public API continues to require a current selected root. S2
+provides a separate ticket-scoped historical reader only for private repair; it cannot make an old
+root publicly queryable or suppress any existing global host/head check.
 
 ## Concrete counterexample and the boundary that is still missing
 
@@ -123,23 +127,86 @@ Canonical host/referrer impact closure and a same-session authority linking unaf
 the new host observation are required. The key-only summaries in this return do not preserve enough
 source-relative binding descriptors to prove fresh-session zero-family resolver validation.
 
-**Implemented state machine:**
+## C2-S2 delivered boundary — review, incomplete host transition support
 
-| State / transition | Actual behavior in this return |
+`SourceContributorJournal.ts` defines storage-only strict envelopes and authority coordinates.
+`SourceRepository` owns all journal/head/root transactions and historical leases. Discovery uses
+the existing authenticated bucket/summary readers and canonical four-family producer; the
+acquisition adapter remains the only owner of host observations and resolver semantics.
+
+| Transition | Implemented durable behavior |
 | --- | --- |
-| Clean selected root | Existing global host/source fences plus authenticated format-2 buckets and owner summaries |
-| Source write begins | Existing owner ticket/global revision advances; root is deleted; exact queries become non-ready |
-| New head activates | Existing source-head/ticket CAS; no incremental root or summary selection is added |
-| Summary preparation | One private four-family selected read; cancellation/fault/supersession yields no usable summary |
-| Private delta preparation | Exact old/new source-local merge; no storage or ticket effects |
-| Explicit bootstrap | Full structural inventory and all-owner summaries staged in inactive slot; existing global build/head fences select the complete root |
-| Interruption without a source mutation | Incomplete inactive slot cannot replace the previous valid selected root |
-| Interruption during a source mutation | Existing dirty/unsaved fences remain; C1 authoritative source repair applies; no disjoint-query continuity is claimed |
-| Query completes | Relevant bucket/owner commitments, selected heads and final root/host checks all close; no prefix is ready |
+| Clean → source staging | One transaction captures the original selected head and root commitment, writes an UNKNOWN owner ticket, and raises C1's dirty/revision fence before any producer runs |
+| Repeated/coalesced source write | Replaces the ticket and immediate predecessor, but preserves the FIRST original head/root; selected state becomes pending and any old known proof is removed |
+| New head or authoritative missing selection | Head, sequence, selected repair state and C1 ticket settlement share the activation transaction; the separate repair ticket remains UNKNOWN |
+| Private preparation | Authenticates the old owner under a historical root-slot pin, then reads only the new owner in four families; authoritative deletion takes zero families |
+| UNKNOWN → KNOWN | Allowed only with unchanged original host epoch/revision/token, valid Date/non-Date/Daily Notes observations, no durable host ticket, exact selected head and ticket/global-fence CAS |
+| Actual host transition | Separate typed host owner stays UNKNOWN. No direct-key union is exposed as a complete fan-out proof |
+| Known read | Authenticates root, old summary, impact digest/shape/union, selected head and host; it returns repair evidence, never query readiness |
+| Explicit full bootstrap | Existing complete structural/all-owner rebuild can retire the journal only at its original global build/head CAS; this is not local S3 publication |
+| Crash / corruption / cancellation | Original clean state or explicit repair remains. Missing proof is non-ready; newer tickets cannot be overwritten by stale completion |
 
-This is the handoff's smaller prerequisite, **not an alternative full-rebuild solution to C2**.
+### Storage, authentication and bounded recovery
 
-## Required next C2 implementation — proposed, not shipped
+Database v7 adds `sourceImpacts` keyed by an exact typed JSON owner tuple, with a `rootSlot` index.
+Source and host owners cannot collide. A source record retains its original, immediate-predecessor
+and selected heads, including source incarnation and all family commitments. `missing`, `invalid`
+and not-yet-selected (`null`) states are distinct. Version-1 impact bytes have a SHA-256 commitment
+and bind the exact ticket, original root, original summary manifest, old/new owner states and host
+transition. A known record is not a graph certificate, selected catalog or retired ticket.
+
+Full original roots are shared in at most **two** `meta` anchors (`source-impact-root:<slot>`).
+Owner records store only build coordinates and root digest, not a root copy per dirty owner. The
+original bucket/summary pages remain immutable and are protected by the owner index. Historical
+readers also create `meta` leases indexed by `sourceImpactSlot`. Slot cleanup checks both kinds of
+pin in the same transaction as its generation fence. Active readers therefore survive a concurrent
+full repair without allowing reclamation of their old pages; their final ticket check rejects the
+superseded result. Unload starts lease release on the original connection. Failed releases remain
+protective; no wall-clock expiry is introduced.
+
+`contributorJournalOwners(after, limit)` reads at most 64 dirty IDs, not unchanged heads/families.
+The journal has one disk row per dirty owner, not an arbitrary 256-owner admission ceiling that
+could prevent later source activation and deadlock explicit full repair. Disk growth is proportional
+to dirty owners plus two shared roots, subject to storage quota. Individual journal envelopes are
+bounded to 2 MiB encoded, impact bytes to 256 KiB, and historical read reservations to two per
+repository before the first storage await. Root/page/summary limits remain 1 MiB, 256 KiB and the
+existing 8 MiB bookkeeping reservations; these are separate guards, not a total-heap claim.
+Exhaustion is explicit non-readiness, never truncation. Journal failure prevents selection of a new
+durable head and uses existing bounded unsaved-source behavior.
+
+Original evidence is **retained before mutation, authenticated before certification**. A corrupt
+root or missing old summary is not silently promoted to a trusted snapshot. After the first catalog,
+a durable enabled marker also ensures root eviction cannot make later source mutations look like
+uncertified initial acquisition. Before any catalog has existed, unchanged C1 source acquisition
+continues without a fictitious old-root anchor.
+
+### Host observations, and what still cannot be proved
+
+Vault/metadata events synchronously invalidate the adapter's existing host capability and enqueue
+one active journal write plus one replaceable pending observation. Completion cannot erase a newer
+observation. Source activation drains pending host writes or remains unsaved. Date/Daily validation
+uses the canonical predicates already present; observations have a separate monotonic event sequence.
+The accepted Date validator remains reversible after a change-and-revert, but its durable host
+ticket is not reversible and still blocks known-impact CAS. Events before their first durable write
+have the synchronous local mask and old host-capability invalidation; the adapter cannot transact
+atomically with the host event itself. Fresh-session validation remains C3.
+
+The implemented positive proof is deliberately narrow: **no host transition** under the original
+complete capability, plus no open host journal. The certificate then carries direct old/new keys,
+its source owner, and no third-party host owners. This is meaningful for isolated source-cache
+maintenance under unchanged host inputs, not a claim that ordinary vault edits are closed. A real
+edit/rename/create/delete/resolution change invalidates that capability and leaves UNKNOWN even after
+four-family preparation. An ordinary delete also remains unknown; the zero-visit absence branch is
+not a replacement for topology closure.
+
+The missing capability must return a complete same-session transition, not merely changed TFiles:
+source-relative old/new/null resolver bindings and incoming referrer owners, materialized structural
+participants, Date/non-Date field effects, Daily Notes effects, and an exact finality/cancellation
+fence. The concrete C→`[[Alias]]` counterexample must return C when A changes alias resolution despite
+A having no direct C key. Add this at the canonical host boundary; do not implement a second resolver
+or assume `resolvedLinks` alone enumerates dormant/null/Date dependencies. Until then, S2 is incomplete.
+
+## Remaining C2-S2 closure and C2-S3 index protocol — proposed, not shipped
 
 Keep source-head/lease/transaction ownership in `SourceRepository`, with separate persisted source
 and host owners. Replace the full-generation hash buckets with ordered authenticated copy-on-write
@@ -148,12 +215,12 @@ separators/hashes and format. Validate original path/range coverage, not survivi
 
 | State / transition | Required proof before exposing it to readers |
 | --- | --- |
-| Clean → unknown dirty | Durable owner-specific ticket selected before any potentially relevant head/host change; retain last valid root but mask unknown impacts |
+| Clean → unknown dirty | S2 now provides durable source tickets; complete atomic host-transition observation still needs the canonical host capability |
 | Prepare old/new owner | Authenticate old summary/head, produce new summary in four visits (zero for deletion), preserve exact incarnation and caller lifetime |
 | Unknown → known impact | Persist complete old/new union **plus** closed host/referrer fan-out, bound to exact head/ticket/host observations; unknown/newer impacts still block |
 | Stage changed tree paths | Only changed membership/summary paths, with bounded pages/bytes/transactions, hashing and host calls outside activation |
 | Publish | Short CAS compares expected owner head, root, exact dirty ticket and certified host transition; selects head/summary/root and retires only that ticket atomically |
-| Separate head commit, if needed | Atomically select an explicit durable repair record and unknown impact; never leave a head/root gap that readers interpret as clean |
+| Separate head commit | S2 implements explicit durable repair with head activation; S3 must consume it without losing newer tickets |
 | CAS conflict | Rebase the same bounded owner delta against the new root; recheck ownership and impact, never replay all unchanged owners |
 | Crash / cancellation | Staged pages remain unselected; durable unknown/known impact remains conservative until authoritative repair; do not infer dead writers from time |
 | Reclamation | Root/page pins safe across connections, including interrupted readers; bounded reclamation only after proven non-selection/non-liveness |
@@ -223,7 +290,7 @@ The retained prototype still has 1,024 buckets, 256 pages/bucket, at most 256 ro
 128 MiB/generation, two slots and an 8 MiB identity map. No claim of scalable hot-range acceptance is
 made. Summary persistence adds rows/bytes and query work; it is a prerequisite, not a free speedup.
 
-## Validation of the isolated prerequisite
+## Accepted S1 validation (baseline only)
 
 `npm run test:sources`: **52/52 pass**, including all four C1 portable regressions, twelve new summary/
 observer/delta/fault tests, and discovery-driven five-policy full-compiler equality now populated
@@ -241,3 +308,35 @@ run); this remains a failed aggregate gate, not a pass. Exact-build Obsidian com
 passed in the disposable vault. The offline export's blocked browser and missing dependencies are
 recorded in the return entry of `Refactor plan.md`, distinct from main-agent evidence. No timing
 threshold or golden was relaxed. C2 per-edit and C3 warm/terminal acceptance remain outstanding.
+
+## S2a journal prerequisite validation — accepted only on the unchanged-host boundary
+
+The return passes **63/63 portable source tests** (the accepted 52 plus 11 journal/codec/lifetime/
+host tests), architecture 7/7 with 60 roots/112 reachable files/no violations, restricted-core
+TypeScript and focused strict/no-unused TypeScript on the journal/repository/discovery dependency
+closure. The portable deletion fixture measures zero family visits, two authenticated bucket pages
+and 6,189 charged bytes. It is explicitly a storage port, not real IndexedDB evidence.
+
+Thirteen real-IDB S2 scenarios cover actual-v6 migration, two connections,
+interrupted activation/process restart, quota, source lifecycles, same-session host unknowns,
+shared anchors across 300 dirty owners, coalescing, root leases and a 131-owner locality measurement.
+The offline browser was blocked before these scenarios by `ERR_BLOCKED_BY_ADMINISTRATOR`.
+
+Node 22.16.0/npm 10.9.2 are below the required Node range. Full `verify` stops in core tests (36 pass,
+three fail: two missing esbuild, one unchanged fixture lacking `Assets/picture.png`). Official ESLint
+and actual Obsidian/React packages are unavailable; full build fails. Required-Node/dependency,
+real-Chromium and exact-built native validation were pending in the offline return. No timing bound,
+golden or host fixture was weakened there.
+
+The main agent corrected the fixed indexing-test compile list to include `SourceContributorJournal.ts`
+and tightened one real-IDB expectation: after a topology event, the old discovery capability returns
+`stale`/`host-catalog-stale`, while the retained root separately returns `dependency-pending`. On the
+corrected tree, Node 22.22.3 `npm run verify` passed: architecture 7/7, core 60/60, official lint,
+indexing/integration 133/133, UI 7/7, source 63/63, real Chromium IndexedDB 44/44 and production
+build. The 131-owner browser fixture measured one changed source's four family visits, one selected
+read, two dependency page reads and 20 repository transactions; event-side deletion measured zero
+family visits and four transactions. Those fixture counts are not a 20,000-file latency/heap result.
+The exact built plugin passed disposable-vault Obsidian command/render/error smoke and an owned-note
+rename/tombstone/retained-body probe. Changed-host impact certification and local root publication
+remain missing, so the narrower journal cannot make ordinary edits exactly ready. C2-S2b must close
+host/referrer fan-out before C2-S3 and SI4b2.

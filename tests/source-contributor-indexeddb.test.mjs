@@ -27,7 +27,7 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
         await edit(old,names,tx=>{for(const name of names)for(const row of copied[name]){
           if(name==='meta'&&row.key.startsWith('source-dependency-'))continue;tx.objectStore(name).put(row);
         }tx.objectStore('meta').put({key:'checkpoint',schema:2,generation:'preserved',createdAt:1,vaultSignature:'v',settingsSignature:'s',discoveredFields:[],completedMarkdownPaths:[]});});old.close();
-        const f=await fixture('contributor-v5'),upgraded=await f.cache.open();equal(upgraded.version,6,'Additive upgrade');
+        const f=await fixture('contributor-v5'),upgraded=await f.cache.open();equal(upgraded.version,7,'Additive upgrade');
         for(const name of ['sourceHeads','sourceChunks','sourcePostings','bodies'])equal(await value(upgraded.transaction(name).objectStore(name).getAll()),copied[name],name+' byte-shape preservation');
         equal((await f.cache.readSnapshotMeta('checkpoint')).generation,'preserved','Graph pointer preserved');
         equal((await f.acquisition.contributorDiscovery(runtime()).discover(absent())).outcome,'pending','No migrated root is not empty');
@@ -59,7 +59,7 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
     });
 
     /** A format change rejects only derivative authority; database and accepted records are retained. */
-    await t.test("an existing v6 database with a v1 derivative root is not reset or misread as a v2 summary certificate", async () => {
+    await t.test("a migrated database with a v1 derivative root is not reset or misread as a v2 summary certificate", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const M=sourceModules,f=await seed('contributor-summary-v6'),d=await f.build(),db=await f.cache.open(),before={};
         const names=['sourceHeads','sourceChunks','sourcePostings','bodies'];
@@ -70,7 +70,7 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
         await edit(db,['meta'],tx=>tx.objectStore('meta').put(downgraded));
         equal((await d.discover(absent())).reason,'dependency-invalid','A v1 negative is not v2 authority');
         equal((await d.readOwnerSummary('A.md')).reason,'dependency-invalid','No synthesized owner summary');
-        equal(db.version,6,'No accepted schema bump');
+        equal(db.version,7,'Additive journal schema; old derivative remains rejected');
         equal((await f.cache.readSnapshotMeta('checkpoint')).generation,'summary-migration-kept','Graph snapshot preserved');
         equal((await d.rebuild()).outcome,'ready','Explicit derivative bootstrap can select v2');
         for(const name of names)equal(await value(db.transaction(name).objectStore(name).getAll()),before[name],name+' byte-shape preservation');
@@ -219,7 +219,7 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
         const writing=other.sources.replace(replacement);await paused;
         ok((await d.discover(absent())).outcome!=='ready','Staging on another connection invalidates absence');
         equal(await f.repository.cleanupRevision('A.md',selected.head.families.values.revision),false,'Writer lease protects retained family');
-        release();equal((await writing).outcome,'activated','Atomic new source head');ok((await d.discover(absent())).outcome!=='ready','Old root removed atomically');
+        release();equal((await writing).outcome,'activated','Atomic new source head');ok((await d.discover(absent())).outcome!=='ready','Old root masked atomically');
         equal((await d.rebuild()).outcome,'ready','Explicit rebuild after settled replacement');
         const baseline=await other.sources.inspect('A.md'),add=IDBObjectStore.prototype.add;let fault=false;
         IDBObjectStore.prototype.add=function(value,...args){if(this.name==='sourceChunks'&&!fault){fault=true;throw new DOMException('fixture quota','QuotaExceededError');}return add.call(this,value,...args);};

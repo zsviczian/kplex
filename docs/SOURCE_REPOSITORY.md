@@ -1,6 +1,6 @@
 # SI3 neutral source repository — Accepted
 
-This is the accepted SI3 implementation contract. SI4a cached-source replay is accepted. The additive SI4b1 discovery prototype below is **rejected**, not accepted infrastructure. The C1 deletion correction is **Review**; incremental certificate maintenance and warm validation are still SI4b1 blockers. Live demand-driven query/publication integration and SI5 lifecycle/performance acceptance remain unimplemented. The existing hierarchy/image settings route still rebuilds semantic graph state; neutral acquisition can be reused along that route.
+This is the accepted SI3 implementation contract. SI4a cached-source replay is accepted. The additive SI4b1 discovery prototype below is **rejected**, not accepted infrastructure. C1, C2-S1 and the narrower C2-S2a journal are accepted as isolated prerequisites; changed-host impact closure, incremental certificate maintenance and warm validation are still SI4b1 blockers. Live demand-driven query/publication integration and SI5 lifecycle/performance acceptance remain unimplemented. The existing hierarchy/image settings route still rebuilds semantic graph state; neutral acquisition can be reused along that route.
 
 ## Ownership and the transitional graph path
 
@@ -26,10 +26,10 @@ finite conservative direct-incidence owner covers plus separate host facts, or c
 results. Existing `querySources()` and SI4a `discover()` remain candidate-only. No settings,
 publication, search, gates or UI consumers use the new path.
 
-The unaccepted database-v6 `sourceDependencies` store still holds two immutable catalog slots.
-A SHA-256-committed bucket manifest detects omitted lookup pages/rows. Every source mutation deletes
-the root, and unfinished writes have durable dirty tickets. Head activation and final invalidation
-are atomic across connections. **Neither C1 nor C2-S1 replaces this full-rebuild lifecycle:** edits
+The unaccepted `sourceDependencies` prototype retains its two immutable catalog slots in database
+v7. A SHA-256-committed bucket manifest detects omitted lookup pages/rows. S2 now retains old root
+commitments and owner evidence in a separate durable journal before mutation. Head activation and
+explicit repair selection are atomic across connections; open repair tickets mask public discovery. **Neither C1 nor C2-S1 replaces this full-rebuild lifecycle:** edits
 and new sessions still require all-owner replay before exact readiness. Fusing owner summaries into
 the four-family replay reduces one 20,000-owner catalog build from 140,000 to 80,000 family visits,
 not to four visits per edit. Host reacquisition is additional work. This remains an SI4b1 blocker,
@@ -37,7 +37,7 @@ not an SI5-only performance limitation.
 
 ### C2-S1 persisted owner summaries — accepted prerequisite, no local transaction protocol
 
-`SourceRepository` is unchanged by this slice. The discovery layer now selects derivative root
+`SourceRepository` was unchanged by S1; the S2 changes below now own the repair protocol. The discovery layer now selects derivative root
 format 2, with an independent original commitment for each owner's sorted key pages. It binds those
 pages to the exact source revision/durable sequence and authenticates them under the existing root.
 `readOwnerSummary()` and source-owner discovery require all original summary pages and final head/
@@ -52,12 +52,50 @@ repository's aggregate decode, replay-join or body-reconstruction guards. Zero f
 summary lookup or deletion delta does not mean zero durable lease/head/root transactions.
 
 `prepareContributorOwnerDelta()` computes private removed/added/affected key sets from explicitly
-validated old/new states. It neither retires tickets nor activates an index. Once the existing writer
-has deleted the old root, the new public summary reader does not bypass that fence to recover old
-pages. The eventual C2 coordinator still needs a durable old-summary/impact journal, source/host/root
-CAS, atomic selection or explicit repair state, and safe immutable tree-page reclamation. SourceId,
+validated old/new states. It neither retires tickets nor activates an index. Public summary reads
+still require a current selected root. S2 adds a separate pinned historical reader and durable repair
+state; it is not a public-read bypass. Complete changed-host closure and S3 local source/host/root
+selection plus authenticated tree-path reclamation remain outstanding. SourceId,
 NodeId and path facets remain distinct; source and host owners are not merged. The full protocol and
 executable A-adds-B/unchanged-C counterexample are in the discovery document.
+
+### C2-S2 durable owner repair — review, narrower prerequisite
+
+`SourceContributorJournal.ts` contains strict version-1 storage envelopes only; `SourceRepository`
+owns their transactions. Once a catalog exists, the source begin transaction writes UNKNOWN with
+an opaque writer ticket, original selected head and original root pointer, before family staging.
+It preserves the first anchor across repeated edits and records each immediate predecessor. The
+existing source activation transaction checks predecessor/head/ticket, selects the new head or
+explicit absence, updates repair selection, and settles only C1's staging ticket. The repair ticket
+remains unknown, or later known after separately fenced preparation. It never makes queries ready.
+
+Full old root records are shared in two fixed `meta` anchors; each owner stores only a digest/build
+reference. Historical owner-summary reads pin the slot persistently and authenticate original pages
+through the same discovery readers. Both owner pins and reader leases prevent slot reclamation.
+A complete explicit all-owner bootstrap may clear the repair journal at its existing global CAS;
+known-impact preparation may not. This preserves the explicit global repair route without adding
+S3 local publication. A fixed dirty-owner-count ceiling is intentionally avoided because it could
+block source persistence, then prevent that full repair. Disk journal rows scale with dirty owners,
+not with total root size per owner; per-record/read limits and storage quota remain explicit.
+
+Recovery enumerates up to 64 dirty IDs per call without scanning unchanged heads. A journal row is
+at most 2 MiB encoded; impact payloads are at most 256 KiB. There are two historical-read reservations
+per repository, taken before opening storage. C1 source-family leases, source-memory bounds, retained
+rename bodies and tombstone authority remain separate. Interrupted/failed-release root leases are
+not expired by a timer; they can conservatively block future slot reuse.
+
+The host adapter has one active plus one coalesced pending journal observation and uses the existing
+retry timer. `flush()` also drains observed host writes but does not prove host coverage or retire
+impact tickets. Event work synchronously invalidates local host authority before awaiting storage.
+Date/Daily input validation remains reversible; its durable host UNKNOWN is not silently erased by
+restoring the setting. Before source-head activation, unfinished host journaling causes unsaved
+backpressure rather than a new durable head without the corresponding repair fence.
+
+Discovery can certify a source impact only under the unchanged original canonical host capability
+and with no open host ticket. Changed-host resolver/structural/Date/Daily fan-out is not complete;
+normal edit/create/rename/delete and host-only transitions stay unknown. See the discovery contract
+for the C→Alias counterexample, exact CAS, scopes and pending validation. No source/body/graph format,
+canonical parser/compiler/resolver, GraphIndex, settings or UI consumer is changed.
 
 ### C1 deletion capability and authoritative completion — focused main-agent validation recorded
 
@@ -92,7 +130,7 @@ leases, and affects only that source's families; later retained-body reads and r
 are separate work. No new lease expiry, source codec, host freshness rule or semantic owner is added.
 See the discovery document for the next C2/C3 implementation gates and unchanged full-rebuild limits.
 
-## Database compatibility: accepted v5 and unaccepted prototype v6
+## Database compatibility: accepted v5, existing v6 and additive v7 journal
 
 The existing vault-local database name is retained. The version-4-to-5 upgrade creates all new stores/indexes in the one IndexedDB upgrade transaction. It preserves `meta`, `pages`, `evidence`, `bodies` and `snapshotChunks`, graph schemas 1–3, active/checkpoint meanings and body parser version 2.
 
@@ -101,7 +139,8 @@ The existing vault-local database name is retained. The version-4-to-5 upgrade c
 | `sourceHeads` | `sourceId` | Selected complete or tombstone manifest for a physical binding |
 | `sourceChunks` | `[sourceId, revision, family, index]` | `sourceRevision`, `sourceFamilyRevision`; immutable JSON fact frames |
 | `sourcePostings` | `[sourceId, revision, family, index]` | Same revision indexes plus composite `lookup` on `[kind,key,sourceId,revision,family,index]` |
-| `sourceDependencies` (v6, unaccepted) | `[slot,bucket,index]` | Two reusable derivative catalog generations; explicit checksum/absence proofs |
+| `sourceDependencies` (created in v6) | `[slot,bucket,index]` | Existing derivative generations and format-2 summaries are preserved |
+| `sourceImpacts` (v7, review) | typed owner tuple string | `rootSlot` protects the original catalog slot; one current ticket per dirty owner |
 | `meta` (existing) | `key` | Adds `sourceLease` on `[sourceId,revision]`; source sequence and persistent lease records are separate from graph pointers; v6 also adds catalog root/build/mutation control records |
 
 Old derivative root format 1 is rejected without resetting an already-created v6 database. Explicit
@@ -128,6 +167,14 @@ Arbitrary non-reference frontmatter values, general property objects, K-Plex set
 
 Lexical candidates are deduplicated only by exact lexical identity, **before resolved-target deduplication**. `[[Alias]]` and `[[Target]]` therefore both survive even when the host currently maps them to the same file. Current target selection is a separate resolution family. The SI2 compiler-facing frames are unchanged; this storage vocabulary is not a second semantic interpretation path.
 
+The v7 upgrade creates `sourceImpacts` and the `meta.sourceImpactSlot` index in the upgrade
+transaction, without rewriting any existing v5/v6 record. `meta` later holds a journal-enabled
+marker, at most two shared original root anchors and active historical-reader leases. Derivative
+root format 2 and source-fact versions do not change. Newer databases are rejected, never reset.
+The main-agent real-Chromium run passed the actual-v6 upgrade and retained v5 compatibility cases,
+as well as the journal fault/concurrency suite. This accepts the journal prerequisite only; it does
+not certify changed-host closure or the indexing lifecycle.
+
 ## Head validity and atomicity
 
 Heads carry an opaque physical incarnation, observed path/mtime and actual size/ctime when available, immutable family revisions/counts/digests, source revision, host session/revision/environment digest and a positive durable sequence. A tombstone contributes no dependencies. A complete empty family has an explicit final chunk, not a missing record.
@@ -146,7 +193,7 @@ Ordinary chunks target **256 KiB** and at most **256 records**. Payload pieces r
 
 The repository reserves at most **8 MiB simultaneously for encoded/decoded chunk representations** across its active reads. Frame identity/deduplication tracking and reconstructed parser-body assembly have their own explicit **8 MiB** guards; these are not included in the chunk-reservation metric or a total-process heap claim. Oversized/unsupported inputs return closed reason codes while the established live graph path remains available.
 
-There are at most two source writer lanes and one tombstone transaction task. Producers await chunk and posting transactions; they do not accumulate an unbounded promise queue. Transaction watchdogs are five seconds. Existing platform Markdown read concurrency/byte limits stay in GraphBuilder; standalone inventory loads one body at a time. `flush()` waits for active/latest writers, attempts bounded unsaved retries and reports success only when no known unsaved source remains. Unload aborts work and does not promise an awaited final flush.
+There are at most two source writer lanes and one tombstone transaction task. Producers await chunk and posting transactions; they do not accumulate an unbounded promise queue. Transaction watchdogs are five seconds. Existing platform Markdown read concurrency/byte limits stay in GraphBuilder; standalone inventory loads one body at a time. `flush()` waits for active/latest writers, attempts bounded unsaved retries and reports success only when no known unsaved source or pending observed host journal write remains. It does not settle repair tickets. Unload aborts work and does not promise an awaited final flush.
 
 Reader leases reside in `meta`, allowing cleanup to coordinate across connections. A reader pins all selected revisions atomically with head selection. Cleanup accepts an explicitly known retired revision and atomically refuses head references, persistent leases, active local writers or uncertain catalog state. New staging revisions use unique IDs and are never passed to this retired-revision cleanup before activation. Normal replacements and final tombstones attempt reclamation after pins are released. Crash/failed-release reader leases are deliberately **not expired by a wall-clock guess**: a suspended WebView may still own them. Consequently orphan staging and crash-pinned revisions can remain indefinitely. No destructive whole-database reset or unproven stale-owner collector is included.
 

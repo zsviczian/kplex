@@ -4,7 +4,9 @@
  * presence and absence. Per-owner summary pages preserve the original sorted dependency set,
  * collected in the canonical four-family replay rather than an additional lexical pass. The v2
  * derivative root remains a rejected full-build lifecycle, not an incremental C2 certificate.
- * This module never classifies relationships, parses Markdown, publishes a
+ * Journal repair authenticates retained old summaries, prepares one new owner and certifies only
+ * unchanged-host impact; changed-host fan-out remains explicitly unknown. This module never
+ * classifies relationships, parses Markdown, publishes a
  * graph, or schedules acquisition. SourceRepository owns all disk effects and existing source leases.
  */
 import type { FileTreeOccurrence, SourceEntityFact, SourceEntityRef, TagTreeOccurrence } from "../core/graph/source";
@@ -19,13 +21,36 @@ import {
 import type { CachedSourceRequest, SourceReplayRuntime } from "./SourceReplay";
 import {
   contributorKey, contributorRecordKeys, contributorSummaryPageCommitment, contributorSummaryPages,
-  summarizeContributorOwner, validContributorMembershipKey, validContributorOwnerSummary, validContributorSummaryManifest,
-  type ContributorOwnerSummary, type ContributorSummaryManifest,
+  summarizeContributorOwner, prepareContributorOwnerDelta, validContributorMembershipKey, validContributorOwnerSummary, validContributorSummaryManifest,
+  type ContributorOwnerSummary, type ContributorOwnerState, type ContributorSummaryManifest,
 } from "./SourceContributorSummary";
 export { contributorKey, contributorRecordKeys } from "./SourceContributorSummary";
-import type { NeutralSourceRepository, SelectedSourceStamp } from "./SourceRepository";
+import type { NeutralSourceRepository, SelectedSourceStamp, ContributorJournalReader } from "./SourceRepository";
 
-/** Only the unaccepted derivative root changes; v5/v6 stores and all accepted source data survive. */
+import { contributorJournalAuthority, contributorJournalSelection, sameContributorSelection,
+  type ContributorJournalRecord } from "./SourceContributorJournal";
+
+/** A persisted repair certificate. It is deliberately not a graph or query coverage certificate. */
+export type ContributorImpactCertificate = Readonly<{
+  version: 1;
+  coverage: "complete-owner-impact";
+  owner: string;
+  ticket: string;
+  authority: string;
+  originalCommitment: ContributorSummaryManifest | null;
+  previous: ContributorOwnerState;
+  next: ContributorOwnerState;
+  host: Readonly<{ kind: "unchanged"; from: ContributorHostStamp; to: ContributorHostStamp }>;
+  affectedKeys: readonly string[];
+  sourceOwners: readonly string[];
+  hostOwners: readonly string[];
+}>;
+export type ContributorImpactWork = Readonly<{ familyVisits: number; pages: number; bytes: number }>;
+export type ContributorImpactResult = ContributorFailure
+  | Readonly<{ outcome: "unknown"; reason: SourceReason; work: ContributorImpactWork }>
+  | Readonly<{ outcome: "known"; certificate: ContributorImpactCertificate; work: ContributorImpactWork }>;
+
+/** Format 2 is retained; additive v7 journaling does not reinterpret existing v5/v6 source data. */
 export const CONTRIBUTOR_CATALOG_VERSION = 2;
 const MAX_BUFFER_BYTES = 2 * 1024 * 1024;
 const MAX_IDENTITY_BYTES = 8 * 1024 * 1024;
@@ -83,7 +108,10 @@ type DependencyRow =
   | Readonly<{ kind: "source"; key: string; order: number; head: SourceHead; source: SourceEntityRef; summary: ContributorSummaryManifest }>
   | Readonly<{ kind: "summary"; key: string; index: number; keys: readonly string[] }>
   | Readonly<{ kind: "host"; key: string; order: number; fact: ContributorStructuralFact }>;
-type QueryBudget = { buckets: Map<number, readonly DependencyRow[]>; pages: number; bytes: number };
+type QueryBudget = {
+  buckets: Map<number, readonly DependencyRow[]>; pages: number; bytes: number;
+  historical?: Readonly<{ page: ContributorJournalReader["page"]; check(): void }>;
+};
 
 /** Measure the actual encoded page size, including JSON escape expansion. */
 function bytes(value: string): number { return new TextEncoder().encode(value).byteLength; }
@@ -366,7 +394,8 @@ export class SourceContributorDiscovery {
     if (budget.pages + manifest.pages > MAX_QUERY_PAGES) throw new SourceFactError("backpressure");
     let digest = "", totalBytes = 0, totalRecords = 0;
     for (let pageIndex = 0; pageIndex < manifest.pages; pageIndex++) {
-      const page = await this.repository.readDependencyPage(root.build, index, pageIndex, this.current);
+      const page = budget.historical ? await budget.historical.page(index, pageIndex)
+        : await this.repository.readDependencyPage(root.build, index, pageIndex, this.current);
       totalBytes += page.bytes; totalRecords += page.records;
       if (totalBytes > manifest.bytes || totalRecords > manifest.records || bytes(page.data) !== page.bytes
         || await this.repository.observationDigest(page.data) !== page.digest) throw new SourceFactError("dependency-invalid");
@@ -379,7 +408,8 @@ export class SourceContributorDiscovery {
         result.push(value);
       }
       budget.pages += 1;
-      await this.runtime.yield(); this.check();
+      await this.runtime.yield();
+      if (budget.historical) budget.historical.check(); else this.check();
     }
     if (digest !== manifest.digest || totalBytes !== manifest.bytes || totalRecords !== manifest.records) throw new SourceFactError("dependency-invalid");
     budget.buckets.set(index, result);
@@ -436,7 +466,7 @@ export class SourceContributorDiscovery {
           source.head.sourceRevision, source.head.sequence, index,
           { digest: await this.repository.observationDigest(data), bytes: pageBytes, records: page.keys.length }));
         ownerKeys.push(...page.keys);
-        this.check();
+        if (budget.historical) budget.historical.check(); else this.check();
       }
       const summary: ContributorOwnerSummary = { version: 1, sourceId: source.head.sourceId,
         sourceRevision: source.head.sourceRevision, sequence: source.head.sequence, source: source.source, keys: ownerKeys };
@@ -445,6 +475,163 @@ export class SourceContributorDiscovery {
       result.set(source.head.sourceId, summary);
     }
     return result;
+  }
+  /**
+   * Authenticate a retained original owner or an original absence using the SAME bucket/summary
+   * reader as public discovery. A tombstone/missing disk head alone never proves catalog absence.
+   * Historical authority bypasses no public host/root check and can only feed private repair work.
+   */
+  private async originalJournalOwner(reader: ContributorJournalReader, budget: QueryBudget): Promise<Readonly<{
+    root: CatalogRoot; state: ContributorOwnerState; commitment: ContributorSummaryManifest | null;
+  }>> {
+    const record = reader.record, stored = reader.root;
+    if (record.subject.kind !== "source" || record.original.kind === "invalid" || !record.root || !stored
+      || bytes(stored.data) > SOURCE_DEPENDENCY_ROOT_BYTES
+      || stored.digest !== record.root.digest || JSON.stringify(stored.build) !== JSON.stringify(record.root.build)
+      || await this.repository.observationDigest(stored.data) !== stored.digest) throw new SourceFactError("dependency-invalid");
+    const root = decodeRoot(stored.data);
+    if (root.build.generation !== stored.build.generation || root.build.slot !== stored.build.slot
+      || root.build.revision !== stored.build.revision || root.build.sequence !== stored.build.sequence) throw new SourceFactError("dependency-invalid");
+    const sourceId = record.subject.sourceId;
+    const found = await this.lookup(root, new Set([contributorKey("source", sourceId)]), budget);
+    if (!found.length) {
+      if (record.original.kind === "head" && record.original.head.state !== "tombstone") throw new SourceFactError("dependency-invalid");
+      return { root, state: { kind: "absent", sourceId }, commitment: null };
+    }
+    if (found.length !== 1 || found[0].kind !== "source") throw new SourceFactError("dependency-invalid");
+    const owner = found[0];
+    if (owner.head.sourceId !== sourceId || owner.head.state !== "complete" || owner.order >= root.sources
+      || owner.head.sequence > root.build.sequence || !sameContributorSelection(record.original, { kind: "head", head: owner.head })) {
+      throw new SourceFactError("dependency-invalid");
+    }
+    const summary = (await this.summaries(root, [owner], budget)).get(sourceId);
+    if (!summary) throw new SourceFactError("dependency-invalid");
+    return { root, state: { kind: "present", summary }, commitment: { ...owner.summary } };
+  }
+  /**
+   * Prepare one journaled owner through the canonical four-family path, or zero visits for a
+   * selected deletion plus current authoritative host absence. Only a provably UNCHANGED canonical
+   * host capability closes fan-out in this slice. Changed topology/resolution/Date/Daily Notes stays
+   * unknown: direct key disjointness does not prove an unrelated referrer unaffected.
+   * Neither outcome makes queries ready, rewrites source heads, publishes a root, nor retires tickets.
+   */
+  async prepareOwnerImpact(sourceId: string, request: CachedSourceRequest | null,
+    absent: () => boolean = () => false): Promise<ContributorImpactResult> {
+    if (this.queries >= 2) return failure(new SourceFactError("backpressure"));
+    this.queries++;
+    /** Caller cancellation discards private old/new state even when historical host stamps differ. */
+    const current = (): boolean => this.runtime.isCurrent() && (request ? request.host.isCurrent() : absent());
+    try {
+      if (!sourceId || request && request.sourceId !== sourceId) throw new SourceFactError("dependency-invalid");
+      if (!current()) throw new SourceFactError("cancelled");
+      const result = await this.repository.withContributorJournal<ContributorImpactResult>({ kind: "source", sourceId }, current, async (reader) => {
+        const budget: QueryBudget = { buckets: new Map(), pages: 0, bytes: 0, historical: { page: reader.page,
+          /** The repository separately fences the retained ticket at each page and termination. */
+          check: () => { if (!current()) throw new SourceFactError("cancelled"); } } };
+        const original = await this.originalJournalOwner(reader, budget), selected = reader.record.selected;
+        if (!selected || selected.kind === "invalid") throw new SourceFactError("dependency-pending");
+        let next: ContributorOwnerState, familyVisits = 0;
+        if (selected.kind === "missing" || selected.head.state === "tombstone") {
+          if (request || !absent()) throw new SourceFactError("dependency-pending");
+          next = { kind: "absent", sourceId };
+        } else {
+          if (!request) throw new SourceFactError("dependency-pending");
+          const result = await summarizeContributorOwner(this.repository, { ...request,
+            expected: { sourceRevision: selected.head.sourceRevision, sequence: selected.head.sequence } }, this.runtime);
+          if (result.outcome !== "ready") throw new SourceFactError(result.reason);
+          if (!result.stamp.saved || result.stamp.sequence === null
+            || !sameContributorSelection(selected, contributorJournalSelection({ ...result.stamp.head, sequence: result.stamp.sequence }))) {
+            throw new SourceFactError("unsaved");
+          }
+          next = { kind: "present", summary: result.value.summary }; familyVisits = result.value.work.familyVisits;
+        }
+        const delta = prepareContributorOwnerDelta(original.state, next);
+        const work: ContributorImpactWork = { familyVisits, pages: budget.pages, bytes: budget.bytes };
+        if (!current()) throw new SourceFactError("cancelled");
+        // The canonical session fence closes ALL resolver/structure observations only if unchanged.
+        // There is no inverse resolver/referrer capability in the present adapter. Never synthesize
+        // a changed-host closure from old/new direct keys or a list of surviving lookup candidates.
+        if (!sameHost(original.root.host, this.host.stamp) || !this.host.isCurrent() || !this.host.validate()) {
+          return { outcome: "unknown", reason: "host-catalog-stale", work };
+        }
+        const certificate: ContributorImpactCertificate = { version: 1, coverage: "complete-owner-impact",
+          owner: reader.record.owner, ticket: reader.record.ticket,
+          authority: await this.repository.observationDigest(contributorJournalAuthority(reader.record)),
+          originalCommitment: original.commitment, previous: delta.previous, next: delta.next,
+          host: { kind: "unchanged", from: { ...original.root.host }, to: { ...this.host.stamp } },
+          affectedKeys: [...delta.affectedKeys], sourceOwners: [sourceId], hostOwners: [] };
+        /** Close source/demand AND the canonical same-session host proof at the activation boundary. */
+        const certified = (): boolean => current() && this.host.isCurrent() && this.host.validate()
+          && sameHost(original.root.host, this.host.stamp);
+        await this.repository.storeContributorImpact(reader, JSON.stringify(certificate), certified);
+        if (!certified()) throw new SourceFactError("host-catalog-stale");
+        return { outcome: "known", certificate, work };
+      });
+      if (result.outcome === "known" && (!current() || !this.host.isCurrent() || !this.host.validate()
+        || !sameHost(result.certificate.host.to, this.host.stamp))) throw new SourceFactError("host-catalog-stale");
+      return result;
+    } catch (error) { return failure(error); }
+    finally { this.queries--; }
+  }
+  /**
+   * Read persisted known impact without replaying any source family. The original summary proof,
+   * digest, exact selected head and same-session host still have to close. Reopen recovers UNKNOWN
+   * tickets independently; a new-session host proof is explicitly C3, not inferred from this record.
+   */
+  async readOwnerImpact(sourceId: string): Promise<ContributorImpactResult> {
+    if (this.queries >= 2) return failure(new SourceFactError("backpressure"));
+    this.queries++;
+    try {
+      this.check();
+      const result = await this.repository.withContributorJournal<ContributorImpactResult>({ kind: "source", sourceId }, this.current, async (reader) => {
+        const budget: QueryBudget = { buckets: new Map(), pages: 0, bytes: 0, historical: { page: reader.page, check: () => this.check() } };
+        const original = await this.originalJournalOwner(reader, budget), record = reader.record;
+        const work = { familyVisits: 0, pages: budget.pages, bytes: budget.bytes };
+        if (record.status !== "known" || !record.impact) return { outcome: "unknown", reason: "dependency-pending", work };
+        if (await this.repository.observationDigest(record.impact.data) !== record.impact.digest) throw new SourceFactError("dependency-invalid");
+        const certificate = await this.decodeImpact(record, original.state, original.commitment);
+        if (!sameHost(certificate.host.from, original.root.host) || !sameHost(certificate.host.to, this.host.stamp) || !this.host.validate()) throw new SourceFactError("host-catalog-stale");
+        await this.repository.validateContributorImpact(reader, this.current);
+        if (!this.host.validate()) throw new SourceFactError("host-catalog-stale");
+        return { outcome: "known", certificate, work };
+      });
+      this.check();
+      if (result.outcome === "known" && (!this.host.validate()
+        || !sameHost(result.certificate.host.to, this.host.stamp))) throw new SourceFactError("host-catalog-stale");
+      return result;
+    } catch (error) { return failure(error); }
+    finally { this.queries--; }
+  }
+  /** Validate detached persisted impact structure and its full old/new union; never trust raw arrays. */
+  private async decodeImpact(record: ContributorJournalRecord, previous: ContributorOwnerState,
+    commitment: ContributorSummaryManifest | null): Promise<ContributorImpactCertificate> {
+    const value: unknown = JSON.parse(record.impact?.data ?? "null");
+    if (!sourceObject(value) || !exact(value, ["version", "coverage", "owner", "ticket", "authority", "originalCommitment", "previous", "next", "host", "affectedKeys", "sourceOwners", "hostOwners"])
+      || value.version !== 1 || value.coverage !== "complete-owner-impact" || value.owner !== record.owner || value.ticket !== record.ticket
+      || value.authority !== await this.repository.observationDigest(contributorJournalAuthority(record))
+      || JSON.stringify(value.previous) !== JSON.stringify(previous) || JSON.stringify(value.originalCommitment) !== JSON.stringify(commitment)
+      || !sourceObject(value.host) || !exact(value.host, ["kind", "from", "to"]) || value.host.kind !== "unchanged"
+      || !hostStamp(value.host.from) || !hostStamp(value.host.to) || !sameHost(value.host.from, value.host.to)
+      || !sourceObject(value.next) || record.subject.kind !== "source") throw new SourceFactError("dependency-invalid");
+    let next: ContributorOwnerState;
+    if (value.next.kind === "absent" && value.next.sourceId === record.subject.sourceId && Object.keys(value.next).length === 2) {
+      if (!record.selected || record.selected.kind === "invalid" || record.selected.kind === "head" && record.selected.head.state !== "tombstone") throw new SourceFactError("dependency-invalid");
+      next = { kind: "absent", sourceId: record.subject.sourceId };
+    } else if (value.next.kind === "present" && Object.keys(value.next).length === 2 && validContributorOwnerSummary(value.next.summary)) {
+      const summary = value.next.summary, selected = record.selected;
+      if (!selected || selected.kind !== "head" || selected.head.state !== "complete" || summary.sourceId !== record.subject.sourceId
+        || summary.sourceRevision !== selected.head.sourceRevision || summary.sequence !== selected.head.sequence
+        || summary.source.physicalPath !== selected.head.physical.path) throw new SourceFactError("dependency-invalid");
+      next = { kind: "present", summary };
+    } else throw new SourceFactError("dependency-invalid");
+    const delta = prepareContributorOwnerDelta(previous, next);
+    if (JSON.stringify(value.affectedKeys) !== JSON.stringify(delta.affectedKeys)
+      || JSON.stringify(value.sourceOwners) !== JSON.stringify([record.subject.sourceId])
+      || JSON.stringify(value.hostOwners) !== "[]") throw new SourceFactError("dependency-invalid");
+    return { version: 1, coverage: "complete-owner-impact", owner: record.owner, ticket: record.ticket,
+      authority: value.authority, originalCommitment: commitment, previous: delta.previous, next: delta.next,
+      host: { kind: "unchanged", from: value.host.from, to: value.host.to }, affectedKeys: [...delta.affectedKeys],
+      sourceOwners: [record.subject.sourceId], hostOwners: [] };
   }
   /**
    * Capture one authenticated old-owner summary for private local-delta preparation. A missing

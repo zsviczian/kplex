@@ -4,7 +4,8 @@
  * are explicitly different outcomes. This module owns source transactions, cross-connection reader
  * leases, conservative cleanup, bounded unsaved facts/backoff and aggregate-only diagnostics; it
  * never reads a Vault, selects a relationship policy, or serializes a graph. The additive SI4b1
- * catalog uses this same transaction owner and is invalidated atomically with source mutations.
+ * catalog uses this same transaction owner. v7 retains its original summary/root proof in a durable
+ * repair journal before mutation, with a separate non-queryable impact certificate and root leases.
  * A deletion-only pin capability can retire a masked head without making it readable as live data.
  */
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
@@ -24,6 +25,13 @@ import {
   type SourceObservation, type SourcePhysical, type SourcePosting, type SourcePostingKind, type SourceReason,
   type StoredSourceFact,
 } from "./SourceFacts";
+
+import {
+  SOURCE_IMPACT_ENABLED_KEY, SOURCE_IMPACT_STORE, SOURCE_IMPACT_SLOT_INDEX, SOURCE_IMPACT_LEASE_INDEX, SOURCE_IMPACT_ROOT_PREFIX,
+  SOURCE_IMPACT_RECORD_BYTES, SOURCE_IMPACT_DATA_BYTES, contributorJournalKey, contributorJournalSelection,
+  sameContributorSelection, validContributorJournalRecord, validContributorHostChange, contributorJournalAuthority,
+  type ContributorJournalOwner, type ContributorJournalRecord, type ContributorJournalSelection, type ContributorHostChange,
+} from "./SourceContributorJournal";
 
 export const SOURCE_HEAD_STORE = "sourceHeads";
 export const SOURCE_CHUNK_STORE = "sourceChunks";
@@ -152,10 +160,18 @@ type SourceWriteLane = {
 };
 type StagedSourceChunk = Readonly<{ chunk: SourceChunk; batches: readonly SourcePosting[][]; bytes: number }>;
 
+/** A pinned historical repair read; its pages are never an alternate public discovery route. */
+export type ContributorJournalReader = Readonly<{
+  record: ContributorJournalRecord;
+  root: SourceDependencyRootRecord | null;
+  fence: Readonly<{ revision: number; sequence: number }>;
+  page(bucket: number, index: number): Promise<SourceDependencyPage>;
+}>;
+
 /** Export only finite aggregate numbers and this module's closed reason/family vocabularies. */
 export type SourceRepositoryDiagnostics = {
   formatVersion: 1;
-  databaseVersion: 6;
+  databaseVersion: 7;
   factFormatVersion: number;
   factCompilerVersion: number;
   bodyParserVersion: number;
@@ -178,7 +194,7 @@ export type SourceRepositoryDiagnostics = {
 export function sanitizeSourceRepositoryDiagnostics(value: unknown): SourceRepositoryDiagnostics {
   const input = sourceObject(value) ? value : {};
   const result: SourceRepositoryDiagnostics = {
-    formatVersion: 1, databaseVersion: 6, factFormatVersion: SOURCE_FACT_FORMAT_VERSION,
+    formatVersion: 1, databaseVersion: 7, factFormatVersion: SOURCE_FACT_FORMAT_VERSION,
     factCompilerVersion: SOURCE_FACT_COMPILER_VERSION, bodyParserVersion: SOURCE_BODY_PARSER_VERSION,
     resolutionVersion: SOURCE_RESOLUTION_VERSION, storage: "unchecked", activated: 0, unsaved: 0,
     empty: 0, chunksWritten: 0, bytesWritten: 0, familiesReused: 0, readFailures: 0,
@@ -281,6 +297,10 @@ export class NeutralSourceRepository {
   private retryFailures = 0;
   private retryTask: Promise<void> | null = null;
   private decodeBytes = 0;
+  private impactReadReservations = 0;
+  private readonly impactReaders = new Map<string, { db: IDBDatabase; release?: Promise<void> }>();
+  private hostChange: ContributorHostChange | null = null;
+  private hostJournalTask: Promise<SourceReason> | null = null;
   private diagnostics = sanitizeSourceRepositoryDiagnostics(null);
 
   /** Keep connection/runtime effects injected; construction does not open storage or start work. */
@@ -295,7 +315,7 @@ export class NeutralSourceRepository {
   private dependencyAvailable(current: () => boolean): void {
     if (this.closed || !current()) throw new SourceFactError("cancelled");
     if (this.unsaved.size || this.pendingDeletes.size) throw new SourceFactError("unsaved");
-    if (this.lanes.size || this.deleteTask) throw new SourceFactError("dependency-pending");
+    if (this.lanes.size || this.deleteTask || this.hostChange || this.hostJournalTask) throw new SourceFactError("dependency-pending");
   }
   /** Read the independent mutation fence and head sequence within the caller's IDB transaction. */
   private async dependencyControl(transaction: IDBTransaction): Promise<SourceDependencyState & { sequence: number }> {
@@ -308,35 +328,87 @@ export class NeutralSourceRepository {
       || !sourceCount(sequence.value) || Object.keys(sequence).length !== 2)) throw new SourceFactError("dependency-invalid");
     return { ...state, sequence: sourceObject(sequence) && sourceCount(sequence.value) ? sequence.value : 0 };
   }
-  /** Register an unsettled source across connections before staging; failures never erase source data. */
-  private async beginDependencyMutation(db: IDBDatabase, sourceId: string, current: () => boolean): Promise<string | undefined> {
-    try {
-      return await this.transaction(db, [META_STORE], "readwrite", sourceId, async (transaction) => {
-        const meta = transaction.objectStore(META_STORE);
-        meta.delete(SOURCE_DEPENDENCY_ROOT_KEY);
-        const raw = await unknownValue(meta.get(SOURCE_DEPENDENCY_STATE_KEY));
-        if (!validSourceDependencyState(raw) || raw.revision >= Number.MAX_SAFE_INTEGER || raw.dirty >= Number.MAX_SAFE_INTEGER) return undefined;
-        const key = `source-dependency-dirty:${JSON.stringify(sourceId)}`;
-        const previous = await unknownValue(meta.get(key));
-        if (previous !== undefined && (!sourceObject(previous) || previous.key !== key || typeof previous.ticket !== "string" || Object.keys(previous).length !== 2)) return undefined;
-        if (!current() || this.closed) throw new SourceFactError("cancelled");
-        const ticket = this.runtime.uniqueId();
-        meta.put({ key, ticket });
-        meta.put(sourceDependencyState(raw.revision + 1, raw.dirty + (previous === undefined ? 1 : 0)));
-        return ticket;
-      });
-    } catch { return undefined; }
+  /**
+   * Retain the original root/summary pages and selected head in the SAME transaction that raises
+   * the dirty fence. A repeated writer changes only its ticket and immediate predecessor, never
+   * its original anchor. No-root initial acquisition still follows C1; there is no catalog to lose.
+   */
+  private async journalMutation(transaction: IDBTransaction, subject: ContributorJournalOwner, ticket: string,
+    change: ContributorHostChange | null = null): Promise<ContributorJournalRecord | null> {
+    const store = transaction.objectStore(SOURCE_IMPACT_STORE), owner = contributorJournalKey(subject);
+    const [previous, rawRoot, rawHead, enabled] = await Promise.all([
+      unknownValue(store.get(owner)), unknownValue(transaction.objectStore(META_STORE).get(SOURCE_DEPENDENCY_ROOT_KEY)),
+      subject.kind === "source" ? unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(subject.sourceId)) : Promise.resolve(undefined),
+      unknownValue(transaction.objectStore(META_STORE).get(SOURCE_IMPACT_ENABLED_KEY)),
+    ]);
+    if (previous === undefined && rawRoot === undefined && enabled === undefined) return null;
+    transaction.objectStore(META_STORE).put({ key: SOURCE_IMPACT_ENABLED_KEY, version: 1 });
+    const prior = validContributorJournalRecord(previous) ? previous : null;
+    // Corrupt prior evidence cannot be replaced by a conveniently narrower, apparently clean anchor.
+    let root = prior?.root ?? null;
+    if (previous === undefined && validSourceDependencyRoot(rawRoot)) {
+      root = { build: { ...rawRoot.build }, digest: rawRoot.digest };
+      const meta = transaction.objectStore(META_STORE), key = SOURCE_IMPACT_ROOT_PREFIX + rawRoot.build.slot;
+      // Never overwrite an existing shared anchor with a different commitment. Slot reuse
+      // deletes it only after checking all journal and reader pins. Reads authenticate its digest.
+      if (await unknownValue(meta.get(key)) === undefined) meta.put({ key, root: rawRoot });
+    }
+    const before = contributorJournalSelection(rawHead);
+    const record: ContributorJournalRecord = { version: 1, owner, subject, ticket, root, slot: root?.build.slot ?? -1,
+      original: prior ? prior.original : previous === undefined ? before : { kind: "invalid" }, before,
+      selected: subject.kind === "host" ? { kind: "missing" } : null, change, status: "unknown", impact: null };
+    this.checkJournalSize(record);
+    store.put(record);
+    return record;
   }
-  /** Head selection and catalog invalidation are atomic; only this writer may retire its dirty mark. */
-  private async finishDependencyMutation(transaction: IDBTransaction, sourceId: string, ticket?: string): Promise<void> {
-    const meta = transaction.objectStore(META_STORE);
-    meta.delete(SOURCE_DEPENDENCY_ROOT_KEY);
-    const raw = await unknownValue(meta.get(SOURCE_DEPENDENCY_STATE_KEY));
-    if (!validSourceDependencyState(raw) || raw.revision >= Number.MAX_SAFE_INTEGER) return;
+  /** Bound retained proof bytes before enqueueing an IDB structured clone; never truncate an owner. */
+  private checkJournalSize(record: ContributorJournalRecord): void {
+    if (!validContributorJournalRecord(record)) throw new SourceFactError("dependency-invalid");
+    if (encodedBytes(JSON.stringify(record)) > SOURCE_IMPACT_RECORD_BYTES) throw new SourceFactError("backpressure");
+  }
+  /** Register an unsettled source before staging; journal failure prohibits a new durable head. */
+  private async beginDependencyMutation(db: IDBDatabase, sourceId: string, current: () => boolean): Promise<string> {
+    return this.transaction(db, [META_STORE, SOURCE_HEAD_STORE, SOURCE_IMPACT_STORE], "readwrite", sourceId, async (transaction) => {
+      const meta = transaction.objectStore(META_STORE), raw = await unknownValue(meta.get(SOURCE_DEPENDENCY_STATE_KEY));
+      if (!validSourceDependencyState(raw) || raw.revision >= Number.MAX_SAFE_INTEGER || raw.dirty >= Number.MAX_SAFE_INTEGER) throw new SourceFactError("dependency-invalid");
+      const key = `source-dependency-dirty:${JSON.stringify(sourceId)}`, previous = await unknownValue(meta.get(key));
+      if (previous !== undefined && (!sourceObject(previous) || previous.key !== key || typeof previous.ticket !== "string" || Object.keys(previous).length !== 2)) throw new SourceFactError("dependency-invalid");
+      const ticket = this.runtime.uniqueId();
+      await this.journalMutation(transaction, { kind: "source", sourceId }, ticket);
+      if (!current() || this.closed) throw new SourceFactError("cancelled");
+      meta.put({ key, ticket });
+      meta.put(sourceDependencyState(raw.revision + 1, raw.dirty + (previous === undefined ? 1 : 0)));
+      return ticket;
+    });
+  }
+  /**
+   * Select the new head and an explicit UNKNOWN repair state atomically. Only the exact writer may
+   * settle C1's staging fence; the impact ticket survives, including an unchanged membership set.
+   */
+  private async finishDependencyMutation(transaction: IDBTransaction, sourceId: string, selected: ContributorJournalSelection,
+    ticket?: string): Promise<void> {
+    const meta = transaction.objectStore(META_STORE), store = transaction.objectStore(SOURCE_IMPACT_STORE);
     const key = `source-dependency-dirty:${JSON.stringify(sourceId)}`;
-    const dirty = await unknownValue(meta.get(key));
+    const [raw, dirty, journal] = await Promise.all([unknownValue(meta.get(SOURCE_DEPENDENCY_STATE_KEY)),
+      unknownValue(meta.get(key)), unknownValue(store.get(contributorJournalKey({ kind: "source", sourceId })))]);
+    if (!validSourceDependencyState(raw) || raw.revision >= Number.MAX_SAFE_INTEGER) throw new SourceFactError("dependency-invalid");
     const owned = ticket !== undefined && sourceObject(dirty) && dirty.key === key && dirty.ticket === ticket && Object.keys(dirty).length === 2;
-    if (owned && raw.dirty === 0) { meta.delete(SOURCE_DEPENDENCY_STATE_KEY); return; }
+    if (dirty !== undefined && !owned) throw new SourceFactError("superseded");
+    let repair: ContributorJournalRecord | null;
+    if (journal !== undefined) {
+      if (!validContributorJournalRecord(journal)) throw new SourceFactError("dependency-invalid");
+      if (journal.ticket !== ticket || journal.selected !== null) throw new SourceFactError("superseded");
+      const before = contributorJournalSelection(await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId)));
+      if (!sameContributorSelection(journal.before, before)) throw new SourceFactError("superseded");
+      repair = journal;
+    } else {
+      // Storage recovery can arrive without the earlier begin transaction. The activation itself
+      // must retain a root/head anchor rather than exposing a head/root gap as a clean selection.
+      repair = await this.journalMutation(transaction, { kind: "source", sourceId }, ticket ?? this.runtime.uniqueId());
+    }
+    if (repair) { const next = { ...repair, selected }; this.checkJournalSize(next); store.put(next); }
+    else meta.delete(SOURCE_DEPENDENCY_ROOT_KEY);
+    if (owned && raw.dirty === 0) throw new SourceFactError("dependency-invalid");
     if (owned) meta.delete(key);
     meta.put(sourceDependencyState(raw.revision + 1, raw.dirty - (owned ? 1 : 0)));
   }
@@ -357,22 +429,27 @@ export class NeutralSourceRepository {
     this.dependencyAvailable(current);
     const db = await this.open();
     if (!db) throw new SourceFactError("storage-unavailable");
-    const build = await this.transaction(db, [META_STORE], "readwrite", "", async (transaction) => {
+    const build = await this.transaction(db, [META_STORE, SOURCE_IMPACT_STORE], "readwrite", "", async (transaction) => {
       this.dependencyAvailable(current);
       const control = await this.dependencyControl(transaction);
       if (control.dirty) throw new SourceFactError("dependency-pending");
       const meta = transaction.objectStore(META_STORE);
       const previous = await unknownValue(meta.get(SOURCE_DEPENDENCY_ROOT_KEY));
       const slot = validSourceDependencyRoot(previous) && previous.build.slot === 0 ? 1 : 0;
+      if (await requestValue(transaction.objectStore(SOURCE_IMPACT_STORE).index(SOURCE_IMPACT_SLOT_INDEX).count(slot))
+        || await requestValue(meta.index(SOURCE_IMPACT_LEASE_INDEX).count(slot))) throw new SourceFactError("backpressure");
       const build: SourceDependencyBuild = { revision: control.revision, sequence: control.sequence, slot, generation: this.runtime.uniqueId() };
+      meta.delete(SOURCE_IMPACT_ROOT_PREFIX + slot);
       meta.put({ key: SOURCE_DEPENDENCY_BUILD_KEY, build });
       return build;
     });
     // A slot has a fixed maximum page count; corruption cannot turn cleanup into an unbounded loop.
     for (let removed = 0; removed <= SOURCE_DEPENDENCY_BUCKETS * SOURCE_DEPENDENCY_MAX_PAGES; removed += SOURCE_MAX_BATCH_RECORDS) {
       this.dependencyAvailable(current);
-      const count = await this.transaction(db, [META_STORE, SOURCE_DEPENDENCY_STORE], "readwrite", "", async (transaction) => {
+      const count = await this.transaction(db, [META_STORE, SOURCE_DEPENDENCY_STORE, SOURCE_IMPACT_STORE], "readwrite", "", async (transaction) => {
         await this.dependencyBuildCurrent(transaction, build);
+        if (await requestValue(transaction.objectStore(SOURCE_IMPACT_STORE).index(SOURCE_IMPACT_SLOT_INDEX).count(build.slot))
+          || await requestValue(transaction.objectStore(META_STORE).index(SOURCE_IMPACT_LEASE_INDEX).count(build.slot))) throw new SourceFactError("backpressure");
         const store = transaction.objectStore(SOURCE_DEPENDENCY_STORE);
         const range = IDBKeyRange.bound([build.slot], [build.slot + 1], false, true);
         const keys = await requestValue(store.getAllKeys(range, SOURCE_MAX_BATCH_RECORDS));
@@ -404,13 +481,17 @@ export class NeutralSourceRepository {
       || pages > SOURCE_DEPENDENCY_BUCKETS * SOURCE_DEPENDENCY_MAX_PAGES) throw new SourceFactError("dependency-invalid");
     const db = await this.open();
     if (!db) throw new SourceFactError("storage-unavailable");
-    await this.transaction(db, [META_STORE, SOURCE_DEPENDENCY_STORE], "readwrite", "", async (transaction) => {
+    await this.transaction(db, [META_STORE, SOURCE_DEPENDENCY_STORE, SOURCE_IMPACT_STORE], "readwrite", "", async (transaction) => {
       await this.dependencyBuildCurrent(transaction, root.build);
       const range = IDBKeyRange.bound([root.build.slot], [root.build.slot + 1], false, true);
       if (await requestValue(transaction.objectStore(SOURCE_DEPENDENCY_STORE).count(range)) !== pages) throw new SourceFactError("dependency-invalid");
       this.dependencyAvailable(current);
       const meta = transaction.objectStore(META_STORE);
       meta.put(root); meta.delete(SOURCE_DEPENDENCY_BUILD_KEY);
+      meta.put({ key: SOURCE_IMPACT_ENABLED_KEY, version: 1 });
+      // A complete explicit bootstrap re-proves ALL source/host coverage at the same global CAS.
+      // This is not local publication or retirement because an impact set became known.
+      transaction.objectStore(SOURCE_IMPACT_STORE).clear();
     });
     this.dependencyAvailable(current);
   }
@@ -419,8 +500,9 @@ export class NeutralSourceRepository {
     this.dependencyAvailable(current);
     const db = await this.open();
     if (!db) throw new SourceFactError("storage-unavailable");
-    const root = await this.transaction(db, [META_STORE], "readonly", "", async (transaction) => {
+    const root = await this.transaction(db, [META_STORE, SOURCE_IMPACT_STORE], "readonly", "", async (transaction) => {
       const control = await this.dependencyControl(transaction);
+      if (await requestValue(transaction.objectStore(SOURCE_IMPACT_STORE).count())) throw new SourceFactError("dependency-pending");
       if (control.dirty) throw new SourceFactError("dependency-pending");
       const raw = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_DEPENDENCY_ROOT_KEY));
       if (raw === undefined) throw new SourceFactError("dependency-pending");
@@ -446,6 +528,199 @@ export class NeutralSourceRepository {
     return raw;
   }
 
+  /**
+   * Persist the latest host event with one active transaction and one replaceable pending value.
+   * The synchronous local mask precedes every await. Events are evidence of UNKNOWN fan-out, not
+   * permission to classify changed resolver or Date dependencies as an empty impact.
+   */
+  markContributorHostDirty(change: ContributorHostChange): Promise<SourceReason> {
+    if (this.closed) return Promise.resolve("cancelled");
+    if (!validContributorHostChange(change)) return Promise.resolve("dependency-invalid");
+    this.hostChange = { ...change };
+    return this.flushContributorHostChange();
+  }
+  /** Drain one bounded host observation; failures retain the latest value for the existing backoff. */
+  private flushContributorHostChange(): Promise<SourceReason> {
+    if (this.hostJournalTask) return this.hostJournalTask;
+    const change = this.hostChange;
+    if (!change || this.closed) return Promise.resolve(this.closed ? "cancelled" : "ready");
+    /** A newer event may supersede this value, but can never be erased by its completion. */
+    const run = async (): Promise<SourceReason> => {
+      try {
+        const db = await this.open();
+        if (!db) return "storage-unavailable";
+        await this.transaction(db, [META_STORE, SOURCE_HEAD_STORE, SOURCE_IMPACT_STORE], "readwrite", "", async (transaction) => {
+          const control = await this.dependencyControl(transaction);
+          if (control.revision >= Number.MAX_SAFE_INTEGER) throw new SourceFactError("dependency-invalid");
+          const record = await this.journalMutation(transaction, { kind: "host", id: "catalog" }, this.runtime.uniqueId(), change);
+          if (record) transaction.objectStore(META_STORE).put(sourceDependencyState(control.revision + 1, control.dirty));
+        });
+        if (this.hostChange === change) this.hostChange = null;
+        return "ready";
+      } catch (error) { return errorReason(error, "write-error"); }
+    };
+    const task = run(); this.hostJournalTask = task;
+    void task.finally(() => {
+      if (this.hostJournalTask === task) this.hostJournalTask = null;
+      if (this.hostChange) this.scheduleRetry();
+    });
+    return task;
+  }
+  /** Enumerate only dirty owner IDs after reopen; never scan unchanged source heads or families. */
+  async contributorJournalOwners(after: string | null = null, limit = 64): Promise<readonly string[]> {
+    if (!sourceCount(limit) || limit < 1 || limit > 64) throw new SourceFactError("backpressure");
+    const db = await this.open(); if (!db) throw new SourceFactError("storage-unavailable");
+    const keys = await this.transaction(db, [SOURCE_IMPACT_STORE], "readonly", "", (transaction) =>
+      requestValue(transaction.objectStore(SOURCE_IMPACT_STORE).getAllKeys(after === null ? undefined : IDBKeyRange.lowerBound(after, true), limit)));
+    const result: string[] = []; let reserved = 0;
+    for (const key of keys) {
+      if (typeof key !== "string") throw new SourceFactError("dependency-invalid");
+      reserved += key.length * 2 + 64;
+      if (reserved > SOURCE_DECODE_BUDGET_BYTES) throw new SourceFactError("backpressure");
+      result.push(key);
+    }
+    return result;
+  }
+  /** Read a detached repair envelope, including pending writes. This grants no source/query authority. */
+  async readContributorJournal(owner: ContributorJournalOwner): Promise<ContributorJournalRecord | null> {
+    const db = await this.open(); if (!db) throw new SourceFactError("storage-unavailable");
+    return this.transaction(db, [SOURCE_IMPACT_STORE], "readonly", "", async (transaction) => {
+      const raw = await unknownValue(transaction.objectStore(SOURCE_IMPACT_STORE).get(contributorJournalKey(owner)));
+      if (raw === undefined) return null;
+      if (!validContributorJournalRecord(raw)) throw new SourceFactError("dependency-invalid");
+      this.checkJournalSize(raw);
+      return raw;
+    });
+  }
+  /** Fail an awaited repair when any selection coordinate, newer writer or local lifetime changed. */
+  private async checkContributorJournal(transaction: IDBTransaction, record: ContributorJournalRecord,
+    current: () => boolean): Promise<void> {
+    if (this.closed || !current()) throw new SourceFactError("cancelled");
+    const raw = await unknownValue(transaction.objectStore(SOURCE_IMPACT_STORE).get(record.owner));
+    if (!validContributorJournalRecord(raw) || raw.ticket !== record.ticket
+      || contributorJournalAuthority(raw) !== contributorJournalAuthority(record)) throw new SourceFactError("superseded");
+    if (!current() || this.closed) throw new SourceFactError("cancelled");
+  }
+  /**
+   * Hold a persistent root-slot lease across authenticated historical page reads and impact work.
+   * Each page and terminal result rechecks the exact ticket; full bootstrap or a newer writer may
+   * supersede it but cannot reclaim a leased slot. Close starts release on the original connection.
+   */
+  async withContributorJournal<T>(owner: ContributorJournalOwner, current: () => boolean,
+    consume: (reader: ContributorJournalReader) => Promise<T>): Promise<T> {
+    if (this.impactReadReservations >= 2) throw new SourceFactError("backpressure");
+    this.impactReadReservations++;
+    try {
+      const db = await this.open(); if (!db) throw new SourceFactError("storage-unavailable");
+      const key = `source-impact-lease:${this.runtime.uniqueId()}`;
+      this.impactReaders.set(key, { db });
+      try {
+        const selected = await this.transaction(db, [META_STORE, SOURCE_IMPACT_STORE], "readwrite", "", async (transaction) => {
+          const record = await unknownValue(transaction.objectStore(SOURCE_IMPACT_STORE).get(contributorJournalKey(owner)));
+          if (!validContributorJournalRecord(record)) throw new SourceFactError(record === undefined ? "missing" : "dependency-invalid");
+          this.checkJournalSize(record);
+          if (!current() || this.closed) throw new SourceFactError("cancelled");
+          const fence = await this.dependencyControl(transaction);
+          let root: SourceDependencyRootRecord | null = null;
+          if (record.root) {
+            const anchor = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_IMPACT_ROOT_PREFIX + record.slot));
+            if (!sourceObject(anchor) || Object.keys(anchor).length !== 2 || anchor.key !== SOURCE_IMPACT_ROOT_PREFIX + record.slot
+              || !validSourceDependencyRoot(anchor.root) || anchor.root.digest !== record.root.digest
+              || !sameDependencyBuild(anchor.root.build, record.root.build)) throw new SourceFactError("dependency-invalid");
+            root = anchor.root;
+          }
+          transaction.objectStore(META_STORE).put({ key, impactSlot: record.slot });
+          return { record, root, fence: { revision: fence.revision, sequence: fence.sequence } };
+        });
+        // Keep private coordinates separate from values passed to a caller that could mutate them.
+        const copy: unknown = JSON.parse(JSON.stringify(selected.record));
+        if (!validContributorJournalRecord(copy)) throw new SourceFactError("dependency-invalid");
+        const value = await consume({ record: copy, root: selected.root ? { ...selected.root, build: { ...selected.root.build } } : null,
+          fence: { ...selected.fence },
+          /** Historical pages are available only under this retained ticket, not a public root bypass. */
+          page: async (bucket, index) => {
+            const root = selected.root;
+            if (!root || !sourceCount(bucket) || bucket >= SOURCE_DEPENDENCY_BUCKETS
+              || !sourceCount(index) || index >= SOURCE_DEPENDENCY_MAX_PAGES) throw new SourceFactError("dependency-invalid");
+            return this.transaction(db, [SOURCE_IMPACT_STORE, SOURCE_DEPENDENCY_STORE], "readonly", "", async (transaction) => {
+              await this.checkContributorJournal(transaction, selected.record, current);
+              const raw = await unknownValue(transaction.objectStore(SOURCE_DEPENDENCY_STORE).get([root.build.slot, bucket, index]));
+              if (!validSourceDependencyPage(raw) || raw.generation !== root.build.generation || raw.slot !== root.build.slot
+                || raw.bucket !== bucket || raw.index !== index) throw new SourceFactError("dependency-invalid");
+              return raw;
+            });
+          },
+        });
+        await this.releaseImpactLease(key);
+        await this.transaction(db, [SOURCE_IMPACT_STORE], "readonly", "", (transaction) => this.checkContributorJournal(transaction, selected.record, current));
+        return value;
+      } finally { await this.releaseImpactLease(key); }
+    } finally { this.impactReadReservations--; }
+  }
+  /** Release on the pin's original connection even during unload; failed release stays protective. */
+  private releaseImpactLease(key: string): Promise<void> {
+    const reader = this.impactReaders.get(key);
+    if (!reader) return Promise.resolve();
+    if (reader.release) return reader.release;
+    reader.release = new Promise<void>((resolve) => {
+      /** A release failure never licenses wall-clock-based reclamation of its durable pin. */
+      const done = (): void => { this.impactReaders.delete(key); resolve(); };
+      try {
+        const transaction = reader.db.transaction(META_STORE, "readwrite");
+        transaction.oncomplete = done; transaction.onabort = done; transaction.onerror = done;
+        transaction.objectStore(META_STORE).delete(key);
+      } catch { done(); }
+    });
+    return reader.release;
+  }
+  /** An observed host transition has no complete fan-out certificate in S2; it must stay UNKNOWN. */
+  private async requireUnchangedContributorHost(transaction: IDBTransaction): Promise<void> {
+    const host = await unknownValue(transaction.objectStore(SOURCE_IMPACT_STORE).get(contributorJournalKey({ kind: "host", id: "catalog" })));
+    if (host !== undefined) throw new SourceFactError("host-catalog-stale");
+  }
+  /** Validate a stored impact against the selected head and all current mutation fences, without writes. */
+  async validateContributorImpact(reader: ContributorJournalReader, current: () => boolean): Promise<void> {
+    this.dependencyAvailable(current);
+    const db = await this.open(); if (!db) throw new SourceFactError("storage-unavailable");
+    await this.transaction(db, [SOURCE_IMPACT_STORE, SOURCE_HEAD_STORE, META_STORE], "readonly", "", async (transaction) => {
+      await this.checkContributorJournal(transaction, reader.record, current);
+      await this.requireUnchangedContributorHost(transaction);
+      const control = await this.dependencyControl(transaction), record = reader.record;
+      if (control.dirty || control.revision !== reader.fence.revision || control.sequence !== reader.fence.sequence
+        || record.subject.kind !== "source" || !record.selected) throw new SourceFactError("superseded");
+      const head = contributorJournalSelection(await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(record.subject.sourceId)));
+      if (!sameContributorSelection(head, record.selected)) throw new SourceFactError("superseded");
+      this.dependencyAvailable(current);
+    });
+    this.dependencyAvailable(current);
+  }
+  /**
+   * Persist a copied impact ONLY at the captured ticket/head/root/global transition fence. Hashing
+   * and host work have already completed. Known does not select a root or remove any dirty ticket.
+   */
+  async storeContributorImpact(reader: ContributorJournalReader, data: string, current: () => boolean): Promise<void> {
+    this.dependencyAvailable(current);
+    if (encodedBytes(data) > SOURCE_IMPACT_DATA_BYTES) throw new SourceFactError("backpressure");
+    const digest = await this.runtime.digest(data), db = await this.open();
+    if (!db) throw new SourceFactError("storage-unavailable");
+    const record = reader.record, next: ContributorJournalRecord = { ...record, status: "known", impact: { data, digest } };
+    this.checkJournalSize(next);
+    await this.transaction(db, [SOURCE_IMPACT_STORE, SOURCE_HEAD_STORE, META_STORE], "readwrite", "", async (transaction) => {
+      this.dependencyAvailable(current);
+      await this.checkContributorJournal(transaction, record, current);
+      await this.requireUnchangedContributorHost(transaction);
+      const stored = await unknownValue(transaction.objectStore(SOURCE_IMPACT_STORE).get(record.owner));
+      if (validContributorJournalRecord(stored) && stored.status === "known" && stored.impact?.digest !== digest) throw new SourceFactError("superseded");
+      const control = await this.dependencyControl(transaction);
+      if (control.dirty || control.revision !== reader.fence.revision || control.sequence !== reader.fence.sequence
+        || record.subject.kind !== "source" || record.selected === null) throw new SourceFactError("superseded");
+      const head = contributorJournalSelection(await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(record.subject.sourceId)));
+      if (!sameContributorSelection(head, record.selected)) throw new SourceFactError("superseded");
+      this.dependencyAvailable(current);
+      transaction.objectStore(SOURCE_IMPACT_STORE).put(next);
+    });
+    this.dependencyAvailable(current);
+  }
   /** Hash a narrow host observation descriptor without exposing its settings/property text in a head. */
   async observationDigest(value: string): Promise<string> { return this.runtime.digest(value); }
   /** Allocate an opaque source incarnation; the Obsidian adapter alone binds it to a physical file. */
@@ -476,6 +751,8 @@ export class NeutralSourceRepository {
     // Start lease deletion synchronously, before the cache owner closes its connection. Failed
     // transactions remain conservatively protective; a clean unload must not leak healthy pins.
     for (const view of this.readers) void this.releaseLeases(view);
+    for (const key of this.impactReaders.keys()) void this.releaseImpactLease(key);
+    this.hostChange = null;
     this.memory.clear(); this.pendingDeletes.clear(); this.memoryBytes = 0;
   }
   /** Translate one outcome without accidentally reporting a durable sequence for memory-only facts. */
@@ -1006,7 +1283,12 @@ export class NeutralSourceRepository {
     };
     try {
       db = await this.open();
-      if (db) dependencyTicket = await this.beginDependencyMutation(db, input.sourceId, current);
+      if (db) {
+        try {
+          if (this.hostChange && (await this.flushContributorHostChange() !== "ready" || this.hostChange)) throw new SourceFactError("dependency-pending");
+          dependencyTicket = await this.beginDependencyMutation(db, input.sourceId, current);
+        } catch (error) { storageReason = errorReason(error, "write-error"); db = null; }
+      }
       if (!current() || this.closed) return this.result("cancelled", "cancelled");
       if (SOURCE_FAMILIES.some((family) => typeof input.families[family] !== "function")) {
         const pinned = await this.pin(input.sourceId, true);
@@ -1115,7 +1397,7 @@ export class NeutralSourceRepository {
     current: () => boolean, dependencyTicket?: string): Promise<SourceWriteResult> {
     if (!current() || this.closed) return this.result("cancelled", "cancelled");
     try {
-      const activated = await this.transaction(db, [SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE, META_STORE], "readwrite", head.sourceId, async (transaction) => {
+      const activated = await this.transaction(db, [SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE, META_STORE, SOURCE_IMPACT_STORE], "readwrite", head.sourceId, async (transaction) => {
         const heads = transaction.objectStore(SOURCE_HEAD_STORE); const meta = transaction.objectStore(META_STORE);
         const raw = await unknownValue(heads.get(head.sourceId));
         if (!current() || this.closed) throw new SourceFactError("cancelled");
@@ -1139,7 +1421,7 @@ export class NeutralSourceRepository {
         const previousSequence = sourceObject(sequenceRecord) && sourceCount(sequenceRecord.value) ? sequenceRecord.value : 0;
         if (previousSequence >= Number.MAX_SAFE_INTEGER || !current() || this.closed) throw new SourceFactError("cancelled");
         const activated: SourceHead = { ...head, sequence: previousSequence + 1 };
-        await this.finishDependencyMutation(transaction, head.sourceId, dependencyTicket);
+        await this.finishDependencyMutation(transaction, head.sourceId, { kind: "head", head: activated }, dependencyTicket);
         meta.put({ key: SOURCE_SEQUENCE_KEY, value: activated.sequence });
         await requestValue(heads.put(activated));
         if (!current() || this.closed) throw new SourceFactError("cancelled");
@@ -1177,6 +1459,9 @@ export class NeutralSourceRepository {
     let retired: string[] = [];
     /** Retire only the selected owner; a masked disk head is CAS input, never a live read result. */
     const work = async (): Promise<SourceWriteResult> => {
+      if (this.hostChange && (await this.flushContributorHostChange() !== "ready" || this.hostChange)) {
+        this.scheduleRetry(); return this.result("unsaved", "dependency-pending", null, true);
+      }
       const mutationDb = await this.open();
       const dependencyTicket = mutationDb ? await this.beginDependencyMutation(mutationDb, sourceId, current) : undefined;
       const pinned = await this.pin(sourceId, true, pending);
@@ -1186,9 +1471,9 @@ export class NeutralSourceRepository {
       }
       if (!pinned.view) {
         if (pinned.expected.kind === "missing") {
-          if (mutationDb) await this.transaction(mutationDb, [SOURCE_HEAD_STORE, META_STORE], "readwrite", sourceId, async (transaction) => {
+          if (mutationDb) await this.transaction(mutationDb, [SOURCE_HEAD_STORE, META_STORE, SOURCE_IMPACT_STORE], "readwrite", sourceId, async (transaction) => {
             if (!current() || await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId)) !== undefined) throw new SourceFactError("superseded");
-            await this.finishDependencyMutation(transaction, sourceId, dependencyTicket);
+            await this.finishDependencyMutation(transaction, sourceId, { kind: "missing" }, dependencyTicket);
           });
           if (!current()) return this.result("cancelled", "cancelled");
           this.pendingDeletes.delete(sourceId); this.forgetMemory(sourceId);
@@ -1350,7 +1635,7 @@ export class NeutralSourceRepository {
   }
   /** Keep one retry timer and no write queue; backoff saturates at thirty seconds. */
   private scheduleRetry(): void {
-    if (this.closed || this.retryTimer !== null || this.retryTask || !this.memory.size && !this.pendingDeletes.size) return;
+    if (this.closed || this.retryTimer !== null || this.retryTask || !this.memory.size && !this.pendingDeletes.size && !this.hostChange) return;
     const delay = this.retryFailures === 0 ? 1000 : this.retryFailures === 1 ? 5000 : 30000;
     this.retryTimer = this.runtime.schedule(() => { this.retryTimer = null; void this.flush(); }, delay);
   }
@@ -1373,13 +1658,16 @@ export class NeutralSourceRepository {
     if (!this.retryTask) this.retryTask = this.retryMemory();
     await this.retryTask;
     this.retryTask = null;
-    const complete = this.unsaved.size === 0;
+    if (this.hostJournalTask) await this.hostJournalTask;
+    if (this.hostChange) await this.flushContributorHostChange();
+    const complete = this.unsaved.size === 0 && !this.hostChange;
     if (complete) this.retryFailures = 0; else this.retryFailures += 1;
     this.scheduleRetry();
     return complete;
   }
   /** Revalidate source lifetime and the previous disk head before any storage-degraded retry. */
   private async retryMemory(): Promise<void> {
+    if (this.hostChange) await this.flushContributorHostChange();
     for (const [sourceId, pending] of [...this.pendingDeletes]) {
       if (this.closed) return;
       if (this.pendingDeletes.get(sourceId) !== pending) continue;

@@ -11,7 +11,9 @@ import { SOURCE_DEPENDENCY_STORE, sourceDependencyState } from "./SourceFacts";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
 
-const DB_VERSION = 6;
+import { SOURCE_IMPACT_STORE, SOURCE_IMPACT_SLOT_INDEX, SOURCE_IMPACT_LEASE_INDEX } from "./SourceContributorJournal";
+
+const DB_VERSION = 7;
 const BODY_CACHE_VERSION = 2;
 const META_STORE = "meta";
 const PAGE_STORE = "pages";
@@ -211,7 +213,7 @@ export class KplexIndexedDbCache {
     catch (error) { this.storageFailed(db); throw error; }
   }
 
-  /** Lazily open v6 with bounded backoff and reject late, blocked or newer-version connections. */
+  /** Lazily open v7 with bounded backoff and reject late, blocked or newer-version connections. */
   private open(): Promise<IDBDatabase | null> {
     if (this.closed || this.newerDatabase) return Promise.resolve(null);
     if (this.dbPromise) return this.dbPromise;
@@ -277,7 +279,12 @@ export class KplexIndexedDbCache {
             db.createObjectStore(SOURCE_DEPENDENCY_STORE, { keyPath: ["slot", "bucket", "index"] });
             request.transaction?.objectStore(META_STORE).put(sourceDependencyState(0, 0));
           }
+          // v7 retains all v5/v6 bytes and adds only durable repair owners and root-slot leases.
+          if (!db.objectStoreNames.contains(SOURCE_IMPACT_STORE)) {
+            db.createObjectStore(SOURCE_IMPACT_STORE, { keyPath: "owner" }).createIndex(SOURCE_IMPACT_SLOT_INDEX, "slot");
+          }
           const meta = request.transaction?.objectStore(META_STORE);
+          if (meta && !meta.indexNames.contains(SOURCE_IMPACT_LEASE_INDEX)) meta.createIndex(SOURCE_IMPACT_LEASE_INDEX, "impactSlot");
           if (meta && !meta.indexNames.contains(SOURCE_LEASE_INDEX)) meta.createIndex(SOURCE_LEASE_INDEX, ["sourceId", "revision"]);
         };
         request.onsuccess = () => {
