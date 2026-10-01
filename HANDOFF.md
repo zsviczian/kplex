@@ -16,17 +16,24 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Online validation hold — Delivery 1
+# Offline correction — Delivery 1 native scale failure
 
-Do not start Delivery 2 or send another package to the offline agent yet.
+Do not start Delivery 2. Correct the Delivery 1 contributor-catalog scale failure found in the exact-build `kplex-test` vault.
 
-The Delivery 1 implementation has passed independent code review, focused production-oracle tests, the real Chromium/IndexedDB lane and the production build. Review fixes cover non-root folders and new relationships to disconnected notes.
+## Reproduced failure
 
-Exact-build Obsidian validation remains pending because the running application is not accepting CLI connections. After Obsidian is restarted:
+- The graph snapshot restored and all 20,015 settings-neutral source heads became active.
+- Source acquisition used cached bodies: 0 Markdown reads, 0 parses, 0 repairs and 0 failures.
+- `bootstrapContributorCatalog()` still returned `pending` / `decode-budget`; no catalog became current.
+- Toggling and restoring `inverseInfer` through `saveSettings()` performed no full build or source work, but both requests remained `dependency-pending`; K-Plex stayed in **updating**.
+- The original setting was restored. Exact-build `verify:obsidian` and all portable/browser/build checks had passed before this runtime scenario.
 
-1. Run `npm run verify:obsidian` against the disposable `kplex-test` vault.
-2. Verify Friend→Challenger, dormant-field activation/removal, both inference toggles and both image selectors update the current Plex without body reads, parser calls, source acquisition or a full build.
-3. Verify navigation, S1→S2→S3 supersession, expanded sections, search, explanations and relationship creation to an unrelated note in the main window and one popout.
-4. Race one settings change with a selected-note modification; stale preparation and writes must be rejected while the last coherent view remains visible.
+## Required correction
 
-If these pass, record Delivery 1 native acceptance and replace this hold with the larger Delivery 2 offline assignment from section 11 of `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`.
+1. Add a deterministic large-catalog regression that reproduces the native `decode-budget` result using realistic source, host-fact, bucket/page and host-order cardinality. Identify which active-root field exceeds the bound.
+2. Keep the active dependency root bounded by moving or compacting the oversized manifest data behind authenticated pages/rows already owned by the contributor store. Do not solve this by raising an arbitrary byte cap, dropping facts/order, replaying every source at settings time, or adding another graph.
+3. Preserve v2/v3/v4 reads, atomic activation, previous-root survival on failure, corruption rejection and storage cleanup. Add real IndexedDB reopen/abort/corruption coverage for any persisted representation change.
+4. After the final source activation, complete catalog bootstrap once and retry pending current-policy scopes automatically. A failed build must not cause an unbounded retry loop; expose the aggregate terminal reason in diagnostics.
+5. Prove a settings toggle and restoration publish the current requested scope with 0 Markdown reads, 0 parses, 0 source reacquisitions and 0 full builds after the large catalog is ready.
+
+Keep C15–C26 and Delivery 2 out of scope. Return the implementation and actual focused/source/browser/core/lint/build results uncommitted for online review and native rerun.
