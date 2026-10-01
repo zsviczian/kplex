@@ -157,7 +157,8 @@ function folderSourceRevision(folder: TFolder): SourceRevision {
   return sourceRevision(`folder-topology:${digest.value()}`);
 }
 
-function entityFactForFolder(folder: TFolder, revision = folderSourceRevision(folder)): SourceEntityFact {
+/** Construct one exact current folder entity; structural identity remains host-owned. */
+export function entityFactForFolder(folder: TFolder, revision = folderSourceRevision(folder)): SourceEntityFact {
   const entity = folderRef(folder);
   return {
     kind: "entity",

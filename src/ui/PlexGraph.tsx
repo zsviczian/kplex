@@ -675,10 +675,11 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
 }) {
   const translate = plugin.translator;
   const predicateEngine = useMemo(() => new GraphPredicateEngine(plugin.app), [plugin]);
+  useEffect(() => index.acquireSemanticDemand(activePath), [index, activePath]);
   // getNeighborhood() performs relationship classification/filtering. Keep it stable during local
   // pointer/camera/hover state updates; only rebuild it when navigation, settings, or the index
   // actually changes. This removes the largest source of wasted work in dense Plex scenes.
-  const persistentNeighborhood = useMemo(() => index.getNeighborhood(activePath), [index, activePath, renderRevision]);
+  const persistentNeighborhood = useMemo(() => index.getNeighborhood(activePath), [index, activePath, renderRevision, semanticRevision]);
   const centralEditorCapable = Boolean(
     persistentNeighborhood?.center.file
     && persistentNeighborhood.center.file.extension === "md",
@@ -709,20 +710,6 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
     };
   }, [centralEditorAvailable, centralEditorCanMaximize, centralEditorMaximized, viewportSize.width, viewportSize.height, settings.centerEmbedWidth, settings.centerEmbedHeight]);
   const [sectionExpanded, setSectionExpanded] = useState(false);
-  const sectionEvidenceRevision = useMemo(() => {
-    if (!sectionExpanded || !persistentNeighborhood?.center.file || persistentNeighborhood.center.file.extension !== "md") return "";
-    const center = persistentNeighborhood.center;
-    const localEvidence = index.evidenceFrom(center.path);
-    return [
-      center.path,
-      center.mtime ?? 0,
-      ...localEvidence.map((entry) => {
-        const target = index.get(entry.targetPath);
-        const evidenceIds = entry.evidence.map((item) => item.id).join(",");
-        return `${entry.targetPath}:${target?.mtime ?? 0}:${target?.name ?? ""}:${evidenceIds}`;
-      }),
-    ].join("|");
-  }, [index, sectionExpanded, persistentNeighborhood?.center.path, persistentNeighborhood?.center.mtime, semanticRevision]);
   const [sectionExpansion, setSectionExpansion] = useState<CentralSectionExpansion | null>(null);
   const sectionProjectionRevision = [
     settings.showFolderNodes ? "1" : "0",
@@ -740,7 +727,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
   // above may trigger the asynchronous Markdown expansion again.
   const projectedSectionExpansion = useMemo(() => sectionExpansion
     ? projectCentralSectionExpansion(plugin, index, sectionExpansion)
-    : null, [sectionExpansion, plugin, index, sectionProjectionRevision, renderRevision]);
+    : null, [sectionExpansion, plugin, index, sectionProjectionRevision, renderRevision, semanticRevision]);
   const [expandedSectionIds, setExpandedSectionIds] = useState<Set<string>>(new Set());
   const sectionFoldCenter = useRef<string | null>(null);
   const [sceneTransitioning, setSceneTransitioning] = useState(false);
@@ -1064,7 +1051,7 @@ export function PlexGraph({ plugin, index, settings, surface, hostLeaf, predicat
       }, settings.animationSpeed <= 0 ? 0 : Math.max(140, Math.round(620 / Math.max(0.25, settings.animationSpeed))));
     });
     return () => { cancelled = true; };
-  }, [sectionExpanded, persistentNeighborhood?.center.path, sectionEvidenceRevision, plugin, index, settings.animationSpeed]);
+  }, [sectionExpanded, persistentNeighborhood?.center.path, persistentNeighborhood?.center.mtime, plugin, index, settings.animationSpeed]);
   /** Keep the native central editor in viewport coordinates so host canvases are never scaled by a DOM transform. */
   const syncCentralEditorOverlay = (): void => {
     const overlay = centralEditorOverlayElement.current;

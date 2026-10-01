@@ -18,7 +18,8 @@ import type { EvidenceProvenance, EvidenceSourceKind } from "./RelationEvidence"
 import { resolveEvidencePair } from "./RelationResolver";
 import { createGraphState, getGraphPage, type GraphState } from "./GraphState";
 import { perfNow } from "../util/perf";
-import { NormalizedGraphCompiler, type CompiledGraphNode, type CompiledRelationEvidence, type GraphCompilerSettings, type GraphCompilerSourceRead, type PortableGraphCompilation } from "../core/graph/compiler";
+import { NormalizedGraphCompiler, type CompiledGraphNode, type CompiledRelationEvidence, type GraphCompilerSourceRead, type PortableGraphCompilation } from "../core/graph/compiler";
+import { graphCompilerSettingsFromLegacy } from "../adapters/obsidian/graphContracts";
 import { NormalizedSourcePatchPreparer, type PreparedSourcePatch, type SourcePatchReadPort } from "../core/graph/patch";
 import { nodeId, type NodeId } from "../core/graph/model";
 import { ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "../adapters/obsidian/structuralSourceCollector";
@@ -623,26 +624,8 @@ export class GraphBuilder {
   }
 
   /** Capture interpretation settings once for full/patch compilation, never for neutral collection. */
-  private fullCompilerSettings(): GraphCompilerSettings {
-    const hierarchy = this.plugin.settings.hierarchy;
-    return {
-      hierarchy: {
-        hidden: [...hierarchy.hidden],
-        parents: [...hierarchy.parents],
-        children: [...hierarchy.children],
-        leftFriends: [...hierarchy.leftFriends],
-        rightFriends: [...hierarchy.rightFriends],
-        previous: [...hierarchy.previous],
-        next: [...hierarchy.next],
-      },
-      thumbnailProperty: this.plugin.settings.thumbnailProperty,
-      nodeImageProperty: this.plugin.settings.nodeImageProperty,
-      inferAllLinksAsFriends: this.plugin.settings.inferAllLinksAsFriends,
-      inverseInfer: this.plugin.settings.inverseInfer,
-      showFullTagName: this.plugin.settings.showFullTagName,
-      tagStyleList: [...this.plugin.settings.tagStyleList],
-      maxLabelLength: this.plugin.settings.baseNodeStyle.maxLabelLength ?? 30,
-    };
+  private fullCompilerSettings() {
+    return graphCompilerSettingsFromLegacy(this.plugin.settings);
   }
 
   private createFullCompiler(): NormalizedGraphCompiler {

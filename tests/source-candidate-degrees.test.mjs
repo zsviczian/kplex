@@ -279,7 +279,7 @@ for (const [name, count] of [["aggregate candidate relations", 4097], ["whole-ow
   });
 }
 
-test("stable full-index ties cannot be recovered from per-owner replay order or raw-degree inputs", async () => {
+test("equal connection keys use exact entity ID as the final deterministic tie-break in full and scoped paths", async () => {
   const f = await degreeFixture(f => {
     f.add("A.md", "", { Children: "[[Center]]", aliases: ["Tie"] });
     f.add("B.md", "", { aliases: ["Tie"] }); f.add("Center.md", "");
@@ -292,7 +292,7 @@ test("stable full-index ties cannot be recovered from per-owner replay order or 
     let expected;
     try { expected = full.neighbours(full.get("Center.md"), "parent").map(item => item.page.path); }
     finally { full.destroy(); }
-    assert.deepEqual(expected, ["B.md", "A.md"]);
+    assert.deepEqual(expected, ["A.md", "B.md"]);
     const candidates = [ref("A.md"), ref("B.md")], degrees = await fullDegrees(f, candidates);
     assert.equal(degrees[0].rawDegree, degrees[1].rawDegree);
     const partial = await new M.CachedRequestedNeighborhoodReader(f.port, f.discovery, f.capture,
@@ -306,13 +306,12 @@ test("stable full-index ties cannot be recovered from per-owner replay order or 
   } finally { f.close(); }
 });
 
-test("degree input has no production caller, storage effects, classifier or presentation authority", () => {
+test("degree input is production-routed only through source acquisition and retains no storage/classifier/presentation authority", () => {
   const path = "src/index/CachedRequestedCandidateDegrees.ts", code = readFileSync(path, "utf8");
   const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)]);
-  for (const file of walk("src").filter(file => file.endsWith(".ts") || file.endsWith(".tsx"))) {
-    if (file === path) continue;
-    assert(!readFileSync(file, "utf8").includes("CachedRequestedCandidateDegree"), `Production caller: ${file}`);
-  }
+  const callers = walk("src").filter(file => (file.endsWith(".ts") || file.endsWith(".tsx")) && file !== path
+    && readFileSync(file, "utf8").includes("CachedRequestedCandidateDegree"));
+  assert.deepEqual(callers, ["src/adapters/obsidian/sourceAcquisition.ts"]);
   for (const forbidden of ["getMarkdownFiles(", "getFiles(", "cachedRead(", ".rebuild(", ".replace(", ".tombstone(", "putBody(", "parseBodyMetadata(", "sortNeighbours(", "classify(", "titleFor(", "gateStats(", ".sort(", "GraphIndex", "GraphBuilder"]) {
     // Comments may trace the actual binding oracle; executable authority remains absent.
     assert(!code.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "").includes(forbidden), forbidden);

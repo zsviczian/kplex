@@ -5,6 +5,11 @@
  * become visible to UI readers.
  */
 import { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisition";
+import { graphCompilerSettingsFromLegacy, graphNodeViewFromLegacy } from "../adapters/obsidian/graphContracts";
+import type { CompiledGraphNode, GraphCompilerRuntime, GraphCompilerSettings } from "../core/graph/compiler";
+import type { NodeId } from "../core/graph/model";
+import type { SourceEntityRef } from "../core/graph/source";
+import type { RelationEvidenceStore } from "../core/graph/evidence";
 import { Platform, TFile, normalizePath, type App } from "obsidian";
 import type KplexPlugin from "../main";
 import type { KplexSettings } from "../settings";
@@ -84,6 +89,41 @@ type PreparedSearchIndex = {
   entries: SearchEntry[];
   byPath: Map<string, SearchEntry>;
 };
+
+type PreparedSemanticPageInfo = Readonly<{
+  entityId: NodeId;
+  policyRevision: number;
+  settings: GraphCompilerSettings;
+  completeRelations: boolean;
+  rawDegree?: number;
+}>;
+
+type PreparedSemanticScope = Readonly<{
+  centerPath: string;
+  policyRevision: number;
+  demandRevision: number;
+  sourceRevision: number;
+  presentationRevision: number;
+  settings: GraphCompilerSettings;
+  pagesByPath: ReadonlyMap<string, GraphPage>;
+  completePaths: ReadonlySet<string>;
+  evidence: RelationEvidenceStore;
+  gates: GateStats;
+  suppressedPaths: ReadonlySet<string>;
+}>;
+
+/** Aggregate-only SI4 diagnostics; no source contents or user values are retained here. */
+export type SemanticPreparationDiagnostics = Readonly<{
+  policyRevision: number;
+  requested: number;
+  prepared: number;
+  published: number;
+  cancelled: number;
+  pending: number;
+  dependencyVisits: number;
+  fullBuilds: number;
+  lastReason: string | null;
+}>;
 
 type FileRevision = { mtime: number; size: number };
 
@@ -196,8 +236,24 @@ export class GraphIndex {
   private presentationSettings: KplexSettings;
   private presentationStatuses = new WeakMap<GraphPage, PresentationStatus>();
   private presentationRun = 0;
+  private presentationRevision = 0;
   private publicationRevision = 0;
   private semanticRevision = 0;
+  private semanticPolicyRevision = 1;
+  private fullSemanticPolicyRevision = 1;
+  private fullSemanticSettings: GraphCompilerSettings;
+  private semanticDemandRevision = new Map<string, number>();
+  private semanticDemandCounts = new Map<string, number>();
+  private semanticScopes = new Map<string, PreparedSemanticScope>();
+  private semanticPreparationTasks = new Map<string, Readonly<{
+    policyRevision: number; demandRevision: number; task: Promise<void>;
+  }>>();
+  private preparedPageInfo = new WeakMap<GraphPage, PreparedSemanticPageInfo>();
+  private semanticDependencyBootstrapRun = 0;
+  private semanticPreparationDiagnostics: SemanticPreparationDiagnostics = {
+    policyRevision: 1, requested: 0, prepared: 0, published: 0, cancelled: 0, pending: 0,
+    dependencyVisits: 0, fullBuilds: 0, lastReason: null,
+  };
   private fieldCache = new Map<string, FieldCacheEntry>();
   /** Compact semantic fingerprints survive hot-body LRU eviction so prose-only edits stay cheap. */
   private semanticFingerprints = new Map<string, string>();
@@ -250,8 +306,10 @@ export class GraphIndex {
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
   constructor(private plugin: KplexPlugin, private app: App = plugin.app) {
     this.presentationSettings = capturePresentationSettings(plugin.settings);
+    this.fullSemanticSettings = graphCompilerSettingsFromLegacy(plugin.settings);
     this.indexedDb = new KplexIndexedDbCache(app.vault.getName());
-    this.sourceAcquisition = new ObsidianSourceAcquisition(app, this.indexedDb, (text) => this.metadataParser.parse(text));
+    this.sourceAcquisition = new ObsidianSourceAcquisition(app, this.indexedDb, (text) => this.metadataParser.parse(text),
+      () => { void this.bootstrapSemanticDependencies(); });
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
     // cache; localStorage is a poor fit for large vaults because serialization duplicates memory.
     void this.indexedDb.clearLegacyLocalStorage(app);
@@ -263,6 +321,358 @@ export class GraphIndex {
   getSourceAcquisitionCounters() { return this.sourceAcquisition.getCounters(); }
   /** Explicit maintenance durability fence; plugin unload deliberately does not await this. */
   flushSourceRepository(): Promise<boolean> { return this.sourceAcquisition.flush(); }
+
+  /** Aggregate semantic preparation counters used by acceptance tests and diagnostics. */
+  getSemanticPreparationDiagnostics(): SemanticPreparationDiagnostics { return { ...this.semanticPreparationDiagnostics }; }
+
+  /** True while the requested semantic policy has no coherent prepared publication for active demand. */
+  hasPendingSemanticPreparation(): boolean {
+    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision) return false;
+    if (this.semanticPreparationTasks.size > 0) return true;
+    for (const [path, count] of this.semanticDemandCounts) {
+      if (count <= 0) continue;
+      const scope = this.semanticScopes.get(path);
+      if (!scope || scope.policyRevision !== this.semanticPolicyRevision
+        || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasContributorCatalog()) return true;
+    }
+    const active = this.plugin.settings.lastActivePath;
+    if (!active) return false;
+    const scope = this.semanticScopes.get(active);
+    return !scope || scope.policyRevision !== this.semanticPolicyRevision
+      || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasContributorCatalog();
+  }
+
+  /**
+   * Build the settings-neutral dependency catalog outside settings handling from already-valid
+   * source facts. Missing or dirty source heads stay pending; this bootstrap never reads Markdown.
+   */
+  async bootstrapSemanticDependencies(): Promise<boolean> {
+    const run = ++this.semanticDependencyBootstrapRun;
+    const current = (): boolean => !this.diagnosticsClosed && run === this.semanticDependencyBootstrapRun;
+    const runtime = this.semanticPreparationRuntime(current);
+    const ready = await this.sourceAcquisition.bootstrapContributorCatalog(runtime);
+    if (!ready || !current()) return false;
+    const retry = new Set<string>();
+    for (const [path, count] of this.semanticDemandCounts) if (count > 0) retry.add(path);
+    if (this.plugin.settings.lastActivePath) retry.add(this.plugin.settings.lastActivePath);
+    for (const path of retry) void this.ensureSemanticScope(path);
+    return true;
+  }
+
+  /** Register one visible semantic center. Releasing the final demand cancels its in-flight work. */
+  acquireSemanticDemand(path: string): () => void {
+    const previous = this.semanticDemandCounts.get(path) ?? 0;
+    this.semanticDemandCounts.set(path, previous + 1);
+    if (previous === 0) this.semanticDemandRevision.set(path, (this.semanticDemandRevision.get(path) ?? 0) + 1);
+    if (this.fullSemanticPolicyRevision !== this.semanticPolicyRevision
+      && this.semanticScopes.get(path)?.policyRevision !== this.semanticPolicyRevision) void this.ensureSemanticScope(path);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const count = Math.max(0, (this.semanticDemandCounts.get(path) ?? 1) - 1);
+      if (count === 0) {
+        this.semanticDemandCounts.delete(path);
+        this.semanticDemandRevision.set(path, (this.semanticDemandRevision.get(path) ?? 0) + 1);
+        if (this.semanticScopes.delete(path)) {
+          this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+          this.searchCandidateCache.clear();
+          this.titleCache.clear();
+        }
+      } else this.semanticDemandCounts.set(path, count);
+    };
+  }
+
+  /** Prepare all active centers for the current policy; no full/source rebuild is scheduled here. */
+  async refreshSemanticSettings(): Promise<void> {
+    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision) return;
+    const paths = new Set<string>();
+    for (const [path, count] of this.semanticDemandCounts) if (count > 0) paths.add(path);
+    if (this.plugin.settings.lastActivePath) paths.add(this.plugin.settings.lastActivePath);
+    await Promise.all([...paths].map((path) => this.ensureSemanticScope(path)));
+  }
+
+  /** Create the bounded cooperative runtime shared by dependency readers and compiler finalization. */
+  private semanticPreparationRuntime(isCurrent: () => boolean): GraphCompilerRuntime {
+    return {
+      now: () => performance.now(),
+      yield: () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)),
+      isCurrent,
+      sliceBudgetMs: Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13,
+      resolverBatchSize: Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
+    };
+  }
+
+  /** Convert one bound legacy page back to its explicit source identity without basename inference. */
+  private semanticSourceRef(page: GraphPage): SourceEntityRef {
+    const prepared = this.preparedPageInfo.get(page);
+    const view = graphNodeViewFromLegacy(page);
+    return {
+      id: prepared?.entityId ?? view.id,
+      kind: view.kind,
+      state: view.kind === "unresolved" ? "unresolved" : "materialized",
+      semanticPath: page.path,
+      ...(page.file ? { physicalPath: page.file.path } : {}),
+    };
+  }
+
+  /** Capture selected title-metadata identities before a follow-up await and recheck before publish. */
+  private captureSelectedMetadata(nodes: Iterable<CompiledGraphNode>): Map<string, Readonly<{ file: TFile; cache: unknown; revision: FileRevision }>> | null {
+    const result = new Map<string, Readonly<{ file: TFile; cache: unknown; revision: FileRevision }>>();
+    for (const node of nodes) {
+      if (node.kind !== "document" || !node.physicalPath) continue;
+      const file = this.app.vault.getFileByPath(node.physicalPath);
+      if (!(file instanceof TFile)) return null;
+      if (file.extension !== "md") continue;
+      const cache = this.app.metadataCache.getFileCache(file);
+      if (!cache) return null;
+      result.set(node.physicalPath, { file, cache, revision: captureFileRevision(file) });
+    }
+    return result;
+  }
+
+  /** Recheck every selected MetadataCache object and file revision after awaited preparation. */
+  private selectedMetadataCurrent(tokens: ReadonlyMap<string, Readonly<{ file: TFile; cache: unknown; revision: FileRevision }>>): boolean {
+    for (const [path, token] of tokens) {
+      if (this.app.vault.getFileByPath(path) !== token.file || !fileRevisionMatches(token.file, token.revision)
+        || this.app.metadataCache.getFileCache(token.file) !== token.cache) return false;
+    }
+    return true;
+  }
+
+  /** Bind a finite compiler node to a private GraphPage; no live GraphState is mutated. */
+  private preparedPageFromNode(node: CompiledGraphNode): GraphPage | null {
+    const path = node.semanticPath;
+    if (!path) return null;
+    let file: TFile | null = null;
+    if ((node.kind === "document" || node.kind === "attachment") && node.physicalPath) {
+      const bound = this.app.vault.getFileByPath(node.physicalPath);
+      if (!(bound instanceof TFile)) return null;
+      file = bound;
+    }
+    return {
+      path, file, name: node.name, url: node.url, isFolder: node.kind === "container", isTag: node.kind === "tag",
+      mtime: node.semanticMtime, neighbours: new Map(), aliases: [...node.aliases], tags: [...node.tags],
+      noteType: node.noteType, primaryStyleTag: node.primaryStyleTag, styleTags: [...node.styleTags],
+      maxLabelLength: node.maxLabelLength,
+    };
+  }
+
+  /** Stage and atomically publish one center plus all parent incidence needed for sibling witnesses. */
+  private async prepareSemanticScope(centerPath: string, policyRevision: number, demandRevision: number): Promise<void> {
+    const sourceRevision = this.plugin.getIndexSourceRevision();
+    const publicationRevision = this.publicationRevision;
+    const presentationRevision = this.presentationRevision;
+    const settings = graphCompilerSettingsFromLegacy(this.plugin.settings);
+    const settingsSignature = JSON.stringify(settings);
+    const gateSettings = {
+      excludeFilepaths: [...this.plugin.settings.excludeFilepaths], showVirtualNodes: this.plugin.settings.showVirtualNodes,
+      showAttachments: this.plugin.settings.showAttachments, showFolderNodes: this.plugin.settings.showFolderNodes,
+      showTagNodes: this.plugin.settings.showTagNodes, showPageNodes: this.plugin.settings.showPageNodes,
+      showURLNodes: this.plugin.settings.showURLNodes, showInferredNodes: this.plugin.settings.showInferredNodes,
+    };
+    const gateSignature = JSON.stringify(gateSettings);
+    const presentation = { noteTypeField: this.plugin.settings.noteTypeField, primaryTagField: this.plugin.settings.primaryTagField };
+    const current = (): boolean => !this.diagnosticsClosed && this.semanticPolicyRevision === policyRevision
+      && (this.semanticDemandRevision.get(centerPath) ?? 0) === demandRevision
+      && this.plugin.getIndexSourceRevision() === sourceRevision && this.publicationRevision === publicationRevision
+      && this.presentationRevision === presentationRevision
+      && JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings)) === settingsSignature
+      && JSON.stringify({
+        excludeFilepaths: [...this.plugin.settings.excludeFilepaths], showVirtualNodes: this.plugin.settings.showVirtualNodes,
+        showAttachments: this.plugin.settings.showAttachments, showFolderNodes: this.plugin.settings.showFolderNodes,
+        showTagNodes: this.plugin.settings.showTagNodes, showPageNodes: this.plugin.settings.showPageNodes,
+        showURLNodes: this.plugin.settings.showURLNodes, showInferredNodes: this.plugin.settings.showInferredNodes,
+      }) === gateSignature;
+    const runtime = this.semanticPreparationRuntime(current);
+    const priorScope = this.semanticScopes.get(centerPath);
+    const seed = priorScope?.pagesByPath.get(centerPath) ?? this.state.pages.get(centerPath);
+    if (!seed || !current()) {
+      this.noteSemanticPreparation("pending", "missing-center");
+      return;
+    }
+    const centerMetadata = this.captureSelectedMetadata([{
+      ...this.semanticSourceRef(seed), name: seed.name, url: seed.url, semanticMtime: seed.mtime,
+      file: seed.file ? { name: seed.file.name, extension: seed.file.extension, path: seed.file.path, mtime: seed.file.stat.mtime,
+        basename: seed.file.basename, ctime: seed.file.stat.ctime, size: seed.file.stat.size } : undefined,
+      aliases: seed.aliases, tags: seed.tags, noteType: seed.noteType, primaryStyleTag: seed.primaryStyleTag,
+      styleTags: seed.styleTags, maxLabelLength: seed.maxLabelLength, neighbours: new Map(),
+    }]);
+    if (!centerMetadata) { this.noteSemanticPreparation("pending", "metadata-pending"); return; }
+    const policy = { revision: String(policyRevision), settings, isCurrent: current };
+    const gatePolicy = { revision: `${presentationRevision}:${policyRevision}`, settings: gateSettings, isCurrent: current };
+    const prepared = await this.sourceAcquisition.prepareRequestedNeighborhood(
+      { kind: "neighborhood", center: this.semanticSourceRef(seed) }, policy, presentation, gatePolicy, runtime);
+    if (!current()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
+    if (prepared.outcome !== "ready") { this.noteSemanticPreparation("pending", prepared.reason); return; }
+    const compilation = prepared.preparation.compilation;
+    const legacyEvidence = compilation.legacyEvidence();
+    if (!legacyEvidence) { this.noteSemanticPreparation("pending", "unsupported-scope"); return; }
+    const center = compilation.node(prepared.certificate.relations.center.id);
+    if (!center?.semanticPath || center.semanticPath !== centerPath) { this.noteSemanticPreparation("pending", "missing-center"); return; }
+    const completeIds = new Set<NodeId>([center.id, ...prepared.certificate.relations.parents.map((parent) => parent.id)]);
+    const requiredIds = new Set<NodeId>(completeIds);
+    for (const id of completeIds) for (const relation of compilation.node(id)?.neighbours.values() ?? []) requiredIds.add(relation.target.id);
+    const requiredNodes: CompiledGraphNode[] = [];
+    for (const id of requiredIds) {
+      const node = compilation.node(id);
+      if (!node?.semanticPath) { this.noteSemanticPreparation("pending", "unsupported-scope"); return; }
+      requiredNodes.push(node);
+    }
+    const metadataTokens = this.captureSelectedMetadata(requiredNodes);
+    if (!metadataTokens) { this.noteSemanticPreparation("pending", "metadata-pending"); return; }
+    for (const [path, token] of centerMetadata) metadataTokens.set(path, token);
+
+    // Preserve SI1 sort independence after semantic publication. Complete center/parent incidence is
+    // already exact in this compilation; only the remaining finite candidates need the dedicated
+    // raw-degree reader. This also avoids asking that reader to rebind structural roots it does not own.
+    const degrees = new Map<NodeId, number>();
+    for (const id of completeIds) {
+      const complete = compilation.node(id);
+      if (complete) degrees.set(id, complete.neighbours.size);
+    }
+    const degreeCandidates = requiredNodes.filter((node) => !completeIds.has(node.id)).map((node) => ({
+      id: node.id, kind: node.kind, state: node.state, ...(node.semanticPath ? { semanticPath: node.semanticPath } : {}),
+      ...(node.physicalPath ? { physicalPath: node.physicalPath } : {}),
+    }));
+    if (degreeCandidates.length) {
+      const degreeResult = await this.sourceAcquisition.prepareRequestedCandidateDegrees(
+        { kind: "candidate-degrees", candidates: degreeCandidates }, policy, presentation, runtime);
+      if (!current()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
+      if (degreeResult.outcome !== "ready") { this.noteSemanticPreparation("pending", degreeResult.reason); return; }
+      for (const input of degreeResult.inputs) degrees.set(input.id, input.rawDegree);
+      this.addSemanticDependencyVisits(degreeResult.work.familyVisits);
+    }
+
+    const urlNames = new Map<NodeId, string>();
+    for (const node of requiredNodes) {
+      if (node.kind !== "url") continue;
+      const title = await this.sourceAcquisition.prepareRequestedUrlTitle({ id: node.id, kind: node.kind, state: node.state,
+        ...(node.semanticPath ? { semanticPath: node.semanticPath } : {}) }, policy, presentation, runtime);
+      if (!current()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
+      if (title.outcome !== "ready") { this.noteSemanticPreparation("pending", title.reason); return; }
+      urlNames.set(node.id, title.input.name);
+      this.addSemanticDependencyVisits(title.work.familyVisits);
+    }
+    if (!this.selectedMetadataCurrent(metadataTokens) || !current()) { this.noteSemanticPreparation("cancelled", "metadata-stale"); return; }
+
+    const pagesById = new Map<NodeId, GraphPage>();
+    const pagesByPath = new Map<string, GraphPage>();
+    for (const node of requiredNodes) {
+      const page = this.preparedPageFromNode(node);
+      if (!page || pagesByPath.has(page.path)) { this.noteSemanticPreparation("pending", "unsupported-scope"); return; }
+      if (urlNames.has(node.id)) page.name = urlNames.get(node.id)!;
+      pagesById.set(node.id, page);
+      pagesByPath.set(page.path, page);
+      this.preparedPageInfo.set(page, { entityId: node.id, policyRevision, settings,
+        completeRelations: completeIds.has(node.id), ...(degrees.has(node.id) ? { rawDegree: degrees.get(node.id)! } : {}) });
+      this.presentationStatuses.set(page, { noteType: "ready", styleTags: "ready" });
+    }
+    for (const id of completeIds) {
+      const sourceNode = compilation.node(id)!;
+      const sourcePage = pagesById.get(id)!;
+      for (const relation of sourceNode.neighbours.values()) {
+        const target = pagesById.get(relation.target.id);
+        if (!target) { this.noteSemanticPreparation("pending", "unsupported-scope"); return; }
+        const { target: _compiledTarget, ...rest } = relation;
+        sourcePage.neighbours.set(target.path, { ...rest, target });
+      }
+    }
+    if (!current() || !this.selectedMetadataCurrent(metadataTokens)) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
+    const oldAffected = new Set<string>([...(priorScope?.pagesByPath.keys() ?? []), ...(priorScope?.suppressedPaths ?? [])]);
+    if (!priorScope) {
+      // The first settings-only publication has no prior private scope. Bound the old-policy
+      // affected set to the full graph's center incidence plus parent incidence (the same sibling
+      // witness shape requested from cached facts). Only policy-dependent virtual nodes need
+      // suppression: materialized documents/attachments and structural/tag/URL nodes remain valid
+      // global search entities even when they are no longer related to this center.
+      const oldCenter = this.state.pages.get(centerPath);
+      if (oldCenter) {
+        oldAffected.add(oldCenter.path);
+        for (const relation of oldCenter.neighbours.values()) {
+          oldAffected.add(relation.target.path);
+          if (!relation.isHidden && classifyRelation(relation, "parent", this.fullSemanticSettings.inferAllLinksAsFriends) !== null) {
+            oldAffected.add(relation.target.path);
+            for (const witness of relation.target.neighbours.values()) oldAffected.add(witness.target.path);
+          }
+        }
+      }
+    }
+    const suppressedPaths = new Set<string>();
+    for (const path of oldAffected) {
+      if (pagesByPath.has(path)) continue;
+      const oldPage = priorScope?.pagesByPath.get(path) ?? this.state.pages.get(path);
+      if (oldPage && !oldPage.file && !oldPage.isFolder && !oldPage.isTag && !oldPage.url) suppressedPaths.add(path);
+      else if (!oldPage && priorScope?.suppressedPaths.has(path)) suppressedPaths.add(path);
+    }
+    const scope: PreparedSemanticScope = {
+      centerPath, policyRevision, demandRevision, sourceRevision, presentationRevision, settings, pagesByPath,
+      completePaths: new Set([...completeIds].map((id) => pagesById.get(id)!.path)), evidence: legacyEvidence,
+      gates: { top: { ...prepared.gates.top }, bottom: { ...prepared.gates.bottom },
+        left: { ...prepared.gates.left }, right: { ...prepared.gates.right } }, suppressedPaths,
+    };
+    this.noteSemanticPreparation("prepared", null);
+    // No await below this line: the revisioned page/evidence/gate/search overlay becomes visible together.
+    this.semanticScopes.set(centerPath, scope);
+    this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+    this.searchCandidateCache.clear();
+    this.titleCache.clear();
+    this.addSemanticDependencyVisits(prepared.work.familyVisits);
+    this.noteSemanticPreparation("published", null);
+    this.emit();
+  }
+
+  /** Coalesce one center/revision request and reject stale completion through the captured demand token. */
+  private ensureSemanticScope(centerPath: string): Promise<void> {
+    const policyRevision = this.semanticPolicyRevision;
+    const demandRevision = this.semanticDemandRevision.get(centerPath) ?? 0;
+    const published = this.semanticScopes.get(centerPath);
+    if (published?.policyRevision === policyRevision && published.demandRevision === demandRevision
+      && published.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasContributorCatalog()) {
+      return Promise.resolve();
+    }
+    const existing = this.semanticPreparationTasks.get(centerPath);
+    if (existing?.policyRevision === policyRevision && existing.demandRevision === demandRevision) return existing.task;
+    this.noteSemanticPreparation("requested", null);
+    const task = this.prepareSemanticScope(centerPath, policyRevision, demandRevision).finally(() => {
+      if (this.semanticPreparationTasks.get(centerPath)?.task === task) this.semanticPreparationTasks.delete(centerPath);
+    });
+    this.semanticPreparationTasks.set(centerPath, { policyRevision, demandRevision, task });
+    return task;
+  }
+
+  /** Update immutable aggregate counters without exposing semantic contents. */
+  private noteSemanticPreparation(kind: "requested" | "prepared" | "published" | "cancelled" | "pending", reason: string | null): void {
+    const d = this.semanticPreparationDiagnostics;
+    this.semanticPreparationDiagnostics = { ...d, policyRevision: this.semanticPolicyRevision,
+      requested: d.requested + (kind === "requested" ? 1 : 0), prepared: d.prepared + (kind === "prepared" ? 1 : 0),
+      published: d.published + (kind === "published" ? 1 : 0), cancelled: d.cancelled + (kind === "cancelled" ? 1 : 0),
+      pending: d.pending + (kind === "pending" ? 1 : 0), lastReason: reason };
+  }
+
+  /** Accumulate actual canonical family visits performed by settings preparation. */
+  private addSemanticDependencyVisits(count: number): void {
+    this.semanticPreparationDiagnostics = { ...this.semanticPreparationDiagnostics,
+      dependencyVisits: this.semanticPreparationDiagnostics.dependencyVisits + count };
+  }
+
+  /** Return a current-policy prepared page when available, otherwise retain the last coherent scope. */
+  private semanticPage(path: string): GraphPage | undefined {
+    // A page prepared by any current scope wins over suppression recorded by another current scope.
+    // This keeps two visible Plexes composable when their bounded affected sets overlap.
+    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision) {
+      const page = scope.pagesByPath.get(path);
+      if (page) return page;
+    }
+    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision && scope.suppressedPaths.has(path)) {
+      return undefined;
+    }
+    for (const scope of this.semanticScopes.values()) {
+      const page = scope.pagesByPath.get(path);
+      if (page) return page;
+    }
+    return this.state.pages.get(path);
+  }
 
   get pages(): Map<string, GraphPage> { return this.state.pages; }
   get lowercasePathMap(): Map<string, string> { return this.state.lowercasePathMap; }
@@ -319,6 +729,13 @@ export class GraphIndex {
     this.emitPresentation();
   }
 
+  /** Base and retained bounded publications all need the same SI1 presentation facets. */
+  private presentationPages(): GraphPage[] {
+    const pages = new Set<GraphPage>(this.state.pages.values());
+    for (const scope of this.semanticScopes.values()) for (const page of scope.pagesByPath.values()) pages.add(page);
+    return [...pages];
+  }
+
   /**
    * Prepare a settings-only refresh from cached inputs. A lightweight facet/search staging area is
    * published in one synchronous step. No builder, patcher, parser, relationship cache or body read
@@ -339,7 +756,7 @@ export class GraphIndex {
         sourceRevision === this.plugin.getIndexSourceRevision();
       const policyCurrent = (): boolean => current() && !classifySettingsChange(policy, captureSettingsPolicy(this.plugin.settings)).render;
       const keys = effects.changedKeys;
-      const facets = effects.presentationFacets ? await prepareGraphPresentation(state.pages.values(), settings, {
+      const facets = effects.presentationFacets ? await prepareGraphPresentation(this.presentationPages(), settings, {
         names: keys.includes("showFullTagName"), limits: keys.includes("baseNodeStyle.maxLabelLength"),
         noteType: keys.includes("noteTypeField"), styleTags: keys.includes("primaryTagField") || keys.includes("tagStyleList"),
       }, this.app, this.fieldCache, this.indexedDb, current) : null;
@@ -349,6 +766,7 @@ export class GraphIndex {
       // No await below this line: policy, facets and search become visible as one publication.
       if (facets) applyPreparedPresentation(facets, this.presentationStatuses);
       this.presentationSettings = settings;
+      this.presentationRevision += 1;
       if (effects.searchTerms) this.titleCache.clear();
       if (search) this.installSearchIndex(search);
       if (effects.presentationFacets) this.suggestionCatalogCache = null;
@@ -387,6 +805,7 @@ export class GraphIndex {
   private acceptPresentation(prepared: PreparedPresentationPublication): void {
     applyPreparedPresentation(prepared.facets, this.presentationStatuses);
     this.presentationSettings = prepared.settings;
+    this.presentationRevision += 1;
   }
 
   get size(): number { return this.state.pages.size; }
@@ -394,7 +813,13 @@ export class GraphIndex {
   indexedMarkdownFileCount(): number { return this.semanticFingerprints.size; }
   /** The progressive builder pauses source ingestion while a checkpoint is made durable. */
   isCheckpointSaving(): boolean { return this.checkpointSaving; }
-  get(path: string): GraphPage | undefined { return getGraphPage(this.state, path); }
+  get(path: string): GraphPage | undefined {
+    const exactPrepared = this.semanticPage(path);
+    if (exactPrepared && exactPrepared !== this.state.pages.get(path)) return exactPrepared;
+    const base = getGraphPage(this.state, path);
+    if (!base) return exactPrepared;
+    return this.semanticPage(base.path);
+  }
   allPages(): GraphPage[] { return [...this.state.pages.values()]; }
 
   private static readonly IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp"]);
@@ -521,11 +946,12 @@ export class GraphIndex {
   }
 
   evidenceFrom(sourcePath: string): Array<{ targetPath: string; evidence: RelationEvidence[] }> {
-    return this.state.evidence.from(sourcePath);
+    const scope = this.semanticScopeForPath(sourcePath);
+    return scope ? scope.evidence.from(sourcePath) : this.state.evidence.from(sourcePath);
   }
 
   evidenceBetween(sourcePath: string, targetPath: string): RelationEvidence[] {
-    return this.state.evidence.between(sourcePath, targetPath);
+    return this.semanticEvidence(sourcePath, targetPath).evidence;
   }
 
   discoveredFields(): Array<{ normalized: string; name: string; count: number }> {
@@ -543,8 +969,11 @@ export class GraphIndex {
     return this.discoveredFields().filter((field) => !assigned.has(field.normalized));
   }
 
-  /** Invalidate in-flight semantic work only when the canonical settings classifier requires it. */
+  /** Invalidate in-flight semantic work and advance the demanded policy without scheduling a rebuild. */
   invalidateSemanticPolicy(): void {
+    this.semanticPolicyRevision += 1;
+    this.semanticPreparationDiagnostics = { ...this.semanticPreparationDiagnostics,
+      policyRevision: this.semanticPolicyRevision, lastReason: "semantic-policy-changed" };
     this.cancelRebuild();
     this.cancelSnapshotHydration?.();
     this.snapshotHydrationRun += 1;
@@ -690,6 +1119,12 @@ export class GraphIndex {
     this.sourceAcquisition.close();
     this.diagnosticsClosed = true;
     this.presentationRun += 1;
+    this.semanticDependencyBootstrapRun += 1;
+    this.semanticPolicyRevision += 1;
+    this.semanticDemandRevision.clear();
+    this.semanticDemandCounts.clear();
+    this.semanticScopes.clear();
+    this.semanticPreparationTasks.clear();
     this.presentationListeners.clear();
     this.generation += 1;
     this.bodyWarmGeneration += 1;
@@ -733,9 +1168,15 @@ export class GraphIndex {
     next: ReturnType<typeof createGraphState>,
     preparedSearch: PreparedSearchIndex | null = null,
     keepExistingSearch = false,
+    authoritativeSemantics = true,
   ): void {
     this.state = next;
     this.publicationRevision += 1;
+    if (authoritativeSemantics) {
+      this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
+      this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
+      this.semanticScopes.clear();
+    }
     this.titleCache.clear();
     this.suggestionCatalogCache = null;
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
@@ -843,7 +1284,7 @@ export class GraphIndex {
     this.fullSnapshotHydrated = false;
     this.previewSnapshotPublished = true;
     this.restoredPatchPlanAvailable = false;
-    this.publishRestoredState(next, prepared.search);
+    this.publishRestoredState(next, prepared.search, false, false);
     return true;
   }
 
@@ -988,7 +1429,7 @@ export class GraphIndex {
       const prepared = await this.preparePresentationPublication(pagePreview, isCurrent, () => this.touchSnapshotHydrationProgress(run));
       if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
       this.acceptPresentation(prepared);
-      this.publishRestoredState(pagePreview, prepared.search);
+      this.publishRestoredState(pagePreview, prepared.search, false, false);
     }
 
     this.setSnapshotHydrationPhase(run, "evidence");
@@ -1728,6 +2169,8 @@ export class GraphIndex {
     }
     this.cancelPendingPersistence();
     this.building = true;
+    this.semanticPreparationDiagnostics = { ...this.semanticPreparationDiagnostics,
+      fullBuilds: this.semanticPreparationDiagnostics.fullBuilds + 1 };
     const run = ++this.generation;
     // The coordinator retains Markdown changes that arrive during cold ingestion as a per-file
     // backlog. Cancelling the entire pass for each sync/metadata event restarted large vaults at
@@ -1933,8 +2376,12 @@ export class GraphIndex {
       // The bounded startup search intentionally grows from per-file commits. Rebuild it once at
       // completion so standalone attachments/folders/tags and untouched virtual nodes are included.
       this.rebuildSearchIndex();
+      this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
+      this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
+      this.semanticScopes.clear();
       this.fullSnapshotHydrated = true;
       this.sourceAcquisition.enableInventory();
+      void this.bootstrapSemanticDependencies();
       this.fullSnapshotFresh = true;
       this.previewSnapshotPublished = false;
       this.resumableCheckpointPaths = null;
@@ -1957,6 +2404,8 @@ export class GraphIndex {
       return false;
     }
     this.building = true;
+    this.semanticPreparationDiagnostics = { ...this.semanticPreparationDiagnostics,
+      fullBuilds: this.semanticPreparationDiagnostics.fullBuilds + 1 };
     const run = ++this.generation;
     const semanticPolicy = computeIndexSettingsSignature(this.plugin.settings);
     const current = (): boolean => run === this.generation && !this.diagnosticsClosed;
@@ -1988,9 +2437,13 @@ export class GraphIndex {
       // Atomic graph-state swap: readers never observe a half-built graph.
       this.state = next;
       this.publicationRevision += 1;
+      this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
+      this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
+      this.semanticScopes.clear();
       this.semanticFingerprints = nextFingerprints;
       this.fullSnapshotHydrated = true;
       this.sourceAcquisition.enableInventory();
+      void this.bootstrapSemanticDependencies();
       this.fullSnapshotFresh = true;
       this.previewSnapshotPublished = false;
       this.titleCache.clear();
@@ -2093,7 +2546,15 @@ export class GraphIndex {
     if (this.activeSnapshotGeneration) this.scheduleOrphanCleanup(this.activeSnapshotGeneration);
   }
 
+  /** True only when at least one endpoint is backed by current policy and current source authority. */
+  isSemanticWriteReady(sourcePath: string, targetPath: string): boolean {
+    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision) return true;
+    const scope = this.semanticScopeForPair(sourcePath, targetPath, true);
+    return Boolean(scope && scope.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasContributorCatalog());
+  }
+
   relationshipStorageCandidates(sourcePath: string, targetPath: string): string[] {
+    if (!this.isSemanticWriteReady(sourcePath, targetPath)) return [];
     const editable = new Set<string>();
     for (const path of [sourcePath, targetPath]) {
       const page = this.get(path);
@@ -2101,7 +2562,7 @@ export class GraphIndex {
     }
     if (!editable.size) return [];
 
-    const evidence = this.state.evidence.between(sourcePath, targetPath);
+    const evidence = this.semanticEvidence(sourcePath, targetPath).evidence;
     const rank = new Map<string, number>();
     const scoreKind = (kind: RelationEvidence["sourceKind"]): number => {
       if (kind === "frontmatter-ontology") return 0;
@@ -2511,6 +2972,7 @@ export class GraphIndex {
    * 20k-note index or make the optimistic node jump back while a full scan runs.
    */
   applyRelationshipEdit(storagePath: string, targetPath: string, role: Exclude<EvidenceRole, "hidden">, field: string): boolean {
+    if (!this.isSemanticWriteReady(storagePath, targetPath)) return false;
     const source = this.get(storagePath);
     const target = this.get(targetPath);
     if (!source || !target) return false;
@@ -2540,6 +3002,7 @@ export class GraphIndex {
    * any existing ontology evidence. Connection details uses this for Add/Specify ontology.
    */
   applyAdditionalRelationshipEdit(storagePath: string, targetPath: string, role: Exclude<EvidenceRole, "hidden">, field: string): boolean {
+    if (!this.isSemanticWriteReady(storagePath, targetPath)) return false;
     const source = this.get(storagePath);
     const target = this.get(targetPath);
     if (!source || !target) return false;
@@ -2569,6 +3032,7 @@ export class GraphIndex {
   }
 
   applyFrontmatterRelationshipRemoval(storagePath: string, targetPath: string, field: string): boolean {
+    if (!this.isSemanticWriteReady(storagePath, targetPath)) return false;
     const source = this.get(storagePath);
     const target = this.get(targetPath);
     if (!source || !target) return false;
@@ -2590,15 +3054,64 @@ export class GraphIndex {
     return true;
   }
 
+  /** Select the coherent prepared scope that owns complete incidence for one path, preferring current policy. */
+  private semanticScopeForPath(path: string): PreparedSemanticScope | null {
+    for (const scope of this.semanticScopes.values()) {
+      if (scope.policyRevision === this.semanticPolicyRevision && scope.completePaths.has(path)) return scope;
+    }
+    for (const scope of this.semanticScopes.values()) if (scope.completePaths.has(path)) return scope;
+    return null;
+  }
+
+  /** Select one coherent scope that owns either endpoint incidence and therefore certifies the pair. */
+  private semanticScopeForPair(sourcePath: string, targetPath: string, currentOnly = false): PreparedSemanticScope | null {
+    const covered = (scope: PreparedSemanticScope, path: string): boolean =>
+      scope.pagesByPath.has(path) || scope.suppressedPaths.has(path) || this.state.pages.has(path);
+    const ownsPair = (scope: PreparedSemanticScope): boolean =>
+      (scope.completePaths.has(sourcePath) || scope.completePaths.has(targetPath))
+      && covered(scope, sourcePath) && covered(scope, targetPath);
+    for (const scope of this.semanticScopes.values()) {
+      if (scope.policyRevision === this.semanticPolicyRevision && ownsPair(scope)) return scope;
+    }
+    if (currentOnly) return null;
+    for (const scope of this.semanticScopes.values()) if (ownsPair(scope)) return scope;
+    return null;
+  }
+
+  /** Inference classification associated with the coherent publication currently backing this path. */
+  publishedInferAllLinksAsFriends(path: string): boolean {
+    return this.semanticScopeForPath(path)?.settings.inferAllLinksAsFriends ?? this.fullSemanticSettings.inferAllLinksAsFriends;
+  }
+
+  /** Select the immutable relation source and semantic policy associated with that coherent publication. */
+  private semanticRelationSource(page: GraphPage): Readonly<{ page: GraphPage; settings: GraphCompilerSettings }> {
+    const info = this.preparedPageInfo.get(page);
+    if (info?.completeRelations) return { page, settings: info.settings };
+    const scope = this.semanticScopeForPath(page.path);
+    if (scope) {
+      const prepared = scope.pagesByPath.get(page.path);
+      if (prepared) return { page: prepared, settings: scope.settings };
+    }
+    return { page, settings: this.fullSemanticSettings };
+  }
+
+  /** Return evidence from the same coherent semantic publication as the relation source. */
+  private semanticEvidence(sourcePath: string, targetPath: string): Readonly<{ evidence: RelationEvidence[]; settings: GraphCompilerSettings }> {
+    const scope = this.semanticScopeForPair(sourcePath, targetPath);
+    if (scope) return { evidence: scope.evidence.between(sourcePath, targetPath), settings: scope.settings };
+    return { evidence: this.state.evidence.between(sourcePath, targetPath), settings: this.fullSemanticSettings };
+  }
+
   explainRelationship(sourcePath: string, targetPath: string): RelationshipExplanation | null {
     const source = this.get(sourcePath);
     const target = this.get(targetPath);
     if (!source || !target) return null;
+    const semantic = this.semanticEvidence(source.path, target.path);
     return explainResolvedRelationship(
       source,
       target,
-      this.state.evidence.between(source.path, target.path),
-      this.plugin.settings.inferAllLinksAsFriends,
+      semantic.evidence,
+      semantic.settings.inferAllLinksAsFriends,
     );
   }
 
@@ -2619,13 +3132,13 @@ export class GraphIndex {
   sortNeighbours(items: readonly Neighbour[]): Neighbour[] {
     if (items.length < 2) return [...items];
     const order = this.plugin.settings.nodeSortOrder;
-    const keyed = items.map((item, index) => ({
+    const keyed = items.map((item) => ({
       item,
-      index,
       title: this.titleFor(item.page),
       modified: item.page.file?.stat.mtime ?? item.page.mtime ?? 0,
       created: item.page.file?.stat.ctime ?? 0,
-      connections: item.page.neighbours.size,
+      connections: this.preparedPageInfo.get(item.page)?.rawDegree ?? item.page.neighbours.size,
+      entityId: this.preparedPageInfo.get(item.page)?.entityId ?? graphNodeViewFromLegacy(item.page).id,
     }));
     keyed.sort((a, b) => {
       let primary = 0;
@@ -2641,7 +3154,8 @@ export class GraphIndex {
       }
       if (primary) return primary;
       const titleOrder = naturalCompare(a.title, b.title);
-      return titleOrder || a.index - b.index;
+      if (titleOrder) return titleOrder;
+      return a.entityId < b.entityId ? -1 : a.entityId > b.entityId ? 1 : 0;
     });
     return keyed.map((entry) => entry.item);
   }
@@ -2664,11 +3178,14 @@ export class GraphIndex {
   }
 
   private relationView(page: GraphPage): CachedRelationView {
+    const semantic = this.semanticRelationSource(page);
+    const source = semantic.page;
     const signature = this.relationViewSignature();
-    const cached = this.relationViewCache.get(page);
+    const cached = this.relationViewCache.get(source);
     if (cached?.signature === signature) return cached;
 
     const settings = this.plugin.settings;
+    const inferAllLinksAsFriends = semantic.settings.inferAllLinksAsFriends;
     const roles: CachedRelationView["roles"] = {
       parent: [],
       child: [],
@@ -2709,17 +3226,17 @@ export class GraphIndex {
     };
 
     const concreteRoles: Array<Exclude<Role, "sibling">> = ["parent", "child", "left", "right", "previous", "next"];
-    for (const relation of page.neighbours.values()) {
+    for (const relation of source.neighbours.values()) {
       if (relation.isHidden) continue;
 
       // A filled gate represents semantic relationships even when the target is currently hidden.
       for (const role of concreteRoles) {
-        if (classifyRelation(relation, role, settings.inferAllLinksAsFriends) !== null) gateStats[roleGate(role)].hasAny = true;
+        if (classifyRelation(relation, role, inferAllLinksAsFriends) !== null) gateStats[roleGate(role)].hasAny = true;
       }
 
       if (!this.isVisiblePage(relation.target, settings)) continue;
       for (const role of concreteRoles) {
-        const relationType = classifyRelation(relation, role, settings.inferAllLinksAsFriends);
+        const relationType = classifyRelation(relation, role, inferAllLinksAsFriends);
         if (!relationType || (relationType === RelationType.INFERRED && !settings.showInferredNodes)) continue;
         roles[role].push({
           page: relation.target,
@@ -2742,7 +3259,7 @@ export class GraphIndex {
     gateStats.right.visibleCount = visibleGatePaths.right.size;
 
     const result: CachedRelationView = { signature, roles, gateStats, neighbourCount: uniqueVisible.size };
-    this.relationViewCache.set(page, result);
+    this.relationViewCache.set(source, result);
     return result;
   }
 
@@ -2754,10 +3271,11 @@ export class GraphIndex {
    * use this to resolve a ghost note's destination from every parent that actually defines it, even
    * when one of those parents is currently outside the rendered Plex. */
   semanticParentPages(page: GraphPage): GraphPage[] {
+    const semantic = this.semanticRelationSource(page);
     const result: GraphPage[] = [];
-    for (const relation of page.neighbours.values()) {
+    for (const relation of semantic.page.neighbours.values()) {
       if (relation.isHidden) continue;
-      if (classifyRelation(relation, "parent", this.plugin.settings.inferAllLinksAsFriends) === null) continue;
+      if (classifyRelation(relation, "parent", semantic.settings.inferAllLinksAsFriends) === null) continue;
       result.push(relation.target);
     }
     return result;
@@ -2767,6 +3285,7 @@ export class GraphIndex {
    * targets. Cross-link layout calls this once per displayed page, so work scales with graph
    * degree rather than with every possible pair of visible nodes. */
   visibleRelationshipsWithin(source: GraphPage, targetPaths: ReadonlySet<string>): Neighbour[] {
+    const semantic = this.semanticRelationSource(source);
     const settings = this.plugin.settings;
     const result: Neighbour[] = [];
     const definitionFor = (relation: Relation, role: Exclude<Role, "sibling">): string | undefined => {
@@ -2781,10 +3300,10 @@ export class GraphIndex {
     };
 
     const roles = ["parent", "child", "left", "right", "previous", "next"] as const;
-    for (const relation of source.neighbours.values()) {
+    for (const relation of semantic.page.neighbours.values()) {
       if (!targetPaths.has(relation.target.path) || relation.isHidden || !this.isVisiblePage(relation.target)) continue;
       for (const role of roles) {
-        const relationType = classifyRelation(relation, role, settings.inferAllLinksAsFriends);
+        const relationType = classifyRelation(relation, role, semantic.settings.inferAllLinksAsFriends);
         if (!relationType || (relationType === RelationType.INFERRED && !settings.showInferredNodes)) continue;
         result.push({
           page: relation.target,
@@ -2802,9 +3321,10 @@ export class GraphIndex {
   }
 
   isConnected(source: GraphPage, targetPath: string): boolean {
-    if (source.neighbours.has(targetPath)) return true;
+    const semanticSource = this.semanticRelationSource(source).page;
+    if (semanticSource.neighbours.has(targetPath)) return true;
     const target = this.get(targetPath);
-    return target?.neighbours.has(source.path) ?? false;
+    return target ? this.semanticRelationSource(target).page.neighbours.has(source.path) : false;
   }
 
   gateStats(page: GraphPage): GateStats {
@@ -2818,14 +3338,15 @@ export class GraphIndex {
       left: ["left", "previous"],
       right: ["right", "next"],
     };
+    const semantic = this.semanticRelationSource(page);
     const paths = new Set<string>();
     // Relationship editing must honor the semantic connection even when its target is
     // hidden by the current inferred/type visibility filters. This is the same distinction
     // used by gateStats(): gate fill represents all relationships, while the count represents
     // only the currently visible ones.
-    for (const relation of page.neighbours.values()) {
+    for (const relation of semantic.page.neighbours.values()) {
       if (relation.isHidden) continue;
-      if (roleSets[gate].some((role) => classifyRelation(relation, role, this.plugin.settings.inferAllLinksAsFriends) !== null)) paths.add(relation.target.path);
+      if (roleSets[gate].some((role) => classifyRelation(relation, role, semantic.settings.inferAllLinksAsFriends) !== null)) paths.add(relation.target.path);
     }
     return paths;
   }
@@ -2929,10 +3450,46 @@ export class GraphIndex {
     return this.relationView(page).neighbourCount;
   }
 
+  /** Merge current bounded semantic publications into the immutable full search catalog. */
+  private effectiveSearchEntries(): SearchEntry[] {
+    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision) return this.searchEntries;
+    const overrides = new Map<string, GraphPage>();
+    const suppressed = new Set<string>();
+    // While a newer policy is pending, retain the last complete publication for that center, but
+    // never let a stale overlapping scope override a page already prepared under the current policy.
+    for (const scope of this.semanticScopes.values()) if (scope.policyRevision !== this.semanticPolicyRevision) {
+      for (const [path, page] of scope.pagesByPath) overrides.set(path, page);
+      for (const path of scope.suppressedPaths) suppressed.add(path);
+    }
+    const currentPages = new Set<string>();
+    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision) {
+      for (const [path, page] of scope.pagesByPath) { overrides.set(path, page); currentPages.add(path); }
+      for (const path of scope.suppressedPaths) suppressed.add(path);
+    }
+    for (const path of currentPages) suppressed.delete(path);
+    if (!overrides.size && !suppressed.size) return this.searchEntries;
+    const output: SearchEntry[] = [];
+    const emitted = new Set<string>();
+    const add = (page: GraphPage): void => {
+      if (emitted.has(page.path)) return;
+      emitted.add(page.path);
+      output.push({ page, name: this.titleFor(page).toLowerCase(), aliases: page.aliases.map((alias) => alias.toLowerCase()),
+        path: page.path.toLowerCase() });
+    };
+    for (const entry of this.searchEntries) {
+      const replacement = overrides.get(entry.page.path);
+      if (replacement) add(replacement);
+      else if (!suppressed.has(entry.page.path)) { output.push(entry); emitted.add(entry.page.path); }
+    }
+    for (const [path, page] of [...overrides].sort(([a], [b]) => a.localeCompare(b))) if (!emitted.has(path)) add(page);
+    return output;
+  }
+
   search(query: string, limit = 40): GraphPage[] {
     const q = query.trim().toLowerCase();
     const settings = this.plugin.settings;
     const max = Math.max(1, limit);
+    const searchEntries = this.effectiveSearchEntries();
 
     if (!q) {
       const output: GraphPage[] = [];
@@ -2945,7 +3502,7 @@ export class GraphIndex {
         output.push(page);
         if (output.length >= max) return output;
       }
-      for (const entry of this.searchEntries) {
+      for (const entry of searchEntries) {
         if (seen.has(entry.page.path) || !this.isVisiblePage(entry.page, settings)) continue;
         seen.add(entry.page.path);
         output.push(entry.page);
@@ -2958,7 +3515,7 @@ export class GraphIndex {
     // cached prefix so normal typing progressively searches a much smaller candidate set instead
     // of rescanning 100k+ thoughts on every keypress. Cache textual matches independently from
     // visibility so toggling graph filters cannot make the cache incorrect.
-    let candidates = this.searchEntries;
+    let candidates = searchEntries;
     for (let length = q.length - 1; length >= 1; length -= 1) {
       const prefix = q.slice(0, length);
       const cached = this.searchCandidateCache.get(prefix);

@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { browserBundle } from "./browserTypeScript.mjs";
 
 const bundle = await browserBundle([
-  "src/index/CachedRequestedCandidateDegrees.ts", "src/index/CachedRequestedDirectOrder.ts", "src/index/CachedCenterGateProjection.ts", "src/index/GraphIndex.ts", "src/index/GraphBuilder.ts",
+  "src/index/CachedRequestedCandidateDegrees.ts", "src/index/CachedRequestedDirectOrder.ts", "src/index/CachedCenterGateProjection.ts", "src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/SectionExpansion.ts",
   "src/index/CachedRequestedUrlTitle.ts", "src/index/CachedRequestedPair.ts", "src/index/CachedRequestedNeighborhood.ts", "src/core/graph/resolver.ts", "src/core/graph/evidence.ts", "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/core/parser/metadata.ts", "src/index/SourceReplay.ts", "src/index/CachedSourceSemantics.ts", "src/index/SourceContributorSummary.ts",
   "src/core/graph/compiler.ts", "src/core/graph/source.ts", "src/index/fieldParser.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts", "src/adapters/obsidian/hostLinkSourceCollector.ts",
@@ -32,6 +32,18 @@ export function replayFixture() {
   const root = new window.SourceTestFolder();
   const vault = { ...events(), getFileByPath: path => files.get(path) ?? null,
     getRoot: () => { root.children = [...files.values()]; return root; }, getFiles: () => [...files.values()],
+    getFolderByPath: path => {
+      if (path === "" || path === "/") return vault.getRoot();
+      const pending = [vault.getRoot()];
+      while (pending.length) {
+        const folder = pending.pop();
+        for (const child of folder.children ?? []) if (child instanceof window.SourceTestFolder) {
+          if (child.path === path) return child;
+          pending.push(child);
+        }
+      }
+      return null;
+    },
     getMarkdownFiles: () => [...files.values()].filter(f => f.extension === "md"),
     cachedRead: async file => { reads.push(file.path); return text.get(file.path) ?? ""; },
   };

@@ -53,19 +53,20 @@ export async function runSettingsIndependence(c) {
   }
   /** Count actual semantic entry points and body acquisition, not only coordinator intentions. */
   async function zeroSemanticWork(p, run) {
-    const calls = { rebuild: 0, progressive: 0, patch: 0, builderPatch: 0, read: 0, cachedRead: 0, pluginRebuild: 0, parse: 0 };
+    const calls = { rebuild: 0, progressive: 0, patch: 0, builderPatch: 0, read: 0, cachedRead: 0, pluginRebuild: 0, parse: 0, acquire: 0 };
     const restores = [];
     for (const [object, method, key] of [
       [p.index, "rebuild", "rebuild"], [p.index, "rebuildProgressively", "progressive"],
       [p.index, "patchMarkdownPaths", "patch"], [GraphBuilder.prototype, "patchMarkdownFiles", "builderPatch"],
       [app.vault, "read", "read"], [app.vault, "cachedRead", "cachedRead"],
       [p, "rebuildIndex", "pluginRebuild"], [p.index.metadataParser, "parse", "parse"],
+      [p.index.sourceAcquisition, "acquire", "acquire"],
     ]) {
       const original = object[method];
       object[method] = function (...args) { calls[key]++; return original.apply(this, args); };
       restores.push(() => { object[method] = original; });
     }
-    try { await run(); assert.deepEqual(calls, { rebuild: 0, progressive: 0, patch: 0, builderPatch: 0, read: 0, cachedRead: 0, pluginRebuild: 0, parse: 0 }); }
+    try { await run(); assert.deepEqual(calls, { rebuild: 0, progressive: 0, patch: 0, builderPatch: 0, read: 0, cachedRead: 0, pluginRebuild: 0, parse: 0, acquire: 0 }); }
     finally { restores.reverse().forEach((undo) => undo()); }
   }
   try {
@@ -198,10 +199,19 @@ export async function runSettingsIndependence(c) {
     for (const key of ["hierarchy.parents", "inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty"]) {
       await scenario(`semantic control ${key}`, async () => {
         const p = owner(); await restore(p);
+        p.settings.lastActivePath = "Note A.md";
         const tab = new settingsModule.KplexSettingTab(app, p);
-        await tab.setControlValue(key, key.startsWith("hierarchy.") ? "Private ontology" :
-          typeof p.settings[key] === "boolean" ? !p.settings[key] : "Private image property");
-        assert.equal(p.scheduled, 1);
+        const before = p.index.getSemanticPreparationDiagnostics();
+        await zeroSemanticWork(p, async () => {
+          await tab.setControlValue(key, key.startsWith("hierarchy.") ? "Private ontology" :
+            typeof p.settings[key] === "boolean" ? !p.settings[key] : "Private image property");
+        });
+        const after = p.index.getSemanticPreparationDiagnostics();
+        assert.equal(p.scheduled, 0);
+        assert(after.policyRevision > before.policyRevision, "Semantic settings must advance the preparation policy revision");
+        assert.equal(after.fullBuilds, before.fullBuilds, "Settings preparation must not run a full graph build");
+        assert(after.pending > before.pending, "Unavailable cached dependency coverage must stay pending without a fallback rebuild");
+        assert.equal(p.index.hasPendingSemanticPreparation(), true);
         assert.equal(policy.compareIndexSettingsSignature(warmRecord.meta.settingsSignature, p.settings).compatible, false);
       });
     }

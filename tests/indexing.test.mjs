@@ -380,6 +380,11 @@ for (const file of [
   "src/index/SourceContributorJournal.ts",
   "src/index/SourceContributorLease.ts",
   "src/index/CachedSourceSemantics.ts",
+  "src/index/CachedCenterGateProjection.ts",
+  "src/index/CachedRequestedPair.ts",
+  "src/index/CachedRequestedNeighborhood.ts",
+  "src/index/CachedRequestedCandidateDegrees.ts",
+  "src/index/CachedRequestedUrlTitle.ts",
   "src/adapters/obsidian/sourceAcquisition.ts",
   "src/index/GraphBuilder.ts",
   "src/index/SourceFingerprint.ts",
@@ -652,7 +657,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     cachedMarkdownFileCount: null,
     computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: false, indexDirty: true, rebuildTask: null, rebuildTimer: null,
-    index: { hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 8 },
+    index: { hasPendingSnapshotHydration: () => true, hasPendingSemanticPreparation: () => false, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(status, { upToDate: false, phase: "loading-cache", indexedFiles: 8, totalFiles: null });
@@ -660,7 +665,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     cachedMarkdownFileCount: null,
     computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
-    index: { hasPendingSnapshotHydration: () => false, indexedMarkdownFileCount: () => 8 },
+    index: { hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => false, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(readyStatus, { upToDate: true, phase: "ready", indexedFiles: 8, totalFiles: null });
@@ -700,6 +705,7 @@ const indexingStatusContext = {
   index: {
     size: 3,
     hasPendingSnapshotHydration: () => false,
+    hasPendingSemanticPreparation: () => false,
     isCheckpointSaving: () => false,
     hasIncrementalRestorePatch: () => false,
     indexedMarkdownFileCount: () => 3,
@@ -1115,6 +1121,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
     isFullSnapshotHydrated: () => true,
     hasIncrementalRestorePatch: () => true,
     reconcileRestoredSnapshot: async () => ({ reconciled: true, patched: 0 }),
+    bootstrapSemanticDependencies: async () => true,
   };
   startup.app = app;
   startup.layoutReady = true;

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { M, replayFixture, settings, presentation, runtime, policy, hostOracle, semanticView, collect } from "./support/cachedSourceFixture.mjs";
+import { titleFixture } from "./support/urlTitleFixture.mjs";
+import { centerGateSettings, currentNeighborhoodView, fullCenterIndex } from "./support/requestedCenterGateFixture.mjs";
 
 /** Persist all neutral facts once; policies must never go through this helper. */
 async function acquire(f, ids) {
@@ -186,11 +188,264 @@ test("an incomplete dependency query discards partial owners and explicitly repo
   } finally { f.close(); }
 });
 
-test("SI4a does not route live settings or UI reads through cached replay and contains no second parser/resolver", async () => {
+test("production GraphIndex semantic refresh matches fresh full oracle from a valid cached dependency catalog", async () => {
+  const f = await titleFixture(f => {
+    f.add("A.md", "# First\nDormantInline:: [[E]]\n# Second\nFriends:: [[D]]\n[Readable](https://example.com/path)\n", {
+      Parent: "[[B]]", Dormant: "[[Dormant Ghost]]", Image: "[[image.png]]", Hidden: "[[H]]", When: "2026-09-29",
+      aliases: ["Alpha Hub"], Type: "[[Research]]", Style: "#project",
+    });
+    f.add("B.md", "", { Children: ["[[A]]", "[[S]]"] });
+    for (const name of ["C", "D", "E", "H", "S"]) f.add(`${name}.md`, "");
+    const unrelated = f.add("Other/Unrelated.md", "");
+    f.add("Daily/2026-09-29.md", "");
+    f.add("image.png", "");
+    const root = f.app.vault.getRoot();
+    const other = new window.SourceTestFolder();
+    other.path = other.name = "Other"; other.parent = root; other.children = [unrelated]; unrelated.parent = other;
+    root.children = [...root.children.filter(file => file !== unrelated), other];
+    f.app.vault.getRoot = () => root;
+    f.app.dateFields.add("When");
+    for (const file of f.files.values()) f.resolutions.set(file.basename, file.path);
+    f.app.metadataCache.resolvedLinks["A.md"] = { "C.md": 1, "image.png": 1 };
+  }, 4);
+  let index;
+  try {
+    const ids = f.app.vault.getMarkdownFiles().map(file => file.path);
+    const view = centerGateSettings({ showFolderNodes: false, maxItemCount: 50, renderSiblings: true });
+    const semantic = { ...structuredClone(settings), thumbnailProperty: "Thumbnail", nodeImageProperty: "OtherImage" };
+    const compilerPolicy = host => ({ hierarchy: structuredClone(host.hierarchy), thumbnailProperty: host.thumbnailProperty,
+      nodeImageProperty: host.nodeImageProperty, inferAllLinksAsFriends: host.inferAllLinksAsFriends,
+      inverseInfer: host.inverseInfer, showFullTagName: host.showFullTagName, tagStyleList: [...host.tagStyleList],
+      maxLabelLength: host.baseNodeStyle?.maxLabelLength ?? host.maxLabelLength ?? 30 });
+    const presentationPolicy = host => ({ noteTypeField: host.noteTypeField, primaryTagField: host.primaryTagField });
+    const initial = await hostOracle(f, ids, semantic, presentationPolicy({ ...semantic, ...view }));
+    index = await fullCenterIndex(M, f, initial, semantic, view);
+    index.rebuildSearchIndex();
+
+    // Production acquisition owns capture/currentness; the fixture supplies only durable storage
+    // coordinates for the already-built catalog. No settings query may rebuild that catalog.
+    const durableRepository = new Proxy(f.repository, { get(target, key) {
+      if (key in f.port) { const value = f.port[key]; return typeof value === "function" ? value.bind(f.port) : value; }
+      const value = target[key]; return typeof value === "function" ? value.bind(target) : value;
+    } });
+    f.acquisition.repository = durableRepository;
+    f.acquisition.contributorCatalog = { revision: f.acquisition.hostRevision, discovery: f.discovery };
+    index.sourceAcquisition.close();
+    index.sourceAcquisition = f.acquisition;
+    index.plugin.settings.lastActivePath = "A.md";
+    const releaseDemand = index.acquireSemanticDemand("A.md");
+    const expansion = await M.buildCentralSectionExpansion(index.plugin, index, index.get("A.md"));
+    assert(expansion, "Production fixture must cache heading ranges before settings-only projection");
+    const before = index.getSemanticPreparationDiagnostics();
+    const sourceBefore = f.acquisition.getCounters();
+
+    const clean = value => JSON.parse(JSON.stringify(value, (key, field) => key === "id" || key === "revision" ? undefined : field));
+    const expansionView = idx => {
+      const projected = M.projectCentralSectionExpansion(idx.plugin, idx, expansion);
+      const neighborhood = value => Object.fromEntries(["parents", "children", "leftFriends", "rightFriends", "siblings"].map(role =>
+        [role, value[role].map(item => ({ path: item.page.path, role: item.role, relationType: item.relationType,
+          direction: item.linkDirection, definition: item.typeDefinition }))]));
+      return { center: neighborhood(projected.centerNeighborhood), sections: projected.sections.map(section => ({
+        id: section.id, parentId: section.parentId, children: [...section.childIds], neighborhood: neighborhood(section.neighborhood),
+      })) };
+    };
+    const routeView = idx => ({
+      neighborhood: currentNeighborhoodView(idx, "A.md"),
+      expansion: expansionView(idx),
+      search: Object.fromEntries(["alpha", "dormant", "project", "https", "image"].map(query =>
+        [query, idx.search(query, 30).map(page => page.path)])),
+      title: idx.titleFor(idx.get("A.md")),
+      pairs: Object.fromEntries(["B.md", "D.md", "E.md", "H.md", "Daily/2026-09-29.md", "Dormant Ghost", "C.md", "image.png", "Other/Unrelated.md"].map(target => [target, {
+        evidence: clean(idx.evidenceBetween("A.md", target)), explanation: clean(idx.explainRelationship("A.md", target)),
+        storage: idx.relationshipStorageCandidates("A.md", target),
+      }])),
+    });
+    const oracleForCurrentSettings = async () => {
+      const host = index.plugin.settings;
+      const oracleApp = { ...f.app, vault: { ...f.app.vault, getName: () => "production-settings-full-oracle",
+        getMarkdownFiles: originalGetMarkdownFiles, read: originalRead, cachedRead: originalCachedRead } };
+      const oraclePlugin = { app: oracleApp, settings: structuredClone(host), getIndexSourceRevision: () => f.acquisition.hostRevision };
+      const oracle = new M.GraphIndex(oraclePlugin, oracleApp);
+      try {
+        const builder = new M.GraphBuilder(oraclePlugin, oracleApp, new Map(), oracle.metadataParser, f.cache, () => true);
+        const state = await builder.build({ acquireSources: false });
+        assert(state, "Fresh full GraphBuilder oracle must complete");
+        oracle.state = state;
+        oracle.rebuildSearchIndex();
+        return oracle;
+      } catch (error) { oracle.destroy(); throw error; }
+    };
+    const assertOracle = async label => {
+      assert.equal(index.hasPendingSemanticPreparation(), false, `${label}: ${JSON.stringify(index.getSemanticPreparationDiagnostics())}`);
+      const oracle = await oracleForCurrentSettings();
+      try { assert.deepEqual(routeView(index), routeView(oracle), label); }
+      finally { oracle.destroy(); }
+    };
+
+    const originalGetMarkdownFiles = f.app.vault.getMarkdownFiles;
+    const originalRebuild = f.discovery.rebuild;
+    const originalAcquire = f.acquisition.acquire;
+    const originalParse = f.acquisition.parse;
+    const originalRead = f.app.vault.read;
+    const originalCachedRead = f.app.vault.cachedRead;
+    const forbid = name => async () => assert.fail(`Settings refresh must not call ${name}`);
+    f.discovery.rebuild = forbid("dependency rebuild");
+    f.acquisition.acquire = forbid("source acquisition");
+    f.acquisition.parse = forbid("Markdown parse");
+    f.app.vault.read = forbid("vault.read");
+    f.app.vault.cachedRead = forbid("vault.cachedRead");
+    f.app.vault.getMarkdownFiles = () => assert.fail("Settings refresh must not enumerate Markdown inventory");
+    try {
+      index.plugin.settings.hierarchy.parents = [...index.plugin.settings.hierarchy.parents, "Dormant"];
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("dormant frontmatter activation");
+
+      index.plugin.settings.hierarchy.parents = index.plugin.settings.hierarchy.parents.filter(field => field !== "Dormant");
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("dormant frontmatter removal");
+
+      index.plugin.settings.hierarchy.parents = [...index.plugin.settings.hierarchy.parents, "DormantInline"];
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("dormant inline activation");
+
+      index.plugin.settings.hierarchy.parents = index.plugin.settings.hierarchy.parents.filter(field => field !== "DormantInline");
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("dormant inline removal");
+
+      index.plugin.settings.hierarchy.parents = [...index.plugin.settings.hierarchy.parents, "DormantInline"];
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("dormant inline reactivation");
+
+      index.plugin.settings.hierarchy.parents = [...index.plugin.settings.hierarchy.parents, "Dormant"];
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("dormant frontmatter reactivation");
+
+      index.plugin.settings.hierarchy.leftFriends = index.plugin.settings.hierarchy.leftFriends.filter(field => field !== "Friends");
+      index.plugin.settings.hierarchy.rightFriends = [...index.plugin.settings.hierarchy.rightFriends, "Friends"];
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("role move");
+
+      index.plugin.settings.inferAllLinksAsFriends = true;
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("forward inference toggle");
+
+      index.plugin.settings.inverseInfer = true;
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("inverse inference toggle");
+
+      index.plugin.settings.thumbnailProperty = "Image";
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("thumbnail selector");
+
+      index.plugin.settings.nodeImageProperty = "Image";
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("node image selector");
+
+      // SI1 remains presentation-only even after a semantic scope has replaced the complete graph
+      // around the visible center. Exact raw degrees were captured with that scope, so every sort
+      // mode can switch without another semantic publication or body/source work.
+      const beforeSort = index.getSemanticPreparationDiagnostics();
+      for (const nodeSortOrder of ["name-asc", "name-desc", "modified-asc", "modified-desc", "created-asc", "created-desc", "connections-asc", "connections-desc"]) {
+        index.plugin.settings.nodeSortOrder = nodeSortOrder;
+        await index.refreshPresentationSettings();
+        await assertOracle(`post-semantic ${nodeSortOrder} sort`);
+      }
+      assert.equal(index.getSemanticPreparationDiagnostics().published, beforeSort.published);
+
+      // Navigating a second visible Plex prepares that center under the same policy rather than
+      // falling back to the old full graph or replaying every owner.
+      const releaseSecond = index.acquireSemanticDemand("B.md");
+      await index.refreshSemanticSettings();
+      const navigationOracle = await oracleForCurrentSettings();
+      try { assert.deepEqual(currentNeighborhoodView(index, "B.md"), currentNeighborhoodView(navigationOracle, "B.md"), "navigation scope"); }
+      finally { navigationOracle.destroy(); releaseSecond(); }
+
+      // Three overlapping policy requests may finish in any order, but only the final revision is
+      // publishable. Hold all three at the production acquisition boundary to make the race exact.
+      const livePrepareNeighborhood = f.acquisition.prepareRequestedNeighborhood.bind(f.acquisition);
+      const blockers = [];
+      let enteredResolve = [];
+      f.acquisition.prepareRequestedNeighborhood = async (...args) => {
+        const ordinal = blockers.length;
+        let release;
+        const blocked = new Promise(resolve => { release = resolve; });
+        blockers.push({ release });
+        enteredResolve[ordinal]?.();
+        await blocked;
+        return livePrepareNeighborhood(...args);
+      };
+      const waitEntered = ordinal => new Promise(resolve => {
+        if (blockers.length > ordinal) resolve();
+        else enteredResolve[ordinal] = resolve;
+      });
+      const supersessionBefore = index.getSemanticPreparationDiagnostics();
+      index.plugin.settings.inverseInfer = false;
+      index.invalidateSemanticPolicy(); const s1 = index.refreshSemanticSettings(); await waitEntered(0);
+      index.plugin.settings.inverseInfer = true;
+      index.invalidateSemanticPolicy(); const s2 = index.refreshSemanticSettings(); await waitEntered(1);
+      index.plugin.settings.inverseInfer = false;
+      index.invalidateSemanticPolicy(); const s3 = index.refreshSemanticSettings(); await waitEntered(2);
+      for (const blocker of blockers) blocker.release();
+      await Promise.all([s1, s2, s3]);
+      f.acquisition.prepareRequestedNeighborhood = livePrepareNeighborhood;
+      const supersessionAfter = index.getSemanticPreparationDiagnostics();
+      assert.equal(supersessionAfter.published, supersessionBefore.published + 1, "Only S3 may publish");
+      assert(supersessionAfter.cancelled >= supersessionBefore.cancelled + 2, "S1 and S2 must be cancelled");
+      await assertOracle("S1-S2-S3 final publication");
+
+      // Invalidate the host after the production request has crossed an await. The old coherent
+      // view stays readable, but write eligibility closes and the stale request cannot publish.
+      let releaseAwait;
+      let enteredAwait;
+      const afterAwait = new Promise(resolve => { enteredAwait = resolve; });
+      f.acquisition.prepareRequestedNeighborhood = async (...args) => {
+        enteredAwait();
+        await new Promise(resolve => { releaseAwait = resolve; });
+        return livePrepareNeighborhood(...args);
+      };
+      const coherentBeforeInvalidation = currentNeighborhoodView(index, "A.md");
+      const sourceInvalidationBefore = index.getSemanticPreparationDiagnostics();
+      index.plugin.settings.inverseInfer = true;
+      index.invalidateSemanticPolicy();
+      const staleRequest = index.refreshSemanticSettings();
+      await afterAwait;
+      f.app.vault.trigger("modify", f.files.get("A.md"));
+      assert.equal(index.isSemanticWriteReady("A.md", "B.md"), false);
+      assert.deepEqual(index.relationshipStorageCandidates("A.md", "B.md"), []);
+      assert.deepEqual(currentNeighborhoodView(index, "A.md"), coherentBeforeInvalidation, "Last coherent view remains visible while updating");
+      releaseAwait();
+      await staleRequest;
+      f.acquisition.prepareRequestedNeighborhood = livePrepareNeighborhood;
+      const sourceInvalidationAfter = index.getSemanticPreparationDiagnostics();
+      assert.equal(sourceInvalidationAfter.published, sourceInvalidationBefore.published, "Source-invalidated work must not publish");
+      assert.equal(index.hasPendingSemanticPreparation(), true);
+
+      const after = index.getSemanticPreparationDiagnostics();
+      assert(after.published >= before.published + 12);
+      assert.equal(after.fullBuilds, before.fullBuilds);
+      assert.deepEqual(f.acquisition.getCounters(), sourceBefore);
+    } finally {
+      f.app.vault.getMarkdownFiles = originalGetMarkdownFiles;
+      f.discovery.rebuild = originalRebuild;
+      f.acquisition.acquire = originalAcquire;
+      f.acquisition.parse = originalParse;
+      f.app.vault.read = originalRead;
+      f.app.vault.cachedRead = originalCachedRead;
+      releaseDemand();
+    }
+  } finally {
+    index?.destroy();
+    f.close();
+  }
+});
+
+test("SI4 production settings route owns revisioned cached preparation without adding a second parser/resolver", async () => {
   const [main, index, replay, semantic] = await Promise.all(["src/main.ts", "src/index/GraphIndex.ts", "src/index/SourceReplay.ts", "src/index/CachedSourceSemantics.ts"].map(file => readFile(file, "utf8")));
   assert.match(main, /if \(effects.semanticInvalidation\) this.index.invalidateSemanticPolicy\(\)/);
-  assert.match(main, /if \(effects.semanticInvalidation\) this.scheduleRebuild\("settings"\)/);
-  assert(!/CachedSourceSemanticReader|prepareCachedSemantics/.test(main + index));
+  assert.match(main, /if \(effects.semanticInvalidation\) await this.index.refreshSemanticSettings\(\)/);
+  assert(!/scheduleRebuild\("settings"\)/.test(main));
+  assert.match(index, /prepareRequestedNeighborhood/);
+  assert(!/CachedSourceSemanticReader|prepareCachedSemantics/.test(main));
   assert(!/cachedRead|\.vault\.(read|cachedRead)|parseBodyMetadata|parseBodyMetadataAsync|extractLinkReferences|resolveObsidianReferenceTarget/.test(replay + semantic));
   assert.match(semantic, /NormalizedSourceScopePreparer/); assert.match(replay, /acceptSourceBatch/);
 });

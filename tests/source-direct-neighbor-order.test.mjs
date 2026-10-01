@@ -1,8 +1,10 @@
 /**
- * SI4 direct-neighbor encounter-order proof. Fresh full GraphBuilder and GraphIndex remain the
+ * SI4 direct-neighbor source-order proof. Fresh full GraphBuilder and GraphIndex remain the
  * semantic/sorting oracle. V4 exercises the private authenticated phase-order reader through the
- * existing canonical compiler; v2/v3 cases remain counterexamples. Equal title keys are supplied
- * explicitly. Native MetadataCache timing/currentness remains outside this portable evidence.
+ * existing canonical compiler; v2/v3 cases remain counterexamples for raw pair birth order. Equal
+ * presentation keys are supplied explicitly; GraphIndex must then use exact entity ID as the final
+ * deterministic visible-list tie-break. Native MetadataCache timing/currentness remains outside
+ * this portable evidence.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -21,6 +23,9 @@ const orders = ["name-asc", "name-desc", "modified-asc", "modified-desc", "creat
 
 /** Supply the assumed equal comparator input, without reading or implementing presentation metadata. */
 function equalTitle() { return "Tie"; }
+
+/** Legacy graph entity IDs are exact semantic paths; compare them with the production byte-order rule. */
+function entityIdOrder(paths) { return [...paths].sort((a, b) => a < b ? -1 : a > b ? 1 : 0); }
 
 /** Exact unresolved endpoint input; neither SourceId nor a physical path is derived from its ID. */
 function ghost(id) { return { id, kind: "unresolved", state: "unresolved", semanticPath: id }; }
@@ -108,7 +113,7 @@ async function compareOrder(configure, options = {}) {
       orderedResult = observeCenter(ordered, center);
       const withoutDegree = snapshot => snapshot.raw.map(({ degree: _degree, ...item }) => item);
       assert.deepEqual(withoutDegree(orderedResult), withoutDegree(fullResult), "V4 raw direct-neighbor order must match the fresh full builder");
-      assert.deepEqual(orderedResult.views, fullResult.views, "Equal-key visible lists must preserve the full builder's stable encounter order");
+      assert.deepEqual(orderedResult.views, fullResult.views, "Equal-key visible lists must match the full builder entity-ID tie-break");
     }
     let diagnosticResult;
     if (diagnosticSources) {
@@ -162,15 +167,15 @@ function hostBeforeMarkdown(f) {
 }
 
 for (const nodeSortOrder of orders) {
-  test(`full host-before-Markdown encounter survives equal ${nodeSortOrder} keys`,
-    /** Test every production comparator's stable fallback; no expected sorter is substituted. */
+  test(`equal ${nodeSortOrder} keys use entity ID independently of host-before-Markdown encounter`,
+    /** Test every production comparator's deterministic final fallback. */
     async () => {
       const result = await compareOrder(hostBeforeMarkdown, { view: { nodeSortOrder },
         diagnosticSources: ["A.md", "B.md", "Center.md"] });
       assert.deepEqual(rawPaths(result.full), ["folder:/", "B.md", "A.md"]);
-      assert.deepEqual(result.full.views.parent, ["B.md", "A.md"]);
-      assert.deepEqual(result.cached.views.parent, ["A.md", "B.md"]);
-      assert.deepEqual(result.diagnostic.views.parent, ["A.md", "B.md"], "Markdown order alone does not repair global phases");
+      assert.deepEqual(result.full.views.parent, entityIdOrder(["B.md", "A.md"]));
+      assert.deepEqual(result.cached.views.parent, entityIdOrder(["A.md", "B.md"]));
+      assert.deepEqual(result.diagnostic.views.parent, entityIdOrder(["A.md", "B.md"]), "Raw global phases do not affect the final equal-key tie-break");
       for (const snapshot of [result.full, result.cached]) {
         assert.deepEqual(snapshot.raw.filter(/** The center's structural parent is not a tied document candidate. */ item => item.path !== "folder:/")
           .map(/** Observe actual production target-map cardinalities. */ item => item.degree), [2, 2]);
@@ -194,10 +199,10 @@ for (const version of [2, 3]) for (const family of ["resolved", "unresolved"]) {
       const ab = await compareOrder(configure(["A.md", "B.md"]), { center, version, inspectInputs: true });
       const ba = await compareOrder(configure(["B.md", "A.md"]), { center, version, inspectInputs: true });
       assert.deepEqual(ab.inputs, ba.inputs, "Original source payloads, structural facts and v3 ordinals do not encode the missing permutation");
-      assert.deepEqual(ab.full.views.parent, ["A.md", "B.md"]);
-      assert.deepEqual(ba.full.views.parent, ["B.md", "A.md"]);
-      assert.deepEqual(ab.cached.views.parent, ["A.md", "B.md"]);
-      assert.deepEqual(ba.cached.views.parent, ["A.md", "B.md"]);
+      assert.deepEqual(ab.full.views.parent, entityIdOrder(["A.md", "B.md"]));
+      assert.deepEqual(ba.full.views.parent, entityIdOrder(["B.md", "A.md"]));
+      assert.deepEqual(ab.cached.views.parent, entityIdOrder(["A.md", "B.md"]));
+      assert.deepEqual(ba.cached.views.parent, entityIdOrder(["A.md", "B.md"]));
     });
 }
 
@@ -211,8 +216,8 @@ test("resolved global phase precedes every unresolved owner, not just that owner
         f.app.metadataCache.unresolvedLinks["Center.md"] = { Ghost: 1 };
         f.app.metadataCache.resolvedLinks["B.md"] = { "Center.md": 1 };
       }, { semantic: { ...settings, inferAllLinksAsFriends: true } });
-    assert.deepEqual(result.full.views.left, ["B.md", "Ghost"]);
-    assert.deepEqual(result.cached.views.left, ["Ghost", "B.md"]);
+    assert.deepEqual(result.full.views.left, entityIdOrder(["B.md", "Ghost"]));
+    assert.deepEqual(result.cached.views.left, entityIdOrder(["Ghost", "B.md"]));
   });
 
 for (const family of ["resolved", "unresolved"]) {
@@ -228,11 +233,12 @@ for (const family of ["resolved", "unresolved"]) {
             f.app.metadataCache.resolvedLinks["Center.md"] = { "B.md": 3, "A.md": 1 };
           } else f.app.metadataCache.unresolvedLinks["Center.md"] = { "10": 1, "2": 1, Z: 1 };
         }, { inspectInputs: true });
-      const expected = family === "resolved" ? ["B.md", "A.md"] : ["2", "10", "Z"];
-      assert.deepEqual(result.full.views.child, expected);
-      assert.deepEqual(result.cached.views.child, expected);
+      const acquired = family === "resolved" ? ["B.md", "A.md"] : ["2", "10", "Z"];
+      const visible = entityIdOrder(acquired);
+      assert.deepEqual(result.full.views.child, visible);
+      assert.deepEqual(result.cached.views.child, visible);
       assert.deepEqual(result.inputs.sources.get("Center.md").resolution.filter(/** Select original aggregate records, not reference bindings. */ item => item.kind === "host-link")
-        .map(/** Preserve the acquisition's own target enumeration. */ item => item.target), expected);
+        .map(/** Preserve the acquisition's own target enumeration. */ item => item.target), acquired);
     });
 }
 
@@ -247,7 +253,7 @@ test("configured-field reconciliation reorders declarations inside a pair, never
         f.add("A.md", ""); f.add("B.md", ""); resolveFiles(f);
       }, { semantic });
     for (const snapshot of [result.full, result.cached]) {
-      assert.deepEqual(snapshot.views.child, ["B.md", "A.md"]);
+      assert.deepEqual(snapshot.views.child, entityIdOrder(["B.md", "A.md"]));
       assert.deepEqual(snapshot.decisions.get("B.md").map(/** Expose within-pair configured-field order separately from raw map order. */ item => item.evidence.fieldName), ["Earlier", "Earlier", "Later"]);
       assert.equal(snapshot.raw.filter(/** Count entries for one exact target. */ item => item.path === "B.md").length, 1);
     }
@@ -264,7 +270,7 @@ test("a later frontmatter winner does not move an earlier conflicting inline pai
         f.add("Center.md", "", { Parent: "[[A]]" }); resolveFiles(f);
       });
     for (const snapshot of [result.full, result.cached]) {
-      assert.deepEqual(snapshot.views.parent, ["A.md", "B.md"]);
+      assert.deepEqual(snapshot.views.parent, entityIdOrder(["A.md", "B.md"]));
       const decisions = snapshot.decisions.get("A.md");
       assert.equal(decisions.filter(/** Retain conflicting inline multiplicity even after suppression. */ item => item.evidence.sourceKind === "inline-ontology" && !item.active).length, 2);
       assert.equal(decisions.filter(/** Observe the opposite endpoint's winning declaration. */ item => item.evidence.sourceKind === "frontmatter-ontology" && item.active).length, 1);
@@ -285,7 +291,7 @@ test("opposite hidden evidence can establish birth order but supplies no reverse
       });
     for (const snapshot of [result.full, result.cached]) {
       assert.deepEqual(rawPaths(snapshot), ["folder:/", "A.md", "B.md", "LocalHidden.md"]);
-      assert.deepEqual(snapshot.views.parent, ["A.md", "B.md"]);
+      assert.deepEqual(snapshot.views.parent, entityIdOrder(["A.md", "B.md"]));
       assert(!snapshot.decisions.has("HiddenOnly.md"));
       assert.equal(snapshot.raw.find(/** Inspect the center-owned hidden entry, not its nonexistent inverse. */ item => item.path === "LocalHidden.md").isHidden, true);
       assert(!Object.values(snapshot.views).flat().includes("LocalHidden.md"));
@@ -305,8 +311,8 @@ for (const inferAllLinksAsFriends of [false, true]) for (const inverseInfer of [
           f.app.metadataCache.resolvedLinks["A.md"] = { "Center.md": 2 };
           f.app.metadataCache.resolvedLinks["Center.md"] = { "A.md": 3, "B.md": 4 };
         }, { semantic });
-      assert.deepEqual(result.full.views.left, ["B.md", "A.md"]);
-      assert.deepEqual(result.cached.views.left, ["A.md", "B.md"]);
+      assert.deepEqual(result.full.views.left, entityIdOrder(["B.md", "A.md"]));
+      assert.deepEqual(result.cached.views.left, entityIdOrder(["A.md", "B.md"]));
       for (const snapshot of [result.full, result.cached]) for (const path of ["A.md", "B.md"]) {
         assert.equal(snapshot.raw.filter(/** Duplicate aggregate occurrences must not duplicate the neighbor. */ item => item.path === path).length, 1);
         assert.equal(snapshot.decisions.get(path).length, 2);
@@ -327,7 +333,7 @@ for (const showInferredNodes of [false, true]) {
           resolveFiles(f);
           f.app.metadataCache.resolvedLinks["Center.md"] = { "B.md": 1, "A.md": 1, "Gone.md": 1, "Inferred.md": 1 };
         }, { semantic: { ...settings, nodeImageProperty: "Image" }, view: { showInferredNodes } });
-      const expected = ["B.md", "A.md", ...(showInferredNodes ? ["Inferred.md"] : [])];
+      const expected = entityIdOrder(["B.md", "A.md", ...(showInferredNodes ? ["Inferred.md"] : [])]);
       for (const snapshot of [result.full, result.cached]) {
         assert.deepEqual(snapshot.views.child, expected);
         assert.deepEqual(rawPaths(snapshot), ["folder:/", "B.md", "A.md", "Inferred.md"]);
@@ -346,8 +352,8 @@ test("structural folder order is sufficient for folder children, independently o
         const b = f.add("B.md", ""), a = f.add("A.md", "");
         f.app.vault.getMarkdownFiles = /** Supply an explicit host inventory distinct from structure. */ () => [a, b];
       }, { center: ref("folder:/", "container", ""), inspectInputs: true });
-    assert.deepEqual(result.full.views.child, ["B.md", "A.md"]);
-    assert.deepEqual(result.cached.views.child, ["B.md", "A.md"]);
+    assert.deepEqual(result.full.views.child, entityIdOrder(["B.md", "A.md"]));
+    assert.deepEqual(result.cached.views.child, entityIdOrder(["B.md", "A.md"]));
     assert.equal(result.inputs.sourceRows.get("B.md").order, 0);
     assert.equal(result.inputs.sourceRows.get("B.md").markdownOrdinal, 1);
   });
@@ -363,7 +369,7 @@ test("structural tag memberships retain file encounter and duplicate evidence wi
         f.metadata.get("A.md").hostTags = ["#project/nested"];
       }, { center: ref("tag:project/nested", "tag") });
     for (const snapshot of [result.full, result.cached]) {
-      assert.deepEqual(snapshot.views.child, ["B.md", "A.md"]);
+      assert.deepEqual(snapshot.views.child, entityIdOrder(["B.md", "A.md"]));
       assert.deepEqual(rawPaths(snapshot), ["tag:project", "B.md", "A.md"]);
       assert.equal(snapshot.decisions.get("B.md").length, 2);
       assert.equal(snapshot.decisions.get("tag:project").length, 1);
@@ -383,9 +389,9 @@ test("v3 Markdown order can repair a Markdown-only diagnostic, but structural so
         folder.path = folder.name = "Nested"; folder.parent = root; folder.children = [a]; a.parent = folder;
         root.children = [folder, b, center]; f.app.vault.getRoot = /** Expose the deliberately nested structural fixture. */ () => root;
       }, { diagnosticSources: ["Nested/A.md", "B.md", "Center.md"], inspectInputs: true });
-    assert.deepEqual(result.full.views.next, ["Nested/A.md", "B.md"]);
-    assert.deepEqual(result.cached.views.next, ["B.md", "Nested/A.md"]);
-    assert.deepEqual(result.diagnostic.views.next, ["Nested/A.md", "B.md"]);
+    assert.deepEqual(result.full.views.next, entityIdOrder(["Nested/A.md", "B.md"]));
+    assert.deepEqual(result.cached.views.next, entityIdOrder(["B.md", "Nested/A.md"]));
+    assert.deepEqual(result.diagnostic.views.next, entityIdOrder(["Nested/A.md", "B.md"]));
     assert.equal(result.inputs.sourceRows.get("Nested/A.md").markdownOrdinal, 0);
     assert.equal(result.inputs.sourceRows.get("B.md").order, 0);
   });
@@ -434,7 +440,7 @@ for (const activateDormant of [false, true]) {
           f.add("Center.md", "Children:: [[B]]", { Dormant: "[[B]]", Children: "[[A]]" });
           f.add("A.md", ""); f.add("B.md", ""); resolveFiles(f);
         }, { semantic });
-      const expected = activateDormant ? ["B.md", "A.md"] : ["A.md", "B.md"];
+      const expected = entityIdOrder(activateDormant ? ["B.md", "A.md"] : ["A.md", "B.md"]);
       assert.deepEqual(result.full.views.child, expected);
       assert.deepEqual(result.cached.views.child, expected);
     });
@@ -450,7 +456,7 @@ test("one Markdown owner's references, Dates and body URLs retain their separate
           { When: "2026-09-30", Children: "[[A]]" });
         f.add("A.md", ""); resolveFiles(f); f.app.dateFields.add("When");
       });
-    const expected = ["A.md", "Daily/2026-09-30.md", "https://example.com/b", "https://example.com/a"];
+    const expected = entityIdOrder(["A.md", "Daily/2026-09-30.md", "https://example.com/b", "https://example.com/a"]);
     for (const snapshot of [result.full, result.cached]) {
       assert.deepEqual(snapshot.views.child, expected);
       assert.equal(snapshot.decisions.get("https://example.com/b").length, 1, "The canonical parser retains the first raw URL occurrence");
@@ -465,7 +471,7 @@ test("URL-origin direct children follow first canonical body occurrence, not lex
       f => f.add("Owner.md", "[B](https://example.com/b) [A](https://example.com/a)\n[B again](https://example.com/b)"),
       { center: ref("https://example.com", "url") });
     for (const snapshot of [result.full, result.cached]) {
-      assert.deepEqual(snapshot.views.child, ["https://example.com/b", "https://example.com/a"]);
+      assert.deepEqual(snapshot.views.child, entityIdOrder(["https://example.com/b", "https://example.com/a"]));
       assert.deepEqual(rawPaths(snapshot), ["https://example.com/b", "https://example.com/a"]);
       assert.equal(snapshot.decisions.get("https://example.com/b").length, 1);
     }

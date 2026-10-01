@@ -8,12 +8,20 @@
  * catalogs capture full-builder Markdown encounter order only within that explicit acquisition. C2
  * host events also raise a coalesced durable UNKNOWN-impact ticket; no inverse resolver is invented.
  */
-import { Platform, TFile, type App, type CachedMetadata } from "obsidian";
+import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidian";
 import type { GraphCompilerRuntime } from "../../core/graph/compiler";
 import { acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type NormalizedSourceBatch,
   type NormalizedSourceRecord, type SourceReadBoundary } from "../../core/graph/source";
 import { CachedSourceSemanticReader, MAX_CACHED_SCOPE_SOURCES, type CachedSemanticPolicy,
   type CachedSemanticPreparation } from "../../index/CachedSourceSemantics";
+import { CachedRequestedNeighborhoodReader, type CachedCenterGatePreparation,
+  type CachedNeighborhoodRequest } from "../../index/CachedRequestedNeighborhood";
+import { CachedRequestedCandidateDegreeReader, type CachedCandidateDegreePreparation,
+  type CachedCandidateDegreeRequest } from "../../index/CachedRequestedCandidateDegrees";
+import { CachedRequestedUrlTitleReader, type CachedUrlTitlePreparation } from "../../index/CachedRequestedUrlTitle";
+import type { CachedCenterGatePolicy } from "../../index/CachedCenterGateProjection";
+import type { SourcePatchReadPort } from "../../core/graph/patch";
+import type { SourceEntityRef } from "../../core/graph/source";
 import { SourceContributorDiscovery, type ContributorHostCatalog } from "../../index/SourceContributorDiscovery";
 import type { ContributorHostChange } from "../../index/SourceContributorJournal";
 import type { CachedSourceHost, CachedSourceRequest } from "../../index/SourceReplay";
@@ -25,7 +33,7 @@ import { SOURCE_FAMILIES, SourceFactError, sourceFieldNames, sourceValueSteps, t
   type SourcePhysical, type SourceReason, type StoredMetadataFact, type StoredSourceFact } from "../../index/SourceFacts";
 import type { SourceFamilyProducer, SourceInspection, SourceRepositoryDiagnostics } from "../../index/SourceRepository";
 import { createObsidianMetadataSourceHost, normalizedBodyUrl, ObsidianMetadataSourceCollector, type ObsidianMetadataSourceSettings } from "./metadataSourceCollector";
-import { entityFactForFile, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "./structuralSourceCollector";
+import { entityFactForFile, entityFactForFolder, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "./structuralSourceCollector";
 import { hostLinkRecord, ObsidianHostLinkSourceCollector } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
@@ -74,6 +82,9 @@ export class ObsidianSourceAcquisition {
   private epoch = "";
   private hostRevision = 0;
   private contributorObservation = 0;
+  private contributorCatalog: Readonly<{ revision: number; discovery: SourceContributorDiscovery }> | null = null;
+  private contributorCatalogTask: Promise<boolean> | null = null;
+  private contributorCatalogTaskRevision: number | null = null;
   private closed = false;
   private started = false;
   private enabled = false;
@@ -86,7 +97,8 @@ export class ObsidianSourceAcquisition {
     repaired: 0, resolutionRefreshes: 0, pendingMetadata: 0, failures: 0 };
 
   /** Construction is side-effect free; start() explicitly owns host subscriptions. */
-  constructor(private readonly app: App, private readonly cache: KplexIndexedDbCache, private readonly parse: SourceBodyParser) {
+  constructor(private readonly app: App, private readonly cache: KplexIndexedDbCache, private readonly parse: SourceBodyParser,
+    private readonly inventoryReady?: () => void) {
     this.repository = cache.sources;
     this.metadataHost = createObsidianMetadataSourceHost(app);
   }
@@ -136,7 +148,10 @@ export class ObsidianSourceAcquisition {
   private markContributorHostChange(kind: ContributorHostChange["kind"]): void {
     // Environment validation is reversible; its journal is not. These event coordinates are
     // deliberately separate from the accepted resolver/catalog revision contract.
-    if (kind !== "environment") { this.hostRevision++; this.inventoryRevision += 1; }
+    if (kind !== "environment") {
+      this.hostRevision++; this.inventoryRevision += 1;
+      this.contributorCatalog = null;
+    }
     const from = this.contributorObservation++;
     // The repository owns retries/unload and never clears a newer coalesced observation on completion.
     void this.repository.markContributorHostDirty({ epoch: this.epoch, from, to: this.contributorObservation, kind });
@@ -254,13 +269,111 @@ export class ObsidianSourceAcquisition {
     }
     return new CachedSourceSemanticReader(this.repository).prepare(requests, policy, {
       entity: (ref) => {
-        if (!current() || !ref.physicalPath) return undefined;
+        if (!current() || ref.physicalPath === undefined) return undefined;
+        if (ref.kind === "container") {
+          const folder = ref.physicalPath === "" || ref.physicalPath === "/"
+            ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(ref.physicalPath);
+          if (!(folder instanceof TFolder)) return undefined;
+          const fact = entityFactForFolder(folder);
+          return fact.entity.id === ref.id ? fact : undefined;
+        }
         const file = this.app.vault.getFileByPath(ref.physicalPath);
         if (!(file instanceof TFile)) return undefined;
         const fact = entityFactForFile(file);
         return fact.entity.id === ref.id ? fact : undefined;
       },
     }, runtime);
+  }
+
+  /** Return exact current host entity facts for cached preparation without reading file bodies. */
+  private cachedEntityReadPort(runtime: GraphCompilerRuntime): SourcePatchReadPort {
+    return {
+      entity: (ref) => {
+        if (!runtime.isCurrent() || ref.physicalPath === undefined) return undefined;
+        if (ref.kind === "container") {
+          const folder = ref.physicalPath === "" || ref.physicalPath === "/"
+            ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(ref.physicalPath);
+          if (!(folder instanceof TFolder)) return undefined;
+          const fact = entityFactForFolder(folder);
+          return fact.entity.id === ref.id ? fact : undefined;
+        }
+        const file = this.app.vault.getFileByPath(ref.physicalPath);
+        if (!(file instanceof TFile)) return undefined;
+        const fact = entityFactForFile(file);
+        return fact.entity.id === ref.id ? fact : undefined;
+      },
+    };
+  }
+
+  /**
+   * Build and retain the SI4 contributor catalog outside a settings event from already-valid cached
+   * facts. Missing/dirty heads remain pending; bootstrap itself never acquires or rereads Markdown.
+   */
+  async bootstrapContributorCatalog(runtime: GraphCompilerRuntime): Promise<boolean> {
+    this.start();
+    const revision = this.hostRevision;
+    const current = (): boolean => !this.closed && runtime.isCurrent() && this.hostRevision === revision;
+    if (this.contributorCatalog?.revision === revision && this.contributorCatalog.discovery.isHostCurrent()) return true;
+    if (this.contributorCatalogTask && this.contributorCatalogTaskRevision === revision) return this.contributorCatalogTask;
+    const scopedRuntime = { ...runtime, isCurrent: current };
+    const task = (async (): Promise<boolean> => {
+      const discovery = this.contributorDiscovery(scopedRuntime);
+      const rebuilt = await discovery.rebuild();
+      if (rebuilt.outcome !== "ready" || !current() || !discovery.isHostCurrent()) return false;
+      this.contributorCatalog = { revision, discovery };
+      return true;
+    })();
+    this.contributorCatalogTask = task;
+    this.contributorCatalogTaskRevision = revision;
+    try { return await task; }
+    finally {
+      if (this.contributorCatalogTask === task) {
+        this.contributorCatalogTask = null;
+        this.contributorCatalogTaskRevision = null;
+      }
+    }
+  }
+
+  /** Whether settings-only semantic preparation has a complete current dependency catalog. */
+  hasContributorCatalog(): boolean {
+    return Boolean(this.contributorCatalog?.revision === this.hostRevision && this.contributorCatalog.discovery.isHostCurrent());
+  }
+
+  /** Prepare one exact center from cached facts; missing catalog remains pending and never falls back. */
+  async prepareRequestedNeighborhood(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
+    presentation: ObsidianMetadataSourceSettings, gatePolicy: CachedCenterGatePolicy,
+    runtime: GraphCompilerRuntime): Promise<CachedCenterGatePreparation> {
+    const catalog = this.contributorCatalog;
+    if (!catalog || catalog.revision !== this.hostRevision || !catalog.discovery.isHostCurrent()) {
+      return selectedSourceFailure("dependency-pending");
+    }
+    const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
+    return new CachedRequestedNeighborhoodReader(this.repository, catalog.discovery, capture, this.cachedEntityReadPort(runtime))
+      .prepareCenterGates(request, policy, gatePolicy, runtime);
+  }
+
+  /** Prepare exact raw degrees only when the active sort key needs them. */
+  async prepareRequestedCandidateDegrees(request: CachedCandidateDegreeRequest, policy: CachedSemanticPolicy,
+    presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CachedCandidateDegreePreparation> {
+    const catalog = this.contributorCatalog;
+    if (!catalog || catalog.revision !== this.hostRevision || !catalog.discovery.isHostCurrent()) {
+      return selectedSourceFailure("dependency-pending");
+    }
+    const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
+    return new CachedRequestedCandidateDegreeReader(this.repository, catalog.discovery, capture, this.cachedEntityReadPort(runtime))
+      .prepare(request, policy, runtime);
+  }
+
+  /** Prepare the full-builder URL label input for one exact URL candidate from cached facts. */
+  async prepareRequestedUrlTitle(endpoint: SourceEntityRef, policy: CachedSemanticPolicy,
+    presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CachedUrlTitlePreparation> {
+    const catalog = this.contributorCatalog;
+    if (!catalog || catalog.revision !== this.hostRevision || !catalog.discovery.isHostCurrent()) {
+      return selectedSourceFailure("dependency-pending");
+    }
+    const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
+    return new CachedRequestedUrlTitleReader(this.repository, catalog.discovery, capture, this.cachedEntityReadPort(runtime))
+      .prepare(endpoint, policy, runtime);
   }
 
   /**
@@ -626,7 +739,9 @@ export class ObsidianSourceAcquisition {
           if (page.next === null) break;
           after = page.next;
         }
-        return current() && complete;
+        const ready = current() && complete;
+        if (ready) this.inventoryReady?.();
+        return ready;
       } catch { this.counters.failures += 1; return false; }
     })();
     try { return await this.inventory; }

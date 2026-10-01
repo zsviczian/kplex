@@ -845,6 +845,7 @@ export default class KplexPlugin extends Plugin {
       // reconcile. Reactive listeners will mark the snapshot dirty if a real change arrives.
       if (!this.indexDirty && this.index.size > 0 && this.index.isFullSnapshotHydrated()) {
         this.initialIndexComplete = true;
+        void this.index.bootstrapSemanticDependencies();
         this.notifyIndexStatus();
         return;
       }
@@ -866,6 +867,7 @@ export default class KplexPlugin extends Plugin {
         if (patched.reconciled) {
           this.indexBacklogReasons.delete("startup:stale-snapshot");
           this.initialIndexComplete = true;
+          void this.index.bootstrapSemanticDependencies();
           if (!this.preRestoreUncoveredChanges && patchRevision === this.indexDirtyRevision &&
               this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
             this.indexDirty = false;
@@ -895,6 +897,7 @@ export default class KplexPlugin extends Plugin {
       // A progressive cold build may have published a useful neighborhood before cancellation.
       // Keep that graph navigable, but do not mistake partial publication for startup completion.
       this.initialIndexComplete = this.index.isFullSnapshotHydrated();
+      if (this.initialIndexComplete) void this.index.bootstrapSemanticDependencies();
       this.notifyIndexStatus();
 
       // Changes that arrived while the initial build was running are coalesced. Only reconcile
@@ -1107,8 +1110,8 @@ export default class KplexPlugin extends Plugin {
     if (effects.semanticInvalidation) this.index.invalidateSemanticPolicy();
     await this.saveData(this.settings);
     if (this.unloading) return;
-    if (effects.semanticInvalidation) this.scheduleRebuild("settings");
     await this.index.refreshPresentationSettings();
+    if (effects.semanticInvalidation) await this.index.refreshSemanticSettings();
     // Workflow-only callers can still request their historical view notification. Changed settings
     // use the separate presentation channel and never pretend relationship evidence changed.
     if (!effects.render && notifyIndex) this.index.notifyPresentation();
@@ -2006,11 +2009,13 @@ export default class KplexPlugin extends Plugin {
     totalFiles: number | null;
   } {
     const loadingCache = this.index.hasPendingSnapshotHydration();
+    const semanticPreparing = this.index.hasPendingSemanticPreparation();
     const upToDate = this.initialIndexComplete
       && !this.indexDirty
       && this.rebuildTask === null
       && this.rebuildTimer === null
-      && !loadingCache;
+      && !loadingCache
+      && !semanticPreparing;
     const indexedFiles = totalFiles === null
       ? this.index.indexedMarkdownFileCount()
       : upToDate ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
@@ -3154,6 +3159,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Create the requested relationship to an existing graph page through the current persistence path with localized feedback. */
   async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string): Promise<void> {
+    if (!this.index.isSemanticWriteReady(origin.path, target.path)) return;
     if (origin.path === target.path) return;
     const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
     if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
@@ -3190,6 +3196,7 @@ export default class KplexPlugin extends Plugin {
     selectedField: string,
     storagePathOverride: string | null = null,
   ): Promise<void> {
+    if (!this.index.isSemanticWriteReady(center.path, neighbour.path)) return;
     const centerFile = center.file?.extension === "md" ? center.file : null;
     const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
     if (!centerFile && !neighbourFile) {
@@ -3231,6 +3238,7 @@ export default class KplexPlugin extends Plugin {
     existingDirection: LinkDirection | null = null,
     storagePathOverride: string | null = null,
   ): Promise<void> {
+    if (!this.index.isSemanticWriteReady(center.path, neighbour.path)) return;
     const centerFile = center.file?.extension === "md" ? center.file : null;
     const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
     if (!centerFile && !neighbourFile) {
@@ -4009,6 +4017,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Persist the ontology link for a newly created related file, retaining the optimistic relationship and localized failure path. */
   async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = ""): Promise<GraphPage> {
+    if (!this.index.isSemanticWriteReady(origin.path, origin.path)) throw new Error("Semantic relationship preparation is still pending");
     // K-Plex already knows the complete minimum fact set for a newly created node. Publish both the
     // page and relationship before awaiting processFrontMatter/MetadataCache, then let the normal
     // incremental path reconcile richer metadata in the background.
@@ -4047,6 +4056,7 @@ export default class KplexPlugin extends Plugin {
     rawAlias: string,
     selectedField: string,
   ): Promise<GraphPage | null> {
+    if (!this.index.isSemanticWriteReady(origin.path, origin.path)) return null;
     if (origin.file?.extension !== "md") {
       new Notice(this.translator("notice.webLinkMarkdownOnly"), 2800);
       return null;
@@ -4082,6 +4092,7 @@ export default class KplexPlugin extends Plugin {
     rawName: string,
     selectedField: string,
   ): Promise<GraphPage | null> {
+    if (!this.index.isSemanticWriteReady(origin.path, origin.path)) return null;
     const validation = this.validateRelatedNoteName(rawName);
     if (!validation.valid) {
       new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
