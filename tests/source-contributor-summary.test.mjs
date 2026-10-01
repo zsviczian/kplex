@@ -327,3 +327,31 @@ test("owner-summary codecs enforce identity, original ordering, self membership 
   assert.equal((await oversized.discovery.readOwnerSummary("\ud800".repeat(50_000))).reason, "unsupported-scope");
   assert.equal(oversized.state.reads, 0);
 });
+
+/** Activation-time memberships must cover canonical replay dependencies; root parent incidence is deliberately additive. */
+test("source-local activation memberships cover canonical owner-summary dependencies plus explicit root parent", async () => {
+  const f = replayFixture();
+  try {
+    const file = f.add("Root.md", "Friends:: [[B]]\n[Page](https://example.com/path)", { Friends: "[[B]]", tags: ["project/nested"] });
+    f.add("B.md", ""); f.resolutions.set("B", "B.md");
+    // The test host's getAllTags double uses hostTags; mirror the same genuine frontmatter tag so
+    // structural and metadata collectors observe the same input as Obsidian getAllTags.
+    f.metadata.get("Root.md").hostTags = ["#project/nested"];
+    for (const id of ["Root.md", "B.md"]) assert.equal((await f.acquisition.acquire(f.files.get(id), M.parseBodyMetadata(f.text.get(id)))).current, true);
+    const captured = await f.acquisition.captureForReplay(file.path, presentation, runtime());
+    assert.equal(captured.outcome, "ready");
+    const summarized = await M.summarizeContributorOwner(f.repository, captured.request, runtime());
+    assert.equal(summarized.outcome, "ready");
+    const projected = new Set(M.sourceLocalStructuralBaseKeys("Root.md", "Root.md"));
+    for (const family of ["values", "body-urls", "metadata", "resolution"]) {
+      assert.equal(await f.repository.visit("Root.md", family, records => {
+        for (const record of records) for (const key of M.sourceLocalStoredDependencyKeys("Root.md", record)) projected.add(key);
+        return true;
+      }), "ready");
+    }
+    const legacyKeys = new Set(summarized.value.summary.keys);
+    for (const key of legacyKeys) assert(projected.has(key), `missing canonical dependency key ${key}`);
+    assert.deepEqual([...projected].sort(), [...legacyKeys].sort(),
+      "activation-time source-owner memberships must equal canonical replay dependencies");
+  } finally { f.close(); }
+});

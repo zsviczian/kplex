@@ -172,6 +172,27 @@ export function entityFactForFolder(folder: TFolder, revision = folderSourceRevi
   };
 }
 
+/**
+ * Return the structural collector's document encounter coordinate without emitting facts. Inventory
+ * reconciliation uses this only to preserve the established replay order in a source-local owner;
+ * it does not create a dependency catalog and never reads Markdown or MetadataCache.
+ */
+export function structuralMarkdownSourceOrder(vault: Pick<Vault, "getRoot">): ReadonlyMap<string, number> {
+  const root = vault.getRoot();
+  if (!(root instanceof TFolder)) return new Map();
+  const order = new Map<string, number>();
+  const stack: TFolder[] = [root];
+  let next = 0;
+  while (stack.length) {
+    const folder = stack.pop()!;
+    for (const item of folder.children) {
+      if (item instanceof TFolder) stack.push(item);
+      else if (item instanceof TFile && item.extension === "md") order.set(item.path, next++);
+    }
+  }
+  return order;
+}
+
 /** Construct one exact current physical entity; paths are interpreted only at the host boundary. */
 export function entityFactForFile(file: TFile): SourceEntityFact {
   const entity = fileRef(file);
@@ -204,6 +225,11 @@ function fileTreeOccurrence(parent: TFolder, parentRevision: SourceRevision, chi
   };
 }
 
+/** Reuse the canonical folder topology identity for one bounded source-local dependency query. */
+export function structuralFileTreeOccurrence(parent: TFolder, child: TFolder | TFile): FileTreeOccurrence {
+  return fileTreeOccurrence(parent, folderSourceRevision(parent), child);
+}
+
 function tagMembershipOccurrence(file: TFile, rawTag: string, contributionRevision: SourceRevision): TagTreeOccurrence | null {
   const tag = tagRef(rawTag);
   if (!tag) return null;
@@ -221,6 +247,19 @@ function tagMembershipOccurrence(file: TFile, rawTag: string, contributionRevisi
       resolvedBy: "structural",
     },
   };
+}
+
+/** Reuse the canonical tag membership producer without scanning any other Markdown source. */
+export function structuralTagMembershipFacts(file: TFile, metadataCache: Pick<MetadataCache, "getFileCache">): readonly TagTreeOccurrence[] {
+  const cache = metadataCache.getFileCache(file);
+  const rawTags = cache ? (getAllTags(cache) ?? []) : [];
+  const contributionRevision = tagContributionRevision(file, rawTags);
+  const facts: TagTreeOccurrence[] = [];
+  for (const rawTag of rawTags) {
+    const fact = tagMembershipOccurrence(file, rawTag, contributionRevision);
+    if (fact) facts.push(fact);
+  }
+  return facts;
 }
 
 /**

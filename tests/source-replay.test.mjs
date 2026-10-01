@@ -188,7 +188,7 @@ test("an incomplete dependency query discards partial owners and explicitly repo
   } finally { f.close(); }
 });
 
-test("production GraphIndex semantic refresh matches fresh full oracle from a valid cached dependency catalog", async () => {
+test("production GraphIndex semantic refresh matches fresh full oracle from source-local dependencies", async () => {
   const f = await titleFixture(f => {
     f.add("A.md", "# First\nDormantInline:: [[E]]\n# Second\nFriends:: [[D]]\n[Readable](https://example.com/path)\n", {
       Parent: "[[B]]", Dormant: "[[Dormant Ghost]]", Image: "[[image.png]]", Hidden: "[[H]]", When: "2026-09-29",
@@ -222,14 +222,51 @@ test("production GraphIndex semantic refresh matches fresh full oracle from a va
     index = await fullCenterIndex(M, f, initial, semantic, view);
     index.rebuildSearchIndex();
 
-    // Production acquisition owns capture/currentness; the fixture supplies only durable storage
-    // coordinates for the already-built catalog. No settings query may rebuild that catalog.
+    // The Node fixture has no IndexedDB, so provide only the new repository-local derivative port.
+    // Its memberships are projected once from the already-acquired neutral families using the
+    // production source-local key projector; settings requests cannot consult the legacy catalog.
+    const localByKey = new Map(), stamps = new Map();
+    const structuralOrder = new Map(); let structuralOrdinal = 0;
+    for (const fact of f.structure) if (fact.kind === "entity" && fact.entity.kind === "document") {
+      structuralOrder.set(fact.entity.physicalPath, structuralOrdinal++);
+    }
+    const setupSummaryKeys = new Map(ids.map(id => [id, new Set([M.sourceLocalDependencyKey("node", id)])]));
+    for (const page of f.catalog.state.pages.values()) for (const row of JSON.parse(page.data)) {
+      if (row.kind === "summary") {
+        const [, sourceId] = JSON.parse(row.key);
+        const keys = setupSummaryKeys.get(sourceId);
+        if (keys) for (const key of row.keys) keys.add(key);
+      } else if (row.kind === "source" && setupSummaryKeys.has(row.head.sourceId)) {
+        stamps.set(row.head.sourceId, { head: row.head, sequence: row.head.sequence, saved: true });
+      }
+    }
+    for (const id of ids) {
+      assert(stamps.has(id), `setup source owner ${id}`);
+      for (const key of setupSummaryKeys.get(id)) { const owners = localByKey.get(key) ?? []; owners.push(id); localByKey.set(key, owners); }
+    }
+    const localFence = { revision: 1, sequence: Math.max(...[...stamps.values()].map(stamp => stamp.sequence)) };
+    const localPort = {
+      lookupLocalDependencies: async (keys, current) => {
+        if (!current()) return { outcome: "cancelled", reason: "cancelled" };
+        const selectedIds = [...new Set(keys.flatMap(key => localByKey.get(key) ?? []))]
+          .sort((left, right) => structuralOrder.get(left) - structuralOrder.get(right));
+        return { outcome: "ready", value: { fence: localFence, sources: selectedIds.map(id => stamps.get(id)),
+          orders: selectedIds.map(id => structuralOrder.get(id)), markdownOrders: selectedIds.map(id => f.ordinals.get(id)),
+          work: { keys: keys.length, rows: selectedIds.length } } };
+      },
+      validateLocalDependencies: async (fence, selected, current) => {
+        if (!current()) return "cancelled";
+        if (JSON.stringify(fence) !== JSON.stringify(localFence)) return "superseded";
+        return (await f.port.validateSelections(selected, current)).reason;
+      },
+    };
     const durableRepository = new Proxy(f.repository, { get(target, key) {
+      if (key in localPort) { const value = localPort[key]; return typeof value === "function" ? value.bind(localPort) : value; }
       if (key in f.port) { const value = f.port[key]; return typeof value === "function" ? value.bind(f.port) : value; }
       const value = target[key]; return typeof value === "function" ? value.bind(target) : value;
     } });
     f.acquisition.repository = durableRepository;
-    f.acquisition.contributorCatalog = { revision: f.acquisition.hostRevision, discovery: f.discovery };
+    f.acquisition.localDependenciesReady = true;
     index.sourceAcquisition.close();
     index.sourceAcquisition = f.acquisition;
     index.plugin.settings.lastActivePath = "A.md";
@@ -445,6 +482,8 @@ test("SI4 production settings route owns revisioned cached preparation without a
   assert.match(main, /if \(effects.semanticInvalidation\) await this.index.refreshSemanticSettings\(\)/);
   assert(!/scheduleRebuild\("settings"\)/.test(main));
   assert.match(index, /prepareRequestedNeighborhood/);
+  assert.match(index, /hasSemanticDependencies/);
+  assert(!/bootstrapSemanticDependencies|hasContributorCatalog/.test(index + main));
   assert(!/CachedSourceSemanticReader|prepareCachedSemantics/.test(main));
   assert(!/cachedRead|\.vault\.(read|cachedRead)|parseBodyMetadata|parseBodyMetadataAsync|extractLinkReferences|resolveObsidianReferenceTarget/.test(replay + semantic));
   assert.match(semantic, /NormalizedSourceScopePreparer/); assert.match(replay, /acceptSourceBatch/);

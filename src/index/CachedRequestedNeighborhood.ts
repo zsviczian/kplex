@@ -76,9 +76,21 @@ function sameRoot(left: ContributorCertificate, right: ContributorCertificate): 
 /** The combined range must retain every original owner/structural occurrence, not just its keys. */
 function containsCover(combined: ContributorCertificate, initial: ContributorCertificate): boolean {
   const sources = new Map(combined.sources.map((stamp) => [stamp.head.sourceId, JSON.stringify(stamp)]));
-  const facts = new Map(combined.hostFacts.map((entry) => [entry.order, JSON.stringify(entry.fact)]));
+  if ((combined.hostFactOrder === "scope-local") !== (initial.hostFactOrder === "scope-local")) return false;
+  const hostFactsRetained = combined.hostFactOrder === "scope-local"
+    // Widening a finite source-local scope can insert earlier current facts and therefore renumber
+    // them. Each certificate authenticates its exact stream, while cover containment binds the
+    // occurrence itself. The legacy durable catalog keeps its absolute occurrence coordinate below.
+    ? (() => {
+        const facts = new Set(combined.hostFacts.map((entry) => JSON.stringify(entry.fact)));
+        return initial.hostFacts.every((entry) => facts.has(JSON.stringify(entry.fact)));
+      })()
+    : (() => {
+        const facts = new Map(combined.hostFacts.map((entry) => [entry.order, JSON.stringify(entry.fact)]));
+        return initial.hostFacts.every((entry) => facts.get(entry.order) === JSON.stringify(entry.fact));
+      })();
   return initial.sources.every((stamp) => sources.get(stamp.head.sourceId) === JSON.stringify(stamp))
-    && initial.hostFacts.every((entry) => facts.get(entry.order) === JSON.stringify(entry.fact));
+    && hostFactsRetained;
 }
 
 /**

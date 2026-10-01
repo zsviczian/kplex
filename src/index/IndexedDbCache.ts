@@ -9,6 +9,8 @@ import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/g
 import { Platform } from "obsidian";
 import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE,
   SOURCE_REVISION_INDEX, SOURCE_FAMILY_INDEX, SOURCE_LOOKUP_INDEX, SOURCE_LEASE_INDEX } from "./SourceRepository";
+import { SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE,
+  SOURCE_LOCAL_REVISION_INDEX, sourceLocalDependencyState } from "./SourceLocalDependencies";
 import { SOURCE_DEPENDENCY_STORE, sourceDependencyState } from "./SourceFacts";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
@@ -17,7 +19,7 @@ import { SOURCE_IMPACT_STORE, SOURCE_IMPACT_SLOT_INDEX, SOURCE_IMPACT_LEASE_INDE
 
 import { releaseContributorRootLeaseFresh, type ContributorRootLease } from "./SourceContributorLease";
 
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 const BODY_CACHE_VERSION = 2;
 const META_STORE = "meta";
 const PAGE_STORE = "pages";
@@ -233,7 +235,7 @@ export class KplexIndexedDbCache {
     catch (error) { this.storageFailed(db); throw error; }
   }
 
-  /** Lazily open v7 with bounded backoff and reject late, blocked or newer-version connections. */
+  /** Lazily open v8 with bounded backoff and reject late, blocked or newer-version connections. */
   private open(): Promise<IDBDatabase | null> {
     if (this.closed || this.newerDatabase) return Promise.resolve(null);
     if (this.dbPromise) return this.dbPromise;
@@ -264,7 +266,7 @@ export class KplexIndexedDbCache {
         // cache is only an optimization, so cold startup degrades to vault reads instead of waiting
         // minutes for storage. A late success is closed by the settled guard below.
         openTimeout = window.setTimeout(fail, Platform.isMobile ? 2500 : 1800);
-        request.onupgradeneeded = () => {
+        request.onupgradeneeded = (event) => {
           if (settled || this.closed || epoch !== this.openEpoch) { request.transaction?.abort(); return; }
           const db = request.result;
           if (!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, { keyPath: "key" });
@@ -303,7 +305,18 @@ export class KplexIndexedDbCache {
           if (!db.objectStoreNames.contains(SOURCE_IMPACT_STORE)) {
             db.createObjectStore(SOURCE_IMPACT_STORE, { keyPath: "owner" }).createIndex(SOURCE_IMPACT_SLOT_INDEX, "slot");
           }
+          // v8 adds an incrementally maintained source-local dependency derivative. Immutable rows
+          // are selected by a per-source owner activated with the source head; no vault-wide catalog
+          // is built or migrated during this schema upgrade.
+          if (!db.objectStoreNames.contains(SOURCE_LOCAL_DEPENDENCY_STORE)) {
+            const store = db.createObjectStore(SOURCE_LOCAL_DEPENDENCY_STORE, { keyPath: ["sourceId", "sourceRevision", "index"] });
+            store.createIndex(SOURCE_LOCAL_LOOKUP_INDEX, ["key", "sourceId", "sourceRevision", "index"]);
+            store.createIndex(SOURCE_LOCAL_REVISION_INDEX, ["sourceId", "sourceRevision"]);
+          }
+          if (!db.objectStoreNames.contains(SOURCE_LOCAL_OWNER_STORE)) db.createObjectStore(SOURCE_LOCAL_OWNER_STORE, { keyPath: "sourceId" });
+          if (!db.objectStoreNames.contains(SOURCE_LOCAL_KEY_STORE)) db.createObjectStore(SOURCE_LOCAL_KEY_STORE, { keyPath: "key" });
           const meta = request.transaction?.objectStore(META_STORE);
+          if (meta && request.transaction && event.oldVersion < 8) meta.put(sourceLocalDependencyState());
           if (meta && !meta.indexNames.contains(SOURCE_IMPACT_LEASE_INDEX)) meta.createIndex(SOURCE_IMPACT_LEASE_INDEX, "impactSlot");
           if (meta && !meta.indexNames.contains(SOURCE_LEASE_INDEX)) meta.createIndex(SOURCE_LEASE_INDEX, ["sourceId", "revision"]);
         };

@@ -23,6 +23,7 @@ import type { CachedCenterGatePolicy } from "../../index/CachedCenterGateProject
 import type { SourcePatchReadPort } from "../../core/graph/patch";
 import type { SourceEntityRef } from "../../core/graph/source";
 import { SourceContributorDiscovery, type ContributorHostCatalog } from "../../index/SourceContributorDiscovery";
+import { SourceLocalContributorDiscovery } from "./sourceLocalContributorDiscovery";
 import type { ContributorHostChange } from "../../index/SourceContributorJournal";
 import type { CachedSourceHost, CachedSourceRequest } from "../../index/SourceReplay";
 import { selectedSourceFailure, type SelectedSourceResult } from "../../index/SourceRepository";
@@ -30,10 +31,11 @@ import type { ParsedBodyMetadata, ParsedFileMetadata } from "../../core/parser/m
 import { mergeFileMetadata } from "../../index/fieldParser";
 import type { KplexIndexedDbCache } from "../../index/IndexedDbCache";
 import { SOURCE_FAMILIES, SourceFactError, sourceFieldNames, sourceValueSteps, type SourceFamily, type SourceFamilyManifest,
-  type SourcePhysical, type SourceReason, type StoredMetadataFact, type StoredSourceFact } from "../../index/SourceFacts";
+  type SourceObservation, type SourcePhysical, type SourceReason, type StoredMetadataFact, type StoredSourceFact } from "../../index/SourceFacts";
 import type { SourceFamilyProducer, SourceInspection, SourceRepositoryDiagnostics } from "../../index/SourceRepository";
 import { createObsidianMetadataSourceHost, normalizedBodyUrl, ObsidianMetadataSourceCollector, type ObsidianMetadataSourceSettings } from "./metadataSourceCollector";
-import { entityFactForFile, entityFactForFolder, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "./structuralSourceCollector";
+import { entityFactForFile, entityFactForFolder, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector,
+  structuralMarkdownSourceOrder } from "./structuralSourceCollector";
 import { hostLinkRecord, ObsidianHostLinkSourceCollector } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
@@ -82,9 +84,8 @@ export class ObsidianSourceAcquisition {
   private epoch = "";
   private hostRevision = 0;
   private contributorObservation = 0;
-  private contributorCatalog: Readonly<{ revision: number; discovery: SourceContributorDiscovery }> | null = null;
-  private contributorCatalogTask: Promise<boolean> | null = null;
-  private contributorCatalogTaskRevision: number | null = null;
+  /** Settings-only reads are enabled only after the startup/event inventory closed every local owner. */
+  private localDependenciesReady = false;
   private closed = false;
   private started = false;
   private enabled = false;
@@ -150,7 +151,7 @@ export class ObsidianSourceAcquisition {
     // deliberately separate from the accepted resolver/catalog revision contract.
     if (kind !== "environment") {
       this.hostRevision++; this.inventoryRevision += 1;
-      this.contributorCatalog = null;
+      this.localDependenciesReady = false;
     }
     const from = this.contributorObservation++;
     // The repository owns retries/unload and never clears a newer coalesced observation on completion.
@@ -195,9 +196,9 @@ export class ObsidianSourceAcquisition {
       .filter((name) => name !== "position" && this.metadataHost.isDateProperty(name)).sort() });
   }
   /**
-   * Capture the host inputs not represented by v5 source facts. This read never starts acquisition,
-   * reads Markdown or writes a head. A new host epoch or dirty/pending source must first be acquired
-   * through the existing lifecycle. Presentation selectors are copied independently from storage.
+   * Capture host inputs not represented by neutral source facts. Current-session memory/disk replay
+   * keeps its established identity path. A clean process restart may adopt an unchanged durable head
+   * after physical/environment checks, without rewriting that head solely to stamp the new epoch.
    */
   async captureForReplay(sourceId: string, settings: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<
     Readonly<{ outcome: "ready"; request: CachedSourceRequest }> | Exclude<SelectedSourceResult<never>, { outcome: "ready" }>> {
@@ -207,14 +208,33 @@ export class ObsidianSourceAcquisition {
     const capture = this.capture(file);
     const cache = this.app.metadataCache.getFileCache(file);
     if (!cache) return selectedSourceFailure("pending-metadata");
-    if (!capture.state.identity || capture.state.dirty || capture.state.bodyDirty || capture.state.created) return selectedSourceFailure("unsaved");
+    if (capture.state.dirty || capture.state.bodyDirty || capture.state.created) return selectedSourceFailure("unsaved");
     const environmentText = this.environment(cache);
     const current = (): boolean => this.current(capture, runtime.isCurrent)
       && this.app.metadataCache.getFileCache(file) === cache && this.environment(cache) === environmentText;
     try {
       const environment = await this.repository.observationDigest(environmentText);
       if (!current()) return selectedSourceFailure(runtime.isCurrent() ? "stale" : "cancelled");
-      const physical = { ...capture.physical, identity: capture.state.identity };
+      let physical: SourcePhysical;
+      let observation: SourceObservation;
+      if (capture.state.identity !== null) {
+        // Preserve the established current-session replay contract, including the bounded in-memory
+        // fallback used when durable storage is unavailable.
+        physical = { ...capture.physical, identity: capture.state.identity };
+        observation = { epoch: this.epoch, revision: capture.hostRevision, environment };
+      } else {
+        // A new process has no in-memory incarnation. Adopt only an unchanged durable selected head;
+        // any live host event makes this uncertain and leaves the requested settings scope pending.
+        if (this.hostRevision !== 0) return selectedSourceFailure("unsaved");
+        const inspection = await this.repository.inspect(sourceId, [], current);
+        if (!current()) return selectedSourceFailure(runtime.isCurrent() ? "stale" : "cancelled");
+        const head = inspection.head;
+        if (!inspection.saved || !head || head.state !== "complete" || !physicalMatches(head.physical, capture.physical)
+          || head.observation.environment !== environment) return selectedSourceFailure("unsaved");
+        capture.state.identity = head.physical.identity;
+        physical = { ...capture.physical, identity: head.physical.identity };
+        observation = { ...head.observation };
+      }
       const presentation = { noteTypeField: settings.noteTypeField, primaryTagField: settings.primaryTagField };
       const source = entityFactForFile(file).entity;
       const collectorRuntime = { isCurrent: current, sourceRevision: () => this.hostRevision,
@@ -235,7 +255,7 @@ export class ObsidianSourceAcquisition {
         return complete && current() && collector.isBoundaryCurrent(collector.boundary) && sourceReadCanPublish(cursor, collector.boundary);
       };
       const host: CachedSourceHost = {
-        source, physical, observation: { epoch: this.epoch, revision: capture.hostRevision, environment }, isCurrent: current,
+        source, physical, observation, isCurrent: current,
         structure: (emit) => relay(new ObsidianStructuralPatchSourceCollector(this.app, collectorRuntime, file), emit),
         presentation: (body, emit) => relay(new ObsidianMetadataSourceCollector(this.metadataHost, collectorRuntime, file,
           mergeFileMetadata(cache, body), presentation, "presentation"), emit),
@@ -305,74 +325,48 @@ export class ObsidianSourceAcquisition {
     };
   }
 
-  /**
-   * Build and retain the SI4 contributor catalog outside a settings event from already-valid cached
-   * facts. Missing/dirty heads remain pending; bootstrap itself never acquires or rereads Markdown.
-   */
-  async bootstrapContributorCatalog(runtime: GraphCompilerRuntime): Promise<boolean> {
-    this.start();
-    const revision = this.hostRevision;
-    const current = (): boolean => !this.closed && runtime.isCurrent() && this.hostRevision === revision;
-    if (this.contributorCatalog?.revision === revision && this.contributorCatalog.discovery.isHostCurrent()) return true;
-    if (this.contributorCatalogTask && this.contributorCatalogTaskRevision === revision) return this.contributorCatalogTask;
-    const scopedRuntime = { ...runtime, isCurrent: current };
-    const task = (async (): Promise<boolean> => {
-      const discovery = this.contributorDiscovery(scopedRuntime);
-      const rebuilt = await discovery.rebuild();
-      if (rebuilt.outcome !== "ready" || !current() || !discovery.isHostCurrent()) return false;
-      this.contributorCatalog = { revision, discovery };
-      return true;
-    })();
-    this.contributorCatalogTask = task;
-    this.contributorCatalogTaskRevision = revision;
-    try { return await task; }
-    finally {
-      if (this.contributorCatalogTask === task) {
-        this.contributorCatalogTask = null;
-        this.contributorCatalogTaskRevision = null;
-      }
-    }
-  }
+  /** Whether settings-only semantic preparation has a closed current source-local dependency inventory. */
+  hasSemanticDependencies(): boolean { return this.localDependenciesReady && !this.closed; }
 
-  /** Whether settings-only semantic preparation has a complete current dependency catalog. */
-  hasContributorCatalog(): boolean {
-    return Boolean(this.contributorCatalog?.revision === this.hostRevision && this.contributorCatalog.discovery.isHostCurrent());
+  /** One request-scoped dependency capability; construction never scans the Markdown inventory. */
+  private localContributorDiscovery(runtime: GraphCompilerRuntime): SourceLocalContributorDiscovery | null {
+    if (!this.hasSemanticDependencies()) return null;
+    const revision = this.hostRevision;
+    const observation = this.contributorObservation;
+    const current = (): boolean => !this.closed && runtime.isCurrent() && this.localDependenciesReady
+      && this.hostRevision === revision && this.contributorObservation === observation;
+    return new SourceLocalContributorDiscovery(this.repository, this.app,
+      { epoch: this.epoch, revision, token: `${this.epoch}:${revision}:${observation}` }, current);
   }
 
   /** Prepare one exact center from cached facts; missing catalog remains pending and never falls back. */
   async prepareRequestedNeighborhood(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
     presentation: ObsidianMetadataSourceSettings, gatePolicy: CachedCenterGatePolicy,
     runtime: GraphCompilerRuntime): Promise<CachedCenterGatePreparation> {
-    const catalog = this.contributorCatalog;
-    if (!catalog || catalog.revision !== this.hostRevision || !catalog.discovery.isHostCurrent()) {
-      return selectedSourceFailure("dependency-pending");
-    }
+    const discovery = this.localContributorDiscovery(runtime);
+    if (!discovery) return selectedSourceFailure("dependency-pending");
     const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
-    return new CachedRequestedNeighborhoodReader(this.repository, catalog.discovery, capture, this.cachedEntityReadPort(runtime))
+    return new CachedRequestedNeighborhoodReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
       .prepareCenterGates(request, policy, gatePolicy, runtime);
   }
 
   /** Prepare exact raw degrees only when the active sort key needs them. */
   async prepareRequestedCandidateDegrees(request: CachedCandidateDegreeRequest, policy: CachedSemanticPolicy,
     presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CachedCandidateDegreePreparation> {
-    const catalog = this.contributorCatalog;
-    if (!catalog || catalog.revision !== this.hostRevision || !catalog.discovery.isHostCurrent()) {
-      return selectedSourceFailure("dependency-pending");
-    }
+    const discovery = this.localContributorDiscovery(runtime);
+    if (!discovery) return selectedSourceFailure("dependency-pending");
     const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
-    return new CachedRequestedCandidateDegreeReader(this.repository, catalog.discovery, capture, this.cachedEntityReadPort(runtime))
+    return new CachedRequestedCandidateDegreeReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
       .prepare(request, policy, runtime);
   }
 
   /** Prepare the full-builder URL label input for one exact URL candidate from cached facts. */
   async prepareRequestedUrlTitle(endpoint: SourceEntityRef, policy: CachedSemanticPolicy,
     presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CachedUrlTitlePreparation> {
-    const catalog = this.contributorCatalog;
-    if (!catalog || catalog.revision !== this.hostRevision || !catalog.discovery.isHostCurrent()) {
-      return selectedSourceFailure("dependency-pending");
-    }
+    const discovery = this.localContributorDiscovery(runtime);
+    if (!discovery) return selectedSourceFailure("dependency-pending");
     const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
-    return new CachedRequestedUrlTitleReader(this.repository, catalog.discovery, capture, this.cachedEntityReadPort(runtime))
+    return new CachedRequestedUrlTitleReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
       .prepare(endpoint, policy, runtime);
   }
 
@@ -605,8 +599,9 @@ export class ObsidianSourceAcquisition {
       capture.state.identity ??= this.repository.createIdentity();
       const physical = { ...capture.physical, identity: capture.state.identity };
       const intrinsic = samePhysical && !capture.state.dirty;
-      const hostCurrent = head?.observation.epoch === this.epoch && head.observation.revision === this.hostRevision
-        && head.observation.environment === environment;
+      const hostCurrent = head?.observation.environment === environment
+        && (head.observation.epoch === this.epoch && head.observation.revision === this.hostRevision
+          || this.hostRevision === 0 && !capture.state.dirty);
       if (intrinsic && hostCurrent && inspection.saved && inspection.reason === "ready") return { current: current(), saved: inspection.saved, reason: "ready" };
       const metadata = mergeFileMetadata(cache, body);
       const validFamily = (family: SourceFamily): boolean => intrinsic && inspection.saved && inspection.families[family] === "ready";
@@ -695,7 +690,12 @@ export class ObsidianSourceAcquisition {
       let complete = true;
       try {
         const movedPaths = new Set<string>();
-        for (const file of this.app.vault.getMarkdownFiles()) {
+        const markdown = this.app.vault.getMarkdownFiles();
+        const structuralOrder = structuralMarkdownSourceOrder(this.app.vault);
+        if (structuralOrder.size !== markdown.length) return false;
+        for (const [markdownOrder, file] of markdown.entries()) {
+          const order = structuralOrder.get(file.path);
+          if (order === undefined) return false;
           if (!current()) return false;
           const capture = this.capture(file);
           if (capture.state.oldPath) movedPaths.add(capture.state.oldPath);
@@ -704,12 +704,19 @@ export class ObsidianSourceAcquisition {
           const environment = await this.repository.observationDigest(this.environment(hostCache));
           const inspection = await this.repository.inspect(file.path, [], current);
           if (!current()) return false;
-          if (inspection.saved && inspection.head && !capture.state.dirty && !capture.state.created
-            && physicalMatches(inspection.head.physical, capture.physical)
-            && inspection.head.observation.epoch === this.epoch && inspection.head.observation.revision === this.hostRevision
-            && inspection.head.observation.environment === environment) {
-            // This session already validated/activated the source. A new process has a different
-            // epoch and validates every family before reuse, including selective corruption repair.
+          const head = inspection.head;
+          const hostCurrent = head?.observation.environment === environment
+            && (head.observation.epoch === this.epoch && head.observation.revision === this.hostRevision
+              || this.hostRevision === 0 && !capture.state.dirty);
+          if (inspection.saved && head && !capture.state.dirty && !capture.state.created
+            && physicalMatches(head.physical, capture.physical) && hostCurrent) {
+            // A clean restart may reuse the exact durable source head without rewriting its host
+            // observation. Live host events still require this session's current epoch/revision.
+            capture.state.identity ??= head.physical.identity;
+            const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
+            if (!current()) return false;
+            complete &&= local === "ready";
+            await new Promise<void>(resolve => window.setTimeout(resolve, 0));
             continue;
           }
           const body = await this.loadBody(file, current);
@@ -718,6 +725,8 @@ export class ObsidianSourceAcquisition {
           if (!acquired.current) return false;
           complete &&= acquired.saved;
           if (acquired.saved) {
+            const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
+            complete &&= local === "ready";
             const state = this.state(file);
             if (state.oldPath) {
               const oldPath = state.oldPath;
@@ -732,6 +741,7 @@ export class ObsidianSourceAcquisition {
         while (current()) {
           const page = await this.repository.headPage(after);
           if (!page.available || !current()) return false;
+          if (page.invalid > 0) complete = false;
           for (const head of page.heads) if (head.state === "complete" && !this.app.vault.getFileByPath(head.physical.path)) {
             const result = await this.repository.tombstone(head.sourceId, () => current() && !this.app.vault.getFileByPath(head.physical.path), movedPaths.has(head.physical.path));
             complete &&= result.outcome === "activated";
@@ -739,7 +749,12 @@ export class ObsidianSourceAcquisition {
           if (page.next === null) break;
           after = page.next;
         }
-        const ready = current() && complete;
+        let ready = current() && complete;
+        if (ready) {
+          const local = await this.repository.completeLocalDependencyInventory(current);
+          ready = current() && local === "ready";
+        }
+        this.localDependenciesReady = ready;
         if (ready) this.inventoryReady?.();
         return ready;
       } catch { this.counters.failures += 1; return false; }

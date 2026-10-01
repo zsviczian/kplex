@@ -845,7 +845,6 @@ export default class KplexPlugin extends Plugin {
       // reconcile. Reactive listeners will mark the snapshot dirty if a real change arrives.
       if (!this.indexDirty && this.index.size > 0 && this.index.isFullSnapshotHydrated()) {
         this.initialIndexComplete = true;
-        void this.index.bootstrapSemanticDependencies();
         this.notifyIndexStatus();
         return;
       }
@@ -867,7 +866,6 @@ export default class KplexPlugin extends Plugin {
         if (patched.reconciled) {
           this.indexBacklogReasons.delete("startup:stale-snapshot");
           this.initialIndexComplete = true;
-          void this.index.bootstrapSemanticDependencies();
           if (!this.preRestoreUncoveredChanges && patchRevision === this.indexDirtyRevision &&
               this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
             this.indexDirty = false;
@@ -897,7 +895,6 @@ export default class KplexPlugin extends Plugin {
       // A progressive cold build may have published a useful neighborhood before cancellation.
       // Keep that graph navigable, but do not mistake partial publication for startup completion.
       this.initialIndexComplete = this.index.isFullSnapshotHydrated();
-      if (this.initialIndexComplete) void this.index.bootstrapSemanticDependencies();
       this.notifyIndexStatus();
 
       // Changes that arrived while the initial build was running are coalesced. Only reconcile

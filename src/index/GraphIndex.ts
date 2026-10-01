@@ -249,7 +249,6 @@ export class GraphIndex {
     policyRevision: number; demandRevision: number; task: Promise<void>;
   }>>();
   private preparedPageInfo = new WeakMap<GraphPage, PreparedSemanticPageInfo>();
-  private semanticDependencyBootstrapRun = 0;
   private semanticPreparationDiagnostics: SemanticPreparationDiagnostics = {
     policyRevision: 1, requested: 0, prepared: 0, published: 0, cancelled: 0, pending: 0,
     dependencyVisits: 0, fullBuilds: 0, lastReason: null,
@@ -309,7 +308,7 @@ export class GraphIndex {
     this.fullSemanticSettings = graphCompilerSettingsFromLegacy(plugin.settings);
     this.indexedDb = new KplexIndexedDbCache(app.vault.getName());
     this.sourceAcquisition = new ObsidianSourceAcquisition(app, this.indexedDb, (text) => this.metadataParser.parse(text),
-      () => { void this.bootstrapSemanticDependencies(); });
+      () => this.retryDemandedSemanticScopes());
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
     // cache; localStorage is a poor fit for large vaults because serialization duplicates memory.
     void this.indexedDb.clearLegacyLocalStorage(app);
@@ -333,30 +332,22 @@ export class GraphIndex {
       if (count <= 0) continue;
       const scope = this.semanticScopes.get(path);
       if (!scope || scope.policyRevision !== this.semanticPolicyRevision
-        || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasContributorCatalog()) return true;
+        || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasSemanticDependencies()) return true;
     }
     const active = this.plugin.settings.lastActivePath;
     if (!active) return false;
     const scope = this.semanticScopes.get(active);
     return !scope || scope.policyRevision !== this.semanticPolicyRevision
-      || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasContributorCatalog();
+      || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasSemanticDependencies();
   }
 
-  /**
-   * Build the settings-neutral dependency catalog outside settings handling from already-valid
-   * source facts. Missing or dirty source heads stay pending; this bootstrap never reads Markdown.
-   */
-  async bootstrapSemanticDependencies(): Promise<boolean> {
-    const run = ++this.semanticDependencyBootstrapRun;
-    const current = (): boolean => !this.diagnosticsClosed && run === this.semanticDependencyBootstrapRun;
-    const runtime = this.semanticPreparationRuntime(current);
-    const ready = await this.sourceAcquisition.bootstrapContributorCatalog(runtime);
-    if (!ready || !current()) return false;
+  /** Retry only demanded settings scopes after source-local dependency inventory closes. */
+  private retryDemandedSemanticScopes(): void {
+    if (this.diagnosticsClosed || !this.sourceAcquisition.hasSemanticDependencies()) return;
     const retry = new Set<string>();
     for (const [path, count] of this.semanticDemandCounts) if (count > 0) retry.add(path);
     if (this.plugin.settings.lastActivePath) retry.add(this.plugin.settings.lastActivePath);
     for (const path of retry) void this.ensureSemanticScope(path);
-    return true;
   }
 
   /** Register one visible semantic center. Releasing the final demand cancels its in-flight work. */
@@ -628,7 +619,7 @@ export class GraphIndex {
     const demandRevision = this.semanticDemandRevision.get(centerPath) ?? 0;
     const published = this.semanticScopes.get(centerPath);
     if (published?.policyRevision === policyRevision && published.demandRevision === demandRevision
-      && published.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasContributorCatalog()) {
+      && published.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasSemanticDependencies()) {
       return Promise.resolve();
     }
     const existing = this.semanticPreparationTasks.get(centerPath);
@@ -1119,7 +1110,6 @@ export class GraphIndex {
     this.sourceAcquisition.close();
     this.diagnosticsClosed = true;
     this.presentationRun += 1;
-    this.semanticDependencyBootstrapRun += 1;
     this.semanticPolicyRevision += 1;
     this.semanticDemandRevision.clear();
     this.semanticDemandCounts.clear();
@@ -2381,7 +2371,6 @@ export class GraphIndex {
       this.semanticScopes.clear();
       this.fullSnapshotHydrated = true;
       this.sourceAcquisition.enableInventory();
-      void this.bootstrapSemanticDependencies();
       this.fullSnapshotFresh = true;
       this.previewSnapshotPublished = false;
       this.resumableCheckpointPaths = null;
@@ -2443,7 +2432,6 @@ export class GraphIndex {
       this.semanticFingerprints = nextFingerprints;
       this.fullSnapshotHydrated = true;
       this.sourceAcquisition.enableInventory();
-      void this.bootstrapSemanticDependencies();
       this.fullSnapshotFresh = true;
       this.previewSnapshotPublished = false;
       this.titleCache.clear();
@@ -2550,7 +2538,7 @@ export class GraphIndex {
   isSemanticWriteReady(sourcePath: string, targetPath: string): boolean {
     if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision) return true;
     const scope = this.semanticScopeForPair(sourcePath, targetPath, true);
-    return Boolean(scope && scope.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasContributorCatalog());
+    return Boolean(scope && scope.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasSemanticDependencies());
   }
 
   relationshipStorageCandidates(sourcePath: string, targetPath: string): string[] {

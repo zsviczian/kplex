@@ -5,7 +5,7 @@ import { browserBundle } from "./browserTypeScript.mjs";
 
 const bundle = await browserBundle([
   "src/index/CachedRequestedCandidateDegrees.ts", "src/index/CachedRequestedDirectOrder.ts", "src/index/CachedCenterGateProjection.ts", "src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/SectionExpansion.ts",
-  "src/index/CachedRequestedUrlTitle.ts", "src/index/CachedRequestedPair.ts", "src/index/CachedRequestedNeighborhood.ts", "src/core/graph/resolver.ts", "src/core/graph/evidence.ts", "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/core/parser/metadata.ts", "src/index/SourceReplay.ts", "src/index/CachedSourceSemantics.ts", "src/index/SourceContributorSummary.ts",
+  "src/index/CachedRequestedUrlTitle.ts", "src/index/CachedRequestedPair.ts", "src/index/CachedRequestedNeighborhood.ts", "src/core/graph/resolver.ts", "src/core/graph/evidence.ts", "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/SourceReplay.ts", "src/index/CachedSourceSemantics.ts", "src/index/SourceContributorSummary.ts",
   "src/core/graph/compiler.ts", "src/core/graph/source.ts", "src/index/fieldParser.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts", "src/adapters/obsidian/hostLinkSourceCollector.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts", "src/adapters/obsidian/metadataSourceCollector.ts",

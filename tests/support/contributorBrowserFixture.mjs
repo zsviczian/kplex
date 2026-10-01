@@ -4,7 +4,7 @@ import { browserBundle } from "./browserTypeScript.mjs";
 /** Compile real modules plus optional test-owned entries; only the Obsidian host API is doubled. */
 export async function contributorBrowserBundle(extraEntries = []) {
   return browserBundle([
-    ...extraEntries, "src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/index/SourceContributorDiscovery.ts",
+    ...extraEntries, "src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/index/SourceLocalDependencies.ts", "src/index/SourceContributorDiscovery.ts",
     "src/adapters/obsidian/sourceAcquisition.ts", "src/core/parser/metadata.ts",
     "src/adapters/obsidian/structuralSourceCollector.ts", "src/index/SourceReplay.ts", "src/index/SourceContributorSummary.ts", "src/index/SourceContributorJournal.ts", "src/index/fieldParser.ts",
   ], { obsidian: `exports.Platform={isMobile:false,isIosApp:false}; exports.TFile=class TFile {
@@ -35,6 +35,7 @@ export const contributorBrowserInitialize = `(() => {
     const reads=[],parses=[];
     const app={vault:{...events(),getFileByPath:path=>files.get(path)??null,getFiles:()=>[...files.values()],
       getMarkdownFiles:()=>[...files.values()].filter(file=>file.extension==='md'),getRoot:()=>{root.children=[...files.values()];return root;},
+      getFolderByPath:path=>path===''||path==='/'?root:null,
       cachedRead:async file=>{reads.push(file.path);return texts.get(file.path)??'';}},
       metadataCache:{...events(),resolvedLinks:{},unresolvedLinks:{},getFileCache:file=>metadata.get(file.path)??null,
         getFirstLinkpathDest:literal=>files.get(literal)??files.get(literal+'.md')??null},

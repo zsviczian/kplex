@@ -52,7 +52,7 @@ export type ContributorImpactResult = ContributorFailure
   | Readonly<{ outcome: "unknown"; reason: SourceReason; work: ContributorImpactWork }>
   | Readonly<{ outcome: "known"; certificate: ContributorImpactCertificate; work: ContributorImpactWork }>;
 
-/** Only derivative page/root content changes. Database v7 and source/body formats stay intact. */
+/** Only derivative page/root content changes. Database v8 and source/body formats stay intact. */
 export const CONTRIBUTOR_CATALOG_VERSION = 4;
 /** Existing closed v2/v3 roots remain readable for their accepted capabilities only. */
 export const CONTRIBUTOR_LEGACY_CATALOG_VERSION = 2;
@@ -123,6 +123,8 @@ export type ContributorCertificate = Readonly<{
   host: ContributorHostStamp;
   sources: readonly SelectedSourceStamp[];
   hostFacts: readonly Readonly<{ order: number; fact: ContributorStructuralFact }>[];
+  /** Source-local adapters number the finite returned fact stream; the durable global catalog omits this marker. */
+  hostFactOrder?: "scope-local";
   selectionIdentity: string;
   /** Present only on URL-title input covers, aligned to exact sources and strictly increasing. */
   markdownOrder?: readonly number[];
