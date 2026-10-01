@@ -15,23 +15,37 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-# No offline assignment — maintainer decision required
+# Offline assignment — replace the global settings catalog with source-local dependencies
 
-Delivery 1 remains unaccepted. Do not start Delivery 2 or C15–C26.
+Complete one substantial Delivery 1 correction. Delivery 2 beyond the source-local maintenance needed here, SI5 acceptance and C15–C26 remain out of scope.
 
-The returned v5 compact codec, final-inventory retry and diagnostics pass the complete automated suite, but the exact 20,015-source Obsidian run still fails `decode-budget`. The deterministic regression modeled the wrong bound.
+## Problem to remove
 
-Native aggregate evidence after the one final-inventory retry:
+The committed Delivery 1 route makes settings preparation depend on rebuilding a process-wide contributor catalog. In the 20,015-source native vault it validates and refreshes every resolution family, writes 183,715,567 source bytes, then fails before activation because one fragmented bucket reaches 256 pages. Do not repair the v5 codec, increase the page cap or add another whole-vault catalog format. The rejected v5 return has been removed.
 
-- 20,015/20,015 source heads validated; 0 Markdown reads, 0 parses, 0 repairs, 0 failures.
-- Failed inactive generation: 20,501 pages, 108,995,381 bytes and 557,044 rows; no root activated.
-- Bucket 137 reached the hard 256-page cap with only 1,224,876 bytes / 11,979 records. Bucket 961 had 248 pages. The failure is page fragmentation and hot-bucket page count, not the 128 MiB aggregate-byte bound.
-- `dependencyCatalogAttempts: 2`, `dependencyCatalogReason: "decode-budget"`; no catalog became current.
-- The reload also refreshed all 20,015 resolution families and wrote 183,715,567 source bytes before attempting the catalog. Even a page-count fix would retain a costly whole-vault startup path.
+## Required implementation
 
-Per the delivery plan's repeated-blocker rule, no second codec/page-cap correction is assigned automatically. The maintainer must choose between:
+Replace the production settings dependency path with a durable source-local lookup maintained by source activation/replacement/deletion.
 
-1. a bounded writer/compaction correction that fills hot-bucket pages without increasing query or mobile memory bounds, while accepting the whole-vault startup catalog; or
-2. the recommended design correction: remove the process-wide contributor-catalog bootstrap from the production settings route and use a durable source-local dependency index maintained on source activation, with host-sensitive reconciliation kept separate.
+- Reuse the existing neutral source heads, immutable family chunks, source postings, summaries/journal where useful, canonical semantic compiler/resolver, semantic policy revisions and Delivery 1 consumer/publication routing. Do not create a second graph or classifier.
+- Trace the actual production settings request from `saveSettings()` through `GraphIndex` and its readers. Remove the requirement that `bootstrapSemanticDependencies()` complete a vault-wide `SourceContributorDiscovery.rebuild()` before a requested scope can become current.
+- Serve field, target, literal and incoming/outgoing contributor lookup from revision-bound source-local records. Candidates must be filtered by the activated head so replacement and deletion cannot leak obsolete postings. Structural/tag/URL support and authenticated empty results must remain correct.
+- Maintain the lookup with the same source lifecycle that activates a source revision. An ordinary source replacement or tombstone must change only that source's memberships plus directly affected derived scopes. Preserve crash, cancellation, stale-writer and concurrent-reader safety.
+- Keep host-sensitive resolution freshness separate from settings policy. A settings-only change must not refresh every resolution family or start host reconciliation. If current host evidence is unavailable, report the affected scope pending; do not claim empty/current and do not start a full build. Implement only the bounded host handling required for the clean-host settings scenarios; record broader uncertain-host reconciliation for Delivery 2.
+- Remove obsolete production bootstrap/retry state and diagnostics introduced solely for the global catalog route. Existing private/legacy catalog code may remain only when a real compatibility/test caller still requires it; do not add a parallel production path.
+- Reuse durable data across plugin reload. Startup may compare inventory/heads, but a new process epoch alone must not rewrite every unchanged resolution family or rebuild a vault-wide dependency generation before settings preparation.
+- Keep all work byte/record bounded, cooperative and mobile-safe. No source/vault paths, property names or values may enter diagnostics.
 
-The rejected external implementation and its tests have been removed from the working tree. Only this review evidence remains uncommitted. This is not an active implementation handoff; a source-local replacement, if selected, starts from the committed Delivery 1 baseline and replaces its process-wide bootstrap rather than layering on v5.
+## Required regression coverage
+
+1. Production settings route: Friend↔Challenger, dormant field add/remove, both inference switches and both image selectors publish correct requested relationships without Markdown reads, parses, source reacquisition or a full build.
+2. Assert settings-only preparation performs no all-source enumeration, global contributor rebuild, resolution-family refresh or source-head write.
+3. Navigation/supersession retains the committed Delivery 1 behavior: new scopes prepare on demand and S1→S2→S3 can publish only S3.
+4. Source replacement and tombstone tests prove activated-head filtering, no stale memberships and work proportional to the changed source/affected dependencies.
+5. Restart/reopen tests prove unchanged durable lookups are reused and genuine missing/corrupt source-local data fails closed without deleting unrelated sources.
+6. Compare scoped results with the established full-compiler oracle for roles, evidence/provenance, gates, siblings, labels and search membership. Do not weaken existing bounds, timers or golden expectations.
+7. Include a 20,015-source deterministic regression showing the settings path remains bounded without constructing a global catalog; it must model skewed/hot dependencies rather than only uniform rows.
+
+## Return
+
+Return the implementation uncommitted. Update this handoff with the files changed, final architecture, compatibility decisions, actual test commands/results and any checks blocked by the offline environment. Do not claim native Obsidian acceptance.
