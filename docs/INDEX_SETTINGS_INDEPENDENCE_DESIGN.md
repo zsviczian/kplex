@@ -1,98 +1,55 @@
 # Settings-independent source indexing
 
-**Implementation checkpoint (2026-09-30):** SI0–SI3 and SI4a are accepted. SI2 supplies neutral reference acquisition, one full/patch policy selector, settings-neutral reference fingerprints and complete value-frame finality; its protocol is documented in [NORMALIZED_SOURCE_CONTRACT.md](NORMALIZED_SOURCE_CONTRACT.md). SI3 persists those facts per source under the [source repository contract](SOURCE_REPOSITORY.md), with [independent acceptance evidence](validation/settings-independent-indexing-si3-2026-09-29.md). SI4a adds private cached-source replay and source-scoped semantic preparation, with [its contract](CACHED_SOURCE_REPLAY.md) and [validation](validation/settings-independent-indexing-si4a-2026-09-30.md). SI4b/c demand-driven publication/settings routing and SI5 lifecycle/performance work remain unimplemented; the design below is not a claim that settings-independent indexing has shipped.
+## Current status and delivery reset — 2026-10-01
 
-**Private SI4 pair slice (2026-09-30; review only):** [The clean-host pair contract](SOURCE_CONTRIBUTOR_DISCOVERY.md)
-now has a private implementation composing complete direct discovery and cached canonical semantics,
-including authenticated empty/structural-only covers. It is scoped to a current complete journal-free
-root, one policy and one demand lifetime. Required-Node source, real-browser and production-build
-checks pass for the isolated private slice; the aggregate strict timing gate remains unresolved as
-recorded in [the isolation review](validation/settings-independent-indexing-si4-isolation-2026-09-30.md).
-SI4b1 is not accepted, changed-host BREF-1/topology remain UNKNOWN, and SI4b2 publication and SI4c
-routing are not implemented. The rejected all-owner S2b implementation is excluded from this package.
+**Objective:** maintain a durable, settings-neutral index with work proportional to changed notes or requested relationships. Adding/moving ontology must reuse that index, perform zero Markdown reads/parses for valid facts, and make the requested Plex usable without a full-vault rebuild.
 
-**Private SI4 neighborhood relation slice (2026-09-30; reviewed, not SI4b1 acceptance):**
-[The design-first coverage/finality invariant](SOURCE_CONTRIBUTOR_DISCOVERY.md) now has an uncalled
-private reader. One final-policy center-incidence compile discovers every semantic parent; a second
-combined center/parent lookup closes all parent-child sibling witnesses in the original contributor
-order at the same current root/host. It certifies only both directions of center/parent relations,
-not a visible scene or exact gate totals (`not-certified`). Existing bounds fail closed without
-partial scopes or an all-owner fallback. No retained second graph, changed-host work, GraphIndex
-publication or settings/consumer routing is added. Offline source tests pass 122/122, including 29
-new cases. Main-agent Node 22.22.3 review passes 122/122 source cases, all 96 real Chromium cases
-when run serially (including the 28 new browser subcases), architecture/core, lint and build. The
-review fixed one missing browser-bundle entry; the aggregate `verify` still fails the unchanged
-50 ms URL-heavy timer at 53.3 ms. See [the neighborhood review](validation/settings-independent-indexing-si4-neighborhood-review-2026-09-30.md).
-SI4b1/SI4b2/SI4c and SI5 are not advanced.
+**Actual baseline:** branch `indexing-optimization-v2`, implementation `9b8116a`, handoff `7b7b3ca`. SI0–SI3 and the private SI4a replay foundation are accepted. Semantic settings still call `scheduleRebuild("settings")` in `main.ts:saveSettings`. The subsequent SI4 readers have no production consumer. **SI4 and SI5 are incomplete; the original semantic-settings problem is still present.** No percentage or finish date is inferred from the number of tests or commits.
 
-**Private SI4 center-gate slice (2026-09-30; reviewed, not SI4b1 acceptance):**
-[The center-gate proof](SOURCE_CENTER_GATE_PROOF.md) adds a separate private, finality-fenced result
-for the requested center's four pre-top-N gate fills and visible-path counts. It requires exact
-current physical facts and rejects missing/hot/colliding scopes. Sorted visible lists remain
-uncertified because selected title inputs and complete candidate degrees are not available from
-the center/parent relation cover. Main-agent source 151/151, serial real Chromium 111/111,
-architecture/core/lint/build pass; full `verify` remains red on the unchanged URL-heavy timer.
-There is no production caller, graph publication or settings route.
+This reset supersedes the execution sequence of SI4b1/C1/C2/S1/S2/S2b/C3 and the unsent foreground-composition handoff. Those names remain historical evidence, not additional gates. C15–C26 remain paused at the **Portable semantic engine / C14** scope boundary. The fixed remaining delivery sequence is in [section 11](#11-fixed-completion-plan): two production SI4 deliveries, then SI5. No runtime implementation is authorized by this documentation change alone.
 
-**SI4 selected-title proof (2026-09-30; reviewed missing-contract finding, no reader):**
-[The exact-input inventory and counterexamples](SOURCE_SELECTED_TITLE_PROOF.md) identify two missing
-premises: source-bound, bounded live MetadataCache property/absence observations, and authenticated
-full-builder source order for synthetic URL label precedence. A complete contributor cover alone
-can replay a different first meaningful label because catalog order is structural, not Markdown
-inventory order. Characterization tests exercise the actual full builder, catalog writer, replay
-and fresh GraphIndex; host-double metadata traces are not native event-order evidence. The smallest
-proposed corrections stay in acquisition/host observation and the derivative catalog. No production
-selector, title reader, schema, settings/UI/search route or prior certificate is changed. Main-agent
-source 186/186, architecture/core/lint/build pass; full verify remains red on the unchanged timer.
-Native MetadataCache event-order proof is pending because Obsidian was not running. See
-[the review](validation/settings-independent-indexing-si4-selected-title-review-2026-09-30.md).
-Sorted lists, candidate degrees, continuation and SI4b1/SI4b2/SI4c/SI5 remain open.
+### Why the work expanded, and what changes now
 
-**SI4 URL-title order (2026-09-30; private slice reviewed, not SI4b1 acceptance):**
-[The bounded follow-up](SOURCE_URL_TITLE_PROOF.md) captures a complete Markdown encounter
-permutation only at catalog acquisition, authenticates it in derivative v3 and keeps structural order
-independent. V2 stays relation-readable but cannot authorize URL titles. An uncalled private reader
-reuses the canonical compiler for one URL-name input; source/body/database formats and all journal
-fences are unchanged. Main-agent source 228/228, serial real Chromium/IndexedDB 131/131,
-architecture/core/lint/build pass; aggregate `verify` remains red on the unchanged URL-heavy timer.
-See [the review](validation/settings-independent-indexing-si4-url-title-review-2026-09-30.md).
-This is not a scalar MetadataCache reader, title facade,
-sorted-list certificate, settings route or incremental catalog implementation. All SI4 checkpoint
-and C15–C26 exclusions above remain in force.
+The original design combined three substantial requirements in SI4: avoid rereading notes, avoid blocking on a full cached-graph reconstruction, and preserve the existing consumers' semantics. The first has a straightforward foundation: neutral facts plus per-source persistence, delivered by SI2/SI3. The latter two require dependency lookup, bounded preparation and publication into the live app. They do not require a general proof framework for every possible Obsidian mutation.
 
-**SI4 finite candidate raw degrees (2026-09-30; private slice reviewed, not SI4b1 acceptance):**
-[The finite-incidence proof](SOURCE_CANDIDATE_DEGREE_PROOF.md) composes one clean-root candidate
-union with canonical replay and path-injective binding checks. It returns only exact raw map sizes
-and a distinct private certificate, never visible counts or sorted lists. Both existing v2/v3 formats
-suffice; no storage/schema, production caller or settings route changes. Main-agent source 269/269,
-serial real Chromium/IndexedDB 145/145, architecture/core/lint/build and full `verify` pass.
-See [the review](validation/settings-independent-indexing-si4-candidate-degrees-review-2026-09-30.md).
-A fresh full GraphIndex counterexample separately proves that tied
-candidate encounter order can differ even when these degrees agree. Scalar/alias completion, stable
-list order and hot-range continuation remain open; no SI4 checkpoint is advanced.
+Later work repeatedly exposed one missing input, built a separate private reader/proof, and postponed integration. In particular, it demanded exact reproduction of incidental host-map encounter order and complete local impact proofs for every host change. The original section 5.3 already permits a cooperative cached-reference refresh when host impact is uncertain. Making bounded inverse-host proofs a universal prerequisite was an added constraint. Accepting more private inputs did not resolve the production integration or ordinary-edit lifecycle. Main-agent task selection and the initial SI4 sizing caused this drift; passing tests does not justify continuing it.
 
-**SI4 durable host order + direct-neighbor input (2026-09-30; reviewed private input, not SI4b1 acceptance):**
-[The direct-order proof](SOURCE_DIRECT_NEIGHBOR_ORDER_PROOF.md) now carries the reviewed pair-birth
-characterization forward into bounded code. Contributor catalog v4 persists the complete resolved/
-unresolved host-map owner permutations as authenticated logical pages plus deterministic per-owner
-rank rows; compact Merkle roots keep the catalog root below 1 MiB at the executable 20,000+20,000-owner
-scale. Ordinary full/per-file host collection does not allocate owner arrays. A private uncalled
-direct-order reader looks up only selected owner ranks and their referenced pages, combines those
-coordinates with structural and Markdown order, and replays only the finite selected sources through
-the existing canonical compiler in full-builder phase order. A selected source missing a phase rank
-is replayed for that phase and must emit zero host records, so negative coverage cannot silently drop
-evidence. Portable tests match fresh full raw/equal-key lists under an explicit test-only host-validity
-capability without reconstructing either whole persisted owner permutation. Production supplies no
-native host-order-currentness authority, so it remains non-ready without a prefix. V2/v3 compatibility
-and real-IDB v4 fault/reopen tests passed [independent review](validation/settings-independent-indexing-si4-direct-order-input-review-2026-09-30.md). No settings/public route or
-SI4b1/SI4b2/SI4c/SI5 acceptance is claimed; native selected scalar/alias completion and MetadataCache
-host-order/currentness remain separate online prerequisites.
+### Expected everyday operation
 
-Design review and implementation brief for Sol, 2026-09-29.
+For a Friend→Challenger change: look up the changed field's indexed occurrences; invalidate the affected derived relationships; reinterpret the requested neighborhood with the existing resolver; publish its coherent result. Keep source records and parsing progress. For inference changes, change the policy revision and prepare only demanded scopes. For a note edit, replace that source's facts and update its dependency memberships. This is the implementation to finish; the additional machinery must justify its place in these operations.
+
+### Lean implementation decisions
+
+1. **Keep one durable source repository and one semantic implementation.** Reuse SI2/SI3 acquisition, immutable source chunks, selected heads, tombstones, body reuse, postings, and the existing compiler/resolver. Settings never mutate source validity. Keep derived relationships disposable and bounded. Do not replace these foundations or add a second full graph.
+2. **Use an ordinary settings-neutral dependency index.** Its job is to locate source owners for fields and incoming/outgoing targets, including structural/tag/URL support. Maintain it with source activation and source-local deltas. Existing contributor summaries, journal and checksums can be reused; no new Merkle format, general authenticated-tree framework or independent certificate family is a prerequisite. A raw `querySources()` candidate lookup alone still cannot prove completeness: missing acquisition, structural/generated support, pending writes and changed dependencies must be accounted for before reporting a complete result. A schema change needs a concrete missing production operation, not an abstract proof requirement.
+3. **Compose one request with one readiness decision.** Use one captured policy and dependency generation to prepare the center, gates, siblings, titles and requested expansion; then publish synchronously through GraphIndex. Reuse useful private reader logic, but consolidate overlapping replay/finality work rather than invoking seven separately certified readers and retaining their graphs. Bound memory by records/bytes, yield cooperatively, cancel obsolete demand. Large scopes must continue in bounded batches and eventually finish; a permanent backpressure result is not completion.
+4. **Make ordinary edits local; allow explicit host reconciliation.** An edit with known dependencies replaces that source's facts/index memberships and invalidates affected derived entries. Alias, rename, topology or host-configuration changes with uncertain fan-out may trigger one coalesced, cancellable pass over cached references/MetadataCache under section 5.3. Such a pass must not reread unchanged bodies, discard valid source heads or rebuild the complete interpreted graph. A settings-only event cannot trigger it. If ordinary edits routinely fall into a whole-vault pass, delivery 2 fails. Keep possibly affected scopes updating until reconciliation completes; unrelated scopes may stay ready only when their dependencies are known disjoint.
+5. **Use the host's lifecycle, then test it.** Observe Vault/MetadataCache events before async work; record dirty sources and a monotonic host generation; capture requested cached fields with their file identity/revision and completion observation; check those observations after awaits and before publication. A file mtime alone is not metadata completion, and a missing cache is not an empty property. The main agent must test the relevant actual event sequences before enabling the route. If an event gap is observed, close it with a narrow demand-time validation or explicit pending/reconciliation path. Do not make implementation depend on proving an undocumented universal host guarantee.
+6. **Proposed narrow compatibility adjustment: deterministic final ties.** Keep configured sort keys, directions, titles, raw-degree meaning, semantic roles, evidence and counts unchanged. When all existing user-visible sort keys are equal, use a stable exact entity-ID tie-break instead of JavaScript host-map insertion order. Apply it consistently in full and scoped paths. This can reorder equal-key neighbors/siblings and change which tied item falls at a top-N boundary; it is an explicit product-visible design proposal, not a claimed byte-preserving refactor. It does not authorize changing URL-label precedence, sibling witness meaning or evidence ownership. The maintainer reviews this proposal before runtime implementation; if declined, record the retained-order cost in the same delivery, not an unbounded new research sequence.
+7. **Keep presentation separate.** Reuse SI1's provider and cache invalidation. Read selected title/alias/style properties once per requested node, with a presentation revision; do not persist a frontmatter mirror or make a cosmetic update rebuild relationships. Retain the existing URL-label behavior using already available source-order inputs. Any remaining metadata observation gap belongs to the native check in delivery 1, not another offline proof-only assignment.
+
+The proposed tie rule removes the need to prove that Obsidian's global object enumeration remains identical merely to order otherwise equal results. Existing v4 data can remain readable during transition, but the private direct-order reader and owner-order format are not mandatory future production dependencies. Local checksums/frame validation and crash-safe activation remain required; this reset is not permission to ignore corruption or to treat an incomplete result as current.
+
+### Disposition of work already delivered
+
+| Existing work | Decision / completion owner |
+| --- | --- |
+| SI0/SI1 diagnostics and presentation separation | Keep; regression coverage in every delivery. |
+| SI2 neutral facts / shared selector; SI3 storage / migration / recovery | Keep as the foundation. Extend only for a demonstrated production read or local update. |
+| SI4a cached replay; private pair/neighborhood/gate/degree/URL inputs | Reuse algorithms and oracle tests in delivery 1's production request owner. Consolidate unused wrappers by delivery 2. Private readiness is not SI4 acceptance. |
+| Owner summaries, journal, historical leases and delta helper | Reuse for delivery 2's actual source/index transaction and crash recovery. The helper alone does not implement local activation. |
+| V4 host-order pages and direct-order reader | Retain compatibility while the tie proposal is reviewed. If adopted, stop requiring exact live host-order proofs and retire unused runtime paths in delivery 2; do not delete source/body data. |
+| Rejected S2b all-owner observer and universal BREF-1 locality proof | Remain excluded. Use the section 5.3 fallback for genuine uncertain host changes. |
+| One-shot caps, permanently pending hot scopes, uncalled proof APIs | Development limitations to close or remove in delivery 2; not acceptable shipping behavior. |
+| Broader refactor C15–C26, new parser/layout/second-host work | Deferred outside SI0–SI5. |
+
+Accepted evidence remains in the [SI3 review](validation/settings-independent-indexing-si3-2026-09-29.md), [SI4a review](validation/settings-independent-indexing-si4a-2026-09-30.md), and private [neighborhood](validation/settings-independent-indexing-si4-neighborhood-review-2026-09-30.md), [gate](validation/settings-independent-indexing-si4-center-gates-review-2026-09-30.md), [selected-title](validation/settings-independent-indexing-si4-selected-title-review-2026-09-30.md), [URL-title](validation/settings-independent-indexing-si4-url-title-review-2026-09-30.md), [degree](validation/settings-independent-indexing-si4-candidate-degrees-review-2026-09-30.md), and [direct-order](validation/settings-independent-indexing-si4-direct-order-input-review-2026-09-30.md) reports. These reports describe their exact historical slices, not the reset's unimplemented production behavior. Older proof documents remain implementation evidence; this delivery reset takes precedence over their future-work recommendations.
+
+Original investigation and architecture brief, 2026-09-29. Sections 1–10 retain the original requirements, subject to the explicit decisions above; baseline code findings are historical.
 
 **Original design baseline (historical; current implementation status is above).** Reviewed on `indexing-optimization-v2` at `8b2b49c440c16f1fd7f95b4c7e6c2d101bd94815`, initially clean. The maintainer requires ordinary ontology and presentation changes to preserve indexed source data. This document proposes the implementation and acceptance sequence; it does not resume C15–C26, claim a fix, or authorize a release.
 
-Read with [AGENTS.md](../AGENTS.md), [CONTRIBUTING.md](../CONTRIBUTING.md), [the refactor ledger](../Refactor%20plan.md), [current indexing architecture](INDEXING_ARCHITECTURE.md), and [the mixed agent workflow](AGENT_WORKFLOW.md). Existing architecture documents describe the shipped implementation; the target below is deliberately different. `HANDOFF.md` carries the current transient implementation return. This brief is self-contained enough to prepare the next scoped Sol assignment when the maintainer selects it.
+Read with [AGENTS.md](../AGENTS.md), [CONTRIBUTING.md](../CONTRIBUTING.md), [the refactor ledger](../Refactor%20plan.md), [current indexing architecture](INDEXING_ARCHITECTURE.md), and [the mixed agent workflow](AGENT_WORKFLOW.md). Existing architecture documents describe the shipped implementation; the target below is deliberately different. `HANDOFF.md` carries the current assignment/return or an explicit inactive state. This brief is self-contained enough to prepare the next scoped Sol assignment when the maintainer selects it.
 
 ## 1. Decision
 
@@ -132,7 +89,7 @@ The signature is a `JSON.stringify()` result compared as an exact string. An old
 
 The old exclusion also affected behavior, so removing its signature member cannot simply be declared universally harmless. Migration must account for any formerly excluded file using current metadata/facts. The architectural failure is treating a format/code change or a small semantic delta as invalidation of all collected work.
 
-### Current code paths
+### Original code paths at the September 29 design baseline
 
 | Source | Finding |
 | --- | --- |
@@ -247,7 +204,7 @@ Date eligibility depends on Obsidian's property registry, not just ISO-looking t
 
 ### 6.1 Per-source activation replaces full-graph progress saves
 
-Proposed IndexedDB upgrade: version **5**, subject to rechecking the implementation base. Keep the vault-local database and main-plugin ownership. Add focused stores alongside the current stores:
+Historical proposal: IndexedDB version **5**. The current SI implementation already uses database version **7**; do not rerun this proposal as a new migration. Recheck actual stores before implementation. Keep the vault-local database and main-plugin ownership. Add focused stores alongside the current stores:
 
 | Store | Logical contents |
 | --- | --- |
@@ -381,30 +338,66 @@ Do not export property names, settings values, filenames, raw signatures, field-
 
 User status distinguishes **Indexing notes**, **Updating relationships**, and **Saving progress**, with localized copy. Source progress must not fall to zero when settings change. Background derived-cache incompleteness is not “notes unindexed.” An updating view must not claim current relationship correctness until its requested dependency set is ready; saving status is not a semantic-completeness signal.
 
-## 11. Implementation checkpoints for Sol
+## 11. Fixed completion plan
 
-Do not implement this as one unreviewable rewrite. Each row is a separate buildable assignment with strict tests and a returned diff. Main-agent exact-build acceptance remains separate from Sol's portable evidence.
+The five product checkpoints remain SI1–SI5, with SI0 characterization. The three remaining deliveries below are work packages within those checkpoints, not a new hierarchy of prerequisite gates. **Private helpers, passing unit tests and design findings cannot close a production delivery.**
 
-| ID | Deliverable / owners | Exit condition |
+| Checkpoint | Current state | Required outcome / closing evidence |
 | --- | --- | --- |
-| SI0 | Characterization and diagnostics: snapshot/settings/coordinator tests; read-consumer inventory; no policy bypass | Reproduce style-change restart rejection, old/new signature-format rejection, dormant-field omission, image-policy invalidation and cached-body rebuild cost. Capture current equal-settings oracle and counters. |
-| SI1 | Presentation ownership and central settings effects: `settings.ts`, `main.ts`, graph settings/compiler, GraphIndex/style/search adapters | Style/name/label/type-selector changes work immediately and after restart with zero source/semantic build calls. Explicit legacy-cache adaptation refreshes old presentation facets. No unsafe removal of ontology validity checks yet. |
-| SI2 | Neutral source facts and shared selection: `core/graph/source.ts`, parser consumers, source collectors, compiler/patch | Existing full/patch results equal the accepted oracle; unassigned candidates survive, stay inactive, and activate from the same facts under a different policy. Production collection is neutral; shadow comparisons stay test-only. |
-| SI3 — Accepted | Per-source storage, migration and recovery: `IndexedDbCache`, codecs, GraphBuilder/GraphIndex acquisition; [implementation contract](SOURCE_REPOSITORY.md) | Crash injection proves atomic heads, bounded durable progress, one-source repair, legacy body reuse and settings-independent source validity. Real IndexedDB tests supplement mocks. Preserve current graph acceleration until its replacement path is proven. |
-| SI4 | Settings reinterpretation and revision-aware reads: shared compiler/resolver, GraphIndex facade, settings dispatcher and inventoried consumers | Field/inference/image-policy changes use cached facts; foreground view, gates, search, explanations and edit eligibility agree on one revision. No raw-neighbor bypass, cold/full source build, mixed-policy publication or duplicated full graph. |
-| SI5 | Restart/resume and performance acceptance; retire superseded graph-checkpoint dependency | Settings during acquisition, reload and sync preserve activated source progress. Missing derived cache restores from facts. Exact-build large-vault desktop/iOS/Android acceptance meets the work/latency/memory gates. Update implemented architecture/instructions. |
+| SI0 / SI1 | Accepted | Characterization/diagnostics and presentation-only independence; keep their existing tests green. |
+| SI2 | Accepted | Settings-neutral facts including dormant candidates; shared full/patch selection. |
+| SI3 | Accepted | Durable per-source facts, source-local acquisition/repair and reuse of legacy bodies. |
+| SI4 | Incomplete | Deliveries 1 and 2 below both accepted in the real application. SI4a and private slices remain supporting work only. |
+| SI5 | Pending | Delivery 3 accepted, including restart, storage failure and physical-device/performance evidence. |
 
-SI1 is a useful bounded correction but not the complete answer to the user's requirement. SI2/SI3 alone are infrastructure. Do not release the redesign as complete until SI4/SI5 meet the behavior contracts. Transitional states remain explicit and must not be described as settings-independent while they still call the old rebuild path.
+### Remaining deliveries and acceptance checklist
 
-Only advance the necessary portions of C15 coordination, C16 persistence and C18 presentation ownership. The broader C15–C26 structural refactor remains paused. Proposed source/schema changes are deliberate feature architecture, not a supposedly byte-preserving extraction. On each accepted checkpoint, update the implementation docs, applicable AGENTS/CONTRIBUTING rules and the refactor ledger; preserve historical evidence and distinguish proposals from implemented behavior.
+The checkboxes below are acceptance observations within each delivery, not separate agent assignments. All are pending at this reset.
 
-**First Sol assignment:** combine SI0 and SI1 as one presentation-decoupling checkpoint. SI0's characterization and setting-impact inventory directly guard SI1, while SI1 remains reversible under the existing graph snapshot/body-cache formats. Do not add SI2: neutral reference collection crosses the source/collector/compiler boundary and needs its own oracle review before persistence. Use the standing `HANDOFF.md` for the exact assignment and require the offline return to overwrite it with online verification and commit instructions.
+**Delivery 1 — Working settings independence (SI4).** Offline owner: one integrated implementation covering `main.ts` settings dispatch, GraphIndex preparation/publication, and existing Plex/layout/expansion, gate, search, explanation and edit consumers. Online owner: native preflight and exact-build settings scenarios. Reuse the accepted source/replay/reader algorithms and SI1 presentation. Bootstrap missing dependency data once from cached facts outside the settings path. This is a development milestone; SI4/release remains open until delivery 2.
+
+- [ ] In the actual app, Friend→Challenger, dormant-field add/remove, both inference toggles and image-selector changes produce correct relationships, gates, siblings, labels, search membership and provenance under one policy.
+- [ ] With valid facts, each settings-only scenario records **0 body reads, 0 parses, 0 source reacquisitions, 0 cold/full-build calls**, unchanged source completion and no all-owner replay before the first correct normal view in the large fixture.
+- [ ] Navigation and expansion prepare new scopes; S1→S2→S3 publishes only S3. Consumers do not read stale raw neighbor maps, and relationship edits revalidate policy/source readiness.
+- [ ] Selected title/alias metadata has a tested completion/freshness observation; the tie decision is implemented consistently in full/scoped paths. No independent missing-title/order proof assignment remains.
+- [ ] Required portable/browser/build checks and native settings scenarios pass. Until delivery 2 handles a source mutation, the integrated development path reports affected scopes updating and rejects stale writes; it cannot silently fall back to a full build or claim SI4 complete.
+
+**Delivery 2 — Routine maintenance and consolidation (SI4).** Offline owner: source/index activation, dirty-work reconciliation, tombstones, bounded continuation and consolidation of migrated private readers. Online owner: real edit/event/fault scenarios. Reuse repository, summary/journal and canonical semantics. Depends on delivery 1.
+
+- [ ] An ordinary known-impact edit replaces the changed source's facts/index memberships and revisits affected dependencies, **not every owner**. Editing dormant candidates survives a semantic no-op and later field activation. One edit does not rebuild the whole catalog.
+- [ ] Create/rename/delete/recreate, attachments/folders, aliases/unresolved targets, tag/URL support and Date configuration converge correctly, including races with settings/sync. Uncertain host fan-out uses one coalesced cached-data reconciliation; it never starts merely because settings changed and never rereads unchanged bodies.
+- [ ] High-degree/long-key and non-Markdown-owner cases make progress in bounded batches. A genuine missing dependency is reported explicitly; arbitrary caps cannot leave supported vaults permanently pending.
+- [ ] Crash/concurrent-write tests reject stale activation/resurrection; cancelled work and repeated settings/navigation leave bounded caches/leases and no retained second full graph. Remove unused wrappers/prototype runtime paths after their replacement consumers pass; preserve required stored-data compatibility.
+- [ ] Required automated and native maintenance checks pass. Deliveries 1 and 2 together close SI4; no unresolved normal-workflow pending state is hidden by the clean-host test.
+
+**Delivery 3 — Restart, scale and release acceptance (SI5).** Offline owner: startup adoption/resume, optional derived-cache handling, cleanup and regressions in one package. Online owner: exact-build native measurements, main-window/pop-out checks and maintainer physical-device procedures. Depends on accepted SI4.
+
+- [ ] Restart after settings changes or during acquisition/sync adopts valid source heads and resumes missing/dirty work. Inventory/stat comparison is allowed; warm adoption cannot routinely replay every source family merely because the session changed.
+- [ ] Missing/corrupt graph acceleration restores requested views from facts; one corrupt source chunk repairs that source; unavailable storage remains explicit. Legacy body/graph migration preserves reusable work and user data.
+- [ ] Retire superseded full-graph progress persistence and remaining unused SI4 runtime prototypes through explicit compatibility cleanup; update implemented architecture/instructions.
+- [ ] Complete the section 12 20k-file/high-degree work, latency and memory measurements on exact builds, including desktop main-window/pop-out and physical iPad/Android interruption/resume. Required failed/unrun checks remain visible; no implicit waiver.
+- [ ] Record all acceptance outcomes and build identities, confirm no live settings route still schedules a source/full-graph rebuild for valid facts, and mark SI5 complete only when these outcomes pass.
+
+**Delivery 1 main-agent preflight (part of the delivery, not a separate external handoff):** confirm the configured disposable vault and exact build; record native cache/event completion for selected fields and source changes; select the existing production seams; record the caller list and the tie decision. Native readiness cannot remain an unspecified task assigned to an offline agent. The last review had no test-vault environment variables set; that does not establish that no test vault exists. If native setup is unavailable, report that exact external dependency and continue independent implementation only; do not claim native acceptance or issue successive proof-only assignments.
+
+These packages are deliberately larger than recent handoffs. Delivery 1 must return an executable settings scenario, delivery 2 an executable edit/reconciliation scenario, delivery 3 an executable restart/scale scenario. A blocking discovery is recorded against that delivery with its concrete failing case, proposed resolution and cost impact; it does not automatically spawn another named checkpoint. Native event gaps can change the implementation, but cannot silently relax correctness.
+
+### Transparent progress and cost control
+
+- Track only the checkpoint table and three delivery checklists above. For each return record base/commit, changed production behavior, acceptance cases passed/remaining, actual verification, and the next delivery. Preserve historical logs; stop adding a top-level progress paragraph for every helper.
+- Target **one substantial offline implementation return and one online review per delivery**. One consolidated correction return is allowed when the review finds defects. If the same blocker survives that correction, stop assigning work on that assumption and report the smallest alternative plus tradeoffs to the maintainer. This is a review/decision trigger, not permission to ship a failure.
+- Freeze the scope to the original user outcomes. No separate order/gate/title certificate project, generic catalog framework, additional cache generation or unrelated refactor. Any proposed extra work must identify a reproducible failure in one of the three delivery exits and why an existing owner cannot handle it.
+- During development run focused tests; run the required full verification once on the final review candidate, and rerun affected checks when code changes. Do not repeatedly run the unchanged full suite or reproduce accepted proofs merely to increase evidence counts. Real-build/native gates remain mandatory when applicable.
+- Record available token usage and actual elapsed effort per delivery when supplied by the agent/runtime. Historical total tokens, billed cost and active engineering time are **unknown** from this repository; commit/test counts cannot reconstruct them. The three-return target is a planning constraint, **not a reliable time/cost estimate or guarantee**. No new tool/library or token budget is needed for this documentation reset.
+- Commit each reviewed delivery or explicitly labelled interim before importing another external return, following maintainer authority. Keep the next assignment in the single HANDOFF; an inactive handoff authorizes no work. No export is needed until an implementation assignment is ready.
+
+**Finish means:** the original settings sequence works in the live application and after restart, edits maintain the index without routine global work, required consumers agree on a current revision, and the named performance/device tests pass. It does not mean every potential optimization, every C15–C26 refactor, or every theoretical host mutation has been solved.
 
 ## 12. Acceptance matrix
 
 ### Behavioral and adversarial tests
 
-All relevant source-fact replay/derived results must equal a clean compile under the **same final settings**, including declarations, multiplicity, active/overridden decisions, directions, active node set, gate totals, labels/styles and search. Preserve existing goldens unless the ownership change requires an explicitly documented presentation-field normalization; never normalize away semantic differences.
+All relevant source-fact replay/derived results must equal a clean compile under the **same final settings**, including declarations, multiplicity, active/overridden decisions, directions, active node set, gate totals, labels/styles and search. Preserve existing goldens except an explicitly approved presentation change. The proposed deterministic equal-key tie rule must have its own before/after test and be applied to both full and scoped paths; it must not normalize away semantic differences, labels, evidence or counts.
 
 1. Assign an initially unconfigured frontmatter field and inline field, including a dense nested reference value; move Friend→Challenger, remove/re-add, toggle hidden and use duplicate/normalized-equivalent assignments. Repeat after closing/restarting. Assert zero body reads/parses for valid facts.
 2. Change colors, tag-style names/order, full tag names, max label length, note-type/primary-tag selectors, aliases/name fields, visibility and lenses. Check immediate appearance/search plus restart, with no semantic event or source rebuild.
@@ -452,8 +445,12 @@ Prioritized physical/manual gates after implementation:
 - Publish mixed old/new policy maps across awaited work, or allow direct neighbor-map consumers to bypass validity.
 - Use iOS worker pools, new parser grammar, a new layout engine or the unfinished C15–C26 refactor as prerequisites for this fix.
 
-## 14. Review performed for this document
+## 14. Original review performed for this document — 2026-09-29
 
 Read repository guidance, the refactor plan's contracts/checkpoints/history, current indexing/source/architecture notes, concrete collection/compiler/settings/persistence/coordinator paths and relevant Git history. Converted the supplied timestamps directly and compared the signature-removal commit with the reported sequence. No personal vault, running Obsidian instance, cache or installed plugin was accessed or modified.
 
 This delivery changes documentation only. Runtime tests, builds, performance runs and physical-device validation were not run and are not claimed. Documentation link/content/whitespace checks are the applicable validation. No manual test is needed to accept the document itself; all implementation gates above remain future work.
+
+## 15. Delivery-reset review — 2026-10-01
+
+Reviewed the original settings/work contracts, live settings dispatch, per-source postings/query behavior, contributor bootstrap/summary/journal boundaries, private-read limitations and the SI action log at `7b7b3ca`. Replaced the open-ended SI4 execution sequence with three production deliveries; selected existing machinery for reuse/consolidation and explicitly proposed the narrow sort-tie compatibility adjustment. Restored the original uncertain-host cached-reference fallback; source completeness and final publication checks remain required. The unsent private foreground-composition handoff is withdrawn and inactive. No runtime code, persisted format, sort behavior or release status changes in this documentation update. Validation is documentation link/content/whitespace checking only; no runtime test or manual test is needed for these edits.
