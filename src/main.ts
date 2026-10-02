@@ -111,7 +111,7 @@ export default class KplexPlugin extends Plugin {
   private readonly searchFocusListeners = new Map<WorkspaceLeaf, () => void>();
   private readonly relationshipFlairListeners = new Set<(path: string) => void>();
   private readonly indexStatusListeners = new Set<() => void>();
-  /** Lazily cached Markdown total; vault lifecycle events invalidate it before status publication. */
+  /** Lazily established Markdown total; known membership changes maintain it without vault enumeration. */
   private cachedMarkdownFileCount: number | null = null;
   private readonly kplexVisibilityListeners = new Set<() => void>();
   private visibleKplexLeaves = new Set<WorkspaceLeaf>();
@@ -581,18 +581,23 @@ export default class KplexPlugin extends Plugin {
     this.register(release);
   }
 
-  /** Register post-restore vault/metadata listeners and refresh cached vault-wide status facts. */
+  /** Maintain an already-established Markdown progress denominator in O(1); null remains genuinely unknown. */
+  private adjustCachedMarkdownFileCount(delta: number): void {
+    if (this.cachedMarkdownFileCount !== null) this.cachedMarkdownFileCount += delta;
+  }
+
+  /** Register post-restore vault/metadata listeners and initialize lazy vault-wide status facts. */
   private registerReactiveIndexListeners(): void {
     if (this.reactiveIndexListenersRegistered) return;
     this.reactiveIndexListenersRegistered = true;
     this.cachedMarkdownFileCount = null;
 
     this.registerEvent(this.app.vault.on("create",
-      /** Invalidate the progress denominator before publishing a newly created Markdown source. */
+      /** Update the known progress denominator before publishing a newly created Markdown source. */
       (created) => {
         this.pruneManagedMetadataWrites();
         if (created instanceof TFile && created.extension === "md") {
-          this.cachedMarkdownFileCount = null;
+          this.adjustCachedMarkdownFileCount(1);
           this.notifyIndexStatus();
         }
         if (created instanceof TFile && (this.managedCreatedPaths.get(created.path) ?? 0) > Date.now()) return;
@@ -620,7 +625,7 @@ export default class KplexPlugin extends Plugin {
       /** Remove deleted Markdown sources from both semantic progress and its cached denominator. */
       (deleted) => {
         if (deleted instanceof TFile && deleted.extension === "md") {
-          this.cachedMarkdownFileCount = null;
+          this.adjustCachedMarkdownFileCount(-1);
           // Deleting Markdown changes materialization, not the identity of the graph endpoint. Keep
           // the same GraphPage alive as a ghost so an active central note does not fall back to the
           // vault root. Only declarations owned by the deleted file are removed locally.
@@ -649,8 +654,10 @@ export default class KplexPlugin extends Plugin {
         }
 
         const newPath = renamed.path;
-        if (oldPath.toLowerCase().endsWith(".md") !== (renamed.extension === "md")) {
-          this.cachedMarkdownFileCount = null;
+        const wasMarkdown = oldPath.toLowerCase().endsWith(".md");
+        const isMarkdown = renamed.extension === "md";
+        if (wasMarkdown !== isMarkdown) {
+          this.adjustCachedMarkdownFileCount(isMarkdown ? 1 : -1);
           this.notifyIndexStatus();
         }
         let changed = false;

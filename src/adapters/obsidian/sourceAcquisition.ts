@@ -59,6 +59,9 @@ export type SourceAcquisitionResult = Readonly<{ current: boolean; saved: boolea
  * fully known TFile wave and is consumed by the first resolved event.
  */
 const KNOWN_RESOLVER_WAVE_RETIRE_MS = 50;
+/** Retry transient local dependency fences quickly, then back off instead of polling in a tight loop. */
+const DEFERRED_RESOLUTION_RETRY_MIN_MS = 350;
+const DEFERRED_RESOLUTION_RETRY_MAX_MS = 30000;
 
 /** Apply producer backpressure to a canonical generator, including its cooperative null steps. */
 function producer(steps: () => Iterable<StoredSourceFact | null>): SourceFamilyProducer {
@@ -119,6 +122,9 @@ export class ObsidianSourceAcquisition {
   /** Retires a known wave if the host never emits its traced closing resolved event. */
   private resolverWaveTimer: number | null = null;
   private resolverWaveGeneration = 0;
+  /** One coalesced retry clock keeps transient deferred local fan-out live without a per-event queue. */
+  private deferredResolutionRetryTimer: number | null = null;
+  private deferredResolutionRetryDelay = DEFERRED_RESOLUTION_RETRY_MIN_MS;
   /** Date/Daily Notes drift closes semantic writes without advancing the reversible legacy host revision. */
   private environmentMaintenancePending = false;
   /** Transient local lookup misses coalesce by dependency/source identity instead of retaining one entry per event. */
@@ -281,7 +287,8 @@ export class ObsidianSourceAcquisition {
     if (this.timer !== null) window.clearTimeout(this.timer);
     if (this.pollTimer !== null) window.clearTimeout(this.pollTimer);
     if (this.resolverWaveTimer !== null) window.clearTimeout(this.resolverWaveTimer);
-    this.timer = null; this.pollTimer = null; this.resolverWaveTimer = null;
+    if (this.deferredResolutionRetryTimer !== null) window.clearTimeout(this.deferredResolutionRetryTimer);
+    this.timer = null; this.pollTimer = null; this.resolverWaveTimer = null; this.deferredResolutionRetryTimer = null;
     this.knownResolverWave = false; this.uncoveredResolverWave = false;
   }
   /** Allocate an incarnation lazily; a matching restart head can supply its already durable identity. */
@@ -367,6 +374,7 @@ export class ObsidianSourceAcquisition {
 
   /** Escalate an unauthenticated local fan-out to one coalesced cached-fact host reconciliation. */
   private promoteUnknownFanout(): void {
+    this.clearDeferredResolutionRetry(true);
     if (this.uncertainResolution) return;
     this.uncertainResolution = true; this.hostRevision += 1; this.inventoryRevision += 1;
     this.maintenanceRevision += 1;
@@ -375,7 +383,7 @@ export class ObsidianSourceAcquisition {
 
   /** Queue a local lookup retry without changing the accepted R3 high-degree backpressure boundary. */
   private deferResolutionImpact(keys: readonly string[], excluded: ReadonlySet<string>, reason: SourceReason): void {
-    if (reason === "backpressure") { this.resolutionBackpressure = true; return; }
+    if (reason === "backpressure") { this.resolutionBackpressure = true; this.clearDeferredResolutionRetry(); return; }
     if (reason !== "dependency-pending" && reason !== "unsaved" && reason !== "superseded" && reason !== "storage-unavailable"
       && reason !== "read-error" && reason !== "write-error") {
       this.promoteUnknownFanout();
@@ -538,24 +546,49 @@ export class ObsidianSourceAcquisition {
     return current();
   }
 
+  /** Cancel the one retry clock; successful local closure also restores the fast first-retry delay. */
+  private clearDeferredResolutionRetry(resetDelay = false): void {
+    if (this.deferredResolutionRetryTimer !== null) window.clearTimeout(this.deferredResolutionRetryTimer);
+    this.deferredResolutionRetryTimer = null;
+    if (resetDelay) this.deferredResolutionRetryDelay = DEFERRED_RESOLUTION_RETRY_MIN_MS;
+  }
+
+  /**
+   * A transient local lookup can race the changed source's own durable write/count journal. Keep one
+   * later production reconciliation alive, with exponential backoff capped at the normal 30-second poll interval.
+   * This is independent of event cardinality: pendingResolutionKeys remains the only coalesced work set.
+   */
+  private scheduleDeferredResolutionRetry(): void {
+    if (this.closed || !this.enabled || this.resolutionBackpressure || !this.pendingResolutionKeys.size
+      || this.deferredResolutionRetryTimer !== null) return;
+    const delay = this.deferredResolutionRetryDelay;
+    this.deferredResolutionRetryDelay = Math.min(DEFERRED_RESOLUTION_RETRY_MAX_MS, delay * 2);
+    this.deferredResolutionRetryTimer = window.setTimeout(() => {
+      this.deferredResolutionRetryTimer = null;
+      if (this.closed || this.resolutionBackpressure || !this.pendingResolutionKeys.size) return;
+      this.requestInventory();
+    }, delay);
+  }
+
   /** Retry local fan-out once R1 count repair has closed the inventory. */
   private async retryDeferredResolutionImpacts(current: () => boolean): Promise<SourceReason> {
-    if (this.resolutionBackpressure) return "backpressure";
-    if (!this.pendingResolutionKeys.size) return "ready";
+    if (this.resolutionBackpressure) { this.clearDeferredResolutionRetry(); return "backpressure"; }
+    if (!this.pendingResolutionKeys.size) { this.clearDeferredResolutionRetry(true); return "ready"; }
     if (!current()) return "cancelled";
     const keys = [...this.pendingResolutionKeys];
     this.pendingResolutionKeys.clear();
     // Deferred impacts may combine independent changed sources. Re-selecting a changed source that
     // also proves to be a referrer is harmless; globally unioning exclusions could hide a real edge.
     const reason = await this.markResolutionDependents(keys, new Set(), current);
-    if (reason === "ready") return reason;
-    if (reason === "backpressure") { this.resolutionBackpressure = true; return reason; }
+    if (reason === "ready") { this.clearDeferredResolutionRetry(true); return reason; }
+    if (reason === "backpressure") { this.resolutionBackpressure = true; this.clearDeferredResolutionRetry(); return reason; }
     if (reason !== "dependency-pending" && reason !== "unsaved" && reason !== "superseded" && reason !== "storage-unavailable"
       && reason !== "read-error" && reason !== "write-error" && reason !== "cancelled") {
       this.promoteUnknownFanout();
       return reason;
     }
     for (const key of keys) this.pendingResolutionKeys.add(key);
+    if (reason !== "cancelled" && current()) this.scheduleDeferredResolutionRetry();
     return reason;
   }
 
@@ -1215,6 +1248,7 @@ export class ObsidianSourceAcquisition {
     this.requested = true;
     if (this.timer !== null) { window.clearTimeout(this.timer); this.timer = null; }
     if (this.pollTimer !== null) { window.clearTimeout(this.pollTimer); this.pollTimer = null; }
+    if (this.deferredResolutionRetryTimer !== null) { window.clearTimeout(this.deferredResolutionRetryTimer); this.deferredResolutionRetryTimer = null; }
     return wasEnabled;
   }
   /** Continue a previously enabled inventory after graph publication or cancellation. */

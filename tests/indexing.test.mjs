@@ -732,6 +732,68 @@ assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "First status read must capture the Markdown total once");
 KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext);
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publications must reuse the cached Markdown total");
+
+// Once the denominator is known, ordinary Markdown membership events must maintain it exactly in
+// O(1), including the status notification itself. Only a genuinely unknown initial count may enumerate.
+{
+  const statusMembershipCoordinator = new KplexPlugin();
+  const handlers = new Map();
+  let markdownEnumerations = 0;
+  statusMembershipCoordinator.app = {
+    vault: {
+      on: (name, callback) => { handlers.set(`vault:${name}`, callback); return {}; },
+      getMarkdownFiles: () => { markdownEnumerations += 1; return Array.from({ length: 999 }); },
+      getFileByPath: () => null,
+    },
+    metadataCache: { on: (name, callback) => { handlers.set(`metadata:${name}`, callback); return {}; } },
+  };
+  statusMembershipCoordinator.index = {
+    size: 10,
+    hasPendingSnapshotHydration: () => false,
+    hasPendingSemanticPreparation: () => false,
+    isCheckpointSaving: () => false,
+    hasIncrementalRestorePatch: () => false,
+    indexedMarkdownFileCount: () => 10,
+    renameFile: () => true,
+    dematerializeFile: () => undefined,
+  };
+  statusMembershipCoordinator.translator = (key) => key;
+  statusMembershipCoordinator.settings = {
+    lastActivePath: "", sidecarLastFilePath: "", navigationHistory: [], pinnedNodes: [],
+  };
+  statusMembershipCoordinator.initialIndexComplete = true;
+  statusMembershipCoordinator.indexDirty = false;
+  statusMembershipCoordinator.rebuildTask = null;
+  statusMembershipCoordinator.rebuildTimer = null;
+  statusMembershipCoordinator.hasVisibleKplexSurface = () => false;
+  statusMembershipCoordinator.scheduleRebuild = () => {};
+  statusMembershipCoordinator.saveSettings = async () => {};
+  statusMembershipCoordinator.settlePatchOnlyBacklogIfIdle = () => {};
+  statusMembershipCoordinator.registerReactiveIndexListeners();
+  statusMembershipCoordinator.cachedMarkdownFileCount = 10;
+
+  const createHandler = handlers.get("vault:create"), deleteHandler = handlers.get("vault:delete"), renameHandler = handlers.get("vault:rename");
+  assert(createHandler && deleteHandler && renameHandler, "Markdown membership handlers must be registered");
+  const countedCreate = new TFile("Counted.md", 1);
+  createHandler(countedCreate);
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 11, "Markdown create increments the known denominator exactly once");
+  assert.equal(markdownEnumerations, 0, "Create status publication must not enumerate Markdown when the count is known");
+
+  deleteHandler(countedCreate);
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 10, "Markdown delete decrements the known denominator exactly once");
+  KplexPlugin.prototype.getIndexStatus.call(statusMembershipCoordinator);
+  assert.equal(markdownEnumerations, 0, "Delete status reads must reuse the decremented denominator");
+
+  const renamedToMarkdown = new TFile("Counted-Renamed.md", 2);
+  renameHandler(renamedToMarkdown, "Counted-Renamed.txt");
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 11, "Non-Markdown to Markdown rename increments the known denominator");
+  assert.equal(markdownEnumerations, 0, "Rename-to-Markdown status publication must not enumerate Markdown");
+
+  const renamedFromMarkdown = new TFile("Counted-Renamed.txt", 3);
+  renameHandler(renamedFromMarkdown, "Counted-Renamed.md");
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 10, "Markdown to non-Markdown rename decrements the known denominator");
+  assert.equal(markdownEnumerations, 0, "Rename-from-Markdown status publication must not enumerate Markdown");
+}
 assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
   index: { ...indexingStatusContext.index, isCheckpointSaving: () => true },

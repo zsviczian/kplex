@@ -271,6 +271,50 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
       })()`), true);
     });
 
+    await t.test("production scheduler retries deferred known impacts without manual reconcile and keeps every native wave local", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await fixture('local-r2-production-scheduler');
+        const resolutionTargets=async id=>{const rows=[];equal(await f.repository.visit(id,'resolution',records=>{rows.push(...records);return true;}),'ready','Read scheduled resolution');return rows.filter(r=>r.kind==='reference-resolution').map(r=>({raw:r.rawTarget,target:r.target?.entity?.id,kind:r.target?.entity?.kind}));};
+        const waitReady=async label=>{const deadline=performance.now()+6000;while(performance.now()<deadline){if(f.acquisition.hasSemanticDependencies())return;await new Promise(resolve=>window.setTimeout(resolve,25));}throw new Error(label+' did not reopen source readiness from production scheduling');};
+        const closeKnownWave=label=>{const before=f.acquisition.getMaintenanceRevision();f.app.metadataCache.trigger('resolved');equal(f.acquisition.getMaintenanceRevision(),before,label+' resolved close remains source-local');};
+        const assertLocal=(label,acquisitions)=>{const work=f.work.snapshot();equal(work.markdownEnumerations,0,label+' getMarkdownFiles count');equal(work.fileEnumerations,0,label+' getFiles count');equal(work.rootEnumerations,0,label+' structural traversal count');equal(work.headPages,0,label+' durable-head page count');
+          equal(work.inspections.filter(id=>id==='Other.md'||id.startsWith('Unrelated-')).length,0,label+' unrelated inspection count');equal(work.visits.filter(id=>id.startsWith('Other.md:')||id.startsWith('Unrelated-')).length,0,label+' unrelated visit count');equal(acquisitions.filter(id=>id==='Other.md'||id.startsWith('Unrelated-')).length,0,label+' unrelated acquisition count');equal(work.writes.filter(id=>id.includes('Other.md')||id.includes('Unrelated-')).length,0,label+' unrelated write count');};
+        try{
+          const ref=f.add('Folder/Ref.md','Friends:: [[../Target#Heading]] [[AliasTarget#^block]]'),other=f.add('Other.md','Friends:: [[Else]]');f.add('Unrelated-1.md','');f.add('Unrelated-2.md','');
+          const fallback=f.app.metadataCache.getFirstLinkpathDest;
+          f.app.metadataCache.getFirstLinkpathDest=(literal,source)=>{
+            if(literal==='../Target')return f.files.get('Target.md')??null;
+            if(literal==='AliasTarget')return [...f.files.values()].find(file=>file.extension==='md'&&(f.metadata.get(file.path)?.frontmatter?.aliases??[]).includes('AliasTarget'))??null;
+            return fallback(literal,source);
+          };
+          await f.acquire();ok(await f.acquisition.reconcile(),'Initial authority closes before production scheduling');ok(f.acquisition.hasSemanticDependencies(),'Initial source readiness open');
+          const otherBefore=(await f.repository.inspect(other.path)).head;
+          const liveLookup=f.repository.lookupLocalDependencies.bind(f.repository);let transientLookups=0,totalLookupCalls=0;
+          f.repository.lookupLocalDependencies=async(...args)=>{totalLookupCalls+=1;if(transientLookups>0){transientLookups-=1;return {outcome:'pending-acquisition',reason:'dependency-pending'};}return liveLookup(...args);};
+          const liveAcquire=f.acquisition.acquire.bind(f.acquisition),acquisitions=[];f.acquisition.acquire=async(file,...args)=>{acquisitions.push(file.path);return liveAcquire(file,...args);};
+          const beginWave=()=>{transientLookups=2;totalLookupCalls=0;acquisitions.length=0;f.reads.length=0;f.parses.length=0;f.work.reset();};
+          const finishWave=async label=>{ok(!f.acquisition.hasSemanticDependencies(),label+' closes readiness synchronously');closeKnownWave(label);await waitReady(label);equal(totalLookupCalls,3,label+' performs exactly one deferred retry pass before automatic closure');assertLocal(label,acquisitions);equal((await f.repository.inspect(other.path)).head,otherBefore,label+' keeps unrelated source head exact');};
+          f.acquisition.enableInventory();
+
+          beginWave();const target=f.add('Target.md','',{aliases:['AliasTarget']});f.app.vault.trigger('create',target);f.app.metadataCache.trigger('changed',target);await finishWave('Create');
+          let targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.target),['Target.md','Target.md'],'Scheduled create repairs both proven referrers');equal(f.reads,['Target.md'],'Scheduled create reads only the new source body');equal(f.parses.length,1,'Scheduled create parses only the new source body');
+
+          beginWave();f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:[]}});target.stat={...target.stat,mtime:target.stat.mtime+1};f.app.vault.trigger('modify',target);f.app.metadataCache.trigger('changed',target);await finishWave('Modify');
+          targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.kind),['document','unresolved'],'Scheduled modify repairs alias resolution');equal(f.reads,['Target.md'],'Scheduled modify reads only the changed source body');equal(f.parses.length,1,'Scheduled modify parses only the changed source body');
+
+          beginWave();f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:['AliasTarget']}});const oldPath=target.path,frontmatter=f.metadata.get(oldPath),body=f.texts.get(oldPath);f.files.delete(oldPath);f.metadata.delete(oldPath);f.texts.delete(oldPath);target.path='Renamed.md';target.name='Renamed.md';target.basename='Renamed';f.files.set(target.path,target);f.metadata.set(target.path,frontmatter);f.texts.set(target.path,body);f.app.vault.trigger('rename',target,oldPath);await finishWave('Rename');
+          targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.target),['../Target','Renamed.md'],'Scheduled rename repairs path and alias bindings');equal((await f.repository.inspect(oldPath)).reason,'tombstone','Scheduled rename tombstones old source binding');equal(f.reads,[],'Scheduled rename rereads no unchanged body');equal(f.parses,[],'Scheduled rename reparses no unchanged body');
+
+          beginWave();f.files.delete(target.path);f.metadata.delete(target.path);f.texts.delete(target.path);f.app.vault.trigger('delete',target);await finishWave('Delete');
+          targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.kind),['unresolved','unresolved'],'Scheduled delete repairs both inbound bindings');equal(f.reads,[],'Scheduled delete reads no body');equal(f.parses,[],'Scheduled delete parses no body');
+
+          beginWave();const recreated=f.add('Target.md','',{aliases:['AliasTarget']});f.app.vault.trigger('create',recreated);f.app.metadataCache.trigger('changed',recreated);await finishWave('Recreate');
+          targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.target),['Target.md','Target.md'],'Scheduled recreate repairs both inbound bindings');equal(f.reads,['Target.md'],'Scheduled recreate reads only the recreated source body');equal(f.parses.length,1,'Scheduled recreate parses only the recreated source body');
+          return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
     await t.test("native resolved during reconciliation stays covered, while folder causes remain uncertain and unload cancels bounded state", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const setup=async vault=>{const f=await fixture(vault),target=f.add('Target.md','',{aliases:['AliasTarget']});f.add('Ref.md','Friends:: [[Target]] [[AliasTarget]]');f.add('Other.md','');f.app.metadataCache.getFirstLinkpathDest=literal=>literal==='Target'||literal==='AliasTarget'?target:null;await f.acquire();ok(await f.acquisition.reconcile(),'Initial authority closes');return {f,target};};
