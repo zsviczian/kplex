@@ -4,7 +4,7 @@
 
 **Objective:** maintain a durable, settings-neutral index with work proportional to changed notes or requested relationships. Adding/moving ontology must reuse that index, perform zero Markdown reads/parses for valid facts, and make the requested Plex usable without a full-vault rebuild.
 
-**Actual baseline:** branch `indexing-optimization-v2`, implementation `9b8116a`, handoff `7b7b3ca`. SI0–SI3 and the private SI4a replay foundation are accepted. Semantic settings still call `scheduleRebuild("settings")` in `main.ts:saveSettings`. The subsequent SI4 readers have no production consumer. **SI4 and SI5 are incomplete; the original semantic-settings problem is still present.** No percentage or finish date is inferred from the number of tests or commits.
+**Actual baseline:** branch `indexing-optimization-v2`, accepted through SI4-R1 at `b32e3c5`. SI0–SI3, the private SI4a replay foundation and durable source-local repair are accepted; Delivery 1's production settings route is retained for completion by R2/R3. **SI4 remains incomplete until host maintenance and high-degree completion pass; SI5 remains pending.** No percentage or finish date is inferred from the number of tests or commits.
 
 This reset supersedes the execution sequence of SI4b1/C1/C2/S1/S2/S2b/C3 and the unsent foreground-composition handoff. Those names remain historical evidence, not additional gates. C15–C26 remain paused at the **Portable semantic engine / C14** scope boundary. The fixed remaining delivery sequence is in [section 11](#11-fixed-completion-plan): two production SI4 deliveries, then SI5. No runtime implementation is authorized by this documentation change alone.
 
@@ -361,11 +361,11 @@ resumption of C15-C26.
 
 | Package | State | Acceptance boundary |
 | --- | --- | --- |
-| SI4-R1 — durable source-local repair | **Assigned next** | Additive v8-to-v9 migration, bounded staging/count repair, interruption/restart/cleanup/concurrent-reader coverage, and no partial lookup publication. Existing high-degree backpressure remains unchanged. |
-| SI4-R2 — known-impact host maintenance | Pending | Live and restart create/rename/delete/alias/target changes update only proven affected sources. Relative and subpath references are covered; uncertain resolver events converge once from cached facts without rereading unchanged Markdown. |
+| SI4-R1 — durable source-local repair | **Accepted (`b32e3c5`)** | Additive v8-to-v9 migration, bounded staging/count repair, interruption/restart/cleanup/concurrent-reader coverage, and no partial lookup publication. Existing high-degree backpressure remains unchanged. |
+| SI4-R2 — known-impact host maintenance | **Assigned next** | Live and restart create/rename/delete/alias/target changes update only proven affected sources. Relative and subpath references are covered; uncertain resolver events converge once from cached facts without rereading unchanged Markdown. |
 | SI4-R3 — high-degree completion and SI4 acceptance | Pending | Replace permanent owner/structural caps with cancellable bounded continuation through final semantic preparation. The real 20,015-owner case completes without a partial result, then full automated and native SI4 scenarios pass. |
 
-Only SI4-R1 is active. SI4-R2 must not be mixed into its storage work, and SI4-R3 must not be
+Only SI4-R2 is active. Its host-maintenance work must build on the accepted R1 repair contract, and SI4-R3 must not be
 approximated by merely removing cardinality constants while retaining a terminal memory/byte failure.
 After all three packages pass independent review, the Delivery 1 and Delivery 2 checklists below are
 evaluated together to close SI4. SI5 remains the subsequent restart/scale/device acceptance delivery.

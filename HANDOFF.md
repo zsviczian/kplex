@@ -15,53 +15,57 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-# Offline results — SI4-R1 durable source-local repair
+# Offline assignment — SI4-R2 known-impact host maintenance
 
-Implemented only SI4-R1. SI4-R2, SI4-R3 and C15–C26 were not changed.
+## Baseline and scope
 
-## Files changed
+- Branch: `indexing-optimization-v2`
+- Accepted baseline: `b32e3c5` (`Complete durable source-local repair`)
+- Governing plan: `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`, section 11, package **SI4-R2**.
+- Implement SI4-R2 as one substantial package. SI4-R3, SI5 and refactor checkpoints C15–C26 are out of scope.
 
-Production:
-- `src/index/IndexedDbCache.ts`
-- `src/index/SourceLocalDependencies.ts`
-- `src/index/SourceRepository.ts`
+## Objective
 
-Focused/compatibility IndexedDB tests:
-- `tests/source-local-dependencies-indexeddb.test.mjs`
-- `tests/source-indexeddb.test.mjs`
-- `tests/source-contributor-indexeddb.test.mjs`
-- `tests/source-contributor-journal-indexeddb.test.mjs`
-- `tests/source-contributor-lease-indexeddb.test.mjs`
-- `tests/source-url-title-indexeddb.test.mjs`
-- `tests/source-candidate-degrees-indexeddb.test.mjs`
+Connect the accepted v9 source-local dependency/repair machinery to production host-change maintenance. An ordinary live or restart source change must update the changed source and every proven affected source without a whole-vault contributor-catalog rebuild or rereading unchanged Markdown.
 
-## Implementation summary
+## Required behavior
 
-- Bumped IndexedDB to v9. The v8-to-v9 upgrade adds only `sourceLocalDependencyRepairs` and migrates an exact four-field v8 source-local state to the five-field state with `pending: 0`; accepted v8 rows and unrelated stores are not rewritten. Fresh databases still create the complete schema.
-- Completed bounded durable source-local repair. Private staging rows use a same-revision journal; cleanup first claims that journal as a durable reclaim marker, then deletes at most 256 rows per transaction while persisting its cursor. This fences a concurrent stager on another connection and makes cleanup itself restartable.
-- Source-head/owner/journal activation remains atomic. Selected old-count decrements and new-count increments update key counts and the repair cursor in the same bounded transaction; old rows are deleted only with their committed decrement. The global `pending` fence remains nonzero until journal retirement, so lookups return pending rather than any partial owner set.
-- `cleanupRevision()` now protects the selected source-head revision, selected local owner, both sides of an active selected repair, live staging and leases before deleting anything. Direct recovery can still reclaim abandoned backfill staging under the current source head when no local owner has selected those rows.
-- Added only narrow source-local phase checkpoints for real-IDB interruption tests; no general fault framework was introduced.
-- Added real-IDB coverage for exact v8 migration, >3 staging/repair batches, all six required interruption phases, cancellation/retry, transaction abort rollback, real Chromium process restart, two-connection staging fencing, repeated keys/count exactness, tombstone behavior, abandoned/backfill staging reclamation, `cleanupRevision()` safety and unrelated-head preservation. The existing 20,015-owner backpressure test body and limit are unchanged.
-- Updated existing IndexedDB version/compatibility assertions from current v8 to current v9; old-version fixtures remain old versions, including the exact v8 fixture.
+1. **Known-impact changes stay local.** Modify/create/rename/delete/recreate and metadata/alias/target-resolution changes must derive the affected set from accepted old and new source-local dependencies. Refresh only those sources and demanded graph scopes. Do not scan or rewrite every owner for an ordinary change.
+2. **Reference behavior is complete.** Cover resolved and unresolved references, aliases, target creation/removal, relative links and subpath links. A change in target resolution must update inbound relationships as well as the directly changed note.
+3. **Restart is recoverable.** Durable dirty work or an interrupted v9 local repair must resume after reopen. Stale activation, deletion resurrection and partial lookup publication remain forbidden.
+4. **Uncertain host fan-out converges once.** A host-wide `resolved`/environment event whose exact impact cannot be proven may run one coalesced reconciliation from durable cached facts. It must not reread unchanged bodies, run because settings changed, loop, or rebuild the process-wide contributor catalog.
+5. **Production consumers become current.** Existing settings-preparation, graph publication and demanded-view retry paths must observe the repaired source revision. A pending repair may fail closed temporarily; it may not leave a normal supported workflow permanently pending or publish a mixed old/new result.
+6. **Work remains bounded and cancellable.** Preserve final revision/demand/lifetime checks, bounded transactions and cooperative yielding. Reuse the accepted source repository, acquisition adapter, local contributor discovery and GraphIndex owners. Do not add another scheduler, semantic classifier, catalog generation or general proof layer.
 
-## Verification performed
+The existing 20,015-owner backpressure case belongs to SI4-R3 and must remain unchanged in this package. Do not remove caps or claim SI4 complete.
 
-Environment: Node `v22.16.0`, npm `10.9.2`; repository requires Node `>=22.22.2 <23`. The required Node lane is therefore unavailable here. The supplied ZIP had no installed dependencies. An attempted dependency install (`rm -rf node_modules && npm ci --ignore-scripts --prefer-offline --no-audit --no-fund`) could not complete because registry fetches returned `EAI_AGAIN`, leaving an incomplete package tree.
+## Acceptance coverage
 
-- `node --test tests/source-local-dependencies-indexeddb.test.mjs` — **BLOCKED/FAIL**, 0 pass / 1 fail. Chromium starts, but navigation to the harness's local `127.0.0.1` server is denied by managed browser policy: `net::ERR_BLOCKED_BY_ADMINISTRATOR`. Test code does not execute.
-- `npm run check:architecture` — **PASS**, 7/7 tests; `Architecture: 61 migrated roots, 120 reachable files, 0 violations`.
-- `npm run check:core` — **FAIL**, 36 pass / 3 fail after the TypeScript phase. Two failures are dependency-environment failures because the incomplete install has no usable `esbuild` package (`core-contracts.test.mjs`, `relation-core.test.mjs`). The third is the pre-existing `normalized-source-contract.test.mjs` assertion (`Assets/picture.png` vs `Never There`); `node --test tests/normalized-source-contract.test.mjs` reproduces it unchanged in the untouched input repository at 6 pass / 1 fail.
-- `npm run lint:obsidian` — **BLOCKED/FAIL** before linting: `eslint: not found` because dependencies could not be installed.
-- `npm run test:sources` — **PASS**, 306/306 tests.
-- `npm run test:sources:browser` — **BLOCKED/FAIL**, 0 pass / 9 fail; every real-Chromium suite is stopped at harness navigation by `net::ERR_BLOCKED_BY_ADMINISTRATOR`.
-- `npm run verify` — **FAIL** at `check:core` after `check:architecture` passes 7/7; subsequent verify stages do not run. The same missing-`esbuild` failures and reproduced baseline normalized-source assertion are reported.
+Add focused portable and real-Chromium/IndexedDB regressions that demonstrate:
 
-Supplemental checks:
-- focused no-emit TypeScript check of `SourceRepository.ts` + `SourceLocalDependencies.ts` — **PASS**;
-- production browser bundle including `SourceRepository.ts` transpiles successfully — **PASS** (741,018 bytes);
-- `node --check` on all changed browser test files — **PASS**.
+- one-source modification changes only its proven impact and performs zero body reads/parses for unchanged notes;
+- create, rename, delete and recreate converge live and after restart, including tombstones and cancellation/supersession;
+- alias and unresolved-target creation/removal repair inbound referrers;
+- relative and subpath references select the correct affected sources;
+- an interrupted maintenance transaction resumes exactly once with no partial lookup or stale graph publication;
+- multiple host-wide resolution events coalesce into one cached-fact reconciliation with no Markdown rereads and no all-owner contributor-catalog bootstrap;
+- unrelated durable heads remain byte-for-byte/selectively reusable;
+- all SI4-R1 migration, repair, cleanup and retained high-degree-backpressure tests stay green.
 
-## Main-agent follow-up
+Use counters or narrow test seams to prove locality and body-read/parser behavior. Do not add production debug logging or expose vault content.
 
-Run the required commands under Node 22.22.2+ with a complete dependency tree and an unrestricted real Chromium lane. In particular, the new SI4-R1 real-IndexedDB tests have compiled but could not execute in this environment, so their runtime result remains pending rather than passed. No native Obsidian validation is required for this package.
+## Required validation
+
+Use Node 22.22.2 or newer when available. During development run focused tests. On the final candidate run:
+
+```bash
+npm run test:sources
+npm run test:sources:browser
+npm run verify
+```
+
+Record exact pass/fail counts and environment limitations. Do not report blocked or skipped checks as passed. No native Obsidian result is expected from the offline environment; the main agent will run the host scenarios after review.
+
+## Return
+
+Leave the implementation uncommitted. Replace this assignment body with a concise result containing changed files, production behavior, tests run, failures/limitations, and exact native scenarios the main agent must verify.
