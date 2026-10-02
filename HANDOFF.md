@@ -15,18 +15,29 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-# Main-agent validation pending — SI4-R2
+# Offline implementation — SI4-R2 native-event locality correction
 
-No offline task is active. Do not start SI4-R3.
+Do not start SI4-R3 or C15–C26.
 
-Branch: `indexing-optimization-v2`
+## Native failures to correct
 
-Candidate: `67503a4`
+Obsidian 1.14.4 emits these production event sequences:
 
-Automated review passes: source 308/308, real Chromium/IndexedDB 164/164, architecture 7/7, core 60/60, aggregate Node 133/133, UI browser 7/7, lint with one pre-existing warning, production build and whitespace.
+- create: `vault:create(TFile)` → `metadata:changed(TFile)` → `metadata:resolved`;
+- rename: `vault:rename(TFile)` → `metadata:resolved`;
+- modify: `vault:modify(TFile)` → `metadata:changed(TFile)` → `metadata:resolved`;
+- delete: `vault:delete(TFile)` → `metadata:resolved`.
 
-Remaining acceptance:
+The resolved event followed the known event within 0–1 ms in the native trace. The current acquisition listener treats every resolved event as unscoped. In a ready four-Markdown-file vault, one known rename therefore performed one full Markdown enumeration plus unrelated repository inspections, visits and acquisitions. Body parses remained zero, but the known-event locality contract failed.
 
-1. Restore Obsidian CLI attachment and run `npm run verify:obsidian` against the configured disposable `kplex-test` vault.
-2. With the exact installed build, run live alias/target create→rename→delete→recreate; confirm no routine full indexing. Leave the vault idle for more than 30 seconds and confirm no indexing work. Change and restore Date/Daily Notes settings; confirm one cached reconciliation with no unchanged body reads/parses.
-3. If these pass, mark SI4-R2 accepted and replace this handoff with one substantial SI4-R3 assignment. If one fails, record the exact native trace and correct only the reproduced SI4-R2 defect.
+Creating an empty fixture folder followed by two Markdown files also made the graph coordinator record `full-rebuild:metadata:changed|vault:create|vault:create-markdown`.
+
+## Required implementation
+
+1. Use bounded causal state to distinguish a resolver wave already covered by known `TFile` events from a genuinely unscoped `metadata:resolved` wave. A covered wave must remain on the existing source-local hot lane. Do not rely only on a millisecond timeout, retain one entry per event, or weaken readiness/write fencing.
+2. Preserve the uncertain lane: `metadata:resolved` without complete known-event coverage must still advance the maintenance fence once and run one coalesced cached-fact reconciliation with zero unchanged body reads/parses. Folder or non-file events must not be declared covered without proof.
+3. Correct the observed folder/create graph dispatch so an empty folder plus ordinary Markdown creation does not force a whole-graph rebuild. Preserve folder nodes, parent relations, file materialization, aliases, unresolved-target transitions, search and evidence. Use existing incremental owners where possible.
+4. Add production-like regressions that emit the exact native sequences above after source-local authority is ready. For create, rename, modify/alias, delete and recreate assert zero full Markdown enumeration, zero durable-head paging and zero unrelated inspection/visit/acquisition/write. Assert the changed source and proven referrers converge, maintenance readiness closes/reopens, and no `full-rebuild` decision occurs. Keep the existing resolved-only uncertain-pass and idle-poll tests.
+5. Cover synchronous bursts, events arriving during reconciliation, cancellation/unload and a known wave followed by a later genuinely unscoped resolved event. Keep all state bounded and retain R1 repair and R3 backpressure behavior.
+
+Run focused tests during development, then `npm run test:sources`, `npm run test:sources:browser`, architecture/core, lint and build when available. Return changes uncommitted with actual results and limitations. The main agent will run full and native validation.
