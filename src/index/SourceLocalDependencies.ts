@@ -50,11 +50,14 @@ export type SourceLocalDependencyKeyState = Readonly<{
 export type SourceLocalDependencyRepair = Readonly<{
   version: 1;
   sourceId: string;
+  /** Same non-null from/to revision is private staging/reclaim; distinct/null sides are selected count repair. */
   fromRevision: string | null;
   fromRecords: number;
+  /** Private reclaim uses fromIndex === fromRecords as its durable claim/fence sentinel. */
   fromIndex: number;
   toRevision: string | null;
   toRecords: number;
+  /** Private reclaim advances this cursor while deleting never-selected staging rows. */
   toIndex: number;
 }>;
 

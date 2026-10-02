@@ -117,7 +117,7 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
         await edit(old,names,tx=>{for(const name of names)for(const row of copied[name]){
           if(name==='meta'&&row.key.startsWith('source-dependency-'))continue;tx.objectStore(name).put(row);
         }tx.objectStore('meta').put({key:'checkpoint',schema:2,generation:'preserved',createdAt:1,vaultSignature:'v',settingsSignature:'s',discoveredFields:[],completedMarkdownPaths:[]});});old.close();
-        const f=await fixture('contributor-v5'),upgraded=await f.cache.open();equal(upgraded.version,8,'Additive upgrade');
+        const f=await fixture('contributor-v5'),upgraded=await f.cache.open();equal(upgraded.version,9,'Additive upgrade');
         for(const name of ['sourceHeads','sourceChunks','sourcePostings','bodies'])equal(await value(upgraded.transaction(name).objectStore(name).getAll()),copied[name],name+' byte-shape preservation');
         equal((await f.cache.readSnapshotMeta('checkpoint')).generation,'preserved','Graph pointer preserved');
         equal((await f.acquisition.contributorDiscovery(runtime()).discover(absent())).outcome,'pending','No migrated root is not empty');
@@ -161,7 +161,7 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
         await edit(db,['meta'],tx=>tx.objectStore('meta').put(downgraded));
         equal((await d.discover(absent())).reason,'dependency-invalid','A v1 negative is not v2 authority');
         equal((await d.readOwnerSummary('A.md')).reason,'dependency-invalid','No synthesized owner summary');
-        equal(db.version,8,'Additive journal schema; old derivative remains rejected');
+        equal(db.version,9,'Additive journal schema; old derivative remains rejected');
         equal((await f.cache.readSnapshotMeta('checkpoint')).generation,'summary-migration-kept','Graph snapshot preserved');
         equal((await d.rebuild()).outcome,'ready','Explicit derivative bootstrap can select v2');
         for(const name of names)equal(await value(db.transaction(name).objectStore(name).getAll()),before[name],name+' byte-shape preservation');

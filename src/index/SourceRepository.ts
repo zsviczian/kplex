@@ -64,7 +64,16 @@ export type SourceStorage = Readonly<{
   /** Cleanup-only existing-database reopen; the repository supplies only its retired exact lease. */
   releaseContributorLease?(lease: ContributorRootLease): Promise<boolean>;
 }>;
-/** Real runtime capabilities, also usable with deterministic clocks; no fault controller is shipped. */
+/** Narrow source-local repair checkpoints let real-IDB tests interrupt durable phase boundaries. */
+export type SourceLocalDependencyCheckpoint =
+  | "before-local-staging"
+  | "after-local-staging-page"
+  | "after-local-activation"
+  | "after-local-old-count-batch"
+  | "after-local-new-count-batch"
+  | "before-local-repair-retire";
+
+/** Real runtime capabilities, also usable with deterministic clocks and focused repair fault injection. */
 export type SourceRepositoryRuntime = Readonly<{
   now(): number;
   yield(): Promise<void>;
@@ -72,6 +81,7 @@ export type SourceRepositoryRuntime = Readonly<{
   cancel(timer: number): void;
   digest(text: string): Promise<string>;
   uniqueId(): string;
+  localDependencyCheckpoint?(phase: SourceLocalDependencyCheckpoint): void;
 }>;
 /** Select the browser's owning storage/runtime services only at the composition boundary. */
 export function sourceRepositoryRuntime(): SourceRepositoryRuntime {
@@ -141,7 +151,7 @@ export type SourceLocalDependencyLookupResult<T> =
 export function selectedSourceFailure(reason: SourceReason, family?: SourceFamily): Exclude<SelectedSourceResult<never>, { outcome: "ready" }> {
   const outcome = reason === "cancelled" ? "cancelled"
     : reason === "stale" || reason === "superseded" ? "stale"
-    : ["missing", "pending-metadata", "tombstone", "unsaved", "memory-budget", "backpressure"].includes(reason) ? "pending-acquisition"
+    : ["missing", "pending-metadata", "tombstone", "unsaved", "memory-budget", "backpressure", "dependency-pending"].includes(reason) ? "pending-acquisition"
     : ["storage-unavailable", "newer-database", "read-error", "write-error", "quota-exceeded", "catalog-uncertain"].includes(reason) ? "storage-unavailable"
     : "invalid-family";
   return { outcome, reason, ...(family ? { family } : {}) };
@@ -187,7 +197,7 @@ export type ContributorJournalReader = Readonly<{
 /** Export only finite aggregate numbers and this module's closed reason/family vocabularies. */
 export type SourceRepositoryDiagnostics = {
   formatVersion: 1;
-  databaseVersion: 8;
+  databaseVersion: 9;
   factFormatVersion: number;
   factCompilerVersion: number;
   bodyParserVersion: number;
@@ -210,7 +220,7 @@ export type SourceRepositoryDiagnostics = {
 export function sanitizeSourceRepositoryDiagnostics(value: unknown): SourceRepositoryDiagnostics {
   const input = sourceObject(value) ? value : {};
   const result: SourceRepositoryDiagnostics = {
-    formatVersion: 1, databaseVersion: 8, factFormatVersion: SOURCE_FACT_FORMAT_VERSION,
+    formatVersion: 1, databaseVersion: 9, factFormatVersion: SOURCE_FACT_FORMAT_VERSION,
     factCompilerVersion: SOURCE_FACT_COMPILER_VERSION, bodyParserVersion: SOURCE_BODY_PARSER_VERSION,
     resolutionVersion: SOURCE_RESOLUTION_VERSION, storage: "unchecked", activated: 0, unsaved: 0,
     empty: 0, chunksWritten: 0, bytesWritten: 0, familiesReused: 0, readFailures: 0,
@@ -1302,49 +1312,65 @@ export class NeutralSourceRepository {
     return repair.fromRevision !== null && repair.fromRevision === repair.toRevision
       && repair.fromRecords === repair.toRecords && repair.fromIndex === 0 && repair.toIndex === 0;
   }
+  /**
+   * Cleanup claims a staging marker before deleting any row. fromIndex === fromRecords is the
+   * private reclaim sentinel; toIndex is the durable next-row cursor. Selected count repairs never
+   * have the same non-null revision on both sides, so the encoding cannot alias public authority.
+   */
+  private isLocalDependencyReclaim(repair: SourceLocalDependencyRepair): boolean {
+    return repair.fromRevision !== null && repair.fromRevision === repair.toRevision
+      && repair.fromRecords > 0 && repair.fromRecords === repair.toRecords
+      && repair.fromIndex === repair.fromRecords && repair.toIndex <= repair.toRecords;
+  }
+  /** Private staging/reclaim markers do not consume the selected-repair pending counter. */
+  private isLocalDependencyPrivateRepair(repair: SourceLocalDependencyRepair): boolean {
+    return this.isLocalDependencyStaging(repair) || this.isLocalDependencyReclaim(repair);
+  }
 
   /**
-   * Reclaim a crash/cancellation staging marker in bounded pages. These rows were never selected by
-   * the owner record, so count state is untouched. A live in-process stager is fenced by localStaging.
+   * Reclaim crash/cancellation staging in bounded pages. The first cleanup transaction converts the
+   * staging marker to a durable reclaim marker before deleting rows, which fences concurrent stagers
+   * on other connections. A process crash during cleanup resumes from the marker's toIndex exactly.
    */
   private async cleanupStagedLocalDependencies(db: IDBDatabase, sourceId: string, current: () => boolean): Promise<SourceReason> {
     try {
       if (this.localStaging.has(sourceId)) return "dependency-pending";
-      let after: IDBValidKey | null = null;
       while (current() && !this.closed) {
         const page = await this.transaction(db, [SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE],
           "readwrite", sourceId, async (transaction) => {
             const repairs = transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE);
             const rawRepair = await unknownValue(repairs.get(sourceId));
-            if (rawRepair === undefined) return { done: true, next: null as IDBValidKey | null };
-            if (!validSourceLocalDependencyRepair(rawRepair) || rawRepair.sourceId !== sourceId || !this.isLocalDependencyStaging(rawRepair)
-              || rawRepair.fromRevision === null) throw new SourceFactError("dependency-invalid");
-            const rawOwner = await unknownValue(transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).get(sourceId));
-            if (rawOwner !== undefined && !validSourceLocalDependencyOwner(rawOwner)) throw new SourceFactError("dependency-invalid");
-            if (validSourceLocalDependencyOwner(rawOwner) && rawOwner.sourceRevision === rawRepair.fromRevision) {
+            if (rawRepair === undefined) return { done: true };
+            if (!validSourceLocalDependencyRepair(rawRepair) || rawRepair.sourceId !== sourceId) throw new SourceFactError("dependency-invalid");
+            if (!this.isLocalDependencyPrivateRepair(rawRepair) || rawRepair.fromRevision === null) {
               throw new SourceFactError("dependency-pending");
             }
+            const rawOwner = await unknownValue(transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).get(sourceId));
+            if (rawOwner !== undefined && !validSourceLocalDependencyOwner(rawOwner)) throw new SourceFactError("dependency-invalid");
             const revision = rawRepair.fromRevision;
-            return new Promise<{ done: boolean; next: IDBValidKey | null }>((resolve, reject) => {
-              const store = transaction.objectStore(SOURCE_LOCAL_DEPENDENCY_STORE);
-              const range = IDBKeyRange.bound(after ?? [sourceId, revision, 0], [sourceId, revision, Number.MAX_SAFE_INTEGER], after !== null, false);
-              const request = store.openCursor(range); let count = 0; let next: IDBValidKey | null = null;
-              request.onerror = () => reject(request.error ?? new SourceFactError("read-error"));
-              request.onsuccess = () => {
-                const cursor = request.result;
-                if (!cursor) { repairs.delete(sourceId); resolve({ done: true, next }); return; }
-                const row: unknown = cursor.value;
-                if (!validSourceLocalDependencyRow(row) || row.sourceId !== sourceId || row.sourceRevision !== revision) {
-                  reject(new SourceFactError("dependency-invalid")); return;
-                }
-                next = cursor.primaryKey; cursor.delete(); count += 1;
-                if (count >= SOURCE_MAX_BATCH_RECORDS) resolve({ done: false, next }); else cursor.continue();
-              };
-            });
+            if (validSourceLocalDependencyOwner(rawOwner) && rawOwner.sourceRevision === revision) {
+              throw new SourceFactError("dependency-pending");
+            }
+            let repair = rawRepair;
+            if (this.isLocalDependencyStaging(repair)) {
+              repair = { ...repair, fromIndex: repair.fromRecords };
+              repairs.put(repair);
+            }
+            if (!this.isLocalDependencyReclaim(repair)) throw new SourceFactError("dependency-invalid");
+            const rows = transaction.objectStore(SOURCE_LOCAL_DEPENDENCY_STORE);
+            const end = Math.min(repair.toRecords, repair.toIndex + SOURCE_MAX_BATCH_RECORDS);
+            for (let index = repair.toIndex; index < end; index += 1) {
+              const rawRow = await unknownValue(rows.get([sourceId, revision, index]));
+              if (!validSourceLocalDependencyRow(rawRow) || rawRow.sourceId !== sourceId
+                || rawRow.sourceRevision !== revision || rawRow.index !== index) throw new SourceFactError("dependency-invalid");
+              rows.delete([sourceId, revision, index]);
+            }
+            if (end === repair.toRecords) { repairs.delete(sourceId); return { done: true }; }
+            repairs.put({ ...repair, toIndex: end } satisfies SourceLocalDependencyRepair);
+            return { done: false };
           });
         if (page.done) return "ready";
-        if (page.next === null || after !== null && indexedDB.cmp(after, page.next) === 0) throw new SourceFactError("dependency-invalid");
-        after = page.next; await this.runtime.yield();
+        await this.runtime.yield();
       }
       return "cancelled";
     } catch (error) { return errorReason(error, "dependency-invalid"); }
@@ -1354,7 +1380,7 @@ export class NeutralSourceRepository {
   private async settleLocalDependencyWork(db: IDBDatabase, sourceId: string, current: () => boolean): Promise<SourceReason> {
     const selected = await this.localDependencySelection(db, sourceId, current);
     if (!selected.repair) return "ready";
-    return this.isLocalDependencyStaging(selected.repair)
+    return this.isLocalDependencyPrivateRepair(selected.repair)
       ? this.cleanupStagedLocalDependencies(db, sourceId, current)
       : this.repairLocalDependencies(db, sourceId, current);
   }
@@ -1378,7 +1404,7 @@ export class NeutralSourceRepository {
       if (rawRepair !== undefined && !repair) throw new SourceFactError("dependency-invalid");
       // Pending is global across sources. A local journal requires at least one pending slot; the
       // inverse is not true because another source may own the remaining journal.
-      if (repair !== null && !this.isLocalDependencyStaging(repair) && state.pending === 0) throw new SourceFactError("dependency-invalid");
+      if (repair !== null && !this.isLocalDependencyPrivateRepair(repair) && state.pending === 0) throw new SourceFactError("dependency-invalid");
       return { state, owner, repair };
     });
   }
@@ -1405,6 +1431,7 @@ export class NeutralSourceRepository {
       repairs.put({ version: 1, sourceId, fromRevision: revision, fromRecords: records, fromIndex: 0,
         toRevision: revision, toRecords: records, toIndex: 0 } satisfies SourceLocalDependencyRepair);
     });
+    this.runtime.localDependencyCheckpoint?.("after-local-staging-page");
     if (!current() || this.closed) throw new SourceFactError("cancelled");
   }
 
@@ -1416,22 +1443,22 @@ export class NeutralSourceRepository {
   private async repairLocalDependencies(db: IDBDatabase, sourceId: string, current: () => boolean): Promise<SourceReason> {
     try {
       while (current() && !this.closed) {
-        const done = await this.transaction(db, [SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_REPAIR_STORE, META_STORE],
+        const progress = await this.transaction(db, [SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_REPAIR_STORE, META_STORE],
           "readwrite", sourceId, async (transaction) => {
             const meta = transaction.objectStore(META_STORE), repairs = transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE);
             const rawState = await unknownValue(meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
             if (!validSourceLocalDependencyState(rawState)) throw new SourceFactError("dependency-invalid");
             const rawRepair = await unknownValue(repairs.get(sourceId));
             if (rawRepair === undefined) {
-              if (rawState.pending === 0) return true;
-              return true; // Other sources may own the remaining global pending journals.
+              if (rawState.pending === 0) return { complete: true, decremented: false, incremented: false };
+              return { complete: true, decremented: false, incremented: false }; // Another source may own the remaining global pending journals.
             }
             if (!validSourceLocalDependencyRepair(rawRepair) || rawRepair.sourceId !== sourceId) throw new SourceFactError("dependency-invalid");
-            if (this.isLocalDependencyStaging(rawRepair)) throw new SourceFactError("dependency-pending");
+            if (this.isLocalDependencyPrivateRepair(rawRepair)) throw new SourceFactError("dependency-pending");
             if (rawState.pending === 0) throw new SourceFactError("dependency-invalid");
             let repair = rawRepair;
             const rows = transaction.objectStore(SOURCE_LOCAL_DEPENDENCY_STORE), keys = transaction.objectStore(SOURCE_LOCAL_KEY_STORE);
-            let processed = 0;
+            let processed = 0, decremented = false, incremented = false;
             const apply = async (revision: string, index: number, delta: -1 | 1): Promise<void> => {
               const rawRow = await unknownValue(rows.get([sourceId, revision, index]));
               if (!validSourceLocalDependencyRow(rawRow) || rawRow.sourceId !== sourceId || rawRow.sourceRevision !== revision || rawRow.index !== index) {
@@ -1447,21 +1474,31 @@ export class NeutralSourceRepository {
             };
             while (repair.fromRevision !== null && repair.fromIndex < repair.fromRecords && processed < SOURCE_MAX_BATCH_RECORDS) {
               await apply(repair.fromRevision, repair.fromIndex, -1);
-              repair = { ...repair, fromIndex: repair.fromIndex + 1 }; processed += 1;
+              repair = { ...repair, fromIndex: repair.fromIndex + 1 }; processed += 1; decremented = true;
             }
             while (repair.toRevision !== null && repair.fromIndex === repair.fromRecords && repair.toIndex < repair.toRecords
               && processed < SOURCE_MAX_BATCH_RECORDS) {
               await apply(repair.toRevision, repair.toIndex, 1);
-              repair = { ...repair, toIndex: repair.toIndex + 1 }; processed += 1;
+              repair = { ...repair, toIndex: repair.toIndex + 1 }; processed += 1; incremented = true;
             }
             const complete = repair.fromIndex === repair.fromRecords && repair.toIndex === repair.toRecords;
             if (complete) {
+              this.runtime.localDependencyCheckpoint?.("before-local-repair-retire");
+              if (!current() || this.closed) throw new SourceFactError("cancelled");
               repairs.delete(sourceId);
               meta.put({ ...rawState, revision: rawState.revision + 1, pending: rawState.pending - 1 } satisfies SourceLocalDependencyState);
             } else repairs.put(repair);
-            return complete;
+            return { complete, decremented, incremented };
           });
-        if (done) return "ready";
+        if (progress.decremented) {
+          this.runtime.localDependencyCheckpoint?.("after-local-old-count-batch");
+          if (!current() || this.closed) return "cancelled";
+        }
+        if (progress.incremented) {
+          this.runtime.localDependencyCheckpoint?.("after-local-new-count-batch");
+          if (!current() || this.closed) return "cancelled";
+        }
+        if (progress.complete) return "ready";
         await this.runtime.yield();
       }
       return "cancelled";
@@ -1481,7 +1518,7 @@ export class NeutralSourceRepository {
       const rawRepair = await this.transaction(db, [SOURCE_LOCAL_REPAIR_STORE], "readonly", selected.sourceId, (transaction) =>
         unknownValue(transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).get(selected.sourceId!)));
       if (!validSourceLocalDependencyRepair(rawRepair) || rawRepair.sourceId !== selected.sourceId) return "dependency-invalid";
-      const repaired = this.isLocalDependencyStaging(rawRepair)
+      const repaired = this.isLocalDependencyPrivateRepair(rawRepair)
         ? await this.cleanupStagedLocalDependencies(db, selected.sourceId, current)
         : await this.repairLocalDependencies(db, selected.sourceId, current);
       if (repaired !== "ready") return repaired;
@@ -1593,6 +1630,7 @@ export class NeutralSourceRepository {
           if (settled !== "ready") throw new SourceFactError(settled);
           if (this.hostChange && (await this.flushContributorHostChange() !== "ready" || this.hostChange)) throw new SourceFactError("dependency-pending");
           dependencyTicket = await this.beginDependencyMutation(db, input.sourceId, current);
+          this.runtime.localDependencyCheckpoint?.("before-local-staging");
         } catch (error) { storageReason = errorReason(error, "write-error"); db = null; }
       }
       if (!current() || this.closed) return this.result("cancelled", "cancelled");
@@ -1752,7 +1790,9 @@ export class NeutralSourceRepository {
         const rawState = await unknownValue(meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
         const localState = rawState === undefined ? sourceLocalDependencyState()
           : validSourceLocalDependencyState(rawState) ? rawState : null;
-        if (!localState) throw new SourceFactError("dependency-invalid");
+        if (!localState || localState.revision >= Number.MAX_SAFE_INTEGER || localState.pending >= Number.MAX_SAFE_INTEGER) {
+          throw new SourceFactError("dependency-invalid");
+        }
         const ownerStore = transaction.objectStore(SOURCE_LOCAL_OWNER_STORE), repairs = transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE);
         const [rawOwner, rawRepair] = await Promise.all([unknownValue(ownerStore.get(head.sourceId)), unknownValue(repairs.get(head.sourceId))]);
         const selectedOwner = rawOwner === undefined ? null : validSourceLocalDependencyOwner(rawOwner) ? rawOwner : null;
@@ -1793,7 +1833,8 @@ export class NeutralSourceRepository {
         if (!current() || this.closed) throw new SourceFactError("cancelled");
         return activated;
       });
-      const repaired = await this.repairLocalDependencies(db, head.sourceId, () => !this.closed);
+      this.runtime.localDependencyCheckpoint?.("after-local-activation");
+      const repaired = await this.repairLocalDependencies(db, head.sourceId, current);
       if (repaired !== "ready" && repaired !== "cancelled") this.diagnostics.lastReason = repaired;
       this.rememberDurable(activated);
       if (activated.state === "complete" && SOURCE_FAMILIES.every((family) => activated.families[family]?.records === 0)) this.diagnostics.empty += 1;
@@ -2240,6 +2281,27 @@ export class NeutralSourceRepository {
   async cleanupRevision(sourceId: string, revision: string, current: () => boolean = () => true): Promise<boolean> {
     if (this.closed || !current() || this.lanes.has(sourceId)) return false;
     const db = await this.open(); if (!db || !current()) return false;
+    try {
+      const preflight = await this.transaction(db, [SOURCE_HEAD_STORE, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE],
+        "readonly", sourceId, async (transaction) => {
+          const [rawHead, owner, repair] = await Promise.all([
+            unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId)),
+            unknownValue(transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).get(sourceId)),
+            unknownValue(transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).get(sourceId)),
+          ]);
+          return { rawHead, head: decodeSourceHead(rawHead), owner, repair };
+        });
+      if (preflight.rawHead !== undefined && !preflight.head) return false;
+      if (preflight.head?.sourceRevision === revision
+        || (preflight.head && Object.values(preflight.head.families).some((family) => family.revision === revision))) return false;
+      if (preflight.owner !== undefined && !validSourceLocalDependencyOwner(preflight.owner)) return false;
+      if (validSourceLocalDependencyOwner(preflight.owner) && preflight.owner.sourceRevision === revision) return false;
+      if (preflight.repair !== undefined && !validSourceLocalDependencyRepair(preflight.repair)) return false;
+      if (validSourceLocalDependencyRepair(preflight.repair) && this.isLocalDependencyPrivateRepair(preflight.repair)
+        && preflight.repair.fromRevision === revision) {
+        if (await this.cleanupStagedLocalDependencies(db, sourceId, current) !== "ready") return false;
+      }
+    } catch { return false; }
     const stores = [SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE, SOURCE_LOCAL_DEPENDENCY_STORE,
       SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE, META_STORE];
     const authorized = async (transaction: IDBTransaction): Promise<boolean> => {
@@ -2250,11 +2312,11 @@ export class NeutralSourceRepository {
       ]);
       const head = decodeSourceHead(rawHead);
       if (rawHead !== undefined && !head) return false;
-      if (head && Object.values(head.families).some((family) => family.revision === revision)) return false;
+      if (head?.sourceRevision === revision || (head && Object.values(head.families).some((family) => family.revision === revision))) return false;
       if (rawOwner !== undefined && !validSourceLocalDependencyOwner(rawOwner)) return false;
       if (validSourceLocalDependencyOwner(rawOwner) && rawOwner.sourceRevision === revision) return false;
       if (rawRepair !== undefined && !validSourceLocalDependencyRepair(rawRepair)) return false;
-      if (validSourceLocalDependencyRepair(rawRepair) && !this.isLocalDependencyStaging(rawRepair)
+      if (validSourceLocalDependencyRepair(rawRepair) && !this.isLocalDependencyPrivateRepair(rawRepair)
         && (rawRepair.fromRevision === revision || rawRepair.toRevision === revision)) return false;
       if (this.localStaging.get(sourceId) === revision) return false;
       const leases = await requestValue(transaction.objectStore(META_STORE).index(SOURCE_LEASE_INDEX).count(IDBKeyRange.only([sourceId, revision])));
@@ -2292,7 +2354,7 @@ export class NeutralSourceRepository {
       return await this.transaction(db, stores, "readwrite", sourceId, async (transaction) => {
         if (!(await authorized(transaction))) return false;
         const rawRepair = await unknownValue(transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).get(sourceId));
-        if (validSourceLocalDependencyRepair(rawRepair) && this.isLocalDependencyStaging(rawRepair)
+        if (validSourceLocalDependencyRepair(rawRepair) && this.isLocalDependencyPrivateRepair(rawRepair)
           && rawRepair.fromRevision === revision) transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).delete(sourceId);
         for (const storeName of [SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE]) {
           const range = IDBKeyRange.bound([sourceId, revision, "", 0], [sourceId, revision, "\uffff", Number.MAX_SAFE_INTEGER]);

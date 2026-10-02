@@ -15,73 +15,53 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-# Offline assignment — SI4-R1 durable source-local repair
+# Offline results — SI4-R1 durable source-local repair
 
-Implement only the first recovery package tracked in `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`.
-The source ZIP represents branch `indexing-optimization-v2` at commit `5db49f3`. Git access is not
-required. Return changed files uncommitted and replace this assignment with a concise results handoff.
+Implemented only SI4-R1. SI4-R2, SI4-R3 and C15–C26 were not changed.
 
-## Scope
+## Files changed
 
-The active production implementation is limited to:
-
+Production:
 - `src/index/IndexedDbCache.ts`
 - `src/index/SourceLocalDependencies.ts`
 - `src/index/SourceRepository.ts`
 
-Add or change focused IndexedDB tests and their test support as needed. Do not change
-`sourceAcquisition.ts`, contributor discovery, cached semantic readers, settings/UI behavior,
-high-degree limits, the global contributor catalog, or C15–C26.
+Focused/compatibility IndexedDB tests:
+- `tests/source-local-dependencies-indexeddb.test.mjs`
+- `tests/source-indexeddb.test.mjs`
+- `tests/source-contributor-indexeddb.test.mjs`
+- `tests/source-contributor-journal-indexeddb.test.mjs`
+- `tests/source-contributor-lease-indexeddb.test.mjs`
+- `tests/source-url-title-indexeddb.test.mjs`
+- `tests/source-candidate-degrees-indexeddb.test.mjs`
 
-## Required implementation
+## Implementation summary
 
-1. Make the repair format an additive **v8-to-v9** database upgrade. An exact database created by
-   commit `d61dc7f` has the v8 source-local rows/owners/key counts and a four-field dependency-state
-   record, but no repair store or `pending` field. Upgrade it without deleting or rewriting accepted
-   source heads, chunks, postings, body cache, graph snapshots, contributor data, source-local rows,
-   owners or key counts. Create the repair store and migrate the state to `pending: 0`. Fresh databases
-   must also receive the complete current schema.
-2. Complete the bounded repair protocol already present in the three files. Source-local rows are
-   staged in bounded transactions. Source head, selected owner and repair journal become authoritative
-   atomically. Old-count decrements and new-count increments resume exactly once in batches after
-   cancellation, transaction failure or process restart. Lookups remain pending while any selected
-   repair is incomplete and never return a partial owner set.
-3. Reclaim abandoned, superseded and cancelled staging rows in bounded batches. `cleanupRevision()`
-   must reclaim an unselected retired revision but must never delete the selected head/owner revision
-   or either side of an active repair.
-4. Preserve tombstone behavior, cross-connection CAS/fences and byte-for-byte unrelated heads. Repeated
-   dependency keys from one source may use the current row-count representation, but lookup must return
-   that selected source once and repair/count validation must remain exact.
-5. Keep the existing `>256` active-owner backpressure behavior and its 20,015-owner test unchanged.
-   High-degree continuation belongs to SI4-R3.
+- Bumped IndexedDB to v9. The v8-to-v9 upgrade adds only `sourceLocalDependencyRepairs` and migrates an exact four-field v8 source-local state to the five-field state with `pending: 0`; accepted v8 rows and unrelated stores are not rewritten. Fresh databases still create the complete schema.
+- Completed bounded durable source-local repair. Private staging rows use a same-revision journal; cleanup first claims that journal as a durable reclaim marker, then deletes at most 256 rows per transaction while persisting its cursor. This fences a concurrent stager on another connection and makes cleanup itself restartable.
+- Source-head/owner/journal activation remains atomic. Selected old-count decrements and new-count increments update key counts and the repair cursor in the same bounded transaction; old rows are deleted only with their committed decrement. The global `pending` fence remains nonzero until journal retirement, so lookups return pending rather than any partial owner set.
+- `cleanupRevision()` now protects the selected source-head revision, selected local owner, both sides of an active selected repair, live staging and leases before deleting anything. Direct recovery can still reclaim abandoned backfill staging under the current source head when no local owner has selected those rows.
+- Added only narrow source-local phase checkpoints for real-IDB interruption tests; no general fault framework was introduced.
+- Added real-IDB coverage for exact v8 migration, >3 staging/repair batches, all six required interruption phases, cancellation/retry, transaction abort rollback, real Chromium process restart, two-connection staging fencing, repeated keys/count exactness, tombstone behavior, abandoned/backfill staging reclamation, `cleanupRevision()` safety and unrelated-head preservation. The existing 20,015-owner backpressure test body and limit are unchanged.
+- Updated existing IndexedDB version/compatibility assertions from current v8 to current v9; old-version fixtures remain old versions, including the exact v8 fixture.
 
-## Required real IndexedDB coverage
+## Verification performed
 
-- Exact v8 fixture upgrade to v9, with all pre-existing accepted records preserved and `pending: 0`.
-- A single source large enough to cross several staging and repair batches.
-- Interruption before staging, between staging pages, after atomic head/owner/journal activation, during
-  old-row decrement, during new-row increment, and before final journal retirement.
-- Reopen/restart resumption, cancellation followed by retry, tombstone replacement, abandoned staging
-  cleanup and `cleanupRevision()` safety.
-- Two connections/readers proving old authority before activation, pending rather than partial data
-  during repair, and exact new authority after completion.
-- Repeated identical dependency keys and unchanged unrelated source heads.
+Environment: Node `v22.16.0`, npm `10.9.2`; repository requires Node `>=22.22.2 <23`. The required Node lane is therefore unavailable here. The supplied ZIP had no installed dependencies. An attempted dependency install (`rm -rf node_modules && npm ci --ignore-scripts --prefer-offline --no-audit --no-fund`) could not complete because registry fetches returned `EAI_AGAIN`, leaving an incomplete package tree.
 
-Do not weaken existing assertions, timer bounds or compatibility fixtures. A fault that cannot be
-injected through the existing test seam should receive the smallest repository-owned injection seam;
-do not add a general framework.
+- `node --test tests/source-local-dependencies-indexeddb.test.mjs` — **BLOCKED/FAIL**, 0 pass / 1 fail. Chromium starts, but navigation to the harness's local `127.0.0.1` server is denied by managed browser policy: `net::ERR_BLOCKED_BY_ADMINISTRATOR`. Test code does not execute.
+- `npm run check:architecture` — **PASS**, 7/7 tests; `Architecture: 61 migrated roots, 120 reachable files, 0 violations`.
+- `npm run check:core` — **FAIL**, 36 pass / 3 fail after the TypeScript phase. Two failures are dependency-environment failures because the incomplete install has no usable `esbuild` package (`core-contracts.test.mjs`, `relation-core.test.mjs`). The third is the pre-existing `normalized-source-contract.test.mjs` assertion (`Assets/picture.png` vs `Never There`); `node --test tests/normalized-source-contract.test.mjs` reproduces it unchanged in the untouched input repository at 6 pass / 1 fail.
+- `npm run lint:obsidian` — **BLOCKED/FAIL** before linting: `eslint: not found` because dependencies could not be installed.
+- `npm run test:sources` — **PASS**, 306/306 tests.
+- `npm run test:sources:browser` — **BLOCKED/FAIL**, 0 pass / 9 fail; every real-Chromium suite is stopped at harness navigation by `net::ERR_BLOCKED_BY_ADMINISTRATOR`.
+- `npm run verify` — **FAIL** at `check:core` after `check:architecture` passes 7/7; subsequent verify stages do not run. The same missing-`esbuild` failures and reproduced baseline normalized-source assertion are reported.
 
-## Verification
+Supplemental checks:
+- focused no-emit TypeScript check of `SourceRepository.ts` + `SourceLocalDependencies.ts` — **PASS**;
+- production browser bundle including `SourceRepository.ts` transpiles successfully — **PASS** (741,018 bytes);
+- `node --check` on all changed browser test files — **PASS**.
 
-Use Node 22.22.2 or newer within Node 22 and run:
+## Main-agent follow-up
 
-- focused new/changed tests while developing
-- `npm run check:architecture`
-- `npm run check:core`
-- `npm run lint:obsidian`
-- `npm run test:sources`
-- `npm run test:sources:browser`
-- `npm run verify`
-
-Report exact commands, pass/fail counts and genuine environment blockers. This package requires no
-native Obsidian claim or manual maintainer test.
+Run the required commands under Node 22.22.2+ with a complete dependency tree and an unrestricted real Chromium lane. In particular, the new SI4-R1 real-IndexedDB tests have compiled but could not execute in this environment, so their runtime result remains pending rather than passed. No native Obsidian validation is required for this package.

@@ -42,10 +42,10 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
   const browser = await chromiumHarness(bundle);
   try {
     await browser.evaluate(initialize);
-    await t.test("cold v8 plus v4 upgrade preserve legacy stores, body-v2 and schema-1/2/3 pointers", async () => {
+    await t.test("cold v9 plus v4 upgrade preserve legacy stores, body-v2 and schema-1/2/3 pointers", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
-        cache=await fresh('cold'); const db=await cache.open(); equal(db.version,8,'Cold database version');
-        for(const name of ['meta','pages','evidence','bodies','snapshotChunks','sourceHeads','sourceChunks','sourcePostings','sourceDependencies','sourceImpacts','sourceLocalDependencies','sourceLocalDependencyOwners','sourceLocalDependencyKeys'])ok(db.objectStoreNames.contains(name),'Missing store '+name);
+        cache=await fresh('cold'); const db=await cache.open(); equal(db.version,9,'Cold database version');
+        for(const name of ['meta','pages','evidence','bodies','snapshotChunks','sourceHeads','sourceChunks','sourcePostings','sourceDependencies','sourceImpacts','sourceLocalDependencies','sourceLocalDependencyOwners','sourceLocalDependencyKeys','sourceLocalDependencyRepairs'])ok(db.objectStoreNames.contains(name),'Missing store '+name);
         const tx=db.transaction(['sourceChunks','sourcePostings','meta'],'readonly');
         ok(tx.objectStore('sourceChunks').indexNames.contains('sourceFamilyRevision'),'Family index');
         ok(tx.objectStore('sourcePostings').indexNames.contains('lookup'),'Posting lookup index');
@@ -321,11 +321,11 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
         await edit(db,['meta'],tx=>tx.objectStore('meta').put(meta));const reasons=[];
         equal(await cache.iterateSnapshotPages(meta,()=>{throw new Error('No page expected');},()=>true,reason=>reasons.push(reason)),false,'Missing graph chunk rejected');
         equal(reasons,['missing-chunk'],'Graph failure reason');equal((await r.inspect('A')).sequence,a.sequence,'Neutral head unaffected');
-        let oldError;try{await rawOpen(databaseName('durability'),4);}catch(error){oldError=error.name;}equal(oldError,'VersionError','An old binary cannot downgrade v8');
-        const newer=await rawOpen(databaseName('newer'),9,db=>db.createObjectStore('sentinel'));await edit(newer,['sentinel'],tx=>tx.objectStore('sentinel').put('retained','key'));newer.close();
+        let oldError;try{await rawOpen(databaseName('durability'),4);}catch(error){oldError=error.name;}equal(oldError,'VersionError','An old binary cannot downgrade v9');
+        const newer=await rawOpen(databaseName('newer'),10,db=>db.createObjectStore('sentinel'));await edit(newer,['sentinel'],tx=>tx.objectStore('sentinel').put('retained','key'));newer.close();
         const old=new sourceModules.KplexIndexedDbCache('newer');equal(await old.readSnapshotMeta(),null,'VersionError falls back');
         equal(old.sources.getDiagnostics().activated,0,'No fake progress');await old.sources.inspect('anything');equal(old.sources.getDiagnostics().lastReason,'newer-database','Closed reason');old.close();
-        const intact=await rawOpen(databaseName('newer'),9);equal(await requestValue(intact.transaction('sentinel').objectStore('sentinel').get('key')),'retained','No destructive reset');intact.close();
+        const intact=await rawOpen(databaseName('newer'),10);equal(await requestValue(intact.transaction('sentinel').objectStore('sentinel').get('key')),'retained','No destructive reset');intact.close();
         const diagnostics=JSON.stringify(r.getDiagnostics());ok(!/\.md|Alpha|Changed|Dormant|hierarchy|Field|Long/.test(diagnostics),'Aggregate-only diagnostic privacy');cache.close();return true;
       })()`), true);
     });

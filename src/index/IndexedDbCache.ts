@@ -9,7 +9,7 @@ import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/g
 import { Platform } from "obsidian";
 import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE,
   SOURCE_REVISION_INDEX, SOURCE_FAMILY_INDEX, SOURCE_LOOKUP_INDEX, SOURCE_LEASE_INDEX } from "./SourceRepository";
-import { SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
+import { SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
   SOURCE_LOCAL_REVISION_INDEX, sourceLocalDependencyState } from "./SourceLocalDependencies";
 import { SOURCE_DEPENDENCY_STORE, sourceDependencyState } from "./SourceFacts";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
@@ -19,7 +19,7 @@ import { SOURCE_IMPACT_STORE, SOURCE_IMPACT_SLOT_INDEX, SOURCE_IMPACT_LEASE_INDE
 
 import { releaseContributorRootLeaseFresh, type ContributorRootLease } from "./SourceContributorLease";
 
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 const BODY_CACHE_VERSION = 2;
 const META_STORE = "meta";
 const PAGE_STORE = "pages";
@@ -116,6 +116,14 @@ function requestUnknownResult(request: IDBRequest): Promise<unknown> {
 
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function legacySourceLocalDependencyState(value: unknown): value is Readonly<{
+  key: typeof SOURCE_LOCAL_DEPENDENCY_STATE_KEY; version: 1; revision: number; complete: boolean;
+}> {
+  return isUnknownRecord(value) && Object.keys(value).length === 4 && value.key === SOURCE_LOCAL_DEPENDENCY_STATE_KEY
+    && value.version === 1 && typeof value.revision === "number" && Number.isSafeInteger(value.revision) && value.revision >= 0
+    && typeof value.complete === "boolean";
 }
 
 
@@ -235,7 +243,7 @@ export class KplexIndexedDbCache {
     catch (error) { this.storageFailed(db); throw error; }
   }
 
-  /** Lazily open v8 with bounded backoff and reject late, blocked or newer-version connections. */
+  /** Lazily open v9 with bounded backoff and reject late, blocked or newer-version connections. */
   private open(): Promise<IDBDatabase | null> {
     if (this.closed || this.newerDatabase) return Promise.resolve(null);
     if (this.dbPromise) return this.dbPromise;
@@ -315,9 +323,22 @@ export class KplexIndexedDbCache {
           }
           if (!db.objectStoreNames.contains(SOURCE_LOCAL_OWNER_STORE)) db.createObjectStore(SOURCE_LOCAL_OWNER_STORE, { keyPath: "sourceId" });
           if (!db.objectStoreNames.contains(SOURCE_LOCAL_KEY_STORE)) db.createObjectStore(SOURCE_LOCAL_KEY_STORE, { keyPath: "key" });
-          if (!db.objectStoreNames.contains(SOURCE_LOCAL_REPAIR_STORE)) db.createObjectStore(SOURCE_LOCAL_REPAIR_STORE, { keyPath: "sourceId" });
+          // v9 adds only the durable source-local repair journal plus the pending counter on the
+          // existing state record. Accepted v8 rows and every unrelated store stay untouched.
+          const hadLocalRepairStore = db.objectStoreNames.contains(SOURCE_LOCAL_REPAIR_STORE);
+          if (!hadLocalRepairStore) db.createObjectStore(SOURCE_LOCAL_REPAIR_STORE, { keyPath: "sourceId" });
           const meta = request.transaction?.objectStore(META_STORE);
-          if (meta && request.transaction && event.oldVersion < 8) meta.put(sourceLocalDependencyState());
+          if (meta && request.transaction && event.oldVersion < 8) {
+            meta.put(sourceLocalDependencyState());
+          } else if (meta && request.transaction && event.oldVersion === 8) {
+            // The accepted d61dc7f v8 schema has source-local rows/owners/key counts and a four-field
+            // state record, but no repair store. Preserve every accepted byte and only add pending: 0.
+            const state = meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY);
+            state.onsuccess = () => {
+              const raw: unknown = state.result;
+              if (legacySourceLocalDependencyState(raw)) meta.put({ ...raw, pending: 0 });
+            };
+          }
           if (meta && !meta.indexNames.contains(SOURCE_IMPACT_LEASE_INDEX)) meta.createIndex(SOURCE_IMPACT_LEASE_INDEX, "impactSlot");
           if (meta && !meta.indexNames.contains(SOURCE_LEASE_INDEX)) meta.createIndex(SOURCE_LEASE_INDEX, ["sourceId", "revision"]);
         };
