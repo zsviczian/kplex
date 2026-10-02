@@ -362,10 +362,10 @@ resumption of C15-C26.
 | Package | State | Acceptance boundary |
 | --- | --- | --- |
 | SI4-R1 — durable source-local repair | **Accepted (`b32e3c5`)** | Additive v8-to-v9 migration, bounded staging/count repair, interruption/restart/cleanup/concurrent-reader coverage, and no partial lookup publication. Existing high-degree backpressure remains unchanged. |
-| SI4-R2 — known-impact host maintenance | **Correction required (`5160f7a` incomplete)** | Live and restart create/rename/delete/alias/target changes update only proven affected sources. Relative and subpath references are covered; uncertain resolver events converge once from cached facts without rereading unchanged Markdown. The current return still traverses every Markdown source and durable head for an ordinary event and idle poll. |
+| SI4-R2 — known-impact host maintenance | **Native acceptance pending (`67503a4`)** | Live and restart create/rename/delete/alias/target changes update only proven affected sources. Relative and subpath references are covered; known events and unchanged idle polling avoid whole-vault work, while uncertain resolver events converge once from cached facts without rereading unchanged Markdown. Automated locality and full verification pass; exact-build native lifecycle validation remains required. |
 | SI4-R3 — high-degree completion and SI4 acceptance | Pending | Replace permanent owner/structural caps with cancellable bounded continuation through final semantic preparation. The real 20,015-owner case completes without a partial result, then full automated and native SI4 scenarios pass. |
 
-Only the consolidated SI4-R2 locality correction is active. Its host-maintenance work must build on the accepted R1 repair contract, and SI4-R3 must not be
+Only SI4-R2 native acceptance is active. Its host-maintenance work builds on the accepted R1 repair contract, and SI4-R3 must not be
 approximated by merely removing cardinality constants while retaining a terminal memory/byte failure.
 After all three packages pass independent review, the Delivery 1 and Delivery 2 checklists below are
 evaluated together to close SI4. SI5 remains the subsequent restart/scale/device acceptance delivery.

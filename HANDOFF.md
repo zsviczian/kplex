@@ -15,49 +15,18 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-# Offline return — SI4-R2 locality correction
+# Main-agent validation pending — SI4-R2
 
-## Changed files
+No offline task is active. Do not start SI4-R3.
 
-- `src/adapters/obsidian/sourceAcquisition.ts`
-- `tests/support/contributorBrowserFixture.mjs`
-- `tests/source-local-dependencies-indexeddb.test.mjs`
-- `tests/source-replay.test.mjs`
-- `HANDOFF.md`
+Branch: `indexing-optimization-v2`
 
-## Production behavior
+Candidate: `67503a4`
 
-- Acquisition now has a source-local hot lane after startup/restart authority closes. Known create/modify/metadata/alias/rename/delete work is held in bounded `Set`/`Map` state and processes only the changed `TFile`, old binding, and referrers authenticated by source-local dependency keys.
-- Startup/restart, unscoped resolver waves, environment drift, or invalid local fan-out use the existing whole-inventory lane. Known events retain local lookup authority while semantic publication is fenced; unknown promotion now also advances `maintenanceRevision`, the fence consumed by GraphIndex.
-- Startup captures stable source/Markdown coordinates. Hot maintenance reuses a moved owner's coordinates and appends a new owner without rebuilding whole-vault structural order.
-- The 30-second timer is observation-only after readiness: it compares captured Date-property vocabulary and Daily Notes settings. With no token change it does not enumerate Vault files, inspect/visit repository sources, page heads, read bodies, or write.
-- Deferred fan-out is coalesced by unique dependency key, synchronous events share one per-file fan-out task, and rename/delete tombstones wait until all events arriving during that task have captured old durable alias/path evidence. Cancellation leaves unvisited hot work queued.
-- Local count-journal completion is retried directly without rediscovering source inventory. Existing R1 repair, restart reconciliation, resolver-neutral relative/subpath tokens, tombstones, and terminal high-degree backpressure remain on the same repository paths.
+Automated review passes: source 308/308, real Chromium/IndexedDB 164/164, architecture 7/7, core 60/60, aggregate Node 133/133, UI browser 7/7, lint with one pre-existing warning, production build and whitespace.
 
-## Locality regression contract
+Remaining acceptance:
 
-The real-IDB fixture now records `getMarkdownFiles`, `getFiles`, root traversal, head pages, repository inspections, family visits, writes, local lookups/ensures/completions, body reads, and parses. New/expanded cases use 256 unrelated durable Markdown owners and assert after readiness:
-
-- metadata/alias, create, rename, delete, recreate: `0` full Markdown enumerations, `0` structural-root traversals, `0` durable-head pages, and `0` unrelated inspections/visits/writes;
-- 100 synchronous known events: exactly `1` source-local fan-out lookup, no whole-inventory work, no unrelated work, no body read/parse;
-- 20 synchronous unscoped `resolved` events: one maintenance-fence increment and one cached-fact uncertain pass (`1` Markdown enumeration, `1` root traversal, `1` head page in the 258-owner fixture), with zero unchanged body reads/parses;
-- unchanged idle poll: zero inventory enumeration, inspections, visits, writes, reads, and parses;
-- invalid local lookup: second maintenance-fence increment, semantic readiness remains closed until uncertain reconciliation; portable GraphIndex integration additionally proves `isSemanticWriteReady()` and relationship storage candidates fail closed after `promoteUnknownFanout()`.
-
-These counter assertions are implemented but could not be runtime-measured here because Chromium navigation is blocked by administrator policy before the test page starts. They remain the first main-agent automated check, not a claimed pass.
-
-## Validation performed
-
-Environment: Node `v22.16.0`; repository requires `>=22.22.2 <23`, so the requested Node floor was unavailable.
-
-- `npm run test:sources` — **PASS**, 308/308, 0 failed, final run `19.417s`.
-- Focused `node --test tests/source-acquisition.test.mjs tests/source-replay.test.mjs` — **PASS**, 21/21, including the GraphIndex maintenance-fence promotion assertions.
-- `npm run test:sources:browser` — **BLOCKED**, 0/9 execute: every lane fails before test code at Chromium navigation with `net::ERR_BLOCKED_BY_ADMINISTRATOR`. A final focused run of `tests/source-local-dependencies-indexeddb.test.mjs` reaches the same blocker after the production TypeScript bundle transpiles; `file://` navigation is blocked identically.
-- `npm run check:architecture` with a temporary symlink to the globally installed TypeScript 5.8.3 — **PASS**, 7/7 architecture tests; `61` migrated roots, `120` reachable files, `0` violations. The symlink was removed.
-- `npm run verify` — **BLOCKED** in the supplied ZIP environment: no local dependencies. Initial run stops at missing `typescript`; `npm ci` did not complete before the execution transport timeout and its partial `node_modules` was removed. With only the temporary TypeScript shim, `check:core` reaches tests but lacks `esbuild`; its separate normalized-source assertion failure reproduces unchanged on the pristine input ZIP and is not introduced by this return.
-
-## Main-agent verification still required
-
-1. Run `npm run test:sources:browser` in the normal Chromium/IndexedDB environment and inspect the new locality counters above. This is the required automated acceptance gate before calling SI4-R2 complete.
-2. Run `npm run verify` under Node 22.22.2+ with the lockfile dependencies installed.
-3. If those pass, perform only the normal native Obsidian SI4-R2 smoke: live alias/path create/rename/delete/recreate, idle-after-readiness, Date/Daily Notes drift, and stale semantic publication/write fencing. No additional offline architecture work is requested unless those checks expose a defect.
+1. Restore Obsidian CLI attachment and run `npm run verify:obsidian` against the configured disposable `kplex-test` vault.
+2. With the exact installed build, run live alias/target create→rename→delete→recreate; confirm no routine full indexing. Leave the vault idle for more than 30 seconds and confirm no indexing work. Change and restore Date/Daily Notes settings; confirm one cached reconciliation with no unchanged body reads/parses.
+3. If these pass, mark SI4-R2 accepted and replace this handoff with one substantial SI4-R3 assignment. If one fails, record the exact native trace and correct only the reproduced SI4-R2 defect.
