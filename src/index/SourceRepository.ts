@@ -37,8 +37,8 @@ import {
 
 import { releaseContributorRootLease, type ContributorRootLease } from "./SourceContributorLease";
 import {
-  SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
-  sourceLocalDependencyState, sourceLocalStoredDependencyKeys, sourceLocalStructuralBaseKeys, validSourceLocalDependencyOwner,
+  SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_DEPENDENCY_VERSION, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
+  sourceLocalDependencyState, sourceLocalStoredDependencyKeys, sourceLocalStoredResolverKeys, sourceLocalStructuralBaseKeys, validSourceLocalDependencyOwner,
   validSourceLocalDependencyKeyState, validSourceLocalDependencyRepair, validSourceLocalDependencyRow, validSourceLocalDependencyState, type SourceLocalDependencyKeyState, type SourceLocalDependencyOwner, type SourceLocalDependencyRepair, type SourceLocalDependencyRow,
   type SourceLocalDependencyState,
 } from "./SourceLocalDependencies";
@@ -177,7 +177,7 @@ type MemorySource = {
   current: () => boolean;
 };
 /** An identity-fenced deletion capability, distinct from a normal include-tombstone body reader. */
-type PendingSourceDeletion = Readonly<{ current: () => boolean; retain: boolean }>;
+type PendingSourceDeletion = Readonly<{ current: () => boolean; retain: boolean; ready?: Promise<void> }>;
 type SourceWriteLane = {
   ticket: number;
   active: Promise<SourceWriteResult>;
@@ -1812,7 +1812,7 @@ export class NeutralSourceRepository {
         } else if (staging) throw new SourceFactError("dependency-invalid");
         const order = selectedOwner?.order ?? activated.sequence;
         const markdownOrder = selectedOwner?.markdownOrder ?? activated.sequence;
-        const owner: SourceLocalDependencyOwner = { version: 1, sourceId: head.sourceId, sourceRevision: head.sourceRevision,
+        const owner: SourceLocalDependencyOwner = { version: SOURCE_LOCAL_DEPENDENCY_VERSION, sourceId: head.sourceId, sourceRevision: head.sourceRevision,
           state: head.state, sequence: activated.sequence, order, markdownOrder, records: nextRecords, digest: nextDigest };
         ownerStore.put(owner);
         const fromRevision = selectedOwner?.state === "complete" ? selectedOwner.sourceRevision : null;
@@ -1853,14 +1853,16 @@ export class NeutralSourceRepository {
    * transaction runs beside the bounded source lanes; the remaining queue contains only dirty IDs
    * and validity predicates. A captured rename may retain independently validated old body families.
    */
-  tombstone(sourceId: string, caller: () => boolean = () => true, retainFamilies = false): Promise<SourceWriteResult> {
+  tombstone(sourceId: string, caller: () => boolean = () => true, retainFamilies = false,
+    ready?: Promise<void>): Promise<SourceWriteResult> {
     if (this.closed || !caller()) return Promise.resolve(this.result("cancelled", "cancelled"));
     this.cancelSource(sourceId);
     const previous = this.pendingDeletes.get(sourceId);
     // A lost unsaved payload may not turn an older disk body into a reusable rename input. Read
     // that disk head only to retire it. Repeated requests can drop retention, never restore it.
     const canRetain = previous ? previous.retain : !this.unsaved.has(sourceId) || this.memory.has(sourceId);
-    const pending: PendingSourceDeletion = { current: caller, retain: retainFamilies && canRetain };
+    const prerequisite = previous?.ready && ready ? Promise.all([previous.ready, ready]).then(() => undefined) : ready ?? previous?.ready;
+    const pending: PendingSourceDeletion = { current: caller, retain: retainFamilies && canRetain, ready: prerequisite };
     this.pendingDeletes.set(sourceId, pending); this.unsaved.add(sourceId); this.knownHeads.delete(sourceId);
     if (this.deleteTask) { this.scheduleRetry(); return Promise.resolve(this.result("unsaved", "backpressure", null, true)); }
     /** Fence every continuation against the exact coalesced absence request. */
@@ -1868,6 +1870,10 @@ export class NeutralSourceRepository {
     let retired: string[] = [];
     /** Retire only the selected owner; a masked disk head is CAS input, never a live read result. */
     const work = async (): Promise<SourceWriteResult> => {
+      // Host maintenance may need the selected source's durable alias/path facts before deletion.
+      // Register the tombstone immediately so flush() observes it, but do not mutate selection until
+      // that bounded source-local fan-out capture has finished.
+      if (pending.ready) { await pending.ready; if (!current()) return this.result("cancelled", "cancelled"); }
       if (this.hostChange && (await this.flushContributorHostChange() !== "ready" || this.hostChange)) {
         this.scheduleRetry(); return this.result("unsaved", "dependency-pending", null, true);
       }
@@ -1955,6 +1961,84 @@ export class NeutralSourceRepository {
       });
     } catch { return { available: false, heads: [], invalid: 0, next: null }; }
   }
+  /**
+   * Upgrade one accepted R1 owner by appending only resolver-neutral lexical memberships. The source
+   * revision/head never changes: immutable rows are staged idempotently, then the existing selected
+   * count journal publishes their counts exactly once before closed-world lookup can resume.
+   */
+  private async upgradeLocalDependencyOwner(db: IDBDatabase, owner: SourceLocalDependencyOwner, head: SourceManifest,
+    current: () => boolean): Promise<SourceReason> {
+    if (owner.version >= SOURCE_LOCAL_DEPENDENCY_VERSION) return "ready";
+    if (owner.version !== 1 || owner.state !== "complete" || head.state !== "complete"
+      || owner.sourceRevision !== head.sourceRevision) return "dependency-invalid";
+    try {
+      let rows: SourceLocalDependencyRow[] = []; let bytes = 0; let records = owner.records; let digest = owner.digest;
+      const flush = async (): Promise<void> => {
+        if (!rows.length) return;
+        const page = rows; rows = []; bytes = 0;
+        await this.transaction(db, [SOURCE_LOCAL_DEPENDENCY_STORE], "readwrite", owner.sourceId, async (transaction) => {
+          const store = transaction.objectStore(SOURCE_LOCAL_DEPENDENCY_STORE);
+          for (const row of page) {
+            const raw = await unknownValue(store.get([row.sourceId, row.sourceRevision, row.index]));
+            if (raw !== undefined && (!validSourceLocalDependencyRow(raw) || raw.sourceId !== row.sourceId
+              || raw.sourceRevision !== row.sourceRevision || raw.index !== row.index || raw.key !== row.key)) {
+              throw new SourceFactError("dependency-invalid");
+            }
+            store.put(row);
+          }
+        });
+        digest = await this.runtime.digest(digest + JSON.stringify(page.map((row) => row.key)));
+        await this.runtime.yield();
+        if (!current() || this.closed) throw new SourceFactError("cancelled");
+      };
+      const add = async (key: string): Promise<void> => {
+        const row: SourceLocalDependencyRow = { version: 1, sourceId: owner.sourceId, sourceRevision: owner.sourceRevision, index: records, key };
+        const rowBytes = encodedBytes(JSON.stringify(row)) + 1;
+        if (rowBytes > SOURCE_MAX_RECORD_BYTES) throw new SourceFactError("decode-budget");
+        if (rows.length && (rows.length >= SOURCE_MAX_BATCH_RECORDS || bytes + rowBytes > SOURCE_CHUNK_TARGET_BYTES)) await flush();
+        rows.push(row); bytes += rowBytes; records += 1;
+        if (rows.length >= SOURCE_MAX_BATCH_RECORDS || bytes >= SOURCE_CHUNK_TARGET_BYTES) await flush();
+      };
+      const read = await this.readSelected(owner.sourceId, (stamp) => stamp.saved && stamp.sequence === owner.sequence
+        && stamp.head.sourceRevision === owner.sourceRevision ? "ready" : "superseded", async (reader) => {
+        for (const family of ["values", "metadata"] as const) {
+          const reason = await reader.visit(family, async (familyRows) => {
+            for (const record of familyRows) for (const key of sourceLocalStoredResolverKeys(head.physical.path, record)) await add(key);
+            return current();
+          });
+          if (reason !== "ready") throw new SourceFactError(reason, family);
+        }
+        return true;
+      }, current);
+      if (read.outcome !== "ready") return read.reason;
+      await flush();
+      const appended = records - owner.records;
+      await this.transaction(db, [SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE, META_STORE, SOURCE_HEAD_STORE],
+        "readwrite", owner.sourceId, async (transaction) => {
+          const rawHead = decodeSourceHead(await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(owner.sourceId)));
+          const rawOwner = await unknownValue(transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).get(owner.sourceId));
+          const rawRepair = await unknownValue(transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).get(owner.sourceId));
+          const rawState = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
+          if (!rawHead || rawHead.sourceRevision !== owner.sourceRevision || rawHead.sequence !== owner.sequence
+            || !validSourceLocalDependencyOwner(rawOwner) || rawOwner.version !== 1
+            || rawOwner.sourceRevision !== owner.sourceRevision || rawOwner.sequence !== owner.sequence
+            || rawOwner.records !== owner.records || rawOwner.digest !== owner.digest || rawRepair !== undefined
+            || !validSourceLocalDependencyState(rawState) || rawState.pending >= Number.MAX_SAFE_INTEGER) {
+            throw new SourceFactError("superseded");
+          }
+          transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).put({ ...rawOwner, version: SOURCE_LOCAL_DEPENDENCY_VERSION, records, digest } satisfies SourceLocalDependencyOwner);
+          if (appended > 0) {
+            transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).put({ version: 1, sourceId: owner.sourceId, fromRevision: null, fromRecords: 0, fromIndex: 0,
+              toRevision: owner.sourceRevision, toRecords: records, toIndex: owner.records } satisfies SourceLocalDependencyRepair);
+          }
+          transaction.objectStore(META_STORE).put({ ...rawState, revision: rawState.revision + 1,
+            pending: rawState.pending + (appended > 0 ? 1 : 0) } satisfies SourceLocalDependencyState);
+        });
+      if (appended > 0) return this.repairLocalDependencies(db, owner.sourceId, current);
+      return current() ? "ready" : "cancelled";
+    } catch (error) { return !current() || this.closed ? "cancelled" : errorReason(error, "dependency-invalid"); }
+  }
+
   /** Backfill or verify one durable source-local dependency owner without changing the source head. */
   async ensureLocalDependencies(sourceId: string, order: number, markdownOrder: number, current: () => boolean = () => true): Promise<SourceReason> {
     if (!sourceCount(order) || !sourceCount(markdownOrder) || this.closed || !current()) return "cancelled";
@@ -1972,6 +2056,13 @@ export class NeutralSourceRepository {
       if (selected.owner) {
         if (selected.owner.state !== "complete" || selected.owner.sourceRevision !== head.sourceRevision
           || selected.owner.sequence !== inspection.sequence) return "dependency-invalid";
+        if (selected.owner.version < SOURCE_LOCAL_DEPENDENCY_VERSION) {
+          const upgraded = await this.upgradeLocalDependencyOwner(db, selected.owner, head, current);
+          if (upgraded !== "ready") return upgraded;
+          selected = await this.localDependencySelection(db, sourceId, current);
+          if (!selected.owner || selected.owner.version !== SOURCE_LOCAL_DEPENDENCY_VERSION
+            || selected.owner.sourceRevision !== head.sourceRevision || selected.owner.sequence !== inspection.sequence) return "dependency-invalid";
+        }
         if (selected.owner.order === order && selected.owner.markdownOrder === markdownOrder) return "ready";
         await this.transaction(db, [SOURCE_LOCAL_OWNER_STORE, META_STORE, SOURCE_HEAD_STORE], "readwrite", sourceId, async (transaction) => {
           const rawHead = decodeSourceHead(await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId)));
@@ -2043,7 +2134,7 @@ export class NeutralSourceRepository {
             transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).delete(sourceId);
             return false;
           }
-          transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).put({ version: 1, sourceId, sourceRevision: head.sourceRevision, state: "complete",
+          transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).put({ version: SOURCE_LOCAL_DEPENDENCY_VERSION, sourceId, sourceRevision: head.sourceRevision, state: "complete",
             sequence: inspection.sequence, order, markdownOrder, records, digest } satisfies SourceLocalDependencyOwner);
           transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).put({ version: 1, sourceId, fromRevision: null, fromRecords: 0, fromIndex: 0,
             toRevision: head.sourceRevision, toRecords: records, toIndex: 0 } satisfies SourceLocalDependencyRepair);
@@ -2413,7 +2504,7 @@ export class NeutralSourceRepository {
         this.pendingDeletes.delete(sourceId);
         continue;
       }
-      await this.tombstone(sourceId, pending.current, pending.retain);
+      await this.tombstone(sourceId, pending.current, pending.retain, pending.ready);
     }
     for (const source of [...this.memory.values()]) {
       if (this.closed) return;

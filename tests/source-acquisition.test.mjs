@@ -5,7 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { browserBundle } from "./support/browserTypeScript.mjs";
 
 const bundle = await browserBundle([
-  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts",
+  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts",
 ], { obsidian: `exports.Platform={isMobile:false}; exports.TFile=class TFile {
   constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=path.split('/').pop().replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent={path:''};}
 }; exports.TFolder=class TFolder {constructor(){this.path='';this.name='';this.children=[];this.parent=null;}};
@@ -61,6 +61,15 @@ function hostFixture() {
   return { files, metadata, text, legacy, resolutions, reads, parses, app, repository, acquisition, cache, parser, add, facts,
     close() { acquisition.close(); repository.close(); assert.equal(vault.count(), 0); assert.equal(app.metadataCache.count(), 0); assert.equal(timers.size, 0); } };
 }
+
+test("resolver-neutral local tokens cover relative, extensionless, encoded and subpath spellings", () => {
+  const key = window.sourceModules.sourceLocalResolverDependencyKey;
+  const pathKey = window.sourceModules.sourceLocalResolverPathDependencyKey;
+  assert.equal(key("../Target#Heading", "Folder/Ref.md"), pathKey("Target.md"));
+  assert.equal(key("./Target.md#^block", "Folder/Ref.md"), pathKey("Folder/Target"));
+  assert.equal(key("Folder%2FTarget.md#Section", "Ref.md"), pathKey("Folder/Target"));
+  assert.notEqual(key("Target", "Ref.md"), key("Other", "Ref.md"));
+});
 
 test("legacy body-v2 migration reads/parses only a missing body and never treats pending metadata as empty", async () => {
   const f = hostFixture();
@@ -141,14 +150,18 @@ test("unselected metadata changes persist while Date/Daily Notes observations in
     f.app.metadataCache.trigger("changed", source);
     await f.acquisition.reconcile();
     assert((await f.facts(source.path, "values")).some(r => r.kind === "reference-candidate" && r.rawTarget === "Beta"));
+    const beforeDateEnvironment = f.acquisition.getMaintenanceRevision();
     f.app.dateFields.add("When");
     await f.acquisition.reconcile();
     const dated = (await f.repository.inspect(source.path)).head;
     assert.notEqual(dated.observation.environment, original.observation.environment);
+    assert(f.acquisition.getMaintenanceRevision() > beforeDateEnvironment);
     assert((await f.facts(source.path, "resolution")).some(r => r.kind === "date-property"));
+    const beforeDailyEnvironment = f.acquisition.getMaintenanceRevision();
     f.app.daily.folder = "OtherDaily"; await f.acquisition.reconcile();
     const next = (await f.repository.inspect(source.path)).head;
     assert.notEqual(next.observation.environment, dated.observation.environment);
+    assert(f.acquisition.getMaintenanceRevision() > beforeDailyEnvironment);
     f.app.settings = { hierarchy: { parents: ["Dormant"] }, imageProperty: "secret", nameFields: "Private" };
     await f.acquisition.reconcile();
     assert.equal((await f.repository.inspect(source.path)).head.observation.environment, next.observation.environment);
@@ -168,6 +181,24 @@ test("host revision and unload fence asynchronous acquisition before neutral or 
     const closing = f.acquisition.acquire(source, body); f.acquisition.close();
     assert.equal((await closing).current, false);
     assert.equal((await f.repository.inspect(source.path)).head, null);
+  } finally { f.close(); }
+});
+
+test("multiple unscoped resolver events coalesce into one maintenance fence and cached-fact pass", async () => {
+  const f = hostFixture();
+  try {
+    const source = f.add("source.md", "Friends:: [[Target]]"); const target = f.add("Target.md", "");
+    f.resolutions.set("Target", target.path);
+    assert.equal((await f.acquisition.acquire(source, parseBodyMetadata(f.text.get(source.path)))).reason, "storage-unavailable");
+    assert.equal((await f.acquisition.acquire(target, parseBodyMetadata(f.text.get(target.path)))).reason, "storage-unavailable");
+    const before = f.acquisition.getMaintenanceRevision();
+    f.app.metadataCache.trigger("resolved"); f.app.metadataCache.trigger("resolved"); f.app.metadataCache.trigger("resolved");
+    assert.equal(f.acquisition.getMaintenanceRevision(), before + 1, "One native resolved burst owns one maintenance revision");
+    await f.acquisition.reconcile();
+    assert.deepEqual(f.reads, [], "Unscoped resolver reconciliation reuses cached neutral bodies");
+    assert.deepEqual(f.parses, [], "Unscoped resolver reconciliation does not parse unchanged Markdown");
+    f.app.metadataCache.trigger("resolved");
+    assert.equal(f.acquisition.getMaintenanceRevision(), before + 2, "A later resolver wave advances exactly once again");
   } finally { f.close(); }
 });
 

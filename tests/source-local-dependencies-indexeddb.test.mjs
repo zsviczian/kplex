@@ -27,6 +27,21 @@ const repairBrowserInitialize = `(() => {
     return {db,repository,control};
   };
   window.r1Run=(session,input)=>session.repository.replace(input,()=>session.control.live);
+  window.r2DowngradeResolverOwner=async(db,sourceId)=>{
+    const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get(sourceId));
+    ok(owner&&owner.version===M.SOURCE_LOCAL_DEPENDENCY_VERSION,'Current resolver owner required');
+    const rows=await value(db.transaction(M.SOURCE_LOCAL_DEPENDENCY_STORE).objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE)
+      .index(M.SOURCE_LOCAL_REVISION_INDEX).getAll(IDBKeyRange.only([sourceId,owner.sourceRevision])));
+    const keep=rows.filter(row=>JSON.parse(row.key)[0]!=='resolver').map((row,index)=>({...row,index}));
+    const resolverKeys=[...new Set(rows.filter(row=>JSON.parse(row.key)[0]==='resolver').map(row=>row.key))];
+    await edit(db,[M.SOURCE_LOCAL_DEPENDENCY_STORE,M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_KEY_STORE],tx=>{
+      tx.objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE).delete(IDBKeyRange.bound([sourceId,owner.sourceRevision,0],[sourceId,owner.sourceRevision,Number.MAX_SAFE_INTEGER]));
+      for(const row of keep)tx.objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE).put(row);
+      for(const key of resolverKeys)tx.objectStore(M.SOURCE_LOCAL_KEY_STORE).delete(key);
+      tx.objectStore(M.SOURCE_LOCAL_OWNER_STORE).put({...owner,version:1,records:keep.length});
+    });
+    return {...owner,version:1,records:keep.length};
+  };
   return true;
 })()`;
 
@@ -70,6 +85,51 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
       })()`), true);
     });
 
+    await t.test("accepted R1 owners lazily add resolver-neutral memberships without rewriting source heads", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await fixture('local-r2-resolver-upgrade');
+        try{
+          f.add('Folder/Ref.md','Friends:: [[../Target#Heading]] [[AliasTarget#^block]]');
+          await f.acquire();ok(await f.acquisition.reconcile(),'Seed current owner');
+          const headBefore=(await f.repository.inspect('Folder/Ref.md')).head,db=await f.cache.open();
+          await r2DowngradeResolverOwner(db,'Folder/Ref.md');
+          const key=M.sourceLocalResolverDependencyKey('../Target#Heading','Folder/Ref.md');
+          let lookup=await f.repository.lookupLocalDependencies([key]);equal(lookup.outcome,'ready','Accepted R1 owner remains closed-world before additive upgrade');
+          equal(lookup.value.sources,[],'R1 fixture has no resolver-neutral row');
+          equal(await f.repository.ensureLocalDependencies('Folder/Ref.md',0,0),'ready','Lazy R1 to R2 owner upgrade completes');
+          const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('Folder/Ref.md'));
+          equal(owner.version,M.SOURCE_LOCAL_DEPENDENCY_VERSION,'Owner version upgraded in place');
+          lookup=await f.repository.lookupLocalDependencies([key]);equal(lookup.outcome,'ready','Resolver token authenticates');
+          equal(lookup.value.sources.map(s=>s.head.sourceId),['Folder/Ref.md'],'Relative/subpath referrer selected');
+          equal((await f.repository.inspect('Folder/Ref.md')).head,headBefore,'Source head remains byte-for-byte unchanged');
+          equal(await value(db.transaction(M.SOURCE_DEPENDENCY_STORE).objectStore(M.SOURCE_DEPENDENCY_STORE).count()),0,'Upgrade does not bootstrap global contributor catalog');
+          equal(await value(db.transaction(M.SOURCE_LOCAL_REPAIR_STORE).objectStore(M.SOURCE_LOCAL_REPAIR_STORE).count()),0,'Upgrade count journal retires exactly once');
+          return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("interrupted resolver-token owner upgrade resumes exactly once with closed-world lookup", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,vault='local-r2-resolver-upgrade-restart',f=await fixture(vault);let recovery=null;
+        try{
+          const body=Array.from({length:700},(_,i)=>'Field'+i+':: [[Target'+i+'#Heading]]').join('\\n');f.add('A.md',body);await f.acquire();ok(await f.acquisition.reconcile(),'Seed v2 owner');
+          const db=await f.cache.open(),headBefore=(await f.repository.inspect('A.md')).head;await r2DowngradeResolverOwner(db,'A.md');
+          const session=await r1FaultSession(f.cache,'after-local-new-count-batch'),result=await session.repository.ensureLocalDependencies('A.md',0,0);
+          ok(session.control.hit,'Resolver upgrade count checkpoint reached');equal(result,'cancelled','Interrupted owner upgrade stops current continuation');
+          recovery=new M.KplexIndexedDbCache(vault);ok(await recovery.open(),'Open independent recovery connection');
+          let lookup=await recovery.sources.lookupLocalDependencies([M.sourceLocalResolverDependencyKey('Target699#Heading')]);equal(lookup.outcome,'pending-acquisition','Partial resolver counts never publish');equal(lookup.reason,'dependency-pending','Pending maintenance is explicit');
+          equal(await recovery.sources.completeLocalDependencyInventory(),'ready','Interrupted resolver upgrade resumes');
+          lookup=await recovery.sources.lookupLocalDependencies([M.sourceLocalResolverDependencyKey('Target699#Heading')]);equal(lookup.outcome,'ready','Recovered resolver key authenticates');equal(lookup.value.sources.map(s=>s.head.sourceId),['A.md'],'Recovered owner selected exactly once');
+          const finalDb=await recovery.open(),state=await value(finalDb.transaction('meta').objectStore('meta').get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY)),repairCount=await value(finalDb.transaction(M.SOURCE_LOCAL_REPAIR_STORE).objectStore(M.SOURCE_LOCAL_REPAIR_STORE).count());
+          equal(state.pending,0,'Pending slot retires once');equal(repairCount,0,'Upgrade journal retires once');equal((await recovery.sources.inspect('A.md')).head,headBefore,'Maintenance upgrade never rewrites source head');
+          const keyState=await value(finalDb.transaction(M.SOURCE_LOCAL_KEY_STORE).objectStore(M.SOURCE_LOCAL_KEY_STORE).get(M.sourceLocalResolverDependencyKey('Target699#Heading')));equal(keyState.count,1,'Recovered count is exact, not double-applied');
+          equal(await value(finalDb.transaction(M.SOURCE_DEPENDENCY_STORE).objectStore(M.SOURCE_DEPENDENCY_STORE).count()),0,'Recovery does not create global catalog rows');
+          return true;
+        }finally{recovery?.close();f.close();}
+      })()`), true);
+    });
+
     await t.test("replacement and tombstone change only the selected source-local memberships", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const M=sourceModules,f=await fixture('local-dependency-lifecycle');
@@ -101,6 +161,104 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           equal(await value(db.transaction(M.SOURCE_DEPENDENCY_STORE).objectStore(M.SOURCE_DEPENDENCY_STORE).count()),0,'No global dependency pages after lifecycle changes');
           return true;
         }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("live target and alias changes repair only proven relative/subpath referrers without unchanged body IO", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await fixture('local-r2-live-impact');
+        const settle=async()=>{for(let attempt=0;attempt<4;attempt++)if(await f.acquisition.reconcile())return true;return false;};
+        const resolutionTargets=async id=>{const rows=[];equal(await f.repository.visit(id,'resolution',records=>{rows.push(...records);return true;}),'ready','Read selected resolution');return rows.filter(r=>r.kind==='reference-resolution').map(r=>({raw:r.rawTarget,target:r.target?.entity?.id,kind:r.target?.entity?.kind}));};
+        try{
+          const ref=f.add('Folder/Ref.md','Friends:: [[../Target#Heading]] [[AliasTarget#^block]]'),other=f.add('Other.md','Friends:: [[Else]]');
+          const fallback=f.app.metadataCache.getFirstLinkpathDest;
+          f.app.metadataCache.getFirstLinkpathDest=(literal,source)=>{
+            if(literal==='../Target')return f.files.get('Target.md')??null;
+            if(literal==='AliasTarget')return [...f.files.values()].find(file=>file.extension==='md'&&(f.metadata.get(file.path)?.frontmatter?.aliases??[]).includes('AliasTarget'))??null;
+            return fallback(literal,source);
+          };
+          await f.acquire();ok(await f.acquisition.reconcile(),'Initial local authority closes');
+          const refBefore=(await f.repository.inspect(ref.path)).head,otherBefore=(await f.repository.inspect(other.path)).head;
+          equal((await resolutionTargets(ref.path)).map(r=>r.kind),['unresolved','unresolved'],'Relative and alias targets begin unresolved');
+          f.reads.length=0;f.parses.length=0;
+
+          const target=f.add('Target.md','',{aliases:['AliasTarget']});f.app.vault.trigger('create',target);ok(await settle(),'Create converges');
+          const created=await resolutionTargets(ref.path);equal(created.map(r=>r.target),['Target.md','Target.md'],'Create resolves relative/subpath and alias references');
+          ok((await f.repository.inspect(ref.path)).head.sourceRevision!==refBefore.sourceRevision,'Inbound referrer receives a new selected resolution revision');
+          equal((await f.repository.inspect(other.path)).head,otherBefore,'Unrelated durable head remains byte-for-byte unchanged');
+          equal(f.reads,['Target.md'],'Only the newly created source body is read');equal(f.parses.length,1,'Only the newly created source body is parsed');
+
+          f.reads.length=0;f.parses.length=0;f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:[]}});f.app.metadataCache.trigger('changed',target);ok(await settle(),'Alias removal converges');
+          let aliasChanged=await resolutionTargets(ref.path);equal(aliasChanged.map(r=>r.target),['Target.md','AliasTarget'],'Alias removal preserves relative target and makes alias unresolved');
+          equal(aliasChanged.map(r=>r.kind),['document','unresolved'],'Alias-only change replays resolver output');equal((await f.repository.inspect(other.path)).head,otherBefore,'Alias removal keeps unrelated owner exact');equal(f.reads,[],'Alias-only change reuses target body');equal(f.parses,[],'Alias-only change reparses no Markdown');
+          f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:['AliasTarget']}});f.app.metadataCache.trigger('changed',target);ok(await settle(),'Alias restoration converges');
+          aliasChanged=await resolutionTargets(ref.path);equal(aliasChanged.map(r=>r.target),['Target.md','Target.md'],'Alias restoration repairs inbound alias');equal(f.reads,[],'Alias restoration reuses target body');equal(f.parses,[],'Alias restoration reparses no Markdown');
+
+          f.reads.length=0;f.parses.length=0;
+          const oldPath=target.path,frontmatter=f.metadata.get(oldPath),body=f.texts.get(oldPath);f.files.delete(oldPath);f.metadata.delete(oldPath);f.texts.delete(oldPath);
+          target.path='Renamed.md';target.name='Renamed.md';target.basename='Renamed';f.files.set(target.path,target);f.metadata.set(target.path,frontmatter);f.texts.set(target.path,body);
+          f.app.vault.trigger('rename',target,oldPath);ok(await settle(),'Rename converges');
+          const renamed=await resolutionTargets(ref.path);equal(renamed.map(r=>r.target),['../Target','Renamed.md'],'Old relative path becomes unresolved while alias follows renamed target');
+          equal(renamed.map(r=>r.kind),['unresolved','document'],'Resolver remains the final binding authority');
+          equal((await f.repository.inspect(oldPath)).reason,'tombstone','Old target path is durably tombstoned');
+          equal((await f.repository.inspect(other.path)).head,otherBefore,'Rename does not rewrite unrelated owner');
+          equal(f.reads,[],'Rename reuses immutable bodies');equal(f.parses,[],'Rename performs no Markdown parse');
+
+          f.reads.length=0;f.parses.length=0;f.files.delete(target.path);f.app.vault.trigger('delete',target);f.metadata.delete(target.path);f.texts.delete(target.path);ok(await settle(),'Delete converges');
+          const deleted=await resolutionTargets(ref.path);equal(deleted.map(r=>r.kind),['unresolved','unresolved'],'Delete repairs inbound alias and relative resolution');
+          equal((await f.repository.inspect(target.path)).reason,'tombstone','Deleted target remains tombstoned');
+          equal((await f.repository.inspect(other.path)).head,otherBefore,'Delete keeps unrelated durable head exact');equal(f.reads,[],'Delete does not reread referrer');equal(f.parses,[],'Delete does not reparse referrer');
+
+          f.reads.length=0;f.parses.length=0;const recreated=f.add('Target.md','',{aliases:['AliasTarget']});f.app.vault.trigger('create',recreated);ok(await settle(),'Recreate converges');
+          const restored=await resolutionTargets(ref.path);equal(restored.map(r=>r.target),['Target.md','Target.md'],'Recreate repairs both inbound bindings');
+          equal((await f.repository.inspect(other.path)).head,otherBefore,'Recreate keeps unrelated durable head exact');equal(f.reads,['Target.md'],'Only recreated body is read');equal(f.parses.length,1,'Only recreated body is parsed');
+          const db=await f.cache.open();equal(await value(db.transaction(M.SOURCE_DEPENDENCY_STORE).objectStore(M.SOURCE_DEPENDENCY_STORE).count()),0,'Known-impact maintenance never bootstraps global contributor catalog');
+          return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("offline create delete and recreate repair inbound owners on restart without reading unchanged Markdown", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,vault='local-r2-restart-impact',f=await fixture(vault);let cache2=null,acquisition2=null;
+        const resolutionTargets=async(repo,id)=>{const rows=[];equal(await repo.visit(id,'resolution',records=>{rows.push(...records);return true;}),'ready','Read restart resolution');return rows.filter(r=>r.kind==='reference-resolution').map(r=>r.target?.entity?.id);};
+        const settle=async acquisition=>{for(let attempt=0;attempt<4;attempt++)if(await acquisition.reconcile())return true;return false;};
+        try{
+          const ref=f.add('Folder/Ref.md','Friends:: [[../Target#Heading]] [[AliasTarget#^block]]'),other=f.add('Other.md','');
+          const fallback=f.app.metadataCache.getFirstLinkpathDest;
+          f.app.metadataCache.getFirstLinkpathDest=(literal,source)=>{
+            if(literal==='../Target')return f.files.get('Target.md')??null;
+            if(literal==='AliasTarget')return [...f.files.values()].find(file=>file.extension==='md'&&(f.metadata.get(file.path)?.frontmatter?.aliases??[]).includes('AliasTarget'))??null;
+            return fallback(literal,source);
+          };
+          await f.acquire();ok(await f.acquisition.reconcile(),'Seed restart authority');
+          const otherBefore=(await f.repository.inspect(other.path)).head;f.acquisition.close();f.cache.close();
+
+          f.add('Target.md','',{aliases:['AliasTarget']});f.reads.length=0;f.parses.length=0;let parses=0;
+          cache2=new M.KplexIndexedDbCache(vault);ok(await cache2.open(),'Reopen after offline create');acquisition2=new M.ObsidianSourceAcquisition(f.app,cache2,async text=>{parses++;return M.parseBodyMetadata(text);});
+          ok(await settle(acquisition2),'Offline create restart converges');equal(await resolutionTargets(cache2.sources,ref.path),['Target.md','Target.md'],'Restart create repairs unresolved relative and alias referrers');
+          equal((await cache2.sources.inspect(other.path)).head,otherBefore,'Unrelated restart head remains byte-for-byte reusable');equal(f.reads,['Target.md'],'Restart reads only offline-created source');equal(parses,1,'Restart parses only offline-created source');
+          acquisition2.close();cache2.close();acquisition2=null;cache2=null;
+
+          const target=f.files.get('Target.md'),frontmatter=f.metadata.get('Target.md'),body=f.texts.get('Target.md');f.files.delete('Target.md');f.metadata.delete('Target.md');f.texts.delete('Target.md');target.path='Renamed.md';target.name='Renamed.md';target.basename='Renamed';f.files.set(target.path,target);f.metadata.set(target.path,frontmatter);f.texts.set(target.path,body);f.reads.length=0;parses=0;
+          cache2=new M.KplexIndexedDbCache(vault);ok(await cache2.open(),'Reopen after offline rename');acquisition2=new M.ObsidianSourceAcquisition(f.app,cache2,async text=>{parses++;return M.parseBodyMetadata(text);});
+          ok(await settle(acquisition2),'Offline rename restart converges');equal(await resolutionTargets(cache2.sources,ref.path),['../Target','Renamed.md'],'Restart rename repairs relative target loss while alias follows renamed source');
+          equal((await cache2.sources.inspect('Target.md')).reason,'tombstone','Restart rename tombstones old path');equal((await cache2.sources.inspect(other.path)).head,otherBefore,'Offline rename does not rewrite unrelated head');equal(f.reads,['Renamed.md'],'Restart rename reads only topology-changed source');equal(parses,1,'Restart rename parses only topology-changed source');
+          acquisition2.close();cache2.close();acquisition2=null;cache2=null;
+
+          f.files.delete('Renamed.md');f.metadata.delete('Renamed.md');f.texts.delete('Renamed.md');f.reads.length=0;parses=0;
+          cache2=new M.KplexIndexedDbCache(vault);ok(await cache2.open(),'Reopen after offline delete');acquisition2=new M.ObsidianSourceAcquisition(f.app,cache2,async text=>{parses++;return M.parseBodyMetadata(text);});
+          ok(await settle(acquisition2),'Offline delete restart converges');equal(await resolutionTargets(cache2.sources,ref.path),['../Target','AliasTarget'],'Restart delete repairs both inbound bindings to unresolved identities');
+          equal((await cache2.sources.inspect('Renamed.md')).reason,'tombstone','Restart deletion selects durable tombstone');equal((await cache2.sources.inspect(other.path)).head,otherBefore,'Offline delete does not rewrite unrelated head');equal(f.reads,[],'Offline delete rereads no unchanged Markdown');equal(parses,0,'Offline delete reparses no unchanged Markdown');
+          acquisition2.close();cache2.close();acquisition2=null;cache2=null;
+
+          f.add('Target.md','',{aliases:['AliasTarget']});f.reads.length=0;parses=0;
+          cache2=new M.KplexIndexedDbCache(vault);ok(await cache2.open(),'Reopen after offline recreate');acquisition2=new M.ObsidianSourceAcquisition(f.app,cache2,async text=>{parses++;return M.parseBodyMetadata(text);});
+          ok(await settle(acquisition2),'Offline recreate restart converges');equal(await resolutionTargets(cache2.sources,ref.path),['Target.md','Target.md'],'Restart recreate restores inbound bindings');
+          equal((await cache2.sources.inspect(other.path)).head,otherBefore,'Offline recreate keeps unrelated head reusable');equal(f.reads,['Target.md'],'Restart recreate reads only recreated source');equal(parses,1,'Restart recreate parses only recreated source');
+          const db=await cache2.open();equal(await value(db.transaction(M.SOURCE_DEPENDENCY_STORE).objectStore(M.SOURCE_DEPENDENCY_STORE).count()),0,'Restart maintenance never builds global contributor catalog');
+          return true;
+        }finally{acquisition2?.close();cache2?.close();f.close();}
       })()`), true);
     });
 

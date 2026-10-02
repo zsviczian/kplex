@@ -309,14 +309,19 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
         assert(state, "Fresh full GraphBuilder oracle must complete");
         oracle.state = state;
         oracle.rebuildSearchIndex();
+        // This oracle bypasses production source acquisition intentionally; mark its already-built
+        // source authority ready so relationship-write candidate comparison remains meaningful.
+        oracle.sourceAcquisition.localDependenciesReady = true;
         return oracle;
       } catch (error) { oracle.destroy(); throw error; }
     };
     const assertOracle = async label => {
       assert.equal(index.hasPendingSemanticPreparation(), false, `${label}: ${JSON.stringify(index.getSemanticPreparationDiagnostics())}`);
       const oracle = await oracleForCurrentSettings();
-      try { assert.deepEqual(routeView(index), routeView(oracle), label); }
-      finally { oracle.destroy(); }
+      try {
+        assert.deepEqual(routeView(index), routeView(oracle), label);
+        assert.equal(index.isSemanticWriteReady("A.md", "B.md"), true, `${label}: current maintenance scope must admit writes`);
+      } finally { oracle.destroy(); }
     };
 
     const originalGetMarkdownFiles = f.app.vault.getMarkdownFiles;

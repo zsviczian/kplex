@@ -275,8 +275,8 @@ test("v1 derivative roots are non-ready without rewriting accepted heads; missin
   assert.equal(result.reason, "dependency-invalid"); assert.equal(JSON.stringify([...f.state.heads]), initial);
 });
 
-/** A source-local disjoint key union cannot silently replace the adapter's global host authority. */
-test("an unchanged C head still needs host-transition authority after A adds B, even when A's delta is disjoint", async () => {
+/** Known-impact maintenance no longer globally stales a source outside the authenticated local fan-out. */
+test("an unchanged disjoint C head stays reusable after A adds B without a global host revision", async () => {
   const f = replayFixture();
   try {
     const a = f.add("A.md", ""); f.add("B.md", ""); f.add("C.md", ""); f.resolutions.set("B", "B.md");
@@ -294,12 +294,11 @@ test("an unchanged C head still needs host-transition authority after A adds B, 
     assert(delta.affectedKeys.includes(M.contributorKey("node", "B.md")));
     assert(!delta.affectedKeys.includes(M.contributorKey("node", "C.md")));
     const newC = await f.acquisition.captureForReplay("C.md", presentation, runtime()); assert.equal(newC.outcome, "ready");
-    assert.notEqual(newC.request.host.observation.revision, cHead.observation.revision);
-    const counts = countReads(f.repository), refused = await M.summarizeContributorOwner(f.repository, newC.request, runtime());
-    assert.equal(refused.reason, "stale"); assert(!("value" in refused)); assert.equal(counts.families.length, 0);
-    assert.deepEqual((await f.repository.inspect("C.md")).head, cHead);
-    // This is an executable counterexample to reusing C without a new host-impact proof, not a
-    // claim that the required incremental transaction/host protocol has been implemented.
+    assert.equal(newC.request.host.observation.revision, cHead.observation.revision,
+      "A known source event must not advance the global host fence for disjoint C");
+    const summarizedC = await M.summarizeContributorOwner(f.repository, newC.request, runtime());
+    assert.equal(summarizedC.outcome, "ready", "Disjoint C remains a reusable selected source");
+    assert.deepEqual((await f.repository.inspect("C.md")).head, cHead, "Known-impact maintenance does not rewrite C");
   } finally { f.close(); }
 });
 
@@ -328,8 +327,8 @@ test("owner-summary codecs enforce identity, original ordering, self membership 
   assert.equal(oversized.state.reads, 0);
 });
 
-/** Activation-time memberships must cover canonical replay dependencies; root parent incidence is deliberately additive. */
-test("source-local activation memberships cover canonical owner-summary dependencies plus explicit root parent", async () => {
+/** Activation memberships retain canonical replay coverage and add resolver-neutral lexical fan-out keys. */
+test("source-local activation memberships cover canonical owner-summary dependencies plus resolver tokens", async () => {
   const f = replayFixture();
   try {
     const file = f.add("Root.md", "Friends:: [[B]]\n[Page](https://example.com/path)", { Friends: "[[B]]", tags: ["project/nested"] });
@@ -351,7 +350,8 @@ test("source-local activation memberships cover canonical owner-summary dependen
     }
     const legacyKeys = new Set(summarized.value.summary.keys);
     for (const key of legacyKeys) assert(projected.has(key), `missing canonical dependency key ${key}`);
-    assert.deepEqual([...projected].sort(), [...legacyKeys].sort(),
-      "activation-time source-owner memberships must equal canonical replay dependencies");
+    const additive = [...projected].filter(key => !legacyKeys.has(key)).sort();
+    assert.deepEqual(additive, [M.sourceLocalResolverDependencyKey("B")],
+      "R2 adds only resolver-neutral lexical fan-out beyond canonical replay dependencies");
   } finally { f.close(); }
 });

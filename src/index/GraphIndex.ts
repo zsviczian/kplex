@@ -103,6 +103,7 @@ type PreparedSemanticScope = Readonly<{
   policyRevision: number;
   demandRevision: number;
   sourceRevision: number;
+  maintenanceRevision: number;
   presentationRevision: number;
   settings: GraphCompilerSettings;
   pagesByPath: ReadonlyMap<string, GraphPage>;
@@ -241,12 +242,13 @@ export class GraphIndex {
   private semanticRevision = 0;
   private semanticPolicyRevision = 1;
   private fullSemanticPolicyRevision = 1;
+  private fullSemanticMaintenanceRevision = 0;
   private fullSemanticSettings: GraphCompilerSettings;
   private semanticDemandRevision = new Map<string, number>();
   private semanticDemandCounts = new Map<string, number>();
   private semanticScopes = new Map<string, PreparedSemanticScope>();
   private semanticPreparationTasks = new Map<string, Readonly<{
-    policyRevision: number; demandRevision: number; task: Promise<void>;
+    policyRevision: number; demandRevision: number; maintenanceRevision: number; task: Promise<void>;
   }>>();
   private preparedPageInfo = new WeakMap<GraphPage, PreparedSemanticPageInfo>();
   private semanticPreparationDiagnostics: SemanticPreparationDiagnostics = {
@@ -326,18 +328,20 @@ export class GraphIndex {
 
   /** True while the requested semantic policy has no coherent prepared publication for active demand. */
   hasPendingSemanticPreparation(): boolean {
-    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision) return false;
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
+      && this.fullSemanticMaintenanceRevision === maintenanceRevision) return false;
     if (this.semanticPreparationTasks.size > 0) return true;
     for (const [path, count] of this.semanticDemandCounts) {
       if (count <= 0) continue;
       const scope = this.semanticScopes.get(path);
-      if (!scope || scope.policyRevision !== this.semanticPolicyRevision
+      if (!scope || scope.policyRevision !== this.semanticPolicyRevision || scope.maintenanceRevision !== maintenanceRevision
         || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasSemanticDependencies()) return true;
     }
     const active = this.plugin.settings.lastActivePath;
     if (!active) return false;
     const scope = this.semanticScopes.get(active);
-    return !scope || scope.policyRevision !== this.semanticPolicyRevision
+    return !scope || scope.policyRevision !== this.semanticPolicyRevision || scope.maintenanceRevision !== maintenanceRevision
       || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasSemanticDependencies();
   }
 
@@ -355,8 +359,10 @@ export class GraphIndex {
     const previous = this.semanticDemandCounts.get(path) ?? 0;
     this.semanticDemandCounts.set(path, previous + 1);
     if (previous === 0) this.semanticDemandRevision.set(path, (this.semanticDemandRevision.get(path) ?? 0) + 1);
-    if (this.fullSemanticPolicyRevision !== this.semanticPolicyRevision
-      && this.semanticScopes.get(path)?.policyRevision !== this.semanticPolicyRevision) void this.ensureSemanticScope(path);
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+    const scope = this.semanticScopes.get(path);
+    if (this.fullSemanticPolicyRevision !== this.semanticPolicyRevision || this.fullSemanticMaintenanceRevision !== maintenanceRevision
+      || scope?.policyRevision !== this.semanticPolicyRevision || scope.maintenanceRevision !== maintenanceRevision) void this.ensureSemanticScope(path);
     let released = false;
     return () => {
       if (released) return;
@@ -376,7 +382,8 @@ export class GraphIndex {
 
   /** Prepare all active centers for the current policy; no full/source rebuild is scheduled here. */
   async refreshSemanticSettings(): Promise<void> {
-    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision) return;
+    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
+      && this.fullSemanticMaintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()) return;
     const paths = new Set<string>();
     for (const [path, count] of this.semanticDemandCounts) if (count > 0) paths.add(path);
     if (this.plugin.settings.lastActivePath) paths.add(this.plugin.settings.lastActivePath);
@@ -452,6 +459,7 @@ export class GraphIndex {
   /** Stage and atomically publish one center plus all parent incidence needed for sibling witnesses. */
   private async prepareSemanticScope(centerPath: string, policyRevision: number, demandRevision: number): Promise<void> {
     const sourceRevision = this.plugin.getIndexSourceRevision();
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     const publicationRevision = this.publicationRevision;
     const presentationRevision = this.presentationRevision;
     const settings = graphCompilerSettingsFromLegacy(this.plugin.settings);
@@ -466,8 +474,8 @@ export class GraphIndex {
     const presentation = { noteTypeField: this.plugin.settings.noteTypeField, primaryTagField: this.plugin.settings.primaryTagField };
     const current = (): boolean => !this.diagnosticsClosed && this.semanticPolicyRevision === policyRevision
       && (this.semanticDemandRevision.get(centerPath) ?? 0) === demandRevision
-      && this.plugin.getIndexSourceRevision() === sourceRevision && this.publicationRevision === publicationRevision
-      && this.presentationRevision === presentationRevision
+      && this.plugin.getIndexSourceRevision() === sourceRevision && this.sourceAcquisition.getMaintenanceRevision() === maintenanceRevision
+      && this.publicationRevision === publicationRevision && this.presentationRevision === presentationRevision
       && JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings)) === settingsSignature
       && JSON.stringify({
         excludeFilepaths: [...this.plugin.settings.excludeFilepaths], showVirtualNodes: this.plugin.settings.showVirtualNodes,
@@ -597,7 +605,7 @@ export class GraphIndex {
       else if (!oldPage && priorScope?.suppressedPaths.has(path)) suppressedPaths.add(path);
     }
     const scope: PreparedSemanticScope = {
-      centerPath, policyRevision, demandRevision, sourceRevision, presentationRevision, settings, pagesByPath,
+      centerPath, policyRevision, demandRevision, sourceRevision, maintenanceRevision, presentationRevision, settings, pagesByPath,
       completePaths: new Set([...completeIds].map((id) => pagesById.get(id)!.path)), evidence: legacyEvidence,
       gates: { top: { ...prepared.gates.top }, bottom: { ...prepared.gates.bottom },
         left: { ...prepared.gates.left }, right: { ...prepared.gates.right } }, suppressedPaths,
@@ -617,18 +625,21 @@ export class GraphIndex {
   private ensureSemanticScope(centerPath: string): Promise<void> {
     const policyRevision = this.semanticPolicyRevision;
     const demandRevision = this.semanticDemandRevision.get(centerPath) ?? 0;
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     const published = this.semanticScopes.get(centerPath);
     if (published?.policyRevision === policyRevision && published.demandRevision === demandRevision
-      && published.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasSemanticDependencies()) {
+      && published.maintenanceRevision === maintenanceRevision && published.sourceRevision === this.plugin.getIndexSourceRevision()
+      && this.sourceAcquisition.hasSemanticDependencies()) {
       return Promise.resolve();
     }
     const existing = this.semanticPreparationTasks.get(centerPath);
-    if (existing?.policyRevision === policyRevision && existing.demandRevision === demandRevision) return existing.task;
+    if (existing?.policyRevision === policyRevision && existing.demandRevision === demandRevision
+      && existing.maintenanceRevision === maintenanceRevision) return existing.task;
     this.noteSemanticPreparation("requested", null);
     const task = this.prepareSemanticScope(centerPath, policyRevision, demandRevision).finally(() => {
       if (this.semanticPreparationTasks.get(centerPath)?.task === task) this.semanticPreparationTasks.delete(centerPath);
     });
-    this.semanticPreparationTasks.set(centerPath, { policyRevision, demandRevision, task });
+    this.semanticPreparationTasks.set(centerPath, { policyRevision, demandRevision, maintenanceRevision, task });
     return task;
   }
 
@@ -647,17 +658,26 @@ export class GraphIndex {
       dependencyVisits: this.semanticPreparationDiagnostics.dependencyVisits + count };
   }
 
-  /** Return a current-policy prepared page when available, otherwise retain the last coherent scope. */
+  /** Return the newest coherent prepared page; stale maintenance may remain readable while repair publishes. */
   private semanticPage(path: string): GraphPage | undefined {
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     // A page prepared by any current scope wins over suppression recorded by another current scope.
     // This keeps two visible Plexes composable when their bounded affected sets overlap.
+    for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
+      && scope.policyRevision === this.semanticPolicyRevision) {
+      const page = scope.pagesByPath.get(path);
+      if (page) return page;
+    }
+    for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
+      && scope.policyRevision === this.semanticPolicyRevision && scope.suppressedPaths.has(path)) return undefined;
+    // Host repair closes writes immediately, but a last coherent view remains readable until a
+    // current-maintenance scope replaces it.
     for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision) {
       const page = scope.pagesByPath.get(path);
       if (page) return page;
     }
-    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision && scope.suppressedPaths.has(path)) {
-      return undefined;
-    }
+    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision
+      && scope.suppressedPaths.has(path)) return undefined;
     for (const scope of this.semanticScopes.values()) {
       const page = scope.pagesByPath.get(path);
       if (page) return page;
@@ -1165,6 +1185,7 @@ export class GraphIndex {
     if (authoritativeSemantics) {
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
+      this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();
     }
     this.titleCache.clear();
@@ -2368,6 +2389,7 @@ export class GraphIndex {
       this.rebuildSearchIndex();
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
+      this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();
       this.fullSnapshotHydrated = true;
       this.sourceAcquisition.enableInventory();
@@ -2428,6 +2450,7 @@ export class GraphIndex {
       this.publicationRevision += 1;
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
+      this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();
       this.semanticFingerprints = nextFingerprints;
       this.fullSnapshotHydrated = true;
@@ -2536,9 +2559,12 @@ export class GraphIndex {
 
   /** True only when at least one endpoint is backed by current policy and current source authority. */
   isSemanticWriteReady(sourcePath: string, targetPath: string): boolean {
-    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision) return true;
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
+      && this.fullSemanticMaintenanceRevision === maintenanceRevision) return true;
     const scope = this.semanticScopeForPair(sourcePath, targetPath, true);
-    return Boolean(scope && scope.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasSemanticDependencies());
+    return Boolean(scope && scope.maintenanceRevision === maintenanceRevision
+      && scope.sourceRevision === this.plugin.getIndexSourceRevision() && this.sourceAcquisition.hasSemanticDependencies());
   }
 
   relationshipStorageCandidates(sourcePath: string, targetPath: string): string[] {
@@ -3042,11 +3068,15 @@ export class GraphIndex {
     return true;
   }
 
-  /** Select the coherent prepared scope that owns complete incidence for one path, preferring current policy. */
+  /** Select the coherent prepared scope that owns complete incidence for one path, preferring current maintenance. */
   private semanticScopeForPath(path: string): PreparedSemanticScope | null {
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     for (const scope of this.semanticScopes.values()) {
-      if (scope.policyRevision === this.semanticPolicyRevision && scope.completePaths.has(path)) return scope;
+      if (scope.maintenanceRevision === maintenanceRevision && scope.policyRevision === this.semanticPolicyRevision
+        && scope.completePaths.has(path)) return scope;
     }
+    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision
+      && scope.completePaths.has(path)) return scope;
     for (const scope of this.semanticScopes.values()) if (scope.completePaths.has(path)) return scope;
     return null;
   }
@@ -3058,10 +3088,12 @@ export class GraphIndex {
     const ownsPair = (scope: PreparedSemanticScope): boolean =>
       (scope.completePaths.has(sourcePath) || scope.completePaths.has(targetPath))
       && covered(scope, sourcePath) && covered(scope, targetPath);
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     for (const scope of this.semanticScopes.values()) {
-      if (scope.policyRevision === this.semanticPolicyRevision && ownsPair(scope)) return scope;
+      if (scope.maintenanceRevision === maintenanceRevision && scope.policyRevision === this.semanticPolicyRevision && ownsPair(scope)) return scope;
     }
     if (currentOnly) return null;
+    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision && ownsPair(scope)) return scope;
     for (const scope of this.semanticScopes.values()) if (ownsPair(scope)) return scope;
     return null;
   }
@@ -3440,17 +3472,21 @@ export class GraphIndex {
 
   /** Merge current bounded semantic publications into the immutable full search catalog. */
   private effectiveSearchEntries(): SearchEntry[] {
-    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision) return this.searchEntries;
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
+      && this.fullSemanticMaintenanceRevision === maintenanceRevision) return this.searchEntries;
     const overrides = new Map<string, GraphPage>();
     const suppressed = new Set<string>();
-    // While a newer policy is pending, retain the last complete publication for that center, but
-    // never let a stale overlapping scope override a page already prepared under the current policy.
-    for (const scope of this.semanticScopes.values()) if (scope.policyRevision !== this.semanticPolicyRevision) {
+    // While newer policy or host maintenance is pending, retain the last complete publication for
+    // that center, but never let it override a page already prepared under current maintenance.
+    for (const scope of this.semanticScopes.values()) if (scope.policyRevision !== this.semanticPolicyRevision
+      || scope.maintenanceRevision !== maintenanceRevision) {
       for (const [path, page] of scope.pagesByPath) overrides.set(path, page);
       for (const path of scope.suppressedPaths) suppressed.add(path);
     }
     const currentPages = new Set<string>();
-    for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision) {
+    for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
+      && scope.policyRevision === this.semanticPolicyRevision) {
       for (const [path, page] of scope.pagesByPath) { overrides.set(path, page); currentPages.add(path); }
       for (const path of scope.suppressedPaths) suppressed.add(path);
     }

@@ -15,57 +15,59 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-# Offline assignment — SI4-R2 known-impact host maintenance
+# Offline return — SI4-R2 known-impact host maintenance
 
-## Baseline and scope
+## Status
 
-- Branch: `indexing-optimization-v2`
-- Accepted baseline: `b32e3c5` (`Complete durable source-local repair`)
-- Governing plan: `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`, section 11, package **SI4-R2**.
-- Implement SI4-R2 as one substantial package. SI4-R3, SI5 and refactor checkpoints C15–C26 are out of scope.
+SI4-R2 is implemented on the supplied `b32e3c5`-based repository. The accepted R1 repair/journal remains the storage authority; no process-wide contributor catalog was restored and the 20,015-owner terminal backpressure behavior is unchanged for SI4-R3.
 
-## Objective
+## Files changed
 
-Connect the accepted v9 source-local dependency/repair machinery to production host-change maintenance. An ordinary live or restart source change must update the changed source and every proven affected source without a whole-vault contributor-catalog rebuild or rereading unchanged Markdown.
+- `src/index/SourceLocalDependencies.ts`
+- `src/index/SourceRepository.ts`
+- `src/adapters/obsidian/sourceAcquisition.ts`
+- `src/index/GraphIndex.ts`
+- `tests/source-acquisition.test.mjs`
+- `tests/source-contributor-summary.test.mjs`
+- `tests/source-local-dependencies-indexeddb.test.mjs`
+- `tests/source-replay.test.mjs`
+- `HANDOFF.md`
 
-## Required behavior
+## Implementation
 
-1. **Known-impact changes stay local.** Modify/create/rename/delete/recreate and metadata/alias/target-resolution changes must derive the affected set from accepted old and new source-local dependencies. Refresh only those sources and demanded graph scopes. Do not scan or rewrite every owner for an ordinary change.
-2. **Reference behavior is complete.** Cover resolved and unresolved references, aliases, target creation/removal, relative links and subpath links. A change in target resolution must update inbound relationships as well as the directly changed note.
-3. **Restart is recoverable.** Durable dirty work or an interrupted v9 local repair must resume after reopen. Stale activation, deletion resurrection and partial lookup publication remain forbidden.
-4. **Uncertain host fan-out converges once.** A host-wide `resolved`/environment event whose exact impact cannot be proven may run one coalesced reconciliation from durable cached facts. It must not reread unchanged bodies, run because settings changed, loop, or rebuild the process-wide contributor catalog.
-5. **Production consumers become current.** Existing settings-preparation, graph publication and demanded-view retry paths must observe the repaired source revision. A pending repair may fail closed temporarily; it may not leave a normal supported workflow permanently pending or publish a mixed old/new result.
-6. **Work remains bounded and cancellable.** Preserve final revision/demand/lifetime checks, bounded transactions and cooperative yielding. Reuse the accepted source repository, acquisition adapter, local contributor discovery and GraphIndex owners. Do not add another scheduler, semantic classifier, catalog generation or general proof layer.
+- Extended the existing source-local derivative with resolver-neutral lexical memberships for unresolved, alias, relative and subpath candidates. Accepted R1 owners remain readable and are upgraded in place to the new projection from selected durable `values`/`metadata`; source heads are not rewritten. Appended memberships publish through the existing R1 selected-count repair journal, including interruption/reopen recovery and closed-world lookup fencing.
+- Live create/modify/rename/delete/metadata events capture current plus durable path/alias evidence before the changed source or old binding can replace it. Bounded local lookups mark only proven referrers `resolutionDirty`; transient lookup states are retried after R1 inventory closure and newly discovered referrers are repaired in the same reconcile pass. Rename/delete tombstones wait for that impact capture while remaining immediately visible to repository `flush()` ownership.
+- Startup reconciliation upgrades accepted R1 local owners once from durable cached facts, compares current MetadataCache/physical facts with selected durable metadata, and repairs offline create/rename/delete/recreate plus affected inbound owners. Unchanged referrers are replayed from durable facts; unchanged Markdown is not reread. Storage-unavailable current-process heads retain the existing degraded-mode behavior instead of being misclassified as offline recreation.
+- Unscoped `metadataCache.resolved` waves and Date/Daily Notes environment drift are coalesced into one cached-fact maintenance wave. Known source events do not advance the global resolver host revision; the reversible legacy environment validator contract is preserved. No settings change triggers source acquisition or a global contributor-catalog bootstrap.
+- Added a host-maintenance revision consumed by GraphIndex semantic preparation/publication. A host change immediately fences relationship writes and stale asynchronous scope publication; the last coherent view may remain readable while repair is pending. Current demanded scopes retry through the existing inventory-ready path after repaired source/local-dependency authority is closed.
+- Preserved the accepted R3 boundary: the 20,015-owner hot-key lookup still rejects with `backpressure` before row scanning; no cardinality cap was removed or converted into an unbounded operation.
 
-The existing 20,015-owner backpressure case belongs to SI4-R3 and must remain unchanged in this package. Do not remove caps or claim SI4 complete.
+## Validation and environment
 
-## Acceptance coverage
+Final candidate checks:
 
-Add focused portable and real-Chromium/IndexedDB regressions that demonstrate:
+- `node --version` -> `v22.16.0` (**below** the repository baseline `22.22.2`; this environment did not provide a newer Node).
+- `npm run test:sources` -> **PASS: 308 tests, 308 passed, 0 failed**.
+- `npm run test:sources:browser` -> **PASS: 162 tests, 162 passed, 0 failed**, including R1 migration/repair/restart/cleanup, R2 live/restart target+alias+relative/subpath cases, and the retained 20,015-owner terminal-backpressure case.
+- `npm run verify` -> **FAIL / environment+baseline blocked**. `check:architecture` completed first with **7/7 tests passed, 0 architecture violations**. `check:core` then reported **39 tests, 36 passed, 3 failed**: `tests/core-contracts.test.mjs` and `tests/relation-core.test.mjs` cannot import missing package `esbuild`; `tests/normalized-source-contract.test.mjs` has the pre-existing assertion `expected 'Never There', actual 'Assets/picture.png'`. Running `node --test tests/normalized-source-contract.test.mjs` against the untouched supplied repository reproduces that assertion unchanged (**6 passed, 1 failed**). Because `verify` short-circuits at `check:core`, `lint:obsidian`, the general `npm test`, and `npm run build` were not reached in this environment.
+- Dependency/network limitation: the supplied ZIP has no installed dependency tree. A temporary local TypeScript link was used only in the working validation environment and is not part of the return ZIP. `timeout 15s npm ping` reached `PING https://registry.npmjs.org/` and timed out with exit 124, so missing packages could not be installed here.
+- Browser capability: `/usr/bin/chromium` is available. The container has a managed `URLBlocklist=["*"]`; the browser tests were run with a temporary localhost allow policy owned by the test wrapper, and the original managed policy was restored after the run.
+- Git: the supplied archive has no `.git` metadata and no Git operation was used.
+- Native Obsidian: not available in this offline environment, as expected by the assignment.
 
-- one-source modification changes only its proven impact and performs zero body reads/parses for unchanged notes;
-- create, rename, delete and recreate converge live and after restart, including tombstones and cancellation/supersession;
-- alias and unresolved-target creation/removal repair inbound referrers;
-- relative and subpath references select the correct affected sources;
-- an interrupted maintenance transaction resumes exactly once with no partial lookup or stale graph publication;
-- multiple host-wide resolution events coalesce into one cached-fact reconciliation with no Markdown rereads and no all-owner contributor-catalog bootstrap;
-- unrelated durable heads remain byte-for-byte/selectively reusable;
-- all SI4-R1 migration, repair, cleanup and retained high-degree-backpressure tests stay green.
+Focused evidence from the new browser regressions:
 
-Use counters or narrow test seams to prove locality and body-read/parser behavior. Do not add production debug logging or expose vault content.
+- live alias add/remove/restore and target create/rename/delete/recreate converge through source-local repair; alias-only changes perform **0 Markdown reads/parses** and create/recreate reads/parses only the changed target;
+- offline create/rename/delete/recreate repairs inbound relative/subpath and alias references after reopen; unchanged referrers/unrelated notes are not body-read, and the unrelated selected head remains reusable;
+- accepted R1-owner resolver-token upgrade resumes exactly once after interruption and does not rewrite source heads or create global contributor-catalog rows;
+- multiple unscoped resolver events coalesce behind one maintenance fence in the portable acquisition test, with zero body reads/parses in the cached/degraded seam;
+- stale GraphIndex demanded-scope preparation is rejected after a host event, relationship writes fail closed, and the last coherent page remains readable until current repair publishes.
 
-## Required validation
+## Native scenarios for the main validation agent
 
-Use Node 22.22.2 or newer when available. During development run focused tests. On the final candidate run:
+1. **Live target lifecycle/locality:** use `Folder/Ref.md` containing both `[[../Target#Heading]]` and `[[AliasTarget#^block]]`, plus an unrelated Markdown note. Create `Target.md` with alias `AliasTarget`, remove/restore the alias, rename to `Renamed.md`, delete it, then recreate `Target.md`. After each event verify inbound relationships/gates/search/explanation follow Obsidian resolution, unrelated source completion stays reusable, and diagnostics show no unchanged-note body reads/parses or full/global contributor-catalog bootstrap.
+2. **Offline restart lifecycle:** with the same fixture, close Obsidian between offline create -> rename -> delete -> recreate mutations. On each reopen verify tombstones and inbound relative/subpath/alias resolution converge before relationship writes are enabled; unchanged referrer/unrelated bodies must not be reread.
+3. **Resolver/environment coalescing:** trigger a burst that causes multiple host `resolved` observations, then exercise a Date-property/Daily Notes interpretation change. Verify one bounded cached-fact maintenance wave per coalesced observation, zero unchanged Markdown body reads/parses, no settings-triggered acquisition/global catalog bootstrap, and eventual demanded-view/write readiness.
+4. **Publication race:** keep a demanded Plex visible, start settings/demand preparation, then mutate/rename its referenced target before the preparation publishes. Verify stale preparation never publishes, relationship editing/storage candidates fail closed while repair is pending, the prior coherent read view may remain visible, and the repaired demanded scope becomes current without a full rebuild.
 
-```bash
-npm run test:sources
-npm run test:sources:browser
-npm run verify
-```
-
-Record exact pass/fail counts and environment limitations. Do not report blocked or skipped checks as passed. No native Obsidian result is expected from the offline environment; the main agent will run the host scenarios after review.
-
-## Return
-
-Leave the implementation uncommitted. Replace this assignment body with a concise result containing changed files, production behavior, tests run, failures/limitations, and exact native scenarios the main agent must verify.
+SI4-R3 and SI5 remain pending; this return does not claim SI4 complete.

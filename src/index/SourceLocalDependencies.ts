@@ -13,7 +13,7 @@ export const SOURCE_LOCAL_REPAIR_STORE = "sourceLocalDependencyRepairs";
 export const SOURCE_LOCAL_LOOKUP_INDEX = "sourceLocalLookup";
 export const SOURCE_LOCAL_REVISION_INDEX = "sourceLocalRevision";
 export const SOURCE_LOCAL_DEPENDENCY_STATE_KEY = "source-local-dependency-state";
-export const SOURCE_LOCAL_DEPENDENCY_VERSION = 1;
+export const SOURCE_LOCAL_DEPENDENCY_VERSION = 2;
 export const SOURCE_LOCAL_DEPENDENCY_BUDGET = SOURCE_DECODE_BUDGET_BYTES;
 
 export type SourceLocalDependencyState = Readonly<{
@@ -26,7 +26,8 @@ export type SourceLocalDependencyState = Readonly<{
 }>;
 
 export type SourceLocalDependencyOwner = Readonly<{
-  version: 1;
+  /** Version 1 is the accepted R1 projection; version 2 adds resolver-neutral lexical tokens. */
+  version: 1 | 2;
   sourceId: string;
   sourceRevision: string;
   state: SourceHead["state"];
@@ -70,8 +71,52 @@ export type SourceLocalDependencyRow = Readonly<{
 }>;
 
 /** Exact JSON tuples keep kind and opaque identity/value separate without delimiter ambiguity. */
-export function sourceLocalDependencyKey(kind: "node" | "field" | "literal" | "family", value: string): string {
+export function sourceLocalDependencyKey(kind: "node" | "field" | "literal" | "family" | "resolver", value: string): string {
   return JSON.stringify([kind, value]);
+}
+
+/**
+ * Coarse, resolver-owned lexical identity used only to find sources that may change binding when a
+ * file/path/alias appears or disappears. The final Obsidian resolver still decides the target. A
+ * normalized token resolves only lexical URI/subpath/relative spelling; it never classifies a
+ * relationship or substitutes for getFirstLinkpathDest(). Basename-only links remain deliberately
+ * broad because Obsidian itself may bind them anywhere in the vault.
+ */
+function sourceLocalResolverCandidate(rawTarget: string): string {
+  let candidate = rawTarget.trim();
+  try { candidate = decodeURIComponent(candidate); } catch { /* preserve undecodable host spelling */ }
+  const hash = candidate.indexOf("#");
+  if (hash >= 0) candidate = candidate.slice(0, hash);
+  return candidate.replace(/\\/g, "/").replace(/\/+/g, "/").trim();
+}
+
+export function sourceLocalResolverToken(rawTarget: string, sourcePath?: string): string | null {
+  let candidate = sourceLocalResolverCandidate(rawTarget);
+  const relative = candidate === "." || candidate === ".." || candidate.startsWith("./") || candidate.startsWith("../");
+  const pathLike = relative || candidate.includes("/");
+  if (relative && sourcePath) {
+    const base = sourcePath.replace(/\\/g, "/").split("/");
+    base.pop();
+    for (const part of candidate.split("/")) {
+      if (!part || part === ".") continue;
+      if (part === "..") base.pop(); else base.push(part);
+    }
+    candidate = base.join("/");
+  }
+  candidate = candidate.replace(/^\/+/, "").replace(/\.md$/i, "").trim().toLowerCase();
+  if (!candidate) return null;
+  return `${pathLike ? "path" : "name"}:${candidate}`;
+}
+
+export function sourceLocalResolverDependencyKey(rawTarget: string, sourcePath?: string): string | null {
+  const token = sourceLocalResolverToken(rawTarget, sourcePath);
+  return token ? sourceLocalDependencyKey("resolver", token) : null;
+}
+
+/** Target paths need a path token even at vault root, where no slash is present. */
+export function sourceLocalResolverPathDependencyKey(path: string): string | null {
+  const candidate = sourceLocalResolverCandidate(path).replace(/^\/+/, "").replace(/\.md$/i, "").trim().toLowerCase();
+  return candidate ? sourceLocalDependencyKey("resolver", `path:${candidate}`) : null;
 }
 
 /** Preserve the structural collector's exact canonical tag path normalization. */
@@ -96,6 +141,8 @@ export function* sourceLocalStoredDependencyKeys(sourcePath: string, record: Sto
   }
   if (record.kind === "reference-candidate" || record.kind === "host-literal") {
     yield sourceLocalDependencyKey("literal", record.rawTarget);
+    const resolver = sourceLocalResolverDependencyKey(record.rawTarget, sourcePath);
+    if (resolver) yield resolver;
   }
   if (record.kind === "reference-resolution" || record.kind === "literal-resolution") {
     if (record.target) yield sourceLocalDependencyKey("node", record.target.entity.id);
@@ -128,6 +175,13 @@ export function* sourceLocalStoredDependencyKeys(sourcePath: string, record: Sto
   // independently by the bounded structural host supplement.
 }
 
+/** Resolver-only projection appended when an accepted R1 owner is lazily upgraded in place. */
+export function* sourceLocalStoredResolverKeys(sourcePath: string, record: StoredSourceFact): IterableIterator<string> {
+  if (record.kind !== "reference-candidate" && record.kind !== "host-literal") return;
+  const resolver = sourceLocalResolverDependencyKey(record.rawTarget, sourcePath);
+  if (resolver) yield resolver;
+}
+
 export function sourceLocalDependencyState(revision = 0, complete = false, pending = 0): SourceLocalDependencyState {
   return { key: SOURCE_LOCAL_DEPENDENCY_STATE_KEY, version: 1, revision, complete, pending };
 }
@@ -138,7 +192,7 @@ export function validSourceLocalDependencyState(value: unknown): value is Source
 }
 
 export function validSourceLocalDependencyOwner(value: unknown): value is SourceLocalDependencyOwner {
-  return sourceObject(value) && Object.keys(value).length === 9 && value.version === 1
+  return sourceObject(value) && Object.keys(value).length === 9 && (value.version === 1 || value.version === SOURCE_LOCAL_DEPENDENCY_VERSION)
     && typeof value.sourceId === "string" && value.sourceId.length > 0
     && typeof value.sourceRevision === "string" && value.sourceRevision.length > 0
     && (value.state === "complete" || value.state === "tombstone")
@@ -153,7 +207,7 @@ export function validSourceLocalDependencyRow(value: unknown): value is SourceLo
     || !sourceCount(value.index) || typeof value.key !== "string") return false;
   try {
     const tuple: unknown = JSON.parse(value.key);
-    return Array.isArray(tuple) && tuple.length === 2 && ["node", "field", "literal", "family"].includes(String(tuple[0]))
+    return Array.isArray(tuple) && tuple.length === 2 && ["node", "field", "literal", "family", "resolver"].includes(String(tuple[0]))
       && typeof tuple[1] === "string" && JSON.stringify(tuple) === value.key;
   } catch { return false; }
 }
@@ -163,7 +217,7 @@ export function validSourceLocalDependencyKeyState(value: unknown): value is Sou
     || typeof value.key !== "string" || !sourceCount(value.count)) return false;
   try {
     const tuple: unknown = JSON.parse(value.key);
-    return Array.isArray(tuple) && tuple.length === 2 && ["node", "field", "literal", "family"].includes(String(tuple[0]))
+    return Array.isArray(tuple) && tuple.length === 2 && ["node", "field", "literal", "family", "resolver"].includes(String(tuple[0]))
       && typeof tuple[1] === "string" && JSON.stringify(tuple) === value.key;
   } catch { return false; }
 }

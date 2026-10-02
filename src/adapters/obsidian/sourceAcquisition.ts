@@ -30,16 +30,17 @@ import { selectedSourceFailure, type SelectedSourceResult } from "../../index/So
 import type { ParsedBodyMetadata, ParsedFileMetadata } from "../../core/parser/metadata";
 import { mergeFileMetadata } from "../../index/fieldParser";
 import type { KplexIndexedDbCache } from "../../index/IndexedDbCache";
-import { SOURCE_FAMILIES, SourceFactError, sourceFieldNames, sourceValueSteps, type SourceFamily, type SourceFamilyManifest,
+import { SOURCE_FAMILIES, SOURCE_MAX_BATCH_RECORDS, SourceFactError, sourceFieldNames, sourceValueSteps, type SourceFamily, type SourceFamilyManifest,
   type SourceObservation, type SourcePhysical, type SourceReason, type StoredMetadataFact, type StoredSourceFact } from "../../index/SourceFacts";
 import type { SourceFamilyProducer, SourceInspection, SourceRepositoryDiagnostics } from "../../index/SourceRepository";
+import { sourceLocalDependencyKey, sourceLocalResolverDependencyKey, sourceLocalResolverPathDependencyKey } from "../../index/SourceLocalDependencies";
 import { createObsidianMetadataSourceHost, normalizedBodyUrl, ObsidianMetadataSourceCollector, type ObsidianMetadataSourceSettings } from "./metadataSourceCollector";
 import { entityFactForFile, entityFactForFolder, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector,
   structuralMarkdownSourceOrder } from "./structuralSourceCollector";
 import { hostLinkRecord, ObsidianHostLinkSourceCollector } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
-type FileObservation = { identity: string | null; revision: number; dirty: boolean; bodyDirty: boolean; path: string; oldPath?: string; created: boolean };
+type FileObservation = { identity: string | null; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null };
 type Capture = { physical: SourcePhysical; revision: number; hostRevision: number; state: FileObservation; file: TFile };
 /** Narrow parser port: acquisition does not import GraphBuilder or own a second parser. */
 export type SourceBodyParser = (content: string) => Promise<ParsedBodyMetadata>;
@@ -84,6 +85,8 @@ export class ObsidianSourceAcquisition {
   private epoch = "";
   private hostRevision = 0;
   private contributorObservation = 0;
+  /** Legacy contributor capabilities fence known source/topology events without making environment validation irreversible. */
+  private catalogObservation = 0;
   /** Settings-only reads are enabled only after the startup/event inventory closed every local owner. */
   private localDependenciesReady = false;
   private closed = false;
@@ -93,6 +96,20 @@ export class ObsidianSourceAcquisition {
   private pollTimer: number | null = null;
   private inventory: Promise<boolean> | null = null;
   private inventoryRevision = 0;
+  /** Monotonic host-maintenance fence consumed by demanded semantic publication. */
+  private maintenanceRevision = 0;
+  /** One restart comparison discovers offline target/alias/path drift without rereading unchanged bodies. */
+  private restartInventoryChecked = false;
+  /** Coalesces an unscoped resolver wave into one cached-fact host refresh. */
+  private uncertainResolution = false;
+  /** Date/Daily Notes drift closes semantic writes without advancing the reversible legacy host revision. */
+  private environmentMaintenancePending = false;
+  /** Transient local lookup misses retry after the accepted R1 inventory closes. */
+  private readonly pendingResolutionImpacts: Array<Readonly<{ keys: readonly string[]; excluded: ReadonlySet<string> }>> = [];
+  /** Prevent a changed source from replacing old durable alias/path evidence before fan-out capture. */
+  private knownImpactTasks = 0;
+  /** R3 owns high-degree continuation; R2 must preserve the accepted terminal backpressure behavior. */
+  private resolutionBackpressure = false;
   private requested = false;
   private counters = { checked: 0, reusedBodies: 0, legacyBodies: 0, vaultReads: 0, parses: 0,
     repaired: 0, resolutionRefreshes: 0, pendingMetadata: 0, failures: 0 };
@@ -112,10 +129,13 @@ export class ObsidianSourceAcquisition {
     if (this.started || this.closed) return;
     this.started = true;
     this.epoch = this.repository.createIdentity();
-    /** Observe host changes before scheduling acquisition; no event implies closed referrer fan-out. */
+    /** Observe host changes before scheduling acquisition. Known file events use source-local fan-out;
+     * only an unscoped resolver wave advances the global host fence. */
     const changed = (file?: TFile, created = false, oldPath?: string, bodyChanged = false,
       kind: ContributorHostChange["kind"] = "source"): void => {
-      this.markContributorHostChange(created || oldPath ? "topology" : kind);
+      const effectiveKind = created || oldPath ? "topology" : kind;
+      const dependenciesWereReady = this.localDependenciesReady;
+      this.markContributorHostChange(effectiveKind, !file && effectiveKind === "resolution");
       if (file) {
         const state = this.state(file);
         state.revision += 1; state.dirty = true; state.bodyDirty ||= bodyChanged || created;
@@ -123,6 +143,11 @@ export class ObsidianSourceAcquisition {
         if (oldPath) state.oldPath = oldPath;
         this.repository.cancelSource(oldPath ?? state.path);
         this.repository.cancelSource(file.path);
+        const task = this.markKnownResolutionDependents(file, oldPath, dependenciesWereReady);
+        const prior = state.impact;
+        const impact = prior ? Promise.all([prior, task]).then(() => undefined) : task;
+        state.impact = impact;
+        void impact.finally(() => { if (state.impact === impact) state.impact = null; });
       }
       this.requestInventory();
     };
@@ -130,13 +155,26 @@ export class ObsidianSourceAcquisition {
     const modify = this.app.vault.on("modify", (file) => changed(file instanceof TFile ? file : undefined, false, undefined, true));
     const rename = this.app.vault.on("rename", (file, oldPath) => {
       changed(file instanceof TFile ? file : undefined, false, oldPath);
-      if (file instanceof TFile) void this.repository.tombstone(oldPath, () => !this.closed && !this.app.vault.getFileByPath(oldPath), true);
+      if (file instanceof TFile) {
+        const state = this.state(file), fanout = state.impact ?? Promise.resolve();
+        this.knownImpactTasks += 1;
+        const tombstone = this.repository.tombstone(oldPath,
+          () => !this.closed && !this.app.vault.getFileByPath(oldPath), true, fanout).then(() => undefined)
+          .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
+        const impact = Promise.all([fanout, tombstone]).then(() => undefined);
+        state.impact = impact; void impact.finally(() => { if (state.impact === impact) state.impact = null; });
+      }
     });
     const remove = this.app.vault.on("delete", (file) => {
       changed(file instanceof TFile ? file : undefined, false, undefined, false, "topology");
       if (file instanceof TFile) {
-        const path = file.path;
-        void this.repository.tombstone(path, () => !this.closed && !this.app.vault.getFileByPath(path));
+        const path = file.path, state = this.state(file), fanout = state.impact ?? Promise.resolve();
+        this.knownImpactTasks += 1;
+        const tombstone = this.repository.tombstone(path,
+          () => !this.closed && !this.app.vault.getFileByPath(path), false, fanout).then(() => undefined)
+          .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
+        const impact = Promise.all([fanout, tombstone]).then(() => undefined);
+        state.impact = impact; void impact.finally(() => { if (state.impact === impact) state.impact = null; });
       }
     });
     const metadata = this.app.metadataCache.on("changed", (file) => changed(file));
@@ -145,13 +183,24 @@ export class ObsidianSourceAcquisition {
       () => this.app.vault.offref(rename), () => this.app.vault.offref(remove),
       () => this.app.metadataCache.offref(metadata), () => this.app.metadataCache.offref(resolved));
   }
-  /** Synchronously fence host authority and persist a bounded, coalesced unknown-impact observation. */
-  private markContributorHostChange(kind: ContributorHostChange["kind"]): void {
-    // Environment validation is reversible; its journal is not. These event coordinates are
-    // deliberately separate from the accepted resolver/catalog revision contract.
-    if (kind !== "environment") {
-      this.hostRevision++; this.inventoryRevision += 1;
-      this.localDependenciesReady = false;
+  /** Synchronously fence host authority and persist a bounded, coalesced host observation. */
+  private markContributorHostChange(kind: ContributorHostChange["kind"], global = kind === "resolution"): void {
+    // Known source events fence only their source plus proven referrers. Unscoped resolver and
+    // environment observations are coalesced until reconciliation starts, so a native burst causes
+    // one cached-fact pass rather than a per-event vault scan.
+    if (global) {
+      if (!this.uncertainResolution) {
+        this.uncertainResolution = true; this.hostRevision += 1; this.inventoryRevision += 1;
+        this.maintenanceRevision += 1; this.localDependenciesReady = false;
+      }
+    } else if (kind === "environment") {
+      if (!this.environmentMaintenancePending) {
+        this.environmentMaintenancePending = true; this.inventoryRevision += 1;
+        this.maintenanceRevision += 1; this.localDependenciesReady = false;
+      }
+    } else {
+      this.catalogObservation += 1;
+      this.inventoryRevision += 1; this.maintenanceRevision += 1; this.localDependenciesReady = false;
     }
     const from = this.contributorObservation++;
     // The repository owns retries/unload and never clears a newer coalesced observation on completion.
@@ -168,10 +217,265 @@ export class ObsidianSourceAcquisition {
   /** Allocate an incarnation lazily; a matching restart head can supply its already durable identity. */
   private state(file: TFile): FileObservation {
     let state = this.states.get(file);
-    if (!state) { state = { identity: null, revision: 0, dirty: false, bodyDirty: false, path: file.path, created: false }; this.states.set(file, state); }
+    if (!state) { state = { identity: null, revision: 0, dirty: false, bodyDirty: false, resolutionDirty: false, path: file.path, created: false, impact: null }; this.states.set(file, state); }
     if (state.path !== file.path) { state.oldPath = state.path; state.path = file.path; state.dirty = true; state.revision += 1; }
     return state;
   }
+  /** Host-maintenance revision used by GraphIndex to reject stale demanded semantic publications. */
+  getMaintenanceRevision(): number { return this.maintenanceRevision; }
+
+  /** Host-significant metadata available from MetadataCache without reading Markdown bodies. */
+  private currentHostInventory(file: TFile, cache: CachedMetadata): StoredMetadataFact[] {
+    const metadata = mergeFileMetadata(cache, { inlineFields: {}, inlineFieldOccurrences: [], urls: [] });
+    return [...metadataSteps(file, metadata, cache)].filter((record): record is StoredMetadataFact =>
+      record.kind === "alias" || record.kind === "tag" || record.kind === "file-parent" || record.kind === "host-literal");
+  }
+
+  /** Read only one selected source's durable host-significant metadata family. */
+  private async durableHostInventory(sourceId: string, current: () => boolean): Promise<Readonly<{ reason: SourceReason; facts: StoredMetadataFact[] }>> {
+    const facts: StoredMetadataFact[] = [];
+    const reason = await this.repository.visit(sourceId, "metadata", (records) => {
+      for (const record of records) if (record.kind === "alias" || record.kind === "tag" || record.kind === "file-parent" || record.kind === "host-literal") facts.push(record);
+      return current();
+    }, current);
+    return { reason, facts };
+  }
+
+  /** Dependency keys whose bindings can change when this path or one of its aliases appears/disappears. */
+  private resolutionImpactKeys(path: string, facts: readonly StoredMetadataFact[]): string[] {
+    const keys = new Set<string>();
+    keys.add(sourceLocalDependencyKey("node", path));
+    const leaf = path.split("/").pop() ?? path;
+    const withoutExtension = path.replace(/\.md$/i, "");
+    const basename = leaf.replace(/\.md$/i, "");
+    for (const token of [path, withoutExtension, leaf, basename]) if (token) keys.add(sourceLocalDependencyKey("literal", token));
+    for (const targetPath of [path, withoutExtension]) {
+      const resolver = sourceLocalResolverPathDependencyKey(targetPath);
+      if (resolver) keys.add(resolver);
+    }
+    for (const token of [leaf, basename]) {
+      const resolver = sourceLocalResolverDependencyKey(token);
+      if (resolver) keys.add(resolver);
+    }
+    for (const fact of facts) if (fact.kind === "alias" && fact.value) {
+      keys.add(sourceLocalDependencyKey("literal", fact.value));
+      const resolver = sourceLocalResolverDependencyKey(fact.value);
+      if (resolver) keys.add(resolver);
+    }
+    return [...keys];
+  }
+
+  /** Mark only proven source-local referrers; no process-wide contributor catalog participates. */
+  private async markResolutionDependents(keys: readonly string[], excluded: ReadonlySet<string> = new Set(),
+    current: () => boolean = () => !this.closed): Promise<SourceReason> {
+    const unique = [...new Set(keys.filter(Boolean))];
+    if (!unique.length) return "ready";
+    for (let offset = 0; offset < unique.length; offset += SOURCE_MAX_BATCH_RECORDS) {
+      if (!current() || this.closed) return "cancelled";
+      const found = await this.repository.lookupLocalDependencies(unique.slice(offset, offset + SOURCE_MAX_BATCH_RECORDS), current);
+      if (found.outcome !== "ready") return found.reason;
+      let marked = 0;
+      for (const stamp of found.value.sources) {
+        const sourceId = stamp.head.sourceId;
+        if (excluded.has(sourceId)) continue;
+        const file = this.app.vault.getFileByPath(sourceId);
+        if (!(file instanceof TFile) || file.extension !== "md") continue;
+        const state = this.state(file);
+        if (!state.resolutionDirty) {
+          state.resolutionDirty = true; state.revision += 1; this.repository.cancelSource(sourceId);
+        }
+        if (++marked % SOURCE_MAX_BATCH_RECORDS === 0) {
+          await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+          if (!current()) return "cancelled";
+        }
+      }
+    }
+    this.requestInventory();
+    return "ready";
+  }
+
+  /** Escalate an unauthenticated local fan-out to one coalesced cached-fact host reconciliation. */
+  private promoteUnknownFanout(): void {
+    if (this.uncertainResolution) return;
+    this.uncertainResolution = true; this.hostRevision += 1; this.inventoryRevision += 1;
+    this.localDependenciesReady = false; this.requested = true;
+  }
+
+  /** Queue a local lookup retry without changing the accepted R3 high-degree backpressure boundary. */
+  private deferResolutionImpact(keys: readonly string[], excluded: ReadonlySet<string>, reason: SourceReason): void {
+    if (reason === "backpressure") { this.resolutionBackpressure = true; return; }
+    if (reason !== "dependency-pending" && reason !== "unsaved" && reason !== "superseded" && reason !== "storage-unavailable"
+      && reason !== "read-error" && reason !== "write-error") {
+      this.promoteUnknownFanout();
+      return;
+    }
+    const unique = [...new Set(keys.filter(Boolean))];
+    if (!unique.length) return;
+    this.pendingResolutionImpacts.push({ keys: unique, excluded: new Set(excluded) });
+  }
+
+  /** Resolve known live file-event fan-out from durable/current aliases, exact targets and lexical tokens. */
+  private async markKnownResolutionDependents(file: TFile, oldPath: string | undefined, canLookup: boolean): Promise<void> {
+    this.knownImpactTasks += 1;
+    const current = (): boolean => !this.closed;
+    try {
+      const keys = new Set<string>();
+      const eventPath = file.path;
+      const cache = this.app.metadataCache.getFileCache(file);
+      if (cache) for (const key of this.resolutionImpactKeys(eventPath, this.currentHostInventory(file, cache))) keys.add(key);
+      const candidates = [oldPath, eventPath].filter((path): path is string => !!path);
+      for (const path of candidates) {
+        const durable = await this.durableHostInventory(path, current);
+        if (!current()) return;
+        if (durable.reason === "ready") for (const key of this.resolutionImpactKeys(path, durable.facts)) keys.add(key);
+        else for (const key of this.resolutionImpactKeys(path, [])) keys.add(key);
+      }
+      const excluded = new Set(candidates);
+      if (!canLookup) { this.deferResolutionImpact([...keys], excluded, "dependency-pending"); return; }
+      const reason = await this.markResolutionDependents([...keys], excluded, current);
+      if (reason !== "ready" && reason !== "cancelled" && current()) this.deferResolutionImpact([...keys], excluded, reason);
+    } catch {
+      if (current()) this.promoteUnknownFanout();
+    } finally {
+      this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1);
+      if (!this.closed) this.requestInventory();
+    }
+  }
+
+  /** Upgrade accepted R1 owners before restart fan-out so unresolved relative/subpath tokens exist. */
+  private async upgradeRestartLocalDependencies(markdown: readonly TFile[], structuralOrder: ReadonlyMap<string, number>,
+    current: () => boolean): Promise<boolean> {
+    for (const [markdownOrder, file] of markdown.entries()) {
+      if (!current()) return false;
+      const order = structuralOrder.get(file.path);
+      if (order === undefined) return false;
+      const inspection = await this.repository.inspect(file.path, [], current);
+      if (!current()) return false;
+      if (!inspection.saved || !inspection.head || inspection.head.state !== "complete") continue;
+      const reason = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
+      if (reason !== "ready") return false;
+      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+    }
+    return current();
+  }
+
+  /**
+   * On first restart inventory, compare current MetadataCache facts with durable source-local facts.
+   * Offline alias/path/create/delete drift marks only the changed source and proven referrers.
+   */
+  private async reconcileRestartHostInventory(markdown: readonly TFile[], current: () => boolean): Promise<boolean> {
+    if (this.restartInventoryChecked) return true;
+    const keys = new Set<string>(), changedPaths = new Set<string>();
+    for (const file of markdown) {
+      if (!current()) return false;
+      const cache = this.app.metadataCache.getFileCache(file);
+      if (!cache) continue;
+      const inspection = await this.repository.inspect(file.path, ["metadata"], current);
+      if (!current()) return false;
+      const head = inspection.head;
+      const now = this.currentHostInventory(file, cache);
+      if (!head || head.state !== "complete") {
+        // Storage-unavailable operation has no durable restart evidence. Preserve the established
+        // current-process/legacy body path instead of inventing a recreation from absence that
+        // cannot be authenticated.
+        if (!head && inspection.expected.kind === "unavailable") continue;
+        changedPaths.add(file.path);
+        const state = this.state(file);
+        // A current file over a missing/tombstoned selected binding is a restart recreation. Its
+        // path+mtime legacy body accelerator is not identity-safe across that absence boundary.
+        // A complete in-memory head in storage-degraded operation remains valid current-process
+        // authority even though inspection.saved is false; do not misclassify it as recreation.
+        if (!state.dirty) { state.dirty = true; state.revision += 1; }
+        state.bodyDirty = true; state.created = true;
+        for (const key of this.resolutionImpactKeys(file.path, now)) keys.add(key);
+        continue;
+      }
+      const durable = await this.durableHostInventory(file.path, current);
+      if (!current()) return false;
+      const sameFacts = durable.reason === "ready" && JSON.stringify(durable.facts) === JSON.stringify(now);
+      const samePhysical = physicalMatches(head.physical,
+        { identity: head.physical.identity, path: file.path, mtime: file.stat.mtime, size: file.stat.size, ctime: file.stat.ctime });
+      if (!sameFacts || !samePhysical) {
+        changedPaths.add(file.path);
+        const state = this.state(file);
+        if (!state.dirty) { state.dirty = true; state.revision += 1; }
+        if (!samePhysical) state.bodyDirty = true;
+        for (const key of this.resolutionImpactKeys(file.path, durable.facts)) keys.add(key);
+        for (const key of this.resolutionImpactKeys(file.path, now)) keys.add(key);
+      }
+    }
+    let after: string | null = null;
+    while (current()) {
+      const page = await this.repository.headPage(after);
+      // Durable restart reconciliation is an enhancement; storage-degraded operation cannot prove
+      // offline drift and retains the established in-memory path.
+      if (!page.available) { this.restartInventoryChecked = true; return current(); }
+      for (const head of page.heads) if (head.state === "complete" && !this.app.vault.getFileByPath(head.physical.path)) {
+        changedPaths.add(head.physical.path);
+        const durable = await this.durableHostInventory(head.sourceId, current);
+        if (!current()) return false;
+        const facts = durable.reason === "ready" ? durable.facts : [];
+        for (const key of this.resolutionImpactKeys(head.physical.path, facts)) keys.add(key);
+      }
+      if (page.next === null) break;
+      after = page.next;
+      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+    }
+    if (changedPaths.size) {
+      this.maintenanceRevision += 1; this.localDependenciesReady = false;
+      const reason = await this.markResolutionDependents([...keys], changedPaths, current);
+      if (reason !== "ready" && reason !== "cancelled" && current()) this.deferResolutionImpact([...keys], changedPaths, reason);
+    }
+    this.restartInventoryChecked = true;
+    return current();
+  }
+
+  /** Retry local fan-out once R1 count repair has closed the inventory. */
+  private async retryDeferredResolutionImpacts(current: () => boolean): Promise<SourceReason> {
+    if (this.resolutionBackpressure) return "backpressure";
+    if (!this.pendingResolutionImpacts.length) return "ready";
+    const pending = this.pendingResolutionImpacts.splice(0);
+    for (let index = 0; index < pending.length; index += 1) {
+      if (!current()) { this.pendingResolutionImpacts.unshift(...pending.slice(index)); return "cancelled"; }
+      const impact = pending[index];
+      const reason = await this.markResolutionDependents(impact.keys, impact.excluded, current);
+      if (reason === "ready") continue;
+      if (reason === "backpressure") { this.resolutionBackpressure = true; return reason; }
+      if (reason !== "dependency-pending" && reason !== "unsaved" && reason !== "superseded" && reason !== "storage-unavailable"
+        && reason !== "read-error" && reason !== "write-error" && reason !== "cancelled") {
+        this.promoteUnknownFanout();
+        return reason;
+      }
+      this.pendingResolutionImpacts.unshift(...pending.slice(index));
+      return reason;
+    }
+    return "ready";
+  }
+
+  /** Repair referrers discovered only after a deferred local lookup without rescanning unrelated sources. */
+  private async repairResolutionDirtySources(markdown: readonly TFile[], structuralOrder: ReadonlyMap<string, number>,
+    current: () => boolean): Promise<boolean> {
+    let complete = true;
+    for (const [markdownOrder, file] of markdown.entries()) {
+      if (!current()) return false;
+      const state = this.state(file);
+      if (!state.resolutionDirty) continue;
+      const order = structuralOrder.get(file.path);
+      if (order === undefined) return false;
+      const body = await this.loadBody(file, current);
+      if (!body || !current()) return false;
+      const acquired = await this.acquire(file, body, current);
+      if (!acquired.current) return false;
+      complete &&= acquired.saved;
+      if (acquired.saved) {
+        const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
+        complete &&= local === "ready";
+      }
+      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+    }
+    return current() && complete;
+  }
+
   /** Fence GraphBuilder body reads against observed equal-stat edits as well as mutable file stats. */
   getFileRevision(file: TFile): number { this.start(); return this.state(file).revision; }
   /** An observed content change cannot be satisfied by an equal-mtime hot, neutral or legacy body. */
@@ -208,9 +512,10 @@ export class ObsidianSourceAcquisition {
     const capture = this.capture(file);
     const cache = this.app.metadataCache.getFileCache(file);
     if (!cache) return selectedSourceFailure("pending-metadata");
-    if (capture.state.dirty || capture.state.bodyDirty || capture.state.created) return selectedSourceFailure("unsaved");
+    if (capture.state.dirty || capture.state.bodyDirty || capture.state.resolutionDirty || capture.state.created) return selectedSourceFailure("unsaved");
     const environmentText = this.environment(cache);
-    const current = (): boolean => this.current(capture, runtime.isCurrent)
+    const maintenanceRevision = this.maintenanceRevision;
+    const current = (): boolean => this.current(capture, runtime.isCurrent) && this.maintenanceRevision === maintenanceRevision
       && this.app.metadataCache.getFileCache(file) === cache && this.environment(cache) === environmentText;
     try {
       const environment = await this.repository.observationDigest(environmentText);
@@ -333,10 +638,11 @@ export class ObsidianSourceAcquisition {
     if (!this.hasSemanticDependencies()) return null;
     const revision = this.hostRevision;
     const observation = this.contributorObservation;
+    const maintenance = this.maintenanceRevision;
     const current = (): boolean => !this.closed && runtime.isCurrent() && this.localDependenciesReady
-      && this.hostRevision === revision && this.contributorObservation === observation;
+      && this.hostRevision === revision && this.contributorObservation === observation && this.maintenanceRevision === maintenance;
     return new SourceLocalContributorDiscovery(this.repository, this.app,
-      { epoch: this.epoch, revision, token: `${this.epoch}:${revision}:${observation}` }, current);
+      { epoch: this.epoch, revision, token: `${this.epoch}:${revision}:${observation}:${maintenance}` }, current);
   }
 
   /** Prepare one exact center from cached facts; missing catalog remains pending and never falls back. */
@@ -381,15 +687,17 @@ export class ObsidianSourceAcquisition {
   contributorDiscovery(runtime: GraphCompilerRuntime): SourceContributorDiscovery {
     this.start();
     const revision = this.hostRevision;
+    const catalogObservation = this.catalogObservation;
     const daily = JSON.stringify(this.metadataHost.dailyNotesSettings());
     const fields = new Map<string, boolean>();
     let fieldBytes = 0;
     let environmentDirty = false;
     /** Source events, cancellation and unload cheaply fence every awaited source/structure batch. */
-    const current = (): boolean => !this.closed && runtime.isCurrent() && this.hostRevision === revision;
+    const current = (): boolean => !this.closed && runtime.isCurrent() && this.hostRevision === revision
+      && this.catalogObservation === catalogObservation;
     const scopedRuntime = { ...runtime, isCurrent: current };
     const catalog: ContributorHostCatalog = {
-      stamp: { epoch: this.epoch, revision, token: this.repository.createIdentity() },
+      stamp: { epoch: this.epoch, revision, token: `${catalogObservation}:${this.repository.createIdentity()}` },
       markdownOrderVersion: 1,
       hostLinkOwnerOrderVersion: 1,
       isCurrent: current,
@@ -403,7 +711,9 @@ export class ObsidianSourceAcquisition {
         }
         // Demand observes canonical inputs without changing the accepted reversible validator.
         // A restored environment cannot retire its persisted UNKNOWN host transition ticket.
-        if (!environmentDirty) { environmentDirty = true; this.markContributorHostChange("environment"); }
+        if (!environmentDirty) {
+          environmentDirty = true; this.markContributorHostChange("environment"); this.requestInventory();
+        }
         return false;
       },
       /**
@@ -580,6 +890,14 @@ export class ObsidianSourceAcquisition {
   }
   /** Persist dormant facts even when GraphBuilder subsequently takes its semantic no-op branch. */
   async acquire(file: TFile, body: ParsedBodyMetadata, caller: () => boolean = () => true): Promise<SourceAcquisitionResult> {
+    this.start();
+    const state = this.state(file);
+    while (state.impact) {
+      const impact = state.impact;
+      await impact;
+      if (!caller() || this.closed) return { current: false, saved: false, reason: "cancelled" };
+      if (state.impact === impact) state.impact = null;
+    }
     const capture = this.capture(file); const current = (): boolean => this.current(capture, caller);
     const cache = this.app.metadataCache.getFileCache(file);
     if (!cache) { this.counters.pendingMetadata += 1; return { current: current(), saved: false, reason: "pending-metadata" }; }
@@ -599,7 +917,7 @@ export class ObsidianSourceAcquisition {
       capture.state.identity ??= this.repository.createIdentity();
       const physical = { ...capture.physical, identity: capture.state.identity };
       const intrinsic = samePhysical && !capture.state.dirty;
-      const hostCurrent = head?.observation.environment === environment
+      const hostCurrent = !capture.state.resolutionDirty && head?.observation.environment === environment
         && (head.observation.epoch === this.epoch && head.observation.revision === this.hostRevision
           || this.hostRevision === 0 && !capture.state.dirty);
       if (intrinsic && hostCurrent && inspection.saved && inspection.reason === "ready") return { current: current(), saved: inspection.saved, reason: "ready" };
@@ -633,7 +951,7 @@ export class ObsidianSourceAcquisition {
       }
       if (!observationCurrent()) return { current: false, saved: false, reason: result.reason };
       if ((result.outcome === "activated" || result.outcome === "unsaved") && result.live) {
-        capture.state.dirty = false; capture.state.bodyDirty = false; capture.state.created = false;
+        capture.state.dirty = false; capture.state.bodyDirty = false; capture.state.resolutionDirty = false; capture.state.created = false;
         if (intrinsic) this.counters.resolutionRefreshes += 1; else this.counters.repaired += 1;
         if (result.outcome === "activated" && head) {
           // Only explicitly known retired revisions are considered, and the repository rechecks
@@ -684,15 +1002,26 @@ export class ObsidianSourceAcquisition {
     if (this.inventory) return this.inventory;
     if (this.closed) return false;
     this.requested = false;
+    // Events that arrive after this boundary advance inventoryRevision and cancel this pass.
     const revision = this.inventoryRevision;
     const current = (): boolean => !this.closed && revision === this.inventoryRevision;
     this.inventory = (async () => {
       let complete = true;
       try {
+        while (this.knownImpactTasks > 0 && current()) await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+        if (!current()) return false;
+        // Events observed before this boundary are one coalesced cached-fact pass. A new unscoped
+        // resolver/environment event after this point advances inventoryRevision and cancels the pass.
+        // Keep whether this pass was already globally fenced so polling-discovered environment drift
+        // advances maintenance exactly once without forcing an otherwise unnecessary host revision.
+        let environmentMaintenanceFenced = this.uncertainResolution || this.environmentMaintenancePending;
+        this.uncertainResolution = false; this.environmentMaintenancePending = false;
         const movedPaths = new Set<string>();
         const markdown = this.app.vault.getMarkdownFiles();
         const structuralOrder = structuralMarkdownSourceOrder(this.app.vault);
         if (structuralOrder.size !== markdown.length) return false;
+        if (!this.restartInventoryChecked && !(await this.upgradeRestartLocalDependencies(markdown, structuralOrder, current))) return false;
+        if (!(await this.reconcileRestartHostInventory(markdown, current))) return false;
         for (const [markdownOrder, file] of markdown.entries()) {
           const order = structuralOrder.get(file.path);
           if (order === undefined) return false;
@@ -705,10 +1034,18 @@ export class ObsidianSourceAcquisition {
           const inspection = await this.repository.inspect(file.path, [], current);
           if (!current()) return false;
           const head = inspection.head;
-          const hostCurrent = head?.observation.environment === environment
+          if (head && head.observation.environment !== environment && !environmentMaintenanceFenced) {
+            // No native event necessarily accompanies Date-registry/Daily Notes changes. The periodic
+            // cached-fact inventory is therefore the first authoritative observation for this drift.
+            // Close semantic writes immediately, but do not globalize hostRevision: sources whose
+            // environment digest is unchanged remain reusable in this same bounded pass.
+            this.maintenanceRevision += 1; this.localDependenciesReady = false;
+            environmentMaintenanceFenced = true;
+          }
+          const hostCurrent = !capture.state.resolutionDirty && head?.observation.environment === environment
             && (head.observation.epoch === this.epoch && head.observation.revision === this.hostRevision
               || this.hostRevision === 0 && !capture.state.dirty);
-          if (inspection.saved && head && !capture.state.dirty && !capture.state.created
+          if (inspection.saved && head?.state === "complete" && !capture.state.dirty && !capture.state.resolutionDirty && !capture.state.created
             && physicalMatches(head.physical, capture.physical) && hostCurrent) {
             // A clean restart may reuse the exact durable source head without rewriting its host
             // observation. Live host events still require this session's current epoch/revision.
@@ -753,7 +1090,16 @@ export class ObsidianSourceAcquisition {
         if (ready) {
           const local = await this.repository.completeLocalDependencyInventory(current);
           ready = current() && local === "ready";
+          if (ready) {
+            const deferred = await this.retryDeferredResolutionImpacts(current);
+            ready = deferred === "ready" && await this.repairResolutionDirtySources(markdown, structuralOrder, current);
+            if (ready) {
+              const repairedLocal = await this.repository.completeLocalDependencyInventory(current);
+              ready = current() && repairedLocal === "ready";
+            }
+          }
         }
+        ready &&= !this.resolutionBackpressure;
         this.localDependenciesReady = ready;
         if (ready) this.inventoryReady?.();
         return ready;
