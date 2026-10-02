@@ -10,7 +10,7 @@ import type { CompiledGraphNode, GraphCompilerRuntime, GraphCompilerSettings } f
 import type { NodeId } from "../core/graph/model";
 import type { SourceEntityRef } from "../core/graph/source";
 import type { RelationEvidenceStore } from "../core/graph/evidence";
-import { Platform, TFile, normalizePath, type App } from "obsidian";
+import { Platform, TFile, TFolder, normalizePath, type App } from "obsidian";
 import type KplexPlugin from "../main";
 import type { KplexSettings } from "../settings";
 import {
@@ -2593,37 +2593,54 @@ export class GraphIndex {
     return [...editable].sort((a, b) => (rank.get(a) ?? 9) - (rank.get(b) ?? 9) || (a === sourcePath ? -1 : 1));
   }
 
+  /** Materialize one physical folder page without traversing the Vault tree. */
+  private ensureFolderTreePage(folderPath: string, touched: Set<string>): GraphPage {
+    const path = folderPath ? `folder:${folderPath}` : "folder:/";
+    let page = this.state.pages.get(path);
+    if (!page) {
+      page = {
+        path, file: null, name: folderPath.split("/").filter(Boolean).pop() ?? "/", url: null, isFolder: true, isTag: false, mtime: null,
+        neighbours: new Map(), aliases: [], tags: [], noteType: null, primaryStyleTag: null,
+        styleTags: [], maxLabelLength: this.plugin.settings.baseNodeStyle.maxLabelLength ?? 30,
+      };
+      this.state.pages.set(path, page);
+      this.state.lowercasePathMap.set(path.toLowerCase(), path);
+      touched.add(path);
+    }
+    return page;
+  }
+
+  /** Ensure one canonical file-tree declaration and resolve both relation-map directions. */
+  private ensureFileTreeEdge(parent: GraphPage, child: GraphPage, touched: Set<string>): void {
+    const exists = this.state.evidence.between(parent.path, child.path).some((item) =>
+      item.sourceKind === "file-tree" && item.declaredByPath === parent.path && item.declaredTargetPath === child.path,
+    );
+    if (!exists) {
+      this.state.evidence.addPair(parent.path, child.path, "child", RelationType.DEFINED, LinkDirection.FROM, {
+        sourceKind: "file-tree", definition: "file-tree",
+      });
+    }
+    resolveEvidencePair(this.state.pages, this.state.evidence, parent.path, child.path);
+    resolveEvidencePair(this.state.pages, this.state.evidence, child.path, parent.path);
+    touched.add(parent.path);
+    touched.add(child.path);
+  }
+
+  /** Ensure root-to-folder ancestry from the known path only; never enumerate unrelated files/folders. */
+  private ensureFolderTreePath(folderPath: string, touched: Set<string>): GraphPage {
+    let parent = this.ensureFolderTreePage("", touched);
+    let currentPath = "";
+    for (const part of folderPath.split("/").filter(Boolean)) {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const folder = this.ensureFolderTreePage(currentPath, touched);
+      this.ensureFileTreeEdge(parent, folder, touched);
+      parent = folder;
+    }
+    return parent;
+  }
+
   private reconcileFileTreeMembership(file: TFile): Set<string> {
     const touched = new Set<string>();
-    const ensureFolder = (folderPath: string, name: string): GraphPage => {
-      const path = folderPath ? `folder:${folderPath}` : "folder:/";
-      let page = this.state.pages.get(path);
-      if (!page) {
-        page = {
-          path, file: null, name, url: null, isFolder: true, isTag: false, mtime: null,
-          neighbours: new Map(), aliases: [], tags: [], noteType: null, primaryStyleTag: null,
-          styleTags: [], maxLabelLength: this.plugin.settings.baseNodeStyle.maxLabelLength ?? 30,
-        };
-        this.state.pages.set(path, page);
-        this.state.lowercasePathMap.set(path.toLowerCase(), path);
-        touched.add(path);
-      }
-      return page;
-    };
-    const ensureTreeEdge = (parent: GraphPage, child: GraphPage): void => {
-      const exists = this.state.evidence.between(parent.path, child.path).some((item) =>
-        item.sourceKind === "file-tree" && item.declaredByPath === parent.path && item.declaredTargetPath === child.path,
-      );
-      if (!exists) {
-        this.state.evidence.addPair(parent.path, child.path, "child", RelationType.DEFINED, LinkDirection.FROM, {
-          sourceKind: "file-tree", definition: "file-tree",
-        });
-      }
-      resolveEvidencePair(this.state.pages, this.state.evidence, parent.path, child.path);
-      resolveEvidencePair(this.state.pages, this.state.evidence, child.path, parent.path);
-      touched.add(parent.path);
-      touched.add(child.path);
-    };
 
     const filePage = this.state.pages.get(file.path);
     if (!filePage) return touched;
@@ -2638,16 +2655,8 @@ export class GraphIndex {
       touched.add(parentPath);
     }
 
-    let parent = ensureFolder("", "/");
-    const folderParts = file.path.split("/").slice(0, -1).filter(Boolean);
-    let currentPath = "";
-    for (const part of folderParts) {
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      const folder = ensureFolder(currentPath, part);
-      ensureTreeEdge(parent, folder);
-      parent = folder;
-    }
-    ensureTreeEdge(parent, filePage);
+    const parent = this.ensureFolderTreePath(file.path.split("/").slice(0, -1).join("/"), touched);
+    this.ensureFileTreeEdge(parent, filePage, touched);
     return touched;
   }
 
@@ -2927,6 +2936,24 @@ export class GraphIndex {
     this.state.lowercasePathMap.set(url.toLowerCase(), url);
     this.invalidatePatchedPages(new Set([url]));
     this.patchSearchIndex(new Set([url]));
+    this.suggestionCatalogCache = null;
+    this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+    this.emit();
+    this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
+    return page;
+  }
+
+  /**
+   * Materialize a newly created physical folder without rebuilding the structural inventory. This
+   * keeps empty-folder creation local while preserving canonical folder pages, parent relations and
+   * search membership. Later file creation reuses the same ancestry through reconcileFileTreeMembership.
+   */
+  insertCreatedFolder(folder: TFolder): GraphPage {
+    const touched = new Set<string>();
+    const page = this.ensureFolderTreePath(folder.path, touched);
+    touched.add(page.path);
+    this.invalidatePatchedPages(touched);
+    this.patchSearchIndex(touched);
     this.suggestionCatalogCache = null;
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
     this.emit();

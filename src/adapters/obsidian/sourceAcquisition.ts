@@ -53,6 +53,13 @@ export type SourceAcquisitionCounters = Readonly<{
 /** The existing live graph may proceed on storage failure, but not across a source/host revision. */
 export type SourceAcquisitionResult = Readonly<{ current: boolean; saved: boolean; reason: SourceReason }>;
 
+/**
+ * Native Obsidian file events are followed by metadata:resolved within the same short resolver wave.
+ * The timer is only a bounded stale-token retirement guard; coverage still requires an observed,
+ * fully known TFile wave and is consumed by the first resolved event.
+ */
+const KNOWN_RESOLVER_WAVE_RETIRE_MS = 50;
+
 /** Apply producer backpressure to a canonical generator, including its cooperative null steps. */
 function producer(steps: () => Iterable<StoredSourceFact | null>): SourceFamilyProducer {
   return async (emit) => { for (const fact of steps()) if (!(await emit(fact))) return false; return true; };
@@ -105,6 +112,13 @@ export class ObsidianSourceAcquisition {
   private restartInventoryChecked = false;
   /** Coalesces an unscoped resolver wave into one cached-fact host refresh. */
   private uncertainResolution = false;
+  /** One bounded causal token replaces per-event resolver bookkeeping for native TFile waves. */
+  private knownResolverWave = false;
+  /** Folder/non-file activity poisons the current wave: a following resolved event remains uncertain. */
+  private uncoveredResolverWave = false;
+  /** Retires a known wave if the host never emits its traced closing resolved event. */
+  private resolverWaveTimer: number | null = null;
+  private resolverWaveGeneration = 0;
   /** Date/Daily Notes drift closes semantic writes without advancing the reversible legacy host revision. */
   private environmentMaintenancePending = false;
   /** Transient local lookup misses coalesce by dependency/source identity instead of retaining one entry per event. */
@@ -151,8 +165,18 @@ export class ObsidianSourceAcquisition {
     const changed = (file?: TFile, created = false, oldPath?: string, bodyChanged = false,
       kind: ContributorHostChange["kind"] = "source"): void => {
       const effectiveKind = created || oldPath ? "topology" : kind;
+      if (!file && effectiveKind === "resolution") {
+        // Obsidian 1.14.4 closes ordinary create/rename/modify/delete waves with metadata:resolved.
+        // Consume exactly one fully known TFile wave without globalizing it. A resolved event with
+        // no live token, or one preceded by folder/non-file activity, remains the uncertain lane.
+        if (this.consumeKnownResolverWave()) return;
+        this.markContributorHostChange("resolution", true);
+        this.requestInventory();
+        return;
+      }
+      this.noteResolverWaveCause(Boolean(file));
       const dependenciesWereReady = this.localDependencyAuthorityReady;
-      this.markContributorHostChange(effectiveKind, !file && effectiveKind === "resolution");
+      this.markContributorHostChange(effectiveKind, false);
       if (file) {
         const state = this.state(file);
         state.revision += 1; state.dirty = true; state.bodyDirty ||= bodyChanged || created;
@@ -199,6 +223,34 @@ export class ObsidianSourceAcquisition {
       () => this.app.vault.offref(rename), () => this.app.vault.offref(remove),
       () => this.app.metadataCache.offref(metadata), () => this.app.metadataCache.offref(resolved));
   }
+  /**
+   * Coalesce all causes since the previous resolver close into constant-size causal state. TFile
+   * events are source-local proof; folder/non-file events make the whole wave unprovable. The one
+   * timer prevents a missing host close from suppressing a later unrelated resolved event.
+   */
+  private noteResolverWaveCause(covered: boolean): void {
+    if (covered) this.knownResolverWave = true;
+    else this.uncoveredResolverWave = true;
+    const generation = ++this.resolverWaveGeneration;
+    if (this.resolverWaveTimer !== null) window.clearTimeout(this.resolverWaveTimer);
+    this.resolverWaveTimer = window.setTimeout(() => {
+      if (this.closed || generation !== this.resolverWaveGeneration) return;
+      this.resolverWaveTimer = null;
+      this.knownResolverWave = false;
+      this.uncoveredResolverWave = false;
+    }, KNOWN_RESOLVER_WAVE_RETIRE_MS);
+  }
+
+  /** Consume only a live wave whose every observed cause was a known TFile event. */
+  private consumeKnownResolverWave(): boolean {
+    const covered = this.knownResolverWave && !this.uncoveredResolverWave;
+    this.resolverWaveGeneration += 1;
+    if (this.resolverWaveTimer !== null) window.clearTimeout(this.resolverWaveTimer);
+    this.resolverWaveTimer = null;
+    this.knownResolverWave = false;
+    this.uncoveredResolverWave = false;
+    return covered;
+  }
   /** Synchronously fence host authority and persist a bounded, coalesced host observation. */
   private markContributorHostChange(kind: ContributorHostChange["kind"], global = kind === "resolution"): void {
     // Known source events fence only their source plus proven referrers. Unscoped resolver and
@@ -228,7 +280,9 @@ export class ObsidianSourceAcquisition {
     for (const dispose of this.cleanup.splice(0)) dispose();
     if (this.timer !== null) window.clearTimeout(this.timer);
     if (this.pollTimer !== null) window.clearTimeout(this.pollTimer);
-    this.timer = null; this.pollTimer = null;
+    if (this.resolverWaveTimer !== null) window.clearTimeout(this.resolverWaveTimer);
+    this.timer = null; this.pollTimer = null; this.resolverWaveTimer = null;
+    this.knownResolverWave = false; this.uncoveredResolverWave = false;
   }
   /** Allocate an incarnation lazily; a matching restart head can supply its already durable identity. */
   private state(file: TFile): FileObservation {

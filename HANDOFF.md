@@ -15,29 +15,57 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-# Offline implementation — SI4-R2 native-event locality correction
+# Offline return — SI4-R2 native-event locality correction
 
 Do not start SI4-R3 or C15–C26.
 
-## Native failures to correct
+## Implementation
 
-Obsidian 1.14.4 emits these production event sequences:
+- `src/adapters/obsidian/sourceAcquisition.ts`
+  - Added constant-size resolver-wave causal state. Known `TFile` create/rename/modify/delete/metadata events mark one covered wave; folder/non-file causes poison that wave.
+  - The first `metadata:resolved` closing a fully known live wave is consumed without advancing the global host/maintenance fence. A later/uncovered resolved event retains the existing coalesced uncertain lane.
+  - State is single-wave only (`known`, `uncovered`, generation, one retirement timer), not per-event. The timer only retires stale causal proof if the traced host close never arrives; it is not the coverage decision. `close()` cancels it.
+- `src/index/GraphIndex.ts`
+  - Extracted path-local folder-page and file-tree-edge materialization helpers from per-file membership reconciliation.
+  - Added `insertCreatedFolder(TFolder)` to materialize only the root-to-created-folder ancestry, file-tree evidence, search membership, caches and snapshot persistence without structural inventory traversal.
+- `src/main.ts`
+  - Ready/full-snapshot folder creates now use `insertCreatedFolder()` when no rebuild is in flight instead of adding the structural `vault:create` backlog reason. Markdown create + metadata events therefore remain on the existing per-file patch lane.
+- Regressions:
+  - `tests/source-acquisition.test.mjs`: covered native close, later unscoped resolved, and folder/non-file uncertainty.
+  - `tests/source-local-dependencies-indexeddb.test.mjs`: exact native create/rename/modify(alias)/delete/recreate sequences; locality counters/readiness/referrer repair; synchronous waves; event during reconciliation; folder uncertainty; unload; later unscoped resolved.
+  - `tests/indexing.test.mjs`: empty-folder ancestry/search materialization plus the observed empty-folder + two-Markdown-create coordinator sequence with no `vault:create` structural reason and no full rebuild.
 
-- create: `vault:create(TFile)` → `metadata:changed(TFile)` → `metadata:resolved`;
-- rename: `vault:rename(TFile)` → `metadata:resolved`;
-- modify: `vault:modify(TFile)` → `metadata:changed(TFile)` → `metadata:resolved`;
-- delete: `vault:delete(TFile)` → `metadata:resolved`.
+## Changed files
 
-The resolved event followed the known event within 0–1 ms in the native trace. The current acquisition listener treats every resolved event as unscoped. In a ready four-Markdown-file vault, one known rename therefore performed one full Markdown enumeration plus unrelated repository inspections, visits and acquisitions. Body parses remained zero, but the known-event locality contract failed.
+- `HANDOFF.md`
+- `src/adapters/obsidian/sourceAcquisition.ts`
+- `src/index/GraphIndex.ts`
+- `src/main.ts`
+- `tests/indexing.test.mjs`
+- `tests/source-acquisition.test.mjs`
+- `tests/source-local-dependencies-indexeddb.test.mjs`
 
-Creating an empty fixture folder followed by two Markdown files also made the graph coordinator record `full-rebuild:metadata:changed|vault:create|vault:create-markdown`.
+No SI4-R3 or C15–C26 implementation was changed.
 
-## Required implementation
+## Actual validation
 
-1. Use bounded causal state to distinguish a resolver wave already covered by known `TFile` events from a genuinely unscoped `metadata:resolved` wave. A covered wave must remain on the existing source-local hot lane. Do not rely only on a millisecond timeout, retain one entry per event, or weaken readiness/write fencing.
-2. Preserve the uncertain lane: `metadata:resolved` without complete known-event coverage must still advance the maintenance fence once and run one coalesced cached-fact reconciliation with zero unchanged body reads/parses. Folder or non-file events must not be declared covered without proof.
-3. Correct the observed folder/create graph dispatch so an empty folder plus ordinary Markdown creation does not force a whole-graph rebuild. Preserve folder nodes, parent relations, file materialization, aliases, unresolved-target transitions, search and evidence. Use existing incremental owners where possible.
-4. Add production-like regressions that emit the exact native sequences above after source-local authority is ready. For create, rename, modify/alias, delete and recreate assert zero full Markdown enumeration, zero durable-head paging and zero unrelated inspection/visit/acquisition/write. Assert the changed source and proven referrers converge, maintenance readiness closes/reopens, and no `full-rebuild` decision occurs. Keep the existing resolved-only uncertain-pass and idle-poll tests.
-5. Cover synchronous bursts, events arriving during reconciliation, cancellation/unload and a known wave followed by a later genuinely unscoped resolved event. Keep all state bounded and retain R1 repair and R3 backpressure behavior.
+- `NODE_PATH=$(npm root -g) node --test tests/source-acquisition.test.mjs` — **PASS, 11/11**.
+- `NODE_PATH=$(npm root -g) npm run test:sources` — **PASS, 310/310**.
+- `node --check tests/indexing.test.mjs` and `node --check tests/source-local-dependencies-indexeddb.test.mjs` — **PASS**.
+- `NODE_PATH=$(npm root -g) node tests/indexing.test.mjs` — the new folder materialization/coordinator assertions execute and pass, then the suite hits the existing P15 performance gate: `URL-heavy post-parse graph patch blocked timers for 70.4 ms` (`<50 ms` required). The pristine supplied archive fails the same assertion on this host at **70.4 ms**. A diagnostic run with only that threshold temporarily changed to `<500 ms` completed all indexing fixtures: **assertions 1–68 + P1–P17 PASS**. The checked-in `<50 ms` assertion was restored immediately.
+- Architecture: with a temporary symlink to the preinstalled TypeScript 5.8.3 (removed afterward), `npm run check:architecture` — **PASS, 7/7; 61 migrated roots, 120 reachable files, 0 violations**. `tsc -p tsconfig.core.json` also exits **0** with that compiler.
+- `npm run test:sources:browser` — **BLOCKED/FAIL, 0/9 executed successfully**: every real-Chromium file aborts at harness startup with `Chromium page blocked: net::ERR_BLOCKED_BY_ADMINISTRATOR`. The new IndexedDB/native-event regression therefore still requires a permitted Chromium run.
+- `npm run check:core` — cannot complete in the archive environment: `esbuild` is not installed for two test files; the remaining portable lane also exposes the supplied baseline `normalized-source-contract` assertion (`Assets/picture.png` vs `Never There`), which reproduces unchanged in the pristine archive. The command's initial core TypeScript compile itself passed when TypeScript was supplied as above.
+- `npm run lint:obsidian` — **BLOCKED**, `eslint: not found` (exit 127).
+- `npm run build` — **BLOCKED**, dependency/type packages are absent (`obsidian`, React, etc.; exit 2), so no new `dist` was produced.
 
-Run focused tests during development, then `npm run test:sources`, `npm run test:sources:browser`, architecture/core, lint and build when available. Return changes uncommitted with actual results and limitations. The main agent will run full and native validation.
+## Environment limitations / main-agent validation
+
+The archive contains no `node_modules` and no Git metadata. Host Node is **22.16.0**, below the repository engine requirement `>=22.22.2 <23`. `npm ci --ignore-scripts --offline` cannot hydrate dependencies because the cache is incomplete (`yocto-queue` missing); a normal install did not complete in this environment. No Obsidian CLI/runtime is available.
+
+Main-agent validation remains required with the repository Node/dependency baseline and permitted Chromium/Obsidian 1.14.4:
+
+1. Run `npm run test:sources`, `npm run test:sources:browser`, `npm run check:architecture`, `npm run check:core`, `npm run lint:obsidian`, the normal indexing/full test lane, and a real `npm run build`.
+2. Re-run the native 1.14.4 traces for create/rename/modify/delete/recreate and verify the exact R2 counters: zero full Markdown enumeration, zero durable-head paging, zero unrelated repository inspection/visit/acquisition/write, readiness close/reopen, and correct referrer convergence.
+3. Re-run the empty-folder + two-Markdown-create trace and verify no `full-rebuild:*` decision is recorded while folder pages/parent evidence/search and both Markdown notes converge.
+4. Retain the resolved-only uncertain case as one coalesced cached-fact pass with zero unchanged Markdown body reads/parses.

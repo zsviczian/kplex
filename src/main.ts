@@ -1,7 +1,7 @@
 /**
  * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback.
  */
-import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
+import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { captureSettingsPolicy, classifySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
 import { GraphIndex } from "./index/GraphIndex";
 import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
@@ -605,6 +605,13 @@ export default class KplexPlugin extends Plugin {
             this.index.insertCreatedFile(created);
           }
           this.scheduleRebuild("vault:create-markdown");
+          return;
+        }
+        if (created instanceof TFolder && this.initialIndexComplete && !this.rebuildTask && this.index?.isFullSnapshotHydrated()) {
+          // Empty folder creation is a known structural delta. Materialize only its root-to-folder
+          // ancestry; subsequent Markdown creates reuse the same folder pages and remain per-file
+          // patches instead of leaving a structural `vault:create` reason that forces a full rebuild.
+          this.index.insertCreatedFolder(created);
           return;
         }
         this.scheduleRebuild("vault:create");

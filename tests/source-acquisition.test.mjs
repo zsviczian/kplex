@@ -202,6 +202,40 @@ test("multiple unscoped resolver events coalesce into one maintenance fence and 
   } finally { f.close(); }
 });
 
+test("native TFile resolver closes are causally covered while a later unscoped resolver wave stays uncertain", async () => {
+  const f = hostFixture();
+  try {
+    const source = f.add("source.md", "Friends:: [[Target]]");
+    await f.acquisition.acquire(source, parseBodyMetadata(f.text.get(source.path)));
+
+    f.app.vault.trigger("modify", source);
+    f.app.metadataCache.trigger("changed", source);
+    const afterKnownEvents = f.acquisition.getMaintenanceRevision();
+    f.app.metadataCache.trigger("resolved");
+    assert.equal(f.acquisition.getMaintenanceRevision(), afterKnownEvents,
+      "The first resolved event consumes the known TFile wave without globalizing maintenance");
+
+    f.app.metadataCache.trigger("resolved");
+    assert.equal(f.acquisition.getMaintenanceRevision(), afterKnownEvents + 1,
+      "A later resolved event has no causal coverage and advances the uncertain maintenance fence");
+  } finally { f.close(); }
+});
+
+test("folder activity cannot causally cover a following resolver wave", async () => {
+  const f = hostFixture();
+  try {
+    const source = f.add("source.md", "Friends:: [[Target]]");
+    await f.acquisition.acquire(source, parseBodyMetadata(f.text.get(source.path)));
+
+    const folder = new window.SourceTestFolder(); folder.path = "Empty"; folder.name = "Empty";
+    f.app.vault.trigger("create", folder);
+    const afterFolder = f.acquisition.getMaintenanceRevision();
+    f.app.metadataCache.trigger("resolved");
+    assert.equal(f.acquisition.getMaintenanceRevision(), afterFolder + 1,
+      "Folder/non-file activity must not make the following resolver wave look source-local");
+  } finally { f.close(); }
+});
+
 test("production GraphBuilder full/patch/no-op acquire neutral facts without changing the synchronous graph publication contract", async () => {
   const f = hostFixture();
   try {

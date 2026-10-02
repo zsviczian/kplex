@@ -3101,6 +3101,14 @@ try {
 
   // P11: K-Plex-created files get complete folder ancestry immediately, even while folders are
   // hidden. Revealing folders is presentation-only and matches a clean authoritative build.
+  const emptyCreatedFolder = ensureFolder("Created Empty");
+  assert.equal(index.get("folder:Created Empty"), undefined, "A host-created empty folder is absent before its incremental event is applied");
+  const emptyCreatedPage = index.insertCreatedFolder(emptyCreatedFolder);
+  assert.equal(emptyCreatedPage.path, "folder:Created Empty");
+  assert(index.evidenceBetween("folder:/", emptyCreatedPage.path).some((item) => item.sourceKind === "file-tree"),
+    "Incremental empty-folder materialization must preserve its parent relation");
+  assert(index.search("created empty").some((page) => page === emptyCreatedPage),
+    "Incrementally materialized empty folders must enter search without a full rebuild");
   const createdFolder = ensureFolder("Created/Sub");
   const managedFile = new TFile("Created/Sub/Managed.md", noteA.stat.mtime + 5000);
   managedFile.parent = createdFolder;
@@ -3258,6 +3266,66 @@ try {
   assert.equal(index.removeVirtualPageIfUnreferenced(renamedRacePath), true);
   app.vault.cachedRead = originalCachedReadForRevisionRace;
   index.cancelPendingPersistence();
+
+  // Native Obsidian folder + Markdown creation must stay on the local folder/file lanes. The old
+  // `vault:create` backlog reason made the two Markdown patches fall through to `full-rebuild`.
+  const nativeCreationCoordinator = new KplexPlugin();
+  const nativeCreationHandlers = new Map();
+  const nativeFiles = new Map();
+  const nativeFolder = new TFolder("Fixture");
+  const nativeA = new TFile("Fixture/A.md", 10_001);
+  const nativeB = new TFile("Fixture/B.md", 10_002);
+  nativeFiles.set(nativeA.path, nativeA);
+  nativeFiles.set(nativeB.path, nativeB);
+  const nativeDecisions = [];
+  const nativeFolders = [];
+  const nativeMaterializedFiles = [];
+  const nativePatchCalls = [];
+  let nativeFullBuilds = 0;
+  nativeCreationCoordinator.app = {
+    vault: {
+      on: (name, callback) => { nativeCreationHandlers.set(`vault:${name}`, callback); return {}; },
+      getFileByPath: (path) => nativeFiles.get(path) ?? null,
+    },
+    metadataCache: {
+      on: (name, callback) => { nativeCreationHandlers.set(`metadata:${name}`, callback); return {}; },
+    },
+  };
+  nativeCreationCoordinator.index = {
+    size: 4,
+    isFullSnapshotHydrated: () => true,
+    get: (path) => nativeMaterializedFiles.includes(path) ? { file: nativeFiles.get(path) } : undefined,
+    insertCreatedFolder: (folder) => { nativeFolders.push(folder.path); return { path: `folder:${folder.path}` }; },
+    insertCreatedFile: (file) => { nativeMaterializedFiles.push(file.path); return { path: file.path, file }; },
+    noteBuildDecision: (kind, reason, modified) => { nativeDecisions.push({ kind, reason, modified }); },
+    patchMarkdownPaths: async (paths) => { nativePatchCalls.push([...paths]); return { outcome: "patched", count: paths.length }; },
+    rebuild: async () => { nativeFullBuilds += 1; return true; },
+  };
+  nativeCreationCoordinator.hasVisibleKplexSurface = () => true;
+  nativeCreationCoordinator.refreshBookmarkedEntryPoints = async () => {};
+  nativeCreationCoordinator.notifyIndexStatus = () => {};
+  nativeCreationCoordinator.initialIndexComplete = true;
+  nativeCreationCoordinator.scheduleRebuild = (reason) => {
+    nativeCreationCoordinator.indexDirty = true;
+    nativeCreationCoordinator.indexDirtyRevision += 1;
+    nativeCreationCoordinator.indexBacklogReasons.add(reason);
+  };
+  nativeCreationCoordinator.registerReactiveIndexListeners();
+  const nativeCreateHandler = nativeCreationHandlers.get("vault:create");
+  const nativeMetadataHandler = nativeCreationHandlers.get("metadata:changed");
+  assert(nativeCreateHandler && nativeMetadataHandler, "Native create and metadata handlers must be registered");
+  nativeCreateHandler(nativeFolder);
+  nativeCreateHandler(nativeA);
+  nativeMetadataHandler(nativeA);
+  nativeCreateHandler(nativeB);
+  nativeMetadataHandler(nativeB);
+  assert.deepEqual(nativeFolders, ["Fixture"], "Empty folder is materialized directly once");
+  assert.deepEqual(nativeMaterializedFiles, [nativeA.path, nativeB.path], "Markdown files materialize directly under the new folder");
+  assert(!nativeCreationCoordinator.indexBacklogReasons.has("vault:create"), "Folder creation must not leave a structural full-rebuild reason");
+  await nativeCreationCoordinator.performRebuild(false, false, "coalesced-backlog", false);
+  assert.deepEqual(nativePatchCalls, [[nativeA.path, nativeB.path]], "Folder-following Markdown files patch as one local batch");
+  assert.equal(nativeFullBuilds, 0, "Folder + Markdown creation must not invoke the full builder");
+  assert(nativeDecisions.every((decision) => decision.kind !== "full-rebuild"), "Folder + Markdown creation must record no full-rebuild decision");
 
   // P15: post-parse graph work for a URL-heavy note is staged and cooperatively sliced. Prime the
   // parsed-body hot cache so this measures signature/evidence/URL/resolution/commit work rather

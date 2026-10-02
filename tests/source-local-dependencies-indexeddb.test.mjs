@@ -227,6 +227,72 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
       })()`), true);
     });
 
+    await t.test("native create rename modify delete and recreate resolver waves stay source-local", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await fixture('local-r2-native-event-waves');
+        const settle=async()=>{for(let attempt=0;attempt<6;attempt++)if(await f.acquisition.reconcile())return true;return false;};
+        const resolutionTargets=async id=>{const rows=[];equal(await f.repository.visit(id,'resolution',records=>{rows.push(...records);return true;}),'ready','Read selected resolution');return rows.filter(r=>r.kind==='reference-resolution').map(r=>({raw:r.rawTarget,target:r.target?.entity?.id,kind:r.target?.entity?.kind}));};
+        const assertLocal=label=>{const work=f.work.snapshot();equal(work.markdownEnumerations,0,label+' performs zero full Markdown enumeration');equal(work.fileEnumerations,0,label+' performs zero Vault file enumeration');equal(work.rootEnumerations,0,label+' performs zero structural traversal');equal(work.headPages,0,label+' performs zero durable-head paging');
+          ok(!work.inspections.some(id=>id==='Other.md'||id.startsWith('Unrelated-')),label+' inspects no unrelated source');ok(!work.visits.some(id=>id.startsWith('Other.md:')||id.startsWith('Unrelated-')),label+' visits no unrelated family');ok(!work.writes.some(id=>id.includes('Other.md')||id.includes('Unrelated-')),label+' acquires/writes no unrelated source');return work;};
+        const closeKnownWave=label=>{const before=f.acquisition.getMaintenanceRevision();f.app.metadataCache.trigger('resolved');equal(f.acquisition.getMaintenanceRevision(),before,label+' resolved close does not advance the global maintenance fence');};
+        try{
+          const ref=f.add('Folder/Ref.md','Friends:: [[../Target#Heading]] [[AliasTarget#^block]]'),other=f.add('Other.md','Friends:: [[Else]]');f.add('Unrelated-1.md','');f.add('Unrelated-2.md','');
+          const fallback=f.app.metadataCache.getFirstLinkpathDest;
+          f.app.metadataCache.getFirstLinkpathDest=(literal,source)=>{
+            if(literal==='../Target')return f.files.get('Target.md')??null;
+            if(literal==='AliasTarget')return [...f.files.values()].find(file=>file.extension==='md'&&(f.metadata.get(file.path)?.frontmatter?.aliases??[]).includes('AliasTarget'))??null;
+            return fallback(literal,source);
+          };
+          await f.acquire();ok(await f.acquisition.reconcile(),'Four-file source-local authority closes');ok(f.acquisition.hasSemanticDependencies(),'Initial maintenance readiness open');
+          const otherBefore=(await f.repository.inspect(other.path)).head;f.reads.length=0;f.parses.length=0;f.work.reset();
+
+          const target=f.add('Target.md','',{aliases:['AliasTarget']});f.app.vault.trigger('create',target);f.app.metadataCache.trigger('changed',target);ok(!f.acquisition.hasSemanticDependencies(),'Create closes maintenance readiness');closeKnownWave('Create');ok(await settle(),'Create native wave converges');ok(f.acquisition.hasSemanticDependencies(),'Create reopens maintenance readiness');assertLocal('Create');
+          let targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.target),['Target.md','Target.md'],'Create repairs proven relative and alias referrers');equal((await f.repository.inspect(other.path)).head,otherBefore,'Create keeps unrelated head exact');equal(f.reads,['Target.md'],'Create reads only the changed source');equal(f.parses.length,1,'Create parses only the changed source');
+
+          f.reads.length=0;f.parses.length=0;f.work.reset();f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:[]}});target.stat={...target.stat,mtime:target.stat.mtime+1};f.app.vault.trigger('modify',target);f.app.metadataCache.trigger('changed',target);ok(!f.acquisition.hasSemanticDependencies(),'Modify closes maintenance readiness');closeKnownWave('Modify');ok(await settle(),'Modify native wave converges');ok(f.acquisition.hasSemanticDependencies(),'Modify reopens maintenance readiness');assertLocal('Modify');
+          targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.kind),['document','unresolved'],'Modify/alias wave refreshes only proven inbound resolution');equal((await f.repository.inspect(other.path)).head,otherBefore,'Modify keeps unrelated head exact');equal(f.reads,['Target.md'],'Modify reads only its changed source');equal(f.parses.length,1,'Modify parses only its changed source');
+
+          f.reads.length=0;f.parses.length=0;f.work.reset();f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:['AliasTarget']}});const oldPath=target.path,frontmatter=f.metadata.get(oldPath),body=f.texts.get(oldPath);f.files.delete(oldPath);f.metadata.delete(oldPath);f.texts.delete(oldPath);target.path='Renamed.md';target.name='Renamed.md';target.basename='Renamed';f.files.set(target.path,target);f.metadata.set(target.path,frontmatter);f.texts.set(target.path,body);f.app.vault.trigger('rename',target,oldPath);ok(!f.acquisition.hasSemanticDependencies(),'Rename closes maintenance readiness');closeKnownWave('Rename');ok(await settle(),'Rename native wave converges');ok(f.acquisition.hasSemanticDependencies(),'Rename reopens maintenance readiness');assertLocal('Rename');
+          targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.target),['../Target','Renamed.md'],'Rename repairs path and alias bindings');equal((await f.repository.inspect(oldPath)).reason,'tombstone','Rename tombstones old source binding');equal((await f.repository.inspect(other.path)).head,otherBefore,'Rename keeps unrelated head exact');equal(f.reads,[],'Rename rereads no unchanged body');equal(f.parses,[],'Rename reparses no unchanged body');
+
+          f.reads.length=0;f.parses.length=0;f.work.reset();f.files.delete(target.path);f.metadata.delete(target.path);f.texts.delete(target.path);f.app.vault.trigger('delete',target);ok(!f.acquisition.hasSemanticDependencies(),'Delete closes maintenance readiness');closeKnownWave('Delete');ok(await settle(),'Delete native wave converges');ok(f.acquisition.hasSemanticDependencies(),'Delete reopens maintenance readiness');assertLocal('Delete');
+          targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.kind),['unresolved','unresolved'],'Delete repairs proven inbound resolution');equal((await f.repository.inspect(other.path)).head,otherBefore,'Delete keeps unrelated head exact');equal(f.reads,[],'Delete rereads no unchanged body');equal(f.parses,[],'Delete reparses no unchanged body');
+
+          f.reads.length=0;f.parses.length=0;f.work.reset();const recreated=f.add('Target.md','',{aliases:['AliasTarget']});f.app.vault.trigger('create',recreated);f.app.metadataCache.trigger('changed',recreated);closeKnownWave('Recreate');ok(await settle(),'Recreate native wave converges');ok(f.acquisition.hasSemanticDependencies(),'Recreate reopens maintenance readiness');assertLocal('Recreate');
+          targets=await resolutionTargets(ref.path);equal(targets.map(r=>r.target),['Target.md','Target.md'],'Recreate repairs both inbound bindings');equal((await f.repository.inspect(other.path)).head,otherBefore,'Recreate keeps unrelated head exact');equal(f.reads,['Target.md'],'Recreate reads only recreated source');equal(f.parses.length,1,'Recreate parses only recreated source');
+
+          // Two complete native waves can arrive synchronously before maintenance gets CPU time.
+          f.reads.length=0;f.parses.length=0;f.work.reset();for(let index=0;index<2;index++){recreated.stat={...recreated.stat,mtime:recreated.stat.mtime+1};f.app.vault.trigger('modify',recreated);f.app.metadataCache.trigger('changed',recreated);closeKnownWave('Synchronous modify '+index);}ok(await settle(),'Synchronous native waves coalesce');assertLocal('Synchronous waves');equal(f.reads,['Target.md'],'Synchronous waves read the changed body once');equal(f.parses.length,1,'Synchronous waves parse the changed body once');
+
+          // A later resolved event has no causal token and must take the uncertain cached-fact lane.
+          f.reads.length=0;f.parses.length=0;f.work.reset();const beforeUnscoped=f.acquisition.getMaintenanceRevision();f.app.metadataCache.trigger('resolved');equal(f.acquisition.getMaintenanceRevision(),beforeUnscoped+1,'Later unscoped resolved advances exactly one maintenance fence');ok(!f.acquisition.hasSemanticDependencies(),'Unscoped resolved closes maintenance readiness');ok(await f.acquisition.reconcile(),'Later unscoped resolved converges');ok(f.acquisition.hasSemanticDependencies(),'Unscoped pass reopens maintenance readiness');const uncertain=f.work.snapshot();equal(uncertain.markdownEnumerations,1,'Unscoped pass enumerates cached Markdown inventory once');equal(uncertain.rootEnumerations,1,'Unscoped pass rebuilds structural order once');ok(uncertain.headPages>0,'Unscoped pass pages durable heads');equal(f.reads,[],'Unscoped pass rereads no unchanged Markdown');equal(f.parses,[],'Unscoped pass reparses no unchanged Markdown');
+          return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("native resolved during reconciliation stays covered, while folder causes remain uncertain and unload cancels bounded state", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const setup=async vault=>{const f=await fixture(vault),target=f.add('Target.md','',{aliases:['AliasTarget']});f.add('Ref.md','Friends:: [[Target]] [[AliasTarget]]');f.add('Other.md','');f.app.metadataCache.getFirstLinkpathDest=literal=>literal==='Target'||literal==='AliasTarget'?target:null;await f.acquire();ok(await f.acquisition.reconcile(),'Initial authority closes');return {f,target};};
+        const settle=async f=>{for(let attempt=0;attempt<6;attempt++)if(await f.acquisition.reconcile())return true;return false;};
+        let first=null,second=null,firstTarget=null,secondTarget=null;
+        try{
+          ({f:first,target:firstTarget}=await setup('local-r2-native-inflight'));
+          first.work.reset();first.reads.length=0;first.parses.length=0;
+          const liveLookup=first.repository.lookupLocalDependencies.bind(first.repository);let releaseLookup,markStarted;const lookupStarted=new Promise(resolve=>{markStarted=resolve;});const lookupGate=new Promise(resolve=>{releaseLookup=resolve;});let held=true;
+          first.repository.lookupLocalDependencies=async(...args)=>{if(held){held=false;markStarted();await lookupGate;}return liveLookup(...args);};
+          firstTarget.stat={...firstTarget.stat,mtime:firstTarget.stat.mtime+1};first.app.vault.trigger('modify',firstTarget);first.app.metadataCache.trigger('changed',firstTarget);const beforeClose=first.acquisition.getMaintenanceRevision();first.app.metadataCache.trigger('resolved');equal(first.acquisition.getMaintenanceRevision(),beforeClose,'Resolved close before reconciliation remains covered');const pass=first.acquisition.reconcile();await lookupStarted;
+          firstTarget.stat={...firstTarget.stat,mtime:firstTarget.stat.mtime+1};first.app.vault.trigger('modify',firstTarget);first.app.metadataCache.trigger('changed',firstTarget);const during=first.acquisition.getMaintenanceRevision();first.app.metadataCache.trigger('resolved');equal(first.acquisition.getMaintenanceRevision(),during,'Resolved arriving during reconciliation remains covered');releaseLookup();await pass;first.repository.lookupLocalDependencies=liveLookup;ok(await settle(first),'Superseding known event converges after in-flight pass');ok(first.acquisition.hasSemanticDependencies(),'Readiness reopens after in-flight known waves');let work=first.work.snapshot();equal(work.markdownEnumerations,0,'In-flight known waves never enumerate Markdown inventory');equal(work.headPages,0,'In-flight known waves never page durable heads');ok(!work.inspections.includes('Other.md'),'In-flight known waves inspect no unrelated source');ok(!work.visits.some(id=>id.startsWith('Other.md:')),'In-flight known waves visit no unrelated source');ok(!work.writes.some(id=>id.includes('Other.md')),'In-flight known waves write no unrelated source');
+
+          // A folder/non-file cause is not proof that the resolver wave is source-local.
+          first.work.reset();const folder=new window.ContributorFolder();folder.path='Empty';folder.name='Empty';const beforeFolder=first.acquisition.getMaintenanceRevision();first.app.vault.trigger('create',folder);const afterFolder=first.acquisition.getMaintenanceRevision();equal(afterFolder,beforeFolder+1,'Folder event advances its known maintenance observation');first.app.metadataCache.trigger('resolved');equal(first.acquisition.getMaintenanceRevision(),afterFolder+1,'Folder-following resolved remains uncertain');ok(await first.acquisition.reconcile(),'Folder uncertain pass converges');work=first.work.snapshot();equal(work.markdownEnumerations,1,'Folder uncertain pass enumerates cached Markdown inventory');ok(work.headPages>0,'Folder uncertain pass pages durable heads');
+
+          ({f:second,target:secondTarget}=await setup('local-r2-native-unload'));second.work.reset();secondTarget.stat={...secondTarget.stat,mtime:secondTarget.stat.mtime+1};second.app.vault.trigger('modify',secondTarget);second.app.metadataCache.trigger('changed',secondTarget);const beforeUnloadClose=second.acquisition.getMaintenanceRevision();second.app.metadataCache.trigger('resolved');equal(second.acquisition.getMaintenanceRevision(),beforeUnloadClose,'Unload fixture known close is covered');second.acquisition.close();await Promise.resolve();await Promise.resolve();work=second.work.snapshot();equal(work.markdownEnumerations,0,'Unload starts no full Markdown enumeration');equal(work.headPages,0,'Unload starts no durable-head paging');ok(!work.writes.some(id=>id.includes('Other.md')),'Unload performs no unrelated write');second.close();second=null;
+          return true;
+        }finally{first?.close();second?.close();}
+      })()`), true);
+    });
+
     await t.test("known-event bursts coalesce while unscoped resolver waves take one uncertain cached-fact pass", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const f=await fixture('local-r2-coalescing');
