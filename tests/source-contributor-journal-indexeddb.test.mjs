@@ -80,7 +80,9 @@ test("real Chromium owner repair journal: atomic authority, recovery, leases and
         const result=await f.acquisition.contributorDiscovery(runtime()).prepareOwnerImpact('A.md',await repairRequest(f));
         equal(result.outcome,'unknown',JSON.stringify(result));equal(result.work.familyVisits,4,'Only edited owner prepared');ok(!('certificate'in result),'No incomplete referrer closure');
         equal((await journal(f)).status,'unknown','C cannot be excluded merely from direct keys');
-        f.app.metadataCache.trigger('resolved');await f.repository.flush();
+        // The first resolver close belongs to the known modify wave. A second resolver event has no
+        // causal TFile token and therefore exercises the uncertain/global host-journal lane.
+        f.app.metadataCache.trigger('resolved');f.app.metadataCache.trigger('resolved');await f.repository.flush();
         const resolution=await f.repository.readContributorJournal({kind:'host',id:'catalog'});equal(resolution.change.kind,'resolution','Resolver event persisted');ok(resolution.ticket!==host.ticket,'Newer ticket');equal(resolution.root,host.root,'First anchor retained');
         f.app.vault.trigger('create',f.add('New.md',''));await f.repository.flush();equal((await f.repository.readContributorJournal({kind:'host',id:'catalog'})).change.kind,'topology','Topology unknown');
         const d=f.acquisition.contributorDiscovery(runtime());f.app.daily.folder='Other';equal(d.host.validate(),false,'Daily input observed');await f.repository.flush();
