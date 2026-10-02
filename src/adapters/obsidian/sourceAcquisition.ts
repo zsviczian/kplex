@@ -41,6 +41,7 @@ import { hostLinkRecord, ObsidianHostLinkSourceCollector } from "./hostLinkSourc
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
 type FileObservation = { identity: string | null; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null };
+type SourceCoordinates = Readonly<{ order: number; markdownOrder: number }>;
 type Capture = { physical: SourcePhysical; revision: number; hostRevision: number; state: FileObservation; file: TFile };
 /** Narrow parser port: acquisition does not import GraphBuilder or own a second parser. */
 export type SourceBodyParser = (content: string) => Promise<ParsedBodyMetadata>;
@@ -89,6 +90,8 @@ export class ObsidianSourceAcquisition {
   private catalogObservation = 0;
   /** Settings-only reads are enabled only after the startup/event inventory closed every local owner. */
   private localDependenciesReady = false;
+  /** Durable local lookup authority remains usable while a known source-local maintenance fence is open. */
+  private localDependencyAuthorityReady = false;
   private closed = false;
   private started = false;
   private enabled = false;
@@ -104,8 +107,22 @@ export class ObsidianSourceAcquisition {
   private uncertainResolution = false;
   /** Date/Daily Notes drift closes semantic writes without advancing the reversible legacy host revision. */
   private environmentMaintenancePending = false;
-  /** Transient local lookup misses retry after the accepted R1 inventory closes. */
-  private readonly pendingResolutionImpacts: Array<Readonly<{ keys: readonly string[]; excluded: ReadonlySet<string> }>> = [];
+  /** Transient local lookup misses coalesce by dependency/source identity instead of retaining one entry per event. */
+  private readonly pendingResolutionKeys = new Set<string>();
+  /** A failed durable count-journal close is retried without rediscovering source inventory. */
+  private localInventoryCompletionPending = false;
+  /** Known host events and proven referrers are the complete hot-lane acquisition set. */
+  private readonly pendingKnownFiles = new Set<TFile>();
+  /** Synchronous event bursts share one deferred fan-out task per TFile. */
+  private readonly pendingKnownImpacts = new Map<TFile, { oldPaths: Set<string>; canLookup: boolean }>();
+  private readonly knownFanoutTasks = new WeakMap<TFile, Promise<void>>();
+  /** Startup captures reusable stable coordinates; hot maintenance never rebuilds whole-vault order. */
+  private readonly sourceCoordinates = new Map<string, SourceCoordinates>();
+  private nextSourceOrder = 0;
+  private nextMarkdownOrder = 0;
+  /** Cheap idle preflight: field vocabulary is collected while sources are already being visited. */
+  private readonly environmentFields = new Map<string, boolean>();
+  private dailyNotesObservation: string | null = null;
   /** Prevent a changed source from replacing old durable alias/path evidence before fan-out capture. */
   private knownImpactTasks = 0;
   /** R3 owns high-degree continuation; R2 must preserve the accepted terminal backpressure behavior. */
@@ -134,7 +151,7 @@ export class ObsidianSourceAcquisition {
     const changed = (file?: TFile, created = false, oldPath?: string, bodyChanged = false,
       kind: ContributorHostChange["kind"] = "source"): void => {
       const effectiveKind = created || oldPath ? "topology" : kind;
-      const dependenciesWereReady = this.localDependenciesReady;
+      const dependenciesWereReady = this.localDependencyAuthorityReady;
       this.markContributorHostChange(effectiveKind, !file && effectiveKind === "resolution");
       if (file) {
         const state = this.state(file);
@@ -143,11 +160,8 @@ export class ObsidianSourceAcquisition {
         if (oldPath) state.oldPath = oldPath;
         this.repository.cancelSource(oldPath ?? state.path);
         this.repository.cancelSource(file.path);
-        const task = this.markKnownResolutionDependents(file, oldPath, dependenciesWereReady);
-        const prior = state.impact;
-        const impact = prior ? Promise.all([prior, task]).then(() => undefined) : task;
-        state.impact = impact;
-        void impact.finally(() => { if (state.impact === impact) state.impact = null; });
+        this.pendingKnownFiles.add(file);
+        this.queueKnownResolutionImpact(file, oldPath, dependenciesWereReady);
       }
       this.requestInventory();
     };
@@ -156,25 +170,25 @@ export class ObsidianSourceAcquisition {
     const rename = this.app.vault.on("rename", (file, oldPath) => {
       changed(file instanceof TFile ? file : undefined, false, oldPath);
       if (file instanceof TFile) {
-        const state = this.state(file), fanout = state.impact ?? Promise.resolve();
+        const state = this.state(file), fanout = this.knownFanoutTasks.get(file) ?? Promise.resolve();
+        const prior = state.impact ?? Promise.resolve();
         this.knownImpactTasks += 1;
         const tombstone = this.repository.tombstone(oldPath,
-          () => !this.closed && !this.app.vault.getFileByPath(oldPath), true, fanout).then(() => undefined)
+          () => !this.closed && !this.app.vault.getFileByPath(oldPath), true, Promise.all([prior, fanout])).then(() => undefined)
           .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
-        const impact = Promise.all([fanout, tombstone]).then(() => undefined);
-        state.impact = impact; void impact.finally(() => { if (state.impact === impact) state.impact = null; });
+        state.impact = tombstone; void tombstone.finally(() => { if (state.impact === tombstone) state.impact = null; });
       }
     });
     const remove = this.app.vault.on("delete", (file) => {
       changed(file instanceof TFile ? file : undefined, false, undefined, false, "topology");
       if (file instanceof TFile) {
-        const path = file.path, state = this.state(file), fanout = state.impact ?? Promise.resolve();
+        const path = file.path, state = this.state(file), fanout = this.knownFanoutTasks.get(file) ?? Promise.resolve();
+        const prior = state.impact ?? Promise.resolve();
         this.knownImpactTasks += 1;
         const tombstone = this.repository.tombstone(path,
-          () => !this.closed && !this.app.vault.getFileByPath(path), false, fanout).then(() => undefined)
+          () => !this.closed && !this.app.vault.getFileByPath(path), false, Promise.all([prior, fanout])).then(() => undefined)
           .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
-        const impact = Promise.all([fanout, tombstone]).then(() => undefined);
-        state.impact = impact; void impact.finally(() => { if (state.impact === impact) state.impact = null; });
+        state.impact = tombstone; void tombstone.finally(() => { if (state.impact === tombstone) state.impact = null; });
       }
     });
     const metadata = this.app.metadataCache.on("changed", (file) => changed(file));
@@ -191,12 +205,12 @@ export class ObsidianSourceAcquisition {
     if (global) {
       if (!this.uncertainResolution) {
         this.uncertainResolution = true; this.hostRevision += 1; this.inventoryRevision += 1;
-        this.maintenanceRevision += 1; this.localDependenciesReady = false;
+        this.maintenanceRevision += 1; this.localDependenciesReady = false; this.localDependencyAuthorityReady = false;
       }
     } else if (kind === "environment") {
       if (!this.environmentMaintenancePending) {
         this.environmentMaintenancePending = true; this.inventoryRevision += 1;
-        this.maintenanceRevision += 1; this.localDependenciesReady = false;
+        this.maintenanceRevision += 1; this.localDependenciesReady = false; this.localDependencyAuthorityReady = false;
       }
     } else {
       this.catalogObservation += 1;
@@ -284,6 +298,7 @@ export class ObsidianSourceAcquisition {
         if (!state.resolutionDirty) {
           state.resolutionDirty = true; state.revision += 1; this.repository.cancelSource(sourceId);
         }
+        this.pendingKnownFiles.add(file);
         if (++marked % SOURCE_MAX_BATCH_RECORDS === 0) {
           await new Promise<void>(resolve => window.setTimeout(resolve, 0));
           if (!current()) return "cancelled";
@@ -298,7 +313,8 @@ export class ObsidianSourceAcquisition {
   private promoteUnknownFanout(): void {
     if (this.uncertainResolution) return;
     this.uncertainResolution = true; this.hostRevision += 1; this.inventoryRevision += 1;
-    this.localDependenciesReady = false; this.requested = true;
+    this.maintenanceRevision += 1;
+    this.localDependenciesReady = false; this.localDependencyAuthorityReady = false; this.requested = true;
   }
 
   /** Queue a local lookup retry without changing the accepted R3 high-degree backpressure boundary. */
@@ -311,34 +327,70 @@ export class ObsidianSourceAcquisition {
     }
     const unique = [...new Set(keys.filter(Boolean))];
     if (!unique.length) return;
-    this.pendingResolutionImpacts.push({ keys: unique, excluded: new Set(excluded) });
+    for (const key of unique) this.pendingResolutionKeys.add(key);
   }
 
-  /** Resolve known live file-event fan-out from durable/current aliases, exact targets and lexical tokens. */
-  private async markKnownResolutionDependents(file: TFile, oldPath: string | undefined, canLookup: boolean): Promise<void> {
+  /** Coalesce a synchronous source-event burst before any durable/local dependency lookup begins. */
+  private queueKnownResolutionImpact(file: TFile, oldPath: string | undefined, canLookup: boolean): Promise<void> {
+    let pending = this.pendingKnownImpacts.get(file);
+    if (!pending) {
+      pending = { oldPaths: new Set(), canLookup };
+      this.pendingKnownImpacts.set(file, pending);
+    } else pending.canLookup ||= canLookup;
+    if (oldPath) pending.oldPaths.add(oldPath);
+    const active = this.knownFanoutTasks.get(file);
+    if (active) return active;
     this.knownImpactTasks += 1;
-    const current = (): boolean => !this.closed;
-    try {
-      const keys = new Set<string>();
-      const eventPath = file.path;
-      const cache = this.app.metadataCache.getFileCache(file);
-      if (cache) for (const key of this.resolutionImpactKeys(eventPath, this.currentHostInventory(file, cache))) keys.add(key);
-      const candidates = [oldPath, eventPath].filter((path): path is string => !!path);
-      for (const path of candidates) {
-        const durable = await this.durableHostInventory(path, current);
-        if (!current()) return;
-        if (durable.reason === "ready") for (const key of this.resolutionImpactKeys(path, durable.facts)) keys.add(key);
-        else for (const key of this.resolutionImpactKeys(path, [])) keys.add(key);
-      }
-      const excluded = new Set(candidates);
-      if (!canLookup) { this.deferResolutionImpact([...keys], excluded, "dependency-pending"); return; }
-      const reason = await this.markResolutionDependents([...keys], excluded, current);
-      if (reason !== "ready" && reason !== "cancelled" && current()) this.deferResolutionImpact([...keys], excluded, reason);
-    } catch {
-      if (current()) this.promoteUnknownFanout();
-    } finally {
+    const task = Promise.resolve().then(() => this.markKnownResolutionDependents(file)).catch(() => {
+      if (!this.closed) this.promoteUnknownFanout();
+    }).finally(() => {
+      if (this.knownFanoutTasks.get(file) === task) this.knownFanoutTasks.delete(file);
       this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1);
       if (!this.closed) this.requestInventory();
+    });
+    this.knownFanoutTasks.set(file, task);
+    return task;
+  }
+
+  /** Resolve one coalesced live file-event fan-out from durable/current aliases, exact targets and lexical tokens. */
+  private async markKnownResolutionDependents(file: TFile): Promise<void> {
+    const current = (): boolean => !this.closed;
+    // Keep the task alive through every event that arrives while its durable reads/lookup are awaited.
+    // Rename/delete tombstones await this same promise, so old alias/path evidence cannot retire early.
+    while (current()) {
+      const keys = new Set<string>();
+      const candidates = new Set<string>();
+      const durableCandidates = new Set<string>();
+      let canLookup = false;
+      while (current()) {
+        const pending = this.pendingKnownImpacts.get(file);
+        if (!pending) break;
+        this.pendingKnownImpacts.delete(file);
+        canLookup ||= pending.canLookup;
+        const eventPath = file.path;
+        candidates.add(eventPath);
+        for (const path of pending.oldPaths) candidates.add(path);
+        const cache = this.app.metadataCache.getFileCache(file);
+        if (cache) for (const key of this.resolutionImpactKeys(eventPath, this.currentHostInventory(file, cache))) keys.add(key);
+        for (const path of candidates) {
+          if (durableCandidates.has(path)) continue;
+          durableCandidates.add(path);
+          const durable = await this.durableHostInventory(path, current);
+          if (!current()) return;
+          if (durable.reason === "ready") for (const key of this.resolutionImpactKeys(path, durable.facts)) keys.add(key);
+          else for (const key of this.resolutionImpactKeys(path, [])) keys.add(key);
+        }
+      }
+      if (!current()) return;
+      if (keys.size) {
+        const excluded = new Set(candidates);
+        if (!canLookup) this.deferResolutionImpact([...keys], excluded, "dependency-pending");
+        else {
+          const reason = await this.markResolutionDependents([...keys], excluded, current);
+          if (reason !== "ready" && reason !== "cancelled" && current()) this.deferResolutionImpact([...keys], excluded, reason);
+        }
+      }
+      if (!this.pendingKnownImpacts.has(file)) return;
     }
   }
 
@@ -433,23 +485,124 @@ export class ObsidianSourceAcquisition {
   /** Retry local fan-out once R1 count repair has closed the inventory. */
   private async retryDeferredResolutionImpacts(current: () => boolean): Promise<SourceReason> {
     if (this.resolutionBackpressure) return "backpressure";
-    if (!this.pendingResolutionImpacts.length) return "ready";
-    const pending = this.pendingResolutionImpacts.splice(0);
-    for (let index = 0; index < pending.length; index += 1) {
-      if (!current()) { this.pendingResolutionImpacts.unshift(...pending.slice(index)); return "cancelled"; }
-      const impact = pending[index];
-      const reason = await this.markResolutionDependents(impact.keys, impact.excluded, current);
-      if (reason === "ready") continue;
-      if (reason === "backpressure") { this.resolutionBackpressure = true; return reason; }
-      if (reason !== "dependency-pending" && reason !== "unsaved" && reason !== "superseded" && reason !== "storage-unavailable"
-        && reason !== "read-error" && reason !== "write-error" && reason !== "cancelled") {
-        this.promoteUnknownFanout();
-        return reason;
-      }
-      this.pendingResolutionImpacts.unshift(...pending.slice(index));
+    if (!this.pendingResolutionKeys.size) return "ready";
+    if (!current()) return "cancelled";
+    const keys = [...this.pendingResolutionKeys];
+    this.pendingResolutionKeys.clear();
+    // Deferred impacts may combine independent changed sources. Re-selecting a changed source that
+    // also proves to be a referrer is harmless; globally unioning exclusions could hide a real edge.
+    const reason = await this.markResolutionDependents(keys, new Set(), current);
+    if (reason === "ready") return reason;
+    if (reason === "backpressure") { this.resolutionBackpressure = true; return reason; }
+    if (reason !== "dependency-pending" && reason !== "unsaved" && reason !== "superseded" && reason !== "storage-unavailable"
+      && reason !== "read-error" && reason !== "write-error" && reason !== "cancelled") {
+      this.promoteUnknownFanout();
       return reason;
     }
-    return "ready";
+    for (const key of keys) this.pendingResolutionKeys.add(key);
+    return reason;
+  }
+
+  /** Remember only the field vocabulary needed to detect Date-registry drift without touching source inventory. */
+  private observeEnvironment(cache: CachedMetadata): void {
+    this.dailyNotesObservation = JSON.stringify(this.metadataHost.dailyNotesSettings());
+    for (const field of Object.keys(cache.frontmatter ?? {})) {
+      if (field === "position") continue;
+      this.environmentFields.set(field, this.metadataHost.isDateProperty(field));
+    }
+  }
+
+  /** Cheap idle/environment preflight: no Vault inventory, source inspection, family visit or write. */
+  private environmentObservationChanged(): boolean {
+    if (this.dailyNotesObservation !== null
+      && this.dailyNotesObservation !== JSON.stringify(this.metadataHost.dailyNotesSettings())) return true;
+    for (const [field, wasDate] of this.environmentFields) if (this.metadataHost.isDateProperty(field) !== wasDate) return true;
+    return false;
+  }
+
+  /** Reuse a moved source's established order; new sources append without renumbering unrelated owners. */
+  private coordinatesFor(file: TFile): SourceCoordinates {
+    const state = this.state(file);
+    let coordinates = this.sourceCoordinates.get(file.path);
+    if (!coordinates && state.oldPath) coordinates = this.sourceCoordinates.get(state.oldPath);
+    if (!coordinates) coordinates = { order: this.nextSourceOrder++, markdownOrder: this.nextMarkdownOrder++ };
+    if (state.oldPath && state.oldPath !== file.path) this.sourceCoordinates.delete(state.oldPath);
+    this.sourceCoordinates.set(file.path, coordinates);
+    return coordinates;
+  }
+
+  /** Maintain only changed sources and proven referrers after startup authority has closed. */
+  private async reconcileKnownImpacts(current: () => boolean): Promise<boolean> {
+    let complete = true;
+    while (current()) {
+      if (this.uncertainResolution || this.environmentMaintenancePending || !this.localDependencyAuthorityReady) return false;
+      const deferred = await this.retryDeferredResolutionImpacts(current);
+      if (deferred !== "ready") return false;
+      if (this.uncertainResolution || this.environmentMaintenancePending || !this.localDependencyAuthorityReady) return false;
+      const files = [...this.pendingKnownFiles];
+      if (!files.length && !this.localInventoryCompletionPending) break;
+      if (files.length) this.localInventoryCompletionPending = true;
+      let retryPendingMetadata = false;
+      for (const file of files) {
+        if (!current()) return false;
+        // Delete before work: a concurrent event for this same TFile re-adds it and cannot be erased
+        // by successful completion of the older observation. Unvisited snapshot entries stay queued.
+        this.pendingKnownFiles.delete(file);
+        if (this.app.vault.getFileByPath(file.path) !== file || file.extension !== "md") {
+          this.sourceCoordinates.delete(file.path);
+          continue;
+        }
+        if (this.environmentObservationChanged()) {
+          this.markContributorHostChange("environment");
+          return false;
+        }
+        const hostCache = this.app.metadataCache.getFileCache(file);
+        if (!hostCache) {
+          this.counters.pendingMetadata += 1;
+          this.pendingKnownFiles.add(file);
+          retryPendingMetadata = true;
+          complete = false;
+          continue;
+        }
+        const body = await this.loadBody(file, current);
+        if (!body || !current()) { this.pendingKnownFiles.add(file); return false; }
+        const acquired = await this.acquire(file, body, current);
+        if (!acquired.current) { this.pendingKnownFiles.add(file); return false; }
+        complete &&= acquired.saved;
+        if (!acquired.saved) this.pendingKnownFiles.add(file);
+        if (acquired.saved) {
+          const coordinates = this.coordinatesFor(file);
+          const local = await this.repository.ensureLocalDependencies(file.path, coordinates.order, coordinates.markdownOrder, current);
+          complete &&= local === "ready";
+          if (local !== "ready") this.pendingKnownFiles.add(file);
+          this.observeEnvironment(hostCache);
+          const state = this.state(file);
+          if (state.oldPath) {
+            const oldPath = state.oldPath;
+            const tombstone = await this.repository.tombstone(oldPath, () => current() && !this.app.vault.getFileByPath(oldPath), true);
+            complete &&= tombstone.outcome === "activated";
+            if (tombstone.outcome === "activated") state.oldPath = undefined;
+            else this.pendingKnownFiles.add(file);
+          }
+        }
+        await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+      }
+      if (!complete || retryPendingMetadata) break;
+      if (this.localInventoryCompletionPending) {
+        const local = await this.repository.completeLocalDependencyInventory(current);
+        if (local !== "ready") { complete = false; break; }
+        this.localInventoryCompletionPending = false;
+      }
+      // Fan-out lookup can discover more referrers; iterate only that newly proven set.
+      if (!this.pendingKnownFiles.size && !this.pendingResolutionKeys.size) break;
+    }
+    const ready = current() && complete && !this.resolutionBackpressure && !this.uncertainResolution
+      && !this.environmentMaintenancePending && this.pendingKnownFiles.size === 0 && this.pendingResolutionKeys.size === 0
+      && !this.localInventoryCompletionPending;
+    this.localDependenciesReady = ready;
+    this.localDependencyAuthorityReady = ready || this.localDependencyAuthorityReady && !this.uncertainResolution && !this.environmentMaintenancePending;
+    if (ready) this.inventoryReady?.();
+    return ready;
   }
 
   /** Repair referrers discovered only after a deferred local lookup without rescanning unrelated sources. */
@@ -892,6 +1045,12 @@ export class ObsidianSourceAcquisition {
   async acquire(file: TFile, body: ParsedBodyMetadata, caller: () => boolean = () => true): Promise<SourceAcquisitionResult> {
     this.start();
     const state = this.state(file);
+    while (this.knownFanoutTasks.get(file)) {
+      const fanout = this.knownFanoutTasks.get(file)!;
+      await fanout;
+      if (!caller() || this.closed) return { current: false, saved: false, reason: "cancelled" };
+      if (this.knownFanoutTasks.get(file) === fanout) this.knownFanoutTasks.delete(file);
+    }
     while (state.impact) {
       const impact = state.impact;
       await impact;
@@ -967,9 +1126,26 @@ export class ObsidianSourceAcquisition {
   }
   /** Enable after the existing authoritative publication; do not lengthen its metadata-stability gate. */
   enableInventory(): void {
-    this.start(); this.enabled = true; this.requestInventory();
-    if (this.pollTimer === null && !this.closed) this.pollTimer = window.setTimeout(() => {
-      this.pollTimer = null; this.enableInventory();
+    this.start();
+    const wasEnabled = this.enabled;
+    this.enabled = true;
+    if (!wasEnabled && (!this.localDependencyAuthorityReady || this.requested || this.pendingKnownFiles.size > 0
+      || this.pendingResolutionKeys.size > 0 || this.localInventoryCompletionPending || this.uncertainResolution || this.environmentMaintenancePending)) this.requestInventory();
+    this.schedulePoll();
+  }
+  /** Periodic host drift check is observation-only unless a token actually changes. */
+  private schedulePoll(): void {
+    if (this.pollTimer !== null || this.closed || !this.enabled) return;
+    this.pollTimer = window.setTimeout(() => {
+      this.pollTimer = null;
+      if (this.closed || !this.enabled) return;
+      if (!this.resolutionBackpressure && (!this.localDependencyAuthorityReady || this.pendingKnownFiles.size > 0
+        || this.pendingResolutionKeys.size > 0 || this.localInventoryCompletionPending || this.knownImpactTasks > 0)) this.requestInventory();
+      else if (this.localDependencyAuthorityReady && this.environmentObservationChanged()) {
+        this.markContributorHostChange("environment");
+        this.requestInventory();
+      }
+      this.schedulePoll();
     }, 30000);
   }
   /** Yield storage bandwidth to a complete graph rebuild; preserve the pending inventory request. */
@@ -1010,6 +1186,8 @@ export class ObsidianSourceAcquisition {
       try {
         while (this.knownImpactTasks > 0 && current()) await new Promise<void>(resolve => window.setTimeout(resolve, 0));
         if (!current()) return false;
+        if (this.localDependencyAuthorityReady && this.restartInventoryChecked
+          && !this.uncertainResolution && !this.environmentMaintenancePending) return this.reconcileKnownImpacts(current);
         // Events observed before this boundary are one coalesced cached-fact pass. A new unscoped
         // resolver/environment event after this point advances inventoryRevision and cancels the pass.
         // Keep whether this pass was already globally fenced so polling-discovered environment drift
@@ -1020,6 +1198,16 @@ export class ObsidianSourceAcquisition {
         const markdown = this.app.vault.getMarkdownFiles();
         const structuralOrder = structuralMarkdownSourceOrder(this.app.vault);
         if (structuralOrder.size !== markdown.length) return false;
+        this.sourceCoordinates.clear();
+        this.nextSourceOrder = 0; this.nextMarkdownOrder = markdown.length;
+        for (const [markdownOrder, file] of markdown.entries()) {
+          const order = structuralOrder.get(file.path);
+          if (order === undefined) return false;
+          this.sourceCoordinates.set(file.path, { order, markdownOrder });
+          this.nextSourceOrder = Math.max(this.nextSourceOrder, order + 1);
+        }
+        this.environmentFields.clear();
+        this.dailyNotesObservation = JSON.stringify(this.metadataHost.dailyNotesSettings());
         if (!this.restartInventoryChecked && !(await this.upgradeRestartLocalDependencies(markdown, structuralOrder, current))) return false;
         if (!(await this.reconcileRestartHostInventory(markdown, current))) return false;
         for (const [markdownOrder, file] of markdown.entries()) {
@@ -1030,6 +1218,7 @@ export class ObsidianSourceAcquisition {
           if (capture.state.oldPath) movedPaths.add(capture.state.oldPath);
           const hostCache = this.app.metadataCache.getFileCache(file);
           if (!hostCache) { this.counters.pendingMetadata += 1; complete = false; continue; }
+          this.observeEnvironment(hostCache);
           const environment = await this.repository.observationDigest(this.environment(hostCache));
           const inspection = await this.repository.inspect(file.path, [], current);
           if (!current()) return false;
@@ -1101,7 +1290,12 @@ export class ObsidianSourceAcquisition {
         }
         ready &&= !this.resolutionBackpressure;
         this.localDependenciesReady = ready;
-        if (ready) this.inventoryReady?.();
+        this.localDependencyAuthorityReady = ready;
+        this.localInventoryCompletionPending = false;
+        if (ready) {
+          this.pendingKnownFiles.clear();
+          this.inventoryReady?.();
+        }
         return ready;
       } catch { this.counters.failures += 1; return false; }
     })();

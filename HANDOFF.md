@@ -15,58 +15,49 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-# Offline assignment — consolidated SI4-R2 locality correction
+# Offline return — SI4-R2 locality correction
 
-## Baseline and scope
+## Changed files
 
-- Branch: `indexing-optimization-v2`
-- Baseline: `5160f7a` (`Checkpoint incomplete SI4 host maintenance return`)
-- Governing plan: `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`, SI4-R2.
-- Correct the current SI4-R2 implementation as one package. Keep its useful resolver-token, restart-repair and GraphIndex-fence work. Do not start SI4-R3, SI5 or C15–C26.
+- `src/adapters/obsidian/sourceAcquisition.ts`
+- `tests/support/contributorBrowserFixture.mjs`
+- `tests/source-local-dependencies-indexeddb.test.mjs`
+- `tests/source-replay.test.mjs`
+- `HANDOFF.md`
 
-## Blocking defect
+## Production behavior
 
-After local authority is ready, every ordinary file/metadata event still enters the full `reconcile()` path. That path calls `getMarkdownFiles()`, rebuilds structural order, inspects every Markdown source and pages every durable head. The 30-second idle poll repeats the same work with no change. Existing tests prove zero unchanged body reads, but they do not prove local maintenance cost.
+- Acquisition now has a source-local hot lane after startup/restart authority closes. Known create/modify/metadata/alias/rename/delete work is held in bounded `Set`/`Map` state and processes only the changed `TFile`, old binding, and referrers authenticated by source-local dependency keys.
+- Startup/restart, unscoped resolver waves, environment drift, or invalid local fan-out use the existing whole-inventory lane. Known events retain local lookup authority while semantic publication is fenced; unknown promotion now also advances `maintenanceRevision`, the fence consumed by GraphIndex.
+- Startup captures stable source/Markdown coordinates. Hot maintenance reuses a moved owner's coordinates and appends a new owner without rebuilding whole-vault structural order.
+- The 30-second timer is observation-only after readiness: it compares captured Date-property vocabulary and Daily Notes settings. With no token change it does not enumerate Vault files, inspect/visit repository sources, page heads, read bodies, or write.
+- Deferred fan-out is coalesced by unique dependency key, synchronous events share one per-file fan-out task, and rename/delete tombstones wait until all events arriving during that task have captured old durable alias/path evidence. Cancellation leaves unvisited hot work queued.
+- Local count-journal completion is retried directly without rediscovering source inventory. Existing R1 repair, restart reconciliation, resolver-neutral relative/subpath tokens, tombstones, and terminal high-degree backpressure remain on the same repository paths.
 
-SI4-R2 requires ordinary work proportional to the changed source and proven referrers.
+## Locality regression contract
 
-## Required correction
+The real-IDB fixture now records `getMarkdownFiles`, `getFiles`, root traversal, head pages, repository inspections, family visits, writes, local lookups/ensures/completions, body reads, and parses. New/expanded cases use 256 unrelated durable Markdown owners and assert after readiness:
 
-1. Split acquisition maintenance into two explicit lanes:
-   - **cold/uncertain lane:** first startup/restart adoption and one coalesced host-wide resolver/environment reconciliation may traverse cached inventory;
-   - **known-impact lane:** after authority is ready, process only changed source IDs, old bindings and source-local referrers discovered from their dependency keys.
-2. Ordinary modify/create/rename/delete/metadata/alias events must not enumerate the complete Markdown inventory, rebuild whole-vault structural order, inspect unrelated sources or page every durable head. Maintain or reuse the minimum source/order coordinates needed by the affected set.
-3. An idle timer with no changed host/environment token must perform no source enumeration, inspections, family visits or writes. If polling is needed for Date/Daily Notes drift, use a cheap preflight and enter the uncertain lane only when that observation changes.
-4. Coalesce known-event bursts in bounded keyed state. Do not retain one unbounded `pendingResolutionImpacts` array entry per event or replay the same source/key repeatedly.
-5. `promoteUnknownFanout()` must advance the same maintenance fence consumed by GraphIndex so relationship writes and in-flight semantic publication fail closed immediately.
-6. Preserve cancellation, restart recovery, R1 journal atomicity, relative/subpath/alias correctness and the existing 20,015-owner terminal backpressure boundary. Do not introduce another catalog, scheduler or semantic owner.
+- metadata/alias, create, rename, delete, recreate: `0` full Markdown enumerations, `0` structural-root traversals, `0` durable-head pages, and `0` unrelated inspections/visits/writes;
+- 100 synchronous known events: exactly `1` source-local fan-out lookup, no whole-inventory work, no unrelated work, no body read/parse;
+- 20 synchronous unscoped `resolved` events: one maintenance-fence increment and one cached-fact uncertain pass (`1` Markdown enumeration, `1` root traversal, `1` head page in the 258-owner fixture), with zero unchanged body reads/parses;
+- unchanged idle poll: zero inventory enumeration, inspections, visits, writes, reads, and parses;
+- invalid local lookup: second maintenance-fence increment, semantic readiness remains closed until uncertain reconciliation; portable GraphIndex integration additionally proves `isSemanticWriteReady()` and relationship storage candidates fail closed after `promoteUnknownFanout()`.
 
-## Required regressions
+These counter assertions are implemented but could not be runtime-measured here because Chromium navigation is blocked by administrator policy before the test page starts. They remain the first main-agent automated check, not a claimed pass.
 
-Use a fixture with at least 256 unrelated durable Markdown owners and instrument production seams after initial readiness.
+## Validation performed
 
-- A one-source metadata/alias modification may inspect/visit/write only the changed source and proven referrers. Assert no full `getMarkdownFiles`/structural-order/head-page pass and zero unrelated source inspections.
-- Create, rename, delete and recreate have the same bounded locality property while retaining the current relative/subpath/alias results.
-- An idle poll with no observation change performs zero source/inventory work.
-- A burst of known events coalesces to bounded unique source/key work.
-- A burst of unscoped `resolved` events causes exactly one uncertain cached-fact pass, zero unchanged Markdown reads/parses and no retry loop.
-- Forced local-impact invalidity promotes to uncertain maintenance, immediately rejects stale GraphIndex publication and makes relationship writes non-ready.
-- Existing R1/R2 interruption, restart, tombstone, unrelated-head, no-partial-lookup and 20,015-owner tests remain green.
+Environment: Node `v22.16.0`; repository requires `>=22.22.2 <23`, so the requested Node floor was unavailable.
 
-Tests must measure inventory enumeration, repository inspections/visits and writes. Body-read counters alone are insufficient.
+- `npm run test:sources` — **PASS**, 308/308, 0 failed, final run `19.417s`.
+- Focused `node --test tests/source-acquisition.test.mjs tests/source-replay.test.mjs` — **PASS**, 21/21, including the GraphIndex maintenance-fence promotion assertions.
+- `npm run test:sources:browser` — **BLOCKED**, 0/9 execute: every lane fails before test code at Chromium navigation with `net::ERR_BLOCKED_BY_ADMINISTRATOR`. A final focused run of `tests/source-local-dependencies-indexeddb.test.mjs` reaches the same blocker after the production TypeScript bundle transpiles; `file://` navigation is blocked identically.
+- `npm run check:architecture` with a temporary symlink to the globally installed TypeScript 5.8.3 — **PASS**, 7/7 architecture tests; `61` migrated roots, `120` reachable files, `0` violations. The symlink was removed.
+- `npm run verify` — **BLOCKED** in the supplied ZIP environment: no local dependencies. Initial run stops at missing `typescript`; `npm ci` did not complete before the execution transport timeout and its partial `node_modules` was removed. With only the temporary TypeScript shim, `check:core` reaches tests but lacks `esbuild`; its separate normalized-source assertion failure reproduces unchanged on the pristine input ZIP and is not introduced by this return.
 
-## Validation
+## Main-agent verification still required
 
-Use Node 22.22.2 or newer when available. Run focused tests during development, then on the final candidate:
-
-```bash
-npm run test:sources
-npm run test:sources:browser
-npm run verify
-```
-
-Record exact results and limitations. Do not claim blocked checks as passed. Native Obsidian validation remains with the main agent after this corrected automated locality contract passes.
-
-## Return
-
-Leave changes uncommitted. Replace this assignment body with a concise result: changed files, final production behavior, measured locality evidence, tests run, limitations, and only the native scenarios still requiring main-agent verification.
+1. Run `npm run test:sources:browser` in the normal Chromium/IndexedDB environment and inspect the new locality counters above. This is the required automated acceptance gate before calling SI4-R2 complete.
+2. Run `npm run verify` under Node 22.22.2+ with the lockfile dependencies installed.
+3. If those pass, perform only the normal native Obsidian SI4-R2 smoke: live alias/path create/rename/delete/recreate, idle-after-readiness, Date/Daily Notes drift, and stale semantic publication/write fencing. No additional offline architecture work is requested unless those checks expose a defect.

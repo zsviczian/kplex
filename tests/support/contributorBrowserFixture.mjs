@@ -33,8 +33,13 @@ export const contributorBrowserInitialize = `(() => {
     const events=()=>{const refs=new Set();return {on(name,callback){const r={name,callback};refs.add(r);return r;},offref(r){refs.delete(r);},trigger(name,...args){for(const r of refs)if(r.name===name)r.callback(...args);}};};
     const files=new Map(),metadata=new Map(),texts=new Map(),root=new window.ContributorFolder();
     const reads=[],parses=[];
-    const app={vault:{...events(),getFileByPath:path=>files.get(path)??null,getFiles:()=>[...files.values()],
-      getMarkdownFiles:()=>[...files.values()].filter(file=>file.extension==='md'),getRoot:()=>{root.children=[...files.values()];return root;},
+    const work={markdownEnumerations:0,fileEnumerations:0,rootEnumerations:0,headPages:0,localLookups:0,localEnsures:0,localCompletes:0,
+      inspections:[],visits:[],writes:[],reset(){this.markdownEnumerations=0;this.fileEnumerations=0;this.rootEnumerations=0;this.headPages=0;this.localLookups=0;this.localEnsures=0;this.localCompletes=0;this.inspections.length=0;this.visits.length=0;this.writes.length=0;},
+      snapshot(){return {markdownEnumerations:this.markdownEnumerations,fileEnumerations:this.fileEnumerations,rootEnumerations:this.rootEnumerations,headPages:this.headPages,
+        localLookups:this.localLookups,localEnsures:this.localEnsures,localCompletes:this.localCompletes,inspections:[...this.inspections],visits:[...this.visits],writes:[...this.writes]};}};
+    const app={vault:{...events(),getFileByPath:path=>files.get(path)??null,
+      getMarkdownFiles:()=>{work.markdownEnumerations++;return [...files.values()].filter(file=>file.extension==='md');},
+      getFiles:()=>{work.fileEnumerations++;return [...files.values()];},getRoot:()=>{work.rootEnumerations++;root.children=[...files.values()];return root;},
       getFolderByPath:path=>path===''||path==='/'?root:null,
       cachedRead:async file=>{reads.push(file.path);return texts.get(file.path)??'';}},
       metadataCache:{...events(),resolvedLinks:{},unresolvedLinks:{},getFileCache:file=>metadata.get(file.path)??null,
@@ -44,11 +49,22 @@ export const contributorBrowserInitialize = `(() => {
     app.internalPlugins={getPluginById:()=>({enabled:true,instance:{options:app.daily}})};
     window.moment=input=>({isValid:()=>true,format:()=>input});
     const cache=new M.KplexIndexedDbCache(vault);ok(await cache.open(),'Real IDB must open');
+    const repository=cache.sources;
+    const inspect=repository.inspect.bind(repository),visit=repository.visit.bind(repository),headPage=repository.headPage.bind(repository),replace=repository.replace.bind(repository),tombstone=repository.tombstone.bind(repository),
+      lookup=repository.lookupLocalDependencies.bind(repository),ensure=repository.ensureLocalDependencies.bind(repository),complete=repository.completeLocalDependencyInventory.bind(repository);
+    repository.inspect=async(sourceId,...args)=>{work.inspections.push(sourceId);return inspect(sourceId,...args);};
+    repository.visit=async(sourceId,family,...args)=>{work.visits.push(sourceId+':'+family);return visit(sourceId,family,...args);};
+    repository.headPage=async(...args)=>{work.headPages++;return headPage(...args);};
+    repository.replace=async(input,...args)=>{work.writes.push('replace:'+input.sourceId);return replace(input,...args);};
+    repository.tombstone=async(sourceId,...args)=>{work.writes.push('tombstone:'+sourceId);return tombstone(sourceId,...args);};
+    repository.lookupLocalDependencies=async(...args)=>{work.localLookups++;return lookup(...args);};
+    repository.ensureLocalDependencies=async(...args)=>{work.localEnsures++;return ensure(...args);};
+    repository.completeLocalDependencyInventory=async(...args)=>{work.localCompletes++;return complete(...args);};
     const acquisition=new M.ObsidianSourceAcquisition(app,cache,async text=>{parses.push(text);return M.parseBodyMetadata(text);});
     const add=(path,text='',frontmatter={})=>{const file=new window.ContributorFile(path);file.parent=root;files.set(path,file);texts.set(path,text);metadata.set(path,{frontmatter,links:[]});return file;};
     const acquire=async()=>{for(const file of app.vault.getMarkdownFiles()){const result=await acquisition.acquire(file,M.parseBodyMetadata(texts.get(file.path)));ok(result.current,'Source current');ok(result.saved,'Source durable: '+result.reason);}};
     const build=async()=>{const d=acquisition.contributorDiscovery(runtime());const result=await d.rebuild();equal(result.outcome,'ready','Catalog activation '+JSON.stringify(result));return d;};
-    return {app,cache,repository:cache.sources,acquisition,files,metadata,texts,reads,parses,add,acquire,build,
+    return {app,cache,repository,acquisition,files,metadata,texts,reads,parses,work,add,acquire,build,
       close(){acquisition.close();cache.close();}};
   };
   window.seed = async vault => {const f=await fixture(vault);f.add('A.md','Friends:: [[B]]');f.add('B.md','Opposes:: [[A]]');f.add('C.md','[Page](https://example.com/path)');f.metadata.get('C.md').hostTags=['#project/nested'];await f.acquire();return f;};

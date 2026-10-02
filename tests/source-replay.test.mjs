@@ -267,6 +267,7 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
     } });
     f.acquisition.repository = durableRepository;
     f.acquisition.localDependenciesReady = true;
+    f.acquisition.localDependencyAuthorityReady = true;
     index.sourceAcquisition.close();
     index.sourceAcquisition = f.acquisition;
     index.plugin.settings.lastActivePath = "A.md";
@@ -466,6 +467,14 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
       assert(after.published >= before.published + 12);
       assert.equal(after.fullBuilds, before.fullBuilds);
       assert.deepEqual(f.acquisition.getCounters(), sourceBefore);
+
+      const promotionBefore = f.acquisition.getMaintenanceRevision();
+      const publishedBeforePromotion = after.published;
+      f.acquisition.promoteUnknownFanout();
+      assert.equal(f.acquisition.getMaintenanceRevision(), promotionBefore + 1, "Unknown fan-out promotion must advance GraphIndex's maintenance fence");
+      assert.equal(index.isSemanticWriteReady("A.md", "B.md"), false, "Promoted uncertain maintenance rejects relationship writes");
+      assert.deepEqual(index.relationshipStorageCandidates("A.md", "B.md"), [], "Promoted uncertain maintenance exposes no stale write candidates");
+      assert.equal(index.getSemanticPreparationDiagnostics().published, publishedBeforePromotion, "Promotion itself cannot publish stale semantic work");
     } finally {
       f.app.vault.getMarkdownFiles = originalGetMarkdownFiles;
       f.discovery.rebuild = originalRebuild;

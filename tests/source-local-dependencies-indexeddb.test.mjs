@@ -168,9 +168,12 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
       assert.equal(await browser.evaluate(`(async()=>{
         const M=sourceModules,f=await fixture('local-r2-live-impact');
         const settle=async()=>{for(let attempt=0;attempt<4;attempt++)if(await f.acquisition.reconcile())return true;return false;};
+        const assertLocal=label=>{const work=f.work.snapshot();equal(work.markdownEnumerations,0,label+' does not enumerate Markdown inventory');equal(work.fileEnumerations,0,label+' does not enumerate Vault files');equal(work.rootEnumerations,0,label+' does not rebuild structural order');equal(work.headPages,0,label+' does not page durable heads');
+          ok(!work.inspections.some(id=>id.startsWith('Unrelated-')),label+' inspects no unrelated source');ok(!work.visits.some(id=>id.startsWith('Unrelated-')),label+' visits no unrelated source family');ok(!work.writes.some(id=>id.includes('Unrelated-')),label+' writes no unrelated source');return work;};
         const resolutionTargets=async id=>{const rows=[];equal(await f.repository.visit(id,'resolution',records=>{rows.push(...records);return true;}),'ready','Read selected resolution');return rows.filter(r=>r.kind==='reference-resolution').map(r=>({raw:r.rawTarget,target:r.target?.entity?.id,kind:r.target?.entity?.kind}));};
         try{
           const ref=f.add('Folder/Ref.md','Friends:: [[../Target#Heading]] [[AliasTarget#^block]]'),other=f.add('Other.md','Friends:: [[Else]]');
+          for(let index=0;index<256;index++)f.add('Unrelated-'+String(index).padStart(3,'0')+'.md','Status:: plain');
           const fallback=f.app.metadataCache.getFirstLinkpathDest;
           f.app.metadataCache.getFirstLinkpathDest=(literal,source)=>{
             if(literal==='../Target')return f.files.get('Target.md')??null;
@@ -180,39 +183,107 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           await f.acquire();ok(await f.acquisition.reconcile(),'Initial local authority closes');
           const refBefore=(await f.repository.inspect(ref.path)).head,otherBefore=(await f.repository.inspect(other.path)).head;
           equal((await resolutionTargets(ref.path)).map(r=>r.kind),['unresolved','unresolved'],'Relative and alias targets begin unresolved');
-          f.reads.length=0;f.parses.length=0;
+          f.reads.length=0;f.parses.length=0;f.work.reset();
 
           const target=f.add('Target.md','',{aliases:['AliasTarget']});f.app.vault.trigger('create',target);ok(await settle(),'Create converges');
+          const createWork=assertLocal('Create');ok(createWork.localLookups>0,'Create uses source-local dependency lookup');
           const created=await resolutionTargets(ref.path);equal(created.map(r=>r.target),['Target.md','Target.md'],'Create resolves relative/subpath and alias references');
           ok((await f.repository.inspect(ref.path)).head.sourceRevision!==refBefore.sourceRevision,'Inbound referrer receives a new selected resolution revision');
           equal((await f.repository.inspect(other.path)).head,otherBefore,'Unrelated durable head remains byte-for-byte unchanged');
           equal(f.reads,['Target.md'],'Only the newly created source body is read');equal(f.parses.length,1,'Only the newly created source body is parsed');
 
-          f.reads.length=0;f.parses.length=0;f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:[]}});f.app.metadataCache.trigger('changed',target);ok(await settle(),'Alias removal converges');
+          f.reads.length=0;f.parses.length=0;f.work.reset();f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:[]}});f.app.metadataCache.trigger('changed',target);ok(await settle(),'Alias removal converges');
+          assertLocal('Alias removal');
           let aliasChanged=await resolutionTargets(ref.path);equal(aliasChanged.map(r=>r.target),['Target.md','AliasTarget'],'Alias removal preserves relative target and makes alias unresolved');
           equal(aliasChanged.map(r=>r.kind),['document','unresolved'],'Alias-only change replays resolver output');equal((await f.repository.inspect(other.path)).head,otherBefore,'Alias removal keeps unrelated owner exact');equal(f.reads,[],'Alias-only change reuses target body');equal(f.parses,[],'Alias-only change reparses no Markdown');
-          f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:['AliasTarget']}});f.app.metadataCache.trigger('changed',target);ok(await settle(),'Alias restoration converges');
+          f.work.reset();f.metadata.set(target.path,{...f.metadata.get(target.path),frontmatter:{aliases:['AliasTarget']}});f.app.metadataCache.trigger('changed',target);ok(await settle(),'Alias restoration converges');
+          assertLocal('Alias restoration');
           aliasChanged=await resolutionTargets(ref.path);equal(aliasChanged.map(r=>r.target),['Target.md','Target.md'],'Alias restoration repairs inbound alias');equal(f.reads,[],'Alias restoration reuses target body');equal(f.parses,[],'Alias restoration reparses no Markdown');
 
-          f.reads.length=0;f.parses.length=0;
+          f.reads.length=0;f.parses.length=0;f.work.reset();
           const oldPath=target.path,frontmatter=f.metadata.get(oldPath),body=f.texts.get(oldPath);f.files.delete(oldPath);f.metadata.delete(oldPath);f.texts.delete(oldPath);
           target.path='Renamed.md';target.name='Renamed.md';target.basename='Renamed';f.files.set(target.path,target);f.metadata.set(target.path,frontmatter);f.texts.set(target.path,body);
           f.app.vault.trigger('rename',target,oldPath);ok(await settle(),'Rename converges');
+          assertLocal('Rename');
           const renamed=await resolutionTargets(ref.path);equal(renamed.map(r=>r.target),['../Target','Renamed.md'],'Old relative path becomes unresolved while alias follows renamed target');
           equal(renamed.map(r=>r.kind),['unresolved','document'],'Resolver remains the final binding authority');
           equal((await f.repository.inspect(oldPath)).reason,'tombstone','Old target path is durably tombstoned');
           equal((await f.repository.inspect(other.path)).head,otherBefore,'Rename does not rewrite unrelated owner');
           equal(f.reads,[],'Rename reuses immutable bodies');equal(f.parses,[],'Rename performs no Markdown parse');
 
-          f.reads.length=0;f.parses.length=0;f.files.delete(target.path);f.app.vault.trigger('delete',target);f.metadata.delete(target.path);f.texts.delete(target.path);ok(await settle(),'Delete converges');
+          f.reads.length=0;f.parses.length=0;f.work.reset();f.files.delete(target.path);f.app.vault.trigger('delete',target);f.metadata.delete(target.path);f.texts.delete(target.path);ok(await settle(),'Delete converges');
+          assertLocal('Delete');
           const deleted=await resolutionTargets(ref.path);equal(deleted.map(r=>r.kind),['unresolved','unresolved'],'Delete repairs inbound alias and relative resolution');
           equal((await f.repository.inspect(target.path)).reason,'tombstone','Deleted target remains tombstoned');
           equal((await f.repository.inspect(other.path)).head,otherBefore,'Delete keeps unrelated durable head exact');equal(f.reads,[],'Delete does not reread referrer');equal(f.parses,[],'Delete does not reparse referrer');
 
-          f.reads.length=0;f.parses.length=0;const recreated=f.add('Target.md','',{aliases:['AliasTarget']});f.app.vault.trigger('create',recreated);ok(await settle(),'Recreate converges');
+          f.reads.length=0;f.parses.length=0;f.work.reset();const recreated=f.add('Target.md','',{aliases:['AliasTarget']});f.app.vault.trigger('create',recreated);ok(await settle(),'Recreate converges');
+          assertLocal('Recreate');
           const restored=await resolutionTargets(ref.path);equal(restored.map(r=>r.target),['Target.md','Target.md'],'Recreate repairs both inbound bindings');
           equal((await f.repository.inspect(other.path)).head,otherBefore,'Recreate keeps unrelated durable head exact');equal(f.reads,['Target.md'],'Only recreated body is read');equal(f.parses.length,1,'Only recreated body is parsed');
           const db=await f.cache.open();equal(await value(db.transaction(M.SOURCE_DEPENDENCY_STORE).objectStore(M.SOURCE_DEPENDENCY_STORE).count()),0,'Known-impact maintenance never bootstraps global contributor catalog');
+          return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("known-event bursts coalesce while unscoped resolver waves take one uncertain cached-fact pass", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await fixture('local-r2-coalescing');
+        const settle=async()=>{for(let attempt=0;attempt<4;attempt++)if(await f.acquisition.reconcile())return true;return false;};
+        try{
+          const ref=f.add('Ref.md','Friends:: [[Target]]'),target=f.add('Target.md','',{aliases:['AliasTarget']});
+          for(let index=0;index<256;index++)f.add('Unrelated-'+String(index).padStart(3,'0')+'.md','Status:: plain');
+          f.app.metadataCache.getFirstLinkpathDest=literal=>literal==='Target'||literal==='AliasTarget'?target:null;
+          await f.acquire();ok(await f.acquisition.reconcile(),'Initial local authority closes');
+          f.reads.length=0;f.parses.length=0;f.work.reset();
+          for(let index=0;index<100;index++)f.app.metadataCache.trigger('changed',target);
+          ok(await settle(),'Known burst converges');
+          let work=f.work.snapshot();
+          equal(work.markdownEnumerations,0,'Known burst performs no Markdown inventory enumeration');equal(work.rootEnumerations,0,'Known burst performs no structural-order rebuild');equal(work.headPages,0,'Known burst performs no durable-head page pass');
+          equal(work.localLookups,1,'Known burst performs one coalesced source-local fan-out lookup');
+          ok(!work.inspections.some(id=>id.startsWith('Unrelated-')),'Known burst inspects no unrelated source');ok(!work.visits.some(id=>id.startsWith('Unrelated-')),'Known burst visits no unrelated source');ok(!work.writes.some(id=>id.includes('Unrelated-')),'Known burst writes no unrelated source');
+          equal(f.reads,[],'Known burst rereads no Markdown');equal(f.parses,[],'Known burst reparses no Markdown');
+
+          f.reads.length=0;f.parses.length=0;f.work.reset();const before=f.acquisition.getMaintenanceRevision();
+          for(let index=0;index<20;index++)f.app.metadataCache.trigger('resolved');
+          equal(f.acquisition.getMaintenanceRevision(),before+1,'Unscoped resolver burst advances one maintenance fence');
+          ok(await f.acquisition.reconcile(),'Unscoped resolver burst converges in one pass');
+          work=f.work.snapshot();equal(work.markdownEnumerations,1,'Uncertain resolver burst enumerates cached Markdown inventory once');equal(work.rootEnumerations,1,'Uncertain resolver burst rebuilds structural order once');equal(work.headPages,1,'Uncertain resolver burst pages durable heads once for this fixture');
+          equal(f.reads,[],'Uncertain resolver burst rereads no unchanged Markdown');equal(f.parses,[],'Uncertain resolver burst reparses no unchanged Markdown');
+          return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("idle polling is observation-only and invalid local fan-out advances the GraphIndex maintenance fence", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await fixture('local-r2-idle-promotion');
+        try{
+          const ref=f.add('Ref.md','Friends:: [[Target]]'),target=f.add('Target.md','');
+          for(let index=0;index<256;index++)f.add('Unrelated-'+String(index).padStart(3,'0')+'.md','Status:: plain');
+          f.app.metadataCache.getFirstLinkpathDest=literal=>literal==='Target'?target:null;
+          await f.acquire();ok(await f.acquisition.reconcile(),'Initial local authority closes');
+
+          const nativeSetTimeout=window.setTimeout,nativeClearTimeout=window.clearTimeout;let idlePoll=null;const fakeTimer=987654321;
+          window.setTimeout=(callback,delay)=>{if(delay===30000){idlePoll=callback;return fakeTimer;}return nativeSetTimeout(callback,delay);};
+          window.clearTimeout=id=>{if(id!==fakeTimer)nativeClearTimeout(id);};
+          try{
+            f.acquisition.enableInventory();ok(idlePoll,'Idle poll scheduled');f.work.reset();f.reads.length=0;f.parses.length=0;
+            idlePoll();await Promise.resolve();
+            const idle=f.work.snapshot();equal(idle.markdownEnumerations,0,'Idle poll enumerates no Markdown');equal(idle.fileEnumerations,0,'Idle poll enumerates no Vault files');equal(idle.rootEnumerations,0,'Idle poll performs no structural traversal');equal(idle.headPages,0,'Idle poll pages no heads');equal(idle.inspections,[],'Idle poll inspects no source');equal(idle.visits,[],'Idle poll visits no family');equal(idle.writes,[],'Idle poll writes nothing');equal(f.reads,[],'Idle poll reads no bodies');equal(f.parses,[],'Idle poll parses no bodies');
+          }finally{window.setTimeout=nativeSetTimeout;window.clearTimeout=nativeClearTimeout;}
+
+          const liveLookup=f.repository.lookupLocalDependencies.bind(f.repository);let rejectOnce=true;
+          f.repository.lookupLocalDependencies=async(...args)=>rejectOnce?(rejectOnce=false,{outcome:'pending-acquisition',reason:'dependency-invalid'}):liveLookup(...args);
+          const before=f.acquisition.getMaintenanceRevision();f.app.metadataCache.trigger('changed',target);
+          equal(f.acquisition.hasSemanticDependencies(),false,'Known event immediately makes relationship writes non-ready');
+          for(let attempt=0;attempt<30&&f.acquisition.getMaintenanceRevision()<before+2;attempt++)await new Promise(resolve=>nativeSetTimeout(resolve,0));
+          equal(f.acquisition.getMaintenanceRevision(),before+2,'Invalid local fan-out promotion advances the same maintenance fence again');
+          equal(f.acquisition.hasSemanticDependencies(),false,'Promoted uncertain maintenance remains non-ready until reconciliation');
+          f.repository.lookupLocalDependencies=liveLookup;
+          ok(await f.acquisition.reconcile(),'Promoted uncertain maintenance converges');ok(f.acquisition.hasSemanticDependencies(),'Current authority reopens only after uncertain reconciliation');
+          equal((await f.repository.inspect(ref.path)).reason,'ready','Referrer remains selected after promoted repair');
           return true;
         }finally{f.close();}
       })()`), true);
