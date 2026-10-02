@@ -15,38 +15,67 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 ---
-# Offline assignment — finish SI4 source-local settings independence
+# Offline assignment — SI4-R1 durable source-local repair
 
-Complete the current uncommitted source-local dependency implementation and Delivery 2 together so SI4 can close. Stay within `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`; C15–C26 and repairs to the rejected global contributor-catalog design remain out of scope.
+Implement only the first recovery package tracked in `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`.
+The source ZIP represents branch `indexing-optimization-v2` at commit `5db49f3`. Git access is not
+required. Return changed files uncommitted and replace this assignment with a concise results handoff.
 
-## Preserve
+## Scope
 
-- Keep the production settings path independent of `SourceContributorDiscovery.rebuild()` and the process-wide contributor catalog.
-- Keep revision-bound source-local dependency rows, atomic selected-owner/head activation, request-scoped semantic preparation, authenticated empty results, and settings changes with zero Markdown reads/parses/reacquisitions/full builds when valid facts exist.
-- Keep database changes additive. The current work is still uncommitted, so correct the v8 design directly rather than adding v9.
-- Retain the review fixes already present in the working tree, including browser migration fixtures and the temporary indexing build manifest entries for both new modules.
+The active production implementation is limited to:
 
-## Defects to resolve
+- `src/index/IndexedDbCache.ts`
+- `src/index/SourceLocalDependencies.ts`
+- `src/index/SourceRepository.ts`
 
-1. `npm run verify` fails the existing P15 timer gate: `URL-heavy post-parse graph patch blocked timers for 51.7 ms` and `62.7 ms`. Source-local projection currently performs one-shot large-key work, including sorting/materializing/digesting the complete key set. Activation also updates every changed key count in one transaction. Make large single-source projection, staging, activation and cleanup byte/record bounded and cooperative without weakening the timer assertion.
-2. Abandoned or superseded staged `sourceLocalDependencies` revisions are not reclaimed by `cleanupRevision()`. Repeated failed/cancelled writes must not grow durable stale rows or make a small active lookup hit backpressure.
-3. Clean-restart adoption checks only each source's physical/environment fields. If a target, alias, path or resolution input changed while the plugin was closed, an unchanged referrer can retain a stale resolution family. Compare a narrow durable/current host inventory and reconcile affected source-local dependencies before declaring readiness. An exactly unchanged restart must still reuse heads without rewriting every resolution family.
-4. A live modify/delete event increments the global host revision; the next reconciliation rewrites unrelated source heads. The browser review reproduced B.md changing after an A.md event. Known-impact edit/create/rename/delete must update the changed source and proven affected dependencies only. Uncertain fan-out must use one coalesced cached-fact reconciliation, with no unchanged-body reads/parses and no global catalog rebuild.
-5. Any requested node/tag/URL-origin dependency with more than 256 active owners is permanently `backpressure`. Replace the one-shot cap with bounded continuation to eventual completion. Never publish a partial neighborhood, gate, degree or title result. Cancellation/supersession must discard partial work and release leases/state.
+Add or change focused IndexedDB tests and their test support as needed. Do not change
+`sourceAcquisition.ts`, contributor discovery, cached semantic readers, settings/UI behavior,
+high-degree limits, the global contributor catalog, or C15–C26.
 
-## Required coverage
+## Required implementation
 
-- Preserve full-compiler parity for Friend↔Challenger, dormant fields, both inference switches, both image selectors, tags, URLs, structural relations, gates, siblings, labels, search and provenance.
-- Add real IndexedDB cases for a large single source, interruption at each staged/activation boundary, stale-row cleanup, retry, and concurrent selected readers.
-- Add restart cases for unchanged vault reuse and offline target/alias/create/rename/delete changes affecting unchanged referrers.
-- Add live event cases proving unrelated heads remain byte-for-byte unchanged where impact is known and uncertain events converge without Markdown reads/parses of unchanged notes.
-- Replace the 20,015-owner test that expects permanent backpressure with deterministic bounded continuation to a correct final result. Include cancellation and supersession during continuation.
-- Keep the production settings route free of Markdown inventory enumeration after readiness, source-head writes, resolution-family refreshes, the global catalog and full builds.
+1. Make the repair format an additive **v8-to-v9** database upgrade. An exact database created by
+   commit `d61dc7f` has the v8 source-local rows/owners/key counts and a four-field dependency-state
+   record, but no repair store or `pending` field. Upgrade it without deleting or rewriting accepted
+   source heads, chunks, postings, body cache, graph snapshots, contributor data, source-local rows,
+   owners or key counts. Create the repair store and migrate the state to `pending: 0`. Fresh databases
+   must also receive the complete current schema.
+2. Complete the bounded repair protocol already present in the three files. Source-local rows are
+   staged in bounded transactions. Source head, selected owner and repair journal become authoritative
+   atomically. Old-count decrements and new-count increments resume exactly once in batches after
+   cancellation, transaction failure or process restart. Lookups remain pending while any selected
+   repair is incomplete and never return a partial owner set.
+3. Reclaim abandoned, superseded and cancelled staging rows in bounded batches. `cleanupRevision()`
+   must reclaim an unselected retired revision but must never delete the selected head/owner revision
+   or either side of an active repair.
+4. Preserve tombstone behavior, cross-connection CAS/fences and byte-for-byte unrelated heads. Repeated
+   dependency keys from one source may use the current row-count representation, but lookup must return
+   that selected source once and repair/count validation must remain exact.
+5. Keep the existing `>256` active-owner backpressure behavior and its 20,015-owner test unchanged.
+   High-degree continuation belongs to SI4-R3.
+
+## Required real IndexedDB coverage
+
+- Exact v8 fixture upgrade to v9, with all pre-existing accepted records preserved and `pending: 0`.
+- A single source large enough to cross several staging and repair batches.
+- Interruption before staging, between staging pages, after atomic head/owner/journal activation, during
+  old-row decrement, during new-row increment, and before final journal retirement.
+- Reopen/restart resumption, cancellation followed by retry, tombstone replacement, abandoned staging
+  cleanup and `cleanupRevision()` safety.
+- Two connections/readers proving old authority before activation, pending rather than partial data
+  during repair, and exact new authority after completion.
+- Repeated identical dependency keys and unchanged unrelated source heads.
+
+Do not weaken existing assertions, timer bounds or compatibility fixtures. A fault that cannot be
+injected through the existing test seam should receive the smallest repository-owned injection seam;
+do not add a general framework.
 
 ## Verification
 
-Run, with Node 22.22.2 or newer within Node 22:
+Use Node 22.22.2 or newer within Node 22 and run:
 
+- focused new/changed tests while developing
 - `npm run check:architecture`
 - `npm run check:core`
 - `npm run lint:obsidian`
@@ -54,4 +83,5 @@ Run, with Node 22.22.2 or newer within Node 22:
 - `npm run test:sources:browser`
 - `npm run verify`
 
-Return the implementation uncommitted. Report exact commands/results and remaining environment blockers. Do not claim native Obsidian acceptance; the main agent will run exact-build settings, event, restart and large-vault scenarios.
+Report exact commands, pass/fail counts and genuine environment blockers. This package requires no
+native Obsidian claim or manual maintainer test.
