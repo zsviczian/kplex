@@ -37,7 +37,7 @@ import {
 
 import { releaseContributorRootLease, type ContributorRootLease } from "./SourceContributorLease";
 import {
-  SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE, SOURCE_LOCAL_REVISION_INDEX,
+  SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
   sourceLocalDependencyState, sourceLocalStoredDependencyKeys, sourceLocalStructuralBaseKeys, validSourceLocalDependencyOwner,
   validSourceLocalDependencyKeyState, validSourceLocalDependencyRepair, validSourceLocalDependencyRow, validSourceLocalDependencyState, type SourceLocalDependencyKeyState, type SourceLocalDependencyOwner, type SourceLocalDependencyRepair, type SourceLocalDependencyRow,
   type SourceLocalDependencyState,
@@ -2062,6 +2062,7 @@ export class NeutralSourceRepository {
           const keyState = rawKey === undefined ? { version: 1 as const, key, count: 0 }
             : validSourceLocalDependencyKeyState(rawKey) && rawKey.key === key ? rawKey : null;
           if (!keyState) throw new SourceFactError("dependency-invalid");
+          if (keyState.count > SOURCE_MAX_BATCH_RECORDS) throw new SourceFactError("backpressure");
           counts.set(key, keyState.count);
         }
         return { fence: { revision: rawState.revision, sequence }, counts };
@@ -2131,10 +2132,11 @@ export class NeutralSourceRepository {
           await this.runtime.yield();
         }
         if (active !== captured.counts.get(key)) throw new SourceFactError("dependency-invalid");
+        if (selected.size > SOURCE_MAX_BATCH_RECORDS) throw new SourceFactError("backpressure");
       }
-      const fenceReason = await this.validateLocalDependencies(captured.fence, [], current);
-      if (fenceReason !== "ready") throw new SourceFactError(fenceReason);
       const ordered = [...selected.values()].sort((a, b) => a.order - b.order || a.stamp.head.sourceId.localeCompare(b.stamp.head.sourceId));
+      const fenceReason = await this.validateLocalDependencies(captured.fence, ordered.map((entry) => entry.stamp), current);
+      if (fenceReason !== "ready") throw new SourceFactError(fenceReason);
       return { outcome: "ready", value: { fence: captured.fence, sources: ordered.map((entry) => entry.stamp),
         orders: ordered.map((entry) => entry.order), markdownOrders: ordered.map((entry) => entry.markdownOrder),
         work: { keys: keys.length, rows: rowsVisited } } };
@@ -2142,7 +2144,7 @@ export class NeutralSourceRepository {
   }
 
   /** Revalidate a local lookup certificate after compiler/policy awaits without rebuilding anything. */
-  async validateLocalDependencies(fence: Readonly<{ revision: number; sequence: number }>, _stamps: readonly SelectedSourceStamp[],
+  async validateLocalDependencies(fence: Readonly<{ revision: number; sequence: number }>, stamps: readonly SelectedSourceStamp[],
     current: () => boolean = () => true): Promise<SourceReason> {
     try {
       this.localDependencyAvailable(current);
@@ -2154,6 +2156,8 @@ export class NeutralSourceRepository {
           && (seq === undefined ? 0 : sourceObject(seq) && sourceCount(seq.value) ? seq.value : -1) === fence.sequence;
       });
       if (!same) return "superseded";
+      const selected = await this.validateSelections(stamps, current);
+      if (selected.reason !== "ready") return selected.reason;
       this.localDependencyAvailable(current);
       return "ready";
     } catch (error) { return errorReason(error, "dependency-invalid"); }

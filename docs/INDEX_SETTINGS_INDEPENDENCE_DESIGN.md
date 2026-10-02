@@ -350,6 +350,26 @@ The five product checkpoints remain SI1–SI5, with SI0 characterization. The th
 | SI4 | Incomplete | Deliveries 1 and 2 below both accepted in the real application. SI4a and private slices remain supporting work only. |
 | SI5 | Pending | Delivery 3 accepted, including restart, storage failure and physical-device/performance evidence. |
 
+### SI4 recovery packages after the incomplete maintenance return
+
+The 2026-10-02 maintenance return combined storage repair, host-impact reconciliation and high-degree
+semantic continuation. It stopped after approximately 15 hours with those concerns interleaved and
+without the required regression coverage. The exact return is retained in Git as the explicitly
+unaccepted checkpoint `d1c00ea`. Work now proceeds in the following three substantial packages. These
+are the fixed implementation sequence for finishing SI4, not additional product checkpoints or a
+resumption of C15-C26.
+
+| Package | State | Acceptance boundary |
+| --- | --- | --- |
+| SI4-R1 — durable source-local repair | **Assigned next** | Additive v8-to-v9 migration, bounded staging/count repair, interruption/restart/cleanup/concurrent-reader coverage, and no partial lookup publication. Existing high-degree backpressure remains unchanged. |
+| SI4-R2 — known-impact host maintenance | Pending | Live and restart create/rename/delete/alias/target changes update only proven affected sources. Relative and subpath references are covered; uncertain resolver events converge once from cached facts without rereading unchanged Markdown. |
+| SI4-R3 — high-degree completion and SI4 acceptance | Pending | Replace permanent owner/structural caps with cancellable bounded continuation through final semantic preparation. The real 20,015-owner case completes without a partial result, then full automated and native SI4 scenarios pass. |
+
+Only SI4-R1 is active. SI4-R2 must not be mixed into its storage work, and SI4-R3 must not be
+approximated by merely removing cardinality constants while retaining a terminal memory/byte failure.
+After all three packages pass independent review, the Delivery 1 and Delivery 2 checklists below are
+evaluated together to close SI4. SI5 remains the subsequent restart/scale/device acceptance delivery.
+
 ### Remaining deliveries and acceptance checklist
 
 The checkboxes below are acceptance observations within each delivery, not separate agent assignments. All are pending at this reset.
