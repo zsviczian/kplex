@@ -249,7 +249,7 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           for(let index=0;index<20;index++)f.app.metadataCache.trigger('resolved');
           equal(f.acquisition.getMaintenanceRevision(),before+1,'Unscoped resolver burst advances one maintenance fence');
           ok(await f.acquisition.reconcile(),'Unscoped resolver burst converges in one pass');
-          work=f.work.snapshot();equal(work.markdownEnumerations,1,'Uncertain resolver burst enumerates cached Markdown inventory once');equal(work.rootEnumerations,1,'Uncertain resolver burst rebuilds structural order once');equal(work.headPages,1,'Uncertain resolver burst pages durable heads once for this fixture');
+          work=f.work.snapshot();equal(work.markdownEnumerations,1,'Uncertain resolver burst enumerates cached Markdown inventory once');equal(work.rootEnumerations,1,'Uncertain resolver burst rebuilds structural order once');equal(work.headPages,3,'Uncertain resolver burst reads the 258 durable heads in three bounded pages');
           equal(f.reads,[],'Uncertain resolver burst rereads no unchanged Markdown');equal(f.parses,[],'Uncertain resolver burst reparses no unchanged Markdown');
           return true;
         }finally{f.close();}
@@ -516,8 +516,11 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           result=await cache2.sources.lookupLocalDependencies([ghost]);equal(result.outcome,'invalid-family','Missing affected membership fails closed');equal(result.reason,'dependency-invalid','Corruption reason');
           result=await cache2.sources.lookupLocalDependencies([bKey]);equal(result.outcome,'ready','Unrelated key remains queryable');equal(result.value.sources.map(s=>s.head.sourceId),['B.md'],'Unrelated owner retained');
           await edit(reopened,[M.SOURCE_LOCAL_OWNER_STORE],tx=>tx.objectStore(M.SOURCE_LOCAL_OWNER_STORE).delete('A.md'));
+          const beforeMaintenance=acquisition2.getMaintenanceRevision(),discovery=acquisition2.localContributorDiscovery({isCurrent:()=>true});ok(discovery,'Production local discovery available before corruption is observed');
+          const invalid=await discovery.discover({kind:'neighborhood',endpoints:[{id:'A.md',kind:'document',state:'materialized',semanticPath:'A.md',physicalPath:'A.md'}]});equal(invalid.outcome,'invalid','Requested lookup exposes corrupt local owner as invalid');
+          equal(acquisition2.getMaintenanceRevision(),beforeMaintenance+1,'Requested corruption advances one maintenance fence');equal(acquisition2.hasSemanticDependencies(),false,'Requested corruption closes semantic readiness immediately');
           equal(await acquisition2.reconcile(),false,'Complete inventory refuses missing selected owner');
-          const bAfter=(await cache2.sources.inspect('B.md')).head;equal(bAfter,headsBefore.find(h=>h.sourceId==='B.md'),'Corruption handling does not delete unrelated head');
+          const bBefore=headsBefore.find(h=>h.sourceId==='B.md'),bAfter=(await cache2.sources.inspect('B.md')).head;ok(bAfter&&bAfter.state==='complete','Corruption handling does not delete unrelated head');equal(bAfter.physical,bBefore.physical,'Uncertain reconciliation preserves unrelated physical identity');equal(bAfter.families.values,bBefore.families.values,'Uncertain reconciliation reuses unrelated value facts');equal(bAfter.families['body-urls'],bBefore.families['body-urls'],'Uncertain reconciliation reuses unrelated body URLs');equal(bAfter.families.metadata,bBefore.families.metadata,'Uncertain reconciliation reuses unrelated metadata');equal(reads,0,'Corruption reconciliation reads no Markdown');equal(parses,0,'Corruption reconciliation parses no Markdown');
           return true;
         }finally{acquisition2?.close();cache2?.close();f.close();}
       })()`), true);

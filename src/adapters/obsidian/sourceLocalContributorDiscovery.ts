@@ -119,7 +119,8 @@ function structuralFacts(app: App, request: ContributorRequest, sourceIds: reado
 export class SourceLocalContributorDiscovery {
   private queries = 0;
   constructor(private readonly repository: NeutralSourceRepository, private readonly app: App,
-    private readonly stamp: ContributorHostStamp, private readonly current: () => boolean) {}
+    private readonly stamp: ContributorHostStamp, private readonly current: () => boolean,
+    private readonly onDependencyInvalid?: () => void) {}
 
   isHostCurrent(): boolean { return this.current(); }
 
@@ -140,7 +141,10 @@ export class SourceLocalContributorDiscovery {
       if (!this.current()) throw new SourceFactError("host-catalog-stale");
       const scope = copyRequest(input), keys = queryKeys(scope), keySet = new Set(keys);
       const selected = await this.repository.lookupLocalDependencies(keys, this.current);
-      if (selected.outcome !== "ready") return failure(selected.reason);
+      if (selected.outcome !== "ready") {
+        if (selected.reason === "dependency-invalid") this.onDependencyInvalid?.();
+        return failure(selected.reason);
+      }
       if (!this.current()) throw new SourceFactError("host-catalog-stale");
       const entries = selected.value.sources.map((stamp, index) => ({ stamp,
         order: selected.value.orders[index], markdownOrder: selected.value.markdownOrders[index] }));
@@ -187,8 +191,10 @@ export class SourceLocalContributorDiscovery {
       if (certificate.markdownOrder !== undefined && (certificate.markdownOrder.length !== certificate.sources.length
         || certificate.markdownOrder.some((value, index, values) => !Number.isSafeInteger(value) || value < 0
           || index > 0 && value <= values[index - 1]))) return "dependency-invalid";
-      return await this.repository.validateLocalDependencies(
+      const reason = await this.repository.validateLocalDependencies(
         { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }, certificate.sources, this.current);
+      if (reason === "dependency-invalid") this.onDependencyInvalid?.();
+      return reason;
     } catch (error) { return error instanceof SourceFactError ? error.reason : "read-error"; }
   }
 }

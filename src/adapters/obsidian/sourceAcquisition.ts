@@ -161,7 +161,7 @@ export class ObsidianSourceAcquisition {
         this.repository.cancelSource(oldPath ?? state.path);
         this.repository.cancelSource(file.path);
         this.pendingKnownFiles.add(file);
-        this.queueKnownResolutionImpact(file, oldPath, dependenciesWereReady);
+        void this.queueKnownResolutionImpact(file, oldPath, dependenciesWereReady);
       }
       this.requestInventory();
     };
@@ -174,7 +174,8 @@ export class ObsidianSourceAcquisition {
         const prior = state.impact ?? Promise.resolve();
         this.knownImpactTasks += 1;
         const tombstone = this.repository.tombstone(oldPath,
-          () => !this.closed && !this.app.vault.getFileByPath(oldPath), true, Promise.all([prior, fanout])).then(() => undefined)
+          () => !this.closed && !this.app.vault.getFileByPath(oldPath), true,
+          Promise.all([prior, fanout]).then(() => undefined)).then(() => undefined)
           .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
         state.impact = tombstone; void tombstone.finally(() => { if (state.impact === tombstone) state.impact = null; });
       }
@@ -186,7 +187,8 @@ export class ObsidianSourceAcquisition {
         const prior = state.impact ?? Promise.resolve();
         this.knownImpactTasks += 1;
         const tombstone = this.repository.tombstone(path,
-          () => !this.closed && !this.app.vault.getFileByPath(path), false, Promise.all([prior, fanout])).then(() => undefined)
+          () => !this.closed && !this.app.vault.getFileByPath(path), false,
+          Promise.all([prior, fanout]).then(() => undefined)).then(() => undefined)
           .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
         state.impact = tombstone; void tombstone.finally(() => { if (state.impact === tombstone) state.impact = null; });
       }
@@ -795,7 +797,10 @@ export class ObsidianSourceAcquisition {
     const current = (): boolean => !this.closed && runtime.isCurrent() && this.localDependenciesReady
       && this.hostRevision === revision && this.contributorObservation === observation && this.maintenanceRevision === maintenance;
     return new SourceLocalContributorDiscovery(this.repository, this.app,
-      { epoch: this.epoch, revision, token: `${this.epoch}:${revision}:${observation}:${maintenance}` }, current);
+      { epoch: this.epoch, revision, token: `${this.epoch}:${revision}:${observation}:${maintenance}` }, current, () => {
+        this.promoteUnknownFanout();
+        this.requestInventory();
+      });
   }
 
   /** Prepare one exact center from cached facts; missing catalog remains pending and never falls back. */
