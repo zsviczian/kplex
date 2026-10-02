@@ -16,7 +16,6 @@ import { entityFactForFile, entityFactForFolder, structuralFileTreeOccurrence,
   structuralTagMembershipFacts } from "./structuralSourceCollector";
 
 const MAX_QUERY_KEY_BYTES = 256 * 1024;
-const MAX_HOST_FACTS = 1024;
 const GENERATION = "source-local-dependencies-v1";
 
 function bytes(value: string): number { return new TextEncoder().encode(value).byteLength; }
@@ -63,56 +62,73 @@ function queryKeys(request: ContributorRequest): readonly string[] {
 }
 
 /** Current structural direct-incidence facts for a finite selected scope; no whole-vault walk. */
-function structuralFacts(app: App, request: ContributorRequest, sourceIds: readonly string[], keys: ReadonlySet<string>): readonly ContributorStructuralFact[] {
+async function structuralFacts(app: App, request: ContributorRequest, sourceIds: readonly string[], keys: ReadonlySet<string>,
+  current: () => boolean): Promise<readonly ContributorStructuralFact[]> {
   const output: ContributorStructuralFact[] = [];
-  const seen = new Set<string>();
-  const add = (fact: ContributorStructuralFact): void => {
+  const seen = new Set<string>(); let visited = 0;
+  const checkpoint = async (): Promise<void> => {
+    if (++visited % SOURCE_MAX_BATCH_RECORDS !== 0) return;
+    await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+    if (!current()) throw new SourceFactError("host-catalog-stale");
+  };
+  const add = async (fact: ContributorStructuralFact): Promise<void> => {
     let relevant = false;
     for (const key of contributorRecordKeys(fact)) if (keys.has(key)) { relevant = true; break; }
-    if (!relevant) return;
+    if (!relevant) { await checkpoint(); return; }
     const identity = JSON.stringify(fact);
-    if (seen.has(identity)) return;
-    if (output.length >= MAX_HOST_FACTS) throw new SourceFactError("backpressure");
-    seen.add(identity); output.push(fact);
+    if (!seen.has(identity)) { seen.add(identity); output.push(fact); }
+    await checkpoint();
   };
-  const addFile = (file: TFile): void => {
-    add(entityFactForFile(file));
-    if (file.parent) add(structuralFileTreeOccurrence(file.parent, file));
-    if (file.extension === "md") for (const fact of structuralTagMembershipFacts(file, app.metadataCache)) add(fact);
+  const addFile = async (file: TFile): Promise<void> => {
+    await add(entityFactForFile(file));
+    if (file.parent) await add(structuralFileTreeOccurrence(file.parent, file));
+    if (file.extension === "md") for (const fact of structuralTagMembershipFacts(file, app.metadataCache)) await add(fact);
   };
-  const addFolder = (folder: TFolder): void => {
-    add(entityFactForFolder(folder));
-    if (folder.parent) add(structuralFileTreeOccurrence(folder.parent, folder));
+  const addFolder = async (folder: TFolder): Promise<void> => {
+    await add(entityFactForFolder(folder));
+    if (folder.parent) await add(structuralFileTreeOccurrence(folder.parent, folder));
     for (const child of folder.children) {
       if (!(child instanceof TFile) && !(child instanceof TFolder)) throw new SourceFactError("host-catalog-stale");
-      add(structuralFileTreeOccurrence(folder, child));
+      await add(structuralFileTreeOccurrence(folder, child));
     }
   };
 
   for (const sourceId of sourceIds) {
+    if (!current()) throw new SourceFactError("host-catalog-stale");
     const file = app.vault.getFileByPath(sourceId);
     if (!(file instanceof TFile) || file.extension !== "md") throw new SourceFactError("host-catalog-stale");
-    addFile(file);
+    await addFile(file);
   }
-  // Literal file/folder identities are host structural dependencies, not source-owner semantics.
-  // Inspect only the explicitly requested literals so a file-tree fact can be supplied without
-  // broadening the selected source-owner set.
   for (const literal of request.literals ?? []) {
     const host = literal === "" || literal === "/" ? app.vault.getRoot()
       : app.vault.getFileByPath(literal) ?? app.vault.getFolderByPath(literal);
-    if (host instanceof TFile) addFile(host);
-    else if (host instanceof TFolder) addFolder(host);
+    if (host instanceof TFile) await addFile(host);
+    else if (host instanceof TFolder) await addFolder(host);
   }
   for (const endpoint of request.endpoints) {
     if (endpoint.physicalPath === undefined) continue;
     const host = endpoint.kind === "container"
       ? endpoint.physicalPath === "" || endpoint.physicalPath === "/" ? app.vault.getRoot() : app.vault.getFolderByPath(endpoint.physicalPath)
       : app.vault.getFileByPath(endpoint.physicalPath);
-    if (host instanceof TFile) addFile(host);
-    else if (host instanceof TFolder) addFolder(host);
+    if (host instanceof TFile) await addFile(host);
+    else if (host instanceof TFolder) await addFolder(host);
     else throw new SourceFactError("host-catalog-stale");
   }
   return output;
+}
+
+/** Hash a potentially high-degree certificate cooperatively instead of one giant JSON.stringify. */
+async function selectionDigest(repository: NeutralSourceRepository, sources: readonly unknown[], hostFacts: readonly unknown[],
+  order: readonly number[] | undefined, current: () => boolean): Promise<string> {
+  let digest = await repository.observationDigest(JSON.stringify([GENERATION, "scope-local"]));
+  for (const [label, values] of [["sources", sources], ["hostFacts", hostFacts], ["order", order ?? []]] as const) {
+    for (let offset = 0; offset < values.length; offset += SOURCE_MAX_BATCH_RECORDS) {
+      if (!current()) throw new SourceFactError("host-catalog-stale");
+      digest = await repository.observationDigest(JSON.stringify([digest, label, values.slice(offset, offset + SOURCE_MAX_BATCH_RECORDS)]));
+      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+    }
+  }
+  return digest;
 }
 
 /** Structural subtype used by the existing cached readers without requiring the global catalog. */
@@ -147,7 +163,7 @@ export class SourceLocalContributorDiscovery {
       if (markdownOrder) entries.sort((left, right) => left.markdownOrder - right.markdownOrder || left.stamp.head.sourceId.localeCompare(right.stamp.head.sourceId));
       const sources = entries.map((entry) => entry.stamp);
       const sourceIds = sources.map((stamp) => stamp.head.sourceId);
-      const hostFacts = structuralFacts(this.app, scope, sourceIds, keySet).map((fact, order) => ({ order, fact }));
+      const hostFacts = (await structuralFacts(this.app, scope, sourceIds, keySet, this.current)).map((fact, order) => ({ order, fact }));
       const order = markdownOrder ? entries.map((entry) => entry.markdownOrder) : undefined;
       if (order && order.some((value, index) => !Number.isSafeInteger(value) || value < 0 || index > 0 && value <= order[index - 1])) {
         throw new SourceFactError("dependency-invalid");
@@ -155,8 +171,7 @@ export class SourceLocalContributorDiscovery {
       const dependencyDigest = await this.repository.observationDigest(JSON.stringify([GENERATION, selected.value.fence]));
       if (!this.current()) throw new SourceFactError("host-catalog-stale");
       const scopeIdentity = await this.repository.observationDigest(JSON.stringify(scope));
-      const selectionIdentity = await this.repository.observationDigest(JSON.stringify(order === undefined
-        ? [sources, hostFacts, "scope-local"] : [sources, hostFacts, order, "scope-local"]));
+      const selectionIdentity = await selectionDigest(this.repository, sources, hostFacts, order, this.current);
       if (!this.current()) throw new SourceFactError("host-catalog-stale");
       const certificate: ContributorCertificate = {
         coverage: "complete-direct-contributors", scope, scopeIdentity,
@@ -180,9 +195,7 @@ export class SourceLocalContributorDiscovery {
       const digest = await this.repository.observationDigest(JSON.stringify([GENERATION,
         { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }]));
       if (digest !== certificate.dependency.digest) return "dependency-invalid";
-      const selection = await this.repository.observationDigest(JSON.stringify(certificate.markdownOrder === undefined
-        ? [certificate.sources, certificate.hostFacts, "scope-local"]
-        : [certificate.sources, certificate.hostFacts, certificate.markdownOrder, "scope-local"]));
+      const selection = await selectionDigest(this.repository, certificate.sources, certificate.hostFacts, certificate.markdownOrder, this.current);
       if (selection !== certificate.selectionIdentity) return "dependency-invalid";
       if (certificate.markdownOrder !== undefined && (certificate.markdownOrder.length !== certificate.sources.length
         || certificate.markdownOrder.some((value, index, values) => !Number.isSafeInteger(value) || value < 0

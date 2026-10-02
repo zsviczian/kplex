@@ -94,16 +94,16 @@ export class CachedSourceSemanticReader {
     readPort: SourcePatchReadPort, runtime: GraphCompilerRuntime,
     structure?: CachedSemanticStructure): Promise<CachedSemanticPreparation> {
     const unique = new Map<string, CachedSourceRequest>();
+    let requestIndex = 0;
     for (const request of requests) {
       const previous = unique.get(request.sourceId);
       if (previous && (previous.host.source.id !== request.host.source.id
         || JSON.stringify([previous.host.physical, previous.host.observation, previous.expected])
           !== JSON.stringify([request.host.physical, request.host.observation, request.expected]))) return selectedSourceFailure("superseded");
       unique.set(request.sourceId, request);
-      if (unique.size > MAX_CACHED_SCOPE_SOURCES) return selectedSourceFailure("backpressure");
+      if (++requestIndex % MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH === 0) { await runtime.yield(); if (!runtime.isCurrent()) return selectedSourceFailure("cancelled"); }
     }
     if (!unique.size && structure === undefined) return selectedSourceFailure("missing");
-    if (structure && structure.length > MAX_CACHED_SCOPE_STRUCTURAL_FACTS) return selectedSourceFailure("backpressure");
     const structuralBytes = structure?.reduce((total, record) => total + estimateReferenceRecordBytes(record), 0) ?? 0;
     if (structuralBytes > MAX_CACHED_SCOPE_ESTIMATED_BYTES) return selectedSourceFailure("decode-budget");
     const owners = [...unique.values()];

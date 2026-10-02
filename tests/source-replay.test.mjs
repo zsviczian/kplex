@@ -95,7 +95,8 @@ test("dense source replays once per scope, shares one payload and preserves dist
     const result = await f.acquisition.prepareCachedSemantics(Array(80).fill(file.path), policy(), presentation, runtime());
     assert.equal(result.outcome, "ready"); assert.equal(result.work.length, 1); assert.equal(result.work[0].familyVisits, 4);
     assert(!result.compilation.node("virtual-0"), "Dense dormant input cannot populate search");
-    assert.equal((await f.acquisition.prepareCachedSemantics(Array.from({length:257},(_,i)=>String(i)), policy(), presentation, runtime())).reason, "backpressure");
+    assert.equal((await f.acquisition.prepareCachedSemantics(Array.from({length:257},(_,i)=>String(i)), policy(), presentation, runtime())).reason, "missing",
+      "Large source scopes continue until an actual missing source rather than failing at the old cardinality cap");
   } finally { f.close(); }
 });
 

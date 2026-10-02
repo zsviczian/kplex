@@ -9,6 +9,7 @@ import { SOURCE_DECODE_BUDGET_BYTES, sourceCount, sourceObject, type SourceHead,
 export const SOURCE_LOCAL_DEPENDENCY_STORE = "sourceLocalDependencies";
 export const SOURCE_LOCAL_OWNER_STORE = "sourceLocalDependencyOwners";
 export const SOURCE_LOCAL_KEY_STORE = "sourceLocalDependencyKeys";
+export const SOURCE_LOCAL_REPAIR_STORE = "sourceLocalDependencyRepairs";
 export const SOURCE_LOCAL_LOOKUP_INDEX = "sourceLocalLookup";
 export const SOURCE_LOCAL_REVISION_INDEX = "sourceLocalRevision";
 export const SOURCE_LOCAL_DEPENDENCY_STATE_KEY = "source-local-dependency-state";
@@ -20,6 +21,8 @@ export type SourceLocalDependencyState = Readonly<{
   version: 1;
   revision: number;
   complete: boolean;
+  /** Number of selected-owner count journals that must finish before closed-world lookups resume. */
+  pending: number;
 }>;
 
 export type SourceLocalDependencyOwner = Readonly<{
@@ -41,6 +44,18 @@ export type SourceLocalDependencyKeyState = Readonly<{
   version: 1;
   key: string;
   count: number;
+}>;
+
+
+export type SourceLocalDependencyRepair = Readonly<{
+  version: 1;
+  sourceId: string;
+  fromRevision: string | null;
+  fromRecords: number;
+  fromIndex: number;
+  toRevision: string | null;
+  toRecords: number;
+  toIndex: number;
 }>;
 
 export type SourceLocalDependencyRow = Readonly<{
@@ -110,13 +125,13 @@ export function* sourceLocalStoredDependencyKeys(sourcePath: string, record: Sto
   // independently by the bounded structural host supplement.
 }
 
-export function sourceLocalDependencyState(revision = 0, complete = false): SourceLocalDependencyState {
-  return { key: SOURCE_LOCAL_DEPENDENCY_STATE_KEY, version: 1, revision, complete };
+export function sourceLocalDependencyState(revision = 0, complete = false, pending = 0): SourceLocalDependencyState {
+  return { key: SOURCE_LOCAL_DEPENDENCY_STATE_KEY, version: 1, revision, complete, pending };
 }
 
 export function validSourceLocalDependencyState(value: unknown): value is SourceLocalDependencyState {
-  return sourceObject(value) && Object.keys(value).length === 4 && value.key === SOURCE_LOCAL_DEPENDENCY_STATE_KEY
-    && value.version === 1 && sourceCount(value.revision) && typeof value.complete === "boolean";
+  return sourceObject(value) && Object.keys(value).length === 5 && value.key === SOURCE_LOCAL_DEPENDENCY_STATE_KEY
+    && value.version === 1 && sourceCount(value.revision) && typeof value.complete === "boolean" && sourceCount(value.pending);
 }
 
 export function validSourceLocalDependencyOwner(value: unknown): value is SourceLocalDependencyOwner {
@@ -148,4 +163,16 @@ export function validSourceLocalDependencyKeyState(value: unknown): value is Sou
     return Array.isArray(tuple) && tuple.length === 2 && ["node", "field", "literal", "family"].includes(String(tuple[0]))
       && typeof tuple[1] === "string" && JSON.stringify(tuple) === value.key;
   } catch { return false; }
+}
+
+
+export function validSourceLocalDependencyRepair(value: unknown): value is SourceLocalDependencyRepair {
+  return sourceObject(value) && Object.keys(value).length === 8 && value.version === 1
+    && typeof value.sourceId === "string" && value.sourceId.length > 0
+    && (value.fromRevision === null || typeof value.fromRevision === "string" && value.fromRevision.length > 0)
+    && sourceCount(value.fromRecords) && sourceCount(value.fromIndex) && value.fromIndex <= value.fromRecords
+    && (value.toRevision === null || typeof value.toRevision === "string" && value.toRevision.length > 0)
+    && sourceCount(value.toRecords) && sourceCount(value.toIndex) && value.toIndex <= value.toRecords
+    && (value.fromRevision !== null || value.fromRecords === 0 && value.fromIndex === 0)
+    && (value.toRevision !== null || value.toRecords === 0 && value.toIndex === 0);
 }

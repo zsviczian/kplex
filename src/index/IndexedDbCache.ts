@@ -9,7 +9,7 @@ import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/g
 import { Platform } from "obsidian";
 import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE,
   SOURCE_REVISION_INDEX, SOURCE_FAMILY_INDEX, SOURCE_LOOKUP_INDEX, SOURCE_LEASE_INDEX } from "./SourceRepository";
-import { SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE,
+import { SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
   SOURCE_LOCAL_REVISION_INDEX, sourceLocalDependencyState } from "./SourceLocalDependencies";
 import { SOURCE_DEPENDENCY_STORE, sourceDependencyState } from "./SourceFacts";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
@@ -315,6 +315,7 @@ export class KplexIndexedDbCache {
           }
           if (!db.objectStoreNames.contains(SOURCE_LOCAL_OWNER_STORE)) db.createObjectStore(SOURCE_LOCAL_OWNER_STORE, { keyPath: "sourceId" });
           if (!db.objectStoreNames.contains(SOURCE_LOCAL_KEY_STORE)) db.createObjectStore(SOURCE_LOCAL_KEY_STORE, { keyPath: "key" });
+          if (!db.objectStoreNames.contains(SOURCE_LOCAL_REPAIR_STORE)) db.createObjectStore(SOURCE_LOCAL_REPAIR_STORE, { keyPath: "sourceId" });
           const meta = request.transaction?.objectStore(META_STORE);
           if (meta && request.transaction && event.oldVersion < 8) meta.put(sourceLocalDependencyState());
           if (meta && !meta.indexNames.contains(SOURCE_IMPACT_LEASE_INDEX)) meta.createIndex(SOURCE_IMPACT_LEASE_INDEX, "impactSlot");

@@ -305,12 +305,13 @@ for (const fence of ["host", "journal", "policy", "demand"]) {
   });
 }
 
-test("portable explicit host-only preparation rejects oversized and wrong-identity structural inputs", async () => {
+test("portable explicit host-only preparation continues past the former structural count cap and rejects byte/identity faults", async () => {
   const f = await fixture();
   try {
     const reader = new M.CachedSourceSemanticReader(f.repository), entity = f.entities.values().next().value;
     const port = { entity: ref => f.entities.get(ref.id) };
-    rejected(await reader.prepare([], policy(), port, runtime(), Array.from({ length: 1025 }, () => entity)), "backpressure");
+    const large = await reader.prepare([], policy(), port, runtime(), Array.from({ length: 1025 }, () => entity));
+    assert.equal(large.outcome, "ready", JSON.stringify(large));
     const tooLarge = { ...entity, name: "x".repeat(M.MAX_CACHED_SCOPE_ESTIMATED_BYTES) };
     rejected(await reader.prepare([], policy(), port, runtime(), [tooLarge]), "decode-budget");
     rejected(await reader.prepare([], policy(), { entity: () => ({ ...entity, entity: { ...entity.entity, id: "wrong-id" } }) }, runtime(), [entity]), "invalid-frame");

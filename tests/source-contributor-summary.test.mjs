@@ -275,8 +275,8 @@ test("v1 derivative roots are non-ready without rewriting accepted heads; missin
   assert.equal(result.reason, "dependency-invalid"); assert.equal(JSON.stringify([...f.state.heads]), initial);
 });
 
-/** A source-local disjoint key union cannot silently replace the adapter's global host authority. */
-test("an unchanged C head still needs host-transition authority after A adds B, even when A's delta is disjoint", async () => {
+/** Delivery 2 keeps unrelated durable heads reusable while the changed source gets a fresh replay capability. */
+test("a disjoint A body edit leaves unrelated C's durable head and host observation unchanged", async () => {
   const f = replayFixture();
   try {
     const a = f.add("A.md", ""); f.add("B.md", ""); f.add("C.md", ""); f.resolutions.set("B", "B.md");
@@ -294,12 +294,10 @@ test("an unchanged C head still needs host-transition authority after A adds B, 
     assert(delta.affectedKeys.includes(M.contributorKey("node", "B.md")));
     assert(!delta.affectedKeys.includes(M.contributorKey("node", "C.md")));
     const newC = await f.acquisition.captureForReplay("C.md", presentation, runtime()); assert.equal(newC.outcome, "ready");
-    assert.notEqual(newC.request.host.observation.revision, cHead.observation.revision);
-    const counts = countReads(f.repository), refused = await M.summarizeContributorOwner(f.repository, newC.request, runtime());
-    assert.equal(refused.reason, "stale"); assert(!("value" in refused)); assert.equal(counts.families.length, 0);
+    assert.equal(newC.request.host.observation.revision, cHead.observation.revision);
+    const counts = countReads(f.repository), reused = await M.summarizeContributorOwner(f.repository, newC.request, runtime());
+    assert.equal(reused.outcome, "ready", JSON.stringify(reused)); assert.equal(counts.families.length, 4);
     assert.deepEqual((await f.repository.inspect("C.md")).head, cHead);
-    // This is an executable counterexample to reusing C without a new host-impact proof, not a
-    // claim that the required incremental transaction/host protocol has been implemented.
   } finally { f.close(); }
 });
 
