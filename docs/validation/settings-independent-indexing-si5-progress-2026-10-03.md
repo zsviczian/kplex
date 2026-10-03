@@ -2,7 +2,7 @@
 
 SI4 is finalized at `323b260127e4fb81e1d3697d4ee8b0282f8cdb12` on `indexing-optimization-v2`. All ten original SI4 Delivery 1/2 exits are accepted. The maintainer authorized that commit and SI5 implementation, with Obsidian CLI testing and later manual iOS/Android testing. No push or release was made.
 
-**SI5 remains in progress; the maintainer authorizes an interim SI5a checkpoint commit. This is a candidate report, not SI5 acceptance or readiness for physical-device sign-off.** The five original Delivery 3 boxes remain open. Required desktop consumer coverage and scale measurements must finish before the maintainer's device runs can close the remaining gates. C15–C26 remain paused.
+**SI5 remains in progress; the maintainer-authorized SI5a interim is committed at `e50dd521550e09d12de2b155018dce9cb8026201`. This is a candidate report, not SI5 acceptance or readiness for physical-device sign-off.** The five original Delivery 3 boxes remain open. Required desktop consumer coverage and scale measurements must finish before the maintainer's device runs can close the remaining gates. C15–C26 remain paused.
 
 ## Implemented behavior
 
@@ -20,7 +20,7 @@ The full `npm run verify:obsidian` lane passed at 12:28:25–12:38:02 UTC before
 
 After the unload correction, affected checks passed again: strict indexing/settings (24 production settings scenarios), all five restore-watchdog phases plus late completion/rejection/unload, the seven new real-IDB restart/fault cases, the official scanner with zero warnings and the actual build. Exact final-build small-vault staging/render smoke passed with no captured JavaScript errors. The full earlier suite is not mislabeled as a run on the later artifact.
 
-| Final artifact | SHA-256 |
+| SI5a artifact | SHA-256 |
 | --- | --- |
 | `main.js` | `acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729` |
 | `manifest.json` | `e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62` |
@@ -66,3 +66,92 @@ After those desktop gates pass, the maintainer's **physical iPad and Android** i
 ## SI5a checkpoint follow-up
 
 The final native driver, including the probe/controller cancellation guard, passes all five small-vault cases again on the same `acc9…` production artifact. Original fourteen-store/cache/configuration cleanup passes again. The maintainer authorizes an SI5a implementation checkpoint and continued large-vault convergence work. This records the existing known failures without accepting SI5. Foreground measurements must record visibility/focus throughout; background-throttled intervals are excluded from comparable performance evidence.
+
+
+## Large-vault convergence correction after SI5a
+
+The SI5a checkpoint is committed; the following correction is a separate working-tree candidate.
+No push/release or acceptance of the five SI5 exits is implied.
+
+Aggregate attribution on `acc9…` found source replacement taking 136,881 ms of 145,151 ms measured
+acquisition time over 592 observed owners. Those samples were unfocused and establish where work
+accumulates, not comparable foreground latency. A global startup host fence forced unchanged owners
+through resolution persistence, including local-dependency staging/repair and retirement work.
+
+The correction retains the host fence and compares the canonical resolver/Date producer with a
+validated selected resolution family. Equal output keeps exact durable heads. Head-only inspection
+avoids reader-lease writes; restart metadata is validated once; elapsed inventory budgets replace
+per-owner timer yields. Exact-head body selections and already owned parser inputs remove repeated
+body decoding/family reads. Actual changed bindings still replace their source. No store/schema,
+parser, relationship classifier, readiness deadline or memory allowance is changed.
+
+An intermediate `42404f29…` build reached all 20,015 owners with zero Markdown reads/parses,
+repairs, failures or resolution rewrites. It was still pending at 272,943 ms from trace attachment
+and was observed ready with no inventory at 386,735 ms. This fails the existing four-minute
+preflight bound. It is diagnostic evidence only: six sampled intervals lost window focus, browser
+regressions overlapped part of the run, and bounded sampling ended before the final ready observation.
+The subsequent exact-head read reduction is included in final candidate
+`6b77bbc320c62f46d8a5116e0e58f8724d8a7c60a9b4c39e12bbb67ae4611bba`.
+
+Required automated checks pass on that candidate: architecture 7, core 60, aggregate Node 133,
+UI 7, portable sources 314, real Chromium/IndexedDB 184, strict indexing/settings checks, zero
+scanner warnings and actual types/production build. The 20,015-owner publication regression still
+passes canonical gates/siblings/degrees/search/provenance and cancellation with no IO. New cases
+prove unknown restart waves preserve identical heads, a genuinely changed target updates only its
+source, digest equality is bounded and chunk independent, cancellation/replacement/corruption cannot
+authenticate equality, read-only head inspection writes no leases, and body validation cannot be reused
+across a selected-head change. Exact-build cold foreground preflight still fails at its unchanged four-minute bound: 18,053
+owners are validated, with zero reads/parses/repairs/resolution writes/failures/full builds. All 240
+samples are visible and document/window focused with original throttling. Sampled renderer JS heap
+peaks at 2,206,694,546 bytes; this is not plugin-only/process peak. A later serial probe finds all
+20,015 complete, source authority ready, no inventory/backlog/backpressure and no test controllers.
+
+Three warm functional restarts pass with all heads unchanged, zero source work or full builds,
+rendered center, complete 20,709-page / 715,032-evidence acceleration, and restored settings/throttling.
+Warm-1 (79,364 ms) loses focus and is excluded. Warm-2 (90,475 ms) and warm-3 (90,902 ms) pass all
+foreground samples. A one-run replacement (93,553 ms) also loses focus/visibility and is excluded;
+three comparable timing runs are not yet established. These remain CLI/readiness timings, not paint.
+
+The cold-start blocker survives the consolidated correction. Do not continue deadline/cap tweaking.
+The smallest proposed next change is to prioritize source authority/requested publication before eager
+whole-graph/evidence hydration, retaining existing preview/fallback owners and loading optional
+acceleration afterward. This is a scheduling proposal, not a proved latency fix. It may reduce storage
+contention and live graph retention, but delays complete global search vocabulary; the pending neutral
+body-only catalog work must cover that workflow explicitly. It preserves the uncertainty fence and
+requires changed-policy/cache-fault/interruption regressions plus a new foreground cold check.
+No second contributor catalog, source journal, parser or relationship classifier is proposed.
+
+
+Final exact-build small native faults pass again on `6b77…`: saved-policy restart 1,701 ms, graph loss
+1,786 ms, invalid graph 1,684 ms, one damaged source 1,612 ms and offline edit 1,696 ms. All use zero
+full builds. Source damage repairs exactly one owner from body-v2 with zero Markdown reads/parses;
+offline edit reads/parses only its owner once. Exact-build command/render/error smoke passes, reusing
+the separately completed unchanged full verification rather than repeating it. All fourteen original
+small stores are restored and compared again, configuration restored, temporary plugin removed, two
+original notes and no fixtures/controllers. The large window is closed after confirming source readiness,
+20,015 original Markdown files, zero source/build work in its final warm instance, no fixtures/controllers
+and original throttling. Original enablement and valid progress remain; personal vault untouched.
+
+No additional maintainer manual test is needed to review this correction. Resolve the cold-start
+scheduling/consumer tradeoff before desktop timing/sync/popout coverage; physical iOS/Android remains
+with the maintainer after desktop readiness. Only two warm timing runs are comparable so far; the
+excluded replacement is retained, and one further foreground run is pending cooperation/environment.
+
+
+## Maintainer-approved progress and next steps
+
+The reviewed large-convergence correction is authorized for an **SI5b interim commit**. The known
+cold preflight failure and missing third comparable warm result remain explicit; this commit does
+not accept SI5. The maintainer also approves source-first startup with global vocabulary recovery.
+
+| Planned work | Status | Next action |
+| --- | --- | --- |
+| SI4 settings independence and ordinary maintenance | Complete, `323b260` | No further SI4 validation |
+| SI5a source-backed startup, selective recovery and writer retirement | Committed, `e50dd52` | Retain existing regression coverage |
+| SI5b canonical host reuse and large warm functional convergence | Reviewed; interim commit authorized | Keep cold timing failure visible |
+| Source-first startup and full virtual/URL search/suggestion recovery | Approved, starting | Reuse existing owners; validate cancellation and consumer parity |
+| Desktop startup/sync/interruption/storage/foreground scale acceptance | Incomplete | Exact-build cold run, three comparable warm runs, dense/high-node cases and popout teardown |
+| Physical iOS/Android | Pending desktop readiness | Maintainer follows device checklist |
+| Final SI5 retirement/evidence audit and acceptance | Pending | Close original five exits only from required results |
+
+This is the existing finish plan. No extra prerequisite checkpoint, percentage or finish date is added.

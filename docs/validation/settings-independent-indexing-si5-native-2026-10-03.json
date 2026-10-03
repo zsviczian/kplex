@@ -1350,5 +1350,1173 @@
     "markdownFiles": 20015,
     "backgroundThrottling": true,
     "largeTestWindowCloseScheduled": true
+  },
+  "si5aCommit": "e50dd521550e09d12de2b155018dce9cb8026201",
+  "largeConvergenceCorrection": {
+    "acceptance": "SI5 not accepted; cold foreground preflight still fails its unchanged 240-second bound",
+    "attribution": {
+      "elapsed": 149912.89999997616,
+      "rows": {
+        "transaction": {
+          "calls": 24683,
+          "ms": 144572.80000132322,
+          "max": 827.3999999761581,
+          "active": 1
+        },
+        "releaseLeases": {
+          "calls": 4144,
+          "ms": 3023.7999984622,
+          "max": 116.10000002384186,
+          "active": 0
+        },
+        "ensureLocalDependencies": {
+          "calls": 592,
+          "ms": 1174.9999991059303,
+          "max": 29.399999976158142,
+          "active": 0
+        },
+        "inspect": {
+          "calls": 1776,
+          "ms": 5437.500000357628,
+          "max": 186.39999997615814,
+          "active": 0
+        },
+        "loadBody": {
+          "calls": 592,
+          "ms": 1948.8999992012978,
+          "max": 32,
+          "active": 0
+        },
+        "acquire": {
+          "calls": 592,
+          "ms": 145150.9000003338,
+          "max": 1694.5,
+          "active": 1
+        },
+        "replace": {
+          "calls": 592,
+          "ms": 136880.80000030994,
+          "max": 1490.800000011921,
+          "active": 1
+        },
+        "visit": {
+          "calls": 1184,
+          "ms": 3845.5000001192093,
+          "max": 129.9000000357628,
+          "active": 0
+        }
+      },
+      "counters": {
+        "checked": 1280,
+        "reusedBodies": 1280,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 1279,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "foregroundSummary": {
+        "samples": 48,
+        "hiddenOrUnfocused": 48,
+        "lastSampleMs": 149766.89999997616,
+        "firstSample": {
+          "t": 18623.799999952316,
+          "hidden": false,
+          "focus": false,
+          "nativeFocus": false,
+          "counters": {
+            "checked": 757,
+            "reusedBodies": 757,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 756,
+            "pendingMetadata": 0,
+            "failures": 0
+          }
+        },
+        "lastSample": {
+          "t": 149766.89999997616,
+          "hidden": false,
+          "focus": false,
+          "nativeFocus": false
+        },
+        "firstUnfocusedSample": {
+          "t": 18623.799999952316,
+          "hidden": false,
+          "focus": false,
+          "nativeFocus": false,
+          "counters": {
+            "checked": 757,
+            "reusedBodies": 757,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 756,
+            "pendingMetadata": 0,
+            "failures": 0
+          }
+        }
+      },
+      "rawTracePath": "/private/tmp/kplex-si5-convergence-attribution.json"
+    },
+    "intermediateDiagnostic": {
+      "elapsed": 386734.5,
+      "rows": {
+        "inspect": {
+          "calls": 79544,
+          "ms": 111642.69999617338,
+          "max": 3142.5,
+          "active": 0
+        },
+        "transaction": {
+          "calls": 678710,
+          "ms": 275293.99997776747,
+          "max": 3039.699999988079,
+          "active": 0
+        },
+        "durableHostInventory": {
+          "calls": 19499,
+          "ms": 45961.99999856949,
+          "max": 1776,
+          "active": 0
+        },
+        "visit": {
+          "calls": 59529,
+          "ms": 127115.59999424219,
+          "max": 1776,
+          "active": 0
+        },
+        "loadBody": {
+          "calls": 20015,
+          "ms": 46127.40000718832,
+          "max": 1782.0999999642372,
+          "active": 0
+        },
+        "acquire": {
+          "calls": 20015,
+          "ms": 255784.49999588728,
+          "max": 3195.699999988079,
+          "active": 0
+        },
+        "matchesFamily": {
+          "calls": 20015,
+          "ms": 154024.49999397993,
+          "max": 1672.699999988079,
+          "active": 0
+        },
+        "ensureLocalDependencies": {
+          "calls": 20015,
+          "ms": 14685.400000989437,
+          "max": 2600.099999964237,
+          "active": 0
+        }
+      },
+      "counters": {
+        "checked": 20015,
+        "reusedBodies": 20015,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "ready": true,
+      "inventory": false,
+      "hash": "42404f299bbbea5425ba3d5185211f57cf9f9938f927bb508109346d54076bf5",
+      "foregroundSummary": {
+        "samples": 160,
+        "hiddenOrUnfocused": 6,
+        "lastSampleMs": 322000.3000000119,
+        "firstSample": {
+          "t": 2005,
+          "hidden": false,
+          "focus": true,
+          "nativeFocus": true,
+          "appHidden": false,
+          "ready": false,
+          "inventory": true,
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          }
+        },
+        "lastSample": {
+          "t": 322000.3000000119,
+          "hidden": false,
+          "focus": true,
+          "nativeFocus": true,
+          "appHidden": false,
+          "ready": false,
+          "inventory": true,
+          "counters": {
+            "checked": 16767,
+            "reusedBodies": 16768,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          }
+        },
+        "firstUnfocusedSample": {
+          "t": 90001.19999998808,
+          "hidden": false,
+          "focus": true,
+          "nativeFocus": false,
+          "appHidden": false,
+          "ready": false,
+          "inventory": true,
+          "counters": {
+            "checked": 2657,
+            "reusedBodies": 2658,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          }
+        }
+      },
+      "rawTracePath": "/private/tmp/kplex-si5-convergence-first-candidate.json"
+    },
+    "intermediateTimingEligibility": "Not comparable: six unfocused samples, concurrent browser work, and sampling ended before final ready observation",
+    "coldForegroundPreflight": {
+      "status": "failed",
+      "startedAt": "2026-10-03T14:51:06.873Z",
+      "source": {
+        "revision": "e50dd521550e09d12de2b155018dce9cb8026201",
+        "dirty": true
+      },
+      "host": {
+        "cpu": "Apple M1",
+        "logicalCPUs": 8,
+        "physicalMemoryBytes": 8589934592,
+        "os": "darwin 23.5.0",
+        "obsidian": "1.14.4 (installer 1.14.0)"
+      },
+      "artifacts": {
+        "main.js": "6b77bbc320c62f46d8a5116e0e58f8724d8a7c60a9b4c39e12bbb67ae4611bba",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "runs": [],
+      "currentPhase": "preflight",
+      "error": "Error: preflight: Error: Readiness timeout {\"upToDate\":true,\"phase\":\"ready\",\"indexedFiles\":20015,\"totalFiles\":20015,\"label\":\"Status: index ready\"}",
+      "failedCommand": "eval",
+      "failedPhase": "preflight",
+      "failure": {
+        "source": {
+          "checked": 18053,
+          "reusedBodies": 18053,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 0,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "semantic": {
+          "policyRevision": 1,
+          "requested": 1,
+          "prepared": 0,
+          "published": 0,
+          "cancelled": 0,
+          "pending": 1,
+          "dependencyVisits": 0,
+          "fullBuilds": 0,
+          "lastReason": "dependency-pending"
+        },
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 20015,
+          "totalFiles": 20015,
+          "label": "Status: index ready"
+        },
+        "foreground": {
+          "samples": 240,
+          "hidden": 0,
+          "documentUnfocused": 0,
+          "windowUnfocused": 0,
+          "throttlingDisabled": 0,
+          "peakJsHeapBytes": 2206694546,
+          "comparable": true
+        },
+        "hidden": false
+      },
+      "completedAt": "2026-10-03T14:55:08.721Z"
+    },
+    "laterColdReadyObservation": {
+      "sourceReady": true,
+      "inventory": false,
+      "hostRevision": 1,
+      "restartInventoryChecked": true,
+      "pendingKnown": 0,
+      "pendingKeys": 0,
+      "backpressure": false,
+      "counters": {
+        "checked": 20015,
+        "reusedBodies": 20015,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "controllersAbsent": true,
+      "documentHidden": false,
+      "documentFocused": true,
+      "windowFocused": true
+    },
+    "warmRestarts": {
+      "status": "passed",
+      "startedAt": "2026-10-03T14:56:47.921Z",
+      "source": {
+        "revision": "e50dd521550e09d12de2b155018dce9cb8026201",
+        "dirty": true
+      },
+      "host": {
+        "cpu": "Apple M1",
+        "logicalCPUs": 8,
+        "physicalMemoryBytes": 8589934592,
+        "os": "darwin 23.5.0",
+        "obsidian": "1.14.4 (installer 1.14.0)"
+      },
+      "artifacts": {
+        "main.js": "6b77bbc320c62f46d8a5116e0e58f8724d8a7c60a9b4c39e12bbb67ae4611bba",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "runs": [
+        {
+          "name": "warm-1",
+          "elapsedMs": 79364,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 12,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": false,
+          "sourceBackedSemantics": false,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791039409814,
+            "phaseStartedAt": 1791039417191,
+            "lastProgressAt": 1791039417191,
+            "pages": 20709,
+            "relations": 20709,
+            "evidence": 715032,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 0,
+          "trace": [],
+          "jsHeapBytes": 1525151583,
+          "renderedCenter": true,
+          "sourceHeadsUnchanged": true,
+          "probeElapsedMs": 79255,
+          "foreground": {
+            "samples": 80,
+            "hidden": 0,
+            "documentUnfocused": 70,
+            "windowUnfocused": 70,
+            "throttlingDisabled": 0,
+            "peakJsHeapBytes": 1651735707,
+            "comparable": false
+          }
+        },
+        {
+          "name": "warm-2",
+          "elapsedMs": 90475,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 12,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": false,
+          "sourceBackedSemantics": false,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791039489345,
+            "phaseStartedAt": 1791039505678,
+            "lastProgressAt": 1791039505677,
+            "pages": 20709,
+            "relations": 20709,
+            "evidence": 715032,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 0,
+          "trace": [],
+          "jsHeapBytes": 1736010569,
+          "renderedCenter": true,
+          "sourceHeadsUnchanged": true,
+          "probeElapsedMs": 90291,
+          "foreground": {
+            "samples": 88,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "peakJsHeapBytes": 2055041740,
+            "comparable": true
+          }
+        },
+        {
+          "name": "warm-3",
+          "elapsedMs": 90902,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 12,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": false,
+          "sourceBackedSemantics": false,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791039580022,
+            "phaseStartedAt": 1791039597172,
+            "lastProgressAt": 1791039597171,
+            "pages": 20709,
+            "relations": 20709,
+            "evidence": 715032,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 0,
+          "trace": [],
+          "jsHeapBytes": 1610401421,
+          "renderedCenter": true,
+          "sourceHeadsUnchanged": true,
+          "probeElapsedMs": 90707,
+          "foreground": {
+            "samples": 89,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "peakJsHeapBytes": 2211032973,
+            "comparable": true
+          }
+        }
+      ],
+      "currentPhase": "cleanup",
+      "preflight": {
+        "ready": true,
+        "hidden": false,
+        "throttle": true,
+        "markdownFiles": 20015,
+        "probeElapsedMs": 1624,
+        "foreground": {
+          "samples": 2,
+          "hidden": 0,
+          "documentUnfocused": 2,
+          "windowUnfocused": 2,
+          "throttlingDisabled": 0,
+          "peakJsHeapBytes": 921957990,
+          "comparable": false
+        }
+      },
+      "cleanup": {
+        "settingsRestored": true,
+        "fixturesAbsent": true,
+        "throttleRestored": true,
+        "probeElapsedMs": 113
+      },
+      "completedAt": "2026-10-03T15:01:10.886Z"
+    },
+    "automated": {
+      "architecture": 7,
+      "core": 60,
+      "aggregateNode": 133,
+      "ui": 7,
+      "portableSources": 314,
+      "realBrowserIndexedDb": 184,
+      "scannerWarnings": 0,
+      "build": "passed",
+      "npmTest": "passed"
+    },
+    "remaining": "Third comparable warm run (two pass), cold-start scheduling decision, native large interruption/sync, dense/high-node latency/memory/storage/popout, global body-only catalog and physical devices",
+    "excludedWarmReplacement": {
+      "status": "passed",
+      "startedAt": "2026-10-03T15:02:03.030Z",
+      "source": {
+        "revision": "e50dd521550e09d12de2b155018dce9cb8026201",
+        "dirty": true
+      },
+      "host": {
+        "cpu": "Apple M1",
+        "logicalCPUs": 8,
+        "physicalMemoryBytes": 8589934592,
+        "os": "darwin 23.5.0",
+        "obsidian": "1.14.4 (installer 1.14.0)"
+      },
+      "artifacts": {
+        "main.js": "6b77bbc320c62f46d8a5116e0e58f8724d8a7c60a9b4c39e12bbb67ae4611bba",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "runs": [
+        {
+          "name": "warm-1",
+          "elapsedMs": 93553,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 12,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": false,
+          "sourceBackedSemantics": false,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791039724876,
+            "phaseStartedAt": 1791039730997,
+            "lastProgressAt": 1791039730996,
+            "pages": 20709,
+            "relations": 20709,
+            "evidence": 715032,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 0,
+          "trace": [],
+          "jsHeapBytes": 942115918,
+          "renderedCenter": true,
+          "sourceHeadsUnchanged": true,
+          "probeElapsedMs": 93467,
+          "foreground": {
+            "samples": 94,
+            "hidden": 35,
+            "documentUnfocused": 37,
+            "windowUnfocused": 37,
+            "throttlingDisabled": 0,
+            "peakJsHeapBytes": 1099881769,
+            "comparable": false
+          }
+        }
+      ],
+      "currentPhase": "cleanup",
+      "preflight": {
+        "ready": true,
+        "hidden": false,
+        "throttle": true,
+        "markdownFiles": 20015,
+        "probeElapsedMs": 1624,
+        "foreground": {
+          "samples": 3,
+          "hidden": 0,
+          "documentUnfocused": 0,
+          "windowUnfocused": 0,
+          "throttlingDisabled": 0,
+          "peakJsHeapBytes": 895357908,
+          "comparable": true
+        }
+      },
+      "cleanup": {
+        "settingsRestored": true,
+        "fixturesAbsent": true,
+        "throttleRestored": true,
+        "probeElapsedMs": 120
+      },
+      "completedAt": "2026-10-03T15:03:38.501Z"
+    },
+    "smallNative": {
+      "status": "passed",
+      "startedAt": "2026-10-03T15:08:12.117Z",
+      "source": {
+        "revision": "e50dd521550e09d12de2b155018dce9cb8026201",
+        "dirty": true
+      },
+      "host": {
+        "cpu": "Apple M1",
+        "logicalCPUs": 8,
+        "physicalMemoryBytes": 8589934592,
+        "os": "darwin 23.5.0",
+        "obsidian": "1.14.4 (installer 1.14.0)"
+      },
+      "artifacts": {
+        "main.js": "6b77bbc320c62f46d8a5116e0e58f8724d8a7c60a9b4c39e12bbb67ae4611bba",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "runs": [
+        {
+          "name": "changed-policy",
+          "elapsedMs": 1701,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": false,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791040096987,
+            "phaseStartedAt": 1791040096993,
+            "lastProgressAt": 1791040096993,
+            "pages": 18,
+            "relations": 18,
+            "evidence": 18,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [],
+          "jsHeapBytes": 96913575,
+          "renderedCenter": true,
+          "probeElapsedMs": 1629,
+          "foreground": {
+            "samples": 2,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "peakJsHeapBytes": 99825769,
+            "comparable": true
+          }
+        },
+        {
+          "name": "missing-cache",
+          "elapsedMs": 1786,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": true,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "metadata",
+            "startedAt": 1791040098838,
+            "phaseStartedAt": 1791040098845,
+            "lastProgressAt": 1791040098845,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [],
+          "jsHeapBytes": 105432836,
+          "renderedCenter": true,
+          "probeElapsedMs": 1691,
+          "foreground": {
+            "samples": 2,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "peakJsHeapBytes": 105432836,
+            "comparable": true
+          }
+        },
+        {
+          "name": "corrupt-cache",
+          "elapsedMs": 1684,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": true,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "metadata",
+            "startedAt": 1791040100717,
+            "phaseStartedAt": 1791040100721,
+            "lastProgressAt": 1791040100721,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [],
+          "jsHeapBytes": 105594791,
+          "renderedCenter": true,
+          "probeElapsedMs": 1634,
+          "foreground": {
+            "samples": 2,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "peakJsHeapBytes": 105594791,
+            "comparable": true
+          }
+        },
+        {
+          "name": "corrupt-source",
+          "elapsedMs": 1612,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 1,
+            "reusedBodies": 0,
+            "legacyBodies": 1,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "delta": {
+            "checked": 1,
+            "reusedBodies": 0,
+            "legacyBodies": 1,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 2,
+            "requested": 4,
+            "prepared": 2,
+            "published": 2,
+            "cancelled": 1,
+            "pending": 1,
+            "dependencyVisits": 32,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "markdownReads": 0,
+          "unrelatedHeadUnchanged": true,
+          "automaticRepair": true,
+          "hidden": false,
+          "backgroundThrottling": true,
+          "jsHeapBytes": 109119967,
+          "probeElapsedMs": 1612,
+          "foreground": {
+            "samples": 2,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "peakJsHeapBytes": 109119967,
+            "comparable": true
+          }
+        },
+        {
+          "name": "offline-edit",
+          "elapsedMs": 1696,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 1,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 1,
+            "parses": 1,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": true,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "metadata",
+            "startedAt": 1791040105688,
+            "phaseStartedAt": 1791040105694,
+            "lastProgressAt": 1791040105694,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [
+            {
+              "phase": "load-body",
+              "bodyDirty": true,
+              "dirty": true,
+              "created": false,
+              "size": 68
+            }
+          ],
+          "jsHeapBytes": 112295118,
+          "renderedCenter": true,
+          "probeElapsedMs": 1622,
+          "foreground": {
+            "samples": 2,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "peakJsHeapBytes": 112295118,
+            "comparable": true
+          }
+        }
+      ],
+      "currentPhase": "cleanup",
+      "preflight": {
+        "ready": true,
+        "hidden": false,
+        "throttle": true,
+        "markdownFiles": 2,
+        "probeElapsedMs": 1622,
+        "foreground": {
+          "samples": 2,
+          "hidden": 0,
+          "documentUnfocused": 0,
+          "windowUnfocused": 0,
+          "throttlingDisabled": 0,
+          "peakJsHeapBytes": 82940285,
+          "comparable": true
+        }
+      },
+      "cleanup": {
+        "settingsRestored": true,
+        "fixturesAbsent": true,
+        "throttleRestored": true,
+        "probeElapsedMs": 110
+      },
+      "completedAt": "2026-10-03T15:08:27.447Z"
+    },
+    "nativeSmoke": {
+      "schemaVersion": 1,
+      "status": "passed",
+      "startedAt": "2026-10-03T15:10:30.595Z",
+      "source": {
+        "revision": "e50dd521550e09d12de2b155018dce9cb8026201",
+        "dirty": true,
+        "node": "v22.22.2",
+        "verification": "Reuse the separately completed architecture/core/scanner/npm-test/build checks on unchanged production source; no duplicate full test run"
+      },
+      "target": {
+        "vaultName": "excalidraw-test",
+        "vaultPath": "/Users/zsviczian/Obsidian/excalidraw-test",
+        "configDir": "/Users/zsviczian/Obsidian/excalidraw-test/.obsidian"
+      },
+      "capabilities": {
+        "version": "1.14.4 (installer 1.14.0)",
+        "commands": [
+          "version",
+          "vault",
+          "plugin:disable",
+          "plugin:enable",
+          "commands",
+          "command",
+          "dev:dom",
+          "dev:errors"
+        ]
+      },
+      "artifacts": {
+        "sourceHashes": {
+          "main.js": "6b77bbc320c62f46d8a5116e0e58f8724d8a7c60a9b4c39e12bbb67ae4611bba",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "pluginVersion": "0.0.5",
+        "stagedHashes": {
+          "main.js": "6b77bbc320c62f46d8a5116e0e58f8724d8a7c60a9b4c39e12bbb67ae4611bba",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        }
+      },
+      "scenarios": [
+        {
+          "id": "open-kplex",
+          "status": "passed",
+          "assertions": [
+            "plugin command registered",
+            "rendered .kplex-app contains K-Plex",
+            "no captured JavaScript errors"
+          ],
+          "elapsedMs": 129
+        }
+      ],
+      "completedAt": "2026-10-03T15:10:31.446Z"
+    },
+    "smallCleanup": {
+      "status": "passed",
+      "storesRestoredAndCompared": 14,
+      "counts": {
+        "bodies": 10,
+        "evidence": 0,
+        "meta": 5,
+        "pages": 48,
+        "snapshotChunks": 6,
+        "sourceChunks": 18,
+        "sourceDependencies": 0,
+        "sourceHeads": 11,
+        "sourceImpacts": 0,
+        "sourceLocalDependencies": 12,
+        "sourceLocalDependencyKeys": 10,
+        "sourceLocalDependencyOwners": 11,
+        "sourceLocalDependencyRepairs": 0,
+        "sourcePostings": 30
+      },
+      "pluginDisabled": true,
+      "ownedFiles": [],
+      "controllers": [],
+      "markdownFiles": 2,
+      "throttling": true,
+      "pluginDirectoryRemoved": true,
+      "enabledPluginsRestored": true
+    },
+    "largeCleanup": {
+      "sourceReady": true,
+      "inventory": false,
+      "markdownFiles": 20015,
+      "counters": {
+        "checked": 0,
+        "reusedBodies": 0,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "fullBuilds": 0,
+      "ownedFixtures": 0,
+      "controllers": [],
+      "backgroundThrottling": true,
+      "closingTestWindow": true
+    }
   }
 }

@@ -7,6 +7,8 @@
  * Requested semantic preparation uses the source-local dependency derivative. Historical SI4a
  * selected-source/catalog construction adapters live only in test fixtures. Host events retain the
  * durable legacy UNKNOWN-impact journal for storage compatibility; no inverse resolver is invented.
+ * Restart resolver closes validate canonical output before rewriting sources. Exact-head body-read
+ * certificates avoid duplicate decoding and weak ownership does not retain parsed bodies at rest.
  */
 import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidian";
 import type { GraphCompilerRuntime } from "../../core/graph/compiler";
@@ -38,7 +40,7 @@ import { entityFactForFile, entityFactForFolder, ObsidianStructuralPatchSourceCo
 import { hostLinkRecord } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
-type FileObservation = { identity: string | null; observation?: SourceObservation; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null };
+type FileObservation = { identity: string | null; observation?: SourceObservation; validatedHostRevision?: number; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null };
 type SourceCoordinates = Readonly<{ order: number; markdownOrder: number }>;
 type Capture = { physical: SourcePhysical; revision: number; hostRevision: number; state: FileObservation; file: TFile };
 /** Narrow parser port: acquisition does not import GraphBuilder or own a second parser. */
@@ -64,6 +66,16 @@ const DEFERRED_RESOLUTION_RETRY_MAX_MS = 30000;
 /** Apply producer backpressure to a canonical generator, including its cooperative null steps. */
 function producer(steps: () => Iterable<StoredSourceFact | null>): SourceFamilyProducer {
   return async (emit) => { for (const fact of steps()) if (!(await emit(fact))) return false; return true; };
+}
+/** Yield inventory CPU slices by elapsed time, avoiding one clamped browser timer per cached owner. */
+function inventoryCheckpoint(): () => Promise<void> {
+  const budget = Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13;
+  let lastYield = window.performance.now();
+  return async () => {
+    if (window.performance.now() - lastYield < budget) return;
+    await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+    lastYield = window.performance.now();
+  };
 }
 /** Compare only observations actually present in storage; legacy records do not invent a size. */
 function physicalMatches(stored: SourcePhysical, captured: SourcePhysical, allowOldPath = false): boolean {
@@ -138,6 +150,8 @@ export class ObsidianSourceAcquisition {
   private readonly sourceCoordinates = new Map<string, SourceCoordinates>();
   /** One repair attempt per observed incarnation/revision; persistent damage cannot spin a retry loop. */
   private readonly replayRepairRevisions = new WeakMap<TFile, number>();
+  /** A live decoded body's exact validated head; discarded automatically with that transient body. */
+  private readonly bodySelections = new WeakMap<ParsedBodyMetadata, SourceInspection>();
   private nextSourceOrder = 0;
   private nextMarkdownOrder = 0;
   /** Cheap idle preflight: field vocabulary is collected while sources are already being visited. */
@@ -461,6 +475,7 @@ export class ObsidianSourceAcquisition {
   /** Upgrade accepted R1 owners before restart fan-out so unresolved relative/subpath tokens exist. */
   private async upgradeRestartLocalDependencies(markdown: readonly TFile[], structuralOrder: ReadonlyMap<string, number>,
     current: () => boolean): Promise<boolean> {
+    const checkpoint = inventoryCheckpoint();
     for (const [markdownOrder, file] of markdown.entries()) {
       if (!current()) return false;
       const order = structuralOrder.get(file.path);
@@ -470,7 +485,7 @@ export class ObsidianSourceAcquisition {
       if (!inspection.saved || !inspection.head || inspection.head.state !== "complete") continue;
       const reason = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
       if (reason !== "ready") return false;
-      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+      await checkpoint();
     }
     return current();
   }
@@ -486,7 +501,9 @@ export class ObsidianSourceAcquisition {
       if (!current()) return false;
       const cache = this.app.metadataCache.getFileCache(file);
       if (!cache) continue;
-      const inspection = await this.repository.inspect(file.path, ["metadata"], current);
+      // durableHostInventory validates this same family's chunks/postings while collecting facts;
+      // inspecting it here as well would decode every restart metadata family twice.
+      const inspection = await this.repository.inspect(file.path, [], current);
       if (!current()) return false;
       const head = inspection.head;
       const now = this.currentHostInventory(file, cache);
@@ -918,7 +935,8 @@ export class ObsidianSourceAcquisition {
       capture.state.identity ??= physical.identity;
       return true;
     };
-    let body = await this.repository.readBody(capture.physical.path, (physical) => accept(physical), current);
+    let body = await this.repository.readBody(capture.physical.path, (physical) => accept(physical), current, false, false,
+      (decoded, selection) => { this.bodySelections.set(decoded, selection); });
     if (!current()) return null;
     if (!body && capture.state.oldPath) {
       body = await this.repository.readBody(capture.state.oldPath, (physical) => accept(physical, true), current, true, true);
@@ -1018,7 +1036,19 @@ export class ObsidianSourceAcquisition {
         && this.app.metadataCache.getFileCache(file) === cache;
       const environment = await this.repository.observationDigest(environmentText);
       if (!current()) return { current: false, saved: false, reason: "cancelled" };
-      const inspection = await this.repository.inspect(file.path, SOURCE_FAMILIES, current);
+      const bodySelection = this.bodySelections.get(body);
+      let inspection = await this.repository.inspect(file.path,
+        bodySelection?.saved ? ["metadata", "resolution"] : SOURCE_FAMILIES, current);
+      if (bodySelection?.saved) {
+        if (inspection.saved && inspection.sequence === bodySelection.sequence
+          && inspection.head?.sourceRevision === bodySelection.head?.sourceRevision) {
+          inspection = { ...inspection, families: { ...bodySelection.families, ...inspection.families } };
+        } else {
+          // Another writer selected a new head after body decoding. Its families require their own
+          // validation; a matching mtime or retained physical identity cannot substitute for this CAS.
+          inspection = await this.repository.inspect(file.path, SOURCE_FAMILIES, current);
+        }
+      }
       if (!current() || this.environment(cache) !== environmentText || this.app.metadataCache.getFileCache(file) !== cache) return { current: false, saved: false, reason: "cancelled" };
       this.counters.checked += 1;
       const head = inspection.head;
@@ -1030,6 +1060,7 @@ export class ObsidianSourceAcquisition {
       const intrinsic = samePhysical && !capture.state.dirty;
       const hostCurrent = !capture.state.resolutionDirty && head?.observation.environment === environment
         && (head.observation.epoch === this.epoch && head.observation.revision === this.hostRevision
+          || capture.state.validatedHostRevision === this.hostRevision
           || this.hostRevision === 0 && !capture.state.dirty);
       if (intrinsic && hostCurrent && inspection.saved && inspection.reason === "ready" && head) {
         capture.state.observation = { ...head.observation };
@@ -1037,6 +1068,22 @@ export class ObsidianSourceAcquisition {
       }
       const metadata = mergeFileMetadata(cache, body);
       const validFamily = (family: SourceFamily): boolean => intrinsic && inspection.saved && inspection.families[family] === "ready";
+      if (head && intrinsic && SOURCE_FAMILIES.every(validFamily) && head.observation.environment === environment) {
+        // An uncertain native resolver wave fences every owner, but usually changes very few
+        // bindings. Prove equality with the canonical resolver/Date producer before retaining the
+        // exact durable observation. A changed, corrupt or superseded family takes normal repair.
+        const same = await this.repository.matchesFamily(file.path, "resolution", inspection,
+          // The body is already owned and every family was just validated. Produce from those
+          // canonical parser inputs/current cache instead of opening two more family readers.
+          this.resolution(metadata, file, cache, inspection, false, false, observationCurrent), observationCurrent);
+        if (!observationCurrent()) return { current: false, saved: false, reason: "cancelled" };
+        if (same.outcome === "ready" && same.value) {
+          capture.state.observation = { ...head.observation };
+          capture.state.validatedHostRevision = capture.hostRevision;
+          capture.state.resolutionDirty = false;
+          return { current: true, saved: true, reason: "ready" };
+        }
+      }
       const retain = (family: SourceFamily, fresh: SourceFamilyProducer): SourceFamilyProducer | SourceFamilyManifest => {
         const manifest = head?.families[family];
         return validFamily(family) && manifest ? manifest : fresh;
@@ -1185,6 +1232,7 @@ export class ObsidianSourceAcquisition {
         this.dailyNotesObservation = JSON.stringify(this.metadataHost.dailyNotesSettings());
         if (!this.restartInventoryChecked && !(await this.upgradeRestartLocalDependencies(markdown, structuralOrder, current))) return false;
         if (!(await this.reconcileRestartHostInventory(markdown, current))) return false;
+        const checkpoint = inventoryCheckpoint();
         for (const [markdownOrder, file] of markdown.entries()) {
           const order = structuralOrder.get(file.path);
           if (order === undefined) return false;
@@ -1208,6 +1256,7 @@ export class ObsidianSourceAcquisition {
           }
           const hostCurrent = !capture.state.resolutionDirty && head?.observation.environment === environment
             && (head.observation.epoch === this.epoch && head.observation.revision === this.hostRevision
+              || capture.state.validatedHostRevision === this.hostRevision
               || this.hostRevision === 0 && !capture.state.dirty);
           if (inspection.saved && head?.state === "complete" && !capture.state.dirty && !capture.state.resolutionDirty && !capture.state.created
             && physicalMatches(head.physical, capture.physical) && hostCurrent) {
@@ -1218,7 +1267,7 @@ export class ObsidianSourceAcquisition {
             const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
             if (!current()) return false;
             complete &&= local === "ready";
-            await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+            await checkpoint();
             continue;
           }
           const body = await this.loadBody(file, current);
@@ -1236,7 +1285,7 @@ export class ObsidianSourceAcquisition {
               state.oldPath = undefined;
             }
           }
-          await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+          await checkpoint();
         }
         // Missing graph pages or a broken graph snapshot never enter this catalog decision.
         let after: string | null = null;

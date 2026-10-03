@@ -9,6 +9,97 @@ import { fullCenterIndex, currentNeighborhoodView, centerGateSettings } from "./
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
 
+test("restart resolver waves retain identical heads and automatically update genuinely changed bindings", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('si5-restart-resolver-wave');let restarted;
+      const wait=async predicate=>{const start=Date.now();while(Date.now()-start<15000){if(predicate())return;await new Promise(r=>setTimeout(r,20))}throw Error('Resolver adoption did not converge')};
+      try{
+        f.add('A.md','Friends:: [[Alias]]');f.add('B.md','');f.add('C.md','');
+        let target=f.files.get('B.md');f.app.metadataCache.getFirstLinkpathDest=literal=>literal==='Alias'?target:f.files.get(literal)??f.files.get(literal+'.md')??null;
+        await f.acquire();ok(await f.acquisition.reconcile(),'Initial source authority');
+        const db=await f.cache.open(),heads=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
+        f.acquisition.close();f.work.reset();f.reads.length=0;f.parses.length=0;
+        restarted=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>{f.parses.push(text);return M.parseBodyMetadata(text)});
+        restarted.start();f.app.metadataCache.trigger('resolved');ok(!restarted.hasSemanticDependencies(),'Uncertain startup event closes readiness');
+        restarted.enableInventory();await wait(()=>restarted.hasSemanticDependencies()&&!restarted.inventory);
+        equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll()),heads,'Identical current resolutions retain exact prior heads');
+        equal(f.work.writes,[],'No source restamping for resolver close');equal(f.reads,[],'No Markdown reads');equal(f.parses,[],'No parsing');
+        equal(restarted.getCounters().resolutionRefreshes,0,'No resolution persistence for equal output');
+        const transaction=f.repository.transaction,modes=[];f.repository.transaction=function(db,stores,mode,...args){modes.push({stores,mode});return transaction.call(this,db,stores,mode,...args)};
+        let inspected;try{inspected=await f.repository.inspect('A.md',[])}finally{f.repository.transaction=transaction}
+        equal(modes,[{stores:['sourceHeads'],mode:'readonly'}],'Head-only inspection never writes cleanup leases');
+        const leasesBefore=await value(db.transaction('meta').objectStore('meta').getAll());
+        ok(inspected.saved,'Head-only inspection ready');ok(!leasesBefore.some(row=>row.key?.startsWith('source-lease:')),'Reader leases released');
+        target=f.files.get('C.md');f.work.reset();f.app.metadataCache.trigger('resolved');
+        ok(!restarted.hasSemanticDependencies(),'Later unknown binding change fences authority');await wait(()=>restarted.hasSemanticDependencies()&&!restarted.inventory);
+        const after=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
+        ok(after.find(h=>h.sourceId==='A.md').sourceRevision!==heads.find(h=>h.sourceId==='A.md').sourceRevision,'Changed resolver source persisted');
+        for(const id of ['B.md','C.md'])equal(after.find(h=>h.sourceId===id),heads.find(h=>h.sourceId===id),'Unrelated head stays exact');
+        const facts=[];equal(await f.repository.visit('A.md','resolution',rows=>{facts.push(...rows);return true}), 'ready','Changed resolution readable');
+        equal(facts.filter(r=>r.kind==='reference-resolution').map(r=>r.target?.entity.id),['C.md'],'Canonical new target');
+        equal(f.work.writes,['replace:A.md'],'Only changed resolution replaced');equal(f.reads,[],'Cached binding change reads no Markdown');equal(f.parses,[],'Cached binding change parses nothing');
+        return true;
+      }finally{restarted?.close();f.close()}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
+test("resolution equality is bounded, chunk independent, and fenced against cancellation, replacement and corruption", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('si5-resolution-equality');
+      try{
+        f.add('A.md','Friends:: '+Array.from({length:600},(_,i)=>'[[Ghost'+i+']]').join(' '));await f.acquire();
+        const inspection=await f.repository.inspect('A.md'),rows=[];
+        equal(await f.repository.visit('A.md','resolution',records=>{rows.push(...records);return true}),'ready','Dense family seeded');
+        ok(inspection.head.families.resolution.chunks>1,'Multiple physical chunks');
+        const produce=async emit=>{for(const row of rows){if(!await emit(null)||!await emit(row))return false}return true};
+        const same=await f.repository.matchesFamily('A.md','resolution',inspection,produce,()=>true);equal(same.outcome,'ready','Current equality authenticated');equal(same.value,true,'Null steps/storage chunk boundaries ignored');
+        let current=true;const cancelled=await f.repository.matchesFamily('A.md','resolution',inspection,async emit=>{current=false;return emit(rows[0])},()=>current);
+        equal(cancelled.outcome,'cancelled','Cancelled comparison cannot publish');equal(cancelled.reason,'cancelled','Cancellation retained');
+        const different=await f.repository.matchesFamily('A.md','resolution',inspection,async emit=>{for(const [i,row] of rows.entries())if(!await emit(i===rows.length-1?{...row,hostOccurrenceCount:1}:row))return false;return true},()=>true);
+        equal(different.outcome,'ready','Different valid family measured');equal(different.value,false,'Late change cannot equal a prefix');
+        const replaced=await f.repository.matchesFamily('A.md','resolution',inspection,async emit=>{const file=f.files.get('A.md');file.stat.mtime++;ok((await f.acquisition.acquire(file,M.parseBodyMetadata('Other:: [[NewGhost]]'))).saved,'Concurrent replacement');return produce(emit)},()=>true);
+        ok(replaced.outcome!=='ready','Replacement cannot authenticate old family');equal(replaced.reason,'superseded','Exact selected-head fence');
+        const selected=await f.repository.inspect('A.md'),db=await f.cache.open();
+        await edit(db,['sourcePostings'],tx=>tx.objectStore('sourcePostings').delete(['A.md',selected.head.families.resolution.revision,'resolution',0]));
+        const damaged=await f.repository.matchesFamily('A.md','resolution',selected,produce,()=>true);
+        ok(damaged.outcome!=='ready','Missing posting cannot authenticate equality');equal(damaged.reason,'missing-posting','Corruption cause preserved');
+        equal(await value(db.transaction('meta').objectStore('meta').getAll()).then(all=>all.filter(row=>row.key?.startsWith('source-lease:'))),[],'All equality leases released');
+        equal(f.repository.decodeBytes,0,'All transient digest reservations released');return true;
+      }finally{f.close()}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
+test("decoded body validation is reused only while the exact selected head is unchanged", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('si5-body-selection');
+      try{
+        const file=f.add('A.md','Friends:: [[Ghost]]');await f.acquire();
+        const body=await f.acquisition.readBody(file),before=await f.repository.inspect('A.md');ok(body,'Durable body decoded');
+        const inspect=f.repository.inspect,families=[];f.repository.inspect=function(id,selected,...args){families.push(selected);return inspect.call(this,id,selected,...args)};
+        try{
+          ok((await f.acquisition.acquire(file,body)).saved,'Same head ready');equal(families,[['metadata','resolution']],'No duplicate body-family validation');
+          const replaced=await f.repository.replace({sourceId:'A.md',physical:before.head.physical,observation:before.head.observation,
+            expected:before.expected,families:before.head.families});equal(replaced.outcome,'activated','Another selected revision');
+          families.length=0;ok((await f.acquisition.acquire(file,body)).saved,'New head independently validated');
+          equal(families,[['metadata','resolution'],M.SOURCE_FAMILIES],'Sequence change requires full validation');
+          return true;
+        }finally{f.repository.inspect=inspect}
+      }finally{f.close()}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
 test("restart after ontology changes reuses the old graph only as a source-backed baseline", async () => {
   const browser = await chromiumHarness(bundle);
   try {

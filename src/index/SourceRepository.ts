@@ -892,7 +892,7 @@ export class NeutralSourceRepository {
    * Only the current deletion capability may inspect a masked disk head for a tombstone CAS. It
    * does not unmask that head for readers; includeTombstone alone never grants this authority.
    */
-  private async pin(sourceId: string, includeTombstone = false, deletion?: PendingSourceDeletion): Promise<{ view: SourceView | null; expected: SourceHeadExpectation; reason: SourceReason }> {
+  private async pin(sourceId: string, includeTombstone = false, deletion?: PendingSourceDeletion, leaseFamilies = true): Promise<{ view: SourceView | null; expected: SourceHeadExpectation; reason: SourceReason }> {
     /** Match this request by identity after every asynchronous boundary; retention is not authority. */
     const deleting = (): boolean => deletion !== undefined && this.pendingDeletes.get(sourceId) === deletion
       && deletion.current() && !this.closed;
@@ -913,20 +913,23 @@ export class NeutralSourceRepository {
     if (!db) return { view: null, expected: { kind: "unavailable" }, reason: this.storage.unavailableReason?.() ?? "storage-unavailable" };
     let leased: SourceView | undefined;
     try {
-      const selected = await this.transaction(db, [SOURCE_HEAD_STORE, META_STORE], "readwrite", sourceId, async (transaction) => {
+      // A head-only observation owns a copied manifest, not any immutable chunks. It needs no
+      // cleanup lease or write transaction. Every actual family reader still pins atomically.
+      const selected = await this.transaction(db, leaseFamilies ? [SOURCE_HEAD_STORE, META_STORE] : [SOURCE_HEAD_STORE],
+        leaseFamilies ? "readwrite" : "readonly", sourceId, async (transaction) => {
         if (deletion && !deleting()) throw new SourceFactError("cancelled");
         const raw = await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId));
         if (deletion && !deleting()) throw new SourceFactError("cancelled");
         const expected = expectation(raw); const reason = sourceHeadReason(raw); const head = decodeSourceHead(raw);
         if (!head || head.sourceId !== sourceId || head.state === "tombstone" && !includeTombstone) return { view: null, expected, reason: head?.sourceId !== sourceId && head ? "invalid-head" as const : reason };
         const leases: string[] = [];
-        for (const revision of new Set(Object.values(head.families).map((family) => family.revision))) {
+        for (const revision of leaseFamilies ? new Set(Object.values(head.families).map((family) => family.revision)) : []) {
           const lease: SourceLease = { key: `source-lease:${this.runtime.uniqueId()}`, sourceId, revision, owner: this.owner };
           transaction.objectStore(META_STORE).add(lease); leases.push(lease.key);
         }
         leased = { head, sequence: head.sequence, saved: true, expected, leases, connection: db };
         // Register before commit completion: unload may run before the pin promise resumes.
-        this.readers.add(leased);
+        if (leaseFamilies) this.readers.add(leased);
         return { view: leased, expected, reason };
       });
       if (selected.view && this.closed) void this.releaseLeases(selected.view);
@@ -1208,7 +1211,7 @@ export class NeutralSourceRepository {
   }
   /** Inspect only requested families. An invalid host family does not discard an intact parsed body. */
   async inspect(sourceId: string, families: readonly SourceFamily[] = SOURCE_FAMILIES, current: () => boolean = () => true): Promise<SourceInspection> {
-    const pinned = await this.pin(sourceId);
+    const pinned = await this.pin(sourceId, false, undefined, families.length > 0);
     if (!pinned.view) return { head: null, sequence: null, saved: false, expected: pinned.expected, reason: pinned.reason, families: {} };
     const view = pinned.view; const results: Partial<Record<SourceFamily, SourceReason>> = {};
     try {
@@ -1223,6 +1226,65 @@ export class NeutralSourceRepository {
       }
       return { head: view.head, sequence: view.sequence, saved: view.saved, expected: view.expected, reason, families: results };
     } finally { await this.unpin(view); }
+  }
+  /**
+   * Compare current host output with an exact selected family without writing a new source revision.
+   * Stored chunks/postings and fresh frames are validated; deterministic byte/record-bounded digest
+   * batches ignore storage chunk boundaries and cooperative null steps. The selected head is fenced
+   * before and after production, so equality never authenticates a superseded or cancelled source.
+   */
+  async matchesFamily(sourceId: string, family: SourceFamily, expected: SourceInspection,
+    producer: SourceFamilyProducer, current: () => boolean): Promise<SelectedSourceResult<boolean>> {
+    return this.readSelected(sourceId, stamp => expected.saved && stamp.saved
+      && stamp.sequence === expected.sequence && stamp.head.sourceRevision === expected.head?.sourceRevision
+      ? "ready" : "superseded", async reader => {
+      const stored = await this.familyContentDigest(family, async emit => {
+        const reason = await reader.visit(family, async records => {
+          for (const record of records) if (!(await emit(record))) return false;
+          return current();
+        });
+        if (reason !== "ready") throw new SourceFactError(reason, family);
+        return true;
+      }, current);
+      const fresh = await this.familyContentDigest(family, producer, current);
+      return stored === fresh;
+    }, current);
+  }
+
+  /** Hash canonical records in bounded batches, releasing every transient reservation on failure. */
+  private async familyContentDigest(family: SourceFamily, producer: SourceFamilyProducer, current: () => boolean): Promise<string> {
+    const validator: SourceFrameValidator = new SourceFrameValidator(family);
+    let encoded: string[] = [], bytes = 2, digest = "", lastYield = this.runtime.now();
+    let releases: (() => void)[] = [];
+    /** Hash one private batch; asynchronous hashing never expands the retained byte allowance. */
+    const flush = async (): Promise<boolean> => {
+      if (!current() || this.closed) return false;
+      digest = await this.runtime.digest(digest + `[${encoded.join(",")}]`);
+      for (const release of releases) release();
+      releases = []; encoded = []; bytes = 2;
+      return current() && !this.closed;
+    };
+    try {
+      const accepted = await producer(async fact => {
+        if (!current() || this.closed) return false;
+        if (fact !== null) {
+          validator.accept(fact);
+          const text = JSON.stringify(fact), size = encodedBytes(text) + 1;
+          if (size + 2 > SOURCE_MAX_RECORD_BYTES) throw new SourceFactError("decode-budget", family);
+          if (encoded.length && (bytes + size > SOURCE_CHUNK_TARGET_BYTES || encoded.length >= SOURCE_MAX_BATCH_RECORDS)
+            && !(await flush())) return false;
+          releases.push(this.reserveDecode(text.length * 4 + size));
+          encoded.push(text); bytes += size;
+          if ((bytes >= SOURCE_CHUNK_TARGET_BYTES || encoded.length >= SOURCE_MAX_BATCH_RECORDS) && !(await flush())) return false;
+        }
+        if (this.runtime.now() - lastYield >= 8) { await this.runtime.yield(); lastYield = this.runtime.now(); }
+        return current() && !this.closed;
+      });
+      if (!accepted || !current() || this.closed) throw new SourceFactError("cancelled", family);
+      validator.finish();
+      if (!(await flush())) throw new SourceFactError("cancelled", family);
+      return digest;
+    } finally { for (const release of releases) release(); }
   }
   /** Capture a fresh disk CAS expectation; only a new host-fenced acquisition may adopt this. */
   async catalogExpectation(sourceId: string): Promise<SourceHeadExpectation> {
@@ -1242,9 +1304,14 @@ export class NeutralSourceRepository {
     try { return await this.visitFamily(pinned.view, family, consume, current); }
     finally { await this.unpin(pinned.view); }
   }
-  /** Restore immutable parser inputs without reading note text or reparsing Markdown. */
+  /**
+   * Restore immutable parser inputs without reading note text or reparsing Markdown. An optional
+   * consumer receives the exact validated body-family selection; reuse requires a later identical
+   * durable head/sequence, not just matching physical statistics. It never grants resolution validity.
+   */
   async readBody(sourceId: string, matches: (physical: SourcePhysical) => boolean, current: () => boolean = () => true,
-    includeTombstone = false, settleRetirement = false): Promise<ParsedBodyMetadata | null> {
+    includeTombstone = false, settleRetirement = false,
+    validated?: (body: ParsedBodyMetadata, selection: SourceInspection) => void): Promise<ParsedBodyMetadata | null> {
     // A rename burst can queue this owner's retained tombstone behind another deletion. Its
     // temporary unsaved mask is not a body miss. Finish that authorized retirement before reading
     // the retained immutable families; ordinary readers still cannot inspect a masked disk head.
@@ -1264,7 +1331,11 @@ export class NeutralSourceRepository {
         const reason = await this.visitFamily(view, family, (records) => { for (const record of records) decoder.accept(record); return true; }, current);
         if (reason !== "ready") return null;
       }
-      return matches(view.head.physical) && current() && !this.closed ? decoder.finish() : null;
+      if (!matches(view.head.physical) || !current() || this.closed) return null;
+      const body = decoder.finish();
+      validated?.(body, { head: view.head, sequence: view.sequence, saved: view.saved, expected: view.expected,
+        reason: "ready", families: { values: "ready", "body-urls": "ready" } });
+      return body;
     } catch (error) { this.fail(errorReason(error, "invalid-frame"), "values"); return null; }
     finally { await this.unpin(view); }
   }

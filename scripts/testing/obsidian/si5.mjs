@@ -16,22 +16,28 @@ function cli(command,...args){lastCliCommand=command;const r=spawnSync(process.e
   if(r.error||r.status!==0||/^Error:/m.test(r.stdout||""))throw Error(r.error?.message||r.stderr||r.stdout);return r.stdout.trim();}
 function evaluate(code){const s=cli("eval",`code=${code}`),start=s.indexOf("{");if(start<0)throw Error(`Missing native JSON: ${s.slice(0,200)}`);return JSON.parse(s.slice(start));}
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-async function run(code,label){report.currentPhase=label;writeFileSync(join(reportDir,"progress.json"),JSON.stringify({...report,status:"running"},null,2)+"\n");evaluate(`(()=>{const probe={done:false};window.kplexSi5Probe=probe;probe.timer=window.setTimeout(()=>{probe.task=(async()=>{${code}})().then(value=>Object.assign(probe,{done:true,value}),error=>Object.assign(probe,{done:true,error:String(error)}));},20);return JSON.stringify({started:true})})()`);
-  const start=Date.now();await delay(100);while(Date.now()-start<300000){const r=evaluate("JSON.stringify(window.kplexSi5Probe)");if(r.done){if(r.error)throw Error(`${label}: ${r.error}`);return r.value;}await delay(1500);}throw Error(`${label}: timeout`);}
+/** Run one deferred native probe with bounded polling and lifetime-owned foreground sampling. */
+async function run(code,label){report.currentPhase=label;writeFileSync(join(reportDir,"progress.json"),JSON.stringify({...report,status:"running"},null,2)+"\n");const start=Date.now();evaluate(`(()=>{const probe={done:false};window.kplexSi5Probe=probe;probe.timer=window.setTimeout(()=>{probe.task=(async()=>{${code}})().then(value=>{window.clearInterval(probe.foregroundTimer);probe.sampleForeground?.();Object.assign(probe,{done:true,value})},error=>{window.clearInterval(probe.foregroundTimer);Object.assign(probe,{done:true,error:String(error)})});},20);return JSON.stringify({started:true})})()`);
+  await delay(100);while(Date.now()-start<300000){const r=evaluate("JSON.stringify(window.kplexSi5Probe)");if(r.done){if(r.error)throw Error(`${label}: ${r.error}`);return {...r.value,probeElapsedMs:Date.now()-start,...(r.foreground?{foreground:r.foreground}:{})};}await delay(1500);}throw Error(`${label}: timeout`);}
 const report={status:"failed",startedAt:new Date().toISOString(),source:{revision:spawnSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).stdout.trim(),dirty:Boolean(spawnSync("git",["status","--porcelain"],{cwd:root,encoding:"utf8"}).stdout.trim())},
   host:{cpu:cpus()[0]?.model,logicalCPUs:cpus().length,physicalMemoryBytes:totalmem(),os:`${process.platform} ${release()}`,obsidian:cli("version")},artifacts:{},runs:[]};
 for(const name of ["main.js","manifest.json","styles.css"]){const hash=path=>createHash("sha256").update(readFileSync(path)).digest("hex");
   const built=hash(join(root,"dist",name));if(built!==hash(join(target.pluginDir,name)))throw Error(`Installed ${name} differs from exact build`);report.artifacts[name]=built;}
 if(cli("vault","info=path")!==target.vault)throw Error("Wrong vault");
 const helper=`const delay=ms=>new Promise(r=>window.setTimeout(r,ms));const ok=(v,m)=>{if(!v)throw Error(m)};
+// Hash selected heads with a cursor: no whole-vault manifest array or filename output is retained.
+const headsDigest=async p=>{const db=await p.index.indexedDb.open();ok(db,'Head digest storage unavailable');return new Promise((resolve,reject)=>{const hash=require('crypto').createHash('sha256'),tx=db.transaction('sourceHeads','readonly'),request=tx.objectStore('sourceHeads').openCursor();request.onsuccess=()=>{const cursor=request.result;if(cursor){hash.update(JSON.stringify(cursor.value));cursor.continue()}};tx.oncomplete=()=>resolve(hash.digest('hex'));tx.onerror=tx.onabort=()=>reject(tx.error??Error('Head digest read failed'))})};
 const lifetime=window.kplexSi5Native,probeLifetime=window.kplexSi5Probe,current=()=>window.kplexSi5Native===lifetime&&!lifetime?.closed&&window.kplexSi5Probe===probeLifetime&&!probeLifetime.closed;
-const settle=async()=>{const at=Date.now();while(Date.now()-at<240000){ok(current(),'Native test cancelled');const p=app.plugins.plugins['k-plex'];if(p?.getIndexStatus().upToDate&&p.index.sourceAcquisition.hasSemanticDependencies()&&!p.index.sourceAcquisition.inventory)return p;await delay(50);}throw Error('Readiness timeout '+JSON.stringify(app.plugins.plugins['k-plex']?.getIndexStatus()))};`;
+const settle=async()=>{if(!probeLifetime.foreground){const win=require('@electron/remote').getCurrentWindow();probeLifetime.foreground={samples:0,hidden:0,documentUnfocused:0,windowUnfocused:0,throttlingDisabled:0};probeLifetime.sampleForeground=()=>{if(window.kplexSi5Probe!==probeLifetime||probeLifetime.closed){window.clearInterval(probeLifetime.foregroundTimer);return}const f=probeLifetime.foreground;f.samples++;f.hidden+=Number(document.hidden);f.documentUnfocused+=Number(!document.hasFocus());f.windowUnfocused+=Number(!win.isFocused());f.throttlingDisabled+=Number(!win.webContents.getBackgroundThrottling());f.peakJsHeapBytes=Math.max(f.peakJsHeapBytes??0,performance.memory?.usedJSHeapSize??0);f.comparable=f.hidden===0&&f.documentUnfocused===0&&f.windowUnfocused===0&&f.throttlingDisabled===0};probeLifetime.sampleForeground();probeLifetime.foregroundTimer=window.setInterval(probeLifetime.sampleForeground,1000)}const at=Date.now();while(Date.now()-at<240000){ok(current(),'Native test cancelled');const p=app.plugins.plugins['k-plex'];if(p?.getIndexStatus().upToDate&&p.index.sourceAcquisition.hasSemanticDependencies()&&!p.index.sourceAcquisition.inventory)return p;await delay(50);}throw Error('Readiness timeout '+JSON.stringify(app.plugins.plugins['k-plex']?.getIndexStatus()))};`;
 const restartOnly=process.env.KPLEX_SI5_RESTART_ONLY==="true";
+const restartRuns=Number(process.env.KPLEX_SI5_RESTART_RUNS??3);
+if(!Number.isInteger(restartRuns)||restartRuns<1||restartRuns>3)throw Error('SI5 restart run count must be 1–3');
 let initialized=false;
 try{
-  await run(`${helper}const win=require('@electron/remote').getCurrentWindow();win.show();win.focus();win.moveTop();require('@electron/remote').app.focus({steal:true});await delay(300);const p=await settle();ok(current(),'Native test cancelled');
+  report.preflight=await run(`${helper}const remote=require('@electron/remote'),win=remote.getCurrentWindow();remote.app.show();remote.app.focus({steal:true});await delay(100);win.show();win.moveTop();win.focus();await delay(300);const p=await settle();ok(current(),'Native test cancelled');
     window.kplexSi5Native={settings:structuredClone(p.settings),created:[],reads:0,hidden:document.hidden,throttle:win.webContents.getBackgroundThrottling(),startCenter:p.settings.lastActivePath};
     const c=window.kplexSi5Native;for(const name of ['read','cachedRead']){const original=app.vault[name];c[name]=original;app.vault[name]=function(file,...args){if(file.extension==='md')c.reads++;return original.call(this,file,...args)}};
+    ${restartOnly?"c.expectedHeadDigest=await headsDigest(p);":""}
     void p.activateView();
     return {ready:true,hidden:document.hidden,throttle:c.throttle,markdownFiles:app.vault.getMarkdownFiles().length};`,"preflight");initialized=true;
   if(!restartOnly)await run(`${helper}const p=await settle(),c=window.kplexSi5Native,A='__kplex_si5_A.md',B='__kplex_si5_B.md';
@@ -47,7 +53,7 @@ try{
     c.heads={};for(const path of c.created)c.heads[path]=(await p.index.sourceAcquisition.repository.inspect(path,[])).head;
     p.settings.hierarchy.rightFriends.push('SI5Friends');await p.saveSettings();await p.index.refreshSemanticSettings();
     p.index.cancelPendingPersistence();ok(p.index.get(A)?.neighbours.get(B)?.isRightFriend,'New saved ontology');return {fixture:true};`,"fixture setup");
-  const cases=restartOnly?["warm-1","warm-2","warm-3"]:["changed-policy","missing-cache","corrupt-cache","corrupt-source","offline-edit"];
+  const cases=restartOnly?Array.from({length:restartRuns},(_,i)=>'warm-'+(i+1)):["changed-policy","missing-cache","corrupt-cache","corrupt-source","offline-edit"];
   for(const name of cases){
     if(name==='corrupt-source'){
       const started=Date.now();
@@ -81,19 +87,20 @@ try{
       ok(sem.fullBuilds===0,'Warm source-backed restart used full graph build');
       ok(counters.vaultReads===${name==='offline-edit'?1:0},'Unexpected Markdown acquisition '+JSON.stringify(counters));
       ok(counters.parses===${name==='offline-edit'?1:0},'Unexpected parser calls');
+      ${restartOnly?"ok(await headsDigest(p)===c.expectedHeadDigest,'Warm restart rewrote selected source heads');":""}
       ${restartOnly?"":"ok(i.get('__kplex_si5_A.md')?.neighbours.get('__kplex_si5_B.md')?.isRightFriend,'Saved ontology after reload');ok(i.isSemanticWriteReady('__kplex_si5_A.md','__kplex_si5_B.md'),'Current write authority');for(const path of c.created)if(path!=='__kplex_si5_A.md'||"+JSON.stringify(name)+"!=='offline-edit')ok(JSON.stringify(heads[path])===JSON.stringify(c.heads[path]),'Valid neutral head rewritten');"}
       ${name==='offline-edit'?"ok(i.get('__kplex_si5_A.md')?.neighbours.get('__kplex_si5_Ghost')?.isRightFriend,'Latest offline candidate replayed');":""}
       const center=p.settings.lastActivePath,node=[...document.querySelectorAll('[data-kplex-path]')].find(el=>el.getAttribute('data-kplex-path')===center&&el.classList.contains('kplex-role-center'));
       ok(node,'Rendered restored center');return {status:p.getIndexStatus(),counters,semantic:sem,sourceBackedStartup:i.hasSourceBackedStartup(),
         sourceBackedSemantics:i.sourceBackedSemantics,hydration:i.getSnapshotHydrationDiagnostics(),hidden:document.hidden,backgroundThrottling:require('@electron/remote').getCurrentWindow().webContents.getBackgroundThrottling(),
-        markdownReads:c.reads,trace:c.trace,jsHeapBytes:performance.memory?.usedJSHeapSize??null,renderedCenter:true};`,name);
+        markdownReads:c.reads,trace:c.trace,jsHeapBytes:performance.memory?.usedJSHeapSize??null,renderedCenter:true,${restartOnly?"sourceHeadsUnchanged:true,":""}};`,name);
     report.runs.push({name,elapsedMs:Date.now()-started,...result});
   }
   report.status="passed";
 }catch(error){report.error=String(error);report.failedCommand=lastCliCommand;report.failedPhase=report.currentPhase;
-  try{report.failure=evaluate("JSON.stringify({trace:window.kplexSi5Native?.trace,source:app.plugins.plugins['k-plex']?.index.getSourceAcquisitionCounters(),semantic:app.plugins.plugins['k-plex']?.index.getSemanticPreparationDiagnostics(),status:app.plugins.plugins['k-plex']?.getIndexStatus(),hidden:document.hidden})");}catch(captureError){report.captureError=String(captureError);}}
+  try{report.failure=evaluate("JSON.stringify({trace:window.kplexSi5Native?.trace,source:app.plugins.plugins['k-plex']?.index.getSourceAcquisitionCounters(),semantic:app.plugins.plugins['k-plex']?.index.getSemanticPreparationDiagnostics(),status:app.plugins.plugins['k-plex']?.getIndexStatus(),foreground:window.kplexSi5Probe?.foreground,hidden:document.hidden})");}catch(captureError){report.captureError=String(captureError);}}
 finally{
-  try{evaluate("(()=>{if(window.kplexSi5Probe){window.kplexSi5Probe.closed=true;window.clearTimeout(window.kplexSi5Probe.timer)}return JSON.stringify({probeCancelled:true})})()");}catch{}
+  try{evaluate("(()=>{if(window.kplexSi5Probe){window.kplexSi5Probe.closed=true;window.clearTimeout(window.kplexSi5Probe.timer);window.clearInterval(window.kplexSi5Probe.foregroundTimer)}return JSON.stringify({probeCancelled:true})})()");}catch{}
   if(!initialized)try{initialized=evaluate("JSON.stringify({initialized:!!window.kplexSi5Native})").initialized;}catch{}
   if(initialized)try{evaluate("(()=>{window.kplexSi5Native.closed=true;return JSON.stringify({cancelled:true})})()");report.cleanup=await run(`${helper}const c=window.kplexSi5Native;let p=app.plugins.plugins['k-plex'];if(!p){await app.plugins.enablePlugin('k-plex');p=app.plugins.plugins['k-plex']}
     for(const name of ['read','cachedRead'])app.vault[name]=c[name];if(c.instanceOriginals){p.index.sourceAcquisition.repository.inspect=c.instanceOriginals.inspect;p.index.sourceAcquisition.loadBody=c.instanceOriginals.load;}Object.assign(p.settings,c.settings);await p.saveSettings();
@@ -101,7 +108,7 @@ finally{
     for(const path of c.created.slice().reverse()){const f=app.vault.getFileByPath(path);if(f)await app.vault.delete(f,true)}
     require('@electron/remote').getCurrentWindow().webContents.setBackgroundThrottling(c.throttle);delete window.kplexSi5Native;
     return {settingsRestored:true,fixturesAbsent:c.created.every(path=>!app.vault.getFileByPath(path)),throttleRestored:true};`,"cleanup");}catch(error){report.cleanupError=String(error);report.status="failed";}
-  try{evaluate("(()=>{if(window.kplexSi5Probe)window.clearTimeout(window.kplexSi5Probe.timer);delete window.kplexSi5Probe;return JSON.stringify({cleaned:true})})()");}catch{}
+  try{evaluate("(()=>{if(window.kplexSi5Probe){window.clearTimeout(window.kplexSi5Probe.timer);window.clearInterval(window.kplexSi5Probe.foregroundTimer)}delete window.kplexSi5Probe;return JSON.stringify({cleaned:true})})()");}catch{}
   report.completedAt=new Date().toISOString();writeFileSync(join(reportDir,"report.json"),JSON.stringify(report,null,2)+"\n");
 }
 console.log(`SI5 native ${report.status}: ${join(reportDir,"report.json")}`);if(report.error)console.error(report.error);if(report.status!=="passed")process.exitCode=1;

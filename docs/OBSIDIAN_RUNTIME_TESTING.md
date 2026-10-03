@@ -69,6 +69,11 @@ After a custom `plugin:disable`/`plugin:enable` test deployment, reopen the regi
 
 Use `npm run verify:obsidian:si5` after staging the exact build. Its default fault scenarios are for a backed-up small disposable vault; `KPLEX_SI5_RESTART_ONLY=true` runs three functional large-vault warm restarts. A recovered physical baseline is not full graph hydration: check `hasSourceBackedStartup()`, source dependency readiness, current requested publication and rendered gates/explanation/edit parity. Missing optional graph acceleration must not erase neutral heads. A saved ontology change must not promote old-policy graph relations or restamp valid sources.
 
+Comparable timing requires the application to remain foreground with original background throttling.
+The native driver samples actual visibility and document/window focus throughout readiness and reports
+whether a run is comparable. Restart-only runs hash selected heads through a bounded cursor and
+require them to stay unchanged. A ready graph label alone does not establish source convergence.
+
 The current fallback covers requested neighborhoods and physical/host-map search entries. Full body-only virtual/URL search vocabulary, scale latency and physical-device acceptance remain open and must be reported explicitly. The [SI5 report](validation/settings-independent-indexing-si5-progress-2026-10-03.md) retains the final large source-adoption preflight failure as well as earlier CLI failures. The earlier large hydration watchdog/SIGTRAP failure remains evidence until exact-build restart tests resolve it; its crash signal does not establish an out-of-memory cause.
 
 Run restart/fault drivers serially. Defer asynchronous native probe work until after returning the CLI's initial response, then poll the completion token; long work must remain cancellable when that exact probe/controller is retired. Keep visible K-Plex demand during fixture maintenance. A source-backed partial baseline correctly refuses to persist complete acceleration: a disposable small-fixture setup may seed it explicitly, but never count that build as a zero-build restart result or add it to the production startup path.

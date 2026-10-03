@@ -16,27 +16,81 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Online work — SI4 committed; SI5 implementation under validation
+# Online work — SI5b checkpoint authorized; source-first startup approved
 
-SI4 is finalized at `323b260127e4fb81e1d3697d4ee8b0282f8cdb12` (`Complete SI4 settings-independent indexing and native acceptance`) on `indexing-optimization-v2`. All ten original Delivery 1/2 exits are accepted. The maintainer explicitly authorized this commit and SI5 implementation; the maintainer now authorizes the SI5a checkpoint commit and large-vault convergence work; no push/release is authorized. This is the online agent, with Git, pinned Node 22.22.2, real Chromium/IndexedDB and Obsidian CLI. C15–C26 remain paused.
+SI4 remains accepted at `323b260127e4fb81e1d3697d4ee8b0282f8cdb12`. The maintainer-authorized SI5a
+interim is now committed at `e50dd521550e09d12de2b155018dce9cb8026201` on `indexing-optimization-v2`.
+The maintainer authorizes the subsequent large-vault correction as SI5b with the cold timing
+limitation explicitly retained. **SI5 is not accepted**. No push/release.
+This is the online agent with Git, pinned Node 22.22.2, real Chromium/IndexedDB and Obsidian CLI.
+C15–C26 remain paused. User authorizes edits and CLI testing; physical iOS/Android testing is theirs
+once the desktop candidate is ready.
 
-## Current SI5 changes
+## Current correction
 
-- Begin bounded durable-source discovery before optional graph hydration. A recognized older-policy active graph is physical/search acceleration only; requested consumers compile current neutral facts. Do not resume old-policy checkpoint semantics or persist a mixed graph as current.
-- Missing/corrupt optional graph acceleration uses the existing structural/host-link baseline and source owner. Physical readiness is separate from complete graph hydration; unavailable source adoption remains pending and does not route directly to a cold rebuild.
-- Requested chunk failure schedules one source-local repair and automatic retry. Unrelated heads remain unchanged; a separate later corruption at the same physical revision can repair again.
-- Remove the production graph-progress writer, its timers and the builder's post-commit pause hook. Keep legacy graph checkpoint reads and complete acceleration writes. Historical writer tests live in `tests/support/legacyGraphCheckpointWriter.mjs`; no schema/store/user data deletion.
-- Correct monotonic search slicing/cancellation. Add seven required real-IDB restart/fault tests and startup/coordinator/production-no-checkpoint regressions. Add `verify:obsidian:si5` and the physical-device checklist.
-- Release graph/search/body/visual/relation-cache ownership on index unload. Independently held published pages remain intact; the regression establishes ownership release, not a native memory diagnosis.
+An uncertain startup resolver wave previously restamped every valid owner's resolution family.
+Retain the safety fence, compare canonical resolver/Date output under an exact selected family, and
+preserve unchanged heads/observations. Changed/corrupt sources take normal replacement. Head-only
+inspection is read-only with no family leases; actual family reads retain their leases. Restart host
+metadata is validated once. Elapsed inventory slices replace per-owner timers. Weak body selections
+avoid repeating values/body-URL validation only under the exact same durable revision and sequence;
+a changed selection requires full validation. Existing parser, resolver, repository and publication
+owners remain; no store/schema or user data is deleted and no deadline/cap/golden is relaxed.
 
-## Verification and remaining work
+Native tooling shows the application before focusing the target window, samples actual visibility,
+document/window focus and renderer JS heap throughout readiness, retains original throttling and
+excludes any interrupted foreground run. Large warm cases cursor-hash all selected heads and assert
+no restamping. `KPLEX_SI5_RESTART_RUNS=1/2` replaces excluded runs; default is still three and the
+three-comparable-run requirement is unchanged. Cancel/release sampler ownership on every exit.
 
-Full pinned-Node `npm run verify:obsidian` passes on the pre-unload-fix `73fbc976…` artifact: 7 architecture, 60 core, 133 Node, 7 UI, 314 portable source and 181 real-browser/IDB tests; strict timing/oracles, zero scanner warnings, actual types/build and exact-build native smoke. After the unload fix, affected indexing/settings/watchdog, seven real-IDB startup/fault checks, scanner/build and exact-build native smoke pass. Final `main.js`: `acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729`. [Candidate report](docs/validation/settings-independent-indexing-si5-progress-2026-10-03.md) and [native evidence](docs/validation/settings-independent-indexing-si5-native-2026-10-03.json) distinguish artifacts and retain failed attempts.
+## Results and exact build
 
-Final small-vault native run passes saved-policy restart, missing/corrupt graph acceleration, one corrupt requested source and offline edit. Source corruption repairs exactly one owner from body-v2 with zero reads/parses; offline edit reads/parses only the changed owner. Valid unrelated heads stay unchanged; all measured cases use zero full builds. Driver setup now opens visible demand, seeds complete acceleration only in small-fixture setup, defers async work until after the CLI response, and cancels late probe continuations. The final driver including its cancellation guard now passes all five native cases; original fourteen-store/config cleanup passes again, with unchanged production artifacts.
+Candidate `main.js`: `6b77bbc320c62f46d8a5116e0e58f8724d8a7c60a9b4c39e12bbb67ae4611bba`.
+Manifest/CSS are unchanged from SI5a. Architecture 7, core 60, aggregate Node 133, UI 7, portable
+sources 314, real-browser/IDB 184, strict indexing/settings checks, scanner with zero warnings and
+actual types/production build pass. Full verification was run as its separate commands once; native
+command/render/error smoke reused that unchanged verification rather than duplicating the suite.
+New regressions cover identical/changed resolver output, cancellation, supersession, corrupt postings,
+bounded multi-chunk equality, read-only head inspection and exact-head body validation reuse.
 
-The five original SI5 boxes remain open. Full body-only global search/suggestion vocabulary after losing graph acceleration is not yet reconstructed. Earlier large native trials have CLI timeouts and source repair/read observations that require investigation. On the final build, reopening the large vault fails the four-minute preflight despite ready graph status: source authority remains pending after 651 cached body reuses / 650 resolution refreshes, zero Markdown reads/parses/repairs/failures and zero full builds. Later aggregate probes show host revision 1, active inventory, no known-source/resolver-key backlog or backpressure. Investigate startup host-fence/adoption work; do not reset heads, silently extend deadlines or claim a CLI-only defect. The older SI4 hydration-watchdog/SIGTRAP failure remains historical evidence, with cause unestablished. Required dense/high-node foreground latency/memory and main-window/popout acceptance remain open. The maintainer will run iOS/Android manually once the desktop candidate is ready; [the physical procedure](docs/validation/settings-independent-indexing-si5-device-checklist.md) is prepared, not a device pass.
+All five final small native faults pass: policy restart, missing/invalid graph cache, one corrupt
+requested source and offline edit. Zero full builds; source corruption repairs exactly one owner
+from body-v2 with zero reads/parses; offline edit reads/parses only its owner once. Three large warm
+functional cases pass with unchanged heads, zero source work/full builds and rendered restored center.
+Only warm-2 (90,475 ms) and warm-3 (90,902 ms) stay foreground throughout. Warm-1 and a one-run
+replacement lose focus/visibility and are excluded. These are CLI/readiness timings, not paint.
 
-Native work uses only `excalidraw-test` and `kplex-test`. Small-vault cleanup is complete: all 14 original stores restored/compared, original enabled-plugin list restored, originally absent plugin removed, two original Markdown files, no owned fixtures/controllers and original throttling. Evidence includes `/private/tmp/kplex-si5-small-cleanup.json`. The final large preflight installed no wrappers/settings/fixtures; its reopened test window is closed to release the heavy workload, valid completed source progress is retained, final plugin remains installed and originally enabled. Earlier initialized runs restored settings/methods/throttling. No native driver remains active. Do not touch the personal brain vault.
+Cold window startup still fails the unchanged 240-second preflight: 18,053 cached owners validated,
+zero Markdown reads/parses/repairs/resolution writes/failures/full builds. All 240 foreground samples
+pass with original throttling; sampled renderer JS heap peaks at 2,206,694,546 bytes, not plugin-only
+or process peak. A later probe finds all 20,015 owners complete, source-ready, no inventory, queues
+or backpressure. This establishes convergence, not cold timing acceptance. Earlier failures remain
+in [the report](docs/validation/settings-independent-indexing-si5-progress-2026-10-03.md) and
+[exact-artifact evidence](docs/validation/settings-independent-indexing-si5-native-2026-10-03.json).
 
-Continue the same Delivery 3, rather than creating prerequisite helper checkpoints. The SI5a commit is an interim implementation checkpoint; finish native failures and catalog/scale coverage before describing SI5 as complete. No further SI4 implementation/acceptance is needed.
+## Approved next work
+
+The cold-start blocker survives the consolidated correction. The alternative and tradeoffs were reported; the maintainer has now approved implementation.
+Do not adjust deadlines/caps to hide the failure.
+The maintainer approves the next change: prioritize source authority/requested publication before eager complete
+snapshot/evidence hydration, reusing existing preview/physical-baseline and source owners. This may
+reduce storage contention/retention; it is not a proven latency fix. It delays complete global search
+vocabulary, so combine the consumer decision with the already pending neutral body-only virtual/URL
+search/suggestion recovery. Do not add another contributor catalog/proof framework/source journal.
+
+The five original SI5 exits remain open. Native large acquisition/sync interruption, storage-degraded
+coverage, dense/high-node latency/memory/storage and main-window/popout checks remain required.
+A third comparable warm run is pending; an optional cooperation question was sent because runs
+repeatedly lost foreground focus. No reply arrived before functional checks completed. Do not treat
+time as approval or infer a foreground pass. Physical iOS/Android follows desktop readiness via
+[the prepared checklist](docs/validation/settings-independent-indexing-si5-device-checklist.md).
+
+## Cleanup
+
+Small original fourteen-store cache/configuration restored and compared, original enablement restored,
+temporary plugin removed, two original Markdown files and no owned fixtures/controllers. Large has
+20,015 original files, source authority ready, no inventory or test controllers/fixtures, original
+throttling and restored settings/methods. Its heavy test window is closed; originally enabled plugin
+and valid source progress remain. No native driver or temporary production diagnostics remain.
+Personal brain vault untouched. Native drivers must run serially; do not overlap manual CLI polling
+or browser/CPU tests with measured runs. No maintainer manual test is needed to review this correction.
