@@ -10,7 +10,7 @@ import type { NodeId } from "../core/graph/model";
 import type { SourcePatchReadPort } from "../core/graph/patch";
 import type { SourceEntityRef } from "../core/graph/source";
 import type { CachedPairCapture } from "./CachedRequestedPair";
-import { CachedSourceSemanticReader, captureCachedSemanticSettings,
+import { CachedSourceSemanticReader, captureCachedSemanticSettings, validateCachedOwners, cachedOwnersCurrent,
   type CachedSemanticPolicy, type CachedSemanticPreparation } from "./CachedSourceSemantics";
 import { type ContributorCertificate, type ContributorFailure,
   type SourceContributorDiscovery } from "./SourceContributorDiscovery";
@@ -42,7 +42,7 @@ export type CachedCandidateDegreePreparation = ContributorFailure
       contributors: ContributorCertificate;
     }>;
     work: Readonly<{ sourceReplays: number; familyVisits: number; nodes: number;
-      candidateRelations: number; entityReads: number }>;
+      candidateRelations: number; entityReads: number; peakRetainedBytes: number }>;
   }>;
 
 /** Compare identity facets explicitly: neither a path nor a SourceId substitutes for a NodeId. */
@@ -72,7 +72,7 @@ export class CachedRequestedCandidateDegreeReader {
 
   /** Exact entity facts must come from the same clean host as discovery, not an old published graph. */
   constructor(repository: NeutralSourceRepository,
-    private readonly discovery: Pick<SourceContributorDiscovery, "discover" | "revalidate" | "isHostCurrent">,
+    private readonly discovery: Pick<SourceContributorDiscovery, "discover" | "revalidate" | "isHostCurrent"> & Partial<Pick<SourceContributorDiscovery, "isGenerationCurrent">>,
     private readonly capture: CachedPairCapture, private readonly entities: SourcePatchReadPort) {
     this.semantics = new CachedSourceSemanticReader(repository);
   }
@@ -90,13 +90,9 @@ export class CachedRequestedCandidateDegreeReader {
     /** Capture callbacks depend only on parent demand/policy, never recursively on captured hosts. */
     const parentReason = (): SourceReason => !runtime.isCurrent() ? "cancelled"
       : !policy.isCurrent() || policy.revision !== revision ? "superseded" : "ready";
-    /** Previously selected physical/source observations remain live through the final awaited fence. */
-    const reason = (): SourceReason => {
-      const parent = parentReason();
-      if (parent !== "ready") return parent;
-      for (const owner of owners) if (!owner.host.isCurrent()) return "stale";
-      return "ready";
-    };
+    /** Keep per-record cancellation constant-time; final validation closes all captured hosts. */
+    const reason = (): SourceReason => parentReason() !== "ready" ? parentReason()
+      : this.discovery.isGenerationCurrent?.() === false ? "stale" : "ready";
     /** All semantic work shares this request's shorter lifetime, not the catalog's demand. */
     const current = (): boolean => reason() === "ready";
     const captureRuntime = { ...runtime,
@@ -212,15 +208,20 @@ export class CachedRequestedCandidateDegreeReader {
         candidateRelations += node.neighbours.size;
         inputs.push({ id: candidate.id, rawDegree: node.neighbours.size });
       }
+      const hosts = await validateCachedOwners(owners, { ...runtime, isCurrent: current });
+      if (hosts !== "ready") return selectedSourceFailure(current() ? hosts : reason());
       const validated = await this.discovery.revalidate(discovered);
       if (!current()) return selectedSourceFailure(reason());
       if (validated !== "ready") return selectedSourceFailure(validated);
+      const finalHosts = cachedOwnersCurrent(owners);
+      if (finalHosts !== "ready") return selectedSourceFailure(finalHosts);
+
       if (!this.discovery.isHostCurrent()) return selectedSourceFailure("host-catalog-stale");
       if (!current()) return selectedSourceFailure(reason());
       return { outcome: "ready", coverage: "complete-candidate-raw-degrees", inputs,
         certificate: { coverage: "complete-candidate-raw-degrees", candidates, policyRevision: revision, contributors: discovered },
         work: { sourceReplays: owners.length, familyVisits: prepared.work.reduce(/** Actual canonical family visits. */
-          (total, work) => total + work.familyVisits, 0), nodes: compilation.nodes.size, candidateRelations, entityReads } };
+          (total, work) => total + work.familyVisits, 0), nodes: compilation.nodes.size, candidateRelations, entityReads, peakRetainedBytes: prepared.memory?.peakBytes ?? 0 } };
     } catch (error) {
       return selectedSourceFailure(!current() ? reason() : error instanceof SourceFactError ? error.reason : "read-error");
     }

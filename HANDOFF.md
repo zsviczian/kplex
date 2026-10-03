@@ -16,44 +16,23 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Offline assignment — complete the SI4-R3 correction
+# Online return — original SI4 acceptance complete; inactive handoff
 
-Work from the supplied repository package on `indexing-optimization-v2`. The exact R3 return is checkpointed at `56a6e68` and remains unaccepted; this assignment builds on that code and the main-agent browser expectation corrections. Accepted implementation remains SI4-R2 at `831e345`. Do not start SI5 or C15–C26.
+All ten original Delivery 1/2 exits are accepted in the working tree on `indexing-optimization-v2`, based on `bf0b3582bb5e39e512d7f282f78393b999d9f6a1`. User authorization superseded the offline restriction: the online agent used Git, Node 22.22.2, installed dependencies, Chromium/IndexedDB and Obsidian CLI and corrected native-discovered defects. No commit/push/release, SI5 implementation or C15–C26 work was performed. Last committed accepted checkpoint remains SI4-R2 `831e345`.
 
-## Execution and return
+Read [the final original-exit acceptance report](docs/validation/settings-independent-indexing-si4-acceptance-2026-10-03.md), [machine-readable evidence](docs/validation/settings-independent-indexing-si4-native-2026-10-03.json), [design checklist](docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md#11-fixed-completion-plan) and the final action-log entry in [Refactor plan.md](Refactor%20plan.md). The earlier scoped R3 report remains historical and does not certify this final artifact.
 
-Before editing, share a step-by-step execution plan tied to the requirements below. During execution, report completed steps, current work, blockers and the next step at intervals of no more than **three minutes**. Update the plan if evidence changes the approach.
+## Completed and verified
 
-You have local read/write access only and cannot make Git commits. Return a **patch zip containing only new and changed files**, in repository-relative paths. Exclude unchanged files, Git metadata, dependencies and generated build artifacts. List any required deletions explicitly in the return; do not include a full repository zip. Preserve this standing header and replace this assignment body with your implementation/validation results.
+- R3 linear validity, aggregate memory accounting and complete 20,015 independent-owner canonical GraphIndex publication are preserved. Final supported completion: 238,123 ms; sampled heap 571,454,211 bytes; combined retained reservation 719,667,320 bytes under 768 MiB; cancellation exposes no prefix.
+- Online corrections cover warm head observations, bounded ordinary visible scope, attachments, publication retries, folder topology/navigation/counting/body reuse, canonical creation and late-unsaved retry ownership. Unused application global-discovery/cached-preparation wrappers are retired to explicit characterization fixtures. Stored-data compatibility remains intact; no schema/settings migration.
+- Final `npm run verify:obsidian` passes: architecture 7, core 60, Node 133, UI 7, portable source 314, real-IDB browser 174, unchanged strict timing/oracles, official scanner with no warnings, actual TypeScript/build and native render/no-error smoke. Final TSDoc-only rebuild has identical artifacts.
+- `main.js` SHA-256: `d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b`. Final exact-build native 14-case settings/navigation runs pass in both small and 20,015-note vaults with six distinct owners, zero body/parser/acquisition/inventory/head/full-build work and unchanged ready source completion. The repeatable settings driver is `npm run verify:obsidian:si4` with explicit disposable-vault variables.
+- Final native Markdown and attachment create/modify/rename/delete/recreate, dormant edit/activation, nested folder move/delete/recreate, real Date/Daily Notes drift and no-change idle pass. Known file work stays source-local; uncertain folder/configuration reconciliation reuses cached facts.
+- Cleanup passes: all owned fixtures/controllers/wrappers/demand removed; original settings/throttling restored. Small vault temporary K-Plex installation removed, original enabled plugins restored and all 14 pre-test cache stores restored and compared. Large vault retains the final enabled build, 20,015 original Markdown files and an index-ready status.
 
-## Concrete review evidence
+## Next checkpoint and explicit limits
 
-Read `docs/validation/settings-independent-indexing-si4-r3-review-2026-10-03.md` and the active SI4 section of `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`.
+SI4 is complete in the working tree and ready for the authorized Git checkpoint. SI5 is the next scope, but has not started. Its original five acceptance boxes remain open. No new prerequisite/proof package is introduced.
 
-- Real IndexedDB hot lookup succeeds: 20,015 owners, 79 pages, 78 yields, exact order/count, cancellation without a prefix. Keep this forward work.
-- Production cached replay is quadratic. Empty-source preparation makes 1,409,664 / 5,606,144 / 22,358,016 / 89,298,944 host-validity checks at 128 / 256 / 512 / 1,024 owners. `CachedSourceSemantics.reason()` scans every owner inside the callback used throughout replay/compiler work; neighborhood and degree readers do the same. The scope preparer's array membership check is also linear per source.
-- Retained-memory safety was replaced with single-item guards. Lookup keeps all heads; discovery keeps facts and serialized deduplication keys; replay keeps owner callbacks and compiled state. Its `peakBytes` estimate counts only 256 bytes plus ID/revision lengths per owner, omitting most retained data.
-- The 20,015-owner regression clones template manifests and proves lookup only. Final semantic/publication coverage uses much smaller cases.
-- Main-agent test fixes retain the folder parent in the 8,193-reference case (8,194 total neighbors/gate relations/raw degree) and align the legacy-catalog frontier test with the existing portable expectation. Keep both fixes.
-
-## Required correction — one integrated return
-
-1. **Make validity work scale with the actual input.** Use the existing monotonic policy/demand/source/host/maintenance generations for cheap cancellation during replay/compiler steps. Validate the active source locally and cooperatively revalidate the complete selected inputs at bounded checkpoints/final publication. Remove repeated all-owner scans from record-level callbacks and linear scope membership checks. Preserve fail-closed behavior for every previously tested source/host/policy/demand mutation, including during an awaited continuation. Do not skip final validation or cache a successful validation indefinitely.
-2. **Control retained memory.** Distinguish required final scope state from temporary pages, duplicated selections, serialized identities and simultaneously retained compilations. Use compact metadata, reuse/release temporary structures and bound live buffers by bytes and records. Report a defensible estimate/measurement covering heads/families, structural facts, owner captures and compiled state; the fixed per-owner estimate alone is insufficient. Keep explicit safety for pathological inputs while allowing the target 20,015-owner case to complete. Do not add a generic spill/proof framework, a second graph, a global contributor catalog or a new persistence format without a demonstrated necessity.
-3. **Test the complete production path.** Add independently replayable owners/facts for a 20,015-owner supported scope and exercise cached semantic preparation through GraphIndex publication, gates/siblings/degrees and relevant consumers. Do not stop at a standalone lookup. Compare exact results with the canonical full compiler, and test supersession/cancellation between batches without exposing a prefix. Count validity work at increasing sizes to catch quadratic growth without relying only on elapsed-time thresholds. Record peak retained work and latency for the large case.
-4. **Finish existing SI4 acceptance coverage.** Friend↔Challenger moves, dormant-field add/remove, inference direction and image-selector changes must use valid cached facts with zero body reads/parses/reacquisitions/full builds. Latest settings/navigation demand wins. Preserve R1 repair and R2 automatic create/modify/rename/delete/recreate locality. Keep supported hot structural scopes and gates/degree parity green.
-
-This is the existing R3 correction, not a new prerequisite checkpoint. Prefer changes in the current owners and eliminate redundant validation rather than adding overlapping abstractions. Existing semantics, finality and memory safety remain required.
-
-## Validation and return evidence
-
-Run the strongest available versions of:
-
-```bash
-fnm exec --using=22.22.2 npm run test:sources
-fnm exec --using=22.22.2 npm run test:sources:browser
-fnm exec --using=22.22.2 npm run verify
-git diff --check
-```
-
-If Git, exact Node/dependencies or browser access is unavailable, state the precise limitation and run available checks without claiming unavailable lanes passed. Include changed/new/deleted paths, the completed execution plan, validity-work counts, retained-memory/large-case measurements, exact test outcomes and narrowly specified remaining native checks in the returned HANDOFF. Native Obsidian validation belongs to the main agent after review; do not claim native or device evidence.
+Keep the failed large-restart observation visible: hydration watchdog triggered `full-rebuild:startup:partial-restore-incomplete`, then the renderer crashed with `EXC_BREAKPOINT`/`SIGTRAP` (termination code 5). Cause is not established; do not label it OOM. Final quiet valid-facts native checks passed after reopening only the disposable vault, but that does not accept startup/restart. SI5 must investigate startup/sync/interruption, cache/storage failure and explicit derived-data retirement, comparable named-hardware foreground latency/memory, main-window/popout and physical iPad/Android behavior. Functional tests temporarily disabled background throttling and restored it; no paint/mobile/release acceptance is inferred. No further original SI4 validation is pending.

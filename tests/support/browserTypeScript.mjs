@@ -117,6 +117,6 @@ export async function chromiumHarness(bundle) {
       owned.kill("SIGTERM"); await exited; clearTimeout(kill);
     }
   }
-  try { await start(); } catch (error) { await stop(); server.close(); await rm(directory, { recursive: true, force: true }); throw error; }
-  return { evaluate, restart: async () => { await stop(); await start(); }, cleanup: async () => { await stop(); server.close(); await rm(directory, { recursive: true, force: true }); } };
+  try { await start(); } catch (error) { await stop(); server.close(); await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); throw error; }
+  return { evaluate, restart: async () => { await stop(); await start(); }, cleanup: async () => { await stop(); server.close(); await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); } };
 }

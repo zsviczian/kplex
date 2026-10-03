@@ -125,6 +125,8 @@ export default class KplexPlugin extends Plugin {
   private readonly dirtyMarkdownPaths = new Set<string>();
   /** Rename-only metadata notifications are semantic no-ops when mtime/size are unchanged. */
   private readonly renameMetadataSuppressions = new Map<string, { mtime: number; size: number; until: number }>();
+  /** Parent and child deletion events may overlap; count each physical Markdown identity once. */
+  private readonly deletedMarkdownFiles = new WeakSet<TFile>();
   private activeKplexMenu: Menu | null = null;
   private activeKplexMenuDocument: Document | null = null;
   private readonly kplexMenuOutsidePointerDown = (event: PointerEvent): void => {
@@ -587,6 +589,34 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Register post-restore vault/metadata listeners and initialize lazy vault-wide status facts. */
+  /** Preserve persisted navigation/history/pins across a known file or folder move. */
+  private remapNavigationPaths(oldPath: string, newPath: string, folder = false): boolean {
+    const remap = (path: string): string => {
+      if (path === oldPath) return newPath;
+      if (!folder) return path;
+      if (path === `folder:${oldPath}`) return `folder:${newPath}`;
+      if (path.startsWith(`${oldPath}/`)) return newPath + path.slice(oldPath.length);
+      if (path.startsWith(`folder:${oldPath}/`)) return `folder:${newPath}` + path.slice(`folder:${oldPath}`.length);
+      return path;
+    };
+    let changed = false;
+    for (const key of ["lastActivePath", "sidecarLastFilePath"] as const) {
+      const next = remap(this.settings[key]);
+      if (next !== this.settings[key]) { this.settings[key] = next; changed = true; }
+    }
+    for (const key of ["navigationHistory", "pinnedNodes"] as const) {
+      const next = this.settings[key].map(remap);
+      if (next.some((path, index) => path !== this.settings[key][index])) {
+        this.settings[key] = [...new Set(next)]; changed = true;
+      }
+    }
+    if (folder) for (const path of [...this.dirtyMarkdownPaths]) {
+      const next = remap(path);
+      if (next !== path) { this.dirtyMarkdownPaths.delete(path); this.dirtyMarkdownPaths.add(next); }
+    }
+    return changed;
+  }
+
   private registerReactiveIndexListeners(): void {
     if (this.reactiveIndexListenersRegistered) return;
     this.reactiveIndexListenersRegistered = true;
@@ -597,6 +627,7 @@ export default class KplexPlugin extends Plugin {
       (created) => {
         this.pruneManagedMetadataWrites();
         if (created instanceof TFile && created.extension === "md") {
+          this.deletedMarkdownFiles.delete(created);
           this.adjustCachedMarkdownFileCount(1);
           this.notifyIndexStatus();
         }
@@ -612,11 +643,19 @@ export default class KplexPlugin extends Plugin {
           this.scheduleRebuild("vault:create-markdown");
           return;
         }
-        if (created instanceof TFolder && this.initialIndexComplete && !this.rebuildTask && this.index?.isFullSnapshotHydrated()) {
+        if (created instanceof TFolder && this.initialIndexComplete && this.index?.isFullSnapshotHydrated()) {
           // Empty folder creation is a known structural delta. Materialize only its root-to-folder
           // ancestry; subsequent Markdown creates reuse the same folder pages and remain per-file
           // patches instead of leaving a structural `vault:create` reason that forces a full rebuild.
+          this.index.cancelRebuild();
           this.index.insertCreatedFolder(created);
+          return;
+        }
+        if (created instanceof TFile && this.initialIndexComplete && this.index?.isFullSnapshotHydrated()) {
+          // Attachments have no Markdown patch to consume a structural backlog. Materialize their
+          // known file-tree endpoint locally; source-local resolution maintenance owns inbound links.
+          this.index.cancelRebuild();
+          this.index.insertCreatedFile(created);
           return;
         }
         this.scheduleRebuild("vault:create");
@@ -625,7 +664,7 @@ export default class KplexPlugin extends Plugin {
       /** Remove deleted Markdown sources from both semantic progress and its cached denominator. */
       (deleted) => {
         if (deleted instanceof TFile && deleted.extension === "md") {
-          this.adjustCachedMarkdownFileCount(-1);
+          this.countDeletedMarkdownFile(deleted);
           // Deleting Markdown changes materialization, not the identity of the graph endpoint. Keep
           // the same GraphPage alive as a ghost so an active central note does not fall back to the
           // vault root. Only declarations owned by the deleted file are removed locally.
@@ -641,14 +680,33 @@ export default class KplexPlugin extends Plugin {
           this.settlePatchOnlyBacklogIfIdle();
           return;
         }
-        // Folder and non-Markdown deletions can affect topology/attachment visibility more broadly.
+        if (deleted instanceof TFile) {
+          // Attachment deletion has the same endpoint/ghost boundary as Markdown deletion. Keep
+          // surviving inbound declarations and remove physical membership without a vault rebuild.
+          this.index?.dematerializeFile(deleted.path);
+          this.settlePatchOnlyBacklogIfIdle();
+          return;
+        }
+        if (deleted instanceof TFolder && this.initialIndexComplete && this.index?.isFullSnapshotHydrated()) {
+          this.index.cancelRebuild();
+          void this.index.removeDeletedFolder(deleted, file => this.countDeletedMarkdownFile(file)).then(() => {
+            this.settlePatchOnlyBacklogIfIdle(); this.notifyIndexStatus();
+          }).catch(() => this.scheduleRebuild("vault:delete-folder-failed"));
+          return;
+        }
         this.scheduleRebuild("vault:delete");
       }));
     this.registerEvent(this.app.vault.on("rename",
       /** Preserve path-owned state and refresh totals when a rename changes Markdown membership. */
       (renamed, oldPath) => {
         if (!(renamed instanceof TFile)) {
-          // Folder renames can rewrite many canonical file paths at once and remain structural.
+          if (renamed instanceof TFolder && this.initialIndexComplete && this.index?.isFullSnapshotHydrated()) {
+            this.index.cancelRebuild();
+            void this.index.renameFolder(oldPath, renamed).catch(() => this.scheduleRebuild("vault:rename-folder-failed"));
+            if (this.remapNavigationPaths(oldPath, renamed.path, true)) void this.saveSettings(false, false);
+            return;
+          }
+          // Startup without a hydrated graph still owns authoritative structural construction.
           this.scheduleRebuild("vault:rename-folder");
           return;
         }
@@ -660,25 +718,7 @@ export default class KplexPlugin extends Plugin {
           this.adjustCachedMarkdownFileCount(isMarkdown ? 1 : -1);
           this.notifyIndexStatus();
         }
-        let changed = false;
-        if (this.settings.lastActivePath === oldPath) {
-          this.settings.lastActivePath = newPath;
-          changed = true;
-        }
-        if (this.settings.sidecarLastFilePath === oldPath) {
-          this.settings.sidecarLastFilePath = newPath;
-          changed = true;
-        }
-        const history = this.settings.navigationHistory.map((path) => path === oldPath ? newPath : path);
-        if (history.some((path, index) => path !== this.settings.navigationHistory[index])) {
-          this.settings.navigationHistory = [...new Set(history)];
-          changed = true;
-        }
-        const pinned = this.settings.pinnedNodes.map((path) => path === oldPath ? newPath : path);
-        if (pinned.some((path, index) => path !== this.settings.pinnedNodes[index])) {
-          this.settings.pinnedNodes = [...new Set(pinned)];
-          changed = true;
-        }
+        const changed = this.remapNavigationPaths(oldPath, newPath);
 
         // Preserve a genuinely dirty file across the path change, but a clean rename is not itself a
         // re-index trigger. GraphIndex remaps path-keyed graph/evidence/search state in O(degree).
@@ -723,6 +763,13 @@ export default class KplexPlugin extends Plugin {
     // metadataCache.resolved fires in large waves during startup and after a single link edit.
     // `changed`, vault create/delete/rename and explicit K-Plex edits already cover semantic
     // invalidation without turning one relationship move into a whole-vault rebuild storm.
+  }
+
+  /** Count each physical Markdown deletion once across overlapping folder and child events. */
+  private countDeletedMarkdownFile(file: TFile): void {
+    if (this.deletedMarkdownFiles.has(file)) return;
+    this.deletedMarkdownFiles.add(file);
+    this.adjustCachedMarkdownFileCount(-1);
   }
 
   private async waitForMetadataCacheStability(): Promise<number> {
@@ -936,6 +983,8 @@ export default class KplexPlugin extends Plugin {
   /** Run the host rebuild workflow and report localized progress/completion while retaining the existing semantic publication and cancellation ownership. */
   private async performRebuild(showNotice: boolean, force: boolean, reason: string, allowClosed: boolean): Promise<void> {
     if (this.unloading) return;
+    if (this.index.hasPendingStructuralMaintenance()) await this.index.waitForStructuralMaintenance();
+    if (this.unloading) return;
     const explicitlyRequested = showNotice;
     if (!this.hasVisibleKplexSurface() && !allowClosed && !explicitlyRequested) {
       return;
@@ -969,7 +1018,7 @@ export default class KplexPlugin extends Plugin {
       if (this.initialIndexComplete && this.index.isFullSnapshotHydrated()) {
         for (const path of this.dirtyMarkdownPaths) {
           const file = this.app.vault.getFileByPath(path);
-          if (file?.extension === "md" && this.index.get(path)?.file !== file) this.index.insertCreatedFile(file);
+          if (file?.extension === "md") this.index.insertCreatedFile(file);
         }
       }
       const structuralDirty = [...this.indexBacklogReasons].some((item) =>
@@ -1067,7 +1116,7 @@ export default class KplexPlugin extends Plugin {
       }
       for (const path of this.dirtyMarkdownPaths) {
         const file = this.app.vault.getFileByPath(path);
-        if (file?.extension === "md" && this.index.get(path)?.file !== file) this.index.insertCreatedFile(file);
+        if (file?.extension === "md") this.index.insertCreatedFile(file);
       }
       this.indexBacklogReasons.delete("vault:create-markdown");
 
@@ -1123,6 +1172,8 @@ export default class KplexPlugin extends Plugin {
     if (this.unloading) return;
     await this.index.refreshPresentationSettings();
     if (effects.semanticInvalidation) await this.index.refreshSemanticSettings();
+    // Visibility can expand an existing requested scope; cosmetic changes reuse its coverage.
+    else if (effects.render) await this.index.refreshSemanticSettings();
     // Workflow-only callers can still request their historical view notification. Changed settings
     // use the separate presentation channel and never pretend relationship evidence changed.
     if (!effects.render && notifyIndex) this.index.notifyPresentation();

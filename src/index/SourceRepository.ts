@@ -10,6 +10,7 @@
  * Retired impact leases retain bounded retry ownership until an exact deletion commits; a cleanup-
  * only storage port can release them after a failed/closed normal connection, without new authority.
  */
+import { estimateReferenceRecordBytes } from "../core/graph/source";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import {
   SOURCE_DEPENDENCY_STORE, SOURCE_DEPENDENCY_STATE_KEY, SOURCE_DEPENDENCY_ROOT_KEY,
@@ -1243,7 +1244,17 @@ export class NeutralSourceRepository {
   }
   /** Restore immutable parser inputs without reading note text or reparsing Markdown. */
   async readBody(sourceId: string, matches: (physical: SourcePhysical) => boolean, current: () => boolean = () => true,
-    includeTombstone = false): Promise<ParsedBodyMetadata | null> {
+    includeTombstone = false, settleRetirement = false): Promise<ParsedBodyMetadata | null> {
+    // A rename burst can queue this owner's retained tombstone behind another deletion. Its
+    // temporary unsaved mask is not a body miss. Finish that authorized retirement before reading
+    // the retained immutable families; ordinary readers still cannot inspect a masked disk head.
+    if (includeTombstone && settleRetirement && this.pendingDeletes.get(sourceId)?.retain) {
+      if (this.deleteTask) await this.deleteTask;
+      if (this.closed || !current()) return null;
+      const pending = this.pendingDeletes.get(sourceId);
+      if (pending?.retain) await this.tombstone(sourceId, pending.current, true, pending.ready);
+      if (this.closed || !current()) return null;
+    }
     const pinned = await this.pin(sourceId, includeTombstone);
     if (!pinned.view) return null;
     const view = pinned.view; const decoder = new SourceBodyDecoder();
@@ -2221,6 +2232,10 @@ export class NeutralSourceRepository {
         }
       }
 
+      const keyBytes = requestedKeys.reduce(
+        /** Count keys and count-map entries once, independently of membership page count. */
+        (total, value) => total + 2 * value.length + 128, 0);
+      if (keyBytes > SOURCE_DECODE_BUDGET_BYTES) throw new SourceFactError("decode-budget");
       const selected = new Map<string, { stamp: SelectedSourceStamp; order: number; markdownOrder: number }>();
       let pagesVisited = 0, rowsVisited = 0, peakItems = 0, peakBytes = 0, retainedBytes = 0;
       for (const key of requestedKeys) {
@@ -2238,7 +2253,7 @@ export class NeutralSourceRepository {
               return new Promise<{ next: IDBValidKey | null; done: boolean; entries: Array<{ row: SourceLocalDependencyRow;
                 owner: SourceLocalDependencyOwner | null; head: SourceHead | null }> }>((resolve, reject) => {
                 const entries: Array<{ row: SourceLocalDependencyRow; owner: SourceLocalDependencyOwner | null; head: SourceHead | null }> = [];
-                let visited = 0; let next: IDBValidKey | null = null;
+                let visited = 0, pageBytes = 0; let next: IDBValidKey | null = null;
                 const range = IDBKeyRange.bound(after ?? [key], [key, []], after !== null, true);
                 const request = transaction.objectStore(SOURCE_LOCAL_DEPENDENCY_STORE).index(SOURCE_LOCAL_LOOKUP_INDEX).openCursor(range);
                 request.onerror = () => reject(request.error ?? new SourceFactError("read-error"));
@@ -2260,8 +2275,11 @@ export class NeutralSourceRepository {
                       const rawHead: unknown = headRequest.result;
                       const head = decodeSourceHead(rawHead);
                       if (rawHead !== undefined && !head) { reject(new SourceFactError("dependency-invalid")); return; }
-                      entries.push({ row, owner, head });
-                      if (visited >= SOURCE_MAX_BATCH_RECORDS) resolve({ next, done: false, entries }); else cursor.continue();
+                      const entry = { row, owner, head };
+                      const size = 2 * estimateReferenceRecordBytes(entry) + 128;
+                      if (size > SOURCE_DECODE_BUDGET_BYTES) { reject(new SourceFactError("decode-budget")); return; }
+                      pageBytes += size; entries.push(entry);
+                      if (visited >= SOURCE_MAX_BATCH_RECORDS || pageBytes >= SOURCE_CHUNK_TARGET_BYTES) resolve({ next, done: false, entries }); else cursor.continue();
                     };
                   };
                 };
@@ -2277,11 +2295,18 @@ export class NeutralSourceRepository {
             const stamp: SelectedSourceStamp = { head, sequence: head.sequence, saved: true };
             const prior = selected.get(row.sourceId);
             if (prior && prior.stamp.head.sourceRevision !== head.sourceRevision) throw new SourceFactError("dependency-invalid");
-            if (!prior) retainedBytes += 256 + 2 * (head.sourceId.length + head.sourceRevision.length);
-            selected.set(row.sourceId, { stamp, order: owner.order, markdownOrder: owner.markdownOrder });
+            if (!prior) {
+              // Full family manifests, physical/host coordinates and map/array entries remain live.
+              retainedBytes += 2 * estimateReferenceRecordBytes(stamp) + 256;
+              if (retainedBytes > 256 * 1024 * 1024) throw new SourceFactError("decode-budget");
+              selected.set(row.sourceId, { stamp, order: owner.order, markdownOrder: owner.markdownOrder });
+            }
           }
           peakItems = Math.max(peakItems, selected.size);
-          peakBytes = Math.max(peakBytes, retainedBytes);
+          const pageBytes = page.entries.reduce(
+            /** Include the currently decoded membership page and all its full heads/families. */
+            (total, entry) => total + 2 * estimateReferenceRecordBytes(entry) + 128, 0);
+          peakBytes = Math.max(peakBytes, retainedBytes + pageBytes + keyBytes + 32 * selected.size);
           if (!current() || this.closed) throw new SourceFactError("cancelled");
           if (page.done || page.next === null) break;
           if (after !== null && indexedDB.cmp(page.next, after) === 0) throw new SourceFactError("dependency-invalid");
@@ -2293,9 +2318,11 @@ export class NeutralSourceRepository {
         if (active !== counts.get(key)) throw new SourceFactError("dependency-invalid");
       }
       const ordered = [...selected.values()].sort((a, b) => a.order - b.order || a.stamp.head.sourceId.localeCompare(b.stamp.head.sourceId));
-      const fenceReason = await this.validateLocalDependencies(fence, ordered.map((entry) => entry.stamp), current);
+      selected.clear(); counts.clear();
+      const sources = ordered.map((entry) => entry.stamp);
+      const fenceReason = await this.validateLocalDependencies(fence, sources, current);
       if (fenceReason !== "ready") throw new SourceFactError(fenceReason);
-      return { outcome: "ready", value: { fence, sources: ordered.map((entry) => entry.stamp),
+      return { outcome: "ready", value: { fence, sources,
         orders: ordered.map((entry) => entry.order), markdownOrders: ordered.map((entry) => entry.markdownOrder),
         work: { keys: requestedKeys.length, keyPages, pages: pagesVisited, rows: rowsVisited, owners: ordered.length,
           yields, peakItems, peakBytes } } };

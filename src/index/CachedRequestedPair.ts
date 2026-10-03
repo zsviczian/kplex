@@ -7,7 +7,7 @@
 import type { GraphCompilerRuntime } from "../core/graph/compiler";
 import type { SourcePatchReadPort } from "../core/graph/patch";
 import type { SourceEntityRef } from "../core/graph/source";
-import { CachedSourceSemanticReader, type CachedSemanticPolicy, type CachedSemanticPreparation } from "./CachedSourceSemantics";
+import { CachedSourceSemanticReader, validateCachedOwners, cachedOwnersCurrent, sameCachedSelections, type CachedSemanticPolicy, type CachedSemanticPreparation } from "./CachedSourceSemantics";
 import type { ContributorCertificate, ContributorFailure, SourceContributorDiscovery } from "./SourceContributorDiscovery";
 import { cachedSourceMatches, type CachedSourceRequest } from "./SourceReplay";
 import { selectedSourceFailure, type NeutralSourceRepository, type SelectedSourceResult } from "./SourceRepository";
@@ -31,7 +31,7 @@ export class CachedRequestedPairReader {
   private readonly semantics: CachedSourceSemanticReader;
   /** Entity reads must be exact-ID canonical host facts stable under discovery's host observation. */
   constructor(repository: NeutralSourceRepository,
-    private readonly discovery: Pick<SourceContributorDiscovery, "discover" | "revalidate" | "isHostCurrent">,
+    private readonly discovery: Pick<SourceContributorDiscovery, "discover" | "revalidate" | "isHostCurrent"> & Partial<Pick<SourceContributorDiscovery, "isGenerationCurrent">>,
     private readonly capture: CachedPairCapture, private readonly entities: SourcePatchReadPort) {
     this.semantics = new CachedSourceSemanticReader(repository);
   }
@@ -48,11 +48,9 @@ export class CachedRequestedPairReader {
     /** Capture capabilities depend only on parent demand/policy, never on the owners they create. */
     const requestReason = () => !runtime.isCurrent() ? "cancelled"
       : !policy.isCurrent() || policy.revision !== revision ? "superseded" : "ready";
-    /** Include captured host lifetimes without a capture -> owner -> capture recursion. */
-    const reason = () => {
-      const parent = requestReason();
-      return parent !== "ready" ? parent : owners.some((owner) => !owner.host.isCurrent()) ? "stale" : "ready";
-    };
+    /** Use monotonic cancellation here; validate captured hosts after the final discovery await. */
+    const reason = () => requestReason() !== "ready" ? requestReason()
+      : this.discovery.isGenerationCurrent?.() === false ? "stale" : "ready";
     const captureRuntime = { ...runtime,
       /** The host retains this callback; it must not close over the subsequently captured owners. */
       isCurrent: (): boolean => requestReason() === "ready",
@@ -87,12 +85,17 @@ export class CachedRequestedPairReader {
         discovered.hostFacts.map((entry) => entry.fact));
       if (!current()) return selectedSourceFailure(reason());
       if (prepared.outcome !== "ready") return prepared;
-      if (prepared.policyRevision !== revision || JSON.stringify(prepared.sources) !== JSON.stringify(discovered.sources)) {
-        return selectedSourceFailure("superseded");
+      if (prepared.policyRevision !== revision || !(await sameCachedSelections(prepared.sources, discovered.sources, { ...runtime, isCurrent: current }))) {
+        return selectedSourceFailure(current() ? "superseded" : reason());
       }
+      const hosts = await validateCachedOwners(owners, { ...runtime, isCurrent: current });
+      if (hosts !== "ready") return selectedSourceFailure(current() ? hosts : reason());
       const validated = await this.discovery.revalidate(discovered);
       if (!current()) return selectedSourceFailure(reason());
       if (validated !== "ready") return selectedSourceFailure(validated);
+      const finalHosts = cachedOwnersCurrent(owners);
+      if (finalHosts !== "ready") return selectedSourceFailure(finalHosts);
+
       // Empty/host-only covers have no captured source callbacks to close the host observation.
       if (!this.discovery.isHostCurrent()) return selectedSourceFailure("host-catalog-stale");
       if (!current()) return selectedSourceFailure(reason());

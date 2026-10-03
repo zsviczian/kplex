@@ -73,6 +73,26 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
       })()`), true);
     });
 
+    await t.test("rename bursts settle queued retained tombstones before reusing unchanged bodies", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const isolated=await fresh('retained-rename-burst'),r=isolated.sources;
+        try {
+          equal((await r.replace(await make(r,'Left'))).outcome,'activated','First owner');
+          equal((await r.replace(await make(r,'Empty',{kind:'missing'},''))).outcome,'activated','Empty owner');
+          let release;const held=new Promise(resolve=>release=resolve);
+          const first=r.tombstone('Left',()=>true,true,held);
+          equal((await r.tombstone('Empty',()=>true,true)).reason,'backpressure','Second retirement queues');
+          equal(await r.readBody('Empty',()=>true),null,'Ordinary read remains masked');
+          const retained=r.readBody('Empty',physical=>physical.identity==='Empty-incarnation',()=>true,true,true);
+          release();await first;const body=await retained;
+          ok(body,'Queued empty body restored from retained families');
+          equal(body.inlineFields,{},'Empty body remains empty');
+          equal((await r.inspect('Empty')).reason,'tombstone','Old semantic binding stays retired');
+          return true;
+        } finally { isolated.close(); }
+      })()`),true);
+    });
+
     await t.test("staging is invisible; activated A/B survive process interruption with only C incomplete", async () => {
       const before = await browser.evaluate(`(async()=>{
         const r=cache.sources;

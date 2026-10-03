@@ -1,10 +1,11 @@
 /** Explicit host/event doubles around production acquisition, storage, replay and discovery in real Chromium. */
+import { installRetiredSourcePrototypes } from "./retiredSourcePrototypes.mjs";
 import { browserBundle } from "./browserTypeScript.mjs";
 
 /** Compile real modules plus optional test-owned entries; only the Obsidian host API is doubled. */
 export async function contributorBrowserBundle(extraEntries = []) {
   return browserBundle([
-    ...extraEntries, "src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/index/SourceLocalDependencies.ts", "src/index/SourceContributorDiscovery.ts",
+    "src/core/graph/source.ts", "src/adapters/obsidian/hostLinkSourceCollector.ts", "src/index/CachedSourceSemantics.ts", ...extraEntries, "src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/index/SourceLocalDependencies.ts", "src/index/SourceContributorDiscovery.ts",
     "src/adapters/obsidian/sourceAcquisition.ts", "src/core/parser/metadata.ts",
     "src/adapters/obsidian/structuralSourceCollector.ts", "src/index/SourceReplay.ts", "src/index/SourceContributorSummary.ts", "src/index/SourceContributorJournal.ts", "src/index/fieldParser.ts",
   ], { obsidian: `exports.Platform={isMobile:false,isIosApp:false}; exports.TFile=class TFile {
@@ -16,6 +17,7 @@ export async function contributorBrowserBundle(extraEntries = []) {
 /** Executed in the real browser: no IDB implementation, transaction or source module is substituted. */
 export const contributorBrowserInitialize = `(() => {
   const M = window.sourceModules;
+  const installRetiredSourcePrototypes = ${installRetiredSourcePrototypes.toString()};
   window.ok = (value,message) => {if(!value)throw new Error(message);};
   window.equal = (actual,expected,message) => ok(JSON.stringify(actual)===JSON.stringify(expected),message+': '+JSON.stringify(actual));
   window.value = request => new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
@@ -60,7 +62,8 @@ export const contributorBrowserInitialize = `(() => {
     repository.lookupLocalDependencies=async(...args)=>{work.localLookups++;return lookup(...args);};
     repository.ensureLocalDependencies=async(...args)=>{work.localEnsures++;return ensure(...args);};
     repository.completeLocalDependencyInventory=async(...args)=>{work.localCompletes++;return complete(...args);};
-    const acquisition=new M.ObsidianSourceAcquisition(app,cache,async text=>{parses.push(text);return M.parseBodyMetadata(text);});
+    const acquisition=installRetiredSourcePrototypes(new M.ObsidianSourceAcquisition(app,cache,async text=>{parses.push(text);return M.parseBodyMetadata(text);}),M,
+      {TFile:window.ContributorFile,TFolder:window.ContributorFolder});
     const add=(path,text='',frontmatter={})=>{const file=new window.ContributorFile(path);file.parent=root;files.set(path,file);texts.set(path,text);metadata.set(path,{frontmatter,links:[]});return file;};
     const acquire=async()=>{for(const file of app.vault.getMarkdownFiles()){const result=await acquisition.acquire(file,M.parseBodyMetadata(texts.get(file.path)));ok(result.current,'Source current');ok(result.saved,'Source durable: '+result.reason);}};
     const build=async()=>{const d=acquisition.contributorDiscovery(runtime());const result=await d.rebuild();equal(result.outcome,'ready','Catalog activation '+JSON.stringify(result));return d;};

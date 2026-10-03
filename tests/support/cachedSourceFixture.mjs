@@ -1,10 +1,11 @@
 /** Exercise production host acquisition with explicit public-host fixtures, not substitute collectors. */
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
+import { installRetiredSourcePrototypes } from "./retiredSourcePrototypes.mjs";
 import { browserBundle } from "./browserTypeScript.mjs";
 
 const bundle = await browserBundle([
-  "src/index/CachedRequestedCandidateDegrees.ts", "src/index/CachedRequestedDirectOrder.ts", "src/index/CachedCenterGateProjection.ts", "src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/SectionExpansion.ts",
+  "src/index/SourceFacts.ts", "src/index/SourceContributorDiscovery.ts", "src/index/CachedRequestedCandidateDegrees.ts", "src/index/CachedRequestedDirectOrder.ts", "src/index/CachedCenterGateProjection.ts", "src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/SectionExpansion.ts",
   "src/index/CachedRequestedUrlTitle.ts", "src/index/CachedRequestedPair.ts", "src/index/CachedRequestedNeighborhood.ts", "src/core/graph/resolver.ts", "src/core/graph/evidence.ts", "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/SourceReplay.ts", "src/index/CachedSourceSemantics.ts", "src/index/SourceContributorSummary.ts",
   "src/core/graph/compiler.ts", "src/core/graph/source.ts", "src/index/fieldParser.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts", "src/adapters/obsidian/hostLinkSourceCollector.ts",
@@ -67,7 +68,8 @@ export function replayFixture() {
   cache.deleteBody = async path => { legacy.delete(path); };
   cache.queueBodyWrite = (path, mtime, body) => { legacy.set(path, { path, mtime, parserVersion: 2, body }); };
   const parser = async value => { parses.push(value); return parseBodyMetadata(value); };
-  const acquisition = new ObsidianSourceAcquisition(app, cache, parser);
+  const acquisition = installRetiredSourcePrototypes(new ObsidianSourceAcquisition(app, cache, parser), M,
+    { TFile, TFolder: window.SourceTestFolder });
   const add = (path, bodyText = "Links:: [[Alias]] [[Target]]", frontmatter = {}) => {
     const file = new TFile(path); file.parent = root; files.set(path, file); text.set(path, bodyText);
     metadata.set(path, { frontmatter, links: [] });
@@ -109,17 +111,18 @@ export async function collect(collector) {
 }
 
 /** Full compiler oracle over ALL current facts in the requested-owner fixture, not cached replay. */
-export async function hostOracle(f, ids, config, options = presentation) {
+export async function hostOracle(f, ids, config, options = presentation, wholeStructure = false) {
   const compiler = new M.NormalizedGraphCompiler(config, runtime());
   const host = M.createObsidianMetadataSourceHost(f.app);
   const cr = { isCurrent: () => true, sourceRevision: () => f.acquisition.hostRevision, checkpoint: async () => true };
   // Entity facts are physical input. Every Markdown file here is a requested source; attachments
   // are real host entities used by the fixture. No unrelated whole-vault records are compared.
-  const records = [...f.files.values()].map(M.entityFactForFile);
+  const records = wholeStructure ? await collect(new M.ObsidianStructuralSourceCollector(f.app, cr))
+    : [...f.files.values()].map(M.entityFactForFile);
   for (const id of ids) {
     const file = f.files.get(id), body = M.parseBodyMetadata(f.text.get(id));
     const metadata = M.mergeFileMetadata(f.metadata.get(id), body);
-    records.push(...await collect(new M.ObsidianStructuralPatchSourceCollector(f.app, cr, file)));
+    if (!wholeStructure) records.push(...await collect(new M.ObsidianStructuralPatchSourceCollector(f.app, cr, file)));
     records.push(...await collect(new M.ObsidianHostLinkSourceCollector(f.app, cr, id)));
     records.push(...await collect(new M.ObsidianMetadataSourceCollector(host, cr, file, metadata, options, "metadata")));
     records.push(...await collect(new M.ObsidianReferenceSourceCollector({ metadataCache: f.app.metadataCache,

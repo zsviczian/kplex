@@ -8,10 +8,10 @@ import { TFile, TFolder, type App } from "obsidian";
 import { contributorRecordKeys, type ContributorCertificate,
   type ContributorDiscoveryResult, type ContributorFailure, type ContributorHostStamp,
   type ContributorRequest, type ContributorStructuralFact } from "../../index/SourceContributorDiscovery";
-import { SOURCE_MAX_BATCH_RECORDS, SOURCE_MAX_RECORD_BYTES, SourceFactError, type SourceReason } from "../../index/SourceFacts";
+import { SOURCE_MAX_BATCH_RECORDS, SOURCE_MAX_RECORD_BYTES, SOURCE_CHUNK_TARGET_BYTES, SOURCE_DECODE_BUDGET_BYTES, SourceFactError, type SourceReason } from "../../index/SourceFacts";
 import { sourceLocalDependencyKey } from "../../index/SourceLocalDependencies";
 import type { NeutralSourceRepository } from "../../index/SourceRepository";
-import type { SourceEntityRef } from "../../core/graph/source";
+import { estimateReferenceRecordBytes, type SourceEntityRef } from "../../core/graph/source";
 import { entityFactForFile, entityFactForFolder, structuralFileTreeOccurrence,
   structuralTagMembershipFacts } from "./structuralSourceCollector";
 
@@ -39,28 +39,35 @@ async function requestCheckpoint(index: number, current: () => boolean): Promise
 
 /** Snapshot caller-owned request data completely before the first await; later work may yield freely. */
 function copyRequest(request: ContributorRequest): ContributorRequest {
+  if (request.endpoints.length * 64 > SOURCE_DECODE_BUDGET_BYTES) throw new SourceFactError("decode-budget");
   return { kind: request.kind, endpoints: request.endpoints.map((endpoint) => ({ ...endpoint })),
     ...(request.fields === undefined ? {} : { fields: [...request.fields] }),
     ...(request.literals === undefined ? {} : { literals: [...request.literals] }) };
 }
 
+/** Select finite neutral dependency keys and bound retained request metadata, without scanning owners. */
 async function queryKeys(request: ContributorRequest, current: () => boolean): Promise<readonly string[]> {
   if ((request.kind !== "pair" && request.kind !== "neighborhood") || request.endpoints.length < 1
     || request.kind === "pair" && request.endpoints.length !== 2) {
     throw new SourceFactError("unsupported-scope");
   }
   const keys = new Set<string>();
+  let retainedBytes = 0;
   let visited = 0;
   for (const endpoint of request.endpoints) {
     if (!endpoint || typeof endpoint.id !== "string" || !endpoint.id || typeof endpoint.kind !== "string"
       || typeof endpoint.state !== "string") throw new SourceFactError("unsupported-scope");
     keys.add(sourceLocalDependencyKey("node", endpoint.id));
     if (endpoint.kind === "tag") keys.add(sourceLocalDependencyKey("family", "tag-tree"));
+    retainedBytes += estimateReferenceRecordBytes(endpoint);
+    if (retainedBytes > 64 * 1024 * 1024) throw new SourceFactError("decode-budget");
     visited += 1; await requestCheckpoint(visited, current);
   }
   for (const [kind, values] of [["field", request.fields], ["literal", request.literals]] as const) {
     for (const value of values ?? []) {
       if (typeof value !== "string") throw new SourceFactError("unsupported-scope");
+      retainedBytes += 128 + 4 * value.length;
+      if (retainedBytes > 64 * 1024 * 1024) throw new SourceFactError("decode-budget");
       keys.add(sourceLocalDependencyKey(kind, value));
       visited += 1; await requestCheckpoint(visited, current);
     }
@@ -75,17 +82,34 @@ async function queryKeys(request: ContributorRequest, current: () => boolean): P
   return [...keys];
 }
 
+/** Hash certificate inputs with both byte and record bounds; release each serialized page on await. */
+async function digestCertificateValues(repository: NeutralSourceRepository, digest: string, label: string,
+  values: readonly unknown[], current: () => boolean): Promise<string> {
+  for (let start = 0; start < values.length;) {
+    let end = start, retained = 0;
+    while (end < values.length && end - start < SOURCE_MAX_BATCH_RECORDS) {
+      const size = estimateReferenceRecordBytes(values[end]);
+      if (size > SOURCE_DECODE_BUDGET_BYTES) throw new SourceFactError("decode-budget");
+      if (end > start && retained + size > SOURCE_CHUNK_TARGET_BYTES) break;
+      retained += size; end++;
+    }
+    if (!current()) throw new SourceFactError("host-catalog-stale");
+    digest = await repository.observationDigest(JSON.stringify([digest, label, values.slice(start, end)]));
+    await new Promise<void>(/** Yield between bounded digest buffers under the same host fence. */
+      resolve => window.setTimeout(resolve, 0));
+    if (!current()) throw new SourceFactError("host-catalog-stale");
+    start = end;
+  }
+  return digest;
+}
+
 /** Hash scope identity in bounded slices instead of serializing one arbitrarily large endpoint array. */
 async function scopeDigest(repository: NeutralSourceRepository, scope: ContributorRequest,
   current: () => boolean): Promise<string> {
   let digest = await repository.observationDigest(JSON.stringify([GENERATION, "scope", scope.kind,
     scope.fields === undefined, scope.literals === undefined]));
   for (const [label, values] of [["endpoints", scope.endpoints], ["fields", scope.fields ?? []], ["literals", scope.literals ?? []]] as const) {
-    for (let offset = 0; offset < values.length; offset += SOURCE_MAX_BATCH_RECORDS) {
-      if (!current()) throw new SourceFactError("host-catalog-stale");
-      digest = await repository.observationDigest(JSON.stringify([digest, label, values.slice(offset, offset + SOURCE_MAX_BATCH_RECORDS)]));
-      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
-    }
+    digest = await digestCertificateValues(repository, digest, label, values, current);
   }
   if (!current()) throw new SourceFactError("host-catalog-stale");
   return digest;
@@ -95,31 +119,53 @@ async function scopeDigest(repository: NeutralSourceRepository, scope: Contribut
 async function structuralFacts(app: App, request: ContributorRequest, sourceIds: readonly string[], keys: ReadonlySet<string>,
   current: () => boolean): Promise<readonly ContributorStructuralFact[]> {
   const output: ContributorStructuralFact[] = [];
-  const seen = new Set<string>(); let visited = 0;
+  const folders = new Map<TFolder, ReturnType<typeof entityFactForFolder>>();
+  /** Hash each selected folder once per fenced request, rather than once per child/source. */
+  const folderFact = (folder: TFolder): ReturnType<typeof entityFactForFolder> => {
+    let fact = folders.get(folder);
+    if (!fact) { fact = entityFactForFolder(folder); folders.set(folder, fact); }
+    return fact;
+  };
+  const seen = new Map<string, Set<string>>(); let visited = 0, retainedBytes = 0;
+  /** Cooperate while constructing structural facts; never expose a partial host stream. */
   const checkpoint = async (): Promise<void> => {
     if (++visited % SOURCE_MAX_BATCH_RECORDS !== 0) return;
     await new Promise<void>(resolve => window.setTimeout(resolve, 0));
     if (!current()) throw new SourceFactError("host-catalog-stale");
   };
+  /** Retain only relevant, compactly deduplicated facts under the aggregate structural budget. */
   const add = async (fact: ContributorStructuralFact): Promise<void> => {
     let relevant = false;
     for (const key of contributorRecordKeys(fact)) if (keys.has(key)) { relevant = true; break; }
     if (!relevant) { await checkpoint(); return; }
-    const identity = JSON.stringify(fact);
-    if (!seen.has(identity)) { seen.add(identity); output.push(fact); }
+    // Structural constructors are deterministic for a current source/target pair. Deduplicate
+    // compact exact IDs per kind/source instead of retaining serialized copies of every fact.
+    const sourceKey = JSON.stringify([fact.kind, fact.source.id]);
+    const target = fact.kind === "entity" ? fact.entity.id : fact.target.entity.id;
+    let targets = seen.get(sourceKey);
+    if (!targets) { targets = new Set(); seen.set(sourceKey, targets); }
+    if (!targets.has(target)) {
+      retainedBytes += 2 * estimateReferenceRecordBytes(fact) + 128 + 2 * (sourceKey.length + target.length);
+      // Candidate degrees can require both the entity and parent occurrence for all 20,015
+      // owners (about 122 MiB under this conservative estimate); retain an explicit ceiling.
+      if (retainedBytes > 128 * 1024 * 1024) throw new SourceFactError("decode-budget");
+      targets.add(target); output.push(fact);
+    }
     await checkpoint();
   };
+  /** Supplement one selected file using its current entity, parent and tag memberships. */
   const addFile = async (file: TFile): Promise<void> => {
     await add(entityFactForFile(file));
-    if (file.parent) await add(structuralFileTreeOccurrence(file.parent, file));
+    if (file.parent) await add(structuralFileTreeOccurrence(file.parent, file, folderFact(file.parent).sourceRevision));
     if (file.extension === "md") for (const fact of structuralTagMembershipFacts(file, app.metadataCache)) await add(fact);
   };
+  /** Expand one requested folder using one topology digest shared by its child occurrences. */
   const addFolder = async (folder: TFolder): Promise<void> => {
-    await add(entityFactForFolder(folder));
-    if (folder.parent) await add(structuralFileTreeOccurrence(folder.parent, folder));
+    await add(folderFact(folder));
+    if (folder.parent) await add(structuralFileTreeOccurrence(folder.parent, folder, folderFact(folder.parent).sourceRevision));
     for (const child of folder.children) {
       if (!(child instanceof TFile) && !(child instanceof TFolder)) throw new SourceFactError("host-catalog-stale");
-      await add(structuralFileTreeOccurrence(folder, child));
+      await add(structuralFileTreeOccurrence(folder, child, folderFact(folder).sourceRevision));
     }
   };
 
@@ -155,11 +201,7 @@ async function selectionDigest(repository: NeutralSourceRepository, sources: rea
   order: readonly number[] | undefined, current: () => boolean): Promise<string> {
   let digest = await repository.observationDigest(JSON.stringify([GENERATION, "scope-local"]));
   for (const [label, values] of [["sources", sources], ["hostFacts", hostFacts], ["order", order ?? []]] as const) {
-    for (let offset = 0; offset < values.length; offset += SOURCE_MAX_BATCH_RECORDS) {
-      if (!current()) throw new SourceFactError("host-catalog-stale");
-      digest = await repository.observationDigest(JSON.stringify([digest, label, values.slice(offset, offset + SOURCE_MAX_BATCH_RECORDS)]));
-      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
-    }
+    digest = await digestCertificateValues(repository, digest, label, values, current);
   }
   return digest;
 }
@@ -170,6 +212,9 @@ export class SourceLocalContributorDiscovery {
   constructor(private readonly repository: NeutralSourceRepository, private readonly app: App,
     private readonly stamp: ContributorHostStamp, private readonly current: () => boolean,
     private readonly onDependencyInvalid?: () => void) {}
+
+  /** Source-local requests share the acquisition owner's monotonic maintenance/host fence. */
+  isGenerationCurrent(): boolean { return this.current(); }
 
   isHostCurrent(): boolean { return this.current(); }
 
@@ -198,7 +243,7 @@ export class SourceLocalContributorDiscovery {
       const entries = selected.value.sources.map((stamp, index) => ({ stamp,
         order: selected.value.orders[index], markdownOrder: selected.value.markdownOrders[index] }));
       if (markdownOrder) entries.sort((left, right) => left.markdownOrder - right.markdownOrder || left.stamp.head.sourceId.localeCompare(right.stamp.head.sourceId));
-      const sources = entries.map((entry) => entry.stamp);
+      const sources = markdownOrder ? entries.map((entry) => entry.stamp) : selected.value.sources;
       const sourceIds = sources.map((stamp) => stamp.head.sourceId);
       const hostFacts = (await structuralFacts(this.app, scope, sourceIds, keySet, this.current)).map((fact, order) => ({ order, fact }));
       const order = markdownOrder ? entries.map((entry) => entry.markdownOrder) : undefined;

@@ -105,6 +105,7 @@ type PreparedSemanticScope = Readonly<{
   sourceRevision: number;
   maintenanceRevision: number;
   presentationRevision: number;
+  coverageSignature: string;
   settings: GraphCompilerSettings;
   pagesByPath: ReadonlyMap<string, GraphPage>;
   completePaths: ReadonlySet<string>;
@@ -246,9 +247,12 @@ export class GraphIndex {
   private fullSemanticSettings: GraphCompilerSettings;
   private semanticDemandRevision = new Map<string, number>();
   private semanticDemandCounts = new Map<string, number>();
+  private folderRenameTasks = new WeakMap<TFolder, Promise<void>>();
+  private pendingStructuralTasks = 0;
   private semanticScopes = new Map<string, PreparedSemanticScope>();
   private semanticPreparationTasks = new Map<string, Readonly<{
-    policyRevision: number; demandRevision: number; maintenanceRevision: number; task: Promise<void>;
+    policyRevision: number; demandRevision: number; maintenanceRevision: number; coverageSignature: string;
+    sourceRevision: number; publicationRevision: number; presentationRevision: number; task: Promise<void>;
   }>>();
   private preparedPageInfo = new WeakMap<GraphPage, PreparedSemanticPageInfo>();
   private semanticPreparationDiagnostics: SemanticPreparationDiagnostics = {
@@ -326,23 +330,48 @@ export class GraphIndex {
   /** Aggregate semantic preparation counters used by acceptance tests and diagnostics. */
   getSemanticPreparationDiagnostics(): SemanticPreparationDiagnostics { return { ...this.semanticPreparationDiagnostics }; }
 
+  /** Capture the visibility inputs that determine which parent/candidate incidence a visible scope needs. */
+  private semanticVisibilitySettings() {
+    return {
+      excludeFilepaths: [...this.plugin.settings.excludeFilepaths], showVirtualNodes: this.plugin.settings.showVirtualNodes,
+      showAttachments: this.plugin.settings.showAttachments, showFolderNodes: this.plugin.settings.showFolderNodes,
+      showTagNodes: this.plugin.settings.showTagNodes, showPageNodes: this.plugin.settings.showPageNodes,
+      showURLNodes: this.plugin.settings.showURLNodes, showInferredNodes: this.plugin.settings.showInferredNodes,
+    };
+  }
+
+  /** A visibility expansion needs fresh requested coverage, independently of semantic/source validity. */
+  private semanticCoverageSignature(): string { return JSON.stringify(this.semanticVisibilitySettings()); }
+
   /** True while the requested semantic policy has no coherent prepared publication for active demand. */
   hasPendingSemanticPreparation(): boolean {
+    if (this.pendingStructuralTasks > 0) return true;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
       && this.fullSemanticMaintenanceRevision === maintenanceRevision) return false;
     if (this.semanticPreparationTasks.size > 0) return true;
+    const coverageSignature = this.semanticCoverageSignature();
     for (const [path, count] of this.semanticDemandCounts) {
       if (count <= 0) continue;
       const scope = this.semanticScopes.get(path);
-      if (!scope || scope.policyRevision !== this.semanticPolicyRevision || scope.maintenanceRevision !== maintenanceRevision
+      if (!scope || scope.coverageSignature !== coverageSignature || scope.policyRevision !== this.semanticPolicyRevision || scope.maintenanceRevision !== maintenanceRevision
         || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasSemanticDependencies()) return true;
     }
     const active = this.plugin.settings.lastActivePath;
     if (!active) return false;
     const scope = this.semanticScopes.get(active);
-    return !scope || scope.policyRevision !== this.semanticPolicyRevision || scope.maintenanceRevision !== maintenanceRevision
+    return !scope || scope.coverageSignature !== coverageSignature || scope.policyRevision !== this.semanticPolicyRevision || scope.maintenanceRevision !== maintenanceRevision
       || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasSemanticDependencies();
+  }
+
+  /** Let the normal per-file coordinator wait for known tree work instead of patching an intermediate path map. */
+  hasPendingStructuralMaintenance(): boolean { return this.pendingStructuralTasks > 0; }
+
+  /** Await cancellable known tree operations; callers check the flag first to preserve the no-work lifecycle ordering. */
+  async waitForStructuralMaintenance(): Promise<void> {
+    while (this.pendingStructuralTasks > 0 && !this.diagnosticsClosed) {
+      await new Promise<void>(done => window.setTimeout(done, 25));
+    }
   }
 
   /** Retry only demanded settings scopes after source-local dependency inventory closes. */
@@ -405,12 +434,18 @@ export class GraphIndex {
   private semanticSourceRef(page: GraphPage): SourceEntityRef {
     const prepared = this.preparedPageInfo.get(page);
     const view = graphNodeViewFromLegacy(page);
+    // Legacy folder pages have no TFile. Resolve their documented semantic-path coordinate
+    // at the host boundary; opaque node IDs never supply a physical path.
+    const folder = page.isFolder && page.path.startsWith("folder:")
+      ? page.path === "folder:/" ? this.app.vault.getRoot()
+        : this.app.vault.getFolderByPath(page.path.slice("folder:".length)) : null;
+    const physicalPath = page.file?.path ?? (folder instanceof TFolder ? folder.path : undefined);
     return {
       id: prepared?.entityId ?? view.id,
       kind: view.kind,
       state: view.kind === "unresolved" ? "unresolved" : "materialized",
       semanticPath: page.path,
-      ...(page.file ? { physicalPath: page.file.path } : {}),
+      ...(physicalPath === undefined ? {} : { physicalPath }),
     };
   }
 
@@ -464,26 +499,29 @@ export class GraphIndex {
     const presentationRevision = this.presentationRevision;
     const settings = graphCompilerSettingsFromLegacy(this.plugin.settings);
     const settingsSignature = JSON.stringify(settings);
-    const gateSettings = {
-      excludeFilepaths: [...this.plugin.settings.excludeFilepaths], showVirtualNodes: this.plugin.settings.showVirtualNodes,
-      showAttachments: this.plugin.settings.showAttachments, showFolderNodes: this.plugin.settings.showFolderNodes,
-      showTagNodes: this.plugin.settings.showTagNodes, showPageNodes: this.plugin.settings.showPageNodes,
-      showURLNodes: this.plugin.settings.showURLNodes, showInferredNodes: this.plugin.settings.showInferredNodes,
-    };
+    const gateSettings = this.semanticVisibilitySettings();
     const gateSignature = JSON.stringify(gateSettings);
     const presentation = { noteTypeField: this.plugin.settings.noteTypeField, primaryTagField: this.plugin.settings.primaryTagField };
-    const current = (): boolean => !this.diagnosticsClosed && this.semanticPolicyRevision === policyRevision
-      && (this.semanticDemandRevision.get(centerPath) ?? 0) === demandRevision
-      && this.plugin.getIndexSourceRevision() === sourceRevision && this.sourceAcquisition.getMaintenanceRevision() === maintenanceRevision
-      && this.publicationRevision === publicationRevision && this.presentationRevision === presentationRevision
-      && JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings)) === settingsSignature
+    /** In-place settings edits are checked at cooperative/final fences, never per graph record. */
+    const signaturesCurrent = (): boolean =>
+      JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings)) === settingsSignature
       && JSON.stringify({
         excludeFilepaths: [...this.plugin.settings.excludeFilepaths], showVirtualNodes: this.plugin.settings.showVirtualNodes,
         showAttachments: this.plugin.settings.showAttachments, showFolderNodes: this.plugin.settings.showFolderNodes,
         showTagNodes: this.plugin.settings.showTagNodes, showPageNodes: this.plugin.settings.showPageNodes,
         showURLNodes: this.plugin.settings.showURLNodes, showInferredNodes: this.plugin.settings.showInferredNodes,
       }) === gateSignature;
-    const runtime = this.semanticPreparationRuntime(current);
+    let signatureValid = signaturesCurrent();
+    const current = (): boolean => !this.diagnosticsClosed && this.semanticPolicyRevision === policyRevision
+      && (this.semanticDemandRevision.get(centerPath) ?? 0) === demandRevision
+      && this.plugin.getIndexSourceRevision() === sourceRevision && this.sourceAcquisition.getMaintenanceRevision() === maintenanceRevision
+      && this.publicationRevision === publicationRevision && this.presentationRevision === presentationRevision
+      && signatureValid;
+    const baseRuntime = this.semanticPreparationRuntime(current);
+    const runtime = { ...baseRuntime,
+      /** Generation tokens cancel cheaply; close unnotified edits after every scheduled continuation. */
+      yield: async (): Promise<void> => { await baseRuntime.yield(); signatureValid = signaturesCurrent(); },
+    };
     const priorScope = this.semanticScopes.get(centerPath);
     const seed = priorScope?.pagesByPath.get(centerPath) ?? this.state.pages.get(centerPath);
     if (!seed || !current()) {
@@ -500,16 +538,32 @@ export class GraphIndex {
     if (!centerMetadata) { this.noteSemanticPreparation("pending", "metadata-pending"); return; }
     const policy = { revision: String(policyRevision), settings, isCurrent: current };
     const gatePolicy = { revision: `${presentationRevision}:${policyRevision}`, settings: gateSettings, isCurrent: current };
-    const prepared = await this.sourceAcquisition.prepareRequestedNeighborhood(
+    let prepared: Awaited<ReturnType<ObsidianSourceAcquisition["prepareRequestedNeighborhood"]>> | null = await this.sourceAcquisition.prepareRequestedNeighborhood(
       { kind: "neighborhood", center: this.semanticSourceRef(seed) }, policy, presentation, gatePolicy, runtime);
-    if (!current()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
+    if (!current() || !signaturesCurrent()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
     if (prepared.outcome !== "ready") { this.noteSemanticPreparation("pending", prepared.reason); return; }
     const compilation = prepared.preparation.compilation;
+    const centerId = prepared.certificate.relations.center.id;
+    const parentIds = prepared.certificate.relations.parents.map((parent) => parent.id);
+    const gates = prepared.gates, familyVisits = prepared.work.familyVisits;
+    const compiledBytes = prepared.preparation.memory?.compilation ?? 0;
+    // Certificates, duplicate heads, structural input and owner captures are no longer needed.
+    // Retain only the required compilation/gates before constructing a supplemental compilation.
+    prepared = null;
     const legacyEvidence = compilation.legacyEvidence();
     if (!legacyEvidence) { this.noteSemanticPreparation("pending", "unsupported-scope"); return; }
-    const center = compilation.node(prepared.certificate.relations.center.id);
+    const center = compilation.node(centerId);
     if (!center?.semanticPath || center.semanticPath !== centerPath) { this.noteSemanticPreparation("pending", "missing-center"); return; }
-    const completeIds = new Set<NodeId>([center.id, ...prepared.certificate.relations.parents.map((parent) => parent.id)]);
+    // The private cover proves every semantic parent. Publish complete incidence only for
+    // parents the view can render: a hidden root's entire child inventory is not a request to
+    // replay every Markdown owner for labels/degrees before an ordinary note can appear.
+    const visibleParents = parentIds.filter((id) => {
+      const node = compilation.node(id), page = node ? this.preparedPageFromNode(node) : null;
+      const relation = center.neighbours.get(id);
+      return Boolean(page && this.isVisiblePage(page) && relation
+        && (gateSettings.showInferredNodes || classifyRelation(relation, "parent", settings.inferAllLinksAsFriends) !== RelationType.INFERRED));
+    });
+    const completeIds = new Set<NodeId>([center.id, ...visibleParents]);
     const requiredIds = new Set<NodeId>(completeIds);
     for (const id of completeIds) for (const relation of compilation.node(id)?.neighbours.values() ?? []) requiredIds.add(relation.target.id);
     const requiredNodes: CompiledGraphNode[] = [];
@@ -525,19 +579,25 @@ export class GraphIndex {
     // Preserve SI1 sort independence after semantic publication. Complete center/parent incidence is
     // already exact in this compilation; only the remaining finite candidates need the dedicated
     // raw-degree reader. This also avoids asking that reader to rebind structural roots it does not own.
+    // Charge the existing compiled state and selected metadata/array/map slots to the same ceiling.
+    const supplementalRuntime = { ...runtime, retainedBytes: compiledBytes + 256 * requiredNodes.length };
     const degrees = new Map<NodeId, number>();
     for (const id of completeIds) {
       const complete = compilation.node(id);
       if (complete) degrees.set(id, complete.neighbours.size);
     }
-    const degreeCandidates = requiredNodes.filter((node) => !completeIds.has(node.id)).map((node) => ({
+    const degreeCandidates = requiredNodes.filter((node) => {
+      if (completeIds.has(node.id)) return false;
+      const page = this.preparedPageFromNode(node);
+      return Boolean(page && this.isVisiblePage(page));
+    }).map((node) => ({
       id: node.id, kind: node.kind, state: node.state, ...(node.semanticPath ? { semanticPath: node.semanticPath } : {}),
       ...(node.physicalPath ? { physicalPath: node.physicalPath } : {}),
     }));
     if (degreeCandidates.length) {
       const degreeResult = await this.sourceAcquisition.prepareRequestedCandidateDegrees(
-        { kind: "candidate-degrees", candidates: degreeCandidates }, policy, presentation, runtime);
-      if (!current()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
+        { kind: "candidate-degrees", candidates: degreeCandidates }, policy, presentation, supplementalRuntime);
+      if (!current() || !signaturesCurrent()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
       if (degreeResult.outcome !== "ready") { this.noteSemanticPreparation("pending", degreeResult.reason); return; }
       for (const input of degreeResult.inputs) degrees.set(input.id, input.rawDegree);
       this.addSemanticDependencyVisits(degreeResult.work.familyVisits);
@@ -547,8 +607,8 @@ export class GraphIndex {
     for (const node of requiredNodes) {
       if (node.kind !== "url") continue;
       const title = await this.sourceAcquisition.prepareRequestedUrlTitle({ id: node.id, kind: node.kind, state: node.state,
-        ...(node.semanticPath ? { semanticPath: node.semanticPath } : {}) }, policy, presentation, runtime);
-      if (!current()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
+        ...(node.semanticPath ? { semanticPath: node.semanticPath } : {}) }, policy, presentation, supplementalRuntime);
+      if (!current() || !signaturesCurrent()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
       if (title.outcome !== "ready") { this.noteSemanticPreparation("pending", title.reason); return; }
       urlNames.set(node.id, title.input.name);
       this.addSemanticDependencyVisits(title.work.familyVisits);
@@ -577,7 +637,7 @@ export class GraphIndex {
         sourcePage.neighbours.set(target.path, { ...rest, target });
       }
     }
-    if (!current() || !this.selectedMetadataCurrent(metadataTokens)) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
+    if (!current() || !signaturesCurrent() || !this.selectedMetadataCurrent(metadataTokens)) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
     const oldAffected = new Set<string>([...(priorScope?.pagesByPath.keys() ?? []), ...(priorScope?.suppressedPaths ?? [])]);
     if (!priorScope) {
       // The first settings-only publication has no prior private scope. Bound the old-policy
@@ -605,10 +665,10 @@ export class GraphIndex {
       else if (!oldPage && priorScope?.suppressedPaths.has(path)) suppressedPaths.add(path);
     }
     const scope: PreparedSemanticScope = {
-      centerPath, policyRevision, demandRevision, sourceRevision, maintenanceRevision, presentationRevision, settings, pagesByPath,
+      centerPath, policyRevision, demandRevision, sourceRevision, maintenanceRevision, presentationRevision, coverageSignature: gateSignature, settings, pagesByPath,
       completePaths: new Set([...completeIds].map((id) => pagesById.get(id)!.path)), evidence: legacyEvidence,
-      gates: { top: { ...prepared.gates.top }, bottom: { ...prepared.gates.bottom },
-        left: { ...prepared.gates.left }, right: { ...prepared.gates.right } }, suppressedPaths,
+      gates: { top: { ...gates.top }, bottom: { ...gates.bottom },
+        left: { ...gates.left }, right: { ...gates.right } }, suppressedPaths,
     };
     this.noteSemanticPreparation("prepared", null);
     // No await below this line: the revisioned page/evidence/gate/search overlay becomes visible together.
@@ -616,30 +676,45 @@ export class GraphIndex {
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
     this.searchCandidateCache.clear();
     this.titleCache.clear();
-    this.addSemanticDependencyVisits(prepared.work.familyVisits);
+    this.addSemanticDependencyVisits(familyVisits);
     this.noteSemanticPreparation("published", null);
     this.emit();
   }
 
   /** Coalesce one center/revision request and reject stale completion through the captured demand token. */
   private ensureSemanticScope(centerPath: string): Promise<void> {
+    if (this.pendingStructuralTasks > 0) return Promise.resolve();
     const policyRevision = this.semanticPolicyRevision;
     const demandRevision = this.semanticDemandRevision.get(centerPath) ?? 0;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+    const coverageSignature = this.semanticCoverageSignature();
+    const sourceRevision = this.plugin.getIndexSourceRevision();
+    const publicationRevision = this.publicationRevision;
+    const presentationRevision = this.presentationRevision;
     const published = this.semanticScopes.get(centerPath);
-    if (published?.policyRevision === policyRevision && published.demandRevision === demandRevision
+    if (published?.policyRevision === policyRevision && published.demandRevision === demandRevision && published.coverageSignature === coverageSignature
       && published.maintenanceRevision === maintenanceRevision && published.sourceRevision === this.plugin.getIndexSourceRevision()
       && this.sourceAcquisition.hasSemanticDependencies()) {
       return Promise.resolve();
     }
     const existing = this.semanticPreparationTasks.get(centerPath);
-    if (existing?.policyRevision === policyRevision && existing.demandRevision === demandRevision
-      && existing.maintenanceRevision === maintenanceRevision) return existing.task;
+    if (existing?.policyRevision === policyRevision && existing.demandRevision === demandRevision && existing.coverageSignature === coverageSignature
+      && existing.maintenanceRevision === maintenanceRevision && existing.sourceRevision === sourceRevision
+      && existing.publicationRevision === publicationRevision && existing.presentationRevision === presentationRevision) return existing.task;
     this.noteSemanticPreparation("requested", null);
     const task = this.prepareSemanticScope(centerPath, policyRevision, demandRevision).finally(() => {
-      if (this.semanticPreparationTasks.get(centerPath)?.task === task) this.semanticPreparationTasks.delete(centerPath);
+      if (this.semanticPreparationTasks.get(centerPath)?.task !== task) return;
+      this.semanticPreparationTasks.delete(centerPath);
+      // A local graph patch/presentation commit can close after source readiness already fired.
+      // Retry that superseded request once against the new fences, while its demand is still live.
+      // Unchanged missing/corrupt/pending input never creates a self-scheduling retry loop.
+      if (!this.diagnosticsClosed && this.sourceAcquisition.hasSemanticDependencies()
+        && ((this.semanticDemandCounts.get(centerPath) ?? 0) > 0 || this.plugin.settings.lastActivePath === centerPath)
+        && (sourceRevision !== this.plugin.getIndexSourceRevision() || publicationRevision !== this.publicationRevision
+          || presentationRevision !== this.presentationRevision)) void this.ensureSemanticScope(centerPath);
     });
-    this.semanticPreparationTasks.set(centerPath, { policyRevision, demandRevision, maintenanceRevision, task });
+    this.semanticPreparationTasks.set(centerPath, { policyRevision, demandRevision, maintenanceRevision, coverageSignature,
+      sourceRevision, publicationRevision, presentationRevision, task });
     return task;
   }
 
@@ -1225,7 +1300,7 @@ export class GraphIndex {
 
       if ((processed & 255) === 0) {
         onProgress?.();
-        if (Date.now() - sliceStartedAt >= budgetMs) {
+        if (performance.now() - sliceStartedAt >= budgetMs) {
           await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
           if (!isCurrent()) return null;
           sliceStartedAt = Date.now();
@@ -2559,6 +2634,7 @@ export class GraphIndex {
 
   /** True only when at least one endpoint is backed by current policy and current source authority. */
   isSemanticWriteReady(sourcePath: string, targetPath: string): boolean {
+    if (this.pendingStructuralTasks > 0) return false;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
       && this.fullSemanticMaintenanceRevision === maintenanceRevision) return true;
@@ -2639,19 +2715,19 @@ export class GraphIndex {
     return parent;
   }
 
-  private reconcileFileTreeMembership(file: TFile): Set<string> {
+  private reconcileFileTreeMembership(file: TFile | TFolder): Set<string> {
     const touched = new Set<string>();
-
-    const filePage = this.state.pages.get(file.path);
+    const path = file instanceof TFolder ? `folder:${file.path}` : file.path;
+    const filePage = this.state.pages.get(path);
     if (!filePage) return touched;
-    const oldParents = this.state.evidence.declarationsTouching(file.path)
-      .filter((item) => item.sourceKind === "file-tree" && item.declaredTargetPath === file.path && item.declaredByPath.startsWith("folder:"))
+    const oldParents = this.state.evidence.declarationsTouching(path)
+      .filter((item) => item.sourceKind === "file-tree" && item.declaredTargetPath === path && item.declaredByPath.startsWith("folder:"))
       .map((item) => item.declaredByPath);
-    this.state.evidence.removeDeclarationsTouching(file.path, (item) =>
-      item.sourceKind === "file-tree" && item.declaredTargetPath === file.path && item.declaredByPath.startsWith("folder:"));
+    this.state.evidence.removeDeclarationsTouching(path, (item) =>
+      item.sourceKind === "file-tree" && item.declaredTargetPath === path && item.declaredByPath.startsWith("folder:"));
     for (const parentPath of oldParents) {
-      resolveEvidencePair(this.state.pages, this.state.evidence, parentPath, file.path);
-      resolveEvidencePair(this.state.pages, this.state.evidence, file.path, parentPath);
+      resolveEvidencePair(this.state.pages, this.state.evidence, parentPath, path);
+      resolveEvidencePair(this.state.pages, this.state.evidence, path, parentPath);
       touched.add(parentPath);
     }
 
@@ -2667,14 +2743,21 @@ export class GraphIndex {
    * relation-map keys; do not schedule a whole-vault rebuild or reread Markdown.
    */
   renameFile(oldPath: string, file: TFile): boolean {
-    const newPath = file.path;
+    return this.renameTreeEndpoint(oldPath, file);
+  }
+
+  /** Remap one known physical endpoint using the same evidence/search/identity boundary for files and folders. */
+  private renameTreeEndpoint(oldPath: string, file: TFile | TFolder): boolean {
+    const isFolder = file instanceof TFolder;
+    const newPath = isFolder ? `folder:${file.path}` : file.path;
     if (!oldPath || !newPath || oldPath === newPath) return true;
 
     const page = this.state.pages.get(oldPath);
-    if (!page || page.isFolder || page.isTag || page.url) return false;
+    if (!page || page.isFolder !== isFolder || page.isTag || page.url) return false;
 
     const collision = this.state.pages.get(newPath);
-    if (collision && collision !== page && (collision.file || collision.isFolder || collision.isTag || collision.url)) return false;
+    if (collision && collision !== page && (collision.file && collision.file !== file
+      || collision.isFolder && !isFolder || collision.isTag || collision.url)) return false;
 
     const affectedPaths = new Set<string>();
     for (const targetPath of page.neighbours.keys()) affectedPaths.add(targetPath);
@@ -2703,11 +2786,11 @@ export class GraphIndex {
     }
 
     page.path = newPath;
-    page.file = file;
-    page.name = file.basename;
-    page.mtime = file.stat.mtime;
+    page.file = isFolder ? null : file;
+    page.name = isFolder ? file.name : file.basename;
+    page.mtime = isFolder ? null : file.stat.mtime;
     page.url = null;
-    page.isFolder = false;
+    page.isFolder = isFolder;
     page.isTag = false;
     page.neighbours.clear();
     this.state.pages.set(newPath, page);
@@ -2772,6 +2855,7 @@ export class GraphIndex {
     this.nodeVisualCache.delete(newPath);
     this.suggestionCatalogCache = null;
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+    this.publicationRevision += 1;
     this.emit();
     // Persist the remapped semantic snapshot soon, but outside the rename interaction itself.
     this.scheduleSnapshotPersist(5000);
@@ -2779,13 +2863,138 @@ export class GraphIndex {
   }
 
   /**
-   * Convert a deleted Markdown file into the unresolved node that its surviving inbound links now
+   * Remap only a renamed folder's known descendant tree. Host paths have already moved, so derive
+   * their former paths from the event's old prefix. No Vault inventory or interpreted rebuild is
+   * needed; uncertain inbound source resolution remains owned by acquisition.
+   */
+  renameFolder(oldPath: string, folder: TFolder): Promise<void> {
+    const existing = this.folderRenameTasks.get(folder);
+    if (existing) return existing;
+    this.pendingStructuralTasks += 1;
+    const task = this.renameFolderTree(oldPath, folder).finally(() => {
+      this.pendingStructuralTasks = Math.max(0, this.pendingStructuralTasks - 1);
+      this.folderRenameTasks.delete(folder);
+      this.retryDemandedSemanticScopes(); this.emit();
+    });
+    this.folderRenameTasks.set(folder, task);
+    return task;
+  }
+
+  /**
+   * Capture only affected endpoint references, then remap folders before files in cooperative slices.
+   * A concurrent second rename changes the same host objects: reuse captured page references and
+   * repeat against their latest paths rather than starting a second graph or losing a partial move.
+   */
+  private async renameFolderTree(oldPath: string, folder: TFolder): Promise<void> {
+    const oldRoot = this.state.pages.get(`folder:${oldPath}`);
+    const newRoot = this.state.pages.get(`folder:${folder.path}`);
+    const pending = [oldRoot, newRoot].filter((page): page is GraphPage => Boolean(page))
+      .map(page => ({ page, suffix: "" }));
+    const seen = new Set<GraphPage>();
+    const folders: Array<{ page: GraphPage; suffix: string }> = [];
+    const files: Array<{ page: GraphPage; file: TFile }> = [];
+    let sliceStarted = performance.now();
+    const pause = async (): Promise<void> => {
+      if (performance.now() - sliceStarted < 8) return;
+      await new Promise<void>(done => window.setTimeout(done, 0)); sliceStarted = performance.now();
+    };
+    // Follow existing file-tree declarations, not a mutable host children array. A delete/second
+    // rename during a yield cannot erase the remaining published endpoints from this worklist.
+    while (pending.length && !this.diagnosticsClosed) {
+      const { page, suffix } = pending.pop()!;
+      if (seen.has(page)) continue;
+      seen.add(page);
+      if (page.isFolder) {
+        folders.push({ page, suffix });
+        for (const declaration of this.state.evidence.declarationsTouching(page.path)) {
+          if (declaration.sourceKind !== "file-tree" || declaration.declaredByPath !== page.path) continue;
+          const child = this.state.pages.get(declaration.declaredTargetPath);
+          if (!child) continue;
+          const leaf = child.path.split("/").pop()!;
+          pending.push({ page: child, suffix: `${suffix}/${leaf}` });
+          await pause();
+        }
+      } else if (page.file) files.push({ page, file: page.file });
+      await pause();
+    }
+    let targetPath: string;
+    do {
+      targetPath = folder.path;
+      for (const { page, suffix } of folders) {
+        if (this.diagnosticsClosed) return;
+        if (this.state.pages.get(page.path) !== page) continue;
+        const physical = this.app.vault.getFolderByPath(folder.path + suffix);
+        if (physical instanceof TFolder) this.renameTreeEndpoint(page.path, physical);
+        else this.removeDeletedFolderEndpoint(page.path);
+        await pause();
+      }
+      for (const { page, file } of files) {
+        if (this.diagnosticsClosed) return;
+        if (this.state.pages.get(page.path) !== page) continue;
+        if (this.app.vault.getFileByPath(file.path) === file) this.renameFile(page.path, file);
+        else this.dematerializeFile(page.path);
+        await pause();
+      }
+    } while (!this.diagnosticsClosed && folder.path !== targetPath);
+  }
+
+  /** Remove a known deleted folder tree locally; return Markdown endpoints not already dematerialized by child events. */
+  async removeDeletedFolder(folder: TFolder, onMarkdownRemoved?: (file: TFile) => void): Promise<number> {
+    const pending: Array<TFile | TFolder> = [folder]; let markdown = 0;
+    this.pendingStructuralTasks += 1; let sliceStarted = performance.now();
+    try {
+      while (pending.length && !this.diagnosticsClosed) {
+        const item = pending.pop()!;
+        if (item instanceof TFolder) {
+          for (const child of item.children) if (child instanceof TFile || child instanceof TFolder) pending.push(child);
+          this.removeDeletedFolderEndpoint(`folder:${item.path}`);
+        } else {
+          if (item.extension === "md") onMarkdownRemoved?.(item);
+          if (item.extension === "md" && this.state.pages.get(item.path)?.file) markdown += 1;
+          this.dematerializeFile(item.path);
+        }
+        if (performance.now() - sliceStarted >= 8) {
+          await new Promise<void>(done => window.setTimeout(done, 0)); sliceStarted = performance.now();
+        }
+      }
+      return markdown;
+    } finally {
+      this.pendingStructuralTasks = Math.max(0, this.pendingStructuralTasks - 1);
+      this.retryDemandedSemanticScopes(); this.emit();
+    }
+  }
+
+  /** Remove one deleted physical folder endpoint while retaining surviving non-membership evidence as a ghost. */
+  private removeDeletedFolderEndpoint(path: string): void {
+    const page = this.state.pages.get(path);
+    if (!page) return;
+    const touched = new Set<string>([path]);
+    for (const item of this.state.evidence.declarationsTouching(path)) {
+      touched.add(item.declaredByPath); touched.add(item.declaredTargetPath);
+    }
+    this.state.evidence.removeDeclarationsTouching(path, item => item.sourceKind === "file-tree");
+    for (const targetPath of touched) {
+      if (targetPath === path) continue;
+      const target = this.state.pages.get(targetPath);
+      target?.neighbours.delete(path); page.neighbours.delete(targetPath);
+      resolveEvidencePair(this.state.pages, this.state.evidence, path, targetPath);
+      resolveEvidencePair(this.state.pages, this.state.evidence, targetPath, path);
+    }
+    if (page.neighbours.size === 0) {
+      this.state.pages.delete(path); this.state.lowercasePathMap.delete(path.toLowerCase());
+    }
+    this.invalidatePatchedPages(touched); this.patchSearchIndex(touched);
+    this.suggestionCatalogCache = null; this.emit(); this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
+  }
+
+  /**
+   * Convert a deleted file into the unresolved node that its surviving inbound links now
    * describe. File-owned evidence (body/YAML declarations, tags and folder membership) disappears,
    * while declarations from other notes that still point at this path remain intact. Keeping the
    * GraphPage object itself is important when the deleted note is the active Plex center.
    */
   dematerializeFile(path: string): GraphPage | null {
-    const page = this.get(path);
+    const page = this.state.pages.get(path) ?? this.state.pages.get(this.state.lowercasePathMap.get(path.toLowerCase()) ?? path);
     if (!page || page.isFolder || page.isTag || page.url) return page ?? null;
 
     const affected = new Set<string>([page.path]);
@@ -2962,12 +3171,15 @@ export class GraphIndex {
   }
 
   /**
-   * Optimistically materialize a file K-Plex itself just created. The normal Obsidian metadata
-   * event remains authoritative and may enrich this page later, but UI rendering no longer waits
-   * for that asynchronous round trip.
+   * Materialize a known newly created file and its ancestry without enumerating the vault. For
+   * Markdown, the normal metadata event remains authoritative and may enrich this page later;
+   * attachments need only their physical endpoint plus source-local inbound resolution maintenance.
    */
   insertCreatedFile(file: TFile, aliases: readonly string[] = []): GraphPage {
-    const existing = this.get(file.path);
+    // A prepared scope can already contain this file before the physical event is patched. The
+    // canonical patch baseline must still own its endpoint; never promote only the private view.
+    const existing = this.state.pages.get(file.path);
+    if (existing?.file === file && aliases.length === 0) return existing;
     if (existing) {
       // A K-Plex-created note can materialize a previously unresolved/virtual graph page. Promote
       // that page immediately instead of waiting for the managed Obsidian create event (which is
@@ -3117,7 +3329,7 @@ export class GraphIndex {
       && covered(scope, sourcePath) && covered(scope, targetPath);
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     for (const scope of this.semanticScopes.values()) {
-      if (scope.maintenanceRevision === maintenanceRevision && scope.policyRevision === this.semanticPolicyRevision && ownsPair(scope)) return scope;
+      if (scope.maintenanceRevision === maintenanceRevision && scope.policyRevision === this.semanticPolicyRevision && (!currentOnly || scope.coverageSignature === this.semanticCoverageSignature()) && ownsPair(scope)) return scope;
     }
     if (currentOnly) return null;
     for (const scope of this.semanticScopes.values()) if (scope.policyRevision === this.semanticPolicyRevision && ownsPair(scope)) return scope;

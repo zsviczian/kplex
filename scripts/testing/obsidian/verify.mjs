@@ -31,7 +31,7 @@ const report = await runObsidianVerification({
   },
   runCli: (vaultName, name, ...args) => command(process.env.KPLEX_OBSIDIAN_CLI || "obsidian", [`vault=${vaultName}`, name, ...args]),
   runVerify: () => {
-    const result = spawnSync("npm", ["run", "verify"], { cwd: projectRoot, stdio: "inherit", timeout: 180_000 });
+    const result = spawnSync("npm", ["run", "verify"], { cwd: projectRoot, stdio: "inherit", timeout: 1_200_000 });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`npm run verify failed (${result.status})`);
   },

@@ -13,7 +13,7 @@ import type { SourceEntityRef } from "../core/graph/source";
 import type { CachedPairCapture } from "./CachedRequestedPair";
 import { captureCachedCenterGateSettings, projectCachedCenterGates,
   type CachedCenterGatePolicy, type CachedCenterGates } from "./CachedCenterGateProjection";
-import { CachedSourceSemanticReader, captureCachedSemanticSettings,
+import { CachedSourceSemanticReader, captureCachedSemanticSettings, validateCachedOwners, cachedOwnersCurrent, sameCachedSelections,
   type CachedSemanticPolicy, type CachedSemanticPreparation } from "./CachedSourceSemantics";
 import { type ContributorCertificate, type ContributorDiscoveryResult, type ContributorFailure, type ContributorRequest,
   type SourceContributorDiscovery } from "./SourceContributorDiscovery";
@@ -92,16 +92,6 @@ async function sameScope(left: ContributorRequest, right: ContributorRequest, ru
   return runtime.isCurrent();
 }
 
-/** Compare selected source stamps cooperatively while retaining exact point-in-time identity. */
-async function sameSelections(left: readonly unknown[], right: readonly unknown[], runtime: GraphCompilerRuntime): Promise<boolean> {
-  if (left.length !== right.length) return false;
-  for (let index = 0; index < left.length; index += 1) {
-    if (JSON.stringify(left[index]) !== JSON.stringify(right[index])) return false;
-    if ((index + 1) % SOURCE_MAX_BATCH_RECORDS === 0) { await runtime.yield(); if (!runtime.isCurrent()) return false; }
-  }
-  return runtime.isCurrent();
-}
-
 /** Compare every root and host coordinate; equal heads alone cannot authenticate negative ranges. */
 function sameRoot(left: ContributorCertificate, right: ContributorCertificate): boolean {
   const a = left.dependency, b = right.dependency, h = left.host, k = right.host;
@@ -120,18 +110,24 @@ async function containsCover(combined: ContributorCertificate, initial: Contribu
     if (visited % SOURCE_MAX_BATCH_RECORDS !== 0) return runtime.isCurrent();
     await runtime.yield(); return runtime.isCurrent();
   };
-  const sources = new Map<string, string>();
-  for (const stamp of combined.sources) { sources.set(stamp.head.sourceId, JSON.stringify(stamp)); if (!(await checkpoint())) return false; }
+  const sources = new Map<string, ContributorCertificate["sources"][number]>();
+  for (const stamp of combined.sources) { sources.set(stamp.head.sourceId, stamp); if (!(await checkpoint())) return false; }
   for (const stamp of initial.sources) {
-    if (sources.get(stamp.head.sourceId) !== JSON.stringify(stamp)) return false;
+    if (JSON.stringify(sources.get(stamp.head.sourceId)) !== JSON.stringify(stamp)) return false;
     if (!(await checkpoint())) return false;
   }
   if (combined.hostFactOrder === "scope-local") {
     // Widening a finite source-local scope can insert earlier current facts and therefore renumber
     // them. Each certificate authenticates its exact stream; containment binds the occurrence itself.
-    const facts = new Set<string>();
-    for (const entry of combined.hostFacts) { facts.add(JSON.stringify(entry.fact)); if (!(await checkpoint())) return false; }
-    for (const entry of initial.hostFacts) { if (!facts.has(JSON.stringify(entry.fact))) return false; if (!(await checkpoint())) return false; }
+    const facts = new Map<string, ContributorCertificate["hostFacts"][number]["fact"]>();
+    /** Constructors identify one structural occurrence by kind and exact source/target IDs. */
+    const key = (fact: ContributorCertificate["hostFacts"][number]["fact"]): string =>
+      JSON.stringify([fact.kind, fact.source.id, fact.kind === "entity" ? fact.entity.id : fact.target.entity.id]);
+    for (const entry of combined.hostFacts) { facts.set(key(entry.fact), entry.fact); if (!(await checkpoint())) return false; }
+    for (const entry of initial.hostFacts) {
+      if (JSON.stringify(facts.get(key(entry.fact))) !== JSON.stringify(entry.fact)) return false;
+      if (!(await checkpoint())) return false;
+    }
   } else {
     const facts = new Map<number, string>();
     for (const entry of combined.hostFacts) { facts.set(entry.order, JSON.stringify(entry.fact)); if (!(await checkpoint())) return false; }
@@ -169,7 +165,7 @@ export class CachedRequestedNeighborhoodReader {
 
   /** Captures and exact-ID entity reads must observe the same clean host as discovery, without IO. */
   constructor(repository: NeutralSourceRepository,
-    private readonly discovery: Pick<SourceContributorDiscovery, "discover" | "revalidate" | "isHostCurrent">,
+    private readonly discovery: Pick<SourceContributorDiscovery, "discover" | "revalidate" | "isHostCurrent"> & Partial<Pick<SourceContributorDiscovery, "isGenerationCurrent">>,
     private readonly capture: CachedPairCapture, private readonly entities: SourcePatchReadPort) {
     this.semantics = new CachedSourceSemanticReader(repository);
   }
@@ -210,13 +206,9 @@ export class CachedRequestedNeighborhoodReader {
     const requestReason = (): SourceReason => !runtime.isCurrent() ? "cancelled"
       : !policy.isCurrent() || policy.revision !== revision
         || (presentation && (!presentation.isCurrent() || presentation.revision !== presentationRevision)) ? "superseded" : "ready";
-    /** Previously captured owners stay live across both passes, including the final awaited fence. */
-    const reason = (): SourceReason => {
-      const parent = requestReason();
-      if (parent !== "ready") return parent;
-      for (const owner of owners.values()) if (!owner.host.isCurrent()) return "stale";
-      return "ready";
-    };
+    /** Generation checks stay constant-time; selected host observations close at final validation. */
+    const reason = (): SourceReason => requestReason() !== "ready" ? requestReason()
+      : this.discovery.isGenerationCurrent?.() === false ? "stale" : "ready";
     /** Replay shares this request's full lifetime rather than the catalog's longer-lived demand. */
     const current = (): boolean => reason() === "ready";
     const captureRuntime = { ...runtime,
@@ -251,6 +243,7 @@ export class CachedRequestedNeighborhoodReader {
           const covered = sameRoot(initial, discovered) && await containsCover(discovered, initial, scopedRuntime);
           if (!current()) return selectedSourceFailure(reason());
           if (!covered) return selectedSourceFailure("superseded");
+          initial = null; // Release the first pass's heads/facts before constructing the final graph.
         }
         const selected = await this.captureOwners(discovered, owners, captureRuntime, reason);
         if (!current()) return selectedSourceFailure(reason());
@@ -259,7 +252,7 @@ export class CachedRequestedNeighborhoodReader {
           discovered.hostFacts.map((entry) => entry.fact));
         if (!current()) return selectedSourceFailure(reason());
         if (prepared.outcome !== "ready") return prepared;
-        if (prepared.policyRevision !== revision || !(await sameSelections(prepared.sources, discovered.sources, scopedRuntime))) {
+        if (prepared.policyRevision !== revision || !(await sameCachedSelections(prepared.sources, discovered.sources, scopedRuntime))) {
           if (!current()) return selectedSourceFailure(reason());
           return selectedSourceFailure("superseded");
         }
@@ -284,9 +277,14 @@ export class CachedRequestedNeighborhoodReader {
           capturedPolicy.settings.inferAllLinksAsFriends, visibility, this.entities, scopedRuntime) : null;
         if (!current()) return selectedSourceFailure(reason());
         if (projected && projected.outcome !== "ready") return selectedSourceFailure(projected.reason);
+        const hosts = await validateCachedOwners(owners.values(), { ...runtime, isCurrent: current });
+        if (hosts !== "ready") return selectedSourceFailure(current() ? hosts : reason());
         const validated = await this.discovery.revalidate(discovered);
         if (!current()) return selectedSourceFailure(reason());
         if (validated !== "ready") return selectedSourceFailure(validated);
+        const finalHosts = cachedOwnersCurrent(owners.values());
+        if (finalHosts !== "ready") return selectedSourceFailure(finalHosts);
+
         // No source callbacks exist for empty/host-only scopes, but their host observation must close.
         if (!this.discovery.isHostCurrent()) return selectedSourceFailure("host-catalog-stale");
         if (!current()) return selectedSourceFailure(reason());

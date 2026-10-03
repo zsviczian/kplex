@@ -226,8 +226,9 @@ function fileTreeOccurrence(parent: TFolder, parentRevision: SourceRevision, chi
 }
 
 /** Reuse the canonical folder topology identity for one bounded source-local dependency query. */
-export function structuralFileTreeOccurrence(parent: TFolder, child: TFolder | TFile): FileTreeOccurrence {
-  return fileTreeOccurrence(parent, folderSourceRevision(parent), child);
+export function structuralFileTreeOccurrence(parent: TFolder, child: TFolder | TFile,
+  revision = folderSourceRevision(parent)): FileTreeOccurrence {
+  return fileTreeOccurrence(parent, revision, child);
 }
 
 function tagMembershipOccurrence(file: TFile, rawTag: string, contributionRevision: SourceRevision): TagTreeOccurrence | null {

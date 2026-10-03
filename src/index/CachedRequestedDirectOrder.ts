@@ -180,7 +180,7 @@ export class CachedRequestedDirectOrderReader {
       if (!current()) return selectedSourceFailure(reason());
       if (result.outcome !== "prepared") return selectedSourceFailure(result.outcome === "missing-entity" ? "missing" : "invalid-frame");
       const exactStamps: SelectedSourceStamp[] = [];
-      for (const [index, sourceId] of discovered.sourceIds.entries()) {
+      for (const sourceId of discovered.sourceIds) {
         const stamp = markdownStamps.get(sourceId);
         if (!stamp) return selectedSourceFailure("dependency-invalid");
         if (JSON.stringify(stamp) !== JSON.stringify(stamps.get(sourceId))) return selectedSourceFailure("superseded");

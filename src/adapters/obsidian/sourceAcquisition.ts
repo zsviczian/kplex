@@ -4,16 +4,15 @@
  * parser/Date collector/host resolver, never semantic settings or custom path guessing. It owns its
  * event fence independently of graph no-op suppression, plus a single cooperative inventory task.
  * Its read-only cached semantic capability supplies missing host facts without changing live routing.
- * SI4b1 adds an explicit structural inventory and bounded Date-registry observation fence. V3
- * catalogs capture full-builder Markdown encounter order only within that explicit acquisition. C2
- * host events also raise a coalesced durable UNKNOWN-impact ticket; no inverse resolver is invented.
+ * Requested semantic preparation uses the source-local dependency derivative. Historical SI4a
+ * selected-source/catalog construction adapters live only in test fixtures. Host events retain the
+ * durable legacy UNKNOWN-impact journal for storage compatibility; no inverse resolver is invented.
  */
 import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidian";
 import type { GraphCompilerRuntime } from "../../core/graph/compiler";
 import { acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type NormalizedSourceBatch,
   type NormalizedSourceRecord, type SourceReadBoundary } from "../../core/graph/source";
-import { CachedSourceSemanticReader, type CachedSemanticPolicy,
-  type CachedSemanticPreparation } from "../../index/CachedSourceSemantics";
+import type { CachedSemanticPolicy } from "../../index/CachedSourceSemantics";
 import { CachedRequestedNeighborhoodReader, type CachedCenterGatePreparation,
   type CachedNeighborhoodRequest } from "../../index/CachedRequestedNeighborhood";
 import { CachedRequestedCandidateDegreeReader, type CachedCandidateDegreePreparation,
@@ -22,7 +21,6 @@ import { CachedRequestedUrlTitleReader, type CachedUrlTitlePreparation } from ".
 import type { CachedCenterGatePolicy } from "../../index/CachedCenterGateProjection";
 import type { SourcePatchReadPort } from "../../core/graph/patch";
 import type { SourceEntityRef } from "../../core/graph/source";
-import { SourceContributorDiscovery, type ContributorHostCatalog } from "../../index/SourceContributorDiscovery";
 import { SourceLocalContributorDiscovery } from "./sourceLocalContributorDiscovery";
 import type { ContributorHostChange } from "../../index/SourceContributorJournal";
 import type { CachedSourceHost, CachedSourceRequest } from "../../index/SourceReplay";
@@ -35,12 +33,12 @@ import { SOURCE_FAMILIES, SOURCE_MAX_BATCH_RECORDS, SourceFactError, sourceField
 import type { SourceFamilyProducer, SourceInspection, SourceRepositoryDiagnostics } from "../../index/SourceRepository";
 import { sourceLocalDependencyKey, sourceLocalResolverDependencyKey, sourceLocalResolverPathDependencyKey } from "../../index/SourceLocalDependencies";
 import { createObsidianMetadataSourceHost, normalizedBodyUrl, ObsidianMetadataSourceCollector, type ObsidianMetadataSourceSettings } from "./metadataSourceCollector";
-import { entityFactForFile, entityFactForFolder, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector,
+import { entityFactForFile, entityFactForFolder, ObsidianStructuralPatchSourceCollector,
   structuralMarkdownSourceOrder } from "./structuralSourceCollector";
-import { hostLinkRecord, ObsidianHostLinkSourceCollector } from "./hostLinkSourceCollector";
+import { hostLinkRecord } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
-type FileObservation = { identity: string | null; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null };
+type FileObservation = { identity: string | null; observation?: SourceObservation; revision: number; dirty: boolean; bodyDirty: boolean; resolutionDirty: boolean; path: string; oldPath?: string; created: boolean; impact: Promise<void> | null };
 type SourceCoordinates = Readonly<{ order: number; markdownOrder: number }>;
 type Capture = { physical: SourcePhysical; revision: number; hostRevision: number; state: FileObservation; file: TFile };
 /** Narrow parser port: acquisition does not import GraphBuilder or own a second parser. */
@@ -768,7 +766,10 @@ export class ObsidianSourceAcquisition {
         // Preserve the established current-session replay contract, including the bounded in-memory
         // fallback used when durable storage is unavailable.
         physical = { ...capture.physical, identity: capture.state.identity };
-        observation = { epoch: this.epoch, revision: capture.hostRevision, environment };
+        // A clean restart retains the accepted durable observation; binding its physical identity
+        // must not fabricate a new epoch for a head whose bytes were deliberately reused.
+        observation = { epoch: capture.state.observation?.epoch ?? this.epoch,
+          revision: capture.state.observation?.revision ?? capture.hostRevision, environment };
       } else {
         // A new process has no in-memory incarnation. Adopt only an unchanged durable selected head;
         // any live host event makes this uncertain and leaves the requested settings scope pending.
@@ -779,6 +780,7 @@ export class ObsidianSourceAcquisition {
         if (!inspection.saved || !head || head.state !== "complete" || !physicalMatches(head.physical, capture.physical)
           || head.observation.environment !== environment) return selectedSourceFailure("unsaved");
         capture.state.identity = head.physical.identity;
+        capture.state.observation = { ...head.observation };
         physical = { ...capture.physical, identity: head.physical.identity };
         observation = { ...head.observation };
       }
@@ -812,44 +814,6 @@ export class ObsidianSourceAcquisition {
       };
       return { outcome: "ready", request: { sourceId, host } };
     } catch { return selectedSourceFailure(current() ? "storage-unavailable" : "stale"); }
-  }
-
-  /**
-   * Internal, read-only SI4a entry point. Replay each requested owner once and return private
-   * semantics, not a GraphIndex patch/publication. Only exact current physical entities are seeded;
-   * dormant references and synthetic nodes from an older policy are never imported from GraphState.
-   */
-  async prepareCachedSemantics(sourceIds: readonly string[], policy: CachedSemanticPolicy,
-    presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CachedSemanticPreparation> {
-    const unique = [...new Set(sourceIds)];
-    const requests: CachedSourceRequest[] = [];
-    const policyRevision = policy.revision;
-    const current = (): boolean => runtime.isCurrent() && policy.isCurrent() && policy.revision === policyRevision;
-    const scopedRuntime = { ...runtime, isCurrent: current };
-    for (const sourceId of unique) {
-      const captured = await this.captureForReplay(sourceId, presentation, scopedRuntime);
-      if (!runtime.isCurrent()) return selectedSourceFailure("cancelled");
-      if (!policy.isCurrent() || policy.revision !== policyRevision) return selectedSourceFailure("superseded");
-      if (captured.outcome !== "ready") return { ...captured, sourceId };
-      requests.push(captured.request);
-      if (requests.length % SOURCE_MAX_BATCH_RECORDS === 0) { await runtime.yield(); if (!current()) return selectedSourceFailure("cancelled"); }
-    }
-    return new CachedSourceSemanticReader(this.repository).prepare(requests, policy, {
-      entity: (ref) => {
-        if (!current() || ref.physicalPath === undefined) return undefined;
-        if (ref.kind === "container") {
-          const folder = ref.physicalPath === "" || ref.physicalPath === "/"
-            ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(ref.physicalPath);
-          if (!(folder instanceof TFolder)) return undefined;
-          const fact = entityFactForFolder(folder);
-          return fact.entity.id === ref.id ? fact : undefined;
-        }
-        const file = this.app.vault.getFileByPath(ref.physicalPath);
-        if (!(file instanceof TFile)) return undefined;
-        const fact = entityFactForFile(file);
-        return fact.entity.id === ref.id ? fact : undefined;
-      },
-    }, runtime);
   }
 
   /** Return exact current host entity facts for cached preparation without reading file bodies. */
@@ -890,7 +854,7 @@ export class ObsidianSourceAcquisition {
       });
   }
 
-  /** Prepare one exact center from cached facts; missing catalog remains pending and never falls back. */
+  /** Prepare one exact center from cached facts; incomplete local dependencies remain explicitly pending. */
   async prepareRequestedNeighborhood(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
     presentation: ObsidianMetadataSourceSettings, gatePolicy: CachedCenterGatePolicy,
     runtime: GraphCompilerRuntime): Promise<CachedCenterGatePreparation> {
@@ -921,133 +885,6 @@ export class ObsidianSourceAcquisition {
       .prepare(endpoint, policy, runtime);
   }
 
-  /**
-   * Create an internal SI4b1 catalog capability for the current host revision. Rebuild is explicit;
-   * neither construction nor querying schedules acquisition or changes any live graph consumer.
-   * Explicit collection captures Markdown encounter ordinals separately from structural order,
-   * and rechecks exact inventory identity/order before activating the derivative catalog.
-   * Canonical topology finalization closes the inventory; a bounded field vocabulary checks Date
-   * registry changes without scanning all files per query. A new host revision needs a new capability.
-   */
-  contributorDiscovery(runtime: GraphCompilerRuntime): SourceContributorDiscovery {
-    this.start();
-    const revision = this.hostRevision;
-    const catalogObservation = this.catalogObservation;
-    const daily = JSON.stringify(this.metadataHost.dailyNotesSettings());
-    const fields = new Map<string, boolean>();
-    let fieldBytes = 0;
-    let environmentDirty = false;
-    /** Source events, cancellation and unload cheaply fence every awaited source/structure batch. */
-    const current = (): boolean => !this.closed && runtime.isCurrent() && this.hostRevision === revision
-      && this.catalogObservation === catalogObservation;
-    const scopedRuntime = { ...runtime, isCurrent: current };
-    const catalog: ContributorHostCatalog = {
-      stamp: { epoch: this.epoch, revision, token: `${catalogObservation}:${this.repository.createIdentity()}` },
-      markdownOrderVersion: 1,
-      hostLinkOwnerOrderVersion: 1,
-      isCurrent: current,
-      /** Check all observed Date and non-Date fields; policy-only changes do not enter this fence. */
-      validate: () => {
-        if (!current()) return false;
-        if (JSON.stringify(this.metadataHost.dailyNotesSettings()) === daily
-          && [...fields].every(([field, wasDate]) => this.metadataHost.isDateProperty(field) === wasDate)) {
-          environmentDirty = false;
-          return true;
-        }
-        // Demand observes canonical inputs without changing the accepted reversible validator.
-        // A restored environment cannot retire its persisted UNKNOWN host transition ticket.
-        if (!environmentDirty) {
-          environmentDirty = true; this.markContributorHostChange("environment"); this.requestInventory();
-        }
-        return false;
-      },
-      /**
-       * Capture ordinals only during explicit acquisition, never a settings query. The same host
-       * revision encloses both inventories. Exact TFile membership and final enumeration equality
-       * prevent equal-length replacements, duplicates or traversal order from supplying ordinals.
-       */
-      collect: async (emit) => {
-        if (!current()) return false;
-        const markdown = this.app.vault.getMarkdownFiles().slice();
-        const ordinals = new Map<TFile, number>();
-        let inventoryBytes = 0;
-        for (const [ordinal, file] of markdown.entries()) {
-          if (!current()) return false;
-          if (!(file instanceof TFile) || file.extension !== "md" || ordinals.has(file)
-            || this.app.vault.getFileByPath(file.path) !== file) throw new SourceFactError("host-catalog-stale");
-          inventoryBytes += file.path.length * 2 + 128;
-          if (inventoryBytes > 8 * 1024 * 1024) throw new SourceFactError("memory-budget");
-          ordinals.set(file, ordinal);
-          if ((ordinal & 255) === 255) { await runtime.yield(); if (!current()) return false; }
-        }
-        const collector = new ObsidianStructuralSourceCollector(this.app, {
-          isCurrent: current, sourceRevision: () => this.hostRevision,
-          checkpoint: async () => { await runtime.yield(); return current(); },
-        });
-        let cursor = beginSourceRead(collector.boundary);
-        let documents = 0;
-        /** Consume finite canonical batches without retaining a second full structural graph. */
-        const consume = async (batch: NormalizedSourceBatch): Promise<boolean> => {
-          const accepted = acceptSourceBatch(cursor, batch);
-          if (!accepted.accepted || !current()) return false;
-          for (const record of batch.records) {
-            if (record.kind !== "entity" && record.kind !== "file-tree" && record.kind !== "tag-tree") return false;
-            let ordinal: number | undefined;
-            if (record.kind === "entity" && record.entity.kind === "document") {
-              documents++;
-              const path = record.entity.physicalPath;
-              const file = path === undefined ? null : this.app.vault.getFileByPath(path);
-              ordinal = file instanceof TFile ? ordinals.get(file) : undefined;
-              if (ordinal === undefined) return false;
-            }
-            if (!(await emit(record, ordinal)) || !current()) return false;
-          }
-          cursor = accepted.cursor;
-          return current();
-        };
-        if (!(await collector.collectBatches(consume))) return false;
-        const final = await collector.finalize();
-        if (final === null || !(await consume(final)) || !current() || documents !== markdown.length) return false;
-        const after = this.app.vault.getMarkdownFiles();
-        if (after.length !== markdown.length) return false;
-        // Recheck the exact encounter stream cooperatively, not just its length or sorted paths.
-        for (const [ordinal, file] of after.entries()) {
-          if (!current() || file !== markdown[ordinal] || this.app.vault.getFileByPath(file.path) !== file) return false;
-          if ((ordinal & 255) === 255) { await runtime.yield(); if (!current()) return false; }
-        }
-        return current() && collector.isBoundaryCurrent(collector.boundary) && sourceReadCanPublish(cursor, collector.boundary);
-      },
-      /** Capture original whole-map owner order only during this explicit catalog acquisition. */
-      captureHostLinkOwnerOrder: async () => {
-        const collector = new ObsidianHostLinkSourceCollector(this.app, {
-          isCurrent: current, sourceRevision: () => this.hostRevision,
-          checkpoint: async () => { await runtime.yield(); return current(); },
-        });
-        return collector.captureOwnerOrder();
-      },
-      /** Capture one already-acquired document and its complete frontmatter field-type vocabulary. */
-      capture: async (entity) => {
-        const path = entity.entity.physicalPath;
-        const file = path ? this.app.vault.getFileByPath(path) : null;
-        if (!(file instanceof TFile) || file.extension !== "md") throw new SourceFactError("host-catalog-stale");
-        const metadata = this.app.metadataCache.getFileCache(file);
-        if (!metadata) throw new SourceFactError("pending-metadata");
-        for (const field of Object.keys(metadata.frontmatter ?? {})) {
-          if (field === "position" || fields.has(field)) continue;
-          fieldBytes += field.length * 2 + 64;
-          if (fields.size >= 4096 || fieldBytes > 1024 * 1024) throw new SourceFactError("memory-budget");
-          fields.set(field, this.metadataHost.isDateProperty(field));
-        }
-        // These presentation records are irrelevant to dependency discovery. Do not persist or
-        // index configured semantic roles or arbitrary frontmatter presentation values.
-        const captured = await this.captureForReplay(file.path, { noteTypeField: "", primaryTagField: "" }, scopedRuntime);
-        if (captured.outcome !== "ready") throw new SourceFactError(captured.reason);
-        return captured.request;
-      },
-    };
-    return new SourceContributorDiscovery(this.repository, catalog, runtime);
-  }
-
   /** Reuse immutable body inputs before the mutable legacy cache, including an observed pure move. */
   async readBody(file: TFile, caller: () => boolean = () => true): Promise<ParsedBodyMetadata | null> {
     if (this.needsBodyRead(file)) return null;
@@ -1061,7 +898,7 @@ export class ObsidianSourceAcquisition {
     let body = await this.repository.readBody(capture.physical.path, (physical) => accept(physical), current);
     if (!current()) return null;
     if (!body && capture.state.oldPath) {
-      body = await this.repository.readBody(capture.state.oldPath, (physical) => accept(physical, true), current, true);
+      body = await this.repository.readBody(capture.state.oldPath, (physical) => accept(physical, true), current, true, true);
     }
     if (!current()) return null;
     if (body) this.counters.reusedBodies += 1;
@@ -1171,7 +1008,10 @@ export class ObsidianSourceAcquisition {
       const hostCurrent = !capture.state.resolutionDirty && head?.observation.environment === environment
         && (head.observation.epoch === this.epoch && head.observation.revision === this.hostRevision
           || this.hostRevision === 0 && !capture.state.dirty);
-      if (intrinsic && hostCurrent && inspection.saved && inspection.reason === "ready") return { current: current(), saved: inspection.saved, reason: "ready" };
+      if (intrinsic && hostCurrent && inspection.saved && inspection.reason === "ready" && head) {
+        capture.state.observation = { ...head.observation };
+        return { current: current(), saved: inspection.saved, reason: "ready" };
+      }
       const metadata = mergeFileMetadata(cache, body);
       const validFamily = (family: SourceFamily): boolean => intrinsic && inspection.saved && inspection.families[family] === "ready";
       const retain = (family: SourceFamily, fresh: SourceFamilyProducer): SourceFamilyProducer | SourceFamilyManifest => {
@@ -1202,6 +1042,7 @@ export class ObsidianSourceAcquisition {
       }
       if (!observationCurrent()) return { current: false, saved: false, reason: result.reason };
       if ((result.outcome === "activated" || result.outcome === "unsaved") && result.live) {
+        capture.state.observation = { epoch: this.epoch, revision: capture.hostRevision, environment };
         capture.state.dirty = false; capture.state.bodyDirty = false; capture.state.resolutionDirty = false; capture.state.created = false;
         if (intrinsic) this.counters.resolutionRefreshes += 1; else this.counters.repaired += 1;
         if (result.outcome === "activated" && head) {
@@ -1213,8 +1054,23 @@ export class ObsidianSourceAcquisition {
           }
         }
       } else this.counters.failures += 1;
-      return { current: observationCurrent(), saved: result.outcome === "activated", reason: result.reason };
-    } catch { this.counters.failures += 1; return { current: current(), saved: false, reason: "write-error" }; }
+      const live = observationCurrent(), saved = result.outcome === "activated";
+      if (live && !saved) {
+        // GraphBuilder can acquire beside inventory. A late unsaved result must retain a source-
+        // local retry owner even if the earlier inventory already consumed this file's event.
+        this.pendingKnownFiles.add(file); this.localDependenciesReady = false;
+        if (!this.inventory) this.requestInventory();
+      }
+      return { current: live, saved, reason: result.reason };
+    } catch {
+      this.counters.failures += 1;
+      const live = current();
+      if (live) {
+        this.pendingKnownFiles.add(file); this.localDependenciesReady = false;
+        if (!this.inventory) this.requestInventory();
+      }
+      return { current: live, saved: false, reason: "write-error" };
+    }
   }
   /** Enable after the existing authoritative publication; do not lengthen its metadata-stability gate. */
   enableInventory(): void {
@@ -1332,6 +1188,7 @@ export class ObsidianSourceAcquisition {
             // A clean restart may reuse the exact durable source head without rewriting its host
             // observation. Live host events still require this session's current epoch/revision.
             capture.state.identity ??= head.physical.identity;
+            capture.state.observation = { ...head.observation };
             const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
             if (!current()) return false;
             complete &&= local === "ready";

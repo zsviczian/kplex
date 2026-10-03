@@ -1,0 +1,2706 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "scope": "Original SI4 Delivery 1 and Delivery 2 acceptance; SI5 remains pending",
+  "recordedAt": "2026-10-03T11:49:53.599363+00:00",
+  "source": {
+    "revision": "bf0b3582bb5e39e512d7f282f78393b999d9f6a1",
+    "dirty": true,
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0"
+  },
+  "artifacts": {
+    "main.js": "d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b",
+    "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+    "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+  },
+  "requiredVerification": {
+    "command": "npm run verify:obsidian",
+    "counts": {
+      "architecture": 7,
+      "core": 60,
+      "node": 133,
+      "uiBrowser": 7,
+      "portableSource": 314,
+      "indexedDbBrowser": 174
+    },
+    "scanner": "passed without warnings",
+    "realTypeScriptBuild": "passed",
+    "report": {
+      "schemaVersion": 1,
+      "status": "passed",
+      "startedAt": "2026-10-03T11:26:26.865Z",
+      "source": {
+        "revision": "bf0b3582bb5e39e512d7f282f78393b999d9f6a1",
+        "dirty": true,
+        "node": "v22.22.2",
+        "os": "darwin 23.5.0"
+      },
+      "target": {
+        "vaultName": "excalidraw-test",
+        "vaultPath": "/Users/zsviczian/Obsidian/excalidraw-test",
+        "configDir": "/Users/zsviczian/Obsidian/excalidraw-test/.obsidian"
+      },
+      "capabilities": {
+        "version": "1.14.4 (installer 1.14.0)",
+        "commands": [
+          "version",
+          "vault",
+          "plugin:disable",
+          "plugin:enable",
+          "commands",
+          "command",
+          "dev:dom",
+          "dev:errors"
+        ]
+      },
+      "artifacts": {
+        "sourceHashes": {
+          "main.js": "d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "pluginVersion": "0.0.5",
+        "stagedHashes": {
+          "main.js": "d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        }
+      },
+      "scenarios": [
+        {
+          "id": "open-kplex",
+          "status": "passed",
+          "assertions": [
+            "plugin command registered",
+            "rendered .kplex-app contains K-Plex",
+            "no captured JavaScript errors"
+          ],
+          "elapsedMs": 138
+        }
+      ],
+      "completedAt": "2026-10-03T11:36:07.961Z"
+    }
+  },
+  "measurements": {
+    "independentOwnerPublication": {
+      "owners": 20015,
+      "ownerChecks": 11630401,
+      "elapsedMs": 238123,
+      "peakHeap": 571454211,
+      "replayPeak": 472912756,
+      "combinedPeak": 719667320,
+      "reservation": {
+        "owners": 248586300,
+        "structure": 31186312,
+        "compilation": 167689044,
+        "transient": 25451100,
+        "peakBytes": 472912756
+      },
+      "published": 1,
+      "cancellationYields": 2
+    },
+    "hotDependencyLookup": {
+      "owners": 20015,
+      "projected": 20015,
+      "scans": 770,
+      "work": {
+        "keys": 1,
+        "keyPages": 1,
+        "pages": 770,
+        "rows": 20015,
+        "owners": 20015,
+        "yields": 769,
+        "peakItems": 20015,
+        "peakBytes": 171774458
+      },
+      "cancelYields": 1,
+      "outcome": "ready",
+      "cancelled": "cancelled"
+    }
+  },
+  "native": {
+    "smallSettings": {
+      "schemaVersion": 1,
+      "startedAt": "2026-10-03T11:37:57.421Z",
+      "vaultName": "excalidraw-test",
+      "artifacts": {
+        "main.js": "d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "initial": {
+        "started": true
+      },
+      "native": {
+        "done": true,
+        "phase": "cleanup",
+        "requiredMarkdownFiles": 0,
+        "prerequisite": {
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 2,
+            "totalFiles": 2,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "at": "2026-10-03T11:37:57.419Z"
+        },
+        "markdownFiles": 7,
+        "prerequisiteMarkdownFiles": 2,
+        "result": {
+          "status": "passed",
+          "markdownFiles": 7,
+          "prerequisiteMarkdownFiles": 2,
+          "warmOwnerReplayed": true,
+          "warmHeadUnchanged": true,
+          "steps": [
+            {
+              "label": "Friend to Challenger",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": true
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "right": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 440.30000001192093,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Challenger to Friend",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 442,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Dormant add",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 1,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 480.60000002384186,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Dormant remove",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 515.2999999523163,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Infer links as friends",
+              "B": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 5,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 443.7000000476837,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Forward inference",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 442.0999999642372,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Inverse inference",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 465.4000000357628,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Image semantic add",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 456.7999999523163,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Thumbnail selector",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 519.9000000357628,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Image assignment remove",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": null,
+              "gates": {
+                "top": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 449.69999998807907,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Thumbnail remove",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 478.5,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Node image selector",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": null,
+              "gates": {
+                "top": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 458.80000001192093,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Latest navigation wins",
+              "retiredScopeAbsent": true
+            },
+            {
+              "label": "Latest policy wins",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": null,
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "staleWriteRejected": true
+            }
+          ],
+          "work": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "markdownEnumerations": 0,
+            "fileEnumerations": 0,
+            "headPages": 0,
+            "captures": 97,
+            "familyVisits": 0
+          },
+          "distinctOwners": 6,
+          "preparedWork": [
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25403692
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25403692
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 3,
+                "familyVisits": 12,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 6,
+                "familyVisits": 24,
+                "nodes": 9,
+                "candidateRelations": 11,
+                "entityReads": 9,
+                "peakRetainedBytes": 25427730
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25403692
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25403692
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25403692
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 7,
+                "entityReads": 9,
+                "peakRetainedBytes": 25403524
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 9,
+                "entityReads": 9,
+                "peakRetainedBytes": 25409398
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 9,
+                "entityReads": 9,
+                "peakRetainedBytes": 25409398
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 5,
+                "gateEntityReads": 5
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 7,
+                "entityReads": 9,
+                "peakRetainedBytes": 25400814
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 7,
+                "entityReads": 9,
+                "peakRetainedBytes": 25403524
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 5,
+                "gateEntityReads": 5
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 7,
+                "entityReads": 9,
+                "peakRetainedBytes": 25400814
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 3,
+                "gateEntityReads": 3
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 3,
+                "familyVisits": 12,
+                "nodes": 8,
+                "candidateRelations": 7,
+                "entityReads": 8,
+                "peakRetainedBytes": 25361658
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "cancelled",
+              "reason": "cancelled"
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 5,
+                "gateEntityReads": 5
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 10,
+                "entityReads": 9,
+                "peakRetainedBytes": 25395108
+              }
+            }
+          ],
+          "fullBuildDelta": 0,
+          "publicationDelta": 14,
+          "sourceBefore": {
+            "checked": 11,
+            "reusedBodies": 6,
+            "legacyBodies": 0,
+            "vaultReads": 5,
+            "parses": 5,
+            "repaired": 5,
+            "resolutionRefreshes": 1,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "sourceAfter": {
+            "checked": 11,
+            "reusedBodies": 6,
+            "legacyBodies": 0,
+            "vaultReads": 5,
+            "parses": 5,
+            "repaired": 5,
+            "resolutionRefreshes": 1,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "completion": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 7,
+            "totalFiles": 7,
+            "label": "Status: index ready"
+          },
+          "afterCompletion": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 7,
+            "totalFiles": 7,
+            "label": "Status: index ready"
+          },
+          "hidden": true,
+          "cleanup": {
+            "settingsRestored": true,
+            "fixturesAbsent": true,
+            "throttlingRestored": true
+          }
+        }
+      },
+      "status": "passed",
+      "completedAt": "2026-10-03T11:38:17.468Z"
+    },
+    "largeSettings": {
+      "schemaVersion": 1,
+      "startedAt": "2026-10-03T11:42:35.039Z",
+      "vaultName": "kplex-test",
+      "artifacts": {
+        "main.js": "d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "initial": {
+        "started": true
+      },
+      "native": {
+        "done": true,
+        "phase": "cleanup",
+        "requiredMarkdownFiles": 20015,
+        "prerequisite": {
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "at": "2026-10-03T11:42:35.026Z"
+        },
+        "markdownFiles": 20020,
+        "prerequisiteMarkdownFiles": 20015,
+        "result": {
+          "status": "passed",
+          "markdownFiles": 20020,
+          "prerequisiteMarkdownFiles": 20015,
+          "warmOwnerReplayed": true,
+          "warmHeadUnchanged": true,
+          "steps": [
+            {
+              "label": "Friend to Challenger",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": true
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "right": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 413.7000000476837,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Challenger to Friend",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 406.19999998807907,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Dormant add",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 1,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 426.89999997615814,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Dormant remove",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 424.5999999642372,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Infer links as friends",
+              "B": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 5,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 410.60000002384186,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Forward inference",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 452.5,
+              "ownerCaptures": 6,
+              "distinctOwners": 5
+            },
+            {
+              "label": "Inverse inference",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 449.69999998807907,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Image semantic add",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 429,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Thumbnail selector",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": false,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 488.80000001192093,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Image assignment remove",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": null,
+              "gates": {
+                "top": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 410.7999999523163,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Thumbnail remove",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "gates": {
+                "top": {
+                  "visibleCount": 3,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 443.7000000476837,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Node image selector",
+              "B": {
+                "parent": true,
+                "child": false,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": true,
+                "child": false,
+                "left": false,
+                "right": false
+              },
+              "image": null,
+              "gates": {
+                "top": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [
+                "__kplex_si4_acceptance__E.md"
+              ],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "elapsedMs": 440.5,
+              "ownerCaptures": 8,
+              "distinctOwners": 6
+            },
+            {
+              "label": "Latest navigation wins",
+              "retiredScopeAbsent": true
+            },
+            {
+              "label": "Latest policy wins",
+              "B": {
+                "parent": false,
+                "child": true,
+                "left": true,
+                "right": false
+              },
+              "C": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "D": {
+                "parent": false,
+                "child": true,
+                "left": false,
+                "right": false
+              },
+              "image": null,
+              "gates": {
+                "top": {
+                  "visibleCount": 0,
+                  "hasAny": true
+                },
+                "bottom": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "left": {
+                  "visibleCount": 2,
+                  "hasAny": true
+                },
+                "right": {
+                  "visibleCount": 0,
+                  "hasAny": false
+                }
+              },
+              "siblings": [],
+              "title": "SI4 acceptance alias",
+              "evidenceCount": 2,
+              "writeReady": true,
+              "staleWriteRejected": true
+            }
+          ],
+          "work": {
+            "reads": 0,
+            "parses": 0,
+            "acquisitions": 0,
+            "markdownEnumerations": 0,
+            "fileEnumerations": 0,
+            "headPages": 0,
+            "captures": 97,
+            "familyVisits": 0
+          },
+          "distinctOwners": 6,
+          "preparedWork": [
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25401910
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25401910
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 3,
+                "familyVisits": 12,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 6,
+                "familyVisits": 24,
+                "nodes": 9,
+                "candidateRelations": 11,
+                "entityReads": 9,
+                "peakRetainedBytes": 25425948
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25401910
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25401910
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 12,
+                "entityReads": 9,
+                "peakRetainedBytes": 25401910
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 7,
+                "entityReads": 9,
+                "peakRetainedBytes": 25401750
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 9,
+                "entityReads": 9,
+                "peakRetainedBytes": 25407620
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 9,
+                "entityReads": 9,
+                "peakRetainedBytes": 25407620
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 5,
+                "gateEntityReads": 5
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 7,
+                "entityReads": 9,
+                "peakRetainedBytes": 25399040
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 6,
+                "gateEntityReads": 6
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 7,
+                "entityReads": 9,
+                "peakRetainedBytes": 25401750
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 5,
+                "gateEntityReads": 5
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 7,
+                "entityReads": 9,
+                "peakRetainedBytes": 25399040
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 4,
+                "familyVisits": 16,
+                "gateRelations": 3,
+                "gateEntityReads": 3
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 3,
+                "familyVisits": 12,
+                "nodes": 8,
+                "candidateRelations": 7,
+                "entityReads": 8,
+                "peakRetainedBytes": 25359888
+              }
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "cancelled",
+              "reason": "cancelled"
+            },
+            {
+              "name": "prepareRequestedNeighborhood",
+              "outcome": "ready",
+              "work": {
+                "passes": 2,
+                "sourceReplays": 2,
+                "familyVisits": 8,
+                "gateRelations": 5,
+                "gateEntityReads": 5
+              }
+            },
+            {
+              "name": "prepareRequestedCandidateDegrees",
+              "outcome": "ready",
+              "work": {
+                "sourceReplays": 5,
+                "familyVisits": 20,
+                "nodes": 9,
+                "candidateRelations": 10,
+                "entityReads": 9,
+                "peakRetainedBytes": 25393330
+              }
+            }
+          ],
+          "fullBuildDelta": 0,
+          "publicationDelta": 14,
+          "sourceBefore": {
+            "checked": 11,
+            "reusedBodies": 6,
+            "legacyBodies": 0,
+            "vaultReads": 5,
+            "parses": 5,
+            "repaired": 5,
+            "resolutionRefreshes": 1,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "sourceAfter": {
+            "checked": 11,
+            "reusedBodies": 6,
+            "legacyBodies": 0,
+            "vaultReads": 5,
+            "parses": 5,
+            "repaired": 5,
+            "resolutionRefreshes": 1,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "completion": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20020,
+            "totalFiles": 20020,
+            "label": "Status: index ready"
+          },
+          "afterCompletion": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20020,
+            "totalFiles": 20020,
+            "label": "Status: index ready"
+          },
+          "hidden": false,
+          "cleanup": {
+            "settingsRestored": true,
+            "fixturesAbsent": true,
+            "throttlingRestored": true
+          }
+        }
+      },
+      "status": "passed",
+      "completedAt": "2026-10-03T11:42:55.220Z"
+    },
+    "folderTopology": {
+      "artifacts": {
+        "main.js": "d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "report": {
+        "done": true,
+        "phase": "cleanup",
+        "result": {
+          "status": "passed",
+          "steps": [
+            {
+              "label": "Nested folder move with Markdown/attachment and current view",
+              "reads": 0,
+              "parses": 0,
+              "inventories": 2,
+              "headPages": 4
+            },
+            {
+              "label": "Nested folder delete",
+              "reads": 0,
+              "parses": 0,
+              "inventories": 2,
+              "headPages": 4
+            },
+            {
+              "label": "Empty folder recreate",
+              "reads": 0,
+              "parses": 0,
+              "inventories": 0,
+              "headPages": 0
+            }
+          ],
+          "fullBuildDelta": 0,
+          "cleanup": {
+            "fixturesAbsent": true,
+            "settingsRestored": true,
+            "throttlingRestored": true
+          }
+        }
+      }
+    },
+    "markdownEvents": {
+      "artifacts": {
+        "main.js": "d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "report": {
+        "done": true,
+        "result": {
+          "status": "passed",
+          "folderAndMarkdownCreate": "passed",
+          "nativeWaves": "passed",
+          "phases": {
+            "create": {
+              "markdownEnumerations": 0,
+              "fileEnumerations": 0,
+              "rootLookups": 2,
+              "headPages": 0,
+              "unrelatedInspections": 0,
+              "unrelatedVisits": 0,
+              "unrelatedWrites": 0,
+              "bodyLoads": 2,
+              "bodyParses": 1
+            },
+            "modify": {
+              "markdownEnumerations": 0,
+              "fileEnumerations": 0,
+              "rootLookups": 1,
+              "headPages": 0,
+              "unrelatedInspections": 0,
+              "unrelatedVisits": 0,
+              "unrelatedWrites": 0,
+              "bodyLoads": 2,
+              "bodyParses": 1
+            },
+            "rename": {
+              "markdownEnumerations": 0,
+              "fileEnumerations": 0,
+              "rootLookups": 2,
+              "headPages": 0,
+              "unrelatedInspections": 0,
+              "unrelatedVisits": 0,
+              "unrelatedWrites": 0,
+              "bodyLoads": 2,
+              "bodyParses": 0
+            },
+            "delete": {
+              "markdownEnumerations": 0,
+              "fileEnumerations": 0,
+              "rootLookups": 2,
+              "headPages": 0,
+              "unrelatedInspections": 0,
+              "unrelatedVisits": 0,
+              "unrelatedWrites": 0,
+              "bodyLoads": 0,
+              "bodyParses": 0
+            },
+            "recreate": {
+              "markdownEnumerations": 0,
+              "fileEnumerations": 0,
+              "rootLookups": 2,
+              "headPages": 0,
+              "unrelatedInspections": 0,
+              "unrelatedVisits": 0,
+              "unrelatedWrites": 0,
+              "bodyLoads": 2,
+              "bodyParses": 1
+            }
+          },
+          "sourceCounters": {
+            "checked": 38,
+            "reusedBodies": 26,
+            "legacyBodies": 0,
+            "vaultReads": 12,
+            "parses": 12,
+            "repaired": 15,
+            "resolutionRefreshes": 12,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "newDiagnostics": []
+        }
+      }
+    },
+    "extraMaintenance": {
+      "artifacts": {
+        "main.js": "d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "report": {
+        "done": true,
+        "phase": "cleanup",
+        "result": {
+          "status": "passed",
+          "phases": [
+            {
+              "label": "Dormant edit while unassigned",
+              "reads": 3,
+              "bodyLoads": 1,
+              "parses": 1,
+              "inventories": 0,
+              "headPages": 0
+            },
+            {
+              "label": "Activate latest dormant facts",
+              "reads": 0,
+              "bodyLoads": 0,
+              "parses": 0,
+              "inventories": 0,
+              "headPages": 0
+            },
+            {
+              "label": "Attachment create",
+              "reads": 0,
+              "bodyLoads": 0,
+              "parses": 0,
+              "inventories": 0,
+              "headPages": 0
+            },
+            {
+              "label": "Attachment modify",
+              "reads": 0,
+              "bodyLoads": 0,
+              "parses": 0,
+              "inventories": 0,
+              "headPages": 0
+            },
+            {
+              "label": "Attachment rename",
+              "reads": 0,
+              "bodyLoads": 0,
+              "parses": 0,
+              "inventories": 0,
+              "headPages": 0
+            },
+            {
+              "label": "Attachment delete",
+              "reads": 0,
+              "bodyLoads": 0,
+              "parses": 0,
+              "inventories": 0,
+              "headPages": 0
+            },
+            {
+              "label": "Attachment recreate",
+              "reads": 0,
+              "bodyLoads": 0,
+              "parses": 0,
+              "inventories": 0,
+              "headPages": 0
+            },
+            {
+              "label": "Native Date type drift",
+              "reads": 0,
+              "bodyLoads": 1,
+              "parses": 0,
+              "inventories": 1,
+              "headPages": 2,
+              "target": "2026-10-03.md"
+            },
+            {
+              "label": "Native Daily Notes drift",
+              "reads": 0,
+              "bodyLoads": 5,
+              "parses": 0,
+              "inventories": 1,
+              "headPages": 2,
+              "target": "__kplex_si4_extra__Daily/2026-10-03.md"
+            },
+            {
+              "label": "Unchanged native idle poll",
+              "reads": 0,
+              "bodyLoads": 0,
+              "parses": 0,
+              "inventories": 0,
+              "headPages": 0,
+              "readEvents": []
+            }
+          ],
+          "fullBuildDelta": 0,
+          "cleanup": {
+            "fixturesAbsent": true,
+            "settingsRestored": true,
+            "dailyRestored": true,
+            "typeRestored": true,
+            "throttlingRestored": true
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "small": {
+      "status": "passed",
+      "removedOwnedTypes": [],
+      "storesRestoredAndCompared": 14,
+      "counts": {
+        "bodies": 10,
+        "evidence": 0,
+        "meta": 5,
+        "pages": 48,
+        "snapshotChunks": 6,
+        "sourceChunks": 18,
+        "sourceDependencies": 0,
+        "sourceHeads": 11,
+        "sourceImpacts": 0,
+        "sourceLocalDependencies": 12,
+        "sourceLocalDependencyKeys": 10,
+        "sourceLocalDependencyOwners": 11,
+        "sourceLocalDependencyRepairs": 0,
+        "sourcePostings": 30
+      },
+      "pluginDisabled": true,
+      "ownedFiles": [],
+      "controllers": [],
+      "markdownFiles": 2,
+      "throttling": true,
+      "pluginDirectoryRemoved": true,
+      "enabledPluginsRestored": true
+    },
+    "large": {
+      "status": "passed",
+      "throttling": {
+        "previous": true,
+        "restored": true,
+        "current": true
+      },
+      "native": {
+        "pluginEnabled": true,
+        "markdownFiles": 20015,
+        "ownedFiles": [],
+        "controllers": [],
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 20015,
+          "totalFiles": 20015,
+          "label": "Status: index ready"
+        },
+        "sourceReady": true,
+        "inventoryRunning": false,
+        "knownTasks": 0,
+        "pendingKnownFiles": 0,
+        "pendingResolutionKeys": 0,
+        "rebuildRunning": false,
+        "throttling": true,
+        "center": "Welcome.md"
+      },
+      "artifacts": {
+        "main.js": "d8ae7df70ea58a25f39f21a6fa50a125e210a3e8bc15969b63b92c6f38d7a68b",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      }
+    }
+  },
+  "failedAttempts": [
+    {
+      "scenario": "Intermediate URL-heavy timer tests",
+      "status": "failed",
+      "observedMs": [
+        55.3,
+        95.7,
+        196.6,
+        74.5,
+        60.1
+      ],
+      "unchangedLimitMs": 50,
+      "finalRequiredLane": "passed",
+      "cause": "Some runs overlapped native startup; not established for every sample."
+    },
+    {
+      "scenario": "First queued-tombstone fix with held deletion",
+      "status": "failed",
+      "reason": "Ordinary retained-body read incorrectly awaited deletion; browser timeout.",
+      "resolution": "Explicit rename-only settleRetirement opt-in; ordinary masked readers stay nonblocking; final full lane passes."
+    },
+    {
+      "scenario": "Large native restart/hydration",
+      "status": "failed",
+      "watchdogFallback": "full-rebuild:startup:partial-restore-incomplete",
+      "rendererCrash": {
+        "exception": "EXC_BREAKPOINT",
+        "signal": "SIGTRAP",
+        "terminationCode": 5,
+        "report": "Obsidian Helper (Renderer)-2026-10-03-130618.ips",
+        "cause": "Not established"
+      },
+      "remainingOwner": "SI5 startup/scale",
+      "finalValidFactsNative": "passed"
+    },
+    {
+      "scenario": "Earlier native/readiness/poll and Node 18 attempts",
+      "status": "failed",
+      "resolution": "Pinned Node 22.22.2; hard CLI timeout termination; final actual readiness observed."
+    },
+    {
+      "scenario": "Earlier native implementation failures",
+      "status": "failed",
+      "resolution": "Warm accepted observation, visible scope, attachments, publication retry, folder body reuse/counting, canonical creation and late-unsaved retry corrected with production regressions and final native reruns."
+    },
+    {
+      "scenario": "Earlier harness expectations",
+      "status": "failed",
+      "resolution": "Accessible image replacement; distinct-owner counting; explicit text-to-Date setup; real visible demand before graph assertion. No semantic oracle or timing bound relaxed."
+    }
+  ],
+  "postSuiteSourceChange": "Added TSDoc to the physical-deletion deduplication helper; actual production rebuild passed and all three artifact hashes remained identical. Other final changes are documentation/evidence only.",
+  "limits": [
+    "Functional native lanes temporarily disable renderer background throttling and restore the prior boolean; no foreground paint/latency claim.",
+    "Multi-minute high-degree completion and retained reservation do not establish mobile memory or release performance.",
+    "SI5 restart/sync/cache retirement/storage failure, popout and physical iPad/Android acceptance remain pending."
+  ],
+  "git": "Uncommitted; no commit, push or release performed."
+}

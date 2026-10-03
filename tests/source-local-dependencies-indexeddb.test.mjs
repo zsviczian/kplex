@@ -320,6 +320,32 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
       })()`), true);
     });
 
+    await t.test("a late unsaved graph acquisition retains a local automatic retry owner", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await fixture('late-unsaved-acquisition');
+        try {
+          const file=f.add('A.md','Friends:: [[Before]]');f.add('Other.md','');
+          await f.acquire();ok(await f.acquisition.reconcile(),'Initial authority');f.acquisition.enableInventory();
+          equal(f.acquisition.pendingKnownFiles.size,0,'Earlier inventory consumed the event');
+          const inspect=f.repository.inspect.bind(f.repository),expect=f.repository.catalogExpectation.bind(f.repository);
+          let miss=true;f.repository.inspect=async(id,...args)=>id===file.path&&miss
+            ? {head:null,sequence:null,saved:false,expected:{kind:'unavailable'},reason:'unsaved',families:{}}
+            : inspect(id,...args);
+          f.repository.catalogExpectation=async id=>id===file.path&&miss?{kind:'unavailable'}:expect(id);
+          file.stat.mtime+=1;f.texts.set(file.path,'Friends:: [[After]]');
+          const result=await f.acquisition.acquire(file,sourceModules.parseBodyMetadata(f.texts.get(file.path)));
+          miss=false;ok(result.current&&!result.saved,'Late acquisition really remained unsaved');
+          ok(f.acquisition.pendingKnownFiles.has(file),'Source-local retry owner retained');
+          const deadline=performance.now()+6000;
+          while(performance.now()<deadline&&!f.acquisition.hasSemanticDependencies())await new Promise(resolve=>window.setTimeout(resolve,25));
+          ok(f.acquisition.hasSemanticDependencies(),'Automatic scheduling reopened readiness');
+          equal((await inspect(file.path)).reason,'ready','Latest head durable');
+          const rows=[];equal(await f.repository.visit(file.path,'values',batch=>{rows.push(...batch);return true;}),'ready','Latest values');
+          ok(rows.some(row=>row.kind==='reference-candidate'&&row.rawTarget==='After'),'Latest facts published');return true;
+        } finally {f.close();}
+      })()`),true);
+    });
+
     await t.test("native resolved during reconciliation stays covered, while folder causes remain uncertain and unload cancels bounded state", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const setup=async vault=>{const f=await fixture(vault),target=f.add('Target.md','',{aliases:['AliasTarget']});f.add('Ref.md','Friends:: [[Target]] [[AliasTarget]]');f.add('Other.md','');f.app.metadataCache.getFirstLinkpathDest=literal=>literal==='Target'||literal==='AliasTarget'?target:null;await f.acquire();ok(await f.acquisition.reconcile(),'Initial authority closes');return {f,target};};
@@ -626,6 +652,12 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           equal(Object.fromEntries(headsAfter.map(h=>[h.sourceId,h.families.resolution.revision])),resolutionBefore,'No resolution refresh on restart');
           const ghost=M.sourceLocalDependencyKey('literal','RestartGhost'),bKey=M.sourceLocalDependencyKey('node','B.md');
           let result=await cache2.sources.lookupLocalDependencies([ghost]);equal(result.outcome,'ready','Restart lookup');equal(result.value.sources.map(s=>s.head.sourceId),['A.md'],'Durable owner reused');
+          const captured=await acquisition2.captureForReplay('A.md',r3Presentation,runtime());equal(captured.outcome,'ready','Bound warm owner capture');
+          equal(captured.request.host.observation,headsBefore.find(h=>h.sourceId==='A.md').observation,'Identity adoption preserves accepted durable epoch/revision');
+          equal(M.cachedSourceMatches(captured.request,result.value.sources[0]),'ready','Warm replay matches the actual selected source head');
+          const degrees=await acquisition2.prepareRequestedCandidateDegrees({kind:'candidate-degrees',candidates:[ref('A.md')]},r3Policy(),r3Presentation,runtime());
+          equal(degrees.outcome,'ready','Warm requested consumer compiles without stamping a new process epoch');
+          equal(await value(reopened.transaction('sourceHeads').objectStore('sourceHeads').getAll()),headsBefore,'Warm publication retains exact source head bytes');equal(reads,0,'Warm requested consumer reads no Markdown');equal(parses,0,'Warm requested consumer parses no Markdown');
           const aOwner=ownersAfter.find(o=>o.sourceId==='A.md'),rows=await value(reopened.transaction(M.SOURCE_LOCAL_DEPENDENCY_STORE).objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE).index(M.SOURCE_LOCAL_REVISION_INDEX).getAll(IDBKeyRange.only(['A.md',aOwner.sourceRevision]))),victim=rows.find(r=>r.key===ghost);ok(victim,'Affected membership row exists');
           await edit(reopened,[M.SOURCE_LOCAL_DEPENDENCY_STORE],tx=>tx.objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE).delete(['A.md',aOwner.sourceRevision,victim.index]));
           result=await cache2.sources.lookupLocalDependencies([ghost]);equal(result.outcome,'invalid-family','Missing affected membership fails closed');equal(result.reason,'dependency-invalid','Corruption reason');

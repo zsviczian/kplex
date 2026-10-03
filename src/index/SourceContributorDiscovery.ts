@@ -1124,6 +1124,9 @@ export class SourceContributorDiscovery {
     } catch (error) { return failure(error); }
     finally { this.queries--; }
   }
+  /** Cheap monotonic source/host/demand fence; final validation still checks host observations. */
+  isGenerationCurrent(): boolean { return this.current(); }
+
   /**
    * Synchronous host fence for a private caller's final return, including zero-source scopes.
    * This observes the existing session/environment capability only: it authenticates no root,

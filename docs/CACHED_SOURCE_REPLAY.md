@@ -104,7 +104,9 @@ No SI4b1/b2/c acceptance, changed-host BREF-1 certification or SI5 performance c
 The portable resolver's own neighbour-map writes remain canonical. None of these consumers is migrated
 by SI4a. A source-level contract test guards the existing hierarchy/image settings route.
 
-## Implemented capability and result contract
+## Historical SI4a capability and result contract
+
+**Current SI4 runtime:** `captureForReplay()` retains an accepted warm head's observation coordinates after physical/metadata/environment validation. Application acquisition no longer exposes `prepareCachedSemantics()`; the historical wrapper below is installed only by `tests/support/retiredSourcePrototypes.mjs`. Production requested neighborhood/degree preparation is documented in [the indexing architecture](INDEXING_ARCHITECTURE.md).
 
 `ObsidianSourceAcquisition.captureForReplay()` captures the already acquired Markdown source's
 physical incarnation/stats, session/host revision and Date/Daily Notes environment. It requires current

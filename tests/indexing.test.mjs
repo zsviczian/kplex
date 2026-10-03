@@ -781,6 +781,9 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
 
   deleteHandler(countedCreate);
   assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 10, "Markdown delete decrements the known denominator exactly once");
+  statusMembershipCoordinator.countDeletedMarkdownFile(countedCreate);
+  deleteHandler(countedCreate);
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 10, "Overlapping parent/child delete notifications count the same physical file once");
   KplexPlugin.prototype.getIndexStatus.call(statusMembershipCoordinator);
   assert.equal(markdownEnumerations, 0, "Delete status reads must reuse the decremented denominator");
 
@@ -1074,6 +1077,7 @@ const app = {
     getFiles() { return [...files.values()]; },
     cachedRead(file) { return Promise.resolve(contents.get(file.path) ?? ""); },
     getFileByPath(path) { return files.get(path) ?? null; },
+    getFolderByPath(path) { return folders.get(path) ?? null; },
     getAbstractFileByPath(path) { return files.get(path) ?? folders.get(path) ?? null; },
     getResourcePath(file) { return `app://local/${encodeURIComponent(file.path)}`; },
   },
@@ -2686,6 +2690,19 @@ try {
   caches.set(immediateFile.path, { frontmatter: {}, tags: [], links: [] });
   const immediatePage = index.insertCreatedFile(immediateFile);
   assert.equal(index.get(immediateFile.path), immediatePage);
+  {
+    const preparedOnlyFile = new TFile("Prepared-only creation.md", noteA.stat.mtime + 1001);
+    const preparedOnlyPage = { ...immediatePage, path: preparedOnlyFile.path, file: preparedOnlyFile, neighbours: new Map() };
+    const originalGet = index.get;
+    index.get = function(path) { return path === preparedOnlyFile.path ? preparedOnlyPage : originalGet.call(this, path); };
+    try {
+      const canonical = index.insertCreatedFile(preparedOnlyFile);
+      assert.equal(index.state.pages.get(preparedOnlyFile.path), canonical, "A prepared-only physical endpoint must also materialize in the canonical patch baseline");
+      assert.notEqual(canonical, preparedOnlyPage, "Creation cannot mutate only the prepared view");
+      assert.equal(index.insertCreatedFile(preparedOnlyFile), canonical, "Repeated physical materialization is idempotent");
+    } finally { index.get = originalGet; }
+    index.dematerializeFile(preparedOnlyFile.path);
+  }
   assert(index.applyRelationshipEdit("Note A.md", immediateFile.path, "child", "Children"));
   expectRole("Note A.md", "child", immediateFile.path, RelationType.DEFINED);
 
@@ -3337,12 +3354,15 @@ try {
   const nativeFolder = new TFolder("Fixture");
   const nativeA = new TFile("Fixture/A.md", 10_001);
   const nativeB = new TFile("Fixture/B.md", 10_002);
+  const nativeImage = new TFile("Fixture/Image.png", 10_003);
   nativeFiles.set(nativeA.path, nativeA);
   nativeFiles.set(nativeB.path, nativeB);
+  nativeFiles.set(nativeImage.path, nativeImage);
   const nativeDecisions = [];
   const nativeFolders = [];
   const nativeMaterializedFiles = [];
   const nativePatchCalls = [];
+  const nativeDematerializedFiles = [];
   let nativeFullBuilds = 0;
   nativeCreationCoordinator.app = {
     vault: {
@@ -3354,11 +3374,14 @@ try {
     },
   };
   nativeCreationCoordinator.index = {
+    hasPendingStructuralMaintenance: () => false,
+    cancelRebuild: () => {},
     size: 4,
     isFullSnapshotHydrated: () => true,
     get: (path) => nativeMaterializedFiles.includes(path) ? { file: nativeFiles.get(path) } : undefined,
     insertCreatedFolder: (folder) => { nativeFolders.push(folder.path); return { path: `folder:${folder.path}` }; },
     insertCreatedFile: (file) => { nativeMaterializedFiles.push(file.path); return { path: file.path, file }; },
+    dematerializeFile: (path) => { nativeDematerializedFiles.push(path); return { path, file: null }; },
     noteBuildDecision: (kind, reason, modified) => { nativeDecisions.push({ kind, reason, modified }); },
     patchMarkdownPaths: async (paths) => { nativePatchCalls.push([...paths]); return { outcome: "patched", count: paths.length }; },
     rebuild: async () => { nativeFullBuilds += 1; return true; },
@@ -3381,13 +3404,74 @@ try {
   nativeMetadataHandler(nativeA);
   nativeCreateHandler(nativeB);
   nativeMetadataHandler(nativeB);
+  nativeCreateHandler(nativeImage);
   assert.deepEqual(nativeFolders, ["Fixture"], "Empty folder is materialized directly once");
-  assert.deepEqual(nativeMaterializedFiles, [nativeA.path, nativeB.path], "Markdown files materialize directly under the new folder");
+  assert.deepEqual(nativeMaterializedFiles, [nativeA.path, nativeB.path, nativeImage.path], "Markdown and attachment endpoints materialize directly under the new folder");
   assert(!nativeCreationCoordinator.indexBacklogReasons.has("vault:create"), "Folder creation must not leave a structural full-rebuild reason");
   await nativeCreationCoordinator.performRebuild(false, false, "coalesced-backlog", false);
   assert.deepEqual(nativePatchCalls, [[nativeA.path, nativeB.path]], "Folder-following Markdown files patch as one local batch");
   assert.equal(nativeFullBuilds, 0, "Folder + Markdown creation must not invoke the full builder");
   assert(nativeDecisions.every((decision) => decision.kind !== "full-rebuild"), "Folder + Markdown creation must record no full-rebuild decision");
+  nativeFiles.delete(nativeImage.path);
+  nativeCreationHandlers.get("vault:delete")(nativeImage);
+  assert.deepEqual(nativeDematerializedFiles, [nativeImage.path], "Attachment deletion keeps its ghost endpoint locally");
+  assert.equal(nativeCreationCoordinator.indexDirty, false, "Attachment deletion must not queue a structural rebuild");
+  nativeFiles.set(nativeImage.path, nativeImage);
+  nativeCreateHandler(nativeImage);
+  assert.equal(nativeCreationCoordinator.indexDirty, false, "Attachment recreation must remain local");
+
+  // A folder move owns its known subtree, including a second move during cooperative capture.
+  const localFolder = ensureFolder("SI4Folder");
+  const localSubfolder = ensureFolder("SI4Folder/Sub");
+  const localNote = new TFile("SI4Folder/Sub/Local.md", 10_100);
+  const localImage = new TFile("SI4Folder/Image.png", 10_101);
+  localNote.parent = localSubfolder; localSubfolder.children.push(localNote);
+  localImage.parent = localFolder; localFolder.children.push(localImage);
+  for (const file of [localNote, localImage]) { files.set(file.path, file); index.insertCreatedFile(file); }
+  const folderIdentity = index.state.pages.get("folder:SI4Folder");
+  const noteIdentity = index.state.pages.get(localNote.path);
+  const imageIdentity = index.state.pages.get(localImage.path);
+  const moveLocalFixture = (from, to) => {
+    for (const item of [localFolder, localSubfolder, localNote, localImage]) {
+      const map = item instanceof TFolder ? folders : files;
+      map.delete(item.path); item.path = to + item.path.slice(from.length);
+      item.name = item.path.split("/").pop();
+      if (item instanceof TFile) item.basename = item.name.replace(/\.[^.]+$/, "");
+      map.set(item.path, item);
+    }
+  };
+  moveLocalFixture("SI4Folder", "SI4First");
+  const movingFolder = index.renameFolder("SI4Folder", localFolder);
+  assert.equal(index.isSemanticWriteReady("Note A.md", "Note B.md"), false, "Folder preparation fences writes");
+  moveLocalFixture("SI4First", "SI4Final");
+  assert.equal(index.renameFolder("SI4First", localFolder), movingFolder, "Concurrent folder moves share one affected tree job");
+  await movingFolder;
+  assert.equal(index.state.pages.get("folder:SI4Final"), folderIdentity, "Folder identity survives coalesced moves");
+  assert.equal(index.state.pages.get(localNote.path), noteIdentity, "Markdown identity survives folder moves");
+  assert.equal(index.state.pages.get(localImage.path), imageIdentity, "Attachment identity survives folder moves");
+  assert.equal(index.get("folder:SI4Folder"), undefined);
+  assert.equal(index.get("folder:SI4First"), undefined);
+  assert(index.searchEntryByPath.has(localNote.path));
+  assert(index.searchEntryByPath.has("folder:SI4Final/Sub"));
+  assert.equal(index.state.evidence.declarationsTouching(localNote.path).filter(item =>
+    item.sourceKind === "file-tree" && item.declaredTargetPath === localNote.path).length, 1, "Move has one canonical membership declaration");
+  for (const file of [localNote, localImage]) files.delete(file.path);
+  folders.delete(localSubfolder.path); folders.delete(localFolder.path);
+  rootFolder.children = rootFolder.children.filter(item => item !== localFolder);
+  assert.equal(await index.removeDeletedFolder(localFolder), 1, "Parent-only deletion counts its one still-materialized Markdown child");
+  assert.equal(index.get("folder:SI4Final"), undefined);
+  assert.equal(index.get("folder:SI4Final/Sub"), undefined);
+  assert.equal(index.state.pages.get(localNote.path).file, null);
+  assert.equal(index.state.pages.get(localImage.path).file, null);
+  for (const file of [localNote, localImage]) index.removeVirtualPageIfUnreferenced(file.path);
+  assert.equal(index.pendingStructuralTasks, 0, "Folder operations release their lifetime");
+
+  const navigationFolder = new KplexPlugin();
+  navigationFolder.settings = { lastActivePath:"Old/Sub/A.md",sidecarLastFilePath:"Old/Sub/A.md",
+    navigationHistory:["folder:Old","Old/Sub/A.md","Other.md"],pinnedNodes:["folder:Old/Sub","Oldish/A.md"] };
+  assert.equal(navigationFolder.remapNavigationPaths("Old","New",true),true);
+  assert.deepEqual(navigationFolder.settings,{lastActivePath:"New/Sub/A.md",sidecarLastFilePath:"New/Sub/A.md",
+    navigationHistory:["folder:New","New/Sub/A.md","Other.md"],pinnedNodes:["folder:New/Sub","Oldish/A.md"]});
 
   // P15: post-parse graph work for a URL-heavy note is staged and cooperatively sliced. Prime the
   // parsed-body hot cache so this measures signature/evidence/URL/resolution/commit work rather
@@ -3478,6 +3562,7 @@ try {
   const coordinatorPatchStarted = new Promise((resolve) => { signalCoordinatorPatch = resolve; });
   const coordinatorPatchGate = new Promise((resolve) => { releaseCoordinatorPatch = resolve; });
   coordinator.index = {
+    hasPendingStructuralMaintenance: () => false,
     size: 1,
     noteBuildDecision: () => {},
     isFullSnapshotHydrated: () => false,
@@ -3524,6 +3609,7 @@ try {
   const creationPatchCalls = [];
   creationCoordinator.app = { vault: { getFileByPath: (path) => path === createdDuringPatch.path ? createdDuringPatch : null } };
   creationCoordinator.index = {
+    hasPendingStructuralMaintenance: () => false,
     size: 1,
     noteBuildDecision: () => {},
     isFullSnapshotHydrated: () => true,

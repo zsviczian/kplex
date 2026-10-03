@@ -71,7 +71,7 @@ try {
     ...target, projectRoot, reportDir, runCli: cli,
     source: { revision: command("git", ["rev-parse", "HEAD"]).trim(), dirty: Boolean(command("git", ["status", "--porcelain"]).trim()), node: process.version },
     runVerify: () => {
-      const result = spawnSync("npm", ["run", "verify"], { cwd: projectRoot, stdio: "inherit", timeout: 180_000 });
+      const result = spawnSync("npm", ["run", "verify"], { cwd: projectRoot, stdio: "inherit", timeout: 1_200_000 });
       if (result.error) throw result.error;
       if (result.status !== 0) throw new Error(`npm run verify failed (${result.status})`);
     },

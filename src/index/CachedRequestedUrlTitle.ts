@@ -9,7 +9,7 @@ import type { GraphCompilerRuntime } from "../core/graph/compiler";
 import type { SourcePatchReadPort } from "../core/graph/patch";
 import type { SourceEntityRef } from "../core/graph/source";
 import type { CachedPairCapture } from "./CachedRequestedPair";
-import { CachedSourceSemanticReader, captureCachedSemanticSettings,
+import { CachedSourceSemanticReader, captureCachedSemanticSettings, validateCachedOwners, cachedOwnersCurrent, sameCachedSelections,
   type CachedSemanticPolicy, type CachedSemanticPreparation } from "./CachedSourceSemantics";
 import type { ContributorCertificate, ContributorFailure, SourceContributorDiscovery } from "./SourceContributorDiscovery";
 import { cachedSourceMatches, type CachedSourceRequest } from "./SourceReplay";
@@ -38,7 +38,7 @@ export class CachedRequestedUrlTitleReader {
   private readonly semantics: CachedSourceSemanticReader;
   /** Reuse the existing repository, current-source capture and exact canonical host entity port. */
   constructor(repository: NeutralSourceRepository,
-    private readonly discovery: Pick<SourceContributorDiscovery, "discoverUrlTitle" | "revalidate" | "isHostCurrent">,
+    private readonly discovery: Pick<SourceContributorDiscovery, "discoverUrlTitle" | "revalidate" | "isHostCurrent"> & Partial<Pick<SourceContributorDiscovery, "isGenerationCurrent">>,
     private readonly capture: CachedPairCapture, private readonly entities: SourcePatchReadPort) {
     this.semantics = new CachedSourceSemanticReader(repository);
   }
@@ -56,12 +56,9 @@ export class CachedRequestedUrlTitleReader {
     /** Captures retain only the parent lifetime, avoiding capture/owner callback recursion. */
     const parentReason = () => !runtime.isCurrent() ? "cancelled"
       : !policy.isCurrent() || policy.revision !== revision ? "superseded" : "ready";
-    /** Each selected source adds its own physical and host-observation lifetime. */
-    const reason = () => {
-      const parent = parentReason();
-      return parent !== "ready" ? parent : owners.some(/** Selected physical observations are independent of caller demand. */
-        (owner) => !owner.host.isCurrent()) ? "stale" : "ready";
-    };
+    /** Monotonic cancellation is cheap; all selected hosts are revalidated before return. */
+    const reason = () => parentReason() !== "ready" ? parentReason()
+      : this.discovery.isGenerationCurrent?.() === false ? "stale" : "ready";
     /** No compiler or repository await may outlive the exact requested inputs. */
     const current = (): boolean => reason() === "ready";
     const captureRuntime = { ...runtime,
@@ -106,16 +103,21 @@ export class CachedRequestedUrlTitleReader {
         discovered.hostFacts.map(/** Canonical structural order stays separate from Markdown precedence. */ entry => entry.fact));
       if (!current()) return selectedSourceFailure(reason());
       if (prepared.outcome !== "ready") return prepared;
-      if (prepared.policyRevision !== revision || JSON.stringify(prepared.sources) !== JSON.stringify(discovered.sources)) {
-        return selectedSourceFailure("superseded");
+      if (prepared.policyRevision !== revision || !(await sameCachedSelections(prepared.sources, discovered.sources, { ...runtime, isCurrent: current }))) {
+        return selectedSourceFailure(current() ? "superseded" : reason());
       }
       const node = prepared.compilation.node(entity.id);
       if (!node) return selectedSourceFailure("missing");
       if (node.kind !== "url" || node.state !== "materialized" || node.semanticPath !== entity.semanticPath
         || node.physicalPath !== undefined || node.file || node.aliases.length) return selectedSourceFailure("unsupported-scope");
+      const hosts = await validateCachedOwners(owners, { ...runtime, isCurrent: current });
+      if (hosts !== "ready") return selectedSourceFailure(current() ? hosts : reason());
       const validated = await this.discovery.revalidate(discovered);
       if (!current()) return selectedSourceFailure(reason());
       if (validated !== "ready") return selectedSourceFailure(validated);
+      const finalHosts = cachedOwnersCurrent(owners);
+      if (finalHosts !== "ready") return selectedSourceFailure(finalHosts);
+
       if (!this.discovery.isHostCurrent()) return selectedSourceFailure("host-catalog-stale");
       if (!current()) return selectedSourceFailure(reason());
       return { outcome: "ready", coverage: "complete-url-title-input",

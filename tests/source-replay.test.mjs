@@ -393,6 +393,11 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
       index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
       await assertOracle("role move");
 
+      index.plugin.settings.hierarchy.rightFriends = index.plugin.settings.hierarchy.rightFriends.filter(field => field !== "Friends");
+      index.plugin.settings.hierarchy.leftFriends = [...index.plugin.settings.hierarchy.leftFriends, "Friends"];
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("reverse role move");
+
       index.plugin.settings.inferAllLinksAsFriends = true;
       index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
       await assertOracle("forward inference toggle");
@@ -427,6 +432,29 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
       const navigationOracle = await oracleForCurrentSettings();
       try { assert.deepEqual(currentNeighborhoodView(index, "B.md"), currentNeighborhoodView(navigationOracle, "B.md"), "navigation scope"); }
       finally { navigationOracle.destroy(); releaseSecond(); }
+
+      // A released navigation demand cannot resurrect its scope after a newer center finishes.
+      const navigationPrepare = f.acquisition.prepareRequestedNeighborhood.bind(f.acquisition);
+      let unblockNavigation, enteredNavigation;
+      const navigationEntered = new Promise(resolve => { enteredNavigation = resolve; });
+      f.acquisition.prepareRequestedNeighborhood = async (...args) => {
+        if (args[0].center.id === "B.md") {
+          enteredNavigation(); await new Promise(resolve => { unblockNavigation = resolve; });
+        }
+        return navigationPrepare(...args);
+      };
+      const oldNavigation = index.acquireSemanticDemand("B.md");
+      await navigationEntered;
+      const retiredTask = index.semanticPreparationTasks.get("B.md").task;
+      oldNavigation();
+      const latestNavigation = index.acquireSemanticDemand("C.md");
+      await index.refreshSemanticSettings();
+      unblockNavigation(); await retiredTask;
+      const latestOracle = await oracleForCurrentSettings();
+      try {
+        assert.deepEqual(currentNeighborhoodView(index, "C.md"), currentNeighborhoodView(latestOracle, "C.md"));
+        assert.equal(index.semanticScopes.has("B.md"), false, "Released navigation cannot publish its old scope");
+      } finally { latestOracle.destroy(); latestNavigation(); f.acquisition.prepareRequestedNeighborhood = navigationPrepare; }
 
       // Three overlapping policy requests may finish in any order, but only the final revision is
       // publishable. Hold all three at the production acquisition boundary to make the race exact.
@@ -520,6 +548,8 @@ test("SI4 production settings route owns revisioned cached preparation without a
   assert.match(main, /if \(effects.semanticInvalidation\) this.index.invalidateSemanticPolicy\(\)/);
   assert.match(main, /if \(effects.semanticInvalidation\) await this.index.refreshSemanticSettings\(\)/);
   assert(!/scheduleRebuild\("settings"\)/.test(main));
+  assert.equal(M.ObsidianSourceAcquisition.prototype.prepareCachedSemantics, undefined, "Historical selected-owner wrapper is fixture-only");
+  assert.equal(M.ObsidianSourceAcquisition.prototype.contributorDiscovery, undefined, "Global catalog construction has no shipped adapter entry point");
   assert.match(index, /prepareRequestedNeighborhood/);
   assert.match(index, /hasSemanticDependencies/);
   assert(!/bootstrapSemanticDependencies|hasContributorCatalog/.test(index + main));
@@ -643,5 +673,61 @@ test("replayed normalized reference and field-name facts preserve exact live pro
     }
     const locations = facts(replayed, "field-name").filter(record => record.provenance?.surface === "inline");
     assert(locations.length >= 2); assert(locations.every(record => Number.isInteger(record.provenance.location.end)));
+  } finally { f.close(); }
+});
+
+/** Count host work rather than elapsed time: increasing owner count must increase work linearly. */
+test("cached semantic validity work grows with owners and rejects mutation during final continuation", async () => {
+  let previous = 0;
+  for (const count of [128, 256, 512, 1024]) {
+    const f = replayFixture();
+    try {
+      const ids = Array.from({ length: count }, (_, i) => `Owner-${i}.md`);
+      for (const id of ids) f.add(id, "");
+      await acquire(f, ids);
+      const capture = f.acquisition.captureForReplay.bind(f.acquisition);
+      let checks = 0;
+      f.acquisition.captureForReplay = async (...args) => {
+        const result = await capture(...args);
+        if (result.outcome === "ready") {
+          const current = result.request.host.isCurrent;
+          result.request = { ...result.request, host: { ...result.request.host, isCurrent: () => { checks++; return current(); } } };
+        }
+        return result;
+      };
+      const start = performance.now();
+      const result = await f.acquisition.prepareCachedSemantics(ids, policy(), presentation, runtime());
+      assert.equal(result.outcome, "ready");
+      assert(checks < 160 * count, `${count}: ${checks} host checks`);
+      if (previous) assert(checks <= previous * 2.05, "Doubling owners must not quadruple validity work");
+      previous = checks;
+      console.log(JSON.stringify({ r3Validity: { owners: count, checks, elapsedMs: performance.now() - start, memory: result.memory } }));
+      // Mutate an already checked owner's metadata during the repository's last awaited fence.
+      const validate = f.repository.validateSelections.bind(f.repository);
+      f.repository.validateSelections = async (...args) => {
+        const selected = await validate(...args);
+        f.metadata.set(ids[0], { frontmatter: { changed: true }, links: [] });
+        return selected;
+      };
+      const rejected = await f.acquisition.prepareCachedSemantics(ids, policy(), presentation, runtime());
+      assert.equal(rejected.reason, "stale"); assert(!("compilation" in rejected));
+    } finally { f.close(); }
+  }
+});
+
+/** Aggregate guards must reject a pathological selection even when each item is individually valid. */
+test("cached scope rejects excessive retained owner metadata before replaying or exposing a prefix", async () => {
+  const f = replayFixture();
+  try {
+    f.add("A.md", ""); await acquire(f, ["A.md"]);
+    const captured = await f.acquisition.captureForReplay("A.md", presentation, runtime());
+    assert.equal(captured.outcome, "ready");
+    const largeIdentity = "x".repeat(400_000);
+    const owners = Array.from({ length: 1100 }, (_, i) => ({ ...captured.request, sourceId: `owner-${i}`,
+      host: { ...captured.request.host, source: { ...captured.request.host.source, id: `owner-${i}` },
+        physical: { ...captured.request.host.physical, identity: largeIdentity } } }));
+    const reader = new M.CachedSourceSemanticReader(f.repository);
+    const result = await reader.prepare(owners, policy(), { entity: () => assert.fail("Budget must close before compilation") }, runtime());
+    assert.equal(result.reason, "decode-budget"); assert(!("compilation" in result));
   } finally { f.close(); }
 });

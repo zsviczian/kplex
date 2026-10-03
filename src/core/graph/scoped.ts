@@ -19,6 +19,7 @@ export type SourceScopePreparationResult =
  */
 export class NormalizedSourceScopePreparer {
   private readonly sourceIds: readonly NodeId[];
+  private readonly membership: ReadonlySet<NodeId>;
   private readonly delegate: NormalizedSourcePatchPreparer | null;
   private readonly started = new Set<NodeId>();
   private readonly completed = new Set<NodeId>();
@@ -29,13 +30,14 @@ export class NormalizedSourceScopePreparer {
   /** Snapshot finite scope identity; no caller mutation can add owners to an in-flight preparation. */
   constructor(sourceIds: readonly NodeId[], settings: GraphCompilerSettings, private readonly runtime: GraphCompilerRuntime,
     readPort: SourcePatchReadPort) {
-    this.sourceIds = [...new Set(sourceIds)];
+    this.membership = new Set(sourceIds);
+    this.sourceIds = [...this.membership];
     this.delegate = this.sourceIds.length ? new NormalizedSourcePatchPreparer(this.sourceIds[0], settings, runtime, readPort) : null;
   }
 
   /** Open exactly one canonical normalized read per source owner; duplicate ownership is rejected. */
   beginSource(sourceId: NodeId, boundary: SourceReadBoundary): GraphCompilerSourceRead | null {
-    if (!this.delegate || this.rejected || !this.runtime.isCurrent() || !this.sourceIds.includes(sourceId) || this.started.has(sourceId)) {
+    if (!this.delegate || this.rejected || !this.runtime.isCurrent() || !this.membership.has(sourceId) || this.started.has(sourceId)) {
       this.rejected = true;
       return null;
     }
