@@ -1093,8 +1093,8 @@ export class GraphBuilder {
    * Cold progressive startup sets `discoveryMode: "rebuild"` and feeds every source exactly once
    * into a structural baseline, forcing semantic application even when a prior cancelled attempt
    * left a hot body/fingerprint cache entry behind. Structural vault changes remain the caller's
-   * responsibility. `afterFileCommit` runs only after a complete per-source publication and may
-   * pause ingestion for maintenance; cancellation still retains previously committed sources.
+   * responsibility. Cancellation still retains previously committed sources; progress is durable
+   * through neutral source heads without pausing ingestion to serialize a full graph.
    */
   async patchMarkdownFiles(
     state: GraphState,
@@ -1103,8 +1103,6 @@ export class GraphBuilder {
       useDurableCache?: boolean;
       awaitBodyWrite?: boolean;
       publishFileCommit?: PatchFilePublisher;
-      /** Optional maintenance after a complete source commit, before the next source is read. */
-      afterFileCommit?: (sourcePath: string) => Promise<void>;
       /** Full cold-start ingestion counts every discovered field exactly once per source. */
       discoveryMode?: "patch" | "rebuild";
     } = {},
@@ -1233,7 +1231,6 @@ export class GraphBuilder {
           this.semanticFingerprints.set(sourcePath, signature);
         });
         semanticNoops += 1;
-        await options.afterFileCommit?.(sourcePath);
         if (!(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         continue;
       }
@@ -1314,7 +1311,6 @@ export class GraphBuilder {
       });
       if (topologyChanged) semanticChanges += 1;
       else semanticNoops += 1;
-      await options.afterFileCommit?.(sourcePath);
       if (!(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
     }
 

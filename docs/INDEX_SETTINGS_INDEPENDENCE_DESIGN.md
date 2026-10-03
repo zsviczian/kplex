@@ -4,7 +4,7 @@
 
 **Objective:** maintain a durable, settings-neutral index with work proportional to changed notes or requested relationships. Adding/moving ontology must reuse that index, perform zero Markdown reads/parses for valid facts, and make the requested Plex usable without a full-vault rebuild.
 
-**Actual baseline:** branch `indexing-optimization-v2`, last committed accepted checkpoint SI4-R2 `831e345`. **Original SI4 Delivery 1 and Delivery 2 are accepted in the uncommitted working tree**, including online corrections, runtime consolidation, all required lanes and final-artifact small/20,015-note native settings/maintenance validation. [Acceptance report](validation/settings-independent-indexing-si4-acceptance-2026-10-03.md). SI5 restart/scale/device/release acceptance remains pending; its failed large-restart watchdog/renderer-crash observation is explicitly retained. No percentage or finish date is inferred from tests or commits.
+**Actual baseline:** branch `indexing-optimization-v2`, accepted SI4 commit `323b260`. All ten original Delivery 1/2 exits are closed by the [SI4 report](validation/settings-independent-indexing-si4-acceptance-2026-10-03.md). SI5 implementation is active: source-backed startup/cache recovery, selective source repair and production graph-progress writer retirement are under online validation. Its five delivery exits remain open, including the retained large-restart failure and required scale/device evidence. No percentage or finish date is inferred from tests or commits.
 
 This reset supersedes the execution sequence of SI4b1/C1/C2/S1/S2/S2b/C3 and the unsent foreground-composition handoff. Those names remain historical evidence, not additional gates. C15–C26 remain paused at the **Portable semantic engine / C14** scope boundary. The fixed remaining delivery sequence is in [section 11](#11-fixed-completion-plan): two production SI4 deliveries, then SI5. No runtime implementation is authorized by this documentation change alone.
 
@@ -347,8 +347,8 @@ The five product checkpoints remain SI1–SI5, with SI0 characterization. The th
 | SI0 / SI1 | Accepted | Characterization/diagnostics and presentation-only independence; keep their existing tests green. |
 | SI2 | Accepted | Settings-neutral facts including dormant candidates; shared full/patch selection. |
 | SI3 | Accepted | Durable per-source facts, source-local acquisition/repair and reuse of legacy bodies. |
-| SI4 | Accepted in working tree; uncommitted | All ten original Delivery 1/2 exits pass on the exact final artifact. [Evidence](validation/settings-independent-indexing-si4-acceptance-2026-10-03.md). |
-| SI5 | Pending | Delivery 3 accepted, including restart, storage failure and physical-device/performance evidence. |
+| SI4 | Accepted (`323b260`) | All ten original Delivery 1/2 exits pass on the exact final artifact. [Evidence](validation/settings-independent-indexing-si4-acceptance-2026-10-03.md). |
+| SI5 | Implementing; not accepted | [Candidate evidence](validation/settings-independent-indexing-si5-progress-2026-10-03.md): small native restart/fault paths pass; final large source adoption fails preflight. Full consumer coverage and physical-device/performance evidence remain required. |
 
 ### SI4 recovery packages after the incomplete maintenance return
 
@@ -363,9 +363,9 @@ resumption of C15-C26.
 | --- | --- | --- |
 | SI4-R1 — durable source-local repair | **Accepted (`b32e3c5`)** | Additive v8-to-v9 migration, bounded staging/count repair, interruption/restart/cleanup/concurrent-reader coverage, and no partial lookup publication. Existing high-degree backpressure remains unchanged. |
 | SI4-R2 — known-impact host maintenance | **Accepted (`831e345`)** | Known create/modify/rename/delete/recreate waves remain source-local, native `metadata:resolved` closes are coalesced, transient dependency misses retry automatically, empty folders/materialized children converge without a graph rebuild, and a known Markdown denominator is maintained in O(1). The production-scheduler regression drives no manual reconciliation and all 310 source/167 browser tests pass. |
-| SI4-R3 — high-degree completion and SI4 acceptance | **Accepted in working tree (uncommitted)** | Linear validity and memory guards, complete 20,015-owner GraphIndex publication, runtime consolidation and all original Delivery 1/2 exits pass. Full verify: 314 portable/174 browser; final native settings in both vaults and real maintenance/drift/idle scenarios pass. [Evidence](validation/settings-independent-indexing-si4-acceptance-2026-10-03.md). |
+| SI4-R3 — high-degree completion and SI4 acceptance | **Accepted (`323b260`)** | Linear validity and memory guards, complete 20,015-owner GraphIndex publication, runtime consolidation and all original Delivery 1/2 exits pass. Full verify: 314 portable/174 browser; final native settings in both vaults and real maintenance/drift/idle scenarios pass. [Evidence](validation/settings-independent-indexing-si4-acceptance-2026-10-03.md). |
 
-SI4-R1/R2 remain accepted; R3 and the final online corrections pass independent review in this working tree. Both original delivery checklists below are evaluated and closed together. No additional SI4 package is active. SI5 is the subsequent restart/scale/device acceptance delivery; supported high-degree completion is not its latency/memory/device verdict.
+SI4-R1/R2 remain accepted; R3 and the final online corrections are committed at `323b260`. Both original delivery checklists below are evaluated and closed together. No additional SI4 package is active. SI5 is the subsequent restart/scale/device acceptance delivery; supported high-degree completion is not its latency/memory/device verdict.
 
 ### Remaining deliveries and acceptance checklist
 

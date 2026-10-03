@@ -177,7 +177,7 @@ Changes that touch indexing should preserve:
 - path-indexed evidence updates for single-file edits; do not scan the complete evidence store when provenance already identifies the touched path
 - time-budgeted cooperative yielding on large collectors/resolvers; do not yield every note on iOS
 - deferred/coalesced snapshot writes, cancelled when the final K-Plex view closes
-- separate transactional cold-build checkpoints that never replace the complete active snapshot; resume only against matching vault/settings signatures and verified file bindings
+- atomic neutral source heads as cold-build progress; preserve read compatibility for legacy graph checkpoints, never resume old semantic results under changed policy, and do not restore the retired full-graph progress writer
 - skipped periodic refresh when nothing changed
 
 Incremental preparation stays private and copy-on-write with canonical page identity preserved. C14b publication synchronously applies graph/evidence, hot field cache and fingerprint, refreshes affected caches/search, then notifies per committed file before another await. The prepared-state callback is exactly once and expires when its publisher returns or throws. Semantic no-ops retain zero semantic events. Cancellation preserves committed files and pending current work; it does not automatically request a full rebuild.
@@ -437,3 +437,9 @@ If the requested deliverable is a patch ZIP, include **only modified/new files**
 
 ### Explain relationship navigation
 When changing provenance navigation, preserve host-view ownership: an open sidecar for that K-Plex view is preferred over creating another tab, and using the sidecar for inspection must not implicitly recenter K-Plex.
+
+### SI5 native restart validation
+
+After exact-build staging, run `npm run verify:obsidian:si5` with the same three disposable test-vault variables and an explicit `KPLEX_HOST_REPORT_DIR`. The default scenario creates owned notes, saves an ontology change, reloads, removes/corrupts optional graph acceleration, damages one requested source chunk and simulates an offline edit. Its small-fixture setup may seed complete acceleration after an earlier fault run; measured restarts start on the newly loaded instance. It restores settings, wrapped Vault methods, owned notes and original throttling. Back up the test vault/cache before fault injection; never use a personal vault. Run native drivers serially; do not overlap manual CLI probes with their polling.
+
+Set `KPLEX_SI5_RESTART_ONLY=true` for three warm restarts of an existing large fixture; it does not seed a fixture build. The report records named hardware, exact hashes, readiness, source/build counters, renderer visibility, heap samples and total CLI/restart elapsed time; `progress.json` identifies the active phase between completed probes. These are functional restart measurements, not actual-paint or physical-device acceptance. The [SI5 report](docs/validation/settings-independent-indexing-si5-progress-2026-10-03.md) and [device procedure](docs/validation/settings-independent-indexing-si5-device-checklist.md) track the remaining release gates.

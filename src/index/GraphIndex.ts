@@ -1,6 +1,6 @@
 /**
  * Published graph repository for K-Plex. It owns snapshot restoration/persistence, search and
- * presentation caches, atomic per-file publication and startup rebuild orchestration; builders stage
+ * presentation caches, atomic per-file publication and source-backed startup adoption; builders stage
  * semantics privately while this class decides when partial cold-start or authoritative state may
  * become visible to UI readers.
  */
@@ -160,12 +160,6 @@ const SNAPSHOT_EDIT_IDLE_MS = 5 * 60 * 1000;
 const SNAPSHOT_MAINTENANCE_IDLE_MS = 5 * 60 * 1000;
 const SNAPSHOT_HYDRATION_STALL_MS = 90 * 1000;
 const SNAPSHOT_HYDRATION_WATCHDOG_POLL_MS = 5 * 1000;
-const COLD_CHECKPOINT_MIN_FILES = 500;
-const COLD_CHECKPOINT_INTERVAL_MS = 2 * 60 * 1000;
-const COLD_CHECKPOINT_MAX_INTERVAL_MS = 5 * 60 * 1000;
-const COLD_CHECKPOINT_PROGRESS_FILES = 2000;
-const COLD_CHECKPOINT_PROGRESS_MIN_INTERVAL_MS = 60 * 1000;
-
 type SnapshotHydrationPhase =
   | "idle"
   | "metadata"
@@ -306,6 +300,10 @@ export class GraphIndex {
   };
   private fullSnapshotHydrated = false;
   private fullSnapshotFresh = false;
+  /** An old-policy graph is optional topology/search acceleration, never current semantic authority. */
+  private sourceBackedSemantics = false;
+  /** Complete physical inventory with requested semantics; it is deliberately not a full graph. */
+  private sourceBackedStartup = false;
   private previewSnapshotPublished = false;
   private activeSnapshotGeneration: string | null = null;
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
@@ -326,6 +324,61 @@ export class GraphIndex {
   getSourceAcquisitionCounters() { return this.sourceAcquisition.getCounters(); }
   /** Explicit maintenance durability fence; plugin unload deliberately does not await this. */
   flushSourceRepository(): Promise<boolean> { return this.sourceAcquisition.flush(); }
+
+  /** Start bounded source adoption before optional graph hydration when durable work already exists. */
+  private async startPersistedSourceInventory(): Promise<boolean> {
+    let after: string | null = null;
+    do {
+      const page = await this.indexedDb.sources.headPage(after);
+      if (this.diagnosticsClosed || !page.available) return false;
+      if (page.heads.some(head => head.state === "complete")) {
+        this.sourceAcquisition.enableInventory();
+        return true;
+      }
+      after = page.next;
+    } while (after !== null);
+    return false;
+  }
+
+  /** Recover requested semantics from neutral progress when the optional graph cache is absent. */
+  private async restoreSourceBackedBaseline(isCurrent: () => boolean, run: number): Promise<boolean> {
+    const sourceRevision = this.plugin.getIndexSourceRevision();
+    const current = (): boolean => isCurrent() && sourceRevision === this.plugin.getIndexSourceRevision();
+    const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
+      this.indexedDb, current, new Map(), this.sourceAcquisition);
+    const next = await builder.buildStructuralBaseline();
+    if (!next || !current()) return false;
+    const prepared = await this.preparePresentationPublication(next, current,
+      () => this.touchSnapshotHydrationProgress(run), true);
+    if (!prepared || !current() || !prepared.facets.isCurrent()) return false;
+    const search = await this.prepareSearchIndex(next, current, () => this.touchSnapshotHydrationProgress(run),
+      prepared.settings, prepared.facets);
+    if (!search || !current() || !prepared.facets.isCurrent()) return false;
+    this.sourceBackedSemantics = true;
+    this.sourceBackedStartup = true;
+    this.fullSemanticPolicyRevision = 0;
+    this.fullSnapshotHydrated = false;
+    this.fullSnapshotFresh = false;
+    this.previewSnapshotPublished = false;
+    this.resumableCheckpointPaths = null;
+    this.acceptPresentation(prepared);
+    this.publishRestoredState(next, search, false, false);
+    this.finishSnapshotHydrationDiagnostics(run, "complete");
+    this.recordIndexDiagnostic("restore", "source-backed-physical-baseline");
+    return true;
+  }
+
+  /** Physical maintenance may use a complete inventory without pretending it is a complete graph. */
+  hasPhysicalBaseline(): boolean { return this.fullSnapshotHydrated || this.sourceBackedStartup; }
+  /** Source-backed startup completion belongs to source adoption, not graph-cache hydration. */
+  hasSourceBackedStartup(): boolean { return this.sourceBackedStartup; }
+  /** Reuse the existing source maintenance owner; failures retain explicit pending readiness. */
+  async adoptStartupSources(): Promise<boolean> {
+    if (!this.sourceBackedStartup || this.diagnosticsClosed) return false;
+    if (!(await this.sourceAcquisition.flush()) || this.diagnosticsClosed) return false;
+    await this.refreshSemanticSettings();
+    return this.sourceAcquisition.hasSemanticDependencies() && !this.hasPendingSemanticPreparation();
+  }
 
   /** Aggregate semantic preparation counters used by acceptance tests and diagnostics. */
   getSemanticPreparationDiagnostics(): SemanticPreparationDiagnostics { return { ...this.semanticPreparationDiagnostics }; }
@@ -1221,6 +1274,14 @@ export class GraphIndex {
     if (this.orphanCleanupTimer !== null) window.clearTimeout(this.orphanCleanupTimer);
     this.searchCandidateCache.clear();
     this.searchEntryByPath.clear();
+    // An unloaded plugin may remain reachable through a retiring view or cancelled continuation.
+    // Release graph/search/body ownership now instead of retaining a complete vault until that
+    // unrelated host reference is collected. Published page objects themselves are not mutated.
+    this.state = createGraphState();
+    this.searchEntries = [];
+    this.fieldCache.clear();
+    this.nodeVisualCache.clear();
+    this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
     this.semanticFingerprints.clear();
     this.suggestionCatalogCache = null;
     this.titleCache.clear();
@@ -1257,7 +1318,7 @@ export class GraphIndex {
   ): void {
     this.state = next;
     this.publicationRevision += 1;
-    if (authoritativeSemantics) {
+    if (authoritativeSemantics && !this.sourceBackedSemantics) {
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
@@ -1268,6 +1329,7 @@ export class GraphIndex {
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
     if (preparedSearch) this.installSearchIndex(preparedSearch);
     else if (!keepExistingSearch) this.rebuildSearchIndex();
+    if (this.sourceBackedSemantics) this.retryDemandedSemanticScopes();
     this.emit();
   }
 
@@ -1288,7 +1350,7 @@ export class GraphIndex {
     const entries: SearchEntry[] = [];
     const byPath = new Map<string, SearchEntry>();
     const budgetMs = Platform.isIosApp ? 5 : Platform.isMobile ? 7 : 10;
-    let sliceStartedAt = Date.now();
+    let sliceStartedAt = performance.now();
     let processed = 0;
 
     for (const page of state.pages.values()) {
@@ -1303,7 +1365,7 @@ export class GraphIndex {
         if (performance.now() - sliceStartedAt >= budgetMs) {
           await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
           if (!isCurrent()) return null;
-          sliceStartedAt = Date.now();
+          sliceStartedAt = performance.now();
         }
       }
     }
@@ -1612,6 +1674,7 @@ export class GraphIndex {
     this.beginSnapshotHydrationDiagnostics(run);
     this.fullSnapshotHydrated = false;
     this.fullSnapshotFresh = false;
+    this.sourceBackedStartup = false;
     this.restoredPatchPlanAvailable = false;
     this.restoredAddedMarkdownPaths = [];
     this.restoredRemovedMarkdownPaths = [];
@@ -1619,28 +1682,37 @@ export class GraphIndex {
     this.restoreInventorySourceRevision = null;
     this.resumableCheckpointPaths = null;
     let createdAt: number | null = null;
+    let persistedSources = false;
     type RestoreResult = { restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean };
     let reportPreview!: (result: RestoreResult) => void;
     const preview = new Promise<RestoreResult>((resolve) => { reportPreview = resolve; });
     // Guard metadata and targeted preview reads too: startup must never wait indefinitely before
     // the public full-hydration task has even been installed.
     const restoreTask = (async () => {
-      const [catalog, previousDiagnostics] = await Promise.all([
-        this.indexedDb.readSnapshotCatalog(), this.indexedDb.readIndexDiagnostics(),
+      const [catalog, previousDiagnostics, hasPersistedSources] = await Promise.all([
+        this.indexedDb.readSnapshotCatalog(), this.indexedDb.readIndexDiagnostics(), this.startPersistedSourceInventory(),
       ]);
+      persistedSources = hasPersistedSources;
       if (!isCurrent()) return { restored: false, fresh: false, createdAt };
       this.rememberSnapshotCatalog(catalog);
       if (this.indexDiagnostics.length === 0) this.indexDiagnostics = previousDiagnostics;
       const { active, checkpoint } = catalog;
       const compatibility = new Map([active, checkpoint].filter((meta): meta is IndexedDbSnapshotMeta => Boolean(meta))
         .map((meta) => [meta, compareIndexSettingsSignature(meta.settingsSignature, this.plugin.settings)] as const));
-      const usable = (meta: IndexedDbSnapshotMeta | null): boolean => Boolean(meta && compatibility.get(meta)?.compatible);
+      // A changed ontology does not invalidate neutral facts. Reuse the physical/search baseline,
+      // but keep all semantic consumers on the same requested-source path used by live settings.
+      const usable = (meta: IndexedDbSnapshotMeta | null): boolean => Boolean(meta
+        && (compatibility.get(meta)?.compatible || persistedSources && meta.key === "active"
+          && compatibility.get(meta)?.reason === "semantic-settings-changed"));
       if (!usable(active) && !usable(checkpoint)) {
         createdAt = active?.createdAt ?? checkpoint?.createdAt ?? null;
         const decision = (active && compatibility.get(active)) || (checkpoint && compatibility.get(checkpoint));
         this.recordIndexDiagnostic("restore", !catalog.available ? "storage-unavailable" :
           catalog.invalidActive || catalog.invalidCheckpoint ? "invalid-snapshot-metadata" :
             decision ? decision.reason : "no-complete-snapshot", { changedKeys: [...(decision?.changedKeys ?? [])] });
+        if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run)) {
+          return { restored: true, fresh: true, createdAt };
+        }
         return { restored: false, fresh: false, createdAt };
       }
       const inventory = captureVaultInventory(this.app);
@@ -1655,6 +1727,11 @@ export class GraphIndex {
         if (!isCurrent()) return { restored: false, fresh: false, createdAt };
         createdAt = meta.createdAt;
         const decision = compatibility.get(meta)!;
+        this.sourceBackedSemantics = !decision.compatible;
+        if (!decision.compatible) {
+          this.fullSemanticPolicyRevision = 0;
+          this.recordIndexDiagnostic("restore", "source-backed-policy-baseline", { changedKeys: [...decision.changedKeys] });
+        }
         if (decision.reason !== "compatible") this.recordIndexDiagnostic("restore", decision.reason, { changedKeys: [...decision.changedKeys] });
         this.activeSnapshotGeneration = meta.generation;
         const upgradePaths = decision.retiredFilepath ? await planRetiredExclusionReconciliation(
@@ -1676,6 +1753,9 @@ export class GraphIndex {
           { changedKeys: [...decision.changedKeys] });
         if (result.restored || !isCurrent()) return result;
       }
+      if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run)) {
+        return { restored: true, fresh: true, createdAt };
+      }
       return { restored: false, fresh: false, createdAt };
     })().then((result) => {
       if (!result.restored) {
@@ -1685,9 +1765,12 @@ export class GraphIndex {
           lastReason === "complete-snapshot-stale") this.recordIndexDiagnostic("restore", "hydration-incomplete");
       }
       return result;
-    }).catch(() => {
-      this.finishSnapshotHydrationDiagnostics(run, "failed");
+    }).catch(async () => {
       this.recordIndexDiagnostic("restore", "restore-exception");
+      if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run)) {
+        return { restored: true, fresh: true, createdAt };
+      }
+      this.finishSnapshotHydrationDiagnostics(run, "failed");
       return { restored: false, fresh: false, createdAt };
     });
     const task = this.watchSnapshotHydration(restoreTask, run, () => createdAt);
@@ -2216,6 +2299,9 @@ export class GraphIndex {
   }
 
   private scheduleSnapshotPersist(delayOverride?: number): void {
+    // A graph borrowed under another policy is not a complete generation of the current policy.
+    // Neutral source heads own progress; do not serialize a mixed requested/baseline graph.
+    if (this.sourceBackedSemantics) return;
     if (this.snapshotPersistTimer !== null) {
       window.clearTimeout(this.snapshotPersistTimer);
     }
@@ -2237,10 +2323,12 @@ export class GraphIndex {
    * forcing a React render for every note. Large iOS vaults may prewarm durable body parses only
    * after the first neighborhood is visible, retaining the existing low-memory safety contract.
    * A validated partial checkpoint can supply the already-published baseline and completed source
-   * set on restart. Source ingestion pauses at periodic durable checkpoint boundaries.
+   * set on restart. Production progress is durable per-source; old graph checkpoints are read-only
+   * migration inputs. The historical checkpoint writer is available only to characterization.
    *
    * @param seedPaths Ordered startup center candidates; the first graph path that exists wins.
-   * @param options `prewarmBodyCache` preserves the large-iOS checkpoint pass before the remainder.
+   * @param options `prewarmBodyCache` preserves the large-iOS body pass and
+   * remains the only optional ingestion mode; the retired writer lives solely in test fixtures.
    * @returns `true` only after every Markdown source has committed and the final search index is
    * authoritative. Cancellation or a source revision change leaves any already-published preview
    * non-authoritative and returns `false` for the coordinator to retry.
@@ -2396,16 +2484,6 @@ export class GraphIndex {
 
       const notifyEvery = Platform.isIosApp ? 3 : Platform.isMobile ? 5 : 10;
       let commitsSinceNotify = 0;
-      let commitsSinceCheckpoint = 0;
-      // A restart must not restart the durability clock. A checkpoint restored hours later is
-      // due again after the first 500 new commits, even when this process is only seconds old.
-      let lastCheckpointAt = resuming && this.savedSnapshotSummary.checkpoint
-        ? Math.min(Date.now(), this.savedSnapshotSummary.checkpoint.createdAt)
-        : Date.now();
-      let checkpointIntervalMs = COLD_CHECKPOINT_INTERVAL_MS;
-      let checkpointRetryAfter = 0;
-      let checkpointRetryDelayMs = 15_000;
-      let checkpointVaultSignature = resuming ? this.restoredVaultSignature : null;
       const result = await builder.patchMarkdownFiles(this.state, remaining, {
         useDurableCache: true,
         awaitBodyWrite: false,
@@ -2413,48 +2491,12 @@ export class GraphIndex {
         publishFileCommit: (commit, publishPreparedState) => {
           this.commitPreparedFile(commit, publishPreparedState);
           indexedPaths.add(commit.sourcePath);
-          commitsSinceCheckpoint += 1;
           commitsSinceNotify += 1;
           if (commitsSinceNotify < notifyEvery) return;
           commitsSinceNotify = 0;
           this.emit();
         },
-        afterFileCommit: async () => {
-          const elapsedSinceCheckpoint = Date.now() - lastCheckpointAt;
-          if (markdownFiles.length - indexedPaths.size < COLD_CHECKPOINT_MIN_FILES ||
-            commitsSinceCheckpoint < COLD_CHECKPOINT_MIN_FILES ||
-            (elapsedSinceCheckpoint < checkpointIntervalMs &&
-              (commitsSinceCheckpoint < COLD_CHECKPOINT_PROGRESS_FILES ||
-                elapsedSinceCheckpoint < COLD_CHECKPOINT_PROGRESS_MIN_INTERVAL_MS)) ||
-            Date.now() < checkpointRetryAfter || !isCurrent()) return;
-          // Pause source ingestion while serializing the coherent committed graph. The IndexedDB
-          // checkpoint metadata activates only after all page/evidence chunks are durable.
-          let persisted = false;
-          this.checkpointSaving = true;
-          this.emit();
-          try {
-            checkpointVaultSignature ??= computeVaultSignature(this.app);
-            persisted = await this.persistIndexedDbSnapshot(this.snapshotPersistGeneration, indexedPaths, isCurrent, checkpointVaultSignature);
-          } catch { /* checkpoint persistence is an optimization; ingestion must continue */ }
-          finally {
-            this.checkpointSaving = false;
-            this.emit();
-          }
-          if (!persisted) {
-            // A failed or cancelled checkpoint did not save those sources. Retain the commit count
-            // and interval, but avoid retrying a large serialization on every following note.
-            checkpointRetryAfter = Date.now() + checkpointRetryDelayMs;
-            checkpointRetryDelayMs = Math.min(COLD_CHECKPOINT_MAX_INTERVAL_MS, checkpointRetryDelayMs * 2);
-            return;
-          }
-          commitsSinceCheckpoint = 0;
-          lastCheckpointAt = Date.now();
-          checkpointRetryAfter = 0;
-          checkpointRetryDelayMs = 15_000;
-          // A full graph checkpoint took about 31 seconds on the 20k-note desktop fixture. Grow
-          // the interval so repeated saves do not dominate the remainder of cold indexing.
-          checkpointIntervalMs = Math.min(COLD_CHECKPOINT_MAX_INTERVAL_MS, checkpointIntervalMs * 2);
-        },
+
       });
       if (!result.ok || !isCurrent()) return false;
       if (commitsSinceNotify > 0) this.emit();
@@ -2463,6 +2505,8 @@ export class GraphIndex {
       // completion so standalone attachments/folders/tags and untouched virtual nodes are included.
       this.rebuildSearchIndex();
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
+      this.sourceBackedSemantics = false;
+      this.sourceBackedStartup = false;
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();
@@ -2524,6 +2568,8 @@ export class GraphIndex {
       this.state = next;
       this.publicationRevision += 1;
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
+      this.sourceBackedSemantics = false;
+      this.sourceBackedStartup = false;
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();

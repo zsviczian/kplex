@@ -136,6 +136,8 @@ export class ObsidianSourceAcquisition {
   private readonly knownFanoutTasks = new WeakMap<TFile, Promise<void>>();
   /** Startup captures reusable stable coordinates; hot maintenance never rebuilds whole-vault order. */
   private readonly sourceCoordinates = new Map<string, SourceCoordinates>();
+  /** One repair attempt per observed incarnation/revision; persistent damage cannot spin a retry loop. */
+  private readonly replayRepairRevisions = new WeakMap<TFile, number>();
   private nextSourceOrder = 0;
   private nextMarkdownOrder = 0;
   /** Cheap idle preflight: field vocabulary is collected while sources are already being visited. */
@@ -839,6 +841,21 @@ export class ObsidianSourceAcquisition {
   /** Whether settings-only semantic preparation has a closed current source-local dependency inventory. */
   hasSemanticDependencies(): boolean { return this.localDependenciesReady && !this.closed; }
 
+  /** Queue the exact damaged replay owner without reopening or invalidating unrelated durable heads. */
+  private requestReplayRepair(result: Readonly<{ outcome: string; reason?: SourceReason; sourceId?: string }>): void {
+    if (this.closed || result.outcome === "ready" || !result.sourceId || !result.reason
+      || !["missing-chunk", "invalid-chunk", "invalid-frame", "missing-posting", "invalid-posting", "invalid-head", "format-version"].includes(result.reason)) return;
+    const file = this.app.vault.getFileByPath(result.sourceId);
+    if (!(file instanceof TFile) || file.extension !== "md") return;
+    const state = this.state(file);
+    if (state.dirty || this.replayRepairRevisions.get(file) === state.revision) return;
+    state.dirty = true; state.resolutionDirty = true; state.revision += 1;
+    this.replayRepairRevisions.set(file, state.revision);
+    this.maintenanceRevision += 1; this.localDependenciesReady = false;
+    this.pendingKnownFiles.add(file);
+    this.requestInventory();
+  }
+
   /** One request-scoped dependency capability; construction never scans the Markdown inventory. */
   private localContributorDiscovery(runtime: GraphCompilerRuntime): SourceLocalContributorDiscovery | null {
     if (!this.hasSemanticDependencies()) return null;
@@ -861,8 +878,10 @@ export class ObsidianSourceAcquisition {
     const discovery = this.localContributorDiscovery(runtime);
     if (!discovery) return selectedSourceFailure("dependency-pending");
     const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
-    return new CachedRequestedNeighborhoodReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
+    const result = await new CachedRequestedNeighborhoodReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
       .prepareCenterGates(request, policy, gatePolicy, runtime);
+    if (runtime.isCurrent()) this.requestReplayRepair(result);
+    return result;
   }
 
   /** Prepare exact raw degrees only when the active sort key needs them. */
@@ -871,8 +890,10 @@ export class ObsidianSourceAcquisition {
     const discovery = this.localContributorDiscovery(runtime);
     if (!discovery) return selectedSourceFailure("dependency-pending");
     const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
-    return new CachedRequestedCandidateDegreeReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
+    const result = await new CachedRequestedCandidateDegreeReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
       .prepare(request, policy, runtime);
+    if (runtime.isCurrent()) this.requestReplayRepair(result);
+    return result;
   }
 
   /** Prepare the full-builder URL label input for one exact URL candidate from cached facts. */
@@ -881,8 +902,10 @@ export class ObsidianSourceAcquisition {
     const discovery = this.localContributorDiscovery(runtime);
     if (!discovery) return selectedSourceFailure("dependency-pending");
     const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
-    return new CachedRequestedUrlTitleReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
+    const result = await new CachedRequestedUrlTitleReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
       .prepare(endpoint, policy, runtime);
+    if (runtime.isCurrent()) this.requestReplayRepair(result);
+    return result;
   }
 
   /** Reuse immutable body inputs before the mutable legacy cache, including an observed pure move. */
@@ -1055,6 +1078,9 @@ export class ObsidianSourceAcquisition {
         }
       } else this.counters.failures += 1;
       const live = observationCurrent(), saved = result.outcome === "activated";
+      // A validated replacement closes this repair attempt. Later independent storage damage at
+      // the same physical revision must still be repairable without waiting for a note edit.
+      if (live && saved) this.replayRepairRevisions.delete(file);
       if (live && !saved) {
         // GraphBuilder can acquire beside inventory. A late unsaved result must retain a source-
         // local retry owner even if the earlier inventory already consumed this file's event.

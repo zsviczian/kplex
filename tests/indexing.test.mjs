@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { legacyGraphCheckpointWriter } from "./support/legacyGraphCheckpointWriter.mjs";
 import { createRequire } from "node:module";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -628,7 +629,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     getSavedSnapshotSummary: () => saved,
     size: 42,
     indexedMarkdownFileCount: () => 8,
-    isFullSnapshotHydrated: () => false,
+    isFullSnapshotHydrated: () => false, hasPhysicalBaseline: () => false, hasSourceBackedStartup: () => false,
     getSnapshotHydrationDiagnostics: () => ({ phase: "pages", pages: 12, evidence: 0 }),
     getIndexDiagnostics: () => [{ at: 123, stage: "restore", reason: "complete-snapshot-stale", added: 1 }],
   }, () => ({ upToDate: false, phase: "loading-cache", label: "not shared", indexedFiles: 8, totalFiles: 10 }), "0.0.5"));
@@ -643,7 +644,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
   obsidianTestApi.Platform.isTablet = true;
   const iosReport = JSON.parse(createIndexDiagnosticsReport({
     getSavedSnapshotSummary: () => saved, size: 42, indexedMarkdownFileCount: () => 8,
-    isFullSnapshotHydrated: () => false, getSnapshotHydrationDiagnostics: () => ({}),
+    isFullSnapshotHydrated: () => false, hasPhysicalBaseline: () => false, hasSourceBackedStartup: () => false, getSnapshotHydrationDiagnostics: () => ({}),
     getIndexDiagnostics: () => [],
   }, () => ({ upToDate: false, phase: "indexing", indexedFiles: 8, totalFiles: 10 }), "0.0.5"));
   assert.equal(iosReport.platform, "ios");
@@ -1170,6 +1171,29 @@ const settings = {
 };
 
 const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnostic() {}, manifest: { dir: "" } };
+
+// A browser clock has a different origin from wall time. Search must yield and honor cancellation
+// after a timed slice instead of comparing performance.now() with an epoch-millisecond timestamp.
+{
+  const searchIndex = new GraphIndex(plugin, app);
+  const performanceDescriptor = Object.getOwnPropertyDescriptor(globalThis, "performance");
+  const originalTimeout = window.setTimeout;
+  let ticks = 0, yields = 0, current = true;
+  Object.defineProperty(globalThis, "performance", { configurable: true, value: { now: () => ticks += 20 } });
+  window.setTimeout = (callback) => { yields++; current = false; callback(); return 0; };
+  try {
+    const pages = new Map(Array.from({ length: 1024 }, (_, i) => [String(i), { path: String(i) }]));
+    searchIndex.makeSearchEntry = page => ({ page, name: page.path, aliases: [], path: page.path });
+    assert.equal(await searchIndex.prepareSearchIndex({ pages }, () => current), null);
+    assert.equal(yields, 1, "Search yields at its first elapsed monotonic slice and cancels privately");
+    assert.equal(searchIndex.searchEntries.length, 0, "Cancelled search publishes no prefix");
+  } finally {
+    Object.defineProperty(globalThis, "performance", performanceDescriptor);
+    window.setTimeout = originalTimeout;
+    searchIndex.destroy();
+  }
+}
+
 const index = new GraphIndex(plugin, app);
 
 // Restore has a temporary event fence before the normal reactive listeners are installed.
@@ -1186,7 +1210,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
     getRestoreInventorySourceRevision: () => inventoryRevision,
     hasPendingSnapshotHydration: () => false,
     size: 1,
-    isFullSnapshotHydrated: () => true,
+    isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,
     hasIncrementalRestorePatch: () => true,
     reconcileRestoredSnapshot: async () => ({ reconciled: true, patched: 0 }),
     bootstrapSemanticDependencies: async () => true,
@@ -1229,6 +1253,26 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   assert.deepEqual([...startup.indexBacklogReasons], ["metadata:changed"],
     "A covered structural event must not turn a later note edit into a full rebuild");
   assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"]);
+}
+
+// Source progress is a startup authority independently of optional full-graph hydration.
+for (const adopted of [true, false]) {
+  const startup = new KplexPlugin();
+  let fullBuilds = 0;
+  startup.index = {
+    size: 1, hasPendingSnapshotHydration: () => false, hasPhysicalBaseline: () => true,
+    hasSourceBackedStartup: () => true, adoptStartupSources: async () => adopted,
+    isFullSnapshotHydrated: () => false,
+  };
+  startup.app = app; startup.layoutReady = true; startup.indexDirty = true;
+  startup.indexBacklogReasons.add("startup:no-snapshot");
+  startup.notifyIndexStatus = () => {};
+  startup.hasVisibleKplexSurface = () => false;
+  startup.performRebuild = async () => { fullBuilds++; };
+  await startup.ensureInitialIndex();
+  assert.equal(fullBuilds, 0, "Source-backed startup does not route missing graph cache to a full build");
+  assert.equal(startup.initialIndexComplete, adopted, "Unavailable/incomplete source adoption remains explicit");
+  assert.equal(startup.indexDirty, !adopted, "Only completed source adoption retires the startup backlog");
 }
 
 function expectRole(sourcePath, role, targetPath, type) {
@@ -1314,6 +1358,20 @@ try {
 
   await index.rebuild();
   assert.equal(index.indexedMarkdownFileCount(), app.vault.getMarkdownFiles().length, "Authoritative build must count every indexed Markdown source");
+
+  // Obsidian/cancelled continuations can retain an unloaded index. Its ownership must be empty
+  // while independently held published pages remain intact and usable by the current index.
+  const retiredIndex = new GraphIndex(plugin, app);
+  retiredIndex.state = index.state;
+  retiredIndex.searchEntries = [...index.searchEntries];
+  retiredIndex.fieldCache.set("retired", { mtime: 0, body: { inlineFields: {}, urls: [] } });
+  retiredIndex.nodeVisualCache.set("retired", { signature: "retired", visual: null });
+  const retainedPage = index.get("Note A.md");
+  retiredIndex.destroy();
+  assert.equal(retiredIndex.size, 0, "An unloaded index retains no full graph");
+  assert.equal(retiredIndex.searchEntries.length + retiredIndex.fieldCache.size + retiredIndex.nodeVisualCache.size, 0,
+    "Retiring host references retain no search/body/visual cache payload");
+  assert.equal(index.get("Note A.md"), retainedPage, "Teardown does not mutate independently owned pages");
 
   const A = index.get("Note A.md");
   assert(A);
@@ -1561,6 +1619,7 @@ try {
   let retryClock = originalRetryNow();
   let simulatedCommits = 0;
   const checkpointAttempts = [];
+  let retryWriter;
   const syntheticSources = Array.from({ length: 2000 }, (_, n) => new TFile(`Retry Synthetic ${n}.md`, n + 1));
   Date.now = () => retryClock;
   app.vault.getMarkdownFiles = () => [...originalRetryMarkdownFiles(), ...syntheticSources];
@@ -1569,18 +1628,25 @@ try {
     return checkpointAttempts.length > 1;
   };
   GraphBuilder.prototype.patchMarkdownFiles = async function (state, batchFiles, options) {
-    if (!options.afterFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
+    if (!options.publishFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
     for (let n = 0; n < 620; n++) {
       simulatedCommits++;
       retryClock += 300;
       options.publishFileCommit({ sourcePath: syntheticSources[n].path,
         touchedPagePaths: new Set(), semanticChanged: false }, () => {});
-      await options.afterFileCommit(syntheticSources[n].path);
+      retryWriter?.committed(syntheticSources[n].path);
+      await retryWriter?.afterFileCommit();
     }
     return { ok: true, cancelled: false, rebuildRequired: false,
       touchedPagePaths: new Set(), semanticChanges: 0, semanticNoops: 0 };
   };
   try {
+    checkpointRetryIndex.scheduleSnapshotPersist = () => {};
+    assert.equal(await checkpointRetryIndex.rebuildProgressively(["Note A.md"]), true);
+    assert.deepEqual(checkpointAttempts, [],
+      "Production cold builds persist source heads, never full-graph progress checkpoints");
+    simulatedCommits = 0;
+    retryWriter = legacyGraphCheckpointWriter(checkpointRetryIndex, app.vault.getMarkdownFiles(), new Set(), computeVaultSignature);
     assert.equal(await checkpointRetryIndex.rebuildProgressively(["Note A.md"]), true);
     assert.deepEqual(checkpointAttempts, [500, 550],
       "A failed two-minute checkpoint must retry after 15 seconds, not advance to the four-minute interval");
@@ -1615,16 +1681,19 @@ try {
     savedProgress.push({ commits: resumeCommits, completed: completed.size });
     return true;
   };
+  const resumeWriter = legacyGraphCheckpointWriter(resumedCheckpointIndex, [...originalRetryMarkdownFiles(), ...resumeSources],
+    new Set(resumedCheckpointIndex.resumableCheckpointPaths), computeVaultSignature, true);
   Date.now = () => resumeClock;
   app.vault.getMarkdownFiles = () => [...originalRetryMarkdownFiles(), ...resumeSources];
   GraphBuilder.prototype.patchMarkdownFiles = async function (state, batchFiles, options) {
-    if (!options.afterFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
+    if (!options.publishFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
     for (const file of batchFiles.slice(0, 3000)) {
       resumeCommits++;
       resumeClock += 50;
       options.publishFileCommit({ sourcePath: file.path,
         touchedPagePaths: new Set(), semanticChanged: false }, () => {});
-      await options.afterFileCommit(file.path);
+      resumeWriter.committed(file.path);
+      await resumeWriter.afterFileCommit();
     }
     return { ok: true, cancelled: false, rebuildRequired: false,
       touchedPagePaths: new Set(), semanticChanges: 0, semanticNoops: 0 };
@@ -3377,7 +3446,7 @@ try {
     hasPendingStructuralMaintenance: () => false,
     cancelRebuild: () => {},
     size: 4,
-    isFullSnapshotHydrated: () => true,
+    isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,
     get: (path) => nativeMaterializedFiles.includes(path) ? { file: nativeFiles.get(path) } : undefined,
     insertCreatedFolder: (folder) => { nativeFolders.push(folder.path); return { path: `folder:${folder.path}` }; },
     insertCreatedFile: (file) => { nativeMaterializedFiles.push(file.path); return { path: file.path, file }; },
@@ -3565,7 +3634,7 @@ try {
     hasPendingStructuralMaintenance: () => false,
     size: 1,
     noteBuildDecision: () => {},
-    isFullSnapshotHydrated: () => false,
+    isFullSnapshotHydrated: () => false, hasPhysicalBaseline: () => false, hasSourceBackedStartup: () => false,
     patchMarkdownPaths: async (paths) => {
       coordinatorPatchCalls.push([...paths]);
       if (coordinatorPatchCalls.length === 1) {
@@ -3612,7 +3681,7 @@ try {
     hasPendingStructuralMaintenance: () => false,
     size: 1,
     noteBuildDecision: () => {},
-    isFullSnapshotHydrated: () => true,
+    isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,
     get: () => materialized ? { file: createdDuringPatch } : undefined,
     insertCreatedFile: () => { materialized = true; },
     patchMarkdownPaths: async (paths) => { creationPatchCalls.push([...paths]); return { outcome: "patched", count: paths.length }; },

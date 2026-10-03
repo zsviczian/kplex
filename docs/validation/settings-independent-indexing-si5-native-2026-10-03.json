@@ -1,0 +1,1354 @@
+{
+  "schemaVersion": 1,
+  "verdict": "SI5 in progress; not accepted; desktop gates pending before physical-device sign-off",
+  "source": {
+    "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+    "dirty": true,
+    "sha256": {
+      "src/adapters/obsidian/sourceAcquisition.ts": "ce9e14ae025b093c7a706bef95353273c35e81d68dc6559d193eaac372771246",
+      "src/index/GraphBuilder.ts": "716f0ecefa83b22331205502aab2fd36afdff38995cc7843babf8678bd33d79f",
+      "src/index/GraphIndex.ts": "65e5bf172c3dc23996c165279e87e32e2c4c383d0d0b276f4fd4e2b246e0fc3d",
+      "src/main.ts": "4e49faac811c969740c9fb5f0e03a43914df37e7a2e3d95b06eace5b9d5b3e72",
+      "package.json": "366733fa228e92d3f08ef8a4c041a9fd143cc9d5492aa6d593d51eb91b451f30",
+      "tests/source-startup-indexeddb.test.mjs": "223f3201436f83fc9018c6e5863a18162f1b0d0859eca65105064619b4bf8463",
+      "tests/indexing.test.mjs": "e3ec651f963390a193843d395841b855388b1afbffd0997d29bf33aaa5b1748b"
+    }
+  },
+  "results": {
+    "fullVerification": {
+      "schemaVersion": 1,
+      "status": "passed",
+      "startedAt": "2026-10-03T12:28:25.226Z",
+      "source": {
+        "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+        "dirty": true,
+        "node": "v22.22.2",
+        "os": "darwin 23.5.0"
+      },
+      "target": {
+        "vaultName": "kplex-test",
+        "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+        "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+      },
+      "capabilities": {
+        "version": "1.14.4 (installer 1.14.0)",
+        "commands": [
+          "version",
+          "vault",
+          "plugin:disable",
+          "plugin:enable",
+          "commands",
+          "command",
+          "dev:dom",
+          "dev:errors"
+        ]
+      },
+      "artifacts": {
+        "sourceHashes": {
+          "main.js": "73fbc976803327b74fac4abfde42e269a618320cd6857174103fcc1e14d1a08d",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "pluginVersion": "0.0.5",
+        "stagedHashes": {
+          "main.js": "73fbc976803327b74fac4abfde42e269a618320cd6857174103fcc1e14d1a08d",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        }
+      },
+      "scenarios": [
+        {
+          "id": "open-kplex",
+          "status": "passed",
+          "assertions": [
+            "plugin command registered",
+            "rendered .kplex-app contains K-Plex",
+            "no captured JavaScript errors"
+          ],
+          "elapsedMs": 326
+        }
+      ],
+      "completedAt": "2026-10-03T12:38:02.475Z"
+    },
+    "finalNativeSmoke": {
+      "schemaVersion": 1,
+      "status": "passed",
+      "startedAt": "2026-10-03T13:15:29.095Z",
+      "source": {
+        "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+        "dirty": true,
+        "node": "v22.22.2",
+        "verification": "SI5 full verify passed: 314 portable sources, 181 real-IDB browser tests, actual build and native smoke"
+      },
+      "target": {
+        "vaultName": "excalidraw-test",
+        "vaultPath": "/Users/zsviczian/Obsidian/excalidraw-test",
+        "configDir": "/Users/zsviczian/Obsidian/excalidraw-test/.obsidian"
+      },
+      "capabilities": {
+        "version": "1.14.4 (installer 1.14.0)",
+        "commands": [
+          "version",
+          "vault",
+          "plugin:disable",
+          "plugin:enable",
+          "commands",
+          "command",
+          "dev:dom",
+          "dev:errors"
+        ]
+      },
+      "artifacts": {
+        "sourceHashes": {
+          "main.js": "acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "pluginVersion": "0.0.5",
+        "stagedHashes": {
+          "main.js": "acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        }
+      },
+      "scenarios": [
+        {
+          "id": "open-kplex",
+          "status": "passed",
+          "assertions": [
+            "plugin command registered",
+            "rendered .kplex-app contains K-Plex",
+            "no captured JavaScript errors"
+          ],
+          "elapsedMs": 67
+        }
+      ],
+      "completedAt": "2026-10-03T13:15:29.829Z"
+    },
+    "smallNativeFiveCases": {
+      "status": "passed",
+      "startedAt": "2026-10-03T13:40:21.929Z",
+      "source": {
+        "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+        "dirty": true
+      },
+      "host": {
+        "cpu": "Apple M1",
+        "logicalCPUs": 8,
+        "physicalMemoryBytes": 8589934592,
+        "os": "darwin 23.5.0",
+        "obsidian": "1.14.4 (installer 1.14.0)"
+      },
+      "artifacts": {
+        "main.js": "acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "runs": [
+        {
+          "name": "changed-policy",
+          "elapsedMs": 1702,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": false,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791034826864,
+            "phaseStartedAt": 1791034826870,
+            "lastProgressAt": 1791034826870,
+            "pages": 18,
+            "relations": 18,
+            "evidence": 18,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [],
+          "jsHeapBytes": 84966088,
+          "renderedCenter": true
+        },
+        {
+          "name": "missing-cache",
+          "elapsedMs": 1713,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": true,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "metadata",
+            "startedAt": 1791034828724,
+            "phaseStartedAt": 1791034828740,
+            "lastProgressAt": 1791034828740,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [],
+          "jsHeapBytes": 90945817,
+          "renderedCenter": true
+        },
+        {
+          "name": "corrupt-cache",
+          "elapsedMs": 1686,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": true,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "metadata",
+            "startedAt": 1791034830573,
+            "phaseStartedAt": 1791034830582,
+            "lastProgressAt": 1791034830582,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [],
+          "jsHeapBytes": 101957296,
+          "renderedCenter": true
+        },
+        {
+          "name": "corrupt-source",
+          "elapsedMs": 1621,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 1,
+            "reusedBodies": 0,
+            "legacyBodies": 1,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "delta": {
+            "checked": 1,
+            "reusedBodies": 0,
+            "legacyBodies": 1,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 2,
+            "requested": 4,
+            "prepared": 2,
+            "published": 2,
+            "cancelled": 1,
+            "pending": 1,
+            "dependencyVisits": 32,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "markdownReads": 0,
+          "unrelatedHeadUnchanged": true,
+          "automaticRepair": true,
+          "hidden": false,
+          "backgroundThrottling": true,
+          "jsHeapBytes": 105272498
+        },
+        {
+          "name": "offline-edit",
+          "elapsedMs": 1711,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 1,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 1,
+            "parses": 1,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": true,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "metadata",
+            "startedAt": 1791034835566,
+            "phaseStartedAt": 1791034835572,
+            "lastProgressAt": 1791034835572,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [
+            {
+              "phase": "load-body",
+              "bodyDirty": true,
+              "dirty": true,
+              "created": false,
+              "size": 68
+            }
+          ],
+          "jsHeapBytes": 102584061,
+          "renderedCenter": true
+        }
+      ],
+      "currentPhase": "cleanup",
+      "cleanup": {
+        "settingsRestored": true,
+        "fixturesAbsent": true,
+        "throttleRestored": true
+      },
+      "completedAt": "2026-10-03T13:40:38.836Z"
+    },
+    "smallCleanup": {
+      "status": "passed",
+      "storesRestoredAndCompared": 14,
+      "counts": {
+        "bodies": 10,
+        "evidence": 0,
+        "meta": 5,
+        "pages": 48,
+        "snapshotChunks": 6,
+        "sourceChunks": 18,
+        "sourceDependencies": 0,
+        "sourceHeads": 11,
+        "sourceImpacts": 0,
+        "sourceLocalDependencies": 12,
+        "sourceLocalDependencyKeys": 10,
+        "sourceLocalDependencyOwners": 11,
+        "sourceLocalDependencyRepairs": 0,
+        "sourcePostings": 30
+      },
+      "pluginDisabled": true,
+      "ownedFiles": [],
+      "controllers": [],
+      "markdownFiles": 2,
+      "throttling": true,
+      "pluginDirectoryRemoved": true,
+      "enabledPluginsRestored": true
+    },
+    "largeFinalPreflight": {
+      "status": "failed",
+      "startedAt": "2026-10-03T13:42:30.059Z",
+      "source": {
+        "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+        "dirty": true
+      },
+      "host": {
+        "cpu": "Apple M1",
+        "logicalCPUs": 8,
+        "physicalMemoryBytes": 8589934592,
+        "os": "darwin 23.5.0",
+        "obsidian": "1.14.4 (installer 1.14.0)"
+      },
+      "artifacts": {
+        "main.js": "acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "runs": [],
+      "currentPhase": "preflight",
+      "error": "Error: preflight: Error: Readiness timeout {\"upToDate\":true,\"phase\":\"ready\",\"indexedFiles\":20015,\"totalFiles\":20015,\"label\":\"Status: index ready\"}",
+      "failedCommand": "eval",
+      "failedPhase": "preflight",
+      "failure": {
+        "source": {
+          "checked": 651,
+          "reusedBodies": 651,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 0,
+          "resolutionRefreshes": 650,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "semantic": {
+          "policyRevision": 1,
+          "requested": 1,
+          "prepared": 0,
+          "published": 0,
+          "cancelled": 0,
+          "pending": 1,
+          "dependencyVisits": 0,
+          "fullBuilds": 0,
+          "lastReason": "dependency-pending"
+        },
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 20015,
+          "totalFiles": 20015,
+          "label": "Status: index ready"
+        },
+        "hidden": false
+      },
+      "completedAt": "2026-10-03T13:46:30.594Z"
+    },
+    "smallFinalDriverGuard": {
+      "status": "passed",
+      "startedAt": "2026-10-03T14:14:46.178Z",
+      "source": {
+        "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+        "dirty": true
+      },
+      "host": {
+        "cpu": "Apple M1",
+        "logicalCPUs": 8,
+        "physicalMemoryBytes": 8589934592,
+        "os": "darwin 23.5.0",
+        "obsidian": "1.14.4 (installer 1.14.0)"
+      },
+      "artifacts": {
+        "main.js": "acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "runs": [
+        {
+          "name": "changed-policy",
+          "elapsedMs": 1706,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": false,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791036891104,
+            "phaseStartedAt": 1791036891146,
+            "lastProgressAt": 1791036891145,
+            "pages": 18,
+            "relations": 18,
+            "evidence": 18,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [],
+          "jsHeapBytes": 90384766,
+          "renderedCenter": true
+        },
+        {
+          "name": "missing-cache",
+          "elapsedMs": 1674,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": true,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "metadata",
+            "startedAt": 1791036892918,
+            "phaseStartedAt": 1791036892924,
+            "lastProgressAt": 1791036892924,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [],
+          "jsHeapBytes": 116397907,
+          "renderedCenter": true
+        },
+        {
+          "name": "corrupt-cache",
+          "elapsedMs": 1668,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": true,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "metadata",
+            "startedAt": 1791036894716,
+            "phaseStartedAt": 1791036894720,
+            "lastProgressAt": 1791036894720,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [],
+          "jsHeapBytes": 112124986,
+          "renderedCenter": true
+        },
+        {
+          "name": "corrupt-source",
+          "elapsedMs": 1617,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 1,
+            "reusedBodies": 0,
+            "legacyBodies": 1,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "delta": {
+            "checked": 1,
+            "reusedBodies": 0,
+            "legacyBodies": 1,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 2,
+            "requested": 4,
+            "prepared": 2,
+            "published": 2,
+            "cancelled": 1,
+            "pending": 1,
+            "dependencyVisits": 32,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "markdownReads": 0,
+          "unrelatedHeadUnchanged": true,
+          "automaticRepair": true,
+          "hidden": false,
+          "backgroundThrottling": true,
+          "jsHeapBytes": 115546840
+        },
+        {
+          "name": "offline-edit",
+          "elapsedMs": 1721,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "counters": {
+            "checked": 1,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 1,
+            "parses": 1,
+            "repaired": 1,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "sourceBackedStartup": true,
+          "sourceBackedSemantics": true,
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "metadata",
+            "startedAt": 1791036899702,
+            "phaseStartedAt": 1791036899715,
+            "lastProgressAt": 1791036899714,
+            "pages": 0,
+            "relations": 0,
+            "evidence": 0,
+            "outcome": "complete"
+          },
+          "hidden": false,
+          "backgroundThrottling": true,
+          "markdownReads": 2,
+          "trace": [
+            {
+              "phase": "load-body",
+              "bodyDirty": true,
+              "dirty": true,
+              "created": false,
+              "size": 68
+            }
+          ],
+          "jsHeapBytes": 104680038,
+          "renderedCenter": true
+        }
+      ],
+      "currentPhase": "cleanup",
+      "cleanup": {
+        "settingsRestored": true,
+        "fixturesAbsent": true,
+        "throttleRestored": true
+      },
+      "completedAt": "2026-10-03T14:15:01.476Z"
+    },
+    "smallFinalDriverGuardCleanup": {
+      "status": "passed",
+      "storesRestoredAndCompared": 14,
+      "counts": {
+        "bodies": 10,
+        "evidence": 0,
+        "meta": 5,
+        "pages": 48,
+        "snapshotChunks": 6,
+        "sourceChunks": 18,
+        "sourceDependencies": 0,
+        "sourceHeads": 11,
+        "sourceImpacts": 0,
+        "sourceLocalDependencies": 12,
+        "sourceLocalDependencyKeys": 10,
+        "sourceLocalDependencyOwners": 11,
+        "sourceLocalDependencyRepairs": 0,
+        "sourcePostings": 30
+      },
+      "pluginDisabled": true,
+      "ownedFiles": [],
+      "controllers": [],
+      "markdownFiles": 2,
+      "throttling": true,
+      "pluginDirectoryRemoved": true,
+      "enabledPluginsRestored": true
+    }
+  },
+  "retainedAttempts": [
+    {
+      "origin": "kplex-si5-large-restart",
+      "report": {
+        "status": "failed",
+        "startedAt": "2026-10-03T12:38:59.140Z",
+        "source": {
+          "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+          "dirty": true
+        },
+        "host": {
+          "cpu": "Apple M1",
+          "logicalCPUs": 8,
+          "physicalMemoryBytes": 8589934592,
+          "os": "darwin 23.5.0",
+          "obsidian": "1.14.4 (installer 1.14.0)"
+        },
+        "artifacts": {
+          "main.js": "73fbc976803327b74fac4abfde42e269a618320cd6857174103fcc1e14d1a08d",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "runs": [],
+        "error": "Error: spawnSync obsidian ETIMEDOUT",
+        "completedAt": "2026-10-03T12:43:00.917Z"
+      }
+    },
+    {
+      "origin": "kplex-si5-large-restart-after-adoption",
+      "report": {
+        "status": "failed",
+        "startedAt": "2026-10-03T12:50:39.832Z",
+        "source": {
+          "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+          "dirty": true
+        },
+        "host": {
+          "cpu": "Apple M1",
+          "logicalCPUs": 8,
+          "physicalMemoryBytes": 8589934592,
+          "os": "darwin 23.5.0",
+          "obsidian": "1.14.4 (installer 1.14.0)"
+        },
+        "artifacts": {
+          "main.js": "73fbc976803327b74fac4abfde42e269a618320cd6857174103fcc1e14d1a08d",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "runs": [],
+        "error": "Error: spawnSync obsidian ETIMEDOUT",
+        "cleanup": {
+          "settingsRestored": true,
+          "fixturesAbsent": true,
+          "throttleRestored": true
+        },
+        "completedAt": "2026-10-03T12:51:47.568Z"
+      }
+    },
+    {
+      "origin": "kplex-si5-large-restart-traced",
+      "report": {
+        "status": "failed",
+        "startedAt": "2026-10-03T13:02:37.761Z",
+        "source": {
+          "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+          "dirty": true
+        },
+        "host": {
+          "cpu": "Apple M1",
+          "logicalCPUs": 8,
+          "physicalMemoryBytes": 8589934592,
+          "os": "darwin 23.5.0",
+          "obsidian": "1.14.4 (installer 1.14.0)"
+        },
+        "artifacts": {
+          "main.js": "73fbc976803327b74fac4abfde42e269a618320cd6857174103fcc1e14d1a08d",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "runs": [
+          {
+            "name": "warm-1",
+            "elapsedMs": 219539,
+            "status": {
+              "upToDate": true,
+              "phase": "ready",
+              "indexedFiles": 20015,
+              "totalFiles": 20015,
+              "label": "Status: index ready"
+            },
+            "counters": {
+              "checked": 0,
+              "reusedBodies": 0,
+              "legacyBodies": 0,
+              "vaultReads": 0,
+              "parses": 0,
+              "repaired": 0,
+              "resolutionRefreshes": 0,
+              "pendingMetadata": 0,
+              "failures": 0
+            },
+            "semantic": {
+              "policyRevision": 1,
+              "requested": 2,
+              "prepared": 1,
+              "published": 1,
+              "cancelled": 0,
+              "pending": 1,
+              "dependencyVisits": 12,
+              "fullBuilds": 0,
+              "lastReason": null
+            },
+            "sourceBackedStartup": false,
+            "sourceBackedSemantics": false,
+            "hydration": {
+              "run": 1,
+              "phase": "complete",
+              "lastActivePhase": "promote",
+              "startedAt": 1791032558717,
+              "phaseStartedAt": 1791032570704,
+              "lastProgressAt": 1791032570703,
+              "pages": 20709,
+              "relations": 20709,
+              "evidence": 715032,
+              "outcome": "complete"
+            },
+            "hidden": false,
+            "backgroundThrottling": true,
+            "markdownReads": 0,
+            "trace": [],
+            "jsHeapBytes": 2937050500,
+            "renderedCenter": true
+          }
+        ],
+        "currentPhase": "cleanup",
+        "error": "Error: spawnSync obsidian ETIMEDOUT",
+        "failedCommand": "eval",
+        "failure": {
+          "trace": [],
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 1,
+            "prepared": 0,
+            "published": 0,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 0,
+            "fullBuilds": 0,
+            "lastReason": "dependency-pending"
+          },
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "hidden": false
+        },
+        "cleanup": {
+          "settingsRestored": true,
+          "fixturesAbsent": true,
+          "throttleRestored": true
+        },
+        "completedAt": "2026-10-03T13:08:09.580Z"
+      }
+    },
+    {
+      "origin": "kplex-si5-small-corrupt-source",
+      "report": {
+        "status": "failed",
+        "startedAt": "2026-10-03T13:27:55.983Z",
+        "source": {
+          "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+          "dirty": true
+        },
+        "host": {
+          "cpu": "Apple M1",
+          "logicalCPUs": 8,
+          "physicalMemoryBytes": 8589934592,
+          "os": "darwin 23.5.0",
+          "obsidian": "1.14.4 (installer 1.14.0)"
+        },
+        "artifacts": {
+          "main.js": "acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "runs": [],
+        "currentPhase": "cleanup",
+        "error": "Error: fixture setup: Error: Readiness timeout {\"upToDate\":false,\"phase\":\"updating\",\"indexedFiles\":0,\"totalFiles\":3,\"label\":\"Status: updating index\"}",
+        "failedCommand": "eval",
+        "failedPhase": "fixture setup",
+        "failure": {
+          "source": {
+            "checked": 2,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 2,
+            "parses": 2,
+            "repaired": 2,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 2,
+            "requested": 6,
+            "prepared": 5,
+            "published": 5,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 56,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "status": {
+            "upToDate": false,
+            "phase": "updating",
+            "indexedFiles": 0,
+            "totalFiles": 3,
+            "label": "Status: updating index"
+          },
+          "hidden": true
+        },
+        "cleanup": {
+          "settingsRestored": true,
+          "fixturesAbsent": true,
+          "throttleRestored": true
+        },
+        "completedAt": "2026-10-03T13:32:00.926Z"
+      }
+    },
+    {
+      "origin": "kplex-si5-small-corrupt-source-retry",
+      "report": {
+        "status": "failed",
+        "startedAt": "2026-10-03T13:33:11.860Z",
+        "source": {
+          "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+          "dirty": true
+        },
+        "host": {
+          "cpu": "Apple M1",
+          "logicalCPUs": 8,
+          "physicalMemoryBytes": 8589934592,
+          "os": "darwin 23.5.0",
+          "obsidian": "1.14.4 (installer 1.14.0)"
+        },
+        "artifacts": {
+          "main.js": "acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "runs": [],
+        "currentPhase": "preflight",
+        "error": "Error: spawnSync obsidian ETIMEDOUT",
+        "failedCommand": "eval",
+        "failedPhase": "preflight",
+        "failure": {
+          "source": {
+            "checked": 2,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 2,
+            "parses": 2,
+            "repaired": 2,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 2,
+            "requested": 8,
+            "prepared": 7,
+            "published": 7,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 64,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 2,
+            "totalFiles": 2,
+            "label": "Status: index ready"
+          },
+          "hidden": false
+        },
+        "completedAt": "2026-10-03T13:33:43.480Z"
+      }
+    },
+    {
+      "origin": "kplex-si5-small-corrupt-source-isolated",
+      "report": {
+        "status": "failed",
+        "startedAt": "2026-10-03T13:35:51.610Z",
+        "source": {
+          "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+          "dirty": true
+        },
+        "host": {
+          "cpu": "Apple M1",
+          "logicalCPUs": 8,
+          "physicalMemoryBytes": 8589934592,
+          "os": "darwin 23.5.0",
+          "obsidian": "1.14.4 (installer 1.14.0)"
+        },
+        "artifacts": {
+          "main.js": "acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "runs": [],
+        "currentPhase": "cleanup",
+        "error": "Error: fixture setup: Error: Old-policy optional graph saved",
+        "failedCommand": "eval",
+        "failedPhase": "fixture setup",
+        "failure": {
+          "source": {
+            "checked": 4,
+            "reusedBodies": 2,
+            "legacyBodies": 0,
+            "vaultReads": 2,
+            "parses": 2,
+            "repaired": 2,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 6,
+            "prepared": 4,
+            "published": 4,
+            "cancelled": 1,
+            "pending": 1,
+            "dependencyVisits": 40,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "hidden": false
+        },
+        "cleanup": {
+          "settingsRestored": true,
+          "fixturesAbsent": true,
+          "throttleRestored": true
+        },
+        "completedAt": "2026-10-03T13:35:57.782Z"
+      }
+    },
+    {
+      "origin": "kplex-si5-small-five-cases",
+      "report": {
+        "status": "failed",
+        "startedAt": "2026-10-03T13:37:05.606Z",
+        "source": {
+          "revision": "323b260127e4fb81e1d3697d4ee8b0282f8cdb12",
+          "dirty": true
+        },
+        "host": {
+          "cpu": "Apple M1",
+          "logicalCPUs": 8,
+          "physicalMemoryBytes": 8589934592,
+          "os": "darwin 23.5.0",
+          "obsidian": "1.14.4 (installer 1.14.0)"
+        },
+        "artifacts": {
+          "main.js": "acc9cda48ec37b16d27994a10c6611a8e71721f9a6745cba222d1c49b968e729",
+          "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+          "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+        },
+        "runs": [],
+        "currentPhase": "cleanup",
+        "error": "Error: spawnSync obsidian ETIMEDOUT",
+        "failedCommand": "eval",
+        "failedPhase": "changed-policy",
+        "failure": {
+          "trace": [],
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 16,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 4,
+            "totalFiles": 4,
+            "label": "Status: index ready"
+          },
+          "hidden": false
+        },
+        "cleanup": {
+          "settingsRestored": true,
+          "fixturesAbsent": true,
+          "throttleRestored": true
+        },
+        "completedAt": "2026-10-03T13:37:41.968Z"
+      }
+    }
+  ],
+  "affectedFinalChecks": {
+    "node": "22.22.2",
+    "indexingAndSettings": "passed (strict timings/oracles; 24 production settings scenarios)",
+    "watchdog": "passed (five phases, late completion/rejection and unload)",
+    "sourceStartupIndexedDb": {
+      "passed": 7,
+      "failed": 0
+    },
+    "lint": "passed; zero warnings",
+    "actualBuild": "passed"
+  },
+  "limitations": [
+    "Full suite ran on 73fbc976; unload fix was followed by affected checks and native smoke on acc9cda4.",
+    "Native elapsed is CLI/restart/poll time, not actual paint. Renderer heap samples are not plugin-only or process/device peak memory.",
+    "Large final preflight failed source adoption; no three comparable large final-build warm runs completed.",
+    "Body-only global URL/virtual search and suggestion catalog after graph-cache loss remains implementation work.",
+    "Dense/high-node foreground, retained memory/storage, main-window/popout and physical iPad/Android gates remain open."
+  ],
+  "largeFinalObservationAndClose": {
+    "status": {
+      "upToDate": true,
+      "phase": "ready",
+      "indexedFiles": 20015,
+      "totalFiles": 20015,
+      "label": "Status: index ready"
+    },
+    "source": {
+      "checked": 1689,
+      "reusedBodies": 1689,
+      "legacyBodies": 0,
+      "vaultReads": 0,
+      "parses": 0,
+      "repaired": 0,
+      "resolutionRefreshes": 1688,
+      "pendingMetadata": 0,
+      "failures": 0
+    },
+    "repository": {
+      "formatVersion": 1,
+      "databaseVersion": 9,
+      "factFormatVersion": 1,
+      "factCompilerVersion": 1,
+      "bodyParserVersion": 2,
+      "resolutionVersion": 1,
+      "storage": "available",
+      "activated": 1689,
+      "unsaved": 0,
+      "empty": 0,
+      "chunksWritten": 1689,
+      "bytesWritten": 15370268,
+      "familiesReused": 5067,
+      "readFailures": 0,
+      "sequenceMin": 250834,
+      "sequenceMax": 255343,
+      "peakDecodeBytes": 241245,
+      "lastReason": "cancelled",
+      "familyFailures": {
+        "values": 0,
+        "body-urls": 0,
+        "metadata": 0,
+        "resolution": 0
+      }
+    },
+    "sourceReady": false,
+    "inventory": true,
+    "inventoryEnabled": true,
+    "hostRevision": 1,
+    "pendingKnown": 0,
+    "pendingKeys": 0,
+    "backpressure": false,
+    "hidden": true,
+    "controllers": [],
+    "markdownFiles": 20015,
+    "backgroundThrottling": true,
+    "largeTestWindowCloseScheduled": true
+  }
+}

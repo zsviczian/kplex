@@ -637,13 +637,13 @@ export default class KplexPlugin extends Plugin {
           // authoritative graph is already available; if startup is still building, reconcile it
           // after that pass instead of restarting the entire vault scan for one created file.
           this.dirtyMarkdownPaths.add(created.path);
-          if (this.initialIndexComplete && !this.rebuildTask && this.hasVisibleKplexSurface() && this.index?.isFullSnapshotHydrated()) {
+          if (this.initialIndexComplete && !this.rebuildTask && this.hasVisibleKplexSurface() && this.index?.hasPhysicalBaseline()) {
             this.index.insertCreatedFile(created);
           }
           this.scheduleRebuild("vault:create-markdown");
           return;
         }
-        if (created instanceof TFolder && this.initialIndexComplete && this.index?.isFullSnapshotHydrated()) {
+        if (created instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
           // Empty folder creation is a known structural delta. Materialize only its root-to-folder
           // ancestry; subsequent Markdown creates reuse the same folder pages and remain per-file
           // patches instead of leaving a structural `vault:create` reason that forces a full rebuild.
@@ -651,7 +651,7 @@ export default class KplexPlugin extends Plugin {
           this.index.insertCreatedFolder(created);
           return;
         }
-        if (created instanceof TFile && this.initialIndexComplete && this.index?.isFullSnapshotHydrated()) {
+        if (created instanceof TFile && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
           // Attachments have no Markdown patch to consume a structural backlog. Materialize their
           // known file-tree endpoint locally; source-local resolution maintenance owns inbound links.
           this.index.cancelRebuild();
@@ -687,7 +687,7 @@ export default class KplexPlugin extends Plugin {
           this.settlePatchOnlyBacklogIfIdle();
           return;
         }
-        if (deleted instanceof TFolder && this.initialIndexComplete && this.index?.isFullSnapshotHydrated()) {
+        if (deleted instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
           this.index.cancelRebuild();
           void this.index.removeDeletedFolder(deleted, file => this.countDeletedMarkdownFile(file)).then(() => {
             this.settlePatchOnlyBacklogIfIdle(); this.notifyIndexStatus();
@@ -700,7 +700,7 @@ export default class KplexPlugin extends Plugin {
       /** Preserve path-owned state and refresh totals when a rename changes Markdown membership. */
       (renamed, oldPath) => {
         if (!(renamed instanceof TFile)) {
-          if (renamed instanceof TFolder && this.initialIndexComplete && this.index?.isFullSnapshotHydrated()) {
+          if (renamed instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
             this.index.cancelRebuild();
             void this.index.renameFolder(oldPath, renamed).catch(() => this.scheduleRebuild("vault:rename-folder-failed"));
             if (this.remapNavigationPaths(oldPath, renamed.path, true)) void this.saveSettings(false, false);
@@ -893,12 +893,31 @@ export default class KplexPlugin extends Plugin {
             this.indexBacklogReasons.add("startup:stale-snapshot");
           }
         }
-      } else if (this.index.size > 0 && !this.index.isFullSnapshotHydrated() && !this.index.hasRestoredCheckpoint()) {
+      } else if (this.index.size > 0 && !this.index.hasPhysicalBaseline() && !this.index.hasRestoredCheckpoint()) {
         // The preview task failed after it had already returned a usable partial scene. Fall back
         // to a normal rebuild instead of ever treating that partial scene as the complete index.
         this.indexDirty = true;
         this.indexDirtyRevision += 1;
         this.indexBacklogReasons.add("startup:partial-restore-incomplete");
+      }
+
+      // Missing graph acceleration is recoverable source progress, not a reason to rebuild all
+      // semantics. Source inventory owns offline/sync repair; requested scopes own current views.
+      if (this.index.hasSourceBackedStartup()) {
+        const adopted = await this.index.adoptStartupSources();
+        if (this.unloading) return;
+        this.initialIndexComplete = adopted;
+        if (adopted) {
+          for (const reason of ["startup:no-snapshot", "startup:stale-snapshot", "startup:partial-restore-incomplete"]) {
+            this.indexBacklogReasons.delete(reason);
+          }
+          if (!this.preRestoreUncoveredChanges && this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
+            this.indexDirty = false;
+          }
+          if (this.indexDirty && this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
+        }
+        this.notifyIndexStatus();
+        return;
       }
 
       // A fresh, fully hydrated semantic snapshot is already the initial index. Do not make mobile
@@ -1015,7 +1034,7 @@ export default class KplexPlugin extends Plugin {
       // rebuilding the vault. A path may disappear after its metadata notification was queued;
       // prune such paths before deciding whether an incremental patch must escalate.
       this.pruneMissingDirtyMarkdownPaths();
-      if (this.initialIndexComplete && this.index.isFullSnapshotHydrated()) {
+      if (this.initialIndexComplete && this.index.hasPhysicalBaseline()) {
         for (const path of this.dirtyMarkdownPaths) {
           const file = this.app.vault.getFileByPath(path);
           if (file?.extension === "md") this.index.insertCreatedFile(file);
