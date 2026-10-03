@@ -12,17 +12,15 @@ import type { SourceEntityRef } from "../core/graph/source";
 import type { CachedPairCapture } from "./CachedRequestedPair";
 import { CachedSourceSemanticReader, captureCachedSemanticSettings,
   type CachedSemanticPolicy, type CachedSemanticPreparation } from "./CachedSourceSemantics";
-import { MAX_CONTRIBUTOR_ENDPOINTS, type ContributorCertificate, type ContributorFailure,
+import { type ContributorCertificate, type ContributorFailure,
   type SourceContributorDiscovery } from "./SourceContributorDiscovery";
-import { SourceFactError, type SourceReason } from "./SourceFacts";
+import { SOURCE_MAX_BATCH_RECORDS, SourceFactError, type SourceReason } from "./SourceFacts";
 import { cachedSourceMatches, type CachedSourceRequest } from "./SourceReplay";
 import { selectedSourceFailure, type NeutralSourceRepository } from "./SourceRepository";
 
 /** Aggregate request limits supplement, never replace, discovery and canonical replay budgets. */
-export const MAX_CANDIDATE_DEGREE_NODES = 8192;
-export const MAX_CANDIDATE_DEGREE_RELATIONS = 4096;
-const MAX_ENTITY_READS = 32768;
 const MAX_IDENTITY_BYTES = 1024 * 1024;
+const MAX_COMPILED_IDENTITY_BYTES = 32 * 1024 * 1024;
 const MAX_POLICY_ITEMS = 1024;
 const MAX_POLICY_BYTES = 64 * 1024;
 
@@ -109,33 +107,38 @@ export class CachedRequestedCandidateDegreeReader {
     const candidateValue: unknown = request?.candidates;
     if (!request || request.kind !== "candidate-degrees" || !Array.isArray(candidateValue)
       || !request.candidates.length) return selectedSourceFailure("unsupported-scope");
-    if (request.candidates.length > MAX_CONTRIBUTOR_ENDPOINTS) return selectedSourceFailure("backpressure");
     try {
-      const candidates = request.candidates.map(/** Snapshot exact refs before the first await. */
-        (ref) => ({ ...ref }));
-      if (new Set(candidates.map(/** Repetition is not an exact candidate set. */
-        (ref) => ref.id)).size !== candidates.length) return selectedSourceFailure("unsupported-scope");
+      // Caller-owned candidate refs and policy are one point-in-time input. Capture them fully before
+      // the first cooperative yield, then validate/process the immutable copies in bounded batches.
+      const candidates = request.candidates.map((ref) => ({ ...ref }));
       if (!finitePolicy(policy.settings)) return selectedSourceFailure("backpressure");
       const capturedPolicy = { revision, settings: captureCachedSemanticSettings(policy.settings),
         /** In-place token supersession is distinct from demand loss. */
         isCurrent: (): boolean => parentReason() === "ready",
       };
-      // Bound typed string facets before JSON escape expansion allocates the scope snapshot.
-      let candidateBytes = 0;
+      const candidateIds = new Set<string>();
+      let checkedCandidates = 0;
       for (const candidate of candidates) {
-        candidateBytes += 2 * ((candidate.id?.length ?? 0) + (candidate.semanticPath?.length ?? 0)
-          + (candidate.physicalPath?.length ?? 0));
-        if (candidateBytes > MAX_IDENTITY_BYTES) return selectedSourceFailure("backpressure");
+        if (candidateIds.has(candidate.id)) return selectedSourceFailure("unsupported-scope");
+        candidateIds.add(candidate.id);
+        // Bound only one pathological identity. Aggregate candidate work is continued in pages.
+        if (2 * ((candidate.id?.length ?? 0) + (candidate.semanticPath?.length ?? 0)
+          + (candidate.physicalPath?.length ?? 0)) > MAX_IDENTITY_BYTES) return selectedSourceFailure("backpressure");
+        checkedCandidates += 1;
+        if (checkedCandidates % SOURCE_MAX_BATCH_RECORDS === 0) { await runtime.yield(); if (!current()) return selectedSourceFailure(reason()); }
       }
       const scope = { kind: "neighborhood" as const, endpoints: candidates };
-      const identity = JSON.stringify(scope);
-      if (2 * identity.length > MAX_IDENTITY_BYTES) return selectedSourceFailure("backpressure");
       const discovered = await this.discovery.discover(scope);
       if (!current()) return selectedSourceFailure(reason());
       if (discovered.outcome !== "ready") return discovered;
-      if (discovered.coverage !== "complete-direct-contributors" || JSON.stringify(discovered.scope) !== identity
+      if (discovered.coverage !== "complete-direct-contributors" || discovered.scope.kind !== scope.kind
+        || discovered.scope.endpoints.length !== candidates.length || discovered.scope.fields !== undefined || discovered.scope.literals !== undefined
         || discovered.sourceIds.length !== discovered.sources.length
         || new Set(discovered.sourceIds).size !== discovered.sources.length) return selectedSourceFailure("dependency-invalid");
+      for (let index = 0; index < candidates.length; index += 1) {
+        if (!sameEntity(discovered.scope.endpoints[index], candidates[index])) return selectedSourceFailure("dependency-invalid");
+        if ((index + 1) % SOURCE_MAX_BATCH_RECORDS === 0) { await runtime.yield(); if (!current()) return selectedSourceFailure(reason()); }
+      }
       for (const [index, sourceId] of discovered.sourceIds.entries()) {
         const stamp = discovered.sources[index];
         if (!stamp.saved || stamp.sequence === null || stamp.head.sourceId !== sourceId) return selectedSourceFailure("dependency-invalid");
@@ -150,12 +153,13 @@ export class CachedRequestedCandidateDegreeReader {
         const matched = cachedSourceMatches(owner, stamp);
         if (matched !== "ready") return selectedSourceFailure(matched);
         owners.push(owner);
+        if (owners.length % SOURCE_MAX_BATCH_RECORDS === 0) { await runtime.yield(); if (!current()) return selectedSourceFailure(reason()); }
       }
       let entityReads = 0;
       const entities: SourcePatchReadPort = {
         /** Guard every exact-ID seed, including noncandidate endpoints in whole-owner over-coverage. */
         entity: (ref) => {
-          if (++entityReads > MAX_ENTITY_READS) throw new SourceFactError("backpressure");
+          entityReads += 1;
           const fact = this.entities.entity(ref);
           if (fact && (fact.source.id !== ref.id || !sameEntity(fact.entity, ref)
             || fact.file && fact.file.path !== ref.physicalPath)) throw new SourceFactError("stale");
@@ -167,36 +171,45 @@ export class CachedRequestedCandidateDegreeReader {
           (entry) => entry.fact));
       if (!current()) return selectedSourceFailure(reason());
       if (prepared.outcome !== "ready") return prepared;
-      if (prepared.policyRevision !== revision || JSON.stringify(prepared.sources) !== JSON.stringify(discovered.sources)) {
-        return selectedSourceFailure("superseded");
+      if (prepared.policyRevision !== revision || prepared.sources.length !== discovered.sources.length) return selectedSourceFailure("superseded");
+      for (let index = 0; index < prepared.sources.length; index += 1) {
+        const left = prepared.sources[index], right = discovered.sources[index];
+        if (JSON.stringify(left) !== JSON.stringify(right)) return selectedSourceFailure("superseded");
+        if ((index + 1) % SOURCE_MAX_BATCH_RECORDS === 0) { await runtime.yield(); if (!current()) return selectedSourceFailure(reason()); }
       }
       const compilation = prepared.compilation;
-      if (compilation.nodes.size > MAX_CANDIDATE_DEGREE_NODES) return selectedSourceFailure("backpressure");
       const paths = new Set<string>();
-      let identityBytes = 0, started = runtime.now();
+      let started = runtime.now(), visitedNodes = 0;
       for (const node of compilation.nodes.values()) {
         if (!current()) return selectedSourceFailure(reason());
-        if (runtime.now() - started >= runtime.sliceBudgetMs) {
+        if ((visitedNodes > 0 && visitedNodes % SOURCE_MAX_BATCH_RECORDS === 0) || runtime.now() - started >= runtime.sliceBudgetMs) {
           await runtime.yield();
           if (!current()) return selectedSourceFailure(reason());
           started = runtime.now();
         }
+        visitedNodes += 1;
         // GraphBuilder binds neighbours by semantic path. Injectivity makes that mapping
         // cardinality-preserving; do not count paths or reproduce the binder's overwrites.
         const path = node.semanticPath;
         if (!path || path.includes("\u0000") || paths.has(path)) return selectedSourceFailure("unsupported-scope");
-        identityBytes += 2 * (path.length + node.id.length + (node.physicalPath?.length ?? 0));
-        if (identityBytes > MAX_IDENTITY_BYTES) return selectedSourceFailure("backpressure");
+        // Reject only a single pathological identity. Aggregate path memory is proportional to the
+        // requested compiled scope and must not become another fixed high-degree completion cap.
+        if (2 * (path.length + node.id.length + (node.physicalPath?.length ?? 0)) > MAX_COMPILED_IDENTITY_BYTES) {
+          return selectedSourceFailure("backpressure");
+        }
         paths.add(path);
       }
       const inputs: Array<{ id: NodeId; rawDegree: number }> = [];
-      let candidateRelations = 0;
+      let candidateRelations = 0, visitedCandidates = 0;
       for (const candidate of candidates) {
+        if (visitedCandidates > 0 && visitedCandidates % SOURCE_MAX_BATCH_RECORDS === 0) {
+          await runtime.yield(); if (!current()) return selectedSourceFailure(reason());
+        }
+        visitedCandidates += 1;
         const node = compilation.node(candidate.id);
         if (!node) return selectedSourceFailure("missing");
         if (!sameEntity(node, candidate)) return selectedSourceFailure("unsupported-scope");
         candidateRelations += node.neighbours.size;
-        if (candidateRelations > MAX_CANDIDATE_DEGREE_RELATIONS) return selectedSourceFailure("backpressure");
         inputs.push({ id: candidate.id, rawDegree: node.neighbours.size });
       }
       const validated = await this.discovery.revalidate(discovered);

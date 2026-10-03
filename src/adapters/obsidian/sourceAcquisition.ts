@@ -12,7 +12,7 @@ import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidia
 import type { GraphCompilerRuntime } from "../../core/graph/compiler";
 import { acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type NormalizedSourceBatch,
   type NormalizedSourceRecord, type SourceReadBoundary } from "../../core/graph/source";
-import { CachedSourceSemanticReader, MAX_CACHED_SCOPE_SOURCES, type CachedSemanticPolicy,
+import { CachedSourceSemanticReader, type CachedSemanticPolicy,
   type CachedSemanticPreparation } from "../../index/CachedSourceSemantics";
 import { CachedRequestedNeighborhoodReader, type CachedCenterGatePreparation,
   type CachedNeighborhoodRequest } from "../../index/CachedRequestedNeighborhood";
@@ -822,7 +822,6 @@ export class ObsidianSourceAcquisition {
   async prepareCachedSemantics(sourceIds: readonly string[], policy: CachedSemanticPolicy,
     presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CachedSemanticPreparation> {
     const unique = [...new Set(sourceIds)];
-    if (unique.length > MAX_CACHED_SCOPE_SOURCES) return selectedSourceFailure("backpressure");
     const requests: CachedSourceRequest[] = [];
     const policyRevision = policy.revision;
     const current = (): boolean => runtime.isCurrent() && policy.isCurrent() && policy.revision === policyRevision;
@@ -833,6 +832,7 @@ export class ObsidianSourceAcquisition {
       if (!policy.isCurrent() || policy.revision !== policyRevision) return selectedSourceFailure("superseded");
       if (captured.outcome !== "ready") return { ...captured, sourceId };
       requests.push(captured.request);
+      if (requests.length % SOURCE_MAX_BATCH_RECORDS === 0) { await runtime.yield(); if (!current()) return selectedSourceFailure("cancelled"); }
     }
     return new CachedSourceSemanticReader(this.repository).prepare(requests, policy, {
       entity: (ref) => {

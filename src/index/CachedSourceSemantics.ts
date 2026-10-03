@@ -16,9 +16,7 @@ import type { SourcePostingKind, SourceReason } from "./SourceFacts";
 import { CachedSourceReplay, cachedSourceMatches, type CachedSourceRequest, type SourceReplayWork } from "./SourceReplay";
 import { selectedSourceFailure, type NeutralSourceRepository, type SelectedSourceResult, type SelectedSourceStamp } from "./SourceRepository";
 
-export const MAX_CACHED_SCOPE_SOURCES = 256;
 export const MAX_CACHED_SCOPE_ESTIMATED_BYTES = 32 * 1024 * 1024;
-export const MAX_CACHED_SCOPE_STRUCTURAL_FACTS = 1024;
 /** Explicit complete host structure for this scope, held stable under the caller's host fence. */
 export type CachedSemanticStructure = readonly (SourceEntityFact | FileTreeOccurrence | TagTreeOccurrence)[];
 /** The caller's monotonic policy token fences in-place settings edits as well as replacement. */
@@ -61,24 +59,19 @@ export class CachedSourceSemanticReader {
     current: () => boolean): Promise<CachedSourceCandidates> {
     const ids = new Set<string>();
     const lookups = new Set<string>();
-    let exceeded = false;
-    if (queries.length > MAX_CACHED_SCOPE_SOURCES) return { outcome: "pending-acquisition", reason: "backpressure" };
     for (const query of queries) {
       if (!current()) return { outcome: "cancelled", reason: "cancelled" };
       const identity = JSON.stringify([query.kind, query.key]);
       if (lookups.has(identity)) continue;
       lookups.add(identity);
       const complete = await this.repository.querySources(query.kind, query.key, (batch) => {
-        for (const id of batch) {
-          if (ids.size >= MAX_CACHED_SCOPE_SOURCES && !ids.has(id)) { exceeded = true; return false; }
-          ids.add(id);
-        }
+        for (const id of batch) ids.add(id);
         return current();
       }, current);
       if (!current()) return { outcome: "cancelled", reason: "cancelled" };
-      if (!complete) return exceeded ? { outcome: "pending-acquisition", reason: "backpressure" }
-        : this.repository.getDiagnostics().storage === "unavailable" ? { outcome: "storage-unavailable", reason: "storage-unavailable" }
+      if (!complete) return this.repository.getDiagnostics().storage === "unavailable" ? { outcome: "storage-unavailable", reason: "storage-unavailable" }
         : { outcome: "pending-acquisition", reason: "catalog-uncertain" };
+      if (!current()) return { outcome: "cancelled", reason: "cancelled" };
     }
     return { outcome: "candidates", coverage: "candidates-only", sourceIds: [...ids] };
   }
@@ -93,31 +86,55 @@ export class CachedSourceSemanticReader {
   async prepare(requests: readonly CachedSourceRequest[], policy: CachedSemanticPolicy,
     readPort: SourcePatchReadPort, runtime: GraphCompilerRuntime,
     structure?: CachedSemanticStructure): Promise<CachedSemanticPreparation> {
+    // These arrays were consumed synchronously before R3 introduced continuation yields. Snapshot
+    // their membership first so a caller cannot replace an unvisited entry while this read yields.
+    const capturedRequests = [...requests];
+    const capturedStructure = structure === undefined ? undefined : [...structure];
+    const policyRevision = policy.revision;
+    if (!runtime.isCurrent() || !policy.isCurrent()) return selectedSourceFailure(!runtime.isCurrent() ? "cancelled" : "superseded");
+    const settings = captureCachedSemanticSettings(policy.settings);
     const unique = new Map<string, CachedSourceRequest>();
-    for (const request of requests) {
+    let requestIndex = 0;
+    for (const request of capturedRequests) {
       const previous = unique.get(request.sourceId);
       if (previous && (previous.host.source.id !== request.host.source.id
         || JSON.stringify([previous.host.physical, previous.host.observation, previous.expected])
           !== JSON.stringify([request.host.physical, request.host.observation, request.expected]))) return selectedSourceFailure("superseded");
       unique.set(request.sourceId, request);
-      if (unique.size > MAX_CACHED_SCOPE_SOURCES) return selectedSourceFailure("backpressure");
+      if (++requestIndex % MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH === 0) {
+        await runtime.yield();
+        if (!runtime.isCurrent()) return selectedSourceFailure("cancelled");
+      }
     }
-    if (!unique.size && structure === undefined) return selectedSourceFailure("missing");
-    if (structure && structure.length > MAX_CACHED_SCOPE_STRUCTURAL_FACTS) return selectedSourceFailure("backpressure");
-    const structuralBytes = structure?.reduce((total, record) => total + estimateReferenceRecordBytes(record), 0) ?? 0;
-    if (structuralBytes > MAX_CACHED_SCOPE_ESTIMATED_BYTES) return selectedSourceFailure("decode-budget");
-    const owners = [...unique.values()];
-    if (new Set(owners.map((request) => request.host.source.id)).size !== owners.length) return selectedSourceFailure("invalid-frame");
-    const policyRevision = policy.revision;
+    if (!unique.size && capturedStructure === undefined) return selectedSourceFailure("missing");
+    // Total structural work is allowed to scale with the requested scope. The safety bound is per
+    // retained fact, not an aggregate cardinality surrogate that can leave a large valid scope
+    // permanently pending. Host-only compilation below consumes the retained facts in bounded batches.
+    if (capturedStructure) for (let index = 0; index < capturedStructure.length; index += 1) {
+      if (estimateReferenceRecordBytes(capturedStructure[index]) > MAX_CACHED_SCOPE_ESTIMATED_BYTES) return selectedSourceFailure("decode-budget");
+      if ((index + 1) % MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH === 0) {
+        await runtime.yield();
+        if (!runtime.isCurrent()) return selectedSourceFailure("cancelled");
+      }
+    }
+    const owners = [...unique.values()], hostIds = new Set<string>();
+    for (let index = 0; index < owners.length; index += 1) {
+      const id = owners[index].host.source.id;
+      if (hostIds.has(id)) return selectedSourceFailure("invalid-frame");
+      hostIds.add(id);
+      if ((index + 1) % MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH === 0) {
+        await runtime.yield();
+        if (!runtime.isCurrent()) return selectedSourceFailure("cancelled");
+      }
+    }
     /** Source and host observations remain independent from policy and demand cancellation. */
     const reason = (): SourceReason => !runtime.isCurrent() ? "cancelled" : (!policy.isCurrent() || policy.revision !== policyRevision) ? "superseded"
       : owners.some((request) => !request.host.isCurrent()) ? "stale" : "ready";
     const current = (): boolean => reason() === "ready";
     if (!current()) return selectedSourceFailure(reason());
-    const settings = captureCachedSemanticSettings(policy.settings);
     const scopedRuntime = { ...runtime, isCurrent: current };
     if (!owners.length) {
-      const compilation = await this.prepareHostOnly(structure ?? [], settings, readPort, scopedRuntime);
+      const compilation = await this.prepareHostOnly(capturedStructure ?? [], settings, readPort, scopedRuntime);
       if (!current()) return selectedSourceFailure(reason());
       if (!compilation) return selectedSourceFailure("invalid-frame");
       return { outcome: "ready", coverage: "source-owners", policyRevision, sources: [], compilation, work: [] };
@@ -125,27 +142,22 @@ export class CachedSourceSemanticReader {
     const preparer = new NormalizedSourceScopePreparer(owners.map((request) => request.host.source.id), settings, scopedRuntime, readPort);
     const stamps: SelectedSourceStamp[] = [];
     const work: SourceReplayWork[] = [];
-    let bytes = 0;
     for (const request of owners) {
       let read: ReturnType<NormalizedSourceScopePreparer["beginSource"]> = null;
-      let budgetExceeded = false;
-      const replayRequest: CachedSourceRequest = structure === undefined ? request : { ...request, host: { ...request.host,
+      const replayRequest: CachedSourceRequest = capturedStructure === undefined ? request : { ...request, host: { ...request.host,
         /** The certified host stream replaces, rather than duplicates, each owner's tag/structural facts. */
         structure: async (emit): Promise<boolean> => {
-          if (request === owners[0]) for (const record of structure) {
+          if (request === owners[0]) for (const record of capturedStructure) {
             if (!current() || !(await emit(record))) return false;
           }
           return current();
         },
       } };
       const result = await this.replay.read(replayRequest, scopedRuntime, async (batch) => {
-        for (const record of batch.records) bytes += estimateReferenceRecordBytes(record);
-        if (bytes > MAX_CACHED_SCOPE_ESTIMATED_BYTES) { budgetExceeded = true; return false; }
         read ??= preparer.beginSource(request.host.source.id, batch.boundary);
         return read !== null && await preparer.acceptBatch(read, batch);
       });
       if (!current()) return { ...selectedSourceFailure(reason()), sourceId: request.sourceId };
-      if (budgetExceeded) return { ...selectedSourceFailure("decode-budget"), sourceId: request.sourceId };
       if (result.outcome !== "ready") return { ...result, sourceId: request.sourceId };
       if (!read || !preparer.completeSource(read, result.value.boundary)) return { ...selectedSourceFailure("invalid-frame"), sourceId: request.sourceId };
       stamps.push(result.stamp); work.push(result.value.work);
@@ -172,7 +184,13 @@ export class CachedSourceSemanticReader {
     readPort: SourcePatchReadPort, runtime: GraphCompilerRuntime): Promise<PortableGraphCompilation | null> {
     const compiler = new NormalizedGraphCompiler(settings, runtime);
     const seeded = new Set<string>();
+    let seededRecords = 0;
     for (const record of records) {
+      if (seededRecords > 0 && seededRecords % MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH === 0) {
+        await runtime.yield();
+        if (!runtime.isCurrent()) return null;
+      }
+      seededRecords += 1;
       for (const ref of [record.source, record.kind === "entity" ? record.entity : record.target.entity]) {
         if (!runtime.isCurrent()) return null;
         if (seeded.has(ref.id)) continue;
@@ -196,6 +214,7 @@ export class CachedSourceSemanticReader {
         boundary, sequence: sequence++, records: records.slice(start, end), final: end === records.length,
       }))) return null;
       start = end;
+      if (start < records.length) { await runtime.yield(); if (!runtime.isCurrent()) return null; }
     } while (start < records.length);
     if (!compiler.completeRead(read, boundary)) return null;
     return compiler.finish();

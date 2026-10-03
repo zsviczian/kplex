@@ -10,7 +10,7 @@ import type { SourcePatchReadPort } from "../core/graph/patch";
 import { RelationType } from "../core/graph/relations";
 import { classifyRelation } from "../core/graph/resolver";
 import type { SourceEntityRef } from "../core/graph/source";
-import type { SourceReason } from "./SourceFacts";
+import { SOURCE_MAX_BATCH_RECORDS, type SourceReason } from "./SourceFacts";
 
 /** Only gate visibility inputs; titles, sorting, top-N, lenses and layout are deliberately absent. */
 export type CachedCenterGateSettings = Readonly<{
@@ -44,8 +44,7 @@ export type CachedCenterGateProjection = Readonly<{
 }> | Readonly<{ outcome: "unproved"; reason: SourceReason }>;
 
 /** Count and byte caps supplement existing contributor/replay bounds; overflow is never a prefix. */
-export const MAX_CENTER_GATE_RELATIONS = 4096;
-const MAX_GATE_PATH_BYTES = 1024 * 1024;
+const MAX_GATE_PATH_BYTES = 32 * 1024 * 1024;
 const MAX_VISIBILITY_PREFIXES = 256;
 const MAX_VISIBILITY_PREFIX_BYTES = 64 * 1024;
 const roles = ["parent", "child", "left", "right", "previous", "next"] as const;
@@ -87,11 +86,9 @@ export async function projectCachedCenterGates(compilation: PortableGraphCompila
   if (!runtime.isCurrent()) return { outcome: "unproved", reason: "cancelled" };
   const node = compilation.node(center.id);
   if (!node) return { outcome: "unproved", reason: "missing" };
-  if (node.neighbours.size > MAX_CENTER_GATE_RELATIONS) return { outcome: "unproved", reason: "backpressure" };
   const facts = new Map<NodeId, VisibilityFact>();
   let entityReads = 0, failure: SourceReason = "missing";
-  let pathBytes = 2 * (node.semanticPath?.length ?? 0);
-  if (pathBytes > MAX_GATE_PATH_BYTES) return { outcome: "unproved", reason: "backpressure" };
+  if (2 * (node.semanticPath?.length ?? 0) > MAX_GATE_PATH_BYTES) return { outcome: "unproved", reason: "backpressure" };
   /** Read each physical identity at most once; never derive identity, paths or file state from IDs. */
   const factFor = (target: CompiledGraphNode): VisibilityFact | null => {
     const cached = facts.get(target.id);
@@ -134,7 +131,7 @@ export async function projectCachedCenterGates(compilation: PortableGraphCompila
   let started = runtime.now(), relations = 0;
   for (const relation of node.neighbours.values()) {
     if (!runtime.isCurrent()) return { outcome: "unproved", reason: "cancelled" };
-    if (runtime.now() - started >= runtime.sliceBudgetMs) {
+    if ((relations > 0 && relations % SOURCE_MAX_BATCH_RECORDS === 0) || runtime.now() - started >= runtime.sliceBudgetMs) {
       await runtime.yield();
       if (!runtime.isCurrent()) return { outcome: "unproved", reason: "cancelled" };
       started = runtime.now();
@@ -145,8 +142,9 @@ export async function projectCachedCenterGates(compilation: PortableGraphCompila
     const previous = identityByPath.get(path);
     if (previous !== undefined && previous !== relation.target.id) return { outcome: "unproved", reason: "unsupported-scope" };
     if (previous === undefined) {
-      pathBytes += 2 * path.length;
-      if (pathBytes > MAX_GATE_PATH_BYTES) return { outcome: "unproved", reason: "backpressure" };
+      // The path map necessarily scales with this one requested center. Bound pathological single
+      // identities, not the aggregate relation count.
+      if (2 * path.length > MAX_GATE_PATH_BYTES) return { outcome: "unproved", reason: "backpressure" };
       identityByPath.set(path, relation.target.id);
     }
     if (relation.isHidden) continue;

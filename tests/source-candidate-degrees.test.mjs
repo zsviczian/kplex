@@ -247,7 +247,6 @@ test("request cardinality, identity and policy limits reject before any discover
   const reader = new M.CachedRequestedCandidateDegreeReader({}, { discover: bad, revalidate: bad, isHostCurrent: bad }, bad, { entity: bad });
   rejectedDegree(await reader.prepare(request(), policy(), runtime()), "unsupported-scope");
   rejectedDegree(await reader.prepare(request(ref("A"), ref("A")), policy(), runtime()), "unsupported-scope");
-  rejectedDegree(await reader.prepare(request(...Array.from({ length: 33 }, (_, i) => ref(`node-${i}`))), policy(), runtime()), "backpressure");
   rejectedDegree(await reader.prepare(request(ref("X".repeat(600_000))), policy(), runtime()), "backpressure");
   for (const fields of [Array(1025).fill("Repeated"), ["F".repeat(32769)]]) {
     const s = { ...settings, hierarchy: { ...settings.hierarchy, hidden: fields } };
@@ -269,12 +268,14 @@ test("complete candidate union enforces aggregate owner limits and never capture
 });
 
 for (const [name, count] of [["aggregate candidate relations", 4097], ["whole-owner nodes", 8193]]) {
-  test(`hot ${name} returns backpressure, including a zero-degree requested candidate`, async () => {
-    const f = await degreeFixture(f => f.add("A.md", "", { Hidden: "[[Ghost]]", Friends: Array.from({ length: count }, (_, i) => `[[Target-${i}]]`) }));
+  test(`hot ${name} completes with full raw-degree parity`, async () => {
+    const f = await degreeFixture(f => {
+      f.add("A.md", "", { Hidden: "[[Ghost]]", Friends: Array.from({ length: count }, (_, i) => `[[Target-${i}]]`) });
+      if (f.resolutions) for (const file of f.files.values()) f.resolutions.set(file.basename, file.path);
+    });
     try {
-      const check = guardDegreeReuse(f);
-      const candidate = count > 8192 ? ghost("Ghost") : ref("A.md");
-      rejectedDegree(await f.makeDegreeReader().prepare(request(candidate), policy(), runtime()), "backpressure"); check();
+      const candidate = count > 8192 ? ghost("Ghost") : ref("A.md"), expected = await fullDegrees(f, [candidate]), check = guardDegreeReuse(f);
+      compareDegrees(await f.makeDegreeReader().prepare(request(candidate), policy(), runtime()), expected, [candidate]); check();
     } finally { f.close(); }
   });
 }
@@ -363,6 +364,32 @@ test("candidate refs and semantic settings are captured before the first await",
       return result;
     }, revalidate: certificate => d.revalidate(certificate), isHostCurrent: () => d.isHostCurrent() };
     compareDegrees(await f.makeDegreeReader(wrapped).prepare(request(candidate), p, runtime()), expected, [original]); check();
+  } finally { f.close(); }
+});
+
+test("large candidate refs are snapshotted before the first continuation yield", async () => {
+  const f = await degreeFixture();
+  try {
+    const candidates = Array.from({ length: 257 }, (_, index) => ghost(`Candidate-${index}`));
+    const expectedTail = { ...candidates[256] };
+    let yields = 0, discoveries = 0;
+    const discovery = {
+      discover: async scope => {
+        discoveries++;
+        assert.equal(scope.endpoints.length, candidates.length);
+        assert.deepEqual(scope.endpoints[256], expectedTail, "Discovery sees the pre-yield candidate snapshot");
+        return { outcome: "pending", reason: "unsupported-scope" };
+      },
+      revalidate: () => assert.fail("Rejected discovery has no certificate"),
+      isHostCurrent: () => true,
+    };
+    const result = await f.makeDegreeReader(discovery).prepare(request(...candidates), policy(), runtime({ yield: async () => {
+      yields++;
+      if (yields === 1) candidates[256].semanticPath = "mutated-after-first-yield";
+    } }));
+    rejectedDegree(result, "unsupported-scope");
+    assert.equal(discoveries, 1);
+    assert(yields > 0, "Large candidate validation cooperatively yields after the complete snapshot exists");
   } finally { f.close(); }
 });
 

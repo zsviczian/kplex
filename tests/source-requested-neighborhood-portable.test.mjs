@@ -264,7 +264,7 @@ for (const change of ["new-root", "missing-parent-page", "backpressure", "demand
   });
 }
 
-test("a hot parent's complete incoming range exceeds the union owner cap, never admitting a partial sibling set", async () => {
+test("a hot parent's complete incoming range exceeds the retired catalog owner cap without a partial sibling set", async () => {
   const f = await fixture();
   try {
     // These extra catalog heads need no replay: production discovery must reject the complete range first.
@@ -282,7 +282,7 @@ test("a hot parent's complete incoming range exceeds the union owner cap, never 
   } finally { f.close(); }
 });
 
-test("a hot parent frontier is rejected before expanding any displayed/top-N prefix", async () => {
+test("a hot parent frontier reaches the retired catalog boundary without expanding any displayed/top-N prefix", async () => {
   const f = await fixture(false, f => {
     f.add("A.md", "", { Parent: Array.from({ length: 32 }, (_, index) => "[[Parent-" + index + "]]") });
   });
@@ -290,8 +290,8 @@ test("a hot parent frontier is rejected before expanding any displayed/top-N pre
     let discoveries = 0;
     const original = f.catalog.discovery.discover.bind(f.catalog.discovery);
     f.catalog.discovery.discover = scope => { discoveries++; return original(scope); };
-    rejected(await f.makeReader().prepare(request(), policy(), runtime()), "backpressure");
-    assert.equal(discoveries, 1);
+    rejected(await f.makeReader().prepare(request(), policy(), runtime()), "unsupported-scope");
+    assert.equal(discoveries, 2);
   } finally { f.close(); }
 });
 
@@ -672,7 +672,7 @@ for (const fence of ["demand", "presentation"]) {
   });
 }
 
-test("low-level gate projection rejects oversized, pathless and path-colliding inputs rather than claiming bound-page parity", async () => {
+test("low-level gate projection continues beyond the former relation cap and rejects path/identity faults", async () => {
   const f = await fixture(false, f => { f.add("A.md", "", { Children: ["[[Ghost1]]", "[[Ghost2]]"] }); });
   try {
     const full = await fullNeighborhoodOracle(M, f, settings, runtime()), center = full.node("A.md");
@@ -680,11 +680,12 @@ test("low-level gate projection rejects oversized, pathless and path-colliding i
     let reads = 0;
     const entities = { entity: ref => { reads++; return f.entities.get(ref.id); } };
     const project = () => M.projectCachedCenterGates(full, request().center, false, centerGateSettings(), entities, runtime());
-    center.neighbours = new Map(Array.from({ length: M.MAX_CENTER_GATE_RELATIONS + 1 }, (_, i) => [String(i), relation]));
-    assert.deepEqual(await project(), { outcome: "unproved", reason: "backpressure" }); assert.equal(reads, 0);
-    center.neighbours = original;
+    center.neighbours = new Map(Array.from({ length: 4097 }, (_, i) => [String(i), relation]));
+    const large = await project(); assert.equal(large.outcome, "ready", JSON.stringify(large));
+    assert.equal(large.work.relations, 4097); assert(reads > 0);
+    center.neighbours = original; reads = 0;
     const ghost = relation.target, path = ghost.semanticPath;
-    ghost.semanticPath = "x".repeat(524289);
+    ghost.semanticPath = "x".repeat(16 * 1024 * 1024 + 1);
     assert.deepEqual(await project(), { outcome: "unproved", reason: "backpressure" });
     ghost.semanticPath = undefined;
     assert.deepEqual(await project(), { outcome: "unproved", reason: "unsupported-scope" });

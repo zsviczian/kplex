@@ -27,6 +27,11 @@ const repairBrowserInitialize = `(() => {
     return {db,repository,control};
   };
   window.r1Run=(session,input)=>session.repository.replace(input,()=>session.control.live);
+  window.r3Settings=()=>({hierarchy:{hidden:['Hidden'],parents:['Parent'],children:['Children'],leftFriends:['Friends'],rightFriends:['Opposes'],previous:['Previous'],next:['Next']},
+    inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30});
+  window.r3Policy=()=>({revision:'r3-policy:1',settings:r3Settings(),isCurrent:()=>true});
+  window.r3Gates=()=>({revision:'r3-gates:1',settings:{excludeFilepaths:[],showVirtualNodes:true,showAttachments:true,showFolderNodes:true,showTagNodes:true,showPageNodes:true,showURLNodes:true,showInferredNodes:true},isCurrent:()=>true});
+  window.r3Presentation={noteTypeField:'Type',primaryTagField:'Style'};
   window.r2DowngradeResolverOwner=async(db,sourceId)=>{
     const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get(sourceId));
     ok(owner&&owner.version===M.SOURCE_LOCAL_DEPENDENCY_VERSION,'Current resolver owner required');
@@ -45,7 +50,7 @@ const repairBrowserInitialize = `(() => {
   return true;
 })()`;
 
-test("source-local semantic dependencies are incrementally activated, reusable, and bounded", { timeout: 180_000 }, async t => {
+test("source-local semantic dependencies are incrementally activated, reusable, and bounded", { timeout: 300_000 }, async t => {
   const browser = await chromiumHarness(bundle);
   try {
     assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
@@ -636,24 +641,91 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
       })()`), true);
     });
 
-    await t.test("20,015-owner skew is deterministic and a hot dependency rejects before any row scan", async () => {
+    await t.test("production local requests continue through former owner, candidate, structural, relation and node caps", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules;
+        const finish=async f=>{await f.acquire();ok(await f.acquisition.reconcile(),'Source-local inventory closes');ok(f.acquisition.hasSemanticDependencies(),'Production local discovery ready');f.reads.length=0;f.parses.length=0;f.work.reset();};
+        const clean=f=>{equal(f.reads,[],'No valid-source body rereads');equal(f.parses,[],'No reparses');equal(f.work.markdownEnumerations,0,'Requested continuation does not enumerate Markdown');equal(f.work.headPages,0,'Requested continuation does not page unrelated durable heads');};
+        {
+          const f=await fixture('local-r3-owners');try{
+            f.add('A.md','');for(let i=0;i<257;i++)f.add('Owner-'+i+'.md','',{Friends:'[[A]]'});await finish(f);
+            const center=ref('A.md'),degree=await f.acquisition.prepareRequestedCandidateDegrees({kind:'candidate-degrees',candidates:[center]},r3Policy(),r3Presentation,runtime());
+            equal(degree.outcome,'ready','257-owner raw degree completes');ok(degree.inputs[0].rawDegree>=257,'Raw degree contains every hot-owner relation');ok(degree.work.sourceReplays>256,'All proven owners replayed');
+            const neighborhood=await f.acquisition.prepareRequestedNeighborhood({kind:'neighborhood',center},r3Policy(),r3Presentation,r3Gates(),runtime());
+            equal(neighborhood.outcome,'ready','257-owner center completes');const centerNode=neighborhood.preparation.compilation.node('A.md');equal([...centerNode.neighbours.keys()].filter(id=>id.startsWith('Owner-')).length,257,'No owner prefix escapes');equal(centerNode.neighbours.size,degree.inputs[0].rawDegree,'Neighborhood and raw-degree paths see the same complete center');ok(neighborhood.work.sourceReplays>256,'Neighborhood replays complete owner union');clean(f);
+          }finally{f.close();}
+        }
+        {
+          const f=await fixture('local-r3-candidates');try{
+            const candidates=[];for(let i=0;i<33;i++){const id='Candidate-'+i+'.md';f.add(id,'');candidates.push(ref(id));}await finish(f);
+            const result=await f.acquisition.prepareRequestedCandidateDegrees({kind:'candidate-degrees',candidates},r3Policy(),r3Presentation,runtime());
+            equal(result.outcome,'ready','33 candidates continue past former endpoint cap');equal(result.inputs.length,33,'Every candidate returned');equal(result.inputs.map(item=>item.id),candidates.map(item=>item.id),'Candidate order exact');clean(f);
+          }finally{f.close();}
+        }
+        {
+          const f=await fixture('local-r3-structure');try{
+            f.add('Seed.md','');for(let i=0;i<1025;i++)f.add('attachment-'+i+'.png','');await finish(f);
+            const root={id:'folder:/',kind:'container',state:'materialized',semanticPath:'folder:/',physicalPath:''};
+            const result=await f.acquisition.prepareRequestedNeighborhood({kind:'neighborhood',center:root},r3Policy(),r3Presentation,r3Gates(),runtime());
+            equal(result.outcome,'ready','Root structural scope completes');ok(result.certificate.relations.contributors.hostFacts.length>1024,'More than 1,024 structural facts retained completely');ok(result.work.gateRelations>1024,'All root child relations projected');clean(f);
+          }finally{f.close();}
+        }
+        {
+          const f=await fixture('local-r3-relations');try{
+            const values=Array.from({length:8193},(_,i)=>'[[Virtual-'+i+']]');f.add('A.md','',{Friends:values});await finish(f);
+            const center=ref('A.md'),neighborhood=await f.acquisition.prepareRequestedNeighborhood({kind:'neighborhood',center},r3Policy(),r3Presentation,r3Gates(),runtime());
+            equal(neighborhood.outcome,'ready','8,193-relation center completes');equal(neighborhood.preparation.compilation.node('A.md').neighbours.size,8193,'Complete high-degree center');ok(neighborhood.preparation.compilation.nodes.size>8192,'Compiled scope crosses former node cap');equal(neighborhood.work.gateRelations,8193,'Gate projection crosses former relation cap without prefix');
+            const degree=await f.acquisition.prepareRequestedCandidateDegrees({kind:'candidate-degrees',candidates:[center]},r3Policy(),r3Presentation,runtime());
+            equal(degree.outcome,'ready','High-degree raw count completes');equal(degree.inputs,[{id:'A.md',rawDegree:8193}],'Raw degree exact above former relation cap');ok(degree.work.nodes>8192&&degree.work.candidateRelations>4096,'Candidate work reports full large scope');clean(f);
+          }finally{f.close();}
+        }
+        return true;
+      })()`), true);
+    });
+
+    await t.test("20,015-owner skew completes exactly and cancellation publishes no prefix", async () => {
       const measured = await browser.evaluate(`(async()=>{
         const M=sourceModules,f=await fixture('local-dependency-hot');
         try{
           const hot=M.sourceLocalDependencyKey('node','Hot.md'),owners=20015;let projected=0;
           for(let i=0;i<owners;i++)for(const key of M.sourceLocalStoredDependencyKeys('S'+i+'.md',{kind:'host-link',state:'resolved',target:'Hot.md',count:1}))if(key===hot)projected++;
           equal(projected,owners,'Deterministic source-local projector cardinality');
-          const db=await f.cache.open();await edit(db,['meta',M.SOURCE_LOCAL_KEY_STORE],tx=>{
-            tx.objectStore('meta').put(M.sourceLocalDependencyState(1,true));tx.objectStore(M.SOURCE_LOCAL_KEY_STORE).put({version:1,key:hot,count:owners});
+          f.add('Template.md','');await f.acquire();ok(await f.acquisition.reconcile(),'Seed a valid durable source template');
+          const db=await f.cache.open(),templateHead=(await f.repository.inspect('Template.md')).head;
+          const templateOwner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('Template.md'));
+          ok(templateHead&&templateOwner,'Template head and local owner');
+          for(let offset=0;offset<owners;offset+=M.SOURCE_MAX_BATCH_RECORDS)await edit(db,[M.SOURCE_HEAD_STORE,M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_DEPENDENCY_STORE],tx=>{
+            for(let i=offset;i<Math.min(owners,offset+M.SOURCE_MAX_BATCH_RECORDS);i++){
+              const sourceId='S'+String(i).padStart(5,'0')+'.md',sourceRevision='hot-'+i;
+              tx.objectStore(M.SOURCE_HEAD_STORE).put({...templateHead,sourceId,sourceRevision,physical:{...templateHead.physical,identity:'hot-'+i,path:sourceId}});
+              tx.objectStore(M.SOURCE_LOCAL_OWNER_STORE).put({...templateOwner,sourceId,sourceRevision,order:i,markdownOrder:i,records:1});
+              tx.objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE).put({version:1,sourceId,sourceRevision,index:0,key:hot});
+            }
+          });
+          const state=await value(db.transaction('meta').objectStore('meta').get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
+          await edit(db,['meta',M.SOURCE_LOCAL_KEY_STORE],tx=>{
+            tx.objectStore('meta').put({...state,revision:state.revision+1,complete:true,pending:0});
+            tx.objectStore(M.SOURCE_LOCAL_KEY_STORE).put({version:1,key:hot,count:owners});
           });
           let scans=0;const cursor=IDBIndex.prototype.openCursor;IDBIndex.prototype.openCursor=function(...args){if(this.objectStore?.name===M.SOURCE_LOCAL_DEPENDENCY_STORE)scans++;return cursor.apply(this,args);};
           let result;try{result=await f.repository.lookupLocalDependencies([hot]);}finally{IDBIndex.prototype.openCursor=cursor;}
-          equal(result.outcome,'pending-acquisition','Hot key is bounded backpressure');equal(result.reason,'backpressure','Explicit bound');equal(scans,0,'Count certificate rejects before membership scan');
+          equal(result.outcome,'ready','Hot key completes instead of permanent backpressure');equal(result.value.sources.length,owners,'All hot owners returned');
+          equal(result.value.sources[0].head.sourceId,'S00000.md','Canonical first owner');equal(result.value.sources.at(-1).head.sourceId,'S20014.md','Canonical last owner');
+          equal(result.value.orders[0],0,'First order');equal(result.value.orders.at(-1),owners-1,'Last order');
+          equal(result.value.work.rows,owners,'Every membership row visited');equal(result.value.work.owners,owners,'Every owner retained');
+          ok(result.value.work.pages>1&&result.value.work.yields>0,'Lookup paged and yielded cooperatively');equal(scans,result.value.work.pages,'Measured cursor pages match work counter');
+          equal(result.value.work.peakItems,owners,'Peak retained owner count measured');ok(result.value.work.peakBytes>0,'Peak retained bytes estimated');
+          let cancelled=false,cancelYields=0;const cancellationRepo=new M.NeutralSourceRepository({open:async()=>db,failed:()=>{},unavailableReason:()=> 'storage-unavailable'},
+            {...M.sourceRepositoryRuntime(),yield:async()=>{cancelYields++;cancelled=true;}});
+          const cancelledResult=await cancellationRepo.lookupLocalDependencies([hot],()=>!cancelled);cancellationRepo.close();
+          equal(cancelledResult.outcome,'cancelled','Cancellation between pages discards the whole result');equal(cancelledResult.reason,'cancelled','Cancellation reason preserved');equal(cancelYields,1,'Cancellation occurs at first continuation yield');
           equal(await value(db.transaction(M.SOURCE_DEPENDENCY_STORE).objectStore(M.SOURCE_DEPENDENCY_STORE).count()),0,'No global catalog pages');
-          return {owners,projected,scans,outcome:result.outcome,reason:result.reason};
+          return {owners,projected,scans,work:result.value.work,cancelYields,outcome:result.outcome,cancelled:cancelledResult.outcome};
         }finally{f.close();}
       })()`);
-      assert.deepEqual(measured, { owners: 20015, projected: 20015, scans: 0, outcome: "pending-acquisition", reason: "backpressure" });
+      assert.equal(measured.owners, 20015); assert.equal(measured.projected, 20015); assert.equal(measured.outcome, "ready");
+      assert.equal(measured.cancelled, "cancelled"); assert.equal(measured.work.rows, 20015); assert.equal(measured.work.owners, 20015);
+      assert.ok(measured.scans > 1); assert.ok(measured.work.yields > 0); assert.equal(measured.cancelYields, 1);
       t.diagnostic(`SOURCE-LOCAL HOT-KEY MEASUREMENT ${JSON.stringify(measured)}`);
     });
   } finally { await browser.cleanup(); }

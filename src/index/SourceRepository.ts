@@ -2174,13 +2174,15 @@ export class NeutralSourceRepository {
   async lookupLocalDependencies(keys: readonly string[], current: () => boolean = () => true): Promise<SourceLocalDependencyLookupResult<Readonly<{
     fence: Readonly<{ revision: number; sequence: number }>; sources: readonly SelectedSourceStamp[]; orders: readonly number[];
     markdownOrders: readonly number[];
-    work: Readonly<{ keys: number; rows: number }>;
+    work: Readonly<{ keys: number; keyPages: number; pages: number; rows: number; owners: number; yields: number; peakItems: number; peakBytes: number }>;
   }>>> {
     try {
       this.localDependencyAvailable(current);
-      if (!keys.length || keys.length > SOURCE_MAX_BATCH_RECORDS || new Set(keys).size !== keys.length) throw new SourceFactError("unsupported-scope");
+      // Snapshot caller-owned key membership before R3 continuation yields can interleave mutation.
+      const requestedKeys = [...keys];
+      if (!requestedKeys.length || new Set(requestedKeys).size !== requestedKeys.length) throw new SourceFactError("unsupported-scope");
       const db = await this.open(); if (!db) return selectedSourceFailure(this.storage.unavailableReason?.() ?? "storage-unavailable");
-      const captured = await this.transaction(db, [META_STORE, SOURCE_LOCAL_KEY_STORE], "readonly", "", async (transaction) => {
+      const fence = await this.transaction(db, [META_STORE], "readonly", "", async (transaction) => {
         const meta = transaction.objectStore(META_STORE);
         const rawState = await unknownValue(meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
         const sequenceRecord = await unknownValue(meta.get(SOURCE_SEQUENCE_KEY));
@@ -2188,21 +2190,40 @@ export class NeutralSourceRepository {
         if (sequenceRecord !== undefined && (!sourceObject(sequenceRecord) || sequenceRecord.key !== SOURCE_SEQUENCE_KEY
           || !sourceCount(sequenceRecord.value))) throw new SourceFactError("dependency-invalid");
         const sequence = sourceObject(sequenceRecord) && sourceCount(sequenceRecord.value) ? sequenceRecord.value : 0;
-        const counts = new Map<string, number>();
-        for (const key of keys) {
-          const rawKey = await unknownValue(transaction.objectStore(SOURCE_LOCAL_KEY_STORE).get(key));
-          const keyState = rawKey === undefined ? { version: 1 as const, key, count: 0 }
-            : validSourceLocalDependencyKeyState(rawKey) && rawKey.key === key ? rawKey : null;
-          if (!keyState) throw new SourceFactError("dependency-invalid");
-          if (keyState.count > SOURCE_MAX_BATCH_RECORDS) throw new SourceFactError("backpressure");
-          counts.set(key, keyState.count);
-        }
-        return { fence: { revision: rawState.revision, sequence }, counts };
+        return { revision: rawState.revision, sequence };
       });
+      const counts = new Map<string, number>();
+      let keyPages = 0, yields = 0;
+      for (let offset = 0; offset < requestedKeys.length; offset += SOURCE_MAX_BATCH_RECORDS) {
+        const page = requestedKeys.slice(offset, offset + SOURCE_MAX_BATCH_RECORDS);
+        const pageCounts = await this.transaction(db, [META_STORE, SOURCE_LOCAL_KEY_STORE], "readonly", "", async (transaction) => {
+          const meta = transaction.objectStore(META_STORE);
+          const rawState = await unknownValue(meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
+          const sequenceRecord = await unknownValue(meta.get(SOURCE_SEQUENCE_KEY));
+          const sequence = sequenceRecord === undefined ? 0
+            : sourceObject(sequenceRecord) && sequenceRecord.key === SOURCE_SEQUENCE_KEY && sourceCount(sequenceRecord.value) ? sequenceRecord.value : -1;
+          if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
+            || rawState.revision !== fence.revision || sequence !== fence.sequence) throw new SourceFactError("superseded");
+          return Promise.all(page.map(async (key) => {
+            const rawKey = await unknownValue(transaction.objectStore(SOURCE_LOCAL_KEY_STORE).get(key));
+            const keyState = rawKey === undefined ? { version: 1 as const, key, count: 0 }
+              : validSourceLocalDependencyKeyState(rawKey) && rawKey.key === key ? rawKey : null;
+            if (!keyState) throw new SourceFactError("dependency-invalid");
+            return [key, keyState.count] as const;
+          }));
+        });
+        keyPages += 1;
+        for (const [key, count] of pageCounts) counts.set(key, count);
+        if (!current() || this.closed) throw new SourceFactError("cancelled");
+        if (offset + SOURCE_MAX_BATCH_RECORDS < requestedKeys.length) {
+          yields += 1; await this.runtime.yield();
+          if (!current() || this.closed) throw new SourceFactError("cancelled");
+        }
+      }
 
       const selected = new Map<string, { stamp: SelectedSourceStamp; order: number; markdownOrder: number }>();
-      let rowsVisited = 0;
-      for (const key of keys) {
+      let pagesVisited = 0, rowsVisited = 0, peakItems = 0, peakBytes = 0, retainedBytes = 0;
+      for (const key of requestedKeys) {
         let after: IDBValidKey | null = null, active = 0;
         while (current() && !this.closed) {
           const page = await this.transaction(db,
@@ -2213,7 +2234,7 @@ export class NeutralSourceRepository {
               const sequence = sequenceRecord === undefined ? 0
                 : sourceObject(sequenceRecord) && sequenceRecord.key === SOURCE_SEQUENCE_KEY && sourceCount(sequenceRecord.value) ? sequenceRecord.value : -1;
               if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
-                || rawState.revision !== captured.fence.revision || sequence !== captured.fence.sequence) throw new SourceFactError("superseded");
+                || rawState.revision !== fence.revision || sequence !== fence.sequence) throw new SourceFactError("superseded");
               return new Promise<{ next: IDBValidKey | null; done: boolean; entries: Array<{ row: SourceLocalDependencyRow;
                 owner: SourceLocalDependencyOwner | null; head: SourceHead | null }> }>((resolve, reject) => {
                 const entries: Array<{ row: SourceLocalDependencyRow; owner: SourceLocalDependencyOwner | null; head: SourceHead | null }> = [];
@@ -2246,6 +2267,7 @@ export class NeutralSourceRepository {
                 };
               });
             });
+          pagesVisited += 1;
           rowsVisited += page.entries.length;
           for (const entry of page.entries) {
             const { row, owner, head } = entry;
@@ -2255,23 +2277,28 @@ export class NeutralSourceRepository {
             const stamp: SelectedSourceStamp = { head, sequence: head.sequence, saved: true };
             const prior = selected.get(row.sourceId);
             if (prior && prior.stamp.head.sourceRevision !== head.sourceRevision) throw new SourceFactError("dependency-invalid");
+            if (!prior) retainedBytes += 256 + 2 * (head.sourceId.length + head.sourceRevision.length);
             selected.set(row.sourceId, { stamp, order: owner.order, markdownOrder: owner.markdownOrder });
           }
+          peakItems = Math.max(peakItems, selected.size);
+          peakBytes = Math.max(peakBytes, retainedBytes);
           if (!current() || this.closed) throw new SourceFactError("cancelled");
           if (page.done || page.next === null) break;
           if (after !== null && indexedDB.cmp(page.next, after) === 0) throw new SourceFactError("dependency-invalid");
           after = page.next;
+          yields += 1;
           await this.runtime.yield();
         }
-        if (active !== captured.counts.get(key)) throw new SourceFactError("dependency-invalid");
-        if (selected.size > SOURCE_MAX_BATCH_RECORDS) throw new SourceFactError("backpressure");
+        if (!current() || this.closed) throw new SourceFactError("cancelled");
+        if (active !== counts.get(key)) throw new SourceFactError("dependency-invalid");
       }
       const ordered = [...selected.values()].sort((a, b) => a.order - b.order || a.stamp.head.sourceId.localeCompare(b.stamp.head.sourceId));
-      const fenceReason = await this.validateLocalDependencies(captured.fence, ordered.map((entry) => entry.stamp), current);
+      const fenceReason = await this.validateLocalDependencies(fence, ordered.map((entry) => entry.stamp), current);
       if (fenceReason !== "ready") throw new SourceFactError(fenceReason);
-      return { outcome: "ready", value: { fence: captured.fence, sources: ordered.map((entry) => entry.stamp),
+      return { outcome: "ready", value: { fence, sources: ordered.map((entry) => entry.stamp),
         orders: ordered.map((entry) => entry.order), markdownOrders: ordered.map((entry) => entry.markdownOrder),
-        work: { keys: keys.length, rows: rowsVisited } } };
+        work: { keys: requestedKeys.length, keyPages, pages: pagesVisited, rows: rowsVisited, owners: ordered.length,
+          yields, peakItems, peakBytes } } };
     } catch (error) { return selectedSourceFailure(errorReason(error, "dependency-invalid")); }
   }
 

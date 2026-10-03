@@ -95,7 +95,32 @@ test("dense source replays once per scope, shares one payload and preserves dist
     const result = await f.acquisition.prepareCachedSemantics(Array(80).fill(file.path), policy(), presentation, runtime());
     assert.equal(result.outcome, "ready"); assert.equal(result.work.length, 1); assert.equal(result.work[0].familyVisits, 4);
     assert(!result.compilation.node("virtual-0"), "Dense dormant input cannot populate search");
-    assert.equal((await f.acquisition.prepareCachedSemantics(Array.from({length:257},(_,i)=>String(i)), policy(), presentation, runtime())).reason, "backpressure");
+    assert.equal((await f.acquisition.prepareCachedSemantics(Array.from({length:257},(_,i)=>String(i)), policy(), presentation, runtime())).reason, "missing",
+      "Large owner scopes continue until the first genuine missing source");
+  } finally { f.close(); }
+});
+
+test("cached semantic replay continues through more than one owner page without a prefix", async () => {
+  const f = replayFixture();
+  try {
+    const ids = Array.from({ length: 257 }, (_, index) => `Owner-${index}.md`);
+    for (const id of ids) f.add(id, "");
+    await acquire(f, ids);
+    let yields = 0;
+    const result = await f.acquisition.prepareCachedSemantics(ids, policy(), presentation, runtime({ yield: async () => { yields++; } }));
+    assert.equal(result.outcome, "ready", JSON.stringify(result));
+    assert.equal(result.sources.length, ids.length); assert.equal(result.work.length, ids.length);
+    assert.deepEqual(result.sources.map(stamp => stamp.head.sourceId), ids);
+    assert(yields > 0, "Large owner preparation must cooperatively yield");
+
+    let current = true, cancelYields = 0;
+    const cancelled = await f.acquisition.prepareCachedSemantics(ids, policy(), presentation, runtime({
+      isCurrent: () => current, yield: async () => { cancelYields++; current = false; },
+    }));
+    assert.equal(cancelled.outcome, "cancelled", JSON.stringify(cancelled));
+    assert.equal(cancelled.reason, "cancelled");
+    assert(!("sources" in cancelled) && !("compilation" in cancelled), "Cancelled continuation exposes no semantic prefix");
+    assert.equal(cancelYields, 1, "Cancellation is observed at the first owner continuation yield");
   } finally { f.close(); }
 });
 

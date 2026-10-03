@@ -15,9 +15,9 @@ import { captureCachedCenterGateSettings, projectCachedCenterGates,
   type CachedCenterGatePolicy, type CachedCenterGates } from "./CachedCenterGateProjection";
 import { CachedSourceSemanticReader, captureCachedSemanticSettings,
   type CachedSemanticPolicy, type CachedSemanticPreparation } from "./CachedSourceSemantics";
-import { MAX_CONTRIBUTOR_ENDPOINTS, type ContributorCertificate, type ContributorDiscoveryResult,
-  type ContributorFailure, type SourceContributorDiscovery } from "./SourceContributorDiscovery";
-import type { SourceReason } from "./SourceFacts";
+import { type ContributorCertificate, type ContributorDiscoveryResult, type ContributorFailure, type ContributorRequest,
+  type SourceContributorDiscovery } from "./SourceContributorDiscovery";
+import { SOURCE_MAX_BATCH_RECORDS, type SourceReason } from "./SourceFacts";
 import { cachedSourceMatches, type CachedSourceRequest } from "./SourceReplay";
 import { selectedSourceFailure, type NeutralSourceRepository } from "./SourceRepository";
 
@@ -65,6 +65,43 @@ function copyRef(ref: SourceEntityRef): SourceEntityRef {
     ...(ref.physicalPath === undefined ? {} : { physicalPath: ref.physicalPath }) };
 }
 
+
+/** Compare a potentially large requested scope without one giant JSON serialization. */
+async function sameScope(left: ContributorRequest, right: ContributorRequest, runtime: GraphCompilerRuntime): Promise<boolean> {
+  if (left.kind !== right.kind || left.endpoints.length !== right.endpoints.length
+    || (left.fields?.length ?? -1) !== (right.fields?.length ?? -1)
+    || (left.literals?.length ?? -1) !== (right.literals?.length ?? -1)) return false;
+  let visited = 0;
+  const checkpoint = async (): Promise<boolean> => {
+    visited += 1;
+    if (visited % SOURCE_MAX_BATCH_RECORDS !== 0) return runtime.isCurrent();
+    await runtime.yield(); return runtime.isCurrent();
+  };
+  for (let index = 0; index < left.endpoints.length; index += 1) {
+    const a = left.endpoints[index], b = right.endpoints[index];
+    if (a.id !== b.id || a.kind !== b.kind || a.state !== b.state || a.semanticPath !== b.semanticPath || a.physicalPath !== b.physicalPath) return false;
+    if (!(await checkpoint())) return false;
+  }
+  for (const key of ["fields", "literals"] as const) {
+    const a = left[key] ?? [], b = right[key] ?? [];
+    for (let index = 0; index < a.length; index += 1) {
+      if (a[index] !== b[index]) return false;
+      if (!(await checkpoint())) return false;
+    }
+  }
+  return runtime.isCurrent();
+}
+
+/** Compare selected source stamps cooperatively while retaining exact point-in-time identity. */
+async function sameSelections(left: readonly unknown[], right: readonly unknown[], runtime: GraphCompilerRuntime): Promise<boolean> {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (JSON.stringify(left[index]) !== JSON.stringify(right[index])) return false;
+    if ((index + 1) % SOURCE_MAX_BATCH_RECORDS === 0) { await runtime.yield(); if (!runtime.isCurrent()) return false; }
+  }
+  return runtime.isCurrent();
+}
+
 /** Compare every root and host coordinate; equal heads alone cannot authenticate negative ranges. */
 function sameRoot(left: ContributorCertificate, right: ContributorCertificate): boolean {
   const a = left.dependency, b = right.dependency, h = left.host, k = right.host;
@@ -74,23 +111,33 @@ function sameRoot(left: ContributorCertificate, right: ContributorCertificate): 
 }
 
 /** The combined range must retain every original owner/structural occurrence, not just its keys. */
-function containsCover(combined: ContributorCertificate, initial: ContributorCertificate): boolean {
-  const sources = new Map(combined.sources.map((stamp) => [stamp.head.sourceId, JSON.stringify(stamp)]));
+async function containsCover(combined: ContributorCertificate, initial: ContributorCertificate,
+  runtime: GraphCompilerRuntime): Promise<boolean> {
   if ((combined.hostFactOrder === "scope-local") !== (initial.hostFactOrder === "scope-local")) return false;
-  const hostFactsRetained = combined.hostFactOrder === "scope-local"
+  let visited = 0;
+  const checkpoint = async (): Promise<boolean> => {
+    visited += 1;
+    if (visited % SOURCE_MAX_BATCH_RECORDS !== 0) return runtime.isCurrent();
+    await runtime.yield(); return runtime.isCurrent();
+  };
+  const sources = new Map<string, string>();
+  for (const stamp of combined.sources) { sources.set(stamp.head.sourceId, JSON.stringify(stamp)); if (!(await checkpoint())) return false; }
+  for (const stamp of initial.sources) {
+    if (sources.get(stamp.head.sourceId) !== JSON.stringify(stamp)) return false;
+    if (!(await checkpoint())) return false;
+  }
+  if (combined.hostFactOrder === "scope-local") {
     // Widening a finite source-local scope can insert earlier current facts and therefore renumber
-    // them. Each certificate authenticates its exact stream, while cover containment binds the
-    // occurrence itself. The legacy durable catalog keeps its absolute occurrence coordinate below.
-    ? (() => {
-        const facts = new Set(combined.hostFacts.map((entry) => JSON.stringify(entry.fact)));
-        return initial.hostFacts.every((entry) => facts.has(JSON.stringify(entry.fact)));
-      })()
-    : (() => {
-        const facts = new Map(combined.hostFacts.map((entry) => [entry.order, JSON.stringify(entry.fact)]));
-        return initial.hostFacts.every((entry) => facts.get(entry.order) === JSON.stringify(entry.fact));
-      })();
-  return initial.sources.every((stamp) => sources.get(stamp.head.sourceId) === JSON.stringify(stamp))
-    && hostFactsRetained;
+    // them. Each certificate authenticates its exact stream; containment binds the occurrence itself.
+    const facts = new Set<string>();
+    for (const entry of combined.hostFacts) { facts.add(JSON.stringify(entry.fact)); if (!(await checkpoint())) return false; }
+    for (const entry of initial.hostFacts) { if (!facts.has(JSON.stringify(entry.fact))) return false; if (!(await checkpoint())) return false; }
+  } else {
+    const facts = new Map<number, string>();
+    for (const entry of combined.hostFacts) { facts.set(entry.order, JSON.stringify(entry.fact)); if (!(await checkpoint())) return false; }
+    for (const entry of initial.hostFacts) { if (facts.get(entry.order) !== JSON.stringify(entry.fact)) return false; if (!(await checkpoint())) return false; }
+  }
+  return runtime.isCurrent();
 }
 
 /**
@@ -101,17 +148,17 @@ function containsCover(combined: ContributorCertificate, initial: ContributorCer
 async function parentsOf(compilation: PortableGraphCompilation, center: SourceEntityRef,
   inferAllLinksAsFriends: boolean, runtime: GraphCompilerRuntime): Promise<readonly SourceEntityRef[] | null> {
   const parents: SourceEntityRef[] = [];
-  let started = runtime.now();
+  let started = runtime.now(), visited = 0;
   for (const relation of compilation.node(center.id)?.neighbours.values() ?? []) {
     if (!runtime.isCurrent()) return null;
-    if (runtime.now() - started >= runtime.sliceBudgetMs) {
+    if ((visited > 0 && visited % SOURCE_MAX_BATCH_RECORDS === 0) || runtime.now() - started >= runtime.sliceBudgetMs) {
       await runtime.yield();
       if (!runtime.isCurrent()) return null;
       started = runtime.now();
     }
+    visited += 1;
     if (relation.isHidden || classifyRelation(relation, "parent", inferAllLinksAsFriends) === null) continue;
     parents.push(copyRef(relation.target));
-    if (parents.length >= MAX_CONTRIBUTOR_ENDPOINTS) return null;
   }
   return parents.sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
 }
@@ -193,15 +240,17 @@ export class CachedRequestedNeighborhoodReader {
       let sourceReplays = 0, familyVisits = 0;
       for (let pass = 0; pass < 2; pass++) {
         const scope = { kind: "neighborhood" as const, endpoints };
-        const identity = JSON.stringify(scope);
         const discovered = await this.discovery.discover(scope);
         if (!current()) return selectedSourceFailure(reason());
         if (discovered.outcome !== "ready") return discovered;
-        if (discovered.coverage !== "complete-direct-contributors" || JSON.stringify(discovered.scope) !== identity) {
+        if (discovered.coverage !== "complete-direct-contributors" || !(await sameScope(discovered.scope, scope, scopedRuntime))) {
+          if (!current()) return selectedSourceFailure(reason());
           return selectedSourceFailure("dependency-invalid");
         }
-        if (initial && (!sameRoot(initial, discovered) || !containsCover(discovered, initial))) {
-          return selectedSourceFailure("superseded");
+        if (initial) {
+          const covered = sameRoot(initial, discovered) && await containsCover(discovered, initial, scopedRuntime);
+          if (!current()) return selectedSourceFailure(reason());
+          if (!covered) return selectedSourceFailure("superseded");
         }
         const selected = await this.captureOwners(discovered, owners, captureRuntime, reason);
         if (!current()) return selectedSourceFailure(reason());
@@ -210,7 +259,8 @@ export class CachedRequestedNeighborhoodReader {
           discovered.hostFacts.map((entry) => entry.fact));
         if (!current()) return selectedSourceFailure(reason());
         if (prepared.outcome !== "ready") return prepared;
-        if (prepared.policyRevision !== revision || JSON.stringify(prepared.sources) !== JSON.stringify(discovered.sources)) {
+        if (prepared.policyRevision !== revision || !(await sameSelections(prepared.sources, discovered.sources, scopedRuntime))) {
+          if (!current()) return selectedSourceFailure(reason());
           return selectedSourceFailure("superseded");
         }
         sourceReplays += prepared.work.length;
@@ -218,7 +268,11 @@ export class CachedRequestedNeighborhoodReader {
         const parents = await parentsOf(prepared.compilation, center, capturedPolicy.settings.inferAllLinksAsFriends, scopedRuntime);
         if (!current()) return selectedSourceFailure(reason());
         if (!parents) return selectedSourceFailure("backpressure");
-        if (frontier && JSON.stringify(parents) !== JSON.stringify(frontier)) return selectedSourceFailure("dependency-invalid");
+        if (frontier && !(await sameScope({ kind: "neighborhood", endpoints: parents },
+          { kind: "neighborhood", endpoints: frontier }, scopedRuntime))) {
+          if (!current()) return selectedSourceFailure(reason());
+          return selectedSourceFailure("dependency-invalid");
+        }
         if (pass === 0 && parents.length) {
           initial = discovered;
           frontier = parents;
@@ -280,6 +334,10 @@ export class CachedRequestedNeighborhoodReader {
       const matched = cachedSourceMatches(owner, stamp);
       if (matched !== "ready") return selectedSourceFailure(matched);
       requests.push(owner);
+      if (requests.length % SOURCE_MAX_BATCH_RECORDS === 0) {
+        await runtime.yield();
+        if (reason() !== "ready") return selectedSourceFailure(reason());
+      }
     }
     return { outcome: "ready", requests };
   }
