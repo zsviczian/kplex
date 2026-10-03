@@ -4,7 +4,7 @@
 
 **Objective:** maintain a durable, settings-neutral index with work proportional to changed notes or requested relationships. Adding/moving ontology must reuse that index, perform zero Markdown reads/parses for valid facts, and make the requested Plex usable without a full-vault rebuild.
 
-**Actual baseline:** branch `indexing-optimization-v2`, accepted through SI4-R2 at `831e345`. SI0–SI3, the private SI4a replay foundation, durable source-local repair and known-impact host maintenance are accepted. The production settings route remains open only for SI4-R3 high-degree completion and final SI4 acceptance; SI5 remains pending. No percentage or finish date is inferred from the number of tests or commits.
+**Actual baseline:** branch `indexing-optimization-v2`, accepted through SI4-R2 at `831e345`. SI0–SI3, the private SI4a replay foundation, durable source-local repair and known-impact host maintenance are accepted. SI4-R3's return is preserved at `56a6e68` and needs one consolidated correction: hot lookup passes, but repeated all-owner validity scans make replay quadratic, retained-memory bounds are incomplete, and large-owner final publication is unproven. [Independent review](validation/settings-independent-indexing-si4-r3-review-2026-10-03.md). SI4 remains incomplete and SI5 remains pending. No percentage or finish date is inferred from the number of tests or commits.
 
 This reset supersedes the execution sequence of SI4b1/C1/C2/S1/S2/S2b/C3 and the unsent foreground-composition handoff. Those names remain historical evidence, not additional gates. C15–C26 remain paused at the **Portable semantic engine / C14** scope boundary. The fixed remaining delivery sequence is in [section 11](#11-fixed-completion-plan): two production SI4 deliveries, then SI5. No runtime implementation is authorized by this documentation change alone.
 
@@ -363,7 +363,7 @@ resumption of C15-C26.
 | --- | --- | --- |
 | SI4-R1 — durable source-local repair | **Accepted (`b32e3c5`)** | Additive v8-to-v9 migration, bounded staging/count repair, interruption/restart/cleanup/concurrent-reader coverage, and no partial lookup publication. Existing high-degree backpressure remains unchanged. |
 | SI4-R2 — known-impact host maintenance | **Accepted (`831e345`)** | Known create/modify/rename/delete/recreate waves remain source-local, native `metadata:resolved` closes are coalesced, transient dependency misses retry automatically, empty folders/materialized children converge without a graph rebuild, and a known Markdown denominator is maintained in O(1). The production-scheduler regression drives no manual reconciliation and all 310 source/167 browser tests pass. |
-| SI4-R3 — high-degree completion and SI4 acceptance | **Active** | Replace permanent owner/structural/semantic caps with cancellable bounded continuation through final semantic preparation. The real 20,015-owner case completes without a partial result, then full automated and native SI4 scenarios pass. |
+| SI4-R3 — high-degree completion and SI4 acceptance | **Correction active (`56a6e68` unaccepted)** | Hot lookup passes at 20,015 owners. Correct quadratic validity checks and retained-memory accounting/protection, prove independently replayable high-degree final semantics/publication, then complete automated/native SI4 acceptance. |
 
 Only SI4-R3 high-degree completion and final SI4 acceptance are active. R3 must not be
 approximated by merely removing cardinality constants while retaining a terminal memory/byte failure.

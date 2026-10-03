@@ -330,13 +330,13 @@ test("real Chromium private requested-neighborhood closure and every terminal fe
       })()`), true);
     });
 
-    await t.test("oversized semantic parent frontier is rejected before a second discovery", async () => {
+    await t.test("large semantic parent frontier reaches the retired catalog boundary without a partial result", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const f=await nSeed('neighborhood-hot-frontier',false,f=>f.add('A.md','',{Parent:Array.from({length:32},(_,index)=>'[[Parent-'+index+']]')}));
         try{
           const check=nGuard(f),original=f.discovery.discover.bind(f.discovery);let calls=0;
           f.discovery.discover=scope=>{calls++;return original(scope);};
-          nFailed(await nReader(f).prepare(nRequest(),nPolicy(),runtime()),'backpressure');equal(calls,1,'No displayed parent prefix');check();return true;
+          nFailed(await nReader(f).prepare(nRequest(),nPolicy(),runtime()),'unsupported-scope');equal(calls,2,'Complete parent frontier reaches the retained catalog limit');check();return true;
         }finally{f.close();}
       })()`), true);
     });

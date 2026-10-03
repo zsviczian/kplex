@@ -16,172 +16,38 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Offline return — SI4-R3 high-degree completion implementation
+# Offline assignment — complete the SI4-R3 correction
 
-SI4-R3 implementation is returned for main-agent review. Scope stayed on SI4-R3 only; SI5 and C15–C26 were not started, and the retired process-wide contributor catalog was not restored or widened.
+Work from the supplied repository package on `indexing-optimization-v2`. The exact R3 return is checkpointed at `56a6e68` and remains unaccepted; this assignment builds on that code and the main-agent browser expectation corrections. Accepted implementation remains SI4-R2 at `831e345`. Do not start SI5 or C15–C26.
 
-## Implementation summary
+## Execution and return
 
-### 1. High-degree source-local dependency lookup
+Before editing, share a step-by-step execution plan tied to the requirements below. During execution, report completed steps, current work, blockers and the next step at intervals of no more than **three minutes**. Update the plan if evidence changes the approach.
 
-`NeutralSourceRepository.lookupLocalDependencies()` now treats `SOURCE_MAX_BATCH_RECORDS` as a continuation/page size rather than a completeness limit.
+You have local read/write access only and cannot make Git commits. Return a **patch zip containing only new and changed files**, in repository-relative paths. Exclude unchanged files, Git metadata, dependencies and generated build artifacts. List any required deletions explicitly in the return; do not include a full repository zip. Preserve this standing header and replace this assignment body with your implementation/validation results.
 
-- Removed terminal cardinality backpressure for >256 dependency keys, >256 active owners on a key, and >256 selected owners.
-- Snapshots the caller key list before the first continuation point, then captures one source-local derivative revision/global source-sequence fence before lookup.
-- Reads dependency-key count state in 256-key pages and rechecks that same fence between pages.
-- Reads each dependency membership in 256-row IndexedDB cursor pages. Each membership row is checked against its local owner and selected source head in the same read transaction.
-- Rechecks cancellation after every page and after every continuation yield, before count comparison, so cancellation cannot escape as a corrupt-count result.
-- Preserves per-key active-count validation and the existing final `validateLocalDependencies()` / paged `validateSelections()` head, source-revision and sequence fence over the complete union.
-- Preserves deterministic owner order (`owner.order`, then source ID) and returns no partial prefix on failure.
-- Adds lookup work counters for keys, key pages, membership pages, rows, owners, continuation yields, retained peak owner items and estimated retained bytes.
+## Concrete review evidence
 
-The browser regression now constructs 20,015 valid active owner/head/membership rows for one hot key, requires exact first/last/order/count completion and work-counter/page agreement, then separately cancels at the first continuation yield and requires a whole-result `cancelled` outcome with no prefix. That browser test is present but could not execute on this host; see validation limitations below.
+Read `docs/validation/settings-independent-indexing-si4-r3-review-2026-10-03.md` and the active SI4 section of `docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md`.
 
-### 2. Production source-local discovery continuation
+- Real IndexedDB hot lookup succeeds: 20,015 owners, 79 pages, 78 yields, exact order/count, cancellation without a prefix. Keep this forward work.
+- Production cached replay is quadratic. Empty-source preparation makes 1,409,664 / 5,606,144 / 22,358,016 / 89,298,944 host-validity checks at 128 / 256 / 512 / 1,024 owners. `CachedSourceSemantics.reason()` scans every owner inside the callback used throughout replay/compiler work; neighborhood and degree readers do the same. The scope preparer's array membership check is also linear per source.
+- Retained-memory safety was replaced with single-item guards. Lookup keeps all heads; discovery keeps facts and serialized deduplication keys; replay keeps owner callbacks and compiled state. Its `peakBytes` estimate counts only 256 bytes plus ID/revision lengths per owner, omitting most retained data.
+- The 20,015-owner regression clones template manifests and proves lookup only. Final semantic/publication coverage uses much smaller cases.
+- Main-agent test fixes retain the folder parent in the 8,193-reference case (8,194 total neighbors/gate relations/raw degree) and align the legacy-catalog frontier test with the existing portable expectation. Keep both fixes.
 
-`SourceLocalContributorDiscovery` no longer converts large finite source-local requests into permanent pending at the old endpoint/key/structural-fact cardinality limits.
+## Required correction — one integrated return
 
-- Caller request arrays are snapshotted before the first await so later cooperative yields cannot mix caller mutations into one request.
-- Dependency-key validation/projection and scope/certificate hashing continue in 256-item slices with host-current checks.
-- Aggregate key-count and aggregate key-byte terminal limits were removed; a pathological single dependency key still uses the existing source-record byte safety bound.
-- Structural direct-incidence facts are collected only from proven source owners and explicitly requested host endpoints/literals, with a yield every 256 visited facts. The old 1,024-host-fact terminal cap is removed.
-- Certificate selection hashing is incremental in 256-item slices instead of one giant high-degree `JSON.stringify`.
-- Existing R2 dependency-invalid repair scheduling remains intact.
-- No whole-vault Markdown enumeration, unrelated durable-head scan or global contributor-catalog bootstrap was added.
+1. **Make validity work scale with the actual input.** Use the existing monotonic policy/demand/source/host/maintenance generations for cheap cancellation during replay/compiler steps. Validate the active source locally and cooperatively revalidate the complete selected inputs at bounded checkpoints/final publication. Remove repeated all-owner scans from record-level callbacks and linear scope membership checks. Preserve fail-closed behavior for every previously tested source/host/policy/demand mutation, including during an awaited continuation. Do not skip final validation or cache a successful validation indefinitely.
+2. **Control retained memory.** Distinguish required final scope state from temporary pages, duplicated selections, serialized identities and simultaneously retained compilations. Use compact metadata, reuse/release temporary structures and bound live buffers by bytes and records. Report a defensible estimate/measurement covering heads/families, structural facts, owner captures and compiled state; the fixed per-owner estimate alone is insufficient. Keep explicit safety for pathological inputs while allowing the target 20,015-owner case to complete. Do not add a generic spill/proof framework, a second graph, a global contributor catalog or a new persistence format without a demonstrated necessity.
+3. **Test the complete production path.** Add independently replayable owners/facts for a 20,015-owner supported scope and exercise cached semantic preparation through GraphIndex publication, gates/siblings/degrees and relevant consumers. Do not stop at a standalone lookup. Compare exact results with the canonical full compiler, and test supersession/cancellation between batches without exposing a prefix. Count validity work at increasing sizes to catch quadratic growth without relying only on elapsed-time thresholds. Record peak retained work and latency for the large case.
+4. **Finish existing SI4 acceptance coverage.** Friend↔Challenger moves, dormant-field add/remove, inference direction and image-selector changes must use valid cached facts with zero body reads/parses/reacquisitions/full builds. Latest settings/navigation demand wins. Preserve R1 repair and R2 automatic create/modify/rename/delete/recreate locality. Keep supported hot structural scopes and gates/degree parity green.
 
-### 3. Cached semantic / neighborhood / gate / candidate continuation
+This is the existing R3 correction, not a new prerequisite checkpoint. Prefer changes in the current owners and eliminate redundant validation rather than adding overlapping abstractions. Existing semantics, finality and memory safety remain required.
 
-The cached production semantic path now continues through the old 256-owner, 32-endpoint/parent/candidate, 1,024-structural-fact, 4,096-relation and 8,192-node cardinality boundaries.
+## Validation and return evidence
 
-- `ObsidianSourceAcquisition.prepareCachedSemantics()` no longer pre-rejects >256 owners and yields during large capture loops.
-- `CachedSourceSemanticReader` snapshots request/structure array membership and semantic policy before its first cooperative owner-loop yield, no longer uses owner/fact cardinality as completeness, yields during large owner/structure work, and retains pathological single-record byte protection rather than a cumulative streamed-work cap.
-- `CachedRequestedNeighborhoodReader` no longer rejects the semantic parent frontier at 32. Large scope equality, cover containment, selected-source equality and owner capture are checked cooperatively; the two-pass canonical compiler and final contributor revalidation remain in place.
-- `projectCachedCenterGates()` scans the complete requested center relation set with 256-relation/time-slice continuation while retaining path/identity validity and a pathological single-path byte guard.
-- `CachedRequestedCandidateDegreeReader` snapshots all candidate refs and semantic policy before the first await, then validates/captures/scans in cooperative slices. The 32-candidate, 4,096-candidate-relation and 8,192-compiled-node terminal limits are removed while policy-size and pathological single-identity safety checks remain.
-- The retired `SourceContributorDiscovery` implementation was deliberately left unchanged; its old explicit global-catalog limits are not production authority for the accepted source-local design.
-
-## Regression coverage added/updated
-
-- Real IndexedDB fixture: 20,015-owner hot dependency lookup, exact order/count/work counters, and cancellation between pages with no prefix.
-- Production source-local browser fixture:
-  - 257 proven owners on one center;
-  - 33 candidate raw-degree inputs;
-  - >1,024 structural facts for a requested root folder;
-  - 8,193 center relations and >8,192 compiled nodes;
-  - assertions against valid-source body rereads/parses and unrelated Markdown/durable-head inventory work during the requested semantic read.
-- Portable cached semantic replay: 257 real owners complete with cooperative continuation and exact source count/order; cancellation at the first high-degree continuation yield returns no `sources` or `compilation` prefix.
-- Portable host-only structural compilation: 1,025 facts complete while a pathological single fact still fails the decode budget.
-- Portable gate projection: 4,097 relations complete; pathless/colliding/pathological-path inputs remain fail-closed.
-- Portable candidate raw-degree parity: 4,097 relations and 8,193 whole-owner nodes match the full-compiler oracle instead of returning cardinality backpressure.
-- Added a 257-candidate mutation regression proving the full caller candidate snapshot is captured before the first continuation yield.
-- Existing cancellation, source/head mutation, policy/demand/host/root/journal fences and malformed-input tests remain in the portable source suite.
-
-## Files changed
-
-- `src/adapters/obsidian/sourceAcquisition.ts`
-- `src/adapters/obsidian/sourceLocalContributorDiscovery.ts`
-- `src/index/CachedCenterGateProjection.ts`
-- `src/index/CachedRequestedCandidateDegrees.ts`
-- `src/index/CachedRequestedNeighborhood.ts`
-- `src/index/CachedSourceSemantics.ts`
-- `src/index/SourceRepository.ts`
-- `tests/source-candidate-degrees.test.mjs`
-- `tests/source-local-dependencies-indexeddb.test.mjs`
-- `tests/source-replay.test.mjs`
-- `tests/source-requested-neighborhood-portable.test.mjs`
-- `tests/source-requested-pair-portable.test.mjs`
-- `HANDOFF.md`
-
-## Validation actually run
-
-Host environment: Node `v22.16.0`, npm `10.9.2`; the project-required Node `22.22.2` is not installed here. The supplied package contains no `node_modules`. A temporary local symlink to the globally installed TypeScript `5.8.3` was used only where ESM resolution required a local `typescript` package; it was removed before packaging.
-
-### Passing
-
-1. Focused R3 portable source tests:
-
-```bash
-node --test tests/source-replay.test.mjs tests/source-candidate-degrees.test.mjs tests/source-requested-neighborhood-portable.test.mjs tests/source-requested-pair-portable.test.mjs
-```
-
-Result: **134 passed, 0 failed**.
-
-2. Full portable source suite after the final snapshot/cancellation fixes:
-
-```bash
-npm run test:sources
-```
-
-Result: **312 passed, 0 failed**; about 29 seconds on this host.
-
-An earlier concurrently orchestrated full-suite invocation hit an external 180-second tool timeout. The affected suites were then run individually and passed, and a fresh standalone `npm run test:sources` completed with exit 0 and the 312/312 result above.
-
-3. Architecture check, with only the temporary local TypeScript resolution symlink described above:
-
-```bash
-npm run check:architecture
-```
-
-Result: **7 passed, 0 failed**; `Architecture: 61 migrated roots, 120 reachable files, 0 violations`.
-
-4. Strict TypeScript check of the changed index-layer modules:
-
-```bash
-/opt/nvm/versions/node/v22.16.0/bin/tsc --noEmit --pretty false \
-  --strictNullChecks --noImplicitAny --noImplicitReturns \
-  --target ES2021 --module ESNext --moduleResolution Bundler --skipLibCheck --lib DOM,ES2021 \
-  src/index/SourceRepository.ts \
-  src/index/CachedSourceSemantics.ts \
-  src/index/CachedCenterGateProjection.ts \
-  src/index/CachedRequestedNeighborhood.ts \
-  src/index/CachedRequestedCandidateDegrees.ts
-```
-
-Result: **exit 0, no diagnostics**.
-
-5. Syntax/transpile validation:
-
-- `node --check` passed for every modified `.mjs` test.
-- TypeScript `transpileModule(..., reportDiagnostics:true)` reported no parse diagnostics for every modified `.ts` file.
-
-6. Whitespace check against the untouched supplied package:
-
-```bash
-git diff --no-index --check /mnt/data/kplex_r3_base /mnt/data/kplex_r3_retry
-```
-
-Result: exit 1 because the trees intentionally differ, with **no whitespace-error output**. The supplied ZIP has no `.git`, so normal repository `git diff --check` is unavailable.
-
-### Environment-blocked / baseline-limited
-
-1. Real Chromium / IndexedDB:
-
-```bash
-npm run test:sources:browser
-```
-
-Result: **0 passed, 9 failed**. Eight lanes failed while Chromium tried to navigate to the local test harness with:
-
-```text
-net::ERR_BLOCKED_BY_ADMINISTRATOR
-```
-
-The source-local lane hit an `ENOTEMPTY` temporary-profile cleanup error in that combined run. It was immediately rerun alone and then failed at the same `net::ERR_BLOCKED_BY_ADMINISTRATOR` navigation step. Therefore the new real-IDB 20,015-owner test and production-local high-degree browser regression are **implemented but their test bodies were not executed on this host**. Their page/retained-work counters must be treated as pending measurement, not as browser-validated evidence.
-
-2. Broader project validation under the incomplete dependency tree:
-
-- A direct `npm run verify` attempt could not proceed normally because local package dependencies are absent; without the temporary TypeScript resolution shim, `check:architecture` cannot resolve the `typescript` package.
-- `npm run check:core` was also attempted in this environment. Two test files cannot load the missing `esbuild` package. One `normalized-source-contract` assertion also fails under Node `22.16.0`; that exact assertion was rerun against the untouched supplied baseline and failed identically (`expected "Never There"`, `actual "Assets/picture.png"`), so it is not an R3 regression.
-- `npm run build` was attempted and cannot type-check because the normal React/ReactDOM/Obsidian dependency/type packages are absent.
-- `npm run lint:obsidian` was attempted and cannot start because `eslint` is absent.
-
-These are environment limitations, not passes. No dependency tree was added to the return package.
-
-3. No Obsidian CLI/native/device checks were run by this offline agent.
-
-## Main-agent validation requested
-
-Use the full dependency environment and required Node 22.22.2. The most important pending checks are:
+Run the strongest available versions of:
 
 ```bash
 fnm exec --using=22.22.2 npm run test:sources
@@ -190,13 +56,4 @@ fnm exec --using=22.22.2 npm run verify
 git diff --check
 ```
 
-For the real-IDB 20,015-owner test, capture the emitted `SOURCE-LOCAL HOT-KEY MEASUREMENT` diagnostic and confirm:
-
-- outcome `ready`, exact 20,015 owners and exact order;
-- multiple membership pages and cooperative yields;
-- cancellation at the first continuation yield returns only `cancelled`, never a prefix;
-- final source/head/revision/sequence fences remain green;
-- measured peak items/estimated bytes and page/row/owner counters are reasonable;
-- production-local >256/>1,024/>4,096/>8,192/>32 regressions complete with zero valid-source body rereads/parses and no unrelated Markdown/head inventory work.
-
-Do not mark SI4 accepted until those unrestricted browser/Node-22.22.2 checks are reviewed.
+If Git, exact Node/dependencies or browser access is unavailable, state the precise limitation and run available checks without claiming unavailable lanes passed. Include changed/new/deleted paths, the completed execution plan, validity-work counts, retained-memory/large-case measurements, exact test outcomes and narrowly specified remaining native checks in the returned HANDOFF. Native Obsidian validation belongs to the main agent after review; do not claim native or device evidence.

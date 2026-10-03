@@ -674,9 +674,9 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           const f=await fixture('local-r3-relations');try{
             const values=Array.from({length:8193},(_,i)=>'[[Virtual-'+i+']]');f.add('A.md','',{Friends:values});await finish(f);
             const center=ref('A.md'),neighborhood=await f.acquisition.prepareRequestedNeighborhood({kind:'neighborhood',center},r3Policy(),r3Presentation,r3Gates(),runtime());
-            equal(neighborhood.outcome,'ready','8,193-relation center completes');equal(neighborhood.preparation.compilation.node('A.md').neighbours.size,8193,'Complete high-degree center');ok(neighborhood.preparation.compilation.nodes.size>8192,'Compiled scope crosses former node cap');equal(neighborhood.work.gateRelations,8193,'Gate projection crosses former relation cap without prefix');
+            equal(neighborhood.outcome,'ready','8,193-reference center completes');const centerNode=neighborhood.preparation.compilation.node('A.md');equal([...centerNode.neighbours.keys()].filter(id=>id.startsWith('Virtual-')).length,8193,'Every virtual reference is present');ok(centerNode.neighbours.has('folder:/'),'Structural folder relation is retained');equal(centerNode.neighbours.size,8194,'Complete high-degree center includes its folder');ok(neighborhood.preparation.compilation.nodes.size>8192,'Compiled scope crosses former node cap');equal(neighborhood.work.gateRelations,8194,'Gate projection includes every reference and the folder without a prefix');
             const degree=await f.acquisition.prepareRequestedCandidateDegrees({kind:'candidate-degrees',candidates:[center]},r3Policy(),r3Presentation,runtime());
-            equal(degree.outcome,'ready','High-degree raw count completes');equal(degree.inputs,[{id:'A.md',rawDegree:8193}],'Raw degree exact above former relation cap');ok(degree.work.nodes>8192&&degree.work.candidateRelations>4096,'Candidate work reports full large scope');clean(f);
+            equal(degree.outcome,'ready','High-degree raw count completes');equal(degree.inputs,[{id:'A.md',rawDegree:8194}],'Raw degree includes every reference and the folder');ok(degree.work.nodes>8192&&degree.work.candidateRelations>4096,'Candidate work reports full large scope');clean(f);
           }finally{f.close();}
         }
         return true;
