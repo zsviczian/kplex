@@ -9,12 +9,14 @@ import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateTarget } from "./runner.mjs";
+import { createWaitTimingProbe } from "./waitTiming.mjs";
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const vaultName = process.env.KPLEX_TEST_VAULT_NAME;
 const target = validateTarget({ vaultName, vaultPath: process.env.KPLEX_TEST_VAULT_PATH, configDir: process.env.KPLEX_TEST_CONFIG_DIR });
 const selectedCenter = process.env.KPLEX_SI5_WARM_CENTER;
 const reportDir = process.env.KPLEX_HOST_REPORT_DIR || "/private/tmp/kplex-si5-warm-start";
 const runs = Number(process.env.KPLEX_SI5_RESTART_RUNS || 3);
+const measureWaits = process.env.KPLEX_SI5_MEASURE_WAITS === "true";
 if (!Number.isInteger(runs) || runs < 1 || runs > 3) throw Error("Expected 1–3 warm runs");
 mkdirSync(reportDir, { recursive: true });
 let lastCommand;
@@ -36,7 +38,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const originalData = readFileSync(join(target.pluginDir, "data.json"), "utf8");
 const originalEnabled = readFileSync(join(target.config, "community-plugins.json"), "utf8");
 const report = { status: "failed", startedAt: new Date().toISOString(), checkpoint: cliGit("rev-parse", "HEAD"),
-  dirty: Boolean(cliGit("status", "--porcelain")), artifacts: {}, runs: [] };
+  dirty: Boolean(cliGit("status", "--porcelain")), measureWaits, artifacts: {}, runs: [] };
 /** Record local Git identity without accessing or changing vault state. */
 function cliGit(...args) { return spawnSync("git", args, { cwd: root, encoding: "utf8" }).stdout.trim(); }
 /** Start one deferred native task and poll only its bounded aggregate response. */
@@ -46,7 +48,7 @@ async function probe(code) {
     await delay(5000);
     let result;
     try {
-      result = evaluate("JSON.stringify({done:window.kplexWarmStartup?.done,error:window.kplexWarmStartup?.error,value:window.kplexWarmStartup?.value,progress:app.plugins.plugins['k-plex']?.getStartupDiagnostics?.()})");
+      result = evaluate("JSON.stringify({done:window.kplexWarmStartup?.done,error:window.kplexWarmStartup?.error,value:window.kplexWarmStartup?.value,waitProgress:window.kplexWarmStartup?.waitProbe?.snapshot(),progress:app.plugins.plugins['k-plex']?.getStartupDiagnostics?.()})");
     } catch (error) {
       (report.cliReconnects ??= []).push({ at: new Date().toISOString(), error: String(error) });
       writeFileSync(join(reportDir, "report.json"), JSON.stringify({ ...report, status: "running" }, null, 2) + "\n");
@@ -54,6 +56,7 @@ async function probe(code) {
       continue;
     }
     report.pending = result.progress;
+    if (result.waitProgress) report.pendingWaits = result.waitProgress;
     writeFileSync(join(reportDir, "report.json"), JSON.stringify({ ...report, status: "running" }, null, 2) + "\n");
     if (result.done) { if (result.error) throw Error(result.error);return result.value; }
   }
@@ -92,6 +95,14 @@ try {
  for(const [key,label] of [['inspect','sourceInspectionCalls'],['headPage','sourceHeadPageCalls'],['ensureLocalDependencies','dependencyChecks'],['completeLocalDependencyInventory','dependencyInventoryChecks'],['localDependencySelection','localDependencySelectionCalls'],['settleLocalDependencyWork','localDependencySettlementCalls']])wrap(r,key,label);
  wrap(r.runtime,'yield','repositoryYieldCalls');
  wrap(s,'acquire','sourceAcquisitions');wrap(s,'loadBody','bodyAcquisitions');
+ if(${measureWaits}){
+  c.result.waitTimingStartedMs=elapsed();
+  c.waitProbe=(${createWaitTimingProbe.toString()})({now:()=>performance.now(),phase:()=>{const source=p.startupDiagnostics.progress('source'),hydration=p.startupDiagnostics.progress('hydration');return source&&source.phase!=='complete'?'source:'+source.phase:'hydration:'+(hydration?.phase??'plugin-enable')}});
+  const observe=(owner,key,category,label)=>{const original=owner[key];assert(typeof original==='function','Missing timing operation '+key);const replacement=function(...args){return c.waitProbe.observe(category,typeof label==='function'?label(args):label,()=>original.apply(this,args))};owner[key]=replacement;c.originals.push({owner,key,original,replacement})};
+  observe(r.runtime,'yield','yield','timer');observe(r.runtime,'digest','digest','sha256');
+  observe(r,'transaction','transaction',args=>args[2]+':'+[...args[1]].sort().join(','));
+  const owner=p.startupDiagnostics,original=owner.phase;const replacement=function(...args){c.waitProbe.checkpoint();const result=original.apply(this,args);c.waitProbe.checkpoint();return result};owner.phase=replacement;c.originals.push({owner,key:'phase',original,replacement});
+ }
  void p.activateView();
  let previous='';
  while(!c.closed){
@@ -106,6 +117,7 @@ try {
  }
  assert(c.result.strictReadyMs!==undefined,'Strict readiness timeout');sample();
 } finally {
+ if(c.waitProbe)c.result.waits=c.waitProbe.stop();
  window.clearInterval(c.foregroundTimer);
  for(const entry of c.originals.reverse())if(entry.owner[entry.key]===entry.replacement)entry.owner[entry.key]=entry.original;
  c.originals=[];c.restoreOptIn();
@@ -126,7 +138,7 @@ try {
     for(const leaf of app.workspace.getLeavesOfType('k-plex-react-view'))leaf.detach();
     p.settings.lastActivePath=${JSON.stringify(selectedCenter)};await p.saveSettings(false,false);await p.activateView();
     let navigated=false;
-    while(!c.closed){if(!navigated&&p.index.get(${JSON.stringify(selectedCenter)})){p.notifyNavigation(${JSON.stringify(selectedCenter)});navigated=true}if(navigated&&p.getIndexStatus().upToDate&&!p.index.sourceAcquisition.inventory)return {representativeCenterSelected:true,ready:true};await new Promise(resolve=>window.setTimeout(resolve,100))}throw Error('Cancelled representative preflight');
+    while(!c.closed){if(p.index.get(${JSON.stringify(selectedCenter)})&&p.navigationListeners.size>0&&(!navigated||p.settings.lastActivePath!==${JSON.stringify(selectedCenter)})){p.notifyNavigation(${JSON.stringify(selectedCenter)});navigated=true}if(navigated&&p.settings.lastActivePath===${JSON.stringify(selectedCenter)}&&p.getIndexStatus().upToDate&&!p.index.sourceAcquisition.inventory)return {representativeCenterSelected:true,ready:true};await new Promise(resolve=>window.setTimeout(resolve,100))}throw Error('Cancelled representative preflight');
   `);
   for (let run = 1; run <= runs; run++) {
     report.runs.push(await probe(native));
@@ -138,7 +150,7 @@ try {
   try { report.failure = evaluate("JSON.stringify({result:window.kplexWarmStartup?.result,status:app.plugins.plugins['k-plex']?.getIndexStatus(),diagnostics:app.plugins.plugins['k-plex']?.startupDiagnostics.snapshot(),semantic:app.plugins.plugins['k-plex']?.index.getSemanticPreparationDiagnostics(),hydration:app.plugins.plugins['k-plex']?.index.getSnapshotHydrationDiagnostics(),demands:[...(app.plugins.plugins['k-plex']?.index.semanticDemandCounts??[])],hidden:document.hidden,documentFocused:document.hasFocus(),windowFocused:require('@electron/remote').getCurrentWindow().isFocused()})"); } catch (captureError) { report.captureError = String(captureError); }
 } finally {
   try {
-    report.cleanup = evaluate(`(()=>{const c=window.kplexWarmStartup;if(c){c.closed=true;window.clearTimeout(c.timer);window.clearInterval(c.foregroundTimer);for(const e of c.originals??[])if(e.owner[e.key]===e.replacement)e.owner[e.key]=e.original;c.restoreOptIn?.()}delete window.kplexWarmStartup;return JSON.stringify({controllerRemoved:!window.kplexWarmStartup,optInAbsent:window.kplexStartupDiagnosticsEnabled===undefined,backgroundThrottling:require('@electron/remote').getCurrentWindow().webContents.getBackgroundThrottling()})})()`);
+    report.cleanup = evaluate(`(()=>{const c=window.kplexWarmStartup;if(c){c.closed=true;c.waitProbe?.stop();window.clearTimeout(c.timer);window.clearInterval(c.foregroundTimer);for(const e of c.originals??[])if(e.owner[e.key]===e.replacement)e.owner[e.key]=e.original;c.restoreOptIn?.()}delete window.kplexWarmStartup;return JSON.stringify({controllerRemoved:!window.kplexWarmStartup,optInAbsent:window.kplexStartupDiagnosticsEnabled===undefined,backgroundThrottling:require('@electron/remote').getCurrentWindow().webContents.getBackgroundThrottling()})})()`);
   } catch (error) { report.cleanupError = String(error);report.status = "failed"; }
   try {
     // Restore the exact user configuration, including keys this test does not understand.

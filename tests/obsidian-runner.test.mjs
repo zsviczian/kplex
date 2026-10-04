@@ -7,7 +7,86 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 import { runObsidianVerification, validateTarget } from "../scripts/testing/obsidian/runner.mjs";
+import { createWaitTimingProbe } from "../scripts/testing/obsidian/waitTiming.mjs";
+
+test("native wait probe preserves exact promise/value/rejection identity and counts completion", async () => {
+  let time = 0, resolve;
+  const probe = createWaitTimingProbe({ now: () => time, phase: () => "source:checking" });
+  const original = new Promise(done => { resolve = done; });
+  assert.equal(probe.observe("yield", "timer", () => original), original);
+  time = 5; resolve("same result"); assert.equal(await original, "same result");
+  const reason = new Error("same rejection"), rejected = Promise.reject(reason);
+  assert.equal(probe.observe("transaction", "readonly:sourceHeads", () => rejected), rejected);
+  time = 8; await assert.rejects(rejected, error => error === reason);
+  assert.equal(probe.observe("digest", "sha256", () => 42), 42);
+  assert.throws(() => probe.observe("transaction", "throw", () => { throw reason; }), error => error === reason);
+  const report = probe.stop(), rows = Object.values(report.groups);
+  assert.equal(rows.reduce((n, row) => n + row.calls, 0), 4);
+  assert.equal(rows.reduce((n, row) => n + row.completed, 0), 4);
+  assert.equal(rows.reduce((n, row) => n + row.rejected, 0), 2);
+  assert.equal(rows.reduce((n, row) => n + row.synchronousThrows, 0), 1);
+  assert.deepEqual(report.active, [0, 0, 0]);
+});
+
+test("native wait probe separates overlapping intervals and real phase transitions", async () => {
+  let time = 0, phase = "source:host", resolveTransaction, resolveYield;
+  const probe = createWaitTimingProbe({ now: () => time, phase: () => phase });
+  const transaction = new Promise(done => { resolveTransaction = done; });
+  const yielding = new Promise(done => { resolveYield = done; });
+  probe.observe("transaction", "readonly:sourceChunks", () => transaction);
+  time = 1; probe.observe("yield", "timer", () => yielding);
+  time = 3; probe.checkpoint(); phase = "source:reconciliation"; probe.checkpoint();
+  time = 4; resolveYield(); await yielding;
+  time = 5; resolveTransaction(); await transaction;
+  time = 6; const report = probe.stop();
+  assert.deepEqual(report.phases["source:host"].membershipMs, [0, 0, 1, 2, 0, 0, 0, 0]);
+  assert.deepEqual(report.phases["source:reconciliation"].membershipMs, [1, 0, 1, 1, 0, 0, 0, 0]);
+  assert.equal(Object.values(report.phases).reduce((n, row) => n + row.elapsedMs, 0), 6);
+  const sums = Object.values(report.groups).reduce((n, row) => n + row.totalMs, 0);
+  assert.equal(sums, 8, "Inclusive promise durations overlap; union is only five milliseconds");
+});
+
+test("native wait probe freezes pending observations on retirement and detaches snapshots", async () => {
+  let time = 0, resolve;
+  const probe = createWaitTimingProbe({ now: () => time, phase: () => "source:host" });
+  const original = new Promise(done => { resolve = done; });
+  probe.observe("yield", "timer", () => original);
+  time = 2; const stopped = probe.stop(), saved = JSON.stringify(stopped);
+  assert.equal(Object.values(stopped.groups)[0].pending, 1);
+  time = 10; resolve(); await original; probe.checkpoint();
+  assert.equal(JSON.stringify(probe.snapshot()), saved, "Late completion cannot rewrite retired evidence");
+  stopped.categories[0] = "changed"; Object.values(stopped.phases)[0].membershipMs[1] = 999;
+  assert.equal(JSON.stringify(probe.snapshot()), saved, "Returned arrays cannot mutate private aggregates");
+  assert.equal(probe.observe("yield", "timer", () => original), original, "Retired observer still forwards");
+});
+
+test("native wait probe bounds phase/group cardinality and keeps fixed latency histograms", () => {
+  let time = 0, phase = "source:0";
+  const probe = createWaitTimingProbe({ now: () => time, phase: () => phase });
+  for (let i = 0; i < 1000; i++) {
+    phase = "source:" + i;
+    probe.observe("digest", "sha256", () => { time += i % 2 === 0 ? 0.2 : 9; });
+  }
+  const report = probe.stop();
+  assert(Object.keys(report.phases).length <= 128); assert(Object.keys(report.groups).length <= 128);
+  assert.equal(Object.values(report.groups).reduce((n, row) => n + row.histogram.reduce((a, b) => a + b, 0), 0), 1000);
+  assert.equal(Object.values(report.groups).reduce((n, row) => n + row.pending, 0), 0);
+  assert(Object.values(report.groups).every(row => row.histogram.length === report.upperBoundsMs.length));
+});
+
+test("native wait probe injection is self-contained in another JavaScript realm", async () => {
+  const factory = runInNewContext("(" + createWaitTimingProbe.toString() + ")");
+  let time = 0;
+  const probe = factory({ now: () => time, phase: () => "source:host" });
+  const original = Promise.resolve("value");
+  assert.equal(probe.observe("yield", "timer", () => original), original);
+  time = 2; await original;
+  const report = probe.stop();
+  assert.equal(report.groups["source:host:yield:timer"].totalMs, 2);
+  assert.equal(report.phases["source:host"].membershipMs[1], 2);
+});
 
 async function fixture(fn) {
   const root = mkdtempSync(join(tmpdir(), "kplex-host-runner-test-"));

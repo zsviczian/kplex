@@ -491,7 +491,7 @@ caffeinate -d -i node scripts/testing/obsidian/startup.mjs
 `caffeinate` applies only while the child runs on macOS; it prevents display/system idle sleep and
 changes neither renderer throttling nor timing bounds. Require a settled existing cache and actual
 foreground throughout. The optional existing center temporarily avoids the excluded hub; its setup waits
-for the page to be available before the existing navigation notification. The driver
+for both the page and the view navigation listener before the existing navigation notification, then verifies the actual selected center. The driver
 restores the exact original `data.json`, verifies the enabled list and removes all wrappers/controllers.
 The native test opts in to `window.kplexStartupDiagnosticsEnabled` before enable and restores its
 previous value. Normal operation retains phase progress but no detailed owner/timing trace. Private
@@ -563,3 +563,12 @@ restarts pass at 66.170/65.324/74.123 seconds (median 66.170, prior 82.149); pos
 production build. These are sequential observations, not randomized paired or physical-device tests.
 Existing yields remain; measure their exclusive wait cost before changing scheduling. Preserve a clean
 checkpoint between independently validated corrections.
+
+Optional `KPLEX_SI5_MEASURE_WAITS=true` enables native-test-only passive promise observation of
+repository yields, transactions and digests. It preserves original promises/results and adds bounded
+histograms and disjoint interval membership; callbacks/aggregation have unisolated overhead.
+Transaction durations include callback/commit/microtask latency, not exclusive disk time; the
+unwrapped remainder includes other work/waits, not CPU alone. Probe starts after enable returns;
+snapshot-cache transactions are not included. See [wait attribution and proposed correction](docs/validation/settings-independent-indexing-si5-wait-attribution-2026-10-04.md).
+Measured yields do not justify scheduling changes. Keep diagnostic-driver and subsequent UX/behavior
+changes in separate commits. No next optimization until the measured proposal is reviewed.

@@ -16,34 +16,14 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Online SI5 result — bounded posting reads implemented and validated
+# Online SI5 result — unchanged-build wait attribution
 
-## Scope and checkpoint boundaries
+Posting correction checkpoint **`ea41d4b4484b9957d8700cf44920809912ca1ee4`** is clean. [Wait attribution](docs/validation/settings-independent-indexing-si5-wait-attribution-2026-10-04.md) and its JSON capture the unchanged installed `c9cc8a49…` build. Three foreground warm restarts pass 64.523 / 64.592 / 67.665 seconds, median 64.592. Test-only bounded timing wrappers preserve original promises; host yields total 0.165 / 0.152 / 0.165 seconds, transaction intervals 36.776 / 35.870 / 37.344 seconds. Unwrapped remainder includes lease release/other work, not CPU-only. No optimization implemented.
 
-Pre-instrumentation implementation `62c7283`; diagnostics/owner-loop correction `8cd10b7d6746d607f8214ad192670a0b9a370778`; selection-reuse correction **`80a14ecaff42daa657c0e86aa04ff4ecd46046fc`**. Posting batching was developed and measured on a separate candidate after that clean checkpoint and forms the next independently validated checkpoint. Use `git log -1` for its resulting SHA; no push/release. Explicit online CLI/Git/development authority applies. C15–C26 stay paused.
+Four full owner walks remain; all zero source-work counters remain. 10/10 driver tests, 18 evidence assertions, restored configuration/enablement and removed wrappers/controller/opt-in, zero private owner sets, 21 frozen phases. Full production verify/build remains exact posting checkpoint with 199 browser tests. Untimed navigation notification was lost before view listener subscription; recovered before measured runs. Driver now gates listener and selected center; subsequent native validation needed. CLI reconnects zero; individual 30-second cap, bounded polls and no outer native deadline remain. Live status after restoring excluded hub settings is updating; completed measurements are historical.
 
-SI5 remains open. Existing extreme-vault cold behavior is accepted; the synthetic 20k-contributor hub `decode-budget` result is a known stress limit outside the critical path. No architecture/projection/cache/database redesign, memory increase, scheduling change or further cold optimization. Physical iPad/Android and final settings-route/retirement/evidence audit remain pending.
+Next performance proposal, **not implemented**: combine clean local-dependency selection and fresh head validation into one bounded readonly transaction, preserving overlay/repair/version/revision/cancellation/storage/freshness fences. Review before implementation. Do not remove yields or later freshness pass based only on owner overlap.
 
-## Implementation and exact results
+Current user UX request: two identical cache-check rounds in a now-closed personal vault. No old trace available, no personal vault opened/read, retry cause unknown. Next independent checkpoint should distinguish “Checking note metadata”, “Checking cached notes” and “Rechecking cached notes” for a repeated reconciliation. Preserve true counts/percentages. Validate and commit separately from this diagnostic checkpoint.
 
-[All timings, counters, commands and limits](docs/validation/settings-independent-indexing-si5-posting-batching-2026-10-04.md); [machine-readable evidence](docs/validation/settings-independent-indexing-si5-posting-batching-2026-10-04.json); [immediate baseline](docs/validation/settings-independent-indexing-si5-clean-selection-2026-10-04.md).
-
-The production change is eight lines in `visitFamily()`: use the existing byte/record-bounded posting batch's first/last primary keys to issue one exact `getAll(range, batch.length)` (at most 256 records). Check returned length, then retain every shape/source/revision/family/index/kind/key comparison and posting/family/frame digests. Keep existing transaction ownership, leases/head/freshness checks, cancellation, decode limits, yields and memory fallback. Do not aggregate families or expand the existing batch sizes. No schema or parser/compiler/classifier change.
-
-Exact installed `main.js` SHA-256 **`c9cc8a491b4294de9f7d04781069ea983131029b682aec02b778ba0f17d7b4bf`** passes three foreground restarts at **66,170.2 / 65,323.9 / 74,122.6 ms**, median **66,170.2 ms**, immediate baseline median **82,149.4 ms**: observed **15,979.2 ms lower**. These sequential series are not randomized paired trials or pre-implementation A/B. Report the observed improvement without exclusive I/O/timer/GC attribution or SI5/device/paint acceptance.
-
-Posting reads **484,199 point requests → 0 point requests + 20,027 bounded range requests**, **464,172 fewer requests**. Host comparison specifically **484,178 → 20,015 requests**. Four owner walks each still visit all 20,015 owners; dependency checks/selections 40,030, inspections 80,060, head reads 100,111 and repository yields 20,027 remain. Zero source/Markdown I/O, parsing, reacquisition, repair, rewrites or full builds.
-
-Host comparison **47.024–56.329 seconds**, reconciliation **9.228–9.701 seconds**; post-requested hydration **6.077 / 7.364 / 6.700 seconds**. Complete phase tables and milestones are in the report. Scheduling wait remains unmeasured; no yield removal or next optimization was added.
-
-## Validation and cleanup
-
-Focused real-IDB lane **16/16**; full `npm run verify` passes architecture 7/core 62/Node 138/UI 7/portable 317/browser **199**, actual installed Obsidian types and production build. Existing 20,015-owner browser publication passes in 394,237.9 ms; browser lane 527,588.2 ms. Three new regressions protect capped ranges/batch boundaries and family isolation; first/middle/boundary/last missing, wrong-key and fractional-key postings; and concurrent head replacement/cleanup or cancellation during the range await, with lease/decode cleanup. Existing repair/corruption/process restart/storage/byte-budget tests pass. No production source edits after verification started.
-
-Native foreground **68/68, 67/67, 76/76** samples valid, normal background throttling enabled. Timed CLI reconnects zero; all **20 evidence assertions** pass. Source heads/settings unchanged; original settings/enablement byte-identical; wrappers/controllers/opt-in removed, private owner sets released; 21 frozen phases remain readable after CLI exit. Restoring original Reference-center settings leaves live status updating on the excluded hub; completed strict-ready records are historical, not current readiness guarantees.
-
-Fresh backup `/private/tmp/kplex-si5-posting-before-2026-10-04`; exact build stays installed only in disposable kplex-test. Matched native disable/enable staging passes with actual instance/hash/config checks; no configured-versus-loaded mismatch or lost read. Existing individual 30-second CLI limits, five-second polling/ten-second reconnect, no outer readiness limit and unchanged production watchdog remain. Submission/cleanup still need responsive CLI. No personal-vault changes.
-
-## Remaining steps
-
-Checkpoint this correction before adding another behavior change. The largest remaining phase is host comparison, now 47–56 seconds. Exclusive cost of its 20,015 repository yields and other storage waits is still unmeasured; measurement is the next candidate before any scheduling correction. Do not infer cause from total time or remove yields blindly. Physical iPad/Android interruption/resume and representative workflows (hundreds of links, roughly a thousand at an extreme), and the final retirement/settings-route/evidence audit, remain separate required work. Do not reopen dense-hub/cold redesign or expand SI5 into broad refactoring.
+SI5 remains open for physical iPad/Android and final settings-route/retirement/evidence audit. Extreme cold accepted, 20k hub decode-budget outside critical path; no architecture/cache/projection/memory/cold redesign, C15–C26 paused. No push/release. Explicit online development/CLI/Git authority applies.
