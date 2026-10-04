@@ -1,0 +1,919 @@
+{
+  "schemaVersion": 1,
+  "exactBuild": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "startedAt": "2026-10-03T06:33:26.576Z",
+    "source": {
+      "revision": "bf0b3582bb5e39e512d7f282f78393b999d9f6a1",
+      "dirty": true,
+      "node": "v22.22.2",
+      "os": "darwin 23.5.0"
+    },
+    "target": {
+      "vaultName": "kplex-test",
+      "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+      "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+    },
+    "capabilities": {
+      "version": "1.14.4 (installer 1.14.0)",
+      "commands": [
+        "version",
+        "vault",
+        "plugin:disable",
+        "plugin:enable",
+        "commands",
+        "command",
+        "dev:dom",
+        "dev:errors"
+      ]
+    },
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "78965ca40044d7bac15c31280634b77783c96068565b9d55b45d4bfb0fa7b521",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "pluginVersion": "0.0.5",
+      "stagedHashes": {
+        "main.js": "78965ca40044d7bac15c31280634b77783c96068565b9d55b45d4bfb0fa7b521",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 3124
+      }
+    ],
+    "completedAt": "2026-10-03T06:43:48.915Z"
+  },
+  "nativeFixtureVault": "excalidraw-test",
+  "nativeMode": "functional diagnostics; selected renderer throttling temporarily disabled and restored; hidden samples excluded from performance acceptance",
+  "settingsAndNavigation": {
+    "status": "passed",
+    "steps": [
+      {
+        "label": "Friend to Challenger",
+        "elapsedMs": 67.39999997615814,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": true
+        },
+        "C": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Challenger to Friend",
+        "elapsedMs": 39.69999998807907,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Dormant add",
+        "elapsedMs": 39.5,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Dormant remove",
+        "elapsedMs": 35.40000003576279,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Infer links as friends",
+        "elapsedMs": 38.09999996423721,
+        "B": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        }
+      },
+      {
+        "label": "Forward inference",
+        "elapsedMs": 38.200000047683716,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Inverse inference",
+        "elapsedMs": 39.59999996423721,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Image semantic add",
+        "elapsedMs": 61.90000003576279,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        }
+      },
+      {
+        "label": "Thumbnail selector",
+        "elapsedMs": 40.69999998807907,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        }
+      },
+      {
+        "label": "Image assignment remove",
+        "elapsedMs": 39,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": null
+      },
+      {
+        "label": "Thumbnail remove",
+        "elapsedMs": 52.39999997615814,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Node image selector",
+        "elapsedMs": 42.5,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": null
+      },
+      {
+        "label": "Latest navigation wins"
+      },
+      {
+        "label": "Latest policy wins"
+      }
+    ],
+    "work": {
+      "reads": 0,
+      "parses": 0,
+      "acquisitions": 0,
+      "markdownEnumerations": 0
+    },
+    "fullBuildDelta": 0,
+    "publicationDelta": 14,
+    "hidden": true
+  },
+  "warmCacheSettingsAndNavigation": {
+    "status": "passed",
+    "steps": [
+      {
+        "label": "Friend to Challenger",
+        "elapsedMs": 57.60000002384186,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": true
+        },
+        "C": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Challenger to Friend",
+        "elapsedMs": 45.39999997615814,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Dormant add",
+        "elapsedMs": 41.10000002384186,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Dormant remove",
+        "elapsedMs": 63.30000001192093,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Infer links as friends",
+        "elapsedMs": 39.69999998807907,
+        "B": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        }
+      },
+      {
+        "label": "Forward inference",
+        "elapsedMs": 42.700000047683716,
+        "B": {
+          "parent": false,
+          "child": true,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": true,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Inverse inference",
+        "elapsedMs": 42.5,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Image semantic add",
+        "elapsedMs": 461.7999999523163,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        }
+      },
+      {
+        "label": "Thumbnail selector",
+        "elapsedMs": 40.700000047683716,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": false,
+          "child": false,
+          "left": true,
+          "right": false
+        }
+      },
+      {
+        "label": "Image assignment remove",
+        "elapsedMs": 35.59999996423721,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": null
+      },
+      {
+        "label": "Thumbnail remove",
+        "elapsedMs": 41.10000002384186,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        }
+      },
+      {
+        "label": "Node image selector",
+        "elapsedMs": 41.69999998807907,
+        "B": {
+          "parent": true,
+          "child": false,
+          "left": true,
+          "right": false
+        },
+        "C": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "D": {
+          "parent": true,
+          "child": false,
+          "left": false,
+          "right": false
+        },
+        "image": null
+      },
+      {
+        "label": "Latest navigation wins"
+      },
+      {
+        "label": "Latest policy wins"
+      }
+    ],
+    "work": {
+      "reads": 0,
+      "parses": 0,
+      "acquisitions": 0,
+      "markdownEnumerations": 0
+    },
+    "fullBuildDelta": 0,
+    "publicationDelta": 14,
+    "hidden": true
+  },
+  "fileEvents": {
+    "status": "passed",
+    "folderAndMarkdownCreate": "passed",
+    "nativeWaves": "passed",
+    "phases": {
+      "create": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 4,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 2,
+        "bodyParses": 1
+      },
+      "modify": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 3,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 2,
+        "bodyParses": 1
+      },
+      "rename": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 4,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 2,
+        "bodyParses": 0
+      },
+      "delete": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 4,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 0,
+        "bodyParses": 0
+      },
+      "recreate": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 4,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 2,
+        "bodyParses": 1
+      }
+    },
+    "sourceCounters": {
+      "checked": 51,
+      "reusedBodies": 26,
+      "legacyBodies": 0,
+      "vaultReads": 23,
+      "parses": 23,
+      "repaired": 26,
+      "resolutionRefreshes": 17,
+      "pendingMetadata": 0,
+      "failures": 0
+    },
+    "newDiagnostics": []
+  },
+  "cleanup": {
+    "status": "passed",
+    "fixtureFoldersAbsent": true,
+    "temporaryControllersAbsent": true,
+    "rendererThrottlingRestored": true,
+    "preResetCacheStoresRestoredAndCompared": 14,
+    "temporaryPluginRemoved": true,
+    "originalEnabledPluginsRestored": [
+      "obsidian-excalidraw-plugin"
+    ],
+    "largeVaultExactBuildEnabled": true,
+    "largeVaultFinalStatus": {
+      "loaded": true,
+      "phase": "indexing",
+      "indexedFiles": 1688,
+      "totalFiles": 20015,
+      "claim": "exact-build smoke only; native large-vault startup acceptance pending SI5"
+    }
+  },
+  "warmCacheFileEvents": {
+    "status": "passed",
+    "folderAndMarkdownCreate": "passed",
+    "nativeWaves": "passed",
+    "phases": {
+      "create": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 4,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 2,
+        "bodyParses": 1
+      },
+      "modify": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 3,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 2,
+        "bodyParses": 1
+      },
+      "rename": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 4,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 2,
+        "bodyParses": 0
+      },
+      "delete": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 4,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 0,
+        "bodyParses": 0
+      },
+      "recreate": {
+        "markdownEnumerations": 0,
+        "fileEnumerations": 0,
+        "rootLookups": 4,
+        "headPages": 0,
+        "unrelatedInspections": 0,
+        "unrelatedVisits": 0,
+        "unrelatedWrites": 0,
+        "bodyLoads": 2,
+        "bodyParses": 1
+      }
+    },
+    "sourceCounters": {
+      "checked": 20,
+      "reusedBodies": 11,
+      "legacyBodies": 0,
+      "vaultReads": 9,
+      "parses": 9,
+      "repaired": 10,
+      "resolutionRefreshes": 7,
+      "pendingMetadata": 0,
+      "failures": 0
+    },
+    "newDiagnostics": []
+  }
+}

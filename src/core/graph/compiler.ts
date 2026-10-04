@@ -1,4 +1,15 @@
-import { normalizeFieldName } from "../contracts/fieldName";
+/**
+ * Portable source-to-evidence compiler. Semantic rules remain canonical here; presentation fields
+ * are a finite compatibility output delegated to the shared presentation owner until SI4. Neutral
+ * reference reads use sourcePolicy before materialization; only active evidence survives compilation.
+ * The node projection reuses that policy/materialization owner without retaining or resolving evidence;
+ * its distinct result cannot authorize relationship readiness.
+ */
+import { selectStyleTags, tagDisplayName, unwrapNoteType } from "./presentation";
+import {
+  ReferencePolicySelector, ReferenceSourcePolicyRead,
+  type ReferenceAssignment, type SelectedReferenceCandidate, type SelectedSourceRecord,
+} from "./sourcePolicy";
 import { nodeId, type FileFacet, type GraphNodeKind, type NodeId } from "./model";
 import {
   acceptSourceBatch,
@@ -9,9 +20,6 @@ import {
   type FileTreeOccurrence,
   type HostLinkOccurrence,
   type NormalizedSourceBatch,
-  type NormalizedSourceRecord,
-  type OntologyOccurrence,
-  type PresentationLinkOccurrence,
   type SemanticMetadataOccurrence,
   type SourceBatchCursor,
   type SourceEntityFact,
@@ -43,6 +51,8 @@ export type GraphCompilerSettings = Readonly<{
     previous: readonly string[];
     next: readonly string[];
   }>;
+  thumbnailProperty?: string;
+  nodeImageProperty?: string;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
   showFullTagName: boolean;
@@ -80,6 +90,13 @@ export type CompiledGraphNode = {
   neighbours: Map<string, SemanticRelation<CompiledGraphNode>>;
 };
 
+/** Complete node vocabulary only; empty neighbours never assert complete relationship coverage. */
+export type PortableNodeCompilation = Readonly<{
+  kind: "node-metadata";
+  nodes: ReadonlyMap<NodeId, CompiledGraphNode>;
+  discoveredFields: ReadonlyMap<string, { name: string; count: number }>;
+}>;
+
 export type CompiledEvidenceOwnership = Readonly<{
   sourceId: NodeId;
   revision: SourceRevision;
@@ -110,12 +127,6 @@ type NodeMetadataAccumulator = {
 
 type PresentationCount = { visual: number; host: number };
 
-type OntologyAssignment = Readonly<{
-  configuredFieldName: string;
-  normalizedFieldName: string;
-  role: EvidenceRole;
-}>;
-
 /**
  * One bounded producer read. The compiler mutates only its private state; a rejected/stale read
  * therefore discards the whole compilation rather than exposing a partial graph.
@@ -124,8 +135,12 @@ export class GraphCompilerSourceRead {
   cursor: SourceBatchCursor;
   complete = false;
 
-  constructor(readonly boundary: SourceReadBoundary) {
+  readonly selection: ReferenceSourcePolicyRead;
+
+  /** Capture the producer cursor and its policy decoder; payloads never escape this read's lifetime. */
+  constructor(readonly boundary: SourceReadBoundary, selector: ReferencePolicySelector) {
     this.cursor = beginSourceRead(boundary);
+    this.selection = new ReferenceSourcePolicyRead(selector);
   }
 }
 
@@ -209,6 +224,7 @@ export class PortableGraphCompilation {
   }
 }
 
+/** Compile validated source reads through one captured policy into a private semantic graph. */
 export class NormalizedGraphCompiler {
   private readonly nodes = new Map<NodeId, CompiledGraphNode>();
   private readonly nodesByResolverKey = new Map<string, CompiledGraphNode>();
@@ -224,38 +240,30 @@ export class NormalizedGraphCompiler {
   private readonly urlLabels = new Map<NodeId, string>();
   private readonly ownershipByEvidenceId = new Map<string, CompiledEvidenceOwnership>();
   private readonly openReads = new Set<GraphCompilerSourceRead>();
-  private readonly ontologyAssignments: readonly OntologyAssignment[];
+  private readonly referenceSelector: ReferencePolicySelector;
+  /** Temporary order keys for already-created evidence, not a second source/graph representation. */
+  private readonly referenceOrderByEvidenceId = new Map<string, readonly number[]>();
+  private readonly referenceSourceOrder = new Map<NodeId, number>();
   private sliceStartedAt: number;
   private finished = false;
   private rejected = false;
   private nextResolverKey = 0;
   private nextSyntheticId = 0;
 
+  /** Capture reference selection once; node projection skips evidence without changing materialization. */
   constructor(
     private readonly settings: GraphCompilerSettings,
     private readonly runtime: GraphCompilerRuntime,
+    private readonly projection: "graph" | "nodes" = "graph",
   ) {
     this.sliceStartedAt = runtime.now();
-    const hierarchy = settings.hierarchy;
-    const groups: ReadonlyArray<readonly [readonly string[], EvidenceRole]> = [
-      [hierarchy.hidden, "hidden"],
-      [hierarchy.parents, "parent"],
-      [hierarchy.children, "child"],
-      [hierarchy.leftFriends, "left"],
-      [hierarchy.rightFriends, "right"],
-      [hierarchy.previous, "previous"],
-      [hierarchy.next, "next"],
-    ];
-    this.ontologyAssignments = groups.flatMap(([fieldNames, role]) => fieldNames.map((configuredFieldName) => ({
-      configuredFieldName,
-      normalizedFieldName: normalizeFieldName(configuredFieldName),
-      role,
-    }))).filter((assignment) => Boolean(assignment.normalizedFieldName));
+    this.referenceSelector = new ReferencePolicySelector(settings);
   }
 
+  /** Open a producer-local cursor/decoder under the compiler's captured reference policy. */
   beginRead(boundary: SourceReadBoundary): GraphCompilerSourceRead {
     if (this.finished) throw new Error("Graph compiler is already finalized");
-    const read = new GraphCompilerSourceRead(boundary);
+    const read = new GraphCompilerSourceRead(boundary, this.referenceSelector);
     this.openReads.add(read);
     return read;
   }
@@ -277,37 +285,52 @@ export class NormalizedGraphCompiler {
     return this.checkpoint();
   }
 
-  async acceptBatch(read: GraphCompilerSourceRead, batch: NormalizedSourceBatch): Promise<boolean> {
+  /**
+   * Validate and select each record before the optional patch seeder sees it. The shared decoder
+   * is the only policy gate for full and patch builds; dormant values cause no graph reads/writes.
+   */
+  async acceptBatch(
+    read: GraphCompilerSourceRead,
+    batch: NormalizedSourceBatch,
+    beforeConsume?: (record: SelectedSourceRecord) => Promise<boolean>,
+  ): Promise<boolean> {
     if (this.finished || this.rejected || read.complete || !this.openReads.has(read) || !this.runtime.isCurrent()) return this.reject();
     const accepted = acceptSourceBatch(read.cursor, batch);
     if (!accepted.accepted) return this.reject();
     for (const record of batch.records) {
-      if (!this.consumeRecord(record)) return this.reject();
+      const selected = read.selection.accept(record);
+      if (!selected.accepted) return this.reject();
+      if (selected.record) {
+        if (beforeConsume && !(await beforeConsume(selected.record))) return this.reject();
+        if (!this.runtime.isCurrent() || !this.consumeRecord(selected.record)) return this.reject();
+      }
       if (!(await this.checkpoint())) return this.reject();
     }
     read.cursor = accepted.cursor;
     return this.runtime.isCurrent() || this.reject();
   }
 
+  /** Close only a current, complete cursor and complete value frame; release its last payload. */
   completeRead(read: GraphCompilerSourceRead, currentBoundary: SourceReadBoundary): boolean {
     if (this.finished || this.rejected || read.complete || !this.openReads.has(read) || !this.runtime.isCurrent()) return this.reject();
-    if (!sourceReadCanPublish(read.cursor, currentBoundary)) return this.reject();
+    if (!sourceReadCanPublish(read.cursor, currentBoundary) || !read.selection.canComplete()) return this.reject();
+    read.selection.release();
     read.complete = true;
     this.openReads.delete(read);
     return true;
   }
 
+  /** Reconcile private evidence order/suppression and resolve; cancellation never publishes a graph. */
   async finish(): Promise<PortableGraphCompilation | null> {
-    if (this.finished || this.rejected || this.openReads.size || !this.runtime.isCurrent()) return null;
-    this.finished = true;
-    for (const id of this.requiredMaterializedEntityFacts) if (!this.entityFactSeen.has(id)) return null;
+    if (this.projection !== "graph" || !(await this.finalizeNodes())) return null;
 
-    let processed = 0;
-    for (const node of this.nodes.values()) {
-      this.finalizeMetadata(node);
-      processed += 1;
-      if ((processed & 127) === 0 && !(await this.checkpoint())) return null;
-    }
+    // Natural physical collection order must not replace the accepted configured-field order.
+    // Reorder only the existing private evidence buckets; no raw candidate replay/DTO is retained.
+    if (this.referenceOrderByEvidenceId.size && !(await this.evidence.orderDeclarationsCooperative(
+      (left, right) => this.compareDeclarationOrder(left, right), () => this.checkpoint(),
+    ))) return null;
+    this.referenceOrderByEvidenceId.clear();
+    this.referenceSourceOrder.clear();
     if (!(await this.applyPresentationSuppression())) return null;
     if (!this.runtime.isCurrent()) return null;
 
@@ -330,7 +353,34 @@ export class NormalizedGraphCompiler {
     );
   }
 
+  /**
+   * Finish global vocabulary under the same terminal read/materialization fences as a full build.
+   * No evidence ordering, suppression or relationship resolution runs in this projection.
+   */
+  async finishNodes(): Promise<PortableNodeCompilation | null> {
+    if (this.projection !== "nodes" || !(await this.finalizeNodes())) return null;
+    return { kind: "node-metadata", nodes: this.nodes, discoveredFields: this.discoveredFields };
+  }
+
+  /** Finalize finite metadata only after every producer and required physical entity has closed. */
+  private async finalizeNodes(): Promise<boolean> {
+    if (this.finished || this.rejected || this.openReads.size || !this.runtime.isCurrent()) return false;
+    this.finished = true;
+    for (const id of this.requiredMaterializedEntityFacts) if (!this.entityFactSeen.has(id)) return false;
+    let processed = 0;
+    for (const node of this.nodes.values()) {
+      this.finalizeMetadata(node);
+      if ((++processed & 127) === 0 && !(await this.checkpoint())) return false;
+    }
+    return this.runtime.isCurrent();
+  }
+
+  /** Terminal rejection releases any partially assembled value payloads and temporary order keys. */
   private reject(): false {
+    for (const read of this.openReads) read.selection.release();
+    this.openReads.clear();
+    this.referenceOrderByEvidenceId.clear();
+    this.referenceSourceOrder.clear();
     this.rejected = true;
     return false;
   }
@@ -344,20 +394,19 @@ export class NormalizedGraphCompiler {
     return true;
   }
 
-  private consumeRecord(record: NormalizedSourceRecord): boolean {
+  /** Consume only policy-selected operations; unselected raw reference facts cannot enter here. */
+  private consumeRecord(record: SelectedSourceRecord): boolean {
     switch (record.kind) {
       case "entity": return this.consumeEntity(record);
       case "file-tree": return this.consumeFileTree(record);
       case "tag-tree": return this.consumeTagTree(record);
       case "obsidian-link":
       case "unresolved-link": return this.consumeHostLink(record);
-      case "frontmatter-ontology":
-      case "inline-ontology": return this.consumeOntology(record);
+      case "selected-reference": return this.consumeReference(record);
       case "field-name": return this.consumeFieldName(record);
       case "semantic-metadata": return this.consumeSemanticMetadata(record);
       case "date-property": return this.consumeDate(record);
       case "body-url": return this.consumeBodyUrl(record);
-      case "presentation-link": return this.consumePresentationLink(record);
     }
   }
 
@@ -427,33 +476,34 @@ export class NormalizedGraphCompiler {
     return true;
   }
 
-  private consumeOntology(record: OntologyOccurrence): boolean {
+  /** Materialize only after canonical selection; raw physical names never encode current roles. */
+  private consumeReference(record: SelectedReferenceCandidate): boolean {
     const source = this.ensureNode(record.source, this.fallbackName(record.source));
     const target = this.ensureNode(record.target.entity, this.fallbackName(record.target.entity, record.target.rawTarget));
     if (!source || !target) return false;
-    const configured = record.provenance?.configuredFieldName;
-    const normalized = record.provenance?.normalizedFieldName
-      ?? normalizeFieldName(record.provenance?.fieldName ?? configured ?? "");
-    const assignments = configured
-      ? this.ontologyAssignments.filter((assignment) => assignment.configuredFieldName === configured)
-      : this.ontologyAssignments.filter((assignment) => assignment.normalizedFieldName === normalized);
-    if (!assignments.length) return false;
-    for (const assignment of assignments) {
-      const location = record.provenance?.location;
+    const value = record.value;
+    for (const assignment of record.selection.assignments) {
+      const location = value.location;
       const provenance: EvidenceProvenance = {
-        sourceKind: record.kind,
-        definition: record.provenance?.definition ?? assignment.normalizedFieldName,
-        fieldName: record.provenance?.fieldName ?? configured ?? assignment.configuredFieldName,
-        ...(record.provenance?.rawValue === undefined ? {} : { rawValue: record.provenance.rawValue }),
+        sourceKind: value.surface === "frontmatter" ? "frontmatter-ontology" : "inline-ontology",
+        definition: assignment.normalizedFieldName,
+        // The accepted evidence oracle uses configured frontmatter labels but actual inline spelling.
+        // The neutral value header separately preserves the exact physical frontmatter key.
+        fieldName: value.surface === "frontmatter" ? assignment.configuredFieldName : value.fieldName,
+        ...(record.rawValue === undefined ? {} : { rawValue: record.rawValue }),
         ...(location?.line === undefined ? {} : { line: location.line }),
         ...(location?.start === undefined ? {} : { start: location.start }),
         ...(location?.end === undefined ? {} : { end: location.end }),
       };
-      if (assignment.role === "hidden") {
-        this.addHidden(record, source, target, provenance);
-      } else {
-        this.addEvidence(record, source, target, assignment.role, RelationType.DEFINED, LinkDirection.FROM, provenance);
-      }
+      if (assignment.role === "hidden") this.addHidden(record, source, target, provenance, assignment);
+      else this.addEvidence(record, source, target, assignment.role, RelationType.DEFINED, LinkDirection.FROM, provenance, assignment);
+    }
+    if (this.projection === "graph" && record.selection.image) {
+      const key = this.pairCountKey(this.keyForNode(source), this.keyForNode(target));
+      const count = this.presentationCounts.get(key) ?? { visual: 0, host: record.hostOccurrenceCount };
+      count.visual += 1;
+      count.host = record.hostOccurrenceCount;
+      this.presentationCounts.set(key, count);
     }
     return true;
   }
@@ -535,18 +585,6 @@ export class NormalizedGraphCompiler {
         });
       }
     }
-    return true;
-  }
-
-  private consumePresentationLink(record: PresentationLinkOccurrence): boolean {
-    const source = this.ensureNode(record.source, this.fallbackName(record.source));
-    const target = this.ensureNode(record.target.entity, this.fallbackName(record.target.entity, record.target.rawTarget));
-    if (!source || !target) return false;
-    const key = this.pairCountKey(this.keyForNode(source), this.keyForNode(target));
-    const count = this.presentationCounts.get(key) ?? { visual: 0, host: record.hostOccurrenceCount };
-    count.visual += 1;
-    count.host = record.hostOccurrenceCount;
-    this.presentationCounts.set(key, count);
     return true;
   }
 
@@ -661,9 +699,7 @@ export class NormalizedGraphCompiler {
 
   private tagNameFromPath(path: string | undefined): string {
     if (!path) return "";
-    const tagPath = path.replace(/^tag:/, "");
-    const parts = tagPath.split("/");
-    return this.settings.showFullTagName ? tagPath : parts[parts.length - 1] ?? tagPath;
+    return tagDisplayName(path, this.settings.showFullTagName);
   }
 
   private syntheticId(): NodeId {
@@ -708,7 +744,7 @@ export class NormalizedGraphCompiler {
   }
 
   private addInferred(
-    record: NormalizedSourceRecord,
+    record: SelectedSourceRecord,
     source: CompiledGraphNode,
     target: CompiledGraphNode,
     sourceKind: EvidenceSourceKind,
@@ -717,27 +753,66 @@ export class NormalizedGraphCompiler {
     this.addEvidence(record, source, target, this.inferredRole(), RelationType.INFERRED, LinkDirection.FROM, { sourceKind, ...extra });
   }
 
-  private addHidden(record: NormalizedSourceRecord, source: CompiledGraphNode, target: CompiledGraphNode, provenance: EvidenceProvenance): void {
-    if (source.id === target.id) return;
+  /** Add one directional hidden declaration and remember its policy interpretation order. */
+  /** Record the original directional hidden declaration, retaining selected reference order. */
+  private addHidden(record: SelectedSourceRecord, source: CompiledGraphNode, target: CompiledGraphNode,
+    provenance: EvidenceProvenance, assignment?: ReferenceAssignment): void {
+    if (this.projection === "nodes" || source.id === target.id) return;
     const id = this.evidence.addHidden(this.keyForNode(source), this.keyForNode(target), provenance);
-    if (id) this.ownershipByEvidenceId.set(id, this.ownership(record));
+    if (id) {
+      this.ownershipByEvidenceId.set(id, this.ownership(record));
+      this.rememberReferenceOrder(id, record, assignment);
+    }
   }
 
+  /** Add one original declaration and its physical contribution; reference order is reconciled later. */
   private addEvidence(
-    record: NormalizedSourceRecord,
+    record: SelectedSourceRecord,
     source: CompiledGraphNode,
     target: CompiledGraphNode,
     role: Exclude<EvidenceRole, "hidden">,
     relationType: RelationType,
     direction: LinkDirection,
     provenance: EvidenceProvenance,
+    assignment?: ReferenceAssignment,
   ): void {
-    if (source.id === target.id) return;
+    if (this.projection === "nodes" || source.id === target.id) return;
     const id = this.evidence.addPair(this.keyForNode(source), this.keyForNode(target), role, relationType, direction, provenance);
-    if (id) this.ownershipByEvidenceId.set(id, this.ownership(record));
+    if (id) {
+      this.ownershipByEvidenceId.set(id, this.ownership(record));
+      this.rememberReferenceOrder(id, record, assignment);
+    }
   }
 
-  private ownership(record: NormalizedSourceRecord): CompiledEvidenceOwnership {
+  /** Retain compact ordering metadata for evidence only until final private reconciliation. */
+  private rememberReferenceOrder(id: string, record: SelectedSourceRecord, assignment?: ReferenceAssignment): void {
+    if (record.kind !== "selected-reference" || !assignment) return;
+    const sequence = this.declarationSequence(id);
+    const sourceOrder = this.referenceSourceOrder.get(record.source.id) ?? sequence;
+    this.referenceSourceOrder.set(record.source.id, sourceOrder);
+    this.referenceOrderByEvidenceId.set(id, [sourceOrder, assignment.fieldOrder,
+      record.value.surface === "frontmatter" ? 0 : 1, record.value.ordinal, record.ordinal, assignment.assignmentOrder]);
+  }
+
+  /** Evidence IDs are compiler-generated counters, never opaque source/entity identifiers. */
+  private declarationSequence(id: string): number { return Number(id.slice(3, id.indexOf(":"))); }
+
+  /** Restore configured labels, physical values/targets and exact-assignment multiplicity order. */
+  private compareDeclarationOrder(left: RelationEvidence, right: RelationEvidence): number {
+    const leftOrder = this.referenceOrderByEvidenceId.get(left.id);
+    const rightOrder = this.referenceOrderByEvidenceId.get(right.id);
+    const first = (leftOrder?.[0] ?? this.declarationSequence(left.id))
+      - (rightOrder?.[0] ?? this.declarationSequence(right.id));
+    if (first || !leftOrder || !rightOrder) return first;
+    for (let index = 1; index < leftOrder.length; index += 1) {
+      const difference = leftOrder[index] - rightOrder[index];
+      if (difference) return difference;
+    }
+    return 0;
+  }
+
+  /** Preserve explicit contribution ownership; selected references inherit their observed source revision. */
+  private ownership(record: SelectedSourceRecord): CompiledEvidenceOwnership {
     return record.contribution
       ? { sourceId: record.contribution.source.id, revision: record.contribution.revision }
       : { sourceId: record.source.id, revision: record.sourceRevision };
@@ -773,31 +848,10 @@ export class NormalizedGraphCompiler {
     return this.runtime.isCurrent();
   }
 
+  /** Prepare compatibility facets through the same presentation rules used after restoration. */
   private finalizeMetadata(node: CompiledGraphNode): void {
     const accumulator = this.metadata.get(node.id);
-    if (accumulator) {
-      const noteType = (accumulator.hasFrontmatterNoteType ? accumulator.frontmatterNoteType : undefined)
-        ?? (accumulator.hasInlineNoteType ? accumulator.inlineNoteType : undefined);
-      node.noteType = this.unwrapNoteType(noteType);
-      const styleTags = node.tags.filter((tag) => this.settings.tagStyleList.some((prefix) => tag.startsWith(prefix)));
-      const primaryTags = accumulator.primaryValues
-        .flatMap((value) => typeof value === "string" ? value.match(/#[^\s\])$"'\\]+/g) ?? [] : []);
-      node.primaryStyleTag = primaryTags.find((tag) => styleTags.some((styleTag) => styleTag.startsWith(tag))) ?? styleTags[0] ?? null;
-      node.styleTags = styleTags.filter((tag) => tag !== node.primaryStyleTag);
-      return;
-    }
-    const styleTags = node.tags.filter((tag) => this.settings.tagStyleList.some((prefix) => tag.startsWith(prefix)));
-    node.primaryStyleTag = styleTags[0] ?? null;
-    node.styleTags = styleTags.filter((tag) => tag !== node.primaryStyleTag);
-  }
-
-  private unwrapNoteType(value: SemanticMetadataOccurrence["value"] | undefined): string | null {
-    const first: unknown = Array.isArray(value) ? value[0] : value;
-    if (typeof first !== "string" && typeof first !== "number") return null;
-    let text = String(first).trim();
-    const wiki = text.match(/^\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]$/);
-    if (wiki) text = wiki[1].trim();
-    text = text.replace(/^#/, "").trim();
-    return text || null;
+    node.noteType = unwrapNoteType(accumulator?.frontmatterNoteType ?? accumulator?.inlineNoteType);
+    Object.assign(node, selectStyleTags(node.tags, this.settings.tagStyleList, accumulator?.primaryValues ?? []));
   }
 }

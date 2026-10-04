@@ -16,83 +16,20 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
+# Online result — indexing settings independence closed
 
-## Current transfer
+## Status and authorization
 
-**State: returned for main-agent review.**
+SI0–SI5 are accepted. SI4 is finalized at `323b260127e4fb81e1d3697d4ee8b0282f8cdb12`; SI5’s last narrow implementation correction is `9d8b5c9cb3e5fd7e42edc7d3a65684eda241ee5e`, followed by desktop/device-candidate documentation at `e46dd845db330420ef24fd732ca27a98279b6805`. The maintainer reports successful physical iPad and Android testing on 2026-10-04 and requests final startup copy changes, closure and a PR. Online development, CLI, commit/push/PR authority applies. Merge and release are separate actions; C15–C26 remain paused.
 
-- Sender → recipient: offline development agent → main validation agent.
-- Kind: correction to recent-leaf navigation history.
-- Objective: make **Sync K-Plex with recent tab** follow the exact sequence of `active-leaf-change` events inside a tab group instead of resolving through workspace/group order.
-- Base identity: the maintainer's current repository state from the previous transfer (user-supplied `repository.zip` plus the prior leaf-history adaptation). No Git metadata is available in this offline handoff copy.
-- Actual capabilities: no Obsidian runtime/CLI. Container Node is `v22.16.0`; repository contract requires Node `22.22.2`. Project dependencies are not installed; global TypeScript is available for syntax checks.
+## Final checkpoint
 
-## Root cause in the previous patch
+Requested startup wording is updated across all eight locale catalogs, with stable keys/placeholders and unchanged progress/indexing behavior. Current acceptance/build/commands/results and qualitative device evidence limits are in the [final acceptance report](docs/validation/settings-independent-indexing-si5-acceptance-2026-10-04.md). The [design checkboxes](docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md#11-fixed-completion-plan), [plan ledger](Refactor%20plan.md), architecture and contributor/runtime instructions reflect completion. Earlier reports keep their exact hashes, counters, unsuccessful trials and unmeasured cases.
 
-The previous implementation was still treating navigation history as a **qualified MRU set**:
+The [warm candidate/control report](docs/validation/settings-independent-indexing-si5-merged-selection-2026-10-04.md) still shows no overall warm speedup: medians 70.346 seconds candidate versus 69.144 seconds same-UX control, with 40,030 fewer transaction boundaries and all four owner walks retained. The [retirement audit](docs/validation/settings-independent-indexing-si5-closeout-audit-2026-10-04.md) confirms valid-fact settings do not schedule source/full rebuilds. Historical readers/stores/shared contracts and characterization seams are deliberately retained.
 
-- it tried to decide during `active-leaf-change` whether the activated leaf already exposed a file or Web Viewer URL;
-- it de-duplicated by leaf identity and moved that entry to the MRU front;
-- it later iterated that MRU rather than replaying the real activation sequence.
+Extreme cold is accepted; synthetic 20k dense-hub/high-node stress limits remain excluded. No projection/database/cache redesign, larger memory limits, further cold/scheduler optimization or structural refactor is queued. No personal vault is opened/read; final native checks use only disposable `kplex-test`.
 
-That is weaker than the required model. `active-leaf-change` can occur before a newly selected view is fully materialized, and de-duplicating the leaf sequence obscures the exact navigation chronology. The reliable input is the leaf activation itself; file/URL qualification belongs at resolution time.
+## Handoff state
 
-## Implementation
-
-`src/main.ts` now keeps a bounded chronological `WorkspaceLeaf[]` history, oldest to newest.
-
-- Every non-null `active-leaf-change` is appended immediately, including K-Plex and utility leaves.
-- No file/view/visibility check is performed before the leaf is stored.
-- Repeated activations are preserved; the history is **not de-duplicated**.
-- The history is capped at 20 entries by removing only the oldest overflow.
-- Closed leaves are pruned by comparing leaf object identity with `workspace.iterateAllLeaves()`; surviving order is unchanged.
-- `findRecentDocumentLeaf()` iterates the activation history from newest to oldest and inspects each leaf **at resolution time** with `fileForLeaf()`. K-Plex/utility leaves are skipped naturally; hidden file siblings in the same tab group remain eligible.
-- `findRecentIndexedNavigationTarget()` uses the same reverse chronological traversal. For each live historical leaf it checks, in order:
-  1. current vault file → indexed file path;
-  2. current Web Viewer URL → indexed URL node.
-- If explicit activation history exists but contains no indexed target, sync returns no target. It does not fall through to `getMostRecentLeaf()` or workspace iteration, which is the path that previously selected the first tab in the group.
-- Generic file handling from the previous patch is preserved: any view/file type resolving to a `TFile` can participate (Markdown, image, Bases, attachment, etc.). Web Viewer URL support is also preserved.
-
-## Changed files
-
-- `src/main.ts`
-- `tests/indexing.test.mjs`
-- `HANDOFF.md`
-
-## Validation performed offline
-
-- `NODE_PATH=/opt/nvm/versions/node/v22.16.0/lib/node_modules node tests/indexing.test.mjs` — **PASS**.
-- Global TypeScript `transpileModule` syntax validation of `src/main.ts` — **PASS**.
-- Behavioral simulation of `tab 1 → tab 3 → K-Plex` using the same chronological resolver semantics — **PASS**: reverse traversal skips K-Plex and returns tab 3; after tab 3 is closed, traversal falls back to tab 1.
-- Regression guards now require:
-  - every `active-leaf-change` to append the leaf before qualification;
-  - chronological `push()` storage;
-  - no de-duplication;
-  - newest-to-oldest traversal;
-  - closed-leaf pruning without reordering;
-  - file qualification at resolution time;
-  - Web Viewer qualification at resolution time;
-  - no workspace-order fallback once explicit activation history exists.
-
-## Required main-agent validation
-
-1. Run Node `22.22.2` with normal dependencies and execute `npm run verify`.
-2. Primary native regression in **one tab group**:
-   - tab 1 = file A;
-   - tab 2 = K-Plex;
-   - tab 3 = file B;
-   - click tab 1, click tab 3, optionally edit B, click K-Plex, then choose **Sync K-Plex with recent tab**;
-   - expected: K-Plex navigates to B, never A.
-3. Repeated chronology: A → B → A → K-Plex must resolve A; then B → K-Plex must resolve B.
-4. Stale history: activate B, close B, return to K-Plex, sync. Expected: reverse traversal skips the detached B leaf and resolves the previous valid indexed target.
-5. File-type regression: repeat with an indexed image/attachment/Bases file. The most recently activated indexed file-backed leaf must win regardless of extension/view subtype.
-6. Web Viewer regression where supported: activate an indexed URL in Obsidian Web Viewer, then K-Plex, then sync. Expected: reverse history traversal skips K-Plex and resolves the indexed URL. A non-indexed URL should cause traversal to continue backward to the preceding indexed file/URL target.
-7. Startup/Sidecar regression: verify persisted Sidecar restoration and recent/pinned document sync modes still behave correctly. The chronological history is session-only and does not replace persisted Sidecar ownership.
-
-## Reviewer attention
-
-If native behavior still differs, instrument/log the actual `active-leaf-change` sequence (leaf identity and current `getViewState().type/state.file`) for A → B → K-Plex. Do not reintroduce `getMostRecentLeaf()` or workspace-order selection as an authoritative recent-tab source; those APIs are retained only for the no-history startup compatibility path.
-
-## Next recipient
-
-Main validation agent: run the full repository gate and the same-group chronology tests above against the exact build artifact.
+Inactive: no agent assignment or further manual test is pending. Final verification and exact-build/native checks passed and are recorded in the acceptance report, including the retained failed supplemental setup and successful controlled restart. Commit/PR creation is authorized; no agent implementation task remains. Once opened, use `gh pr view indexing-optimization-v2 --repo zsviczian/kplex` for current PR status; merge/release are not part of this handoff.

@@ -1,8 +1,10 @@
+/** Validate disposable scale fixture identity, bounded generation and corruption detection. */
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { generateHighNodeVault, renderHighNodeNote, verifyHighNodeVault } from "../scripts/testing/generate-high-node-vault.mjs";
 import { generateLargeVault, renderLargeNode, renderNode, verifyLargeVault } from "../scripts/testing/generate-large-vault.mjs";
 
 test("a generated fixture is deterministic, fixture-derived and verifies its inventory", () => {
@@ -56,4 +58,34 @@ test("a generated fixture is deterministic, fixture-derived and verifies its inv
 test("generation requires an explicit absolute output and bounded size", () => {
   assert.throws(() => generateLargeVault("relative/output", 13), /absolute output/);
   assert.throws(() => generateLargeVault("/tmp/unused-kplex-test", 9), /integer from 10/);
+});
+
+/** Verify the high-node workload independently of host runtime node/evidence measurements. */
+test("high-node fixture has disjoint ghosts, dense dormant provenance and stable verified bytes", () => {
+  const root = mkdtempSync(join(tmpdir(), "kplex-high-node-fixture-test-"));
+  try {
+    const first = join(root, "first"), second = join(root, "second");
+    const manifest = generateHighNodeVault(first, 20);
+    assert.equal(manifest.distinctPlaceholderTargets, 80);
+    assert.equal(manifest.distinctUrlTargets, 8);
+    assert.equal(manifest.expectedDocumentPlaceholderUrlNodes, 108);
+    assert.equal(manifest.sourceLinkOccurrences, 259);
+    assert.equal(manifest.hubIncomingSources, 19);
+    assert.equal(manifest.contentSha256, generateHighNodeVault(second, 20).contentSha256);
+    assert.deepEqual(verifyHighNodeVault(first), manifest);
+    const note = readFileSync(join(first, "Nodes/High-000003.md"), "utf8");
+    assert.equal(note, renderHighNodeNote(3, 20));
+    assert(note.includes('Dense dormant 3-0: "[[Missing-000003-0]]"'));
+    assert(note.includes("Dense inline 3:: [[Missing-000003-3]]"));
+    assert(note.includes("[[High-000000]]"));
+    assert.throws(() => generateHighNodeVault(first, 20), /refusing to overwrite/);
+    const path = join(first, "fixture-manifest.json");
+    writeFileSync(path, JSON.stringify({ ...manifest, sourceLinkOccurrences: 0 }));
+    assert.throws(() => verifyHighNodeVault(first), /Fixture manifest differs/);
+    writeFileSync(path, JSON.stringify(manifest));
+    writeFileSync(join(first, "Nodes/High-000003.md"), note + "changed");
+    assert.throws(() => verifyHighNodeVault(first), /Fixture note differs/);
+    assert.throws(() => generateHighNodeVault("relative/output", 20), /absolute/);
+    assert.throws(() => generateHighNodeVault(join(root, "invalid"), 9), /integer/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

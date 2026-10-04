@@ -3,6 +3,7 @@
  * reconciliation. Callers own storage, hydration and publication lifetimes.
  */
 import { TFile, TFolder, type App } from "obsidian";
+import { encodeIndexSettingsSignature } from "../core/graph/settingsPolicy";
 import type { KplexSettings } from "../settings";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
 import { createGraphState, type GraphState } from "./GraphState";
@@ -142,19 +143,9 @@ export function computeVaultSignature(app: App): string {
   return scanVault(app, false).signature;
 }
 
-/** Settings that alter the semantic graph, rather than only presentation. */
+/** Format 2 separates semantic validity from the disposable schema-3 presentation fields. */
 export function computeIndexSettingsSignature(settings: KplexSettings): string {
-  return JSON.stringify({
-    schema: INDEX_SNAPSHOT_VERSION,
-    hierarchy: settings.hierarchy,
-    inferAllLinksAsFriends: settings.inferAllLinksAsFriends,
-    inverseInfer: settings.inverseInfer,
-    showFullTagName: settings.showFullTagName,
-    noteTypeField: settings.noteTypeField,
-    primaryTagField: settings.primaryTagField,
-    tagStyleList: settings.tagStyleList,
-    maxLabelLength: settings.baseNodeStyle.maxLabelLength ?? 30,
-  });
+  return encodeIndexSettingsSignature(settings);
 }
 
 export function persistedDeclarationFromEvidence(item: RelationEvidence): PersistedEvidenceDeclaration {

@@ -221,6 +221,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     // index publication unless this surface is actually visible; it catches up on reveal.
     if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
   }), [plugin, hostLeaf]);
+  // Presentation publication is render-only; it must not trigger semantic subscriptions or reads.
+  useEffect(() => plugin.index.subscribePresentation(() => {
+    if (plugin.isKplexLeafVisible(hostLeaf)) forceRender((value) => value + 1);
+  }), [plugin, hostLeaf]);
   useEffect(() => plugin.subscribeKplexVisibility(() => {
     // A hidden mounted view may have skipped one or more shared index publications while another
     // K-Plex surface was visible. Re-render exactly once when this leaf becomes visible again.
@@ -750,7 +754,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
           <div className="kplex-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
           <div className="kplex-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="kplex-zone-label zone-child">{translate("app.zoneChildren")}</div>
-          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode} />
+          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision}
+          semanticRevision={plugin.index.getSemanticRevision()} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode} />
         </section>
       </main>
 

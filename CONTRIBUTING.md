@@ -31,6 +31,8 @@ Do not consider a change complete until it builds against the real installed Obs
 
 `npm run check:architecture` checks migrated-layer imports and its negative fixtures. `npm run check:core` type-checks the host-free core with no DOM/Node ambient types and runs clean-process core contract tests. `npm run lint:obsidian` runs the official Obsidian ESLint plugin. `npm run verify` runs the architecture and core lanes, Obsidian lint, all non-host tests, then the production build. No Obsidian installation is needed for these commands. The C03 button DOM test needs a local Chrome/Chromium-family executable; set `KPLEX_TEST_BROWSER` to its absolute path if discovery fails. The full/incremental semantic engine is portable, while legacy host binding and much of the application/UI remain migration seams; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the checkpoint ledger in [Refactor plan.md](Refactor%20plan.md). Review every Obsidian lint warning and avoid introducing new ones. L00 established the English catalog; L01 migrates legacy copy and enforces known presentation sinks with negative fixtures.
 
+SI3 source storage has two focused lanes: `npm run test:sources` exercises production codecs, storage-degraded facts, host acquisition and GraphBuilder integration; `npm run test:sources:browser` exercises real Chromium IndexedDB, including a fresh browser-process restart. Both are included in `npm test`. The same `KPLEX_TEST_BROWSER` setting selects Chromium (`KPLEX_CHROMIUM` is also accepted). Missing or administratively blocked browser access fails that lane, rather than substituting a mock. See [the source repository contract](docs/SOURCE_REPOSITORY.md) for current Review limitations.
+
 For a desktop integration smoke test, enable **Settings → General → Command line interface** in Obsidian and use a disposable development vault with K-Plex installed. Set all three variables to that vault's actual identity and absolute paths:
 
 ```bash
@@ -43,6 +45,8 @@ npm run verify:obsidian
 The strict host lane checks the CLI-reported vault path before changing anything, runs `verify`, then disables K-Plex, copies this build's three installable artifacts into the test vault, checks hashes, enables it and asserts a rendered K-Plex view with no captured JavaScript errors. It preserves plugin `data.json` and creates no bundle backup. It writes `report.json` in a printed temporary directory, or `KPLEX_HOST_REPORT_DIR` if set. A missing CLI, wrong vault, failed build or failed assertion returns nonzero. The portable `verify` lane never invokes Obsidian. CLI commands target the named vault explicitly; do not use a personal/default vault for test deployment.
 
 For live plugin/index diagnostics, CLI fault injection, reload-safe references and evidence capture, see [Obsidian runtime testing](docs/OBSIDIAN_RUNTIME_TESTING.md).
+
+After staging the verified build, `npm run verify:obsidian:si4` uses the same three disposable-vault variables to run native settings acceptance. It checks installed artifact hashes, waits for actual startup/source readiness, then tests saved ontology/inference/image policies, rendered gates/labels, siblings, search/provenance and stale writes with zero body reads/parses/acquisitions or full builds. The default requires at least 20,015 Markdown files; `KPLEX_SI4_REQUIRED_FILES=0` selects a small-vault harness check. It restores settings, owned fixtures, wrappers, demand and renderer throttling; `si4-native.json` records actual results in `KPLEX_HOST_REPORT_DIR`. This functional diagnostic does not replace SI5 foreground, restart, popout or physical-device acceptance.
 
 To verify ExcaliBrain settings migration, use the same three explicitly configured disposable-vault variables and run `npm run verify:obsidian:migration`. This strict lane runs full verification and stages the exact build, selects `tests/fixtures/excalibrain-migration/data.json` through the real import dialog, compares complete compatible settings/ontology/style dictionaries and persisted data, navigates the rendered Node styling and Link styling pages, checks all imported style entries and their editors, preserves alpha/order on an unchanged legacy-style save, renders temporary styled notes/links, and checks import survival after plugin reload. It writes `migration-report.json` beside the normal host report. It restores pre-test settings, removes only test-owned notes and releases its temporary controller independently of assertions; cleanup failures fail the run. The vault must be a playground, not a personal vault, and existing test paths are rejected.
 
@@ -173,7 +177,7 @@ Changes that touch indexing should preserve:
 - path-indexed evidence updates for single-file edits; do not scan the complete evidence store when provenance already identifies the touched path
 - time-budgeted cooperative yielding on large collectors/resolvers; do not yield every note on iOS
 - deferred/coalesced snapshot writes, cancelled when the final K-Plex view closes
-- separate transactional cold-build checkpoints that never replace the complete active snapshot; resume only against matching vault/settings signatures and verified file bindings
+- atomic neutral source heads as cold-build progress; preserve read compatibility for legacy graph checkpoints, never resume old semantic results under changed policy, and do not restore the retired full-graph progress writer
 - skipped periodic refresh when nothing changed
 
 Incremental preparation stays private and copy-on-write with canonical page identity preserved. C14b publication synchronously applies graph/evidence, hot field cache and fingerprint, refreshes affected caches/search, then notifies per committed file before another await. The prepared-state callback is exactly once and expires when its publisher returns or throws. Semantic no-ops retain zero semantic events. Cancellation preserves committed files and pending current work; it does not automatically request a full rebuild.
@@ -433,3 +437,157 @@ If the requested deliverable is a patch ZIP, include **only modified/new files**
 
 ### Explain relationship navigation
 When changing provenance navigation, preserve host-view ownership: an open sidecar for that K-Plex view is preferred over creating another tab, and using the sidecar for inspection must not implicitly recenter K-Plex.
+
+### SI5 native restart validation
+
+After exact-build staging, run `npm run verify:obsidian:si5` with the same three disposable test-vault variables and an explicit `KPLEX_HOST_REPORT_DIR`. The default scenario creates owned notes, saves an ontology change, reloads, removes/corrupts optional graph acceleration, damages one requested source chunk and simulates an offline edit. Missing/corrupt graph cases also assert global virtual/URL search, aliases and inline type suggestions outside requested scopes. Its small-fixture setup may seed complete acceleration after an earlier fault run; measured restarts start on the newly loaded instance. It restores settings, wrapped Vault methods, owned notes and original throttling. Back up the test vault/cache before fault injection; never use a personal vault. Run native drivers serially; do not overlap manual CLI probes with their polling.
+
+Set `KPLEX_SI5_RESTART_ONLY=true` for three warm restarts of an existing large fixture; it does not seed a fixture build. The report records named hardware, exact hashes, readiness, source/build counters, renderer visibility, heap samples and total CLI/restart elapsed time; `progress.json` identifies the active phase between completed probes. These are functional restart measurements, not actual-paint or physical-device acceptance. The [SI5 report](docs/validation/settings-independent-indexing-si5-progress-2026-10-03.md) and [device procedure](docs/validation/settings-independent-indexing-si5-device-checklist.md) retain historical validation procedures; [final SI5 acceptance](docs/validation/settings-independent-indexing-si5-acceptance-2026-10-04.md) records completed feature acceptance and its measurement limits.
+
+Keep Obsidian in the foreground throughout comparable runs. The driver shows the application before
+focusing the test window, retains its original background throttling, and samples document visibility,
+document/window focus and renderer JS heap during readiness. Its `foreground.comparable` field is
+false if any sample is hidden, unfocused or has throttling disabled; exclude that run from performance
+comparisons. Large restart-only cases also compare a bounded cursor digest of all selected source
+heads, so zero Markdown reads cannot conceal source restamping. Native functional completion and
+sampled heap are separate from paint latency and process/device peak memory.
+
+`KPLEX_SI5_RESTART_RUNS=1` or `2` can replace an excluded run without repeating valid runs. The
+default remains three; acceptance still needs three comparable runs of the same condition/build.
+
+
+### SI5 high-node fixture
+
+The existing 20k/large-file fixture and a high-node fixture exercise different workloads. Generate
+an isolated high-node fixture with `node scripts/testing/generate-high-node-vault.mjs --out /absolute/new/disposable-directory`
+and verify it with `node scripts/testing/generate-high-node-vault.mjs --verify /absolute/new/disposable-directory`.
+Generation refuses an existing output. The default supplies 20,000 Markdown files, 80,000 distinct
+body-linked placeholders, 8,000 distinct URLs, 259,000 source link occurrences, 160 dormant property
+names and a hub referenced by 19,999 owners. These are deterministic **source-input counts**;
+measure actual graph nodes/evidence in Obsidian, including structural nodes/cache mirrors. Fixture
+verification is not startup, latency, memory or device acceptance. Keep it separate from the existing
+large-vault cold/warm baseline; never merge its files into a personal vault or compare profiles as one
+condition. `--files` permits small harness fixtures while preserving the proportions.
+
+### Bounded SI5 warm-start attribution
+
+The maintainer's 2026-10-04 scope accepts the existing extreme-vault cold behavior and records the
+20k-contributor hub `decode-budget` result as a stress limit outside the critical path. Do not pursue
+bounded canonical projections, memory-limit changes or further cold optimization for this closeout.
+
+After verification and exact-build staging, run the dedicated production-path probe serially:
+
+```bash
+PATH=/Users/zsviczian/.local/share/fnm/node-versions/v22.22.2/installation/bin:$PATH \
+KPLEX_TEST_VAULT_NAME=kplex-test \
+KPLEX_TEST_VAULT_PATH=/Users/zsviczian/Obsidian/kplex-test \
+KPLEX_TEST_CONFIG_DIR=/Users/zsviczian/Obsidian/kplex-test/.obsidian \
+KPLEX_HOST_REPORT_DIR=/private/tmp/kplex-si5-warm-start \
+KPLEX_SI5_WARM_CENTER=Welcome.md \
+KPLEX_SI5_RESTART_RUNS=3 \
+caffeinate -d -i node scripts/testing/obsidian/startup.mjs
+```
+
+`caffeinate` applies only while the child runs on macOS; it prevents display/system idle sleep and
+changes neither renderer throttling nor timing bounds. Require a settled existing cache and actual
+foreground throughout. The optional existing center temporarily avoids the excluded hub; its setup waits
+for both the page and the view navigation listener before the existing navigation notification, then verifies the actual selected center. The driver
+restores the exact original `data.json`, verifies the enabled list and removes all wrappers/controllers.
+The native test opts in to `window.kplexStartupDiagnosticsEnabled` before enable and restores its
+previous value. Normal operation retains phase progress but no detailed owner/timing trace. Private
+owner identities are discarded on strict readiness or unload; reports contain counts and overlap only.
+
+Phase timestamps are relative to `onload`; native elapsed timestamps start immediately before
+plugin disable/enable. Hydration and source lanes overlap and must not be summed. IDB counters count
+requests issued, not disk bytes or transaction latency; paged head counters separately count returned
+owners. Physical revision comparisons use existing `TFile.stat` values; adapter stat I/O is a separate
+counter. Wrapped host/IDB calls count global operations in the time window, temporally attributed to
+the current phase; they are not exclusive caller or latency attribution. DOM-center availability is observed at 100 ms intervals, not actual paint or interaction latency.
+Requested-scope publication and source authority have separate milestones from strict graph/search
+readiness. Percentages use the captured pass denominator and are floored; unknown totals show activity
+and actual record counts. Progress notifications are throttled to 250 ms without adding timers or
+advancing graph revisions. Each pass resets progress only at its own phase boundary.
+
+The dedicated startup probe retains the 30-second individual CLI process timeout, but has no outer
+readiness deadline following the maintainer's 2026-10-04 instruction. Obsidian runs independently;
+CLI polling occurs every five seconds and reconnects ten seconds after a failed read. A lost CLI
+response neither reloads the plugin nor cancels the native measurement. The production hydration
+watchdog is unchanged. Failed focus samples still exclude the trial from timing comparisons.
+
+Read the passive report at any time without starting new work:
+
+```bash
+obsidian vault=kplex-test eval 'code=JSON.stringify(app.plugins.plugins["k-plex"].getStartupDiagnostics())'
+```
+
+Its current phase/progress, completed phase intervals, owner overlap and aggregate counters stay in
+plugin memory for that enable lifetime. The native probe adds actual operation counts to the same
+report; no console logging or diagnostic persistence is required. A fresh plugin enable starts a fresh
+trace. Completed timings freeze at strict-ready, while live status can subsequently change, including
+after restoring a previously unsupported synthetic center. The final pilot had no actual CLI
+disconnect; retry behavior is implemented, not fault-injection validated. Initial submission and final
+cleanup still require a responsive CLI. See the [measured warm report](docs/validation/settings-independent-indexing-si5-warm-start-2026-10-04.md).
+Retain CLI errors separately from terminal plugin failure. Report measurements and a minimal
+proposed correction before implementing any warm-start optimization.
+
+
+The first [minimal warm correction and native retest](docs/validation/settings-independent-indexing-si5-minimal-warm-correction-2026-10-04.md)
+combine dependency upgrade/host comparison while retaining the later freshness pass. The driver also
+counts existing local-dependency selections/settlements and repository yields through passive forwarding.
+Do not treat file mtime as dependency authority: physical statistics already govern source reuse;
+local derivatives require exact source revision/sequence and repair/version validation, and other-file
+resolution changes can update source facts without changing the referring file's mtime. Report one
+candidate's actual work/timing deltas before extending the correction.
+
+
+The next [clean dependency-selection correction and native retest](docs/validation/settings-independent-indexing-si5-clean-selection-2026-10-04.md)
+was developed after checkpointing the prior fix at `8cd10b7d6746d607f8214ad192670a0b9a370778`. It removes
+120,090 IDB reads across a clean 20,015-note restart while retaining source-head/repair/freshness
+checks. Its median is 82.149 seconds versus 80.137 seconds immediately before; no overall latency
+improvement is demonstrated. Keep each independently validated correction in its own commit before
+adding another behavior change. Posting batching is validated separately below; scheduling remains unchanged.
+
+When staging, distinguish configured enablement from a loaded plugin instance. After native
+`app.plugins.disablePlugin()`, CLI `plugin:enable` can report “already enabled” while
+`app.plugins.plugins["k-plex"]` is absent. Use matched native disable/enable operations with retained
+completion/error state and bounded polls; verify the actual instance and installed artifact hashes.
+Preserve and byte-compare the original settings and community-plugin enablement list. A configured-state
+mismatch is a staging issue, not a slow-start timeout; neither requires resetting Obsidian configuration.
+
+
+The [bounded posting-read correction and native results](docs/validation/settings-independent-indexing-si5-posting-batching-2026-10-04.md)
+use one count-limited primary-key range request per existing byte/record-bounded batch, with every
+posting/digest/frame and source-head/lease/freshness/cancellation check retained. Three foreground
+restarts pass at 66.170/65.324/74.123 seconds (median 66.170, prior 82.149); posting requests fall from
+484,199 point reads to 20,027 bounded range reads. Full verify passes 199 browser tests and the actual
+production build. These are sequential observations, not randomized paired or physical-device tests.
+Existing yields remain; measure their exclusive wait cost before changing scheduling. Preserve a clean
+checkpoint between independently validated corrections.
+
+Optional `KPLEX_SI5_MEASURE_WAITS=true` enables native-test-only passive promise observation of
+repository yields, transactions and digests. It preserves original promises/results and adds bounded
+histograms and disjoint interval membership; callbacks/aggregation have unisolated overhead.
+Transaction durations include callback/commit/microtask latency, not exclusive disk time; the
+unwrapped remainder includes other work/waits, not CPU alone. Probe starts after enable returns;
+snapshot-cache transactions are not included. See [wait attribution and proposed correction](docs/validation/settings-independent-indexing-si5-wait-attribution-2026-10-04.md).
+Measured yields do not justify scheduling changes. Keep diagnostic-driver and subsequent UX/behavior
+changes in separate commits. No next optimization until the measured proposal is reviewed.
+
+Startup progress labels distinguish note metadata, cached-note validation and repeated reconciliation
+with **Processing pending changes**. Metadata comparison is **Validating note metadata**, initial
+source reconciliation is **Verifying cached notes**, and requested semantic preparation is
+**Applying current ontology & settings**. Diagnostic progress includes the one-based lane/phase `pass`;
+counts restart at the actual pass boundary. This also works without detailed opt-in. The
+[controlled retry validation](docs/validation/settings-independent-indexing-si5-progress-labels-2026-10-04.md)
+records the exact test-only MetadataCache miss recipe, failed untimed background setup and successful
+foreground retry. Do not use fault-injected or browser-overlapping elapsed times as warm baselines.
+
+The maintainer-approved [merged dependency/head selection and exact retest](docs/validation/settings-independent-indexing-si5-merged-selection-2026-10-04.md)
+follows the independent phase-label checkpoint `b48643c62fb5a21d105f6f5db38c4025223ca785`. Clean checks
+select owner/state/journal/head atomically, then honor overlays, intervening source activation,
+cancellation and unload. Repair and legacy upgrade retain rereads. Compare with the same optional
+wait probe enabled, keeping the test renderer in the foreground and all other test workloads stopped.
+Head requests and dependency checks are distinct from transaction boundaries: consolidation does
+not remove their validation or the later freshness pass. The [closeout audit](docs/validation/settings-independent-indexing-si5-closeout-audit-2026-10-04.md)
+inventories current settings routes, retired writers and deliberately retained compatibility seams.
+The maintainer reports successful physical iPad and Android tests; the [device checklist](docs/validation/settings-independent-indexing-si5-device-checklist.md) retains the procedure and qualitative acceptance record. [SI5 is closed](docs/validation/settings-independent-indexing-si5-acceptance-2026-10-04.md); no further automatic optimization or refactor work is queued.

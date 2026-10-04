@@ -1,13 +1,25 @@
 /**
- * Vault-local IndexedDB storage for parsed bodies and generation-scoped graph snapshots.
+ * Vault-local IndexedDB storage for neutral source facts, parsed bodies and graph snapshots.
  * Complete and partial checkpoint metadata point to independent chunk generations only after
- * their writes finish; callers own semantic validity and plugin-lifetime cancellation.
+ * their writes finish; callers own semantic validity and plugin-lifetime cancellation. Retired
+ * contributor pins may use one cleanup-only existing-database connection after normal-handle
+ * failure; cleanup never resets write backoff or acquires source/publication authority.
  */
+import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
 import { Platform } from "obsidian";
+import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE,
+  SOURCE_REVISION_INDEX, SOURCE_FAMILY_INDEX, SOURCE_LOOKUP_INDEX, SOURCE_LEASE_INDEX } from "./SourceRepository";
+import { SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
+  SOURCE_LOCAL_REVISION_INDEX, sourceLocalDependencyState } from "./SourceLocalDependencies";
+import { SOURCE_DEPENDENCY_STORE, sourceDependencyState } from "./SourceFacts";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
 
-const DB_VERSION = 4;
+import { SOURCE_IMPACT_STORE, SOURCE_IMPACT_SLOT_INDEX, SOURCE_IMPACT_LEASE_INDEX } from "./SourceContributorJournal";
+
+import { releaseContributorRootLeaseFresh, type ContributorRootLease } from "./SourceContributorLease";
+
+const DB_VERSION = 9;
 const BODY_CACHE_VERSION = 2;
 const META_STORE = "meta";
 const PAGE_STORE = "pages";
@@ -41,7 +53,25 @@ export type IndexDiagnosticEntry = {
   modified?: number;
   completedMarkdownFiles?: number;
   durationMs?: number;
+  changedKeys?: SettingDiagnosticKey[];
 };
+
+/** Revalidate stored history and public exports without copying arbitrary diagnostic fields. */
+export function sanitizeIndexDiagnostics(entries: readonly unknown[]): IndexDiagnosticEntry[] {
+  return entries.flatMap((item): IndexDiagnosticEntry[] => {
+    if (!isUnknownRecord(item) || typeof item.at !== "number" || !Number.isFinite(item.at) || typeof item.reason !== "string" ||
+      !/^[a-z0-9:|_-]{1,240}$/.test(item.reason) ||
+      (item.stage !== "restore" && item.stage !== "reconcile" && item.stage !== "build" && item.stage !== "persist")) return [];
+    const sanitized: IndexDiagnosticEntry = { at: item.at, stage: item.stage, reason: item.reason };
+    for (const key of ["added", "removed", "modified", "completedMarkdownFiles", "durationMs"] as const) {
+      const value = item[key];
+      if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) sanitized[key] = value;
+    }
+    const changedKeys = sanitizeChangedSettingKeys(item.changedKeys);
+    if (changedKeys.length) sanitized.changedKeys = changedKeys;
+    return [sanitized];
+  }).slice(-20);
+}
 
 /** Path-free reason codes for an unsuccessful snapshot stream. */
 export type SnapshotReadFailureReason = "storage-unavailable" | "missing-chunk" | "invalid-chunk" |
@@ -68,11 +98,13 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 function transactionDone(transaction: IDBTransaction): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
+  const done = new Promise<void>((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
     transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed"));
   });
+  void done.catch(() => undefined);
+  return done;
 }
 
 function requestUnknownResult(request: IDBRequest): Promise<unknown> {
@@ -84,6 +116,14 @@ function requestUnknownResult(request: IDBRequest): Promise<unknown> {
 
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function legacySourceLocalDependencyState(value: unknown): value is Readonly<{
+  key: typeof SOURCE_LOCAL_DEPENDENCY_STATE_KEY; version: 1; revision: number; complete: boolean;
+}> {
+  return isUnknownRecord(value) && Object.keys(value).length === 4 && value.key === SOURCE_LOCAL_DEPENDENCY_STATE_KEY
+    && value.version === 1 && typeof value.revision === "number" && Number.isSafeInteger(value.revision) && value.revision >= 0
+    && typeof value.complete === "boolean";
 }
 
 
@@ -158,16 +198,59 @@ export class KplexIndexedDbCache {
   private bodyWriteTimer: number | null = null;
   private bodyWriteInFlight = false;
 
-  constructor(private vaultName: string) {}
+  readonly sources: NeutralSourceRepository;
+  private closed = false;
+  private connection: IDBDatabase | null = null;
+  private openEpoch = 0;
+  private newerDatabase = false;
 
+  /** Share one recoverable connection owner without coupling source progress to graph snapshots. */
+  constructor(private vaultName: string) {
+    this.sources = new NeutralSourceRepository({ open: () => this.open(), failed: (db) => this.storageFailed(db),
+      unavailableReason: () => this.newerDatabase ? "newer-database" : "storage-unavailable",
+      /** Cleanup borrows no normal writer authority and accepts only an ended reader's lease. */
+      releaseContributorLease: lease => this.releaseContributorLease(lease) });
+  }
+
+  /**
+   * Retired-reader cleanup is allowed after unload or normal connection failure. The temporary
+   * handle cannot create/upgrade a database, clear backoff, or make this cache available for writes.
+   */
+  private releaseContributorLease(lease: ContributorRootLease): Promise<boolean> {
+    if (typeof indexedDB === "undefined") return Promise.resolve(false);
+    return releaseContributorRootLeaseFresh(indexedDB, safeDbName(this.vaultName), DB_VERSION, lease, {
+      /** Use the storage owner's window, matching the normal connection lifetime. */
+      schedule: (callback, delay) => window.setTimeout(callback, delay),
+      /** Every settled attempt disposes its owned timeout. */
+      cancel: timer => window.clearTimeout(timer),
+    });
+  }
+
+  /** Clear only the failed handle; never erase stores or neutral heads on a cache failure. */
+  private storageFailed(db: IDBDatabase): void {
+    try { db.close(); } catch { /* already closed */ }
+    if (this.connection !== db) return;
+    this.connection = null;
+    this.dbPromise = null;
+    this.openEpoch += 1;
+    this.openFailureCount += 1;
+    this.openRetryAfter = Date.now() + (this.openFailureCount === 1 ? 1000 : this.openFailureCount === 2 ? 5000 : 30000);
+  }
+
+  /** A synchronously closed/invalid legacy transaction must not leave the shared owner ready. */
+  private openTransaction(db: IDBDatabase, stores: string | string[], mode: IDBTransactionMode): IDBTransaction {
+    try { return db.transaction(stores, mode); }
+    catch (error) { this.storageFailed(db); throw error; }
+  }
+
+  /** Lazily open v9 with bounded backoff and reject late, blocked or newer-version connections. */
   private open(): Promise<IDBDatabase | null> {
+    if (this.closed || this.newerDatabase) return Promise.resolve(null);
     if (this.dbPromise) return this.dbPromise;
     if (Date.now() < this.openRetryAfter) return Promise.resolve(null);
-    this.dbPromise = new Promise<IDBDatabase | null>((resolve) => {
-      if (typeof indexedDB === "undefined") {
-        resolve(null);
-        return;
-      }
+    const epoch = ++this.openEpoch;
+    // Defer the executor so synchronous failure cannot re-memoize a resolved-null promise.
+    const pending = Promise.resolve().then(() => new Promise<IDBDatabase | null>((resolve) => {
       let settled = false;
       let openTimeout: number | null = null;
       const clearOpenTimeout = (): void => {
@@ -181,16 +264,18 @@ export class KplexIndexedDbCache {
         this.openFailureCount += 1;
         const delay = this.openFailureCount === 1 ? 1000 : this.openFailureCount === 2 ? 5000 : 30000;
         this.openRetryAfter = Date.now() + delay;
-        this.dbPromise = null;
+        if (this.openEpoch === epoch) this.dbPromise = null;
         resolve(null);
       };
       try {
+        if (this.closed || epoch !== this.openEpoch || typeof indexedDB === "undefined") { fail(); return; }
         const request = indexedDB.open(safeDbName(this.vaultName), DB_VERSION);
         // IndexedDB open can remain pending for a surprisingly long time in a busy WebView. The
         // cache is only an optimization, so cold startup degrades to vault reads instead of waiting
         // minutes for storage. A late success is closed by the settled guard below.
         openTimeout = window.setTimeout(fail, Platform.isMobile ? 2500 : 1800);
-        request.onupgradeneeded = () => {
+        request.onupgradeneeded = (event) => {
+          if (settled || this.closed || epoch !== this.openEpoch) { request.transaction?.abort(); return; }
           const db = request.result;
           if (!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, { keyPath: "key" });
           if (!db.objectStoreNames.contains(PAGE_STORE)) {
@@ -206,10 +291,60 @@ export class KplexIndexedDbCache {
             const store = db.createObjectStore(SNAPSHOT_CHUNK_STORE, { keyPath: ["generation", "kind", "index"] });
             store.createIndex(GENERATION_INDEX, "generation", { unique: false });
           }
+          // Version 5 adds only neutral-source storage. Legacy graph schemas and body-v2
+          // records remain readable and are migrated lazily by the source adapter.
+          if (!db.objectStoreNames.contains(SOURCE_HEAD_STORE)) {
+            db.createObjectStore(SOURCE_HEAD_STORE, { keyPath: "sourceId" });
+          }
+          for (const name of [SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE]) {
+            if (db.objectStoreNames.contains(name)) continue;
+            const store = db.createObjectStore(name, { keyPath: ["sourceId", "revision", "family", "index"] });
+            store.createIndex(SOURCE_REVISION_INDEX, ["sourceId", "revision"]);
+            store.createIndex(SOURCE_FAMILY_INDEX, ["sourceId", "revision", "family"]);
+            if (name === SOURCE_POSTING_STORE) store.createIndex(SOURCE_LOOKUP_INDEX, ["kind", "key", "sourceId", "revision", "family", "index"]);
+          }
+          // v6 adds an independently rebuildable, two-slot dependency catalog. No source head,
+          // body, graph pointer or reader lease is rewritten by this upgrade.
+          if (!db.objectStoreNames.contains(SOURCE_DEPENDENCY_STORE)) {
+            db.createObjectStore(SOURCE_DEPENDENCY_STORE, { keyPath: ["slot", "bucket", "index"] });
+            request.transaction?.objectStore(META_STORE).put(sourceDependencyState(0, 0));
+          }
+          // v7 retains all v5/v6 bytes and adds only durable repair owners and root-slot leases.
+          if (!db.objectStoreNames.contains(SOURCE_IMPACT_STORE)) {
+            db.createObjectStore(SOURCE_IMPACT_STORE, { keyPath: "owner" }).createIndex(SOURCE_IMPACT_SLOT_INDEX, "slot");
+          }
+          // v8 adds an incrementally maintained source-local dependency derivative. Immutable rows
+          // are selected by a per-source owner activated with the source head; no vault-wide catalog
+          // is built or migrated during this schema upgrade.
+          if (!db.objectStoreNames.contains(SOURCE_LOCAL_DEPENDENCY_STORE)) {
+            const store = db.createObjectStore(SOURCE_LOCAL_DEPENDENCY_STORE, { keyPath: ["sourceId", "sourceRevision", "index"] });
+            store.createIndex(SOURCE_LOCAL_LOOKUP_INDEX, ["key", "sourceId", "sourceRevision", "index"]);
+            store.createIndex(SOURCE_LOCAL_REVISION_INDEX, ["sourceId", "sourceRevision"]);
+          }
+          if (!db.objectStoreNames.contains(SOURCE_LOCAL_OWNER_STORE)) db.createObjectStore(SOURCE_LOCAL_OWNER_STORE, { keyPath: "sourceId" });
+          if (!db.objectStoreNames.contains(SOURCE_LOCAL_KEY_STORE)) db.createObjectStore(SOURCE_LOCAL_KEY_STORE, { keyPath: "key" });
+          // v9 adds only the durable source-local repair journal plus the pending counter on the
+          // existing state record. Accepted v8 rows and every unrelated store stay untouched.
+          const hadLocalRepairStore = db.objectStoreNames.contains(SOURCE_LOCAL_REPAIR_STORE);
+          if (!hadLocalRepairStore) db.createObjectStore(SOURCE_LOCAL_REPAIR_STORE, { keyPath: "sourceId" });
+          const meta = request.transaction?.objectStore(META_STORE);
+          if (meta && request.transaction && event.oldVersion < 8) {
+            meta.put(sourceLocalDependencyState());
+          } else if (meta && request.transaction && event.oldVersion === 8) {
+            // The accepted d61dc7f v8 schema has source-local rows/owners/key counts and a four-field
+            // state record, but no repair store. Preserve every accepted byte and only add pending: 0.
+            const state = meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY);
+            state.onsuccess = () => {
+              const raw: unknown = state.result;
+              if (legacySourceLocalDependencyState(raw)) meta.put({ ...raw, pending: 0 });
+            };
+          }
+          if (meta && !meta.indexNames.contains(SOURCE_IMPACT_LEASE_INDEX)) meta.createIndex(SOURCE_IMPACT_LEASE_INDEX, "impactSlot");
+          if (meta && !meta.indexNames.contains(SOURCE_LEASE_INDEX)) meta.createIndex(SOURCE_LEASE_INDEX, ["sourceId", "revision"]);
         };
         request.onsuccess = () => {
           const db = request.result;
-          if (settled) {
+          if (settled || this.closed || epoch !== this.openEpoch) {
             // A blocked request can later succeed after we already degraded for this attempt.
             // Never leak that late connection or let it replace a newer successful retry.
             try { db.close(); } catch { /* stale open only */ }
@@ -219,24 +354,36 @@ export class KplexIndexedDbCache {
           clearOpenTimeout();
           this.openFailureCount = 0;
           this.openRetryAfter = 0;
-          db.onversionchange = () => {
-            db.close();
-            this.dbPromise = null;
+          this.connection = db;
+          db.onversionchange = () => { this.storageFailed(db); };
+          db.onclose = () => { this.storageFailed(db); };
+          db.onerror = () => { this.storageFailed(db); };
+          db.onabort = (event) => {
+            if (event.target instanceof IDBTransaction && event.target.error) this.storageFailed(db);
           };
           resolve(db);
         };
-        request.onerror = fail;
+        request.onerror = () => {
+          if (request.error?.name === "VersionError") this.newerDatabase = true;
+          fail();
+        };
         request.onblocked = fail;
       } catch {
         fail();
       }
-    });
-    return this.dbPromise;
+    }));
+    this.dbPromise = pending;
+    return pending;
   }
 
 
 
+  /** Fence pending opens/source writes immediately; unload never waits for asynchronous persistence. */
   close(): void {
+    this.closed = true;
+    this.openEpoch += 1;
+    this.sources.close();
+    this.connection = null;
     if (this.bodyWriteTimer !== null) window.clearTimeout(this.bodyWriteTimer);
     this.bodyWriteTimer = null;
     this.queuedBodyWrites.clear();
@@ -252,7 +399,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db) return null;
     try {
-      const tx = db.transaction(META_STORE, "readonly");
+      const tx = this.openTransaction(db, META_STORE, "readonly");
       const done = transactionDone(tx);
       const value = await requestUnknownResult(tx.objectStore(META_STORE).get(key));
       await done;
@@ -274,7 +421,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db) return unavailable;
     try {
-      const tx = db.transaction(META_STORE, "readonly");
+      const tx = this.openTransaction(db, META_STORE, "readonly");
       const done = transactionDone(tx);
       const store = tx.objectStore(META_STORE);
       const [rawActive, rawCheckpoint] = await Promise.all([
@@ -291,35 +438,27 @@ export class KplexIndexedDbCache {
     } catch { return unavailable; }
   }
 
+  /** Read only bounded, path-free diagnostic fields from untrusted persisted metadata. */
   async readIndexDiagnostics(): Promise<IndexDiagnosticEntry[]> {
     const db = await this.open();
     if (!db) return [];
     try {
-      const tx = db.transaction(META_STORE, "readonly");
+      const tx = this.openTransaction(db, META_STORE, "readonly");
       const done = transactionDone(tx);
       const value = await requestUnknownResult(tx.objectStore(META_STORE).get("diagnostics"));
       await done;
       if (!isUnknownRecord(value) || !Array.isArray(value.entries)) return [];
-      return value.entries.flatMap((item): IndexDiagnosticEntry[] => {
-        if (!isUnknownRecord(item) || typeof item.at !== "number" || !Number.isFinite(item.at) || typeof item.reason !== "string" ||
-          !/^[a-z0-9:|_-]{1,240}$/.test(item.reason) ||
-          (item.stage !== "restore" && item.stage !== "reconcile" && item.stage !== "build" && item.stage !== "persist")) return [];
-        const sanitized: IndexDiagnosticEntry = { at: item.at, stage: item.stage, reason: item.reason };
-        for (const key of ["added", "removed", "modified", "completedMarkdownFiles", "durationMs"] as const) {
-          const number = item[key];
-          if (typeof number === "number" && Number.isSafeInteger(number) && number >= 0) sanitized[key] = number;
-        }
-        return [sanitized];
-      }).slice(-20);
+      return sanitizeIndexDiagnostics(value.entries);
     } catch { return []; }
   }
 
+  /** Save sanitized local history without changing cache schema or blocking indexing on failure. */
   async writeIndexDiagnostics(entries: readonly IndexDiagnosticEntry[]): Promise<void> {
     const db = await this.open();
     if (!db) return;
     try {
-      const tx = db.transaction(META_STORE, "readwrite");
-      tx.objectStore(META_STORE).put({ key: "diagnostics", entries: entries.slice(-20) });
+      const tx = this.openTransaction(db, META_STORE, "readwrite");
+      tx.objectStore(META_STORE).put({ key: "diagnostics", entries: sanitizeIndexDiagnostics(entries) });
       await transactionDone(tx);
     } catch { /* Diagnostics must never block indexing. */ }
   }
@@ -331,7 +470,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db) return result;
     try {
-      const tx = db.transaction(PAGE_STORE, "readonly");
+      const tx = this.openTransaction(db, PAGE_STORE, "readonly");
       const done = transactionDone(tx);
       const store = tx.objectStore(PAGE_STORE);
       const values = await Promise.all(unique.map((path) => requestResult(store.get([generation, path])) as Promise<PageRecord | undefined>));
@@ -392,7 +531,7 @@ export class KplexIndexedDbCache {
       for (let start = 0; start < chunkCount; start += readBatch) {
         if (!isCurrent()) { onFailure?.("cancelled"); return false; }
         const end = Math.min(chunkCount, start + readBatch);
-        const tx = db.transaction(SNAPSHOT_CHUNK_STORE, "readonly");
+        const tx = this.openTransaction(db, SNAPSHOT_CHUNK_STORE, "readonly");
         const done = transactionDone(tx);
         const store = tx.objectStore(SNAPSHOT_CHUNK_STORE);
         const chunks = await Promise.all(Array.from({ length: end - start }, (_, offset) =>
@@ -441,7 +580,7 @@ export class KplexIndexedDbCache {
     if (!db) { onFailure?.("storage-unavailable"); return false; }
     let failureReason: SnapshotReadFailureReason | null = null;
     try {
-      const tx = db.transaction(storeName, "readonly");
+      const tx = this.openTransaction(db, storeName, "readonly");
       const done = transactionDone(tx);
       const index = tx.objectStore(storeName).index(GENERATION_INDEX);
       await new Promise<void>((resolve, reject) => {
@@ -528,7 +667,7 @@ export class KplexIndexedDbCache {
       const flushPages = async (): Promise<boolean> => {
         if (!pageBatch.length && !pageChunks.length) return true;
         if (!isCurrent()) return false;
-        const tx = db.transaction([PAGE_STORE, SNAPSHOT_CHUNK_STORE], "readwrite");
+        const tx = this.openTransaction(db, [PAGE_STORE, SNAPSHOT_CHUNK_STORE], "readwrite");
         const store = tx.objectStore(PAGE_STORE);
         const chunkStore = tx.objectStore(SNAPSHOT_CHUNK_STORE);
         for (const record of pageBatch) store.put(record);
@@ -568,7 +707,7 @@ export class KplexIndexedDbCache {
       const flushEvidenceChunks = async (): Promise<boolean> => {
         if (!evidenceChunks.length) return true;
         if (!isCurrent()) return false;
-        const tx = db.transaction(SNAPSHOT_CHUNK_STORE, "readwrite");
+        const tx = this.openTransaction(db, SNAPSHOT_CHUNK_STORE, "readwrite");
         const chunkStore = tx.objectStore(SNAPSHOT_CHUNK_STORE);
         for (const chunk of evidenceChunks) chunkStore.put(chunk);
         evidenceChunks.length = 0;
@@ -599,7 +738,7 @@ export class KplexIndexedDbCache {
         evidenceChunkCount,
         ...meta,
       };
-      const tx = db.transaction(META_STORE, "readwrite");
+      const tx = this.openTransaction(db, META_STORE, "readwrite");
       tx.objectStore(META_STORE).put(active);
       await transactionDone(tx);
       // Once the metadata transaction commits, the generation is activated. A later cancellation
@@ -616,7 +755,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db) return;
     try {
-      const tx = db.transaction(META_STORE, "readwrite");
+      const tx = this.openTransaction(db, META_STORE, "readwrite");
       tx.objectStore(META_STORE).delete("checkpoint");
       await transactionDone(tx);
     } catch { /* cache cleanup only */ }
@@ -641,7 +780,7 @@ export class KplexIndexedDbCache {
     for (const storeName of [PAGE_STORE, EVIDENCE_STORE, SNAPSHOT_CHUNK_STORE]) {
       if (!isCurrent()) return;
       try {
-        const tx = db.transaction(storeName, "readwrite");
+        const tx = this.openTransaction(db, storeName, "readwrite");
         const store = tx.objectStore(storeName);
         const ranges = this.generationRange(storeName, generation);
         for (const range of Array.isArray(ranges) ? ranges : [ranges]) store.delete(range);
@@ -656,7 +795,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db || !isCurrent() || !db.objectStoreNames.contains(SNAPSHOT_CHUNK_STORE)) return;
     try {
-      const tx = db.transaction(SNAPSHOT_CHUNK_STORE, "readonly");
+      const tx = this.openTransaction(db, SNAPSHOT_CHUNK_STORE, "readonly");
       const done = transactionDone(tx);
       const index = tx.objectStore(SNAPSHOT_CHUNK_STORE).index(GENERATION_INDEX);
       const generations: string[] = [];
@@ -693,7 +832,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db) return result;
     try {
-      const tx = db.transaction(BODY_STORE, "readonly");
+      const tx = this.openTransaction(db, BODY_STORE, "readonly");
       const done = transactionDone(tx);
       const store = tx.objectStore(BODY_STORE);
       const values = await Promise.all(requests.map(({ path }) => requestResult(store.get(path)) as Promise<BodyRecord | undefined>));
@@ -720,7 +859,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db || !db.objectStoreNames.contains(BODY_STORE)) return false;
     try {
-      const tx = db.transaction(BODY_STORE, "readwrite");
+      const tx = this.openTransaction(db, BODY_STORE, "readwrite");
       const done = transactionDone(tx);
       const store = tx.objectStore(BODY_STORE);
       for (const record of records) store.put({ ...record, parserVersion: BODY_CACHE_VERSION } satisfies BodyRecord);
@@ -737,6 +876,7 @@ export class KplexIndexedDbCache {
    * seconds. Only the latest mtime for a path is retained while a flush is pending.
    */
   queueBodyWrite(path: string, mtime: number, body: ParsedBodyMetadata): void {
+    if (this.closed) return;
     this.queuedBodyWrites.set(path, { path, mtime, body });
     if (this.bodyWriteTimer !== null || this.bodyWriteInFlight) return;
     this.bodyWriteTimer = window.setTimeout(() => {
@@ -746,11 +886,11 @@ export class KplexIndexedDbCache {
   }
 
   private async flushQueuedBodyWrites(): Promise<void> {
-    if (this.bodyWriteInFlight || !this.queuedBodyWrites.size) return;
+    if (this.closed || this.bodyWriteInFlight || !this.queuedBodyWrites.size) return;
     this.bodyWriteInFlight = true;
     try {
       const limit = Platform.isIosApp ? 16 : Platform.isMobile ? 32 : 64;
-      while (this.queuedBodyWrites.size) {
+      while (!this.closed && this.queuedBodyWrites.size) {
         const records: Array<{ path: string; mtime: number; body: ParsedBodyMetadata }> = [];
         for (const [path, record] of this.queuedBodyWrites) {
           records.push(record);
@@ -763,7 +903,7 @@ export class KplexIndexedDbCache {
       }
     } finally {
       this.bodyWriteInFlight = false;
-      if (this.queuedBodyWrites.size && this.bodyWriteTimer === null) {
+      if (!this.closed && this.queuedBodyWrites.size && this.bodyWriteTimer === null) {
         this.bodyWriteTimer = window.setTimeout(() => {
           this.bodyWriteTimer = null;
           void this.flushQueuedBodyWrites();
@@ -776,7 +916,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db) return null;
     try {
-      const tx = db.transaction(BODY_STORE, "readonly");
+      const tx = this.openTransaction(db, BODY_STORE, "readonly");
       const done = transactionDone(tx);
       const value = await requestResult(tx.objectStore(BODY_STORE).get(path)) as BodyRecord | undefined;
       await done;
@@ -791,7 +931,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db || !db.objectStoreNames.contains(BODY_STORE)) return false;
     try {
-      const tx = db.transaction(BODY_STORE, "readwrite");
+      const tx = this.openTransaction(db, BODY_STORE, "readwrite");
       const done = transactionDone(tx);
       tx.objectStore(BODY_STORE).put({ path, mtime, parserVersion: BODY_CACHE_VERSION, body } satisfies BodyRecord);
       await done;
@@ -805,7 +945,7 @@ export class KplexIndexedDbCache {
     const db = await this.open();
     if (!db) return;
     try {
-      const tx = db.transaction(BODY_STORE, "readwrite");
+      const tx = this.openTransaction(db, BODY_STORE, "readwrite");
       const done = transactionDone(tx);
       tx.objectStore(BODY_STORE).delete(path);
       await done;

@@ -1,0 +1,6060 @@
+{
+  "status": "passed",
+  "startedAt": "2026-10-04T08:13:47.519Z",
+  "checkpoint": "ea41d4b4484b9957d8700cf44920809912ca1ee4",
+  "dirty": true,
+  "measureWaits": true,
+  "artifacts": {
+    "main.js": "c9cc8a491b4294de9f7d04781069ea983131029b682aec02b778ba0f17d7b4bf",
+    "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+    "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+  },
+  "preflight": {
+    "representativeCenterSelected": true,
+    "ready": true
+  },
+  "cleanup": {
+    "controllerRemoved": true,
+    "optInAbsent": true,
+    "backgroundThrottling": true
+  },
+  "configurationRestored": true,
+  "completedAt": "2026-10-04T08:21:59.798Z",
+  "runs": [
+    {
+      "elapsedSemantics": "Milliseconds from immediately before disable/enable; diagnostics are relative to onload. Method timings are inclusive and lanes overlap.",
+      "foreground": {
+        "samples": 66,
+        "hidden": 0,
+        "documentUnfocused": 0,
+        "windowUnfocused": 0,
+        "throttlingDisabled": 0,
+        "comparable": true
+      },
+      "operations": {
+        "metadata": {
+          "markdownInventoryCalls": 1,
+          "idb.meta.get": 3,
+          "idb.sourceHeads.getAll": 1,
+          "idb.sourceHeads.getAllKeys": 1
+        },
+        "preview": {
+          "idb.pages.get": 251,
+          "idb.meta.put": 1
+        },
+        "source-inventory": {
+          "markdownInventoryCalls": 1
+        },
+        "host-metadata-comparison": {
+          "sourceInspectionCalls": 40030,
+          "idb.sourceHeads.get": 60045,
+          "metadataCacheLookups": 20575,
+          "idb.bodies.get": 12,
+          "dependencyChecks": 20015,
+          "localDependencySelectionCalls": 20015,
+          "idb.meta.get": 20015,
+          "idb.sourceLocalDependencyOwners.get": 20015,
+          "idb.sourceLocalDependencyRepairs.get": 20015,
+          "markdownInventoryCalls": 2,
+          "idb.meta.add": 40026,
+          "idb.sourceChunks.get": 20015,
+          "idb.sourcePostings.getAll": 20015,
+          "repositoryYieldCalls": 20015,
+          "idb.meta.delete": 40026
+        },
+        "host-retired-owner-check": {
+          "sourceHeadPageCalls": 80,
+          "idb.sourceHeads.getAll": 80,
+          "idb.sourceHeads.getAllKeys": 80
+        },
+        "source-reconciliation": {
+          "metadataCacheLookups": 20015,
+          "sourceInspectionCalls": 40030,
+          "idb.sourceHeads.get": 40030,
+          "dependencyChecks": 20015,
+          "localDependencySelectionCalls": 20015,
+          "idb.meta.get": 20015,
+          "idb.sourceLocalDependencyOwners.get": 20015,
+          "idb.sourceLocalDependencyRepairs.get": 20015
+        },
+        "source-retired-owner-check": {
+          "sourceHeadPageCalls": 80,
+          "idb.sourceHeads.getAll": 80,
+          "idb.sourceHeads.getAllKeys": 80
+        },
+        "dependency-completion": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "dependency-final-validation": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "source-authority": {
+          "metadataCacheLookups": 1,
+          "idb.meta.get": 1
+        },
+        "requested-semantics": {
+          "idb.meta.get": 68,
+          "idb.sourceLocalDependencyKeys.get": 4,
+          "idb.sourceLocalDependencyOwners.get": 4,
+          "idb.sourceHeads.get": 36,
+          "metadataCacheLookups": 590,
+          "idb.meta.add": 6,
+          "idb.sourceChunks.get": 12,
+          "idb.sourcePostings.getAll": 12,
+          "repositoryYieldCalls": 12,
+          "idb.meta.delete": 6
+        },
+        "pages": {
+          "idb.snapshotChunks.get": 118,
+          "metadataCacheLookups": 18
+        },
+        "relations": {
+          "idb.snapshotChunks.get": 118
+        },
+        "preview-search": {
+          "metadataCacheLookups": 60046,
+          "idb.bodies.get": 13
+        },
+        "evidence": {
+          "idb.snapshotChunks.get": 699,
+          "metadataCacheLookups": 27
+        },
+        "complete": {
+          "idb.meta.put": 1,
+          "metadataCacheLookups": 27
+        }
+      },
+      "disableEndedMs": 41,
+      "enableEndedMs": 197.69999998807907,
+      "waitTimingStartedMs": 197.69999998807907,
+      "firstPlexDomMs": 954.5,
+      "sourceAuthorityMs": 57969.5,
+      "requestedSemanticsMs": 57969.69999998808,
+      "strictReadyMs": 64523.30000001192,
+      "diagnostics": {
+        "startedAtMs": 15922380.399999976,
+        "enabled": true,
+        "frozen": true,
+        "milestones": {
+          "onload": 0.10000002384185791,
+          "settings-loaded": 16.69999998807907,
+          "layout-ready": 33.5,
+          "host-inventory-start": 68,
+          "host-inventory-end": 109.5,
+          "preview-available": 701.1999999880791,
+          "source-authority": 57698.39999997616,
+          "source-authority-await-ended": 57700,
+          "first-requested-scope-authoritative": 57737.39999997616,
+          "requested-semantics-refresh-ended": 57737.60000002384,
+          "snapshot-complete": 64326,
+          "strict-ready": 64328.19999998808
+        },
+        "phases": [
+          {
+            "lane": "hydration",
+            "phase": "metadata",
+            "total": null,
+            "processed": 0,
+            "startedMs": 36.60000002384186,
+            "endedMs": 109.80000001192093,
+            "counters": {
+              "markdownInventoryCalls": 1,
+              "idb.meta.get": 3,
+              "idb.sourceHeads.getAll": 1,
+              "idb.sourceHeads.getAllKeys": 1,
+              "inventoryFiles": 20016,
+              "inventoryFolders": 207
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview",
+            "total": null,
+            "processed": 0,
+            "startedMs": 109.80000001192093,
+            "endedMs": 492.10000002384186,
+            "counters": {
+              "idb.pages.get": 251,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-inventory",
+            "total": null,
+            "processed": 0,
+            "startedMs": 419.60000002384186,
+            "endedMs": 422.69999998807907,
+            "counters": {
+              "markdownInventoryCalls": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-coordinates",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 422.69999998807907,
+            "endedMs": 429.19999998807907,
+            "counters": {},
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "host-metadata-comparison",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 429.19999998807907,
+            "endedMs": 48024.10000002384,
+            "counters": {
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 60045,
+              "metadataCacheLookups": 20575,
+              "idb.bodies.get": 12,
+              "dependencyChecks": 20015,
+              "localDependencySelectionCalls": 20015,
+              "idb.meta.get": 20015,
+              "idb.sourceLocalDependencyOwners.get": 20015,
+              "idb.sourceLocalDependencyRepairs.get": 20015,
+              "markdownInventoryCalls": 2,
+              "idb.meta.add": 40026,
+              "idb.sourceChunks.get": 20015,
+              "idb.sourcePostings.getAll": 20015,
+              "repositoryYieldCalls": 20015,
+              "idb.meta.delete": 40026,
+              "physicalRevisionComparisons": 20015
+            },
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview-search",
+            "total": null,
+            "processed": 0,
+            "startedMs": 492.10000002384186,
+            "endedMs": 701.1999999880791,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "source-authority",
+            "total": null,
+            "processed": 0,
+            "startedMs": 701.1999999880791,
+            "endedMs": 57699.80000001192,
+            "counters": {
+              "metadataCacheLookups": 1,
+              "idb.meta.get": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "host-retired-owner-check",
+            "total": null,
+            "processed": 0,
+            "startedMs": 48024.10000002384,
+            "endedMs": 48720.80000001192,
+            "counters": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80,
+              "headPageOwners": 20036
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-reconciliation",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 48720.80000001192,
+            "endedMs": 57101.30000001192,
+            "counters": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "physicalRevisionComparisons": 20015,
+              "dependencyChecks": 20015,
+              "localDependencySelectionCalls": 20015,
+              "idb.meta.get": 20015,
+              "idb.sourceLocalDependencyOwners.get": 20015,
+              "idb.sourceLocalDependencyRepairs.get": 20015
+            },
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "source-retired-owner-check",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57101.30000001192,
+            "endedMs": 57692.5,
+            "counters": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80,
+              "headPageOwners": 20036
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "dependency-completion",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57692.5,
+            "endedMs": 57694.10000002384,
+            "counters": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "resolution-reconciliation",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 57694.10000002384,
+            "endedMs": 57697.60000002384,
+            "counters": {},
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "dependency-final-validation",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57697.60000002384,
+            "endedMs": 57698.39999997616,
+            "counters": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "complete",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57698.39999997616,
+            "endedMs": 64328.19999998808,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "requested-semantics",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57699.80000001192,
+            "endedMs": 57737.80000001192,
+            "counters": {
+              "idb.meta.get": 68,
+              "idb.sourceLocalDependencyKeys.get": 4,
+              "idb.sourceLocalDependencyOwners.get": 4,
+              "idb.sourceHeads.get": 36,
+              "metadataCacheLookups": 590,
+              "idb.meta.add": 6,
+              "idb.sourceChunks.get": 12,
+              "idb.sourcePostings.getAll": 12,
+              "repositoryYieldCalls": 12,
+              "idb.meta.delete": 6
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "pages",
+            "total": null,
+            "processed": 20709,
+            "startedMs": 57737.80000001192,
+            "endedMs": 59637.60000002384,
+            "counters": {
+              "idb.snapshotChunks.get": 118,
+              "metadataCacheLookups": 18,
+              "physicalRevisionComparisons": 20015
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "relations",
+            "total": null,
+            "processed": 20709,
+            "startedMs": 59637.60000002384,
+            "endedMs": 61175.10000002384,
+            "counters": {
+              "idb.snapshotChunks.get": 118
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview-search",
+            "total": null,
+            "processed": 0,
+            "startedMs": 61175.10000002384,
+            "endedMs": 61551.69999998808,
+            "counters": {
+              "metadataCacheLookups": 60046,
+              "idb.bodies.get": 13
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "evidence",
+            "total": null,
+            "processed": 715032,
+            "startedMs": 61551.69999998808,
+            "endedMs": 64325.5,
+            "counters": {
+              "idb.snapshotChunks.get": 699,
+              "metadataCacheLookups": 27
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "promote",
+            "total": null,
+            "processed": 0,
+            "startedMs": 64325.5,
+            "endedMs": 64326,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "complete",
+            "total": null,
+            "processed": 0,
+            "startedMs": 64326,
+            "endedMs": 64328.19999998808,
+            "counters": {
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          }
+        ],
+        "overlaps": [
+          {
+            "first": "source-coordinates",
+            "second": "host-metadata-comparison",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-reconciliation",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          }
+        ]
+      },
+      "onloadOffsetMs": 139.19999998807907,
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 20015,
+        "totalFiles": 20015,
+        "label": "Status: index ready"
+      },
+      "source": {
+        "checked": 0,
+        "reusedBodies": 0,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "semantic": {
+        "policyRevision": 1,
+        "requested": 2,
+        "prepared": 1,
+        "published": 1,
+        "cancelled": 0,
+        "pending": 1,
+        "dependencyVisits": 12,
+        "fullBuilds": 0,
+        "lastReason": null
+      },
+      "hydration": {
+        "run": 1,
+        "phase": "complete",
+        "lastActivePhase": "promote",
+        "startedAt": 1791101909640,
+        "phaseStartedAt": 1791101973930,
+        "lastProgressAt": 1791101973930,
+        "pages": 20709,
+        "relations": 20709,
+        "evidence": 715032,
+        "outcome": "complete"
+      },
+      "waits": {
+        "elapsedMs": 64326.30000001192,
+        "running": false,
+        "active": [
+          0,
+          0,
+          0
+        ],
+        "categories": [
+          "yield",
+          "transaction",
+          "digest"
+        ],
+        "upperBoundsMs": [
+          0.1,
+          0.25,
+          0.5,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096,
+          8192,
+          null
+        ],
+        "semantics": "Promise observation latency and disjoint interval membership; transaction/digest durations include callback and microtask scheduling, not exclusive disk/hash CPU time. Membership 0 includes unwrapped work and waits, not just CPU. Phase grouping uses the phase at invocation.",
+        "groups": {
+          "source:host-metadata-comparison:transaction:readonly:sourceHeads": {
+            "calls": 40030,
+            "completed": 40030,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 429.1999995112419,
+            "totalMs": 7233.5000030994415,
+            "minMs": 0,
+            "maxMs": 198.89999997615814,
+            "histogram": [
+              15261,
+              23167,
+              1043,
+              269,
+              100,
+              70,
+              48,
+              35,
+              29,
+              2,
+              4,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readonly:meta,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 222.6999995112419,
+            "totalMs": 4145.900000393391,
+            "minMs": 0,
+            "maxMs": 80,
+            "histogram": [
+              5950,
+              13010,
+              858,
+              57,
+              32,
+              37,
+              17,
+              12,
+              40,
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readwrite:meta,sourceHeads": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 227.1000006198883,
+            "totalMs": 10570.099994957447,
+            "minMs": 0.09999996423721313,
+            "maxMs": 205.5999999642372,
+            "histogram": [
+              19,
+              3234,
+              14429,
+              1074,
+              912,
+              190,
+              74,
+              36,
+              36,
+              7,
+              2,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readonly:sourceChunks": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 200.49999940395355,
+            "totalMs": 5514.400001943111,
+            "minMs": 0,
+            "maxMs": 174.30000001192093,
+            "histogram": [
+              5677,
+              10289,
+              2776,
+              672,
+              349,
+              175,
+              39,
+              12,
+              24,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:digest:sha256": {
+            "calls": 60045,
+            "completed": 60045,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 622.40000218153,
+            "totalMs": 837.7000016570091,
+            "minMs": 0,
+            "maxMs": 5.699999988079071,
+            "histogram": [
+              55119,
+              4904,
+              17,
+              0,
+              2,
+              1,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readonly:sourcePostings": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 239.99999964237213,
+            "totalMs": 9312.400000929832,
+            "minMs": 0,
+            "maxMs": 83,
+            "histogram": [
+              1197,
+              10516,
+              5154,
+              1800,
+              1000,
+              202,
+              70,
+              25,
+              44,
+              6,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:yield:timer": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 53.099999368190765,
+            "totalMs": 165.20000058412552,
+            "minMs": 0,
+            "maxMs": 5.300000011920929,
+            "histogram": [
+              19073,
+              931,
+              7,
+              1,
+              2,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-retired-owner-check:transaction:readonly:sourceHeads": {
+            "calls": 80,
+            "completed": 80,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 1.9000002145767212,
+            "totalMs": 674.200000166893,
+            "minMs": 0.19999998807907104,
+            "maxMs": 190.29999995231628,
+            "histogram": [
+              0,
+              1,
+              0,
+              0,
+              1,
+              38,
+              31,
+              6,
+              1,
+              0,
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-reconciliation:digest:sha256": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 142.2999997138977,
+            "totalMs": 205.59999871253967,
+            "minMs": 0,
+            "maxMs": 2.400000035762787,
+            "histogram": [
+              18821,
+              1192,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-reconciliation:transaction:readonly:sourceHeads": {
+            "calls": 40030,
+            "completed": 40030,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 388.20000076293945,
+            "totalMs": 5002.199999988079,
+            "minMs": 0,
+            "maxMs": 43.299999952316284,
+            "histogram": [
+              16475,
+              22976,
+              332,
+              111,
+              48,
+              41,
+              30,
+              6,
+              9,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-reconciliation:transaction:readonly:meta,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 180.00000083446503,
+            "totalMs": 2827.200001001358,
+            "minMs": 0,
+            "maxMs": 47.89999997615814,
+            "histogram": [
+              6656,
+              12781,
+              449,
+              61,
+              32,
+              16,
+              14,
+              1,
+              3,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-retired-owner-check:transaction:readonly:sourceHeads": {
+            "calls": 80,
+            "completed": 80,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 3.299999713897705,
+            "totalMs": 577.4999996423721,
+            "minMs": 0.19999998807907104,
+            "maxMs": 46.5,
+            "histogram": [
+              0,
+              1,
+              0,
+              0,
+              1,
+              40,
+              19,
+              13,
+              3,
+              3,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-completion:transaction:readonly:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 0.30000001192092896,
+            "minMs": 0.30000001192092896,
+            "maxMs": 0.30000001192092896,
+            "histogram": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-completion:transaction:readwrite:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 1.100000023841858,
+            "minMs": 1.100000023841858,
+            "maxMs": 1.100000023841858,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-final-validation:transaction:readonly:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.09999996423721313,
+            "totalMs": 0.3999999761581421,
+            "minMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "histogram": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-final-validation:transaction:readwrite:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 0.30000001192092896,
+            "minMs": 0.30000001192092896,
+            "maxMs": 0.30000001192092896,
+            "histogram": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:source-authority:transaction:readonly:meta": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 1.300000011920929,
+            "minMs": 1.300000011920929,
+            "maxMs": 1.300000011920929,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta,sourceLocalDependencyKeys": {
+            "calls": 3,
+            "completed": 3,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.10000002384185791,
+            "totalMs": 1.9000000953674316,
+            "minMs": 0.10000002384185791,
+            "maxMs": 1.600000023841858,
+            "histogram": [
+              0,
+              2,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta,sourceHeads,sourceLocalDependencies,sourceLocalDependencyOwners": {
+            "calls": 4,
+            "completed": 4,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 8.699999988079071,
+            "minMs": 0.30000001192092896,
+            "maxMs": 7.199999988079071,
+            "histogram": [
+              0,
+              0,
+              1,
+              2,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta": {
+            "calls": 32,
+            "completed": 32,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.30000001192092896,
+            "totalMs": 3.3999999165534973,
+            "minMs": 0,
+            "maxMs": 0.40000003576278687,
+            "histogram": [
+              18,
+              13,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta,sourceHeads": {
+            "calls": 11,
+            "completed": 11,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.10000002384185791,
+            "totalMs": 1.8000000715255737,
+            "minMs": 0.10000002384185791,
+            "maxMs": 0.2999999523162842,
+            "histogram": [
+              0,
+              10,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:digest:sha256": {
+            "calls": 83,
+            "completed": 83,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.8000001311302185,
+            "totalMs": 1.0000001788139343,
+            "minMs": 0,
+            "maxMs": 0.10000002384185791,
+            "histogram": [
+              74,
+              9,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readwrite:meta,sourceHeads": {
+            "calls": 3,
+            "completed": 3,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 2.699999988079071,
+            "minMs": 0.40000003576278687,
+            "maxMs": 1.699999988079071,
+            "histogram": [
+              0,
+              0,
+              1,
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:sourceHeads": {
+            "calls": 18,
+            "completed": 18,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.2999999523162842,
+            "totalMs": 1.7000000476837158,
+            "minMs": 0,
+            "maxMs": 0.20000004768371582,
+            "histogram": [
+              8,
+              10,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:sourceChunks": {
+            "calls": 12,
+            "completed": 12,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 1.8999999165534973,
+            "minMs": 0,
+            "maxMs": 1.0999999642372131,
+            "histogram": [
+              7,
+              4,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:sourcePostings": {
+            "calls": 12,
+            "completed": 12,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.10000002384185791,
+            "totalMs": 2.299999952316284,
+            "minMs": 0,
+            "maxMs": 1.4000000357627869,
+            "histogram": [
+              7,
+              4,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:yield:timer": {
+            "calls": 12,
+            "completed": 12,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 0,
+            "minMs": 0,
+            "maxMs": 0,
+            "histogram": [
+              12,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          }
+        },
+        "phases": {
+          "hydration:metadata": {
+            "elapsedMs": 51.30000001192093,
+            "membershipMs": [
+              51.30000001192093,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:preview": {
+            "elapsedMs": 309.80000001192093,
+            "membershipMs": [
+              309.80000001192093,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-inventory": {
+            "elapsedMs": 3.099999964237213,
+            "membershipMs": [
+              3.099999964237213,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-coordinates": {
+            "elapsedMs": 6.5,
+            "membershipMs": [
+              6.5,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:host-metadata-comparison": {
+            "elapsedMs": 47594.90000003576,
+            "membershipMs": [
+              9815.699996471405,
+              165.20000058412552,
+              36776.30000132322,
+              0,
+              837.7000016570091,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:host-retired-owner-check": {
+            "elapsedMs": 696.6999999880791,
+            "membershipMs": [
+              22.499999821186066,
+              0,
+              674.200000166893,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-reconciliation": {
+            "elapsedMs": 8380.5,
+            "membershipMs": [
+              345.5000002980232,
+              0,
+              7829.400000989437,
+              0,
+              205.59999871253967,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-retired-owner-check": {
+            "elapsedMs": 591.1999999880791,
+            "membershipMs": [
+              13.70000034570694,
+              0,
+              577.4999996423721,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:dependency-completion": {
+            "elapsedMs": 1.600000023841858,
+            "membershipMs": [
+              0.19999998807907104,
+              0,
+              1.4000000357627869,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:resolution-reconciliation": {
+            "elapsedMs": 3.5,
+            "membershipMs": [
+              3.5,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:dependency-final-validation": {
+            "elapsedMs": 0.7999999523162842,
+            "membershipMs": [
+              0.09999996423721313,
+              0,
+              0.699999988079071,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:source-authority": {
+            "elapsedMs": 1.4000000357627869,
+            "membershipMs": [
+              1.300000011920929,
+              0,
+              0.10000002384185791,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:requested-semantics": {
+            "elapsedMs": 38,
+            "membershipMs": [
+              11.399999856948853,
+              0,
+              25.599999964237213,
+              0,
+              1.0000001788139343,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:pages": {
+            "elapsedMs": 1899.800000011921,
+            "membershipMs": [
+              1899.800000011921,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:relations": {
+            "elapsedMs": 1537.5,
+            "membershipMs": [
+              1537.5,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:preview-search": {
+            "elapsedMs": 376.5999999642372,
+            "membershipMs": [
+              376.5999999642372,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:evidence": {
+            "elapsedMs": 2773.800000011921,
+            "membershipMs": [
+              2773.800000011921,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:promote": {
+            "elapsedMs": 0.5,
+            "membershipMs": [
+              0.5,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:complete": {
+            "elapsedMs": 58.80000001192093,
+            "membershipMs": [
+              58.80000001192093,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      },
+      "sourceHeadsUnchanged": true,
+      "settingsUnchanged": true,
+      "foregroundFinal": {
+        "hidden": false,
+        "documentFocused": true,
+        "windowFocused": true,
+        "throttle": true
+      },
+      "labelsByPhase": {
+        "metadata": {
+          "first": {
+            "ms": 199.89999997615814,
+            "label": "Reading cached index metadata",
+            "source": null,
+            "hydration": {
+              "phase": "metadata",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 199.89999997615814,
+            "label": "Reading cached index metadata",
+            "source": null,
+            "hydration": {
+              "phase": "metadata",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "preview": {
+          "first": {
+            "ms": 300.19999998807907,
+            "label": "Loading the requested Plex preview",
+            "source": null,
+            "hydration": {
+              "phase": "preview",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 300.19999998807907,
+            "label": "Loading the requested Plex preview",
+            "source": null,
+            "hydration": {
+              "phase": "preview",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "preview-search": {
+          "first": {
+            "ms": 673.8999999761581,
+            "label": "Preparing search",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "processed": 0,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "preview-search",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 61388.80000001192,
+            "label": "Preparing search",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "preview-search",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "host-metadata-comparison": {
+          "first": {
+            "ms": 954.3000000119209,
+            "label": "Comparing cached notes with Obsidian metadata \u2014 0 / 20,015 notes (0%)",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "processed": 0,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 48141.19999998808,
+            "label": "Comparing cached notes with Obsidian metadata \u2014 20,002 / 20,015 notes (99%)",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "processed": 20002,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "host-retired-owner-check": {
+          "first": {
+            "ms": 48242.80000001192,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "host-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 48242.80000001192,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "host-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "source-reconciliation": {
+          "first": {
+            "ms": 48948.80000001192,
+            "label": "Checking cached index \u2014 213 / 20,015 notes (1%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "processed": 213,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 57175,
+            "label": "Checking cached index \u2014 19,840 / 20,015 notes (99%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "processed": 19840,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "source-retired-owner-check": {
+          "first": {
+            "ms": 57313,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "source-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 57313,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "source-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "pages": {
+          "first": {
+            "ms": 57969.5,
+            "label": "Loading cached nodes",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "pages",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 59677.5,
+            "label": "Loading cached nodes \u2014 18,990 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "pages",
+              "processed": 18990,
+              "total": null
+            }
+          }
+        },
+        "relations": {
+          "first": {
+            "ms": 59778.19999998808,
+            "label": "Loading cached relationships",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "relations",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 61282.59999996424,
+            "label": "Loading cached relationships \u2014 20,466 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "relations",
+              "processed": 20466,
+              "total": null
+            }
+          }
+        },
+        "evidence": {
+          "first": {
+            "ms": 61748,
+            "label": "Loading relationship evidence \u2014 7,168 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "evidence",
+              "processed": 7168,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 64422.69999998808,
+            "label": "Loading relationship evidence \u2014 700,416 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "evidence",
+              "processed": 700416,
+              "total": null
+            }
+          }
+        },
+        "complete": {
+          "first": {
+            "ms": 64523.30000001192,
+            "label": "Status: index ready",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 64523.30000001192,
+            "label": "Status: index ready",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedSemantics": "Milliseconds from immediately before disable/enable; diagnostics are relative to onload. Method timings are inclusive and lanes overlap.",
+      "foreground": {
+        "samples": 66,
+        "hidden": 0,
+        "documentUnfocused": 0,
+        "windowUnfocused": 0,
+        "throttlingDisabled": 0,
+        "comparable": true
+      },
+      "operations": {
+        "metadata": {
+          "markdownInventoryCalls": 1,
+          "idb.meta.get": 3,
+          "idb.sourceHeads.getAll": 1,
+          "idb.sourceHeads.getAllKeys": 1
+        },
+        "preview": {
+          "idb.pages.get": 251,
+          "idb.meta.put": 1
+        },
+        "preview-search": {
+          "metadataCacheLookups": 60089,
+          "idb.bodies.get": 23
+        },
+        "source-inventory": {
+          "markdownInventoryCalls": 1
+        },
+        "host-metadata-comparison": {
+          "sourceInspectionCalls": 40030,
+          "idb.sourceHeads.get": 60045,
+          "metadataCacheLookups": 20532,
+          "markdownInventoryCalls": 2,
+          "dependencyChecks": 20015,
+          "localDependencySelectionCalls": 20015,
+          "idb.meta.get": 20015,
+          "idb.sourceLocalDependencyOwners.get": 20015,
+          "idb.sourceLocalDependencyRepairs.get": 20015,
+          "idb.bodies.get": 2,
+          "idb.meta.add": 40026,
+          "idb.sourceChunks.get": 20015,
+          "idb.sourcePostings.getAll": 20015,
+          "repositoryYieldCalls": 20015,
+          "idb.meta.delete": 40026
+        },
+        "host-retired-owner-check": {
+          "sourceHeadPageCalls": 80,
+          "idb.sourceHeads.getAll": 80,
+          "idb.sourceHeads.getAllKeys": 80
+        },
+        "source-reconciliation": {
+          "metadataCacheLookups": 20015,
+          "sourceInspectionCalls": 40030,
+          "idb.sourceHeads.get": 40030,
+          "dependencyChecks": 20015,
+          "localDependencySelectionCalls": 20015,
+          "idb.meta.get": 20015,
+          "idb.sourceLocalDependencyOwners.get": 20015,
+          "idb.sourceLocalDependencyRepairs.get": 20015
+        },
+        "source-retired-owner-check": {
+          "sourceHeadPageCalls": 80,
+          "idb.sourceHeads.getAll": 80,
+          "idb.sourceHeads.getAllKeys": 80
+        },
+        "dependency-completion": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "dependency-final-validation": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "source-authority": {
+          "metadataCacheLookups": 1,
+          "idb.meta.get": 1
+        },
+        "requested-semantics": {
+          "idb.meta.get": 68,
+          "idb.sourceLocalDependencyKeys.get": 4,
+          "idb.sourceLocalDependencyOwners.get": 4,
+          "idb.sourceHeads.get": 36,
+          "metadataCacheLookups": 590,
+          "idb.meta.add": 6,
+          "idb.sourceChunks.get": 12,
+          "idb.sourcePostings.getAll": 12,
+          "repositoryYieldCalls": 12,
+          "idb.meta.delete": 6
+        },
+        "pages": {
+          "idb.snapshotChunks.get": 118,
+          "metadataCacheLookups": 18
+        },
+        "relations": {
+          "idb.snapshotChunks.get": 118
+        },
+        "evidence": {
+          "idb.snapshotChunks.get": 699,
+          "metadataCacheLookups": 27
+        },
+        "complete": {
+          "idb.meta.put": 1,
+          "metadataCacheLookups": 27
+        }
+      },
+      "disableEndedMs": 24.900000035762787,
+      "enableEndedMs": 136.9000000357628,
+      "waitTimingStartedMs": 138.4000000357628,
+      "firstPlexDomMs": 954.9000000357628,
+      "sourceAuthorityMs": 57717.19999998808,
+      "requestedSemanticsMs": 57829,
+      "strictReadyMs": 64592.30000001192,
+      "diagnostics": {
+        "startedAtMs": 15992654.299999952,
+        "enabled": true,
+        "frozen": true,
+        "milestones": {
+          "onload": 0,
+          "settings-loaded": 17.900000035762787,
+          "layout-ready": 30,
+          "host-inventory-start": 64,
+          "host-inventory-end": 84.10000002384186,
+          "preview-available": 761.5,
+          "source-authority": 57603.5,
+          "source-authority-await-ended": 57604.30000001192,
+          "first-requested-scope-authoritative": 57642.200000047684,
+          "requested-semantics-refresh-ended": 57642.40000003576,
+          "snapshot-complete": 64484,
+          "strict-ready": 64484.700000047684
+        },
+        "phases": [
+          {
+            "lane": "hydration",
+            "phase": "metadata",
+            "total": null,
+            "processed": 0,
+            "startedMs": 31.700000047683716,
+            "endedMs": 84.30000001192093,
+            "counters": {
+              "markdownInventoryCalls": 1,
+              "idb.meta.get": 3,
+              "idb.sourceHeads.getAll": 1,
+              "idb.sourceHeads.getAllKeys": 1,
+              "inventoryFiles": 20016,
+              "inventoryFolders": 207
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview",
+            "total": null,
+            "processed": 0,
+            "startedMs": 84.30000001192093,
+            "endedMs": 744.7000000476837,
+            "counters": {
+              "idb.pages.get": 251,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview-search",
+            "total": null,
+            "processed": 0,
+            "startedMs": 744.7000000476837,
+            "endedMs": 761.5,
+            "counters": {
+              "metadataCacheLookups": 43,
+              "idb.bodies.get": 10
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-inventory",
+            "total": null,
+            "processed": 0,
+            "startedMs": 748.9000000357628,
+            "endedMs": 752.2000000476837,
+            "counters": {
+              "markdownInventoryCalls": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-coordinates",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 752.2000000476837,
+            "endedMs": 757.5,
+            "counters": {},
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "host-metadata-comparison",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 757.5,
+            "endedMs": 46948.700000047684,
+            "counters": {
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 60045,
+              "metadataCacheLookups": 20532,
+              "markdownInventoryCalls": 2,
+              "dependencyChecks": 20015,
+              "localDependencySelectionCalls": 20015,
+              "idb.meta.get": 20015,
+              "idb.sourceLocalDependencyOwners.get": 20015,
+              "idb.sourceLocalDependencyRepairs.get": 20015,
+              "idb.bodies.get": 2,
+              "idb.meta.add": 40026,
+              "idb.sourceChunks.get": 20015,
+              "idb.sourcePostings.getAll": 20015,
+              "repositoryYieldCalls": 20015,
+              "idb.meta.delete": 40026,
+              "physicalRevisionComparisons": 20015
+            },
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "hydration",
+            "phase": "source-authority",
+            "total": null,
+            "processed": 0,
+            "startedMs": 761.5,
+            "endedMs": 57604.200000047684,
+            "counters": {
+              "metadataCacheLookups": 1,
+              "idb.meta.get": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "host-retired-owner-check",
+            "total": null,
+            "processed": 0,
+            "startedMs": 46948.700000047684,
+            "endedMs": 47698.5,
+            "counters": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80,
+              "headPageOwners": 20036
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-reconciliation",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 47698.5,
+            "endedMs": 57239,
+            "counters": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "physicalRevisionComparisons": 20015,
+              "dependencyChecks": 20015,
+              "localDependencySelectionCalls": 20015,
+              "idb.meta.get": 20015,
+              "idb.sourceLocalDependencyOwners.get": 20015,
+              "idb.sourceLocalDependencyRepairs.get": 20015
+            },
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "source-retired-owner-check",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57239,
+            "endedMs": 57597.200000047684,
+            "counters": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80,
+              "headPageOwners": 20036
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "dependency-completion",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57597.200000047684,
+            "endedMs": 57599.30000001192,
+            "counters": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "resolution-reconciliation",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 57599.30000001192,
+            "endedMs": 57602.60000002384,
+            "counters": {},
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "dependency-final-validation",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57602.60000002384,
+            "endedMs": 57603.5,
+            "counters": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "complete",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57603.5,
+            "endedMs": 64484.700000047684,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "requested-semantics",
+            "total": null,
+            "processed": 0,
+            "startedMs": 57604.200000047684,
+            "endedMs": 57642.40000003576,
+            "counters": {
+              "idb.meta.get": 68,
+              "idb.sourceLocalDependencyKeys.get": 4,
+              "idb.sourceLocalDependencyOwners.get": 4,
+              "idb.sourceHeads.get": 36,
+              "metadataCacheLookups": 590,
+              "idb.meta.add": 6,
+              "idb.sourceChunks.get": 12,
+              "idb.sourcePostings.getAll": 12,
+              "repositoryYieldCalls": 12,
+              "idb.meta.delete": 6
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "pages",
+            "total": null,
+            "processed": 20709,
+            "startedMs": 57642.40000003576,
+            "endedMs": 58861.40000003576,
+            "counters": {
+              "idb.snapshotChunks.get": 118,
+              "metadataCacheLookups": 18,
+              "physicalRevisionComparisons": 20015
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "relations",
+            "total": null,
+            "processed": 20709,
+            "startedMs": 58861.40000003576,
+            "endedMs": 60894.5,
+            "counters": {
+              "idb.snapshotChunks.get": 118
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview-search",
+            "total": null,
+            "processed": 0,
+            "startedMs": 60894.5,
+            "endedMs": 61186.200000047684,
+            "counters": {
+              "metadataCacheLookups": 60046,
+              "idb.bodies.get": 13
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "evidence",
+            "total": null,
+            "processed": 715032,
+            "startedMs": 61186.200000047684,
+            "endedMs": 64483.5,
+            "counters": {
+              "idb.snapshotChunks.get": 699,
+              "metadataCacheLookups": 27
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "promote",
+            "total": null,
+            "processed": 0,
+            "startedMs": 64483.5,
+            "endedMs": 64484,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "complete",
+            "total": null,
+            "processed": 0,
+            "startedMs": 64484,
+            "endedMs": 64484.700000047684,
+            "counters": {
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          }
+        ],
+        "overlaps": [
+          {
+            "first": "source-coordinates",
+            "second": "host-metadata-comparison",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-reconciliation",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          }
+        ]
+      },
+      "onloadOffsetMs": 91.69999998807907,
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 20015,
+        "totalFiles": 20015,
+        "label": "Status: index ready"
+      },
+      "source": {
+        "checked": 0,
+        "reusedBodies": 0,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "semantic": {
+        "policyRevision": 1,
+        "requested": 2,
+        "prepared": 1,
+        "published": 1,
+        "cancelled": 0,
+        "pending": 1,
+        "dependencyVisits": 12,
+        "fullBuilds": 0,
+        "lastReason": null
+      },
+      "hydration": {
+        "run": 1,
+        "phase": "complete",
+        "lastActivePhase": "promote",
+        "startedAt": 1791101979910,
+        "phaseStartedAt": 1791102044363,
+        "lastProgressAt": 1791102044363,
+        "pages": 20709,
+        "relations": 20709,
+        "evidence": 715032,
+        "outcome": "complete"
+      },
+      "waits": {
+        "elapsedMs": 64454.799999952316,
+        "running": false,
+        "active": [
+          0,
+          0,
+          0
+        ],
+        "categories": [
+          "yield",
+          "transaction",
+          "digest"
+        ],
+        "upperBoundsMs": [
+          0.1,
+          0.25,
+          0.5,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096,
+          8192,
+          null
+        ],
+        "semantics": "Promise observation latency and disjoint interval membership; transaction/digest durations include callback and microtask scheduling, not exclusive disk/hash CPU time. Membership 0 includes unwrapped work and waits, not just CPU. Phase grouping uses the phase at invocation.",
+        "groups": {
+          "source:host-metadata-comparison:transaction:readonly:sourceHeads": {
+            "calls": 40030,
+            "completed": 40030,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 417.4999994635582,
+            "totalMs": 6929.199992835522,
+            "minMs": 0,
+            "maxMs": 218.39999997615814,
+            "histogram": [
+              15251,
+              23284,
+              953,
+              279,
+              107,
+              54,
+              36,
+              24,
+              35,
+              4,
+              1,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readonly:meta,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 215.29999887943268,
+            "totalMs": 4387.600002527237,
+            "minMs": 0,
+            "maxMs": 70.90000003576279,
+            "histogram": [
+              5839,
+              13235,
+              757,
+              58,
+              32,
+              24,
+              17,
+              6,
+              37,
+              7,
+              3,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readwrite:meta,sourceHeads": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 219.29999911785126,
+            "totalMs": 10547.100002765656,
+            "minMs": 0.09999996423721313,
+            "maxMs": 106.80000001192093,
+            "histogram": [
+              10,
+              2801,
+              14816,
+              1197,
+              849,
+              197,
+              67,
+              20,
+              48,
+              6,
+              4,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readonly:sourceChunks": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 208.20000088214874,
+            "totalMs": 5135.799993574619,
+            "minMs": 0,
+            "maxMs": 84.10000002384186,
+            "histogram": [
+              5581,
+              10233,
+              2968,
+              694,
+              403,
+              74,
+              23,
+              11,
+              25,
+              2,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:digest:sha256": {
+            "calls": 60045,
+            "completed": 60045,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 637.6999994516373,
+            "totalMs": 851.8999991416931,
+            "minMs": 0,
+            "maxMs": 5.199999988079071,
+            "histogram": [
+              55085,
+              4941,
+              13,
+              1,
+              0,
+              3,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readonly:sourcePostings": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 219.60000097751617,
+            "totalMs": 8870.300001621246,
+            "minMs": 0,
+            "maxMs": 78.90000003576279,
+            "histogram": [
+              1070,
+              10493,
+              5368,
+              1727,
+              1083,
+              155,
+              61,
+              18,
+              35,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:yield:timer": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 44.50000047683716,
+            "totalMs": 151.99999856948853,
+            "minMs": 0,
+            "maxMs": 2,
+            "histogram": [
+              19157,
+              849,
+              5,
+              3,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-retired-owner-check:transaction:readonly:sourceHeads": {
+            "calls": 80,
+            "completed": 80,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 2.3000001907348633,
+            "totalMs": 725.8999999761581,
+            "minMs": 0.30000001192092896,
+            "maxMs": 99.59999996423721,
+            "histogram": [
+              0,
+              0,
+              1,
+              0,
+              1,
+              25,
+              39,
+              7,
+              3,
+              2,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-reconciliation:digest:sha256": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 139.40000015497208,
+            "totalMs": 206.80000066757202,
+            "minMs": 0,
+            "maxMs": 0.3999999761581421,
+            "histogram": [
+              18766,
+              1247,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-reconciliation:transaction:readonly:sourceHeads": {
+            "calls": 40030,
+            "completed": 40030,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 387.30000311136246,
+            "totalMs": 5719.099995970726,
+            "minMs": 0,
+            "maxMs": 194.4000000357628,
+            "histogram": [
+              14777,
+              24652,
+              263,
+              153,
+              57,
+              55,
+              52,
+              11,
+              7,
+              2,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-reconciliation:transaction:readonly:meta,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 206.69999998807907,
+            "totalMs": 3249.300004065037,
+            "minMs": 0,
+            "maxMs": 99.5,
+            "histogram": [
+              5526,
+              14000,
+              337,
+              58,
+              39,
+              27,
+              16,
+              6,
+              4,
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-retired-owner-check:transaction:readonly:sourceHeads": {
+            "calls": 80,
+            "completed": 80,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 2.5999996662139893,
+            "totalMs": 345.5999998450279,
+            "minMs": 0.20000004768371582,
+            "maxMs": 21.5,
+            "histogram": [
+              0,
+              1,
+              0,
+              0,
+              1,
+              53,
+              23,
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-completion:transaction:readonly:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.09999996423721313,
+            "totalMs": 0.3999999761581421,
+            "minMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "histogram": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-completion:transaction:readwrite:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 1.699999988079071,
+            "minMs": 1.699999988079071,
+            "maxMs": 1.699999988079071,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-final-validation:transaction:readonly:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 0.2999999523162842,
+            "minMs": 0.2999999523162842,
+            "maxMs": 0.2999999523162842,
+            "histogram": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-final-validation:transaction:readwrite:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.20000004768371582,
+            "totalMs": 0.5,
+            "minMs": 0.5,
+            "maxMs": 0.5,
+            "histogram": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:source-authority:transaction:readonly:meta": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 1,
+            "minMs": 1,
+            "maxMs": 1,
+            "histogram": [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta,sourceLocalDependencyKeys": {
+            "calls": 3,
+            "completed": 3,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 3,
+            "minMs": 0.19999998807907104,
+            "maxMs": 2.600000023841858,
+            "histogram": [
+              0,
+              2,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta,sourceHeads,sourceLocalDependencies,sourceLocalDependencyOwners": {
+            "calls": 4,
+            "completed": 4,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.10000002384185791,
+            "totalMs": 9.300000011920929,
+            "minMs": 0.5,
+            "maxMs": 7.599999964237213,
+            "histogram": [
+              0,
+              0,
+              2,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta": {
+            "calls": 32,
+            "completed": 32,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.30000007152557373,
+            "totalMs": 3.300000011920929,
+            "minMs": 0,
+            "maxMs": 0.19999998807907104,
+            "histogram": [
+              12,
+              20,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta,sourceHeads": {
+            "calls": 11,
+            "completed": 11,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.10000002384185791,
+            "totalMs": 1.6999999284744263,
+            "minMs": 0.09999996423721313,
+            "maxMs": 0.30000001192092896,
+            "histogram": [
+              4,
+              6,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:digest:sha256": {
+            "calls": 83,
+            "completed": 83,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.2999998927116394,
+            "totalMs": 0.6999998688697815,
+            "minMs": 0,
+            "maxMs": 0.10000002384185791,
+            "histogram": [
+              81,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readwrite:meta,sourceHeads": {
+            "calls": 3,
+            "completed": 3,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 2.699999988079071,
+            "minMs": 0.5,
+            "maxMs": 1.699999988079071,
+            "histogram": [
+              0,
+              0,
+              2,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:sourceHeads": {
+            "calls": 18,
+            "completed": 18,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.20000004768371582,
+            "totalMs": 1.8000000715255737,
+            "minMs": 0,
+            "maxMs": 0.30000001192092896,
+            "histogram": [
+              8,
+              9,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:sourceChunks": {
+            "calls": 12,
+            "completed": 12,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.20000004768371582,
+            "totalMs": 2.9999999403953552,
+            "minMs": 0,
+            "maxMs": 2,
+            "histogram": [
+              7,
+              4,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:sourcePostings": {
+            "calls": 12,
+            "completed": 12,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.09999996423721313,
+            "totalMs": 4.099999964237213,
+            "minMs": 0,
+            "maxMs": 2.899999976158142,
+            "histogram": [
+              5,
+              6,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:yield:timer": {
+            "calls": 12,
+            "completed": 12,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 0,
+            "minMs": 0,
+            "maxMs": 0,
+            "histogram": [
+              12,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          }
+        },
+        "phases": {
+          "hydration:metadata": {
+            "elapsedMs": 37.59999996423721,
+            "membershipMs": [
+              37.59999996423721,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:preview": {
+            "elapsedMs": 660.4000000357628,
+            "membershipMs": [
+              660.4000000357628,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:preview-search": {
+            "elapsedMs": 295.9000000357628,
+            "membershipMs": [
+              295.9000000357628,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-inventory": {
+            "elapsedMs": 3.300000011920929,
+            "membershipMs": [
+              3.300000011920929,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-coordinates": {
+            "elapsedMs": 5.299999952316284,
+            "membershipMs": [
+              5.299999952316284,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:host-metadata-comparison": {
+            "elapsedMs": 46191.200000047684,
+            "membershipMs": [
+              9317.300009012222,
+              151.99999856948853,
+              35869.99999332428,
+              0,
+              851.8999991416931,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:host-retired-owner-check": {
+            "elapsedMs": 749.7999999523163,
+            "membershipMs": [
+              23.899999976158142,
+              0,
+              725.8999999761581,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-reconciliation": {
+            "elapsedMs": 9540.5,
+            "membershipMs": [
+              365.2999992966652,
+              0,
+              8968.400000035763,
+              0,
+              206.80000066757202,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-retired-owner-check": {
+            "elapsedMs": 358.2000000476837,
+            "membershipMs": [
+              12.600000202655792,
+              0,
+              345.5999998450279,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:dependency-completion": {
+            "elapsedMs": 2.099999964237213,
+            "membershipMs": [
+              0,
+              0,
+              2.099999964237213,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:resolution-reconciliation": {
+            "elapsedMs": 3.300000011920929,
+            "membershipMs": [
+              3.300000011920929,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:dependency-final-validation": {
+            "elapsedMs": 0.8999999761581421,
+            "membershipMs": [
+              0.10000002384185791,
+              0,
+              0.7999999523162842,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:source-authority": {
+            "elapsedMs": 0.7000000476837158,
+            "membershipMs": [
+              0.6000000238418579,
+              0,
+              0.10000002384185791,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:requested-semantics": {
+            "elapsedMs": 38.19999998807907,
+            "membershipMs": [
+              7.70000022649765,
+              0,
+              29.79999989271164,
+              0,
+              0.6999998688697815,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:pages": {
+            "elapsedMs": 1219,
+            "membershipMs": [
+              1219,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:relations": {
+            "elapsedMs": 2033.0999999642372,
+            "membershipMs": [
+              2033.0999999642372,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:evidence": {
+            "elapsedMs": 3297.2999999523163,
+            "membershipMs": [
+              3297.2999999523163,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:promote": {
+            "elapsedMs": 0.5,
+            "membershipMs": [
+              0.5,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:complete": {
+            "elapsedMs": 17.5,
+            "membershipMs": [
+              17.5,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      },
+      "sourceHeadsUnchanged": true,
+      "settingsUnchanged": true,
+      "foregroundFinal": {
+        "hidden": false,
+        "documentFocused": true,
+        "windowFocused": true,
+        "throttle": true
+      },
+      "labelsByPhase": {
+        "metadata": {
+          "first": {
+            "ms": 141.69999998807907,
+            "label": "Reading cached index metadata",
+            "source": null,
+            "hydration": {
+              "phase": "metadata",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 141.69999998807907,
+            "label": "Reading cached index metadata",
+            "source": null,
+            "hydration": {
+              "phase": "metadata",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "preview": {
+          "first": {
+            "ms": 299.5,
+            "label": "Loading the requested Plex preview",
+            "source": null,
+            "hydration": {
+              "phase": "preview",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 299.5,
+            "label": "Loading the requested Plex preview",
+            "source": null,
+            "hydration": {
+              "phase": "preview",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "preview-search": {
+          "first": {
+            "ms": 849.6000000238419,
+            "label": "Preparing search",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "processed": 0,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "preview-search",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 60986.80000001192,
+            "label": "Preparing search",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "preview-search",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "host-metadata-comparison": {
+          "first": {
+            "ms": 954.8000000119209,
+            "label": "Comparing cached notes with Obsidian metadata \u2014 6 / 20,015 notes (0%)",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "processed": 6,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 46995.69999998808,
+            "label": "Comparing cached notes with Obsidian metadata \u2014 19,991 / 20,015 notes (99%)",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "processed": 19991,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "host-retired-owner-check": {
+          "first": {
+            "ms": 47097.10000002384,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "host-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 47097.10000002384,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "host-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "source-reconciliation": {
+          "first": {
+            "ms": 47849.60000002384,
+            "label": "Checking cached index \u2014 123 / 20,015 notes (0%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "processed": 123,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 57315.10000002384,
+            "label": "Checking cached index \u2014 19,988 / 20,015 notes (99%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "processed": 19988,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "source-retired-owner-check": {
+          "first": {
+            "ms": 57416,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "source-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 57416,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "source-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "requested-semantics": {
+          "first": {
+            "ms": 57717.19999998808,
+            "label": "Preparing requested Plex semantics",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "requested-semantics",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 57717.19999998808,
+            "label": "Preparing requested Plex semantics",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "requested-semantics",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "pages": {
+          "first": {
+            "ms": 57829,
+            "label": "Loading cached nodes",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "pages",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 58948.5,
+            "label": "Loading cached nodes \u2014 20,466 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "pages",
+              "processed": 20466,
+              "total": null
+            }
+          }
+        },
+        "relations": {
+          "first": {
+            "ms": 59064.40000003576,
+            "label": "Loading cached relationships \u2014 1,404 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "relations",
+              "processed": 1404,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 60878.60000002384,
+            "label": "Loading cached relationships \u2014 20,470 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "relations",
+              "processed": 20470,
+              "total": null
+            }
+          }
+        },
+        "evidence": {
+          "first": {
+            "ms": 61311.10000002384,
+            "label": "Loading relationship evidence \u2014 7,168 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "evidence",
+              "processed": 7168,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 64491.10000002384,
+            "label": "Loading relationship evidence \u2014 688,128 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "evidence",
+              "processed": 688128,
+              "total": null
+            }
+          }
+        },
+        "complete": {
+          "first": {
+            "ms": 64592.30000001192,
+            "label": "Status: index ready",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 64592.30000001192,
+            "label": "Status: index ready",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedSemantics": "Milliseconds from immediately before disable/enable; diagnostics are relative to onload. Method timings are inclusive and lanes overlap.",
+      "foreground": {
+        "samples": 69,
+        "hidden": 0,
+        "documentUnfocused": 0,
+        "windowUnfocused": 0,
+        "throttlingDisabled": 0,
+        "comparable": true
+      },
+      "operations": {
+        "metadata": {
+          "markdownInventoryCalls": 1,
+          "idb.meta.get": 3,
+          "idb.sourceHeads.getAll": 1,
+          "idb.sourceHeads.getAllKeys": 1
+        },
+        "preview": {
+          "idb.pages.get": 251,
+          "idb.meta.put": 1
+        },
+        "preview-search": {
+          "metadataCacheLookups": 60583,
+          "idb.bodies.get": 23
+        },
+        "source-inventory": {
+          "markdownInventoryCalls": 1
+        },
+        "host-metadata-comparison": {
+          "sourceInspectionCalls": 40030,
+          "idb.sourceHeads.get": 60045,
+          "markdownInventoryCalls": 2,
+          "metadataCacheLookups": 20038,
+          "idb.bodies.get": 2,
+          "dependencyChecks": 20015,
+          "localDependencySelectionCalls": 20015,
+          "idb.meta.get": 20015,
+          "idb.sourceLocalDependencyOwners.get": 20015,
+          "idb.sourceLocalDependencyRepairs.get": 20015,
+          "idb.meta.add": 40026,
+          "idb.sourceChunks.get": 20015,
+          "idb.sourcePostings.getAll": 20015,
+          "repositoryYieldCalls": 20015,
+          "idb.meta.delete": 40026
+        },
+        "host-retired-owner-check": {
+          "sourceHeadPageCalls": 80,
+          "idb.sourceHeads.getAll": 80,
+          "idb.sourceHeads.getAllKeys": 80
+        },
+        "source-reconciliation": {
+          "metadataCacheLookups": 20015,
+          "sourceInspectionCalls": 40030,
+          "idb.sourceHeads.get": 40030,
+          "dependencyChecks": 20015,
+          "localDependencySelectionCalls": 20015,
+          "idb.meta.get": 20015,
+          "idb.sourceLocalDependencyOwners.get": 20015,
+          "idb.sourceLocalDependencyRepairs.get": 20015
+        },
+        "source-retired-owner-check": {
+          "sourceHeadPageCalls": 80,
+          "idb.sourceHeads.getAll": 80,
+          "idb.sourceHeads.getAllKeys": 80
+        },
+        "dependency-completion": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "dependency-final-validation": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "source-authority": {
+          "metadataCacheLookups": 1,
+          "idb.meta.get": 1
+        },
+        "requested-semantics": {
+          "idb.meta.get": 68,
+          "idb.sourceLocalDependencyKeys.get": 4,
+          "idb.sourceLocalDependencyOwners.get": 4,
+          "idb.sourceHeads.get": 36,
+          "metadataCacheLookups": 590,
+          "idb.meta.add": 6,
+          "idb.sourceChunks.get": 12,
+          "idb.sourcePostings.getAll": 12,
+          "repositoryYieldCalls": 12,
+          "idb.meta.delete": 6
+        },
+        "pages": {
+          "idb.snapshotChunks.get": 118,
+          "metadataCacheLookups": 18
+        },
+        "relations": {
+          "idb.snapshotChunks.get": 118
+        },
+        "evidence": {
+          "idb.snapshotChunks.get": 699,
+          "metadataCacheLookups": 27
+        },
+        "complete": {
+          "idb.meta.put": 1,
+          "metadataCacheLookups": 27
+        }
+      },
+      "disableEndedMs": 25.30000001192093,
+      "enableEndedMs": 111,
+      "waitTimingStartedMs": 111.09999996423721,
+      "firstPlexDomMs": 501.80000001192093,
+      "sourceAuthorityMs": 60460.80000001192,
+      "requestedSemanticsMs": 60585.80000001192,
+      "strictReadyMs": 67664.5,
+      "diagnostics": {
+        "startedAtMs": 16063600.099999964,
+        "enabled": true,
+        "frozen": true,
+        "milestones": {
+          "onload": 0,
+          "settings-loaded": 20.19999998807907,
+          "layout-ready": 32.40000003576279,
+          "host-inventory-start": 53.19999998807907,
+          "host-inventory-end": 76.10000002384186,
+          "preview-available": 408,
+          "source-authority": 60367.80000001192,
+          "source-authority-await-ended": 60368.69999998808,
+          "first-requested-scope-authoritative": 60415.90000003576,
+          "requested-semantics-refresh-ended": 60416,
+          "snapshot-complete": 67581.30000001192,
+          "strict-ready": 67583.30000001192
+        },
+        "phases": [
+          {
+            "lane": "hydration",
+            "phase": "metadata",
+            "total": null,
+            "processed": 0,
+            "startedMs": 34.19999998807907,
+            "endedMs": 76.19999998807907,
+            "counters": {
+              "markdownInventoryCalls": 1,
+              "idb.meta.get": 3,
+              "idb.sourceHeads.getAll": 1,
+              "idb.sourceHeads.getAllKeys": 1,
+              "inventoryFiles": 20016,
+              "inventoryFolders": 207
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview",
+            "total": null,
+            "processed": 0,
+            "startedMs": 76.19999998807907,
+            "endedMs": 386.9000000357628,
+            "counters": {
+              "idb.pages.get": 251,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview-search",
+            "total": null,
+            "processed": 0,
+            "startedMs": 386.9000000357628,
+            "endedMs": 408.10000002384186,
+            "counters": {
+              "metadataCacheLookups": 537,
+              "idb.bodies.get": 10
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "source-authority",
+            "total": null,
+            "processed": 0,
+            "startedMs": 408.10000002384186,
+            "endedMs": 60368.40000003576,
+            "counters": {
+              "metadataCacheLookups": 1,
+              "idb.meta.get": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-inventory",
+            "total": null,
+            "processed": 0,
+            "startedMs": 408.19999998807907,
+            "endedMs": 412.60000002384186,
+            "counters": {
+              "markdownInventoryCalls": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-coordinates",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 412.60000002384186,
+            "endedMs": 418.30000001192093,
+            "counters": {},
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "host-metadata-comparison",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 418.30000001192093,
+            "endedMs": 48773.40000003576,
+            "counters": {
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 60045,
+              "markdownInventoryCalls": 2,
+              "metadataCacheLookups": 20038,
+              "idb.bodies.get": 2,
+              "dependencyChecks": 20015,
+              "localDependencySelectionCalls": 20015,
+              "idb.meta.get": 20015,
+              "idb.sourceLocalDependencyOwners.get": 20015,
+              "idb.sourceLocalDependencyRepairs.get": 20015,
+              "idb.meta.add": 40026,
+              "idb.sourceChunks.get": 20015,
+              "idb.sourcePostings.getAll": 20015,
+              "repositoryYieldCalls": 20015,
+              "idb.meta.delete": 40026,
+              "physicalRevisionComparisons": 20015
+            },
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "host-retired-owner-check",
+            "total": null,
+            "processed": 0,
+            "startedMs": 48773.40000003576,
+            "endedMs": 49167.5,
+            "counters": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80,
+              "headPageOwners": 20036
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-reconciliation",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 49167.5,
+            "endedMs": 60031.60000002384,
+            "counters": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "physicalRevisionComparisons": 20015,
+              "dependencyChecks": 20015,
+              "localDependencySelectionCalls": 20015,
+              "idb.meta.get": 20015,
+              "idb.sourceLocalDependencyOwners.get": 20015,
+              "idb.sourceLocalDependencyRepairs.get": 20015
+            },
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "source-retired-owner-check",
+            "total": null,
+            "processed": 0,
+            "startedMs": 60031.60000002384,
+            "endedMs": 60360.19999998808,
+            "counters": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80,
+              "headPageOwners": 20036
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "dependency-completion",
+            "total": null,
+            "processed": 0,
+            "startedMs": 60360.19999998808,
+            "endedMs": 60361.90000003576,
+            "counters": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "resolution-reconciliation",
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 60361.90000003576,
+            "endedMs": 60367,
+            "counters": {},
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "dependency-final-validation",
+            "total": null,
+            "processed": 0,
+            "startedMs": 60367,
+            "endedMs": 60367.80000001192,
+            "counters": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "complete",
+            "total": null,
+            "processed": 0,
+            "startedMs": 60367.80000001192,
+            "endedMs": 67583.30000001192,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "requested-semantics",
+            "total": null,
+            "processed": 0,
+            "startedMs": 60368.40000003576,
+            "endedMs": 60416.30000001192,
+            "counters": {
+              "idb.meta.get": 68,
+              "idb.sourceLocalDependencyKeys.get": 4,
+              "idb.sourceLocalDependencyOwners.get": 4,
+              "idb.sourceHeads.get": 36,
+              "metadataCacheLookups": 590,
+              "idb.meta.add": 6,
+              "idb.sourceChunks.get": 12,
+              "idb.sourcePostings.getAll": 12,
+              "repositoryYieldCalls": 12,
+              "idb.meta.delete": 6
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "pages",
+            "total": null,
+            "processed": 20709,
+            "startedMs": 60416.30000001192,
+            "endedMs": 61845.10000002384,
+            "counters": {
+              "idb.snapshotChunks.get": 118,
+              "metadataCacheLookups": 18,
+              "physicalRevisionComparisons": 20015
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "relations",
+            "total": null,
+            "processed": 20709,
+            "startedMs": 61845.10000002384,
+            "endedMs": 63916.80000001192,
+            "counters": {
+              "idb.snapshotChunks.get": 118
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview-search",
+            "total": null,
+            "processed": 0,
+            "startedMs": 63916.80000001192,
+            "endedMs": 64231.80000001192,
+            "counters": {
+              "metadataCacheLookups": 60046,
+              "idb.bodies.get": 13
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "evidence",
+            "total": null,
+            "processed": 715032,
+            "startedMs": 64231.80000001192,
+            "endedMs": 67579.5,
+            "counters": {
+              "idb.snapshotChunks.get": 699,
+              "metadataCacheLookups": 27
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "promote",
+            "total": null,
+            "processed": 0,
+            "startedMs": 67579.5,
+            "endedMs": 67581.30000001192,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "complete",
+            "total": null,
+            "processed": 0,
+            "startedMs": 67581.30000001192,
+            "endedMs": 67583.30000001192,
+            "counters": {
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          }
+        ],
+        "overlaps": [
+          {
+            "first": "source-coordinates",
+            "second": "host-metadata-comparison",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-reconciliation",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          }
+        ]
+      },
+      "onloadOffsetMs": 66.89999997615814,
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 20015,
+        "totalFiles": 20015,
+        "label": "Status: index ready"
+      },
+      "source": {
+        "checked": 0,
+        "reusedBodies": 0,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "semantic": {
+        "policyRevision": 1,
+        "requested": 2,
+        "prepared": 1,
+        "published": 1,
+        "cancelled": 0,
+        "pending": 1,
+        "dependencyVisits": 12,
+        "fullBuilds": 0,
+        "lastReason": null
+      },
+      "hydration": {
+        "run": 1,
+        "phase": "complete",
+        "lastActivePhase": "promote",
+        "startedAt": 1791102050859,
+        "phaseStartedAt": 1791102118408,
+        "lastProgressAt": 1791102118406,
+        "pages": 20709,
+        "relations": 20709,
+        "evidence": 715032,
+        "outcome": "complete"
+      },
+      "waits": {
+        "elapsedMs": 67554.30000001192,
+        "running": false,
+        "active": [
+          0,
+          0,
+          0
+        ],
+        "categories": [
+          "yield",
+          "transaction",
+          "digest"
+        ],
+        "upperBoundsMs": [
+          0.1,
+          0.25,
+          0.5,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096,
+          8192,
+          null
+        ],
+        "semantics": "Promise observation latency and disjoint interval membership; transaction/digest durations include callback and microtask scheduling, not exclusive disk/hash CPU time. Membership 0 includes unwrapped work and waits, not just CPU. Phase grouping uses the phase at invocation.",
+        "groups": {
+          "source:host-metadata-comparison:transaction:readonly:sourceHeads": {
+            "calls": 40030,
+            "completed": 40030,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 450.8999992609024,
+            "totalMs": 7446.299989461899,
+            "minMs": 0,
+            "maxMs": 203.89999997615814,
+            "histogram": [
+              14543,
+              23664,
+              1243,
+              299,
+              119,
+              43,
+              40,
+              25,
+              44,
+              7,
+              2,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readonly:meta,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 224.70000052452087,
+            "totalMs": 4494.000006258488,
+            "minMs": 0,
+            "maxMs": 204.19999998807907,
+            "histogram": [
+              5410,
+              13377,
+              991,
+              94,
+              43,
+              24,
+              18,
+              15,
+              40,
+              2,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readwrite:meta,sourceHeads": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 233.99999964237213,
+            "totalMs": 10530.700002789497,
+            "minMs": 0.09999996423721313,
+            "maxMs": 83.10000002384186,
+            "histogram": [
+              9,
+              2432,
+              15012,
+              1371,
+              866,
+              201,
+              41,
+              29,
+              44,
+              9,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readonly:sourceChunks": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 226.200000166893,
+            "totalMs": 5530.599999368191,
+            "minMs": 0,
+            "maxMs": 302.19999998807907,
+            "histogram": [
+              5263,
+              10268,
+              3211,
+              767,
+              369,
+              63,
+              32,
+              14,
+              27,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:digest:sha256": {
+            "calls": 60045,
+            "completed": 60045,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 640.2000024914742,
+            "totalMs": 881.4000049829483,
+            "minMs": 0,
+            "maxMs": 5.400000035762787,
+            "histogram": [
+              54855,
+              5159,
+              20,
+              6,
+              1,
+              1,
+              3,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:transaction:readonly:sourcePostings": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 235.49999982118607,
+            "totalMs": 9341.899996578693,
+            "minMs": 0,
+            "maxMs": 129.4000000357628,
+            "histogram": [
+              968,
+              10131,
+              5727,
+              1767,
+              1155,
+              146,
+              43,
+              31,
+              40,
+              5,
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-metadata-comparison:yield:timer": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 52.60000044107437,
+            "totalMs": 165.39999961853027,
+            "minMs": 0,
+            "maxMs": 7.5,
+            "histogram": [
+              19113,
+              893,
+              6,
+              1,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:host-retired-owner-check:transaction:readonly:sourceHeads": {
+            "calls": 80,
+            "completed": 80,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 1.9000000357627869,
+            "totalMs": 378.0000001192093,
+            "minMs": 0.19999998807907104,
+            "maxMs": 28.5,
+            "histogram": [
+              0,
+              1,
+              0,
+              0,
+              1,
+              42,
+              30,
+              5,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-reconciliation:digest:sha256": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 158.19999927282333,
+            "totalMs": 235.19999915361404,
+            "minMs": 0,
+            "maxMs": 1.0999999642372131,
+            "histogram": [
+              18632,
+              1379,
+              3,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-reconciliation:transaction:readonly:sourceHeads": {
+            "calls": 40030,
+            "completed": 40030,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 465.2000010609627,
+            "totalMs": 6424.5999945402145,
+            "minMs": 0,
+            "maxMs": 125.19999998807907,
+            "histogram": [
+              14162,
+              24399,
+              961,
+              225,
+              137,
+              68,
+              46,
+              18,
+              5,
+              5,
+              4,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-reconciliation:transaction:readonly:meta,sourceLocalDependencyOwners,sourceLocalDependencyRepairs": {
+            "calls": 20015,
+            "completed": 20015,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 216.10000211000443,
+            "totalMs": 3736.2000069618225,
+            "minMs": 0,
+            "maxMs": 77.60000002384186,
+            "histogram": [
+              5255,
+              13352,
+              1085,
+              157,
+              91,
+              40,
+              16,
+              9,
+              5,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:source-retired-owner-check:transaction:readonly:sourceHeads": {
+            "calls": 80,
+            "completed": 80,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 1.0000001192092896,
+            "totalMs": 315.0000001192093,
+            "minMs": 0.19999998807907104,
+            "maxMs": 10.5,
+            "histogram": [
+              0,
+              1,
+              0,
+              0,
+              1,
+              64,
+              11,
+              3,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-completion:transaction:readonly:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 0.6000000238418579,
+            "minMs": 0.6000000238418579,
+            "maxMs": 0.6000000238418579,
+            "histogram": [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-completion:transaction:readwrite:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 1,
+            "minMs": 1,
+            "maxMs": 1,
+            "histogram": [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-final-validation:transaction:readonly:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 0.3999999761581421,
+            "minMs": 0.3999999761581421,
+            "maxMs": 0.3999999761581421,
+            "histogram": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "source:dependency-final-validation:transaction:readwrite:meta,sourceLocalDependencyRepairs": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 0.30000001192092896,
+            "minMs": 0.30000001192092896,
+            "maxMs": 0.30000001192092896,
+            "histogram": [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:source-authority:transaction:readonly:meta": {
+            "calls": 1,
+            "completed": 1,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.10000002384185791,
+            "totalMs": 1.699999988079071,
+            "minMs": 1.699999988079071,
+            "maxMs": 1.699999988079071,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta,sourceLocalDependencyKeys": {
+            "calls": 3,
+            "completed": 3,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.09999996423721313,
+            "totalMs": 1.800000011920929,
+            "minMs": 0.19999998807907104,
+            "maxMs": 1.4000000357627869,
+            "histogram": [
+              0,
+              2,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta,sourceHeads,sourceLocalDependencies,sourceLocalDependencyOwners": {
+            "calls": 4,
+            "completed": 4,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 8.599999964237213,
+            "minMs": 0.3999999761581421,
+            "maxMs": 7.199999988079071,
+            "histogram": [
+              0,
+              0,
+              3,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta": {
+            "calls": 32,
+            "completed": 32,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.19999998807907104,
+            "totalMs": 3.200000047683716,
+            "minMs": 0,
+            "maxMs": 0.20000004768371582,
+            "histogram": [
+              13,
+              19,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:meta,sourceHeads": {
+            "calls": 11,
+            "completed": 11,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.19999998807907104,
+            "totalMs": 1.3999999165534973,
+            "minMs": 0,
+            "maxMs": 0.19999998807907104,
+            "histogram": [
+              4,
+              7,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:digest:sha256": {
+            "calls": 83,
+            "completed": 83,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.8999999165534973,
+            "totalMs": 1.4000000357627869,
+            "minMs": 0,
+            "maxMs": 0.20000004768371582,
+            "histogram": [
+              75,
+              8,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readwrite:meta,sourceHeads": {
+            "calls": 3,
+            "completed": 3,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.20000004768371582,
+            "totalMs": 2.699999988079071,
+            "minMs": 0.3999999761581421,
+            "maxMs": 1.899999976158142,
+            "histogram": [
+              0,
+              0,
+              2,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:sourceHeads": {
+            "calls": 18,
+            "completed": 18,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.20000004768371582,
+            "totalMs": 1.600000023841858,
+            "minMs": 0,
+            "maxMs": 0.20000004768371582,
+            "histogram": [
+              9,
+              9,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:sourceChunks": {
+            "calls": 12,
+            "completed": 12,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0.10000002384185791,
+            "totalMs": 11.699999988079071,
+            "minMs": 0,
+            "maxMs": 9.699999988079071,
+            "histogram": [
+              5,
+              5,
+              0,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:transaction:readonly:sourcePostings": {
+            "calls": 12,
+            "completed": 12,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 4.000000059604645,
+            "minMs": 0,
+            "maxMs": 2.800000011920929,
+            "histogram": [
+              5,
+              5,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          },
+          "hydration:requested-semantics:yield:timer": {
+            "calls": 12,
+            "completed": 12,
+            "rejected": 0,
+            "synchronousThrows": 0,
+            "invocationMs": 0,
+            "totalMs": 0.09999996423721313,
+            "minMs": 0,
+            "maxMs": 0.09999996423721313,
+            "histogram": [
+              12,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "pending": 0
+          }
+        },
+        "phases": {
+          "hydration:metadata": {
+            "elapsedMs": 32,
+            "membershipMs": [
+              32,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:preview": {
+            "elapsedMs": 310.7000000476837,
+            "membershipMs": [
+              310.7000000476837,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:preview-search": {
+            "elapsedMs": 336.19999998807907,
+            "membershipMs": [
+              336.19999998807907,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:source-authority": {
+            "elapsedMs": 0.699999988079071,
+            "membershipMs": [
+              0.5999999642372131,
+              0,
+              0.10000002384185791,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-inventory": {
+            "elapsedMs": 4.400000035762787,
+            "membershipMs": [
+              4.400000035762787,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-coordinates": {
+            "elapsedMs": 5.699999988079071,
+            "membershipMs": [
+              5.699999988079071,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:host-metadata-comparison": {
+            "elapsedMs": 48355.10000002384,
+            "membershipMs": [
+              9964.800000965595,
+              165.39999961853027,
+              37343.49999445677,
+              0,
+              881.4000049829483,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:host-retired-owner-check": {
+            "elapsedMs": 394.0999999642372,
+            "membershipMs": [
+              16.099999845027924,
+              0,
+              378.0000001192093,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-reconciliation": {
+            "elapsedMs": 10864.100000023842,
+            "membershipMs": [
+              468.09999936819077,
+              0,
+              10160.800001502037,
+              0,
+              235.19999915361404,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:source-retired-owner-check": {
+            "elapsedMs": 328.5999999642372,
+            "membershipMs": [
+              13.599999845027924,
+              0,
+              315.0000001192093,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:dependency-completion": {
+            "elapsedMs": 1.7000000476837158,
+            "membershipMs": [
+              0.10000002384185791,
+              0,
+              1.600000023841858,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:resolution-reconciliation": {
+            "elapsedMs": 5.099999964237213,
+            "membershipMs": [
+              5.099999964237213,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "source:dependency-final-validation": {
+            "elapsedMs": 0.800000011920929,
+            "membershipMs": [
+              0.10000002384185791,
+              0,
+              0.699999988079071,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:requested-semantics": {
+            "elapsedMs": 47.89999997615814,
+            "membershipMs": [
+              9.800000011920929,
+              0.09999996423721313,
+              36.59999996423721,
+              0,
+              1.4000000357627869,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:pages": {
+            "elapsedMs": 1428.800000011921,
+            "membershipMs": [
+              1428.800000011921,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:relations": {
+            "elapsedMs": 2071.699999988079,
+            "membershipMs": [
+              2071.699999988079,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:evidence": {
+            "elapsedMs": 3347.800000011921,
+            "membershipMs": [
+              3347.800000011921,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:promote": {
+            "elapsedMs": 1.699999988079071,
+            "membershipMs": [
+              1.699999988079071,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "hydration:complete": {
+            "elapsedMs": 17.19999998807907,
+            "membershipMs": [
+              17.19999998807907,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      },
+      "sourceHeadsUnchanged": true,
+      "settingsUnchanged": true,
+      "foregroundFinal": {
+        "hidden": false,
+        "documentFocused": true,
+        "windowFocused": true,
+        "throttle": true
+      },
+      "labelsByPhase": {
+        "metadata": {
+          "first": {
+            "ms": 112.80000001192093,
+            "label": "Reading cached index metadata",
+            "source": null,
+            "hydration": {
+              "phase": "metadata",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 112.80000001192093,
+            "label": "Reading cached index metadata",
+            "source": null,
+            "hydration": {
+              "phase": "metadata",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "preview": {
+          "first": {
+            "ms": 271,
+            "label": "Loading the requested Plex preview",
+            "source": null,
+            "hydration": {
+              "phase": "preview",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 271,
+            "label": "Loading the requested Plex preview",
+            "source": null,
+            "hydration": {
+              "phase": "preview",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "host-metadata-comparison": {
+          "first": {
+            "ms": 501.80000001192093,
+            "label": "Comparing cached notes with Obsidian metadata \u2014 0 / 20,015 notes (0%)",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "processed": 0,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 48742.80000001192,
+            "label": "Comparing cached notes with Obsidian metadata \u2014 19,967 / 20,015 notes (99%)",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "processed": 19967,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "host-retired-owner-check": {
+          "first": {
+            "ms": 48843.30000001192,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "host-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 48843.30000001192,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "host-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "source-reconciliation": {
+          "first": {
+            "ms": 49244.5,
+            "label": "Checking cached index \u2014 24 / 20,015 notes (0%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "processed": 24,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 60058.69999998808,
+            "label": "Checking cached index \u2014 19,914 / 20,015 notes (99%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "processed": 19914,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "source-retired-owner-check": {
+          "first": {
+            "ms": 60159.59999996424,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "source-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 60159.59999996424,
+            "label": "Checking removed cached notes",
+            "source": {
+              "phase": "source-retired-owner-check",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "requested-semantics": {
+          "first": {
+            "ms": 60460.80000001192,
+            "label": "Preparing requested Plex semantics",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "requested-semantics",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 60460.80000001192,
+            "label": "Preparing requested Plex semantics",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "requested-semantics",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "pages": {
+          "first": {
+            "ms": 60585.80000001192,
+            "label": "Loading cached nodes",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "pages",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 61906,
+            "label": "Loading cached nodes \u2014 20,466 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "pages",
+              "processed": 20466,
+              "total": null
+            }
+          }
+        },
+        "relations": {
+          "first": {
+            "ms": 62021.09999996424,
+            "label": "Loading cached relationships \u2014 592 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "relations",
+              "processed": 592,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 63964.5,
+            "label": "Loading cached relationships \u2014 20,494 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "relations",
+              "processed": 20494,
+              "total": null
+            }
+          }
+        },
+        "preview-search": {
+          "first": {
+            "ms": 64071.5,
+            "label": "Preparing search",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "preview-search",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 64071.5,
+            "label": "Preparing search",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "preview-search",
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "evidence": {
+          "first": {
+            "ms": 64306.59999996424,
+            "label": "Loading relationship evidence",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "evidence",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 67551,
+            "label": "Loading relationship evidence \u2014 688,128 records loaded",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "evidence",
+              "processed": 688128,
+              "total": null
+            }
+          }
+        },
+        "complete": {
+          "first": {
+            "ms": 67664.5,
+            "label": "Status: index ready",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 67664.5,
+            "label": "Status: index ready",
+            "source": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            },
+            "hydration": {
+              "phase": "complete",
+              "processed": 0,
+              "total": null
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cliReconnects": [],
+  "checks": [
+    {
+      "name": "Three comparable foreground completions",
+      "passed": true
+    },
+    {
+      "name": "Original configuration and controller cleanup",
+      "passed": true
+    },
+    {
+      "name": "Retained trace and private-owner cleanup",
+      "passed": true
+    },
+    {
+      "name": "Run 1: source heads/settings preserved",
+      "passed": true
+    },
+    {
+      "name": "Run 1: zero source work and full builds",
+      "passed": true
+    },
+    {
+      "name": "Run 1: no pending/rejected timing observations",
+      "passed": true
+    },
+    {
+      "name": "Run 1: four full owner walks",
+      "passed": true
+    },
+    {
+      "name": "Run 1: disjoint membership equals elapsed",
+      "passed": true
+    },
+    {
+      "name": "Run 2: source heads/settings preserved",
+      "passed": true
+    },
+    {
+      "name": "Run 2: zero source work and full builds",
+      "passed": true
+    },
+    {
+      "name": "Run 2: no pending/rejected timing observations",
+      "passed": true
+    },
+    {
+      "name": "Run 2: four full owner walks",
+      "passed": true
+    },
+    {
+      "name": "Run 2: disjoint membership equals elapsed",
+      "passed": true
+    },
+    {
+      "name": "Run 3: source heads/settings preserved",
+      "passed": true
+    },
+    {
+      "name": "Run 3: zero source work and full builds",
+      "passed": true
+    },
+    {
+      "name": "Run 3: no pending/rejected timing observations",
+      "passed": true
+    },
+    {
+      "name": "Run 3: four full owner walks",
+      "passed": true
+    },
+    {
+      "name": "Run 3: disjoint membership equals elapsed",
+      "passed": true
+    }
+  ],
+  "retained": {
+    "privateOwnerSets": 0,
+    "controllerAbsent": true,
+    "optInAbsent": true,
+    "frozen": true,
+    "phases": 21,
+    "liveStatus": {
+      "upToDate": false,
+      "phase": "updating",
+      "indexedFiles": 20015,
+      "totalFiles": 20015
+    }
+  },
+  "rawReportSha256": "834ae4240b3b448755e8359c558aa7118fa9e7054415d77db4cb3db047db0d1d"
+}

@@ -40,6 +40,9 @@ The terminology cleanup intentionally leaves these migration contracts intact:
   previously saved K-Plex settings. `Excalibrain.md` was a transient Excalidraw render surface, not
   migration data. K-Plex does not create it, reserve its path, exclude it from the graph, or treat a
   same-named user note specially.
+  The SI1 snapshot-signature decoder separately recognizes this historical member on already-saved
+  graphs. A nonempty value plans ordinary source reconciliation before the graph can be considered
+  fresh; it does not reinstate the exclusion. See [the signature compatibility contract](SETTINGS_PRESENTATION_OWNERSHIP.md#saved-signature-compatibility).
 - The `excalibrain` registry lookup is used only for first-run settings import. Import dialogs,
   migration notices and translated copy still identify the source product accurately. Legacy
   local-storage cleanup, imported style keys, ontology field names and graph target paths retain

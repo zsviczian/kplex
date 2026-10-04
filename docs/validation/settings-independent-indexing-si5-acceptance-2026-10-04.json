@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 1,
+  "status": "accepted",
+  "date": "2026-10-04",
+  "sourceParent": "e46dd845db330420ef24fd732ca27a98279b6805",
+  "runtimeChanges": "Catalog values only; existing indexing fixtures updated; no index/lifecycle/scheduler change.",
+  "inputSha256": {
+    "src/lang/de.ts": "539ccd8486c2c604447c0e703a3c73a346ab28c3eec7f3039a0047af85dc0fde",
+    "src/lang/en.ts": "6dc05192fdfa248ca59744647a6ebc23dc52166c0e9615d01f826dd97e3b53bf",
+    "src/lang/es.ts": "01916a2b229195953d3d0a0e5b1a0fbe4d48aee2faad0ee7b596a9f2a095cf30",
+    "src/lang/fr.ts": "b348b2f84558bac7a6768cca6ddfec0dfd4ea727a68ea79bf235b6564c02e999",
+    "src/lang/ja.ts": "b7bbce06234d3568cb42d1227015bf61c258bdeb0a202aad148e1e5a8b8fda21",
+    "src/lang/nl.ts": "4927a900c080802f3c9cf418f6dbfd7874d4e73a7fabb9984f737271a8225d32",
+    "src/lang/ru.ts": "20145208975a70781a5e53eb4142502faad5aef79142ff41e63dae5a1d34767a",
+    "src/lang/zh-TW.ts": "faf636a90192a51a7563aeb17082ce51dfae2403969753f55b08aff78d1f70f7",
+    "tests/indexing.test.mjs": "32c7ec96fb61af3dd85179be7dc8fb18e04327be81b2d9d82994db32867c1269"
+  },
+  "maintainerDevices": {
+    "iPad": "passed — maintainer report",
+    "Android": "passed — maintainer report",
+    "limits": "No device model/OS/build hash verification, fixture, individual workflow results, numerical timings/memory or diagnostics/recordings supplied."
+  },
+  "verification": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "startedAt": "2026-10-04T10:29:06.646Z",
+    "source": {
+      "revision": "e46dd845db330420ef24fd732ca27a98279b6805",
+      "dirty": true,
+      "node": "v22.22.2",
+      "os": "darwin 23.5.0"
+    },
+    "target": {
+      "vaultName": "kplex-test",
+      "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+      "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+    },
+    "capabilities": {
+      "version": "1.14.4 (installer 1.14.0)",
+      "commands": [
+        "version",
+        "vault",
+        "plugin:disable",
+        "plugin:enable",
+        "commands",
+        "command",
+        "dev:dom",
+        "dev:errors"
+      ]
+    },
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "40e03413e32020ee855c712b8df2a2170ee20f6ed6627b62b34f9f501d2754a6",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "pluginVersion": "0.0.5",
+      "stagedHashes": {
+        "main.js": "40e03413e32020ee855c712b8df2a2170ee20f6ed6627b62b34f9f501d2754a6",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 204
+      }
+    ],
+    "completedAt": "2026-10-04T10:39:39.911Z"
+  },
+  "fullSuiteCounts": {
+    "architecture": 7,
+    "core": 62,
+    "node": 144,
+    "ui": 7,
+    "portableSource": 317,
+    "browserSource": 202
+  },
+  "focusedLocalizationAndStartup": {
+    "passed": 21,
+    "failed": 0
+  },
+  "productionSettingsScenarios": 24,
+  "supplementalFailedProbe": {
+    "status": "failed",
+    "cliReconnects": [],
+    "progress": {
+      "source": {
+        "phase": "complete",
+        "pass": 1,
+        "processed": 0,
+        "total": null
+      },
+      "hydration": {
+        "phase": "timed-out",
+        "pass": 1,
+        "processed": 0,
+        "total": null
+      }
+    },
+    "result": {
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 20015,
+        "totalFiles": 20015,
+        "label": "Status: index ready"
+      },
+      "source": {
+        "checked": 0,
+        "reusedBodies": 0,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "semantic": {
+        "policyRevision": 1,
+        "requested": 3,
+        "prepared": 0,
+        "published": 0,
+        "cancelled": 1,
+        "pending": 1,
+        "dependencyVisits": 0,
+        "fullBuilds": 1,
+        "lastReason": null
+      },
+      "renderedApps": 1,
+      "centerPresent": false,
+      "commandRegistered": true,
+      "normalDiagnosticsDisabled": true,
+      "privateOwnerSets": 0,
+      "foreground": {
+        "hidden": false,
+        "documentFocused": true,
+        "windowFocused": true,
+        "backgroundThrottling": true
+      }
+    },
+    "cleanup": {
+      "controllerAbsent": true,
+      "optInAbsent": true
+    },
+    "configurationRestored": true,
+    "error": "Supplemental smoke assertion failed: expected rendered center absent; hydration timed-out; fullBuilds=1. Strict-ready/source-zero/cleanup observed, but zero-build center acceptance failed."
+  },
+  "supplementalNormalRestart": {
+    "status": "passed",
+    "cliReconnects": [],
+    "setup": "Select representative Welcome.md before matched native disable/enable; observe actual rendered center before readiness acceptance.",
+    "progress": {
+      "source": {
+        "phase": "complete",
+        "pass": 1,
+        "processed": 0,
+        "total": null
+      },
+      "hydration": {
+        "phase": "complete",
+        "pass": 1,
+        "processed": 0,
+        "total": null
+      }
+    },
+    "observedStatus": {
+      "upToDate": true,
+      "phase": "ready",
+      "indexedFiles": 20015,
+      "totalFiles": 20015,
+      "label": "Status: index ready"
+    },
+    "result": {
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 20015,
+        "totalFiles": 20015,
+        "label": "Status: index ready"
+      },
+      "source": {
+        "checked": 0,
+        "reusedBodies": 0,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "semantic": {
+        "policyRevision": 1,
+        "requested": 2,
+        "prepared": 1,
+        "published": 1,
+        "cancelled": 0,
+        "pending": 1,
+        "dependencyVisits": 12,
+        "fullBuilds": 0,
+        "lastReason": null
+      },
+      "renderedApps": 1,
+      "centerPresent": true,
+      "commandRegistered": true,
+      "normalDiagnosticsDisabled": true,
+      "privateOwnerSets": 0,
+      "labels": {
+        "index.statusLoadingCache": "Status: restoring saved graph",
+        "index.startupHostComparison": "Validating note metadata",
+        "index.startupChecking": "Verifying cached notes",
+        "index.startupRechecking": "Processing pending changes",
+        "index.startupDependencyCompletion": "Finalizing note dependencies",
+        "index.startupResolution": "Finalizing link resolution",
+        "index.startupSemantics": "Applying current ontology & settings",
+        "index.startupPromotion": "Publishing full graph"
+      },
+      "foreground": {
+        "hidden": false,
+        "documentFocused": true,
+        "windowFocused": true,
+        "backgroundThrottling": true
+      }
+    },
+    "cleanup": {
+      "controllerAbsent": true,
+      "optInAbsent": true
+    },
+    "configurationRestored": true
+  },
+  "finalCapturedErrors": "No errors captured.",
+  "preVerificationConfigurationRestored": {
+    "data.json": true,
+    "community-plugins.json": true
+  },
+  "rawEvidenceSha256": {
+    "/private/tmp/kplex-si5-wording-focused.log": "3af35bdc138e8ce2a009bb7b9950df2218948d94bb4784d916a3fb91eb083fa0",
+    "/private/tmp/kplex-si5-wording-verify.log": "5c7292db7ae340127e3295f824f0ef891d4de69be7c8f57bea649d2a0111c7d7",
+    "/private/tmp/kplex-si5-wording-final-smoke.mjs": "23bb30bc82162a283f1f225039712712f671e734dab033da22fe00a1b44ade58",
+    "/private/tmp/kplex-si5-wording-final-smoke.log": "bdbd2b02c63f6c50bb45846fc56f70f36ac813b4c03b300b61db646af4e9151d",
+    "/private/tmp/kplex-si5-wording-final-smoke.json": "cb104fda6c79335ed0abaeb2460d9d8f3018140ae3324288bff85ad70770ef9b",
+    "/private/tmp/kplex-si5-wording-normal-restart.mjs": "00c1ae60c05e14b20cf109d21a5ffc20120c607fcb12f8ac75603d1c968a9450",
+    "/private/tmp/kplex-si5-wording-normal-restart.log": "0d595dc2ba32169c3e51a3adc558fccc7bb6942d2e6fad1ea776e3118a41145a",
+    "/private/tmp/kplex-si5-wording-normal-restart.json": "69e367e7963bcadd4034a6f7b3700164ae265af16f051eb7ad1e120d5c149530"
+  }
+}

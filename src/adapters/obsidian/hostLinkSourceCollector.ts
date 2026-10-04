@@ -1,3 +1,8 @@
+/**
+ * Obsidian aggregate link-map normalization and coherent collection. Count maps are not lexical
+ * Markdown occurrences. Cached replay shares the same record constructor; no semantic role is
+ * selected here, and the caller owns host revisions and publication.
+ */
 import { TFile } from "obsidian";
 import { nodeId, type GraphNodeKind } from "../../core/graph/model";
 import {
@@ -37,11 +42,17 @@ export type HostLinkSignatureEntries = Readonly<{
   unresolved: ReadonlyArray<readonly [string, number]>;
 }>;
 
-type HostLinkScanResult = Readonly<{ digest: string }>;
+export type HostLinkOwnerOrder = Readonly<{ resolved: readonly string[]; unresolved: readonly string[] }>;
+type HostLinkScanResult = Readonly<{ digest: string; ownerOrder?: HostLinkOwnerOrder }>;
 type HostLinkEmitter = (record: HostLinkOccurrence) => Promise<boolean>;
 
 let collectorRunSequence = 0;
 const CHECKPOINT_INTERVAL = 64;
+/** Explicit owner-order capture is acquisition-only and must reject, never truncate, oversized maps. */
+const MAX_OWNER_ORDER_OWNERS = 100_000;
+const MAX_OWNER_ORDER_BYTES = 8 * 1024 * 1024;
+const utf8 = new TextEncoder();
+function encodedBytes(value: string): number { return utf8.encode(value).byteLength; }
 
 class HostLinkDigest {
   private a = 2166136261 >>> 0;
@@ -122,7 +133,8 @@ function sourceMapRevision(sourcePath: string, hostRevision: number): SourceRevi
   return sourceRevision(`host-links:${sourcePath}\u0000${hostRevision}`);
 }
 
-function hostLinkRecord(
+/** Normalize one genuine aggregate count using exact current host identity, never a lexical guess. */
+export function hostLinkRecord(
   host: HostLinkSourceCollectorHost,
   source: SourceEntityRef,
   revision: SourceRevision,
@@ -275,15 +287,38 @@ export class ObsidianHostLinkSourceCollector {
     }
   }
 
-  private async scan(emit?: HostLinkEmitter): Promise<HostLinkScanResult | null> {
+  /** Capture both whole-map owner permutations under the same order-sensitive double scan as collection. */
+  async captureOwnerOrder(): Promise<HostLinkOwnerOrder | null> {
+    if (this.state !== "new" || this.startingSourcePath !== null || !this.isCurrent()) return null;
+    this.state = "collecting";
+    const initial = await this.scan(undefined, true);
+    if (!initial?.ownerOrder || !(await this.checkpoint())) { this.state = "failed"; return null; }
+    const verification = await this.scan();
+    if (!verification || !this.isCurrent() || verification.digest !== initial.digest) { this.state = "failed"; return null; }
+    this.state = "finalized";
+    return { resolved: [...initial.ownerOrder.resolved], unresolved: [...initial.ownerOrder.unresolved] };
+  }
+
+  /** Scan order-sensitively; only explicit acquisition capture allocates the two owner arrays. */
+  private async scan(emit?: HostLinkEmitter, captureOwnerOrder = false): Promise<HostLinkScanResult | null> {
     const digest = new HostLinkDigest();
-    let processed = 0;
+    const ownerOrder: { resolved: string[]; unresolved: string[] } | undefined = captureOwnerOrder
+      ? { resolved: [], unresolved: [] } : undefined;
+    // Two JSON array brackets per family are part of the exact persisted capture budget.
+    let processed = 0, capturedOwners = 0, capturedBytes = captureOwnerOrder ? 4 : 0;
     const families: ReadonlyArray<readonly [HostLinkOccurrence["kind"], HostLinkMap]> = [
       ["obsidian-link", this.host.metadataCache.resolvedLinks],
       ["unresolved-link", this.host.metadataCache.unresolvedLinks],
     ];
     for (const [kind, map] of families) {
+      const phase = ownerOrder ? kind === "obsidian-link" ? ownerOrder.resolved : ownerOrder.unresolved : undefined;
       for (const [sourcePath, targets] of this.sourceEntries(map)) {
+        if (phase) {
+          capturedOwners += 1;
+          capturedBytes += encodedBytes(JSON.stringify(sourcePath)) + (phase.length ? 1 : 0);
+          if (capturedOwners > MAX_OWNER_ORDER_OWNERS || capturedBytes > MAX_OWNER_ORDER_BYTES) return null;
+          phase.push(sourcePath);
+        }
         if (!this.isCurrent()) return null;
         digest.update(kind);
         digest.update(sourcePath);
@@ -293,6 +328,7 @@ export class ObsidianHostLinkSourceCollector {
         for (const targetPath in targets) {
           if (!Object.prototype.hasOwnProperty.call(targets, targetPath)) continue;
           const occurrenceCount = targets[targetPath];
+          if (typeof occurrenceCount !== "number" || !Number.isSafeInteger(occurrenceCount) || occurrenceCount < 0) return null;
           digest.update(targetPath);
           digest.update(occurrenceCount);
           if (emit && source && revision && !(await emit(hostLinkRecord(this.host, source, revision, targetPath, occurrenceCount, kind)))) return null;
@@ -302,6 +338,6 @@ export class ObsidianHostLinkSourceCollector {
         if (!(await this.checkpoint())) return null;
       }
     }
-    return this.isCurrent() ? { digest: digest.value() } : null;
+    return this.isCurrent() ? { digest: digest.value(), ...(ownerOrder ? { ownerOrder } : {}) } : null;
   }
 }

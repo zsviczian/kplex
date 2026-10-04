@@ -146,3 +146,50 @@ C14a delegates incremental semantic preparation to `NormalizedSourcePatchPrepare
 The same C14b fence captures each source's exact path, mtime and size and confirms that Obsidian's current `Vault.getFileByPath()` still returns the same `TFile` after every awaited read/parse/preparation/commit-adjacent yield. A rename or delete therefore makes older work cancel rather than publish under a stale path; already-committed earlier files remain visible and uncommitted current paths remain pending. This does not move demand/backlog coordination from `main.ts` (C15), persistence/body-cache orchestration from IndexedDB code (C16), or introduce a second graph. Invalid batches still reject before stable-state lookups and explicit missing-materialized-target outcomes retain the existing rebuild-required path. `GraphIndex`, snapshot hydration and `SectionExpansion` remain legacy consumers.
 
 C13c review makes rejected compiler input terminal, uses delimiter-safe generated private keys, preserves producer tag IDs/paths and first-meaningful URL labels, and protects derived ancestor IDs from collisions with later producer facts. The Obsidian adapter now binds canonical tag IDs/paths explicitly while raw spelling remains provenance. `legacyEvidence()` validates node bindings without a whole-declaration scan, and host binding yields with generation checks rather than copying all relationships in one browser task. Existing English explanations remain L01 work. C14a provides shared semantic patch preparation; C14b coherent publication passed main-agent strict and desktop-native oracle/lifecycle checks and is accepted with parent C14. The maintainer reports device P1 passed and accepts P2 despite indexing completing too quickly to induce physical overlap; that race remains unproven on-device, with deterministic native/portable race coverage recorded in the C14b validation report. Refactoring is paused at C14 by the maintainer; C15/C16 and later migration seams remain planned, not active.
+
+## Settings-independent acquisition and restart
+
+The [indexing design](INDEX_SETTINGS_INDEPENDENCE_DESIGN.md) records accepted SI1–SI4 behavior and
+SI5 validation. `ObsidianSourceAcquisition` owns host events, inventory and canonical resolver/Date
+inputs; `NeutralSourceRepository` owns immutable bounded facts, selected heads and storage lifetimes.
+GraphIndex compiles requested scopes from those facts. Complete graph snapshots are optional
+acceleration, and a physical fallback never becomes complete semantic authority by implication.
+Source heads own acquisition progress; legacy graph checkpoint reads remain, while their production
+progress writer is retired. A source-backed global node projection now restores body-only virtual/URL
+search and finite suggestions after cache loss; SI5 acceptance remains open.
+
+An unscoped resolver event still closes source readiness and requires cooperative reconciliation.
+Current canonical resolution output can be compared with an exact selected family using deterministic
+bounded digest batches. Equal output retains the original head and observation; changed/corrupt
+output follows normal source replacement. Every comparison retains family reader leases, validates
+frames/chunks/postings and rejects cancellation or a changed selected head. A head-only manifest
+inspection uses a read-only transaction because it owns no chunks requiring cleanup protection.
+
+A decoded body's weakly held selection avoids repeating values/body-URL validation only when the
+subsequent inspection selects the exact same durable revision and sequence. Host families remain
+independently validated, and a changed head falls back to full validation. Inventory CPU slices use
+elapsed budgets rather than a timer per source. These changes remain within the existing acquisition,
+repository and publication owners; they do not resume C15–C26.
+
+
+During durable-source startup, GraphIndex publishes a bounded saved preview, waits for the existing
+source owner's authority and prepares available current requested scopes before full optional cache
+hydration. Source readiness retries remain in ObsidianSourceAcquisition; GraphIndex owns only one
+readiness observer, cancelled with the restore's existing watchdog/policy/unload lifetime. Completed
+inventory work and compiler continuations advance the unchanged inactivity watchdog. Compatible full
+cache search still loads afterward. After cache loss, `NormalizedGraphCompiler` uses its explicit node
+projection over canonical structural, host-link and cached Markdown facts. `PortableNodeCompilation`
+contains node metadata/discovered fields, retains no evidence or neighbours and cannot authorize
+relationship readiness. GraphBuilder binds the nodes privately; GraphIndex atomically publishes finite
+presentation facets and search only after source/host/policy/generation fences close. Requested-scope
+semantics and complete search vocabulary have separate readiness checks.
+
+Ordinary source-backed edits retain a byte-bounded backlog of conservative old synthetic endpoints,
+not a second source-to-target catalog. Existing source-local discovery and requested compilation prove
+shared tag/URL/virtual materialization before pruning. Rename/delete masks live source readers
+synchronously; a retirement observer reads authenticated old families under the existing tombstone
+writer pin, expires before activation and remains owned by repository flush. Backlog membership is
+acknowledged only with the exact synchronous publication. Incomplete old incidence keeps search
+readiness pending and requests one exceptional node-only recovery, never a normal full graph rebuild.
+Neither source progress, a physical preview nor empty node-projection neighbours prove global
+relationship coverage. Native scale and physical-device acceptance remain SI5 work.

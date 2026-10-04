@@ -1,0 +1,885 @@
+{
+  "status": "passed",
+  "startedAt": "2026-10-04T08:37:58.727Z",
+  "checkpoint": "0f58ea606dbd406f0b100f49c7374d470027c039",
+  "dirty": true,
+  "artifacts": {
+    "main.js": "bd1e24ae6946eaa8a5d4fab3b36587e8be423b7f41a820a11a30c124b194d2ad",
+    "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+    "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+  },
+  "preflight": {
+    "representativeCenterSelected": true,
+    "ready": true
+  },
+  "cleanup": {
+    "controllerRemoved": true,
+    "optInAbsent": true,
+    "backgroundThrottling": true
+  },
+  "configurationRestored": true,
+  "completedAt": "2026-10-04T08:40:54.950Z",
+  "runs": [
+    {
+      "elapsedSemantics": "Milliseconds from immediately before disable/enable; diagnostics are relative to onload. Method timings are inclusive and lanes overlap.",
+      "foreground": {
+        "samples": 99,
+        "hidden": 0,
+        "documentUnfocused": 0,
+        "windowUnfocused": 0,
+        "throttlingDisabled": 0,
+        "comparable": true
+      },
+      "operations": {
+        "metadata": {
+          "markdownInventoryCalls": 1,
+          "idb.meta.get": 3,
+          "idb.sourceHeads.getAll": 1,
+          "idb.sourceHeads.getAllKeys": 1
+        },
+        "preview": {
+          "idb.pages.get": 251,
+          "idb.meta.put": 1
+        },
+        "source-inventory": {
+          "markdownInventoryCalls": 2
+        },
+        "host-metadata-comparison": {
+          "sourceInspectionCalls": 40030,
+          "idb.sourceHeads.get": 60045,
+          "metadataCacheLookups": 20575,
+          "idb.bodies.get": 12,
+          "dependencyChecks": 20015,
+          "localDependencySelectionCalls": 20015,
+          "idb.meta.get": 20015,
+          "idb.sourceLocalDependencyOwners.get": 20015,
+          "idb.sourceLocalDependencyRepairs.get": 20015,
+          "markdownInventoryCalls": 2,
+          "idb.meta.add": 40026,
+          "idb.sourceChunks.get": 20015,
+          "idb.sourcePostings.getAll": 20015,
+          "repositoryYieldCalls": 20015,
+          "idb.meta.delete": 40026
+        },
+        "host-retired-owner-check": {
+          "sourceHeadPageCalls": 80,
+          "idb.sourceHeads.getAll": 80,
+          "idb.sourceHeads.getAllKeys": 80
+        },
+        "source-reconciliation": {
+          "metadataCacheLookups": 40029,
+          "sourceInspectionCalls": 80058,
+          "idb.sourceHeads.get": 80058,
+          "dependencyChecks": 40029,
+          "localDependencySelectionCalls": 40029,
+          "idb.meta.get": 40029,
+          "idb.sourceLocalDependencyOwners.get": 40029,
+          "idb.sourceLocalDependencyRepairs.get": 40029
+        },
+        "source-retired-owner-check": {
+          "sourceHeadPageCalls": 160,
+          "idb.sourceHeads.getAll": 160,
+          "idb.sourceHeads.getAllKeys": 160
+        },
+        "dependency-completion": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "dependency-final-validation": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "source-authority": {
+          "metadataCacheLookups": 1
+        },
+        "requested-semantics": {
+          "idb.meta.get": 69,
+          "idb.sourceLocalDependencyKeys.get": 4,
+          "idb.sourceLocalDependencyOwners.get": 4,
+          "idb.sourceHeads.get": 36,
+          "metadataCacheLookups": 590,
+          "idb.meta.add": 6,
+          "idb.sourceChunks.get": 12,
+          "idb.sourcePostings.getAll": 12,
+          "repositoryYieldCalls": 12,
+          "idb.meta.delete": 6
+        },
+        "pages": {
+          "idb.snapshotChunks.get": 118,
+          "metadataCacheLookups": 18
+        },
+        "relations": {
+          "idb.snapshotChunks.get": 118
+        },
+        "preview-search": {
+          "metadataCacheLookups": 60046,
+          "idb.bodies.get": 13
+        },
+        "evidence": {
+          "idb.snapshotChunks.get": 699,
+          "metadataCacheLookups": 27
+        },
+        "complete": {
+          "idb.meta.put": 1
+        }
+      },
+      "disableEndedMs": 36.80000001192093,
+      "enableEndedMs": 168.19999998807907,
+      "firstPlexDomMs": 776.6000000238419,
+      "metadataMissInjected": true,
+      "sourceAuthorityMs": 89852.69999998808,
+      "requestedSemanticsMs": 90005.60000002384,
+      "strictReadyMs": 97360.80000001192,
+      "diagnostics": {
+        "startedAtMs": 17167927.399999976,
+        "enabled": true,
+        "frozen": true,
+        "milestones": {
+          "onload": 0,
+          "settings-loaded": 21.80000001192093,
+          "layout-ready": 39.80000001192093,
+          "host-inventory-start": 74,
+          "host-inventory-end": 111,
+          "preview-available": 603.3000000119209,
+          "source-authority": 89687,
+          "source-authority-await-ended": 89688.5,
+          "first-requested-scope-authoritative": 89756.69999998808,
+          "requested-semantics-refresh-ended": 89757.30000001192,
+          "snapshot-complete": 97241.30000001192,
+          "strict-ready": 97242.10000002384
+        },
+        "phases": [
+          {
+            "lane": "hydration",
+            "phase": "metadata",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 42.5,
+            "endedMs": 111.10000002384186,
+            "counters": {
+              "markdownInventoryCalls": 1,
+              "idb.meta.get": 3,
+              "idb.sourceHeads.getAll": 1,
+              "idb.sourceHeads.getAllKeys": 1,
+              "inventoryFiles": 20016,
+              "inventoryFolders": 207
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 111.10000002384186,
+            "endedMs": 592,
+            "counters": {
+              "idb.pages.get": 251,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-inventory",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 515.1999999880791,
+            "endedMs": 519.1999999880791,
+            "counters": {
+              "markdownInventoryCalls": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-coordinates",
+            "pass": 1,
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 519.1999999880791,
+            "endedMs": 533,
+            "counters": {},
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "host-metadata-comparison",
+            "pass": 1,
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 533,
+            "endedMs": 64365.80000001192,
+            "counters": {
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 60045,
+              "metadataCacheLookups": 20575,
+              "idb.bodies.get": 12,
+              "dependencyChecks": 20015,
+              "localDependencySelectionCalls": 20015,
+              "idb.meta.get": 20015,
+              "idb.sourceLocalDependencyOwners.get": 20015,
+              "idb.sourceLocalDependencyRepairs.get": 20015,
+              "markdownInventoryCalls": 2,
+              "idb.meta.add": 40026,
+              "idb.sourceChunks.get": 20015,
+              "idb.sourcePostings.getAll": 20015,
+              "repositoryYieldCalls": 20015,
+              "idb.meta.delete": 40026,
+              "physicalRevisionComparisons": 20015
+            },
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview-search",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 592,
+            "endedMs": 603.3000000119209,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "source-authority",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 603.3000000119209,
+            "endedMs": 89688.10000002384,
+            "counters": {
+              "metadataCacheLookups": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "host-retired-owner-check",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 64365.80000001192,
+            "endedMs": 64887.89999997616,
+            "counters": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80,
+              "headPageOwners": 20036
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-reconciliation",
+            "pass": 1,
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 64887.89999997616,
+            "endedMs": 76219.30000001192,
+            "counters": {
+              "metadataCacheLookups": 20014,
+              "sourceInspectionCalls": 40028,
+              "idb.sourceHeads.get": 40028,
+              "physicalRevisionComparisons": 20014,
+              "dependencyChecks": 20014,
+              "localDependencySelectionCalls": 20014,
+              "idb.meta.get": 20014,
+              "idb.sourceLocalDependencyOwners.get": 20014,
+              "idb.sourceLocalDependencyRepairs.get": 20014
+            },
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "source-retired-owner-check",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 76219.30000001192,
+            "endedMs": 77417.39999997616,
+            "counters": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80,
+              "headPageOwners": 20036
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-inventory",
+            "pass": 2,
+            "total": null,
+            "processed": 0,
+            "startedMs": 77417.39999997616,
+            "endedMs": 77426.69999998808,
+            "counters": {
+              "markdownInventoryCalls": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "source-coordinates",
+            "pass": 2,
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 77426.69999998808,
+            "endedMs": 77432.60000002384,
+            "counters": {},
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "source-reconciliation",
+            "pass": 2,
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 77432.60000002384,
+            "endedMs": 89179,
+            "counters": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "physicalRevisionComparisons": 20015,
+              "dependencyChecks": 20015,
+              "localDependencySelectionCalls": 20015,
+              "idb.meta.get": 20015,
+              "idb.sourceLocalDependencyOwners.get": 20015,
+              "idb.sourceLocalDependencyRepairs.get": 20015
+            },
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "source-retired-owner-check",
+            "pass": 2,
+            "total": null,
+            "processed": 0,
+            "startedMs": 89179,
+            "endedMs": 89678.5,
+            "counters": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80,
+              "headPageOwners": 20036
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "dependency-completion",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 89678.5,
+            "endedMs": 89680.30000001192,
+            "counters": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "resolution-reconciliation",
+            "pass": 1,
+            "total": 20015,
+            "processed": 20015,
+            "startedMs": 89680.30000001192,
+            "endedMs": 89685.80000001192,
+            "counters": {},
+            "uniqueOwners": 20015
+          },
+          {
+            "lane": "source",
+            "phase": "dependency-final-validation",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 89685.80000001192,
+            "endedMs": 89687,
+            "counters": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "source",
+            "phase": "complete",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 89687,
+            "endedMs": 97242.10000002384,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "requested-semantics",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 89688.10000002384,
+            "endedMs": 89757.39999997616,
+            "counters": {
+              "idb.meta.get": 69,
+              "idb.sourceLocalDependencyKeys.get": 4,
+              "idb.sourceLocalDependencyOwners.get": 4,
+              "idb.sourceHeads.get": 36,
+              "metadataCacheLookups": 590,
+              "idb.meta.add": 6,
+              "idb.sourceChunks.get": 12,
+              "idb.sourcePostings.getAll": 12,
+              "repositoryYieldCalls": 12,
+              "idb.meta.delete": 6
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "pages",
+            "pass": 1,
+            "total": null,
+            "processed": 20709,
+            "startedMs": 89757.39999997616,
+            "endedMs": 91530.39999997616,
+            "counters": {
+              "idb.snapshotChunks.get": 118,
+              "metadataCacheLookups": 18,
+              "physicalRevisionComparisons": 20015
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "relations",
+            "pass": 1,
+            "total": null,
+            "processed": 20709,
+            "startedMs": 91530.39999997616,
+            "endedMs": 93482.10000002384,
+            "counters": {
+              "idb.snapshotChunks.get": 118
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "preview-search",
+            "pass": 2,
+            "total": null,
+            "processed": 0,
+            "startedMs": 93482.10000002384,
+            "endedMs": 93885.39999997616,
+            "counters": {
+              "metadataCacheLookups": 60046,
+              "idb.bodies.get": 13
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "evidence",
+            "pass": 1,
+            "total": null,
+            "processed": 715032,
+            "startedMs": 93885.39999997616,
+            "endedMs": 97239.80000001192,
+            "counters": {
+              "idb.snapshotChunks.get": 699,
+              "metadataCacheLookups": 27
+            },
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "promote",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 97239.80000001192,
+            "endedMs": 97241.30000001192,
+            "counters": {},
+            "uniqueOwners": 0
+          },
+          {
+            "lane": "hydration",
+            "phase": "complete",
+            "pass": 1,
+            "total": null,
+            "processed": 0,
+            "startedMs": 97241.30000001192,
+            "endedMs": 97242.10000002384,
+            "counters": {
+              "idb.meta.put": 1
+            },
+            "uniqueOwners": 0
+          }
+        ],
+        "overlaps": [
+          {
+            "first": "source-coordinates",
+            "second": "host-metadata-comparison",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "source-coordinates",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "source-coordinates",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "host-metadata-comparison",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-reconciliation",
+            "second": "source-coordinates",
+            "owners": 20015
+          },
+          {
+            "first": "source-reconciliation",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-reconciliation",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "source-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-coordinates",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          },
+          {
+            "first": "source-reconciliation",
+            "second": "resolution-reconciliation",
+            "owners": 20015
+          }
+        ]
+      },
+      "onloadOffsetMs": 106.5,
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 20015,
+        "totalFiles": 20015,
+        "label": "Status: index ready"
+      },
+      "source": {
+        "checked": 0,
+        "reusedBodies": 0,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 1,
+        "failures": 0
+      },
+      "semantic": {
+        "policyRevision": 1,
+        "requested": 2,
+        "prepared": 1,
+        "published": 1,
+        "cancelled": 0,
+        "pending": 1,
+        "dependencyVisits": 12,
+        "fullBuilds": 0,
+        "lastReason": null
+      },
+      "hydration": {
+        "run": 1,
+        "phase": "complete",
+        "lastActivePhase": "promote",
+        "startedAt": 1791103155194,
+        "phaseStartedAt": 1791103252394,
+        "lastProgressAt": 1791103252392,
+        "pages": 20709,
+        "relations": 20709,
+        "evidence": 715032,
+        "outcome": "complete"
+      },
+      "sourceHeadsUnchanged": true,
+      "settingsUnchanged": true,
+      "foregroundFinal": {
+        "hidden": false,
+        "documentFocused": true,
+        "windowFocused": true,
+        "throttle": true
+      },
+      "labelSamples": {
+        "Checking note metadata": {
+          "samples": 621,
+          "first": {
+            "ms": 776.3999999761581,
+            "label": "Checking note metadata \u2014 0 / 20,015 notes (0%)",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "pass": 1,
+              "processed": 0,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "pass": 1,
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 64461.60000002384,
+            "label": "Checking note metadata \u2014 20,010 / 20,015 notes (99%)",
+            "source": {
+              "phase": "host-metadata-comparison",
+              "pass": 1,
+              "processed": 20010,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "pass": 1,
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "Checking cached notes": {
+          "samples": 111,
+          "first": {
+            "ms": 65065.89999997616,
+            "label": "Checking cached notes \u2014 112 / 20,015 notes (0%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "pass": 1,
+              "processed": 112,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "pass": 1,
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 76292.60000002384,
+            "label": "Checking cached notes \u2014 19,937 / 20,015 notes (99%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "pass": 1,
+              "processed": 19937,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "pass": 1,
+              "processed": 0,
+              "total": null
+            }
+          }
+        },
+        "Rechecking cached notes": {
+          "samples": 116,
+          "first": {
+            "ms": 77624,
+            "label": "Rechecking cached notes \u2014 175 / 20,015 notes (0%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "pass": 2,
+              "processed": 175,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "pass": 1,
+              "processed": 0,
+              "total": null
+            }
+          },
+          "last": {
+            "ms": 89250,
+            "label": "Rechecking cached notes \u2014 19,948 / 20,015 notes (99%)",
+            "source": {
+              "phase": "source-reconciliation",
+              "pass": 2,
+              "processed": 19948,
+              "total": 20015
+            },
+            "hydration": {
+              "phase": "source-authority",
+              "pass": 1,
+              "processed": 0,
+              "total": null
+            }
+          }
+        }
+      }
+    }
+  ],
+  "purpose": "Functional label/retry test overlapping browser verification; not a performance benchmark",
+  "cliReconnects": [],
+  "checks": [
+    {
+      "name": "Native forced retry completed",
+      "passed": true
+    },
+    {
+      "name": "Two complete real reconciliation passes",
+      "passed": true
+    },
+    {
+      "name": "One simulated missing metadata entry only",
+      "passed": true
+    },
+    {
+      "name": "No full graph build",
+      "passed": true
+    },
+    {
+      "name": "Source heads and settings unchanged",
+      "passed": true
+    },
+    {
+      "name": "Foreground and normal throttling",
+      "passed": true
+    },
+    {
+      "name": "Exact config/enablement restored",
+      "passed": true
+    },
+    {
+      "name": "Cleanup and owner identity release",
+      "passed": true
+    },
+    {
+      "name": "Desktop command and requested center DOM",
+      "passed": true
+    },
+    {
+      "name": "Checking note metadata uses actual phase/pass",
+      "passed": true
+    },
+    {
+      "name": "Checking note metadata count monotonic and denominator real",
+      "passed": true
+    },
+    {
+      "name": "Checking cached notes uses actual phase/pass",
+      "passed": true
+    },
+    {
+      "name": "Checking cached notes count monotonic and denominator real",
+      "passed": true
+    },
+    {
+      "name": "Rechecking cached notes uses actual phase/pass",
+      "passed": true
+    },
+    {
+      "name": "Rechecking cached notes count monotonic and denominator real",
+      "passed": true
+    }
+  ],
+  "retained": {
+    "renderedApps": 1,
+    "centerPresent": true,
+    "commandRegistered": true,
+    "privateOwnerSets": 0,
+    "controllerAbsent": true,
+    "optInAbsent": true
+  },
+  "retainedPhases": 25,
+  "retainedLiveStatus": {
+    "upToDate": false,
+    "phase": "updating",
+    "indexedFiles": 20015,
+    "totalFiles": 20015
+  },
+  "capturedErrors": "No errors captured.",
+  "rawReportSha256": "847aa8bf09a7b80856e1e0deb39bdcffd2250154c5c1a3f5c52b8036c6115c0b",
+  "excludedUntimedAttempt": {
+    "path": "/private/tmp/kplex-si5-progress-labels-retry-2026-10-04/report.json",
+    "status": "failed",
+    "timedRuns": 0,
+    "reason": "Hidden/unfocused preflight; production hydration watchdog fired; setup stopped and foreground reload used",
+    "configurationRestored": true,
+    "controllersRemoved": true
+  },
+  "verification": {
+    "command": "npm run verify",
+    "node": "22.22.2",
+    "obsidianTypes": "1.13.0",
+    "exitCode": 0,
+    "architecture": 7,
+    "core": 62,
+    "nodeTests": 144,
+    "ui": 7,
+    "portable": 317,
+    "browser": 199,
+    "browserElapsedMs": 733188.54375,
+    "actualProductionBuild": true,
+    "officialObsidianLint": true,
+    "distMatchesInstalled": true,
+    "initialBackupSettingsEnablementByteIdentical": true,
+    "driverTests": 10,
+    "focusedPhaseLocalizationTests": 21,
+    "limitations": "First sandboxed browser launches blocked; complete rerun passed with browser permissions. Native fault run overlaps browser verification and is not a timing comparison."
+  }
+}

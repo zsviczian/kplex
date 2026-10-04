@@ -6,6 +6,7 @@ import type { KplexSettings } from "../../settings";
 import type { GraphPage } from "../../types";
 import type { GraphSearchRead } from "../../core/graph/read";
 import { nodeId, type GraphNodeKind, type GraphNodeView } from "../../core/graph/model";
+import type { GraphCompilerSettings } from "../../core/graph/compiler";
 import type { SemanticIndexSettings } from "../../core/graph/settings";
 
 /** Read the explicit host node facets without inferring kind or case rules from its opaque ID. */
@@ -46,6 +47,29 @@ export function graphNodeViewFromLegacy(page: GraphPage): GraphNodeView {
         size: page.file.stat.size,
       },
     } : {}),
+  };
+}
+
+/** Capture the exact finite compiler policy used by both full builds and cached semantic preparation. */
+export function graphCompilerSettingsFromLegacy(settings: KplexSettings): GraphCompilerSettings {
+  const hierarchy = settings.hierarchy;
+  return {
+    hierarchy: {
+      hidden: [...hierarchy.hidden],
+      parents: [...hierarchy.parents],
+      children: [...hierarchy.children],
+      leftFriends: [...hierarchy.leftFriends],
+      rightFriends: [...hierarchy.rightFriends],
+      previous: [...hierarchy.previous],
+      next: [...hierarchy.next],
+    },
+    thumbnailProperty: settings.thumbnailProperty,
+    nodeImageProperty: settings.nodeImageProperty,
+    inferAllLinksAsFriends: settings.inferAllLinksAsFriends,
+    inverseInfer: settings.inverseInfer,
+    showFullTagName: settings.showFullTagName,
+    tagStyleList: [...settings.tagStyleList],
+    maxLabelLength: settings.baseNodeStyle.maxLabelLength ?? 30,
   };
 }
 

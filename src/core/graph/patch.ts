@@ -1,3 +1,8 @@
+/**
+ * Portable per-source preparation using the full compiler and its canonical reference-policy gate.
+ * Published identities are read lazily ONLY after selection; dormant candidates cannot seed targets
+ * or demand a rebuild. Host revision fencing and synchronous publication remain caller-owned.
+ */
 import {
   NormalizedGraphCompiler,
   type CompiledGraphNode,
@@ -8,10 +13,9 @@ import {
   type PortableGraphCompilation,
 } from "./compiler";
 import type { NodeId } from "./model";
-import { acceptSourceBatch } from "./source";
+import type { SelectedSourceRecord } from "./sourcePolicy";
 import type {
   NormalizedSourceBatch,
-  NormalizedSourceRecord,
   SourceEntityFact,
   SourceEntityRef,
   SourceReadBoundary,
@@ -87,15 +91,12 @@ export class NormalizedSourcePatchPreparer {
     return read;
   }
 
+  /** Validate/select through the full compiler before lazily seeding any selected endpoints. */
   async acceptBatch(read: GraphCompilerSourceRead, batch: NormalizedSourceBatch): Promise<boolean> {
     if (this.rejected || !this.reads.has(read) || !this.runtime.isCurrent()) return this.reject();
-    // Reject invalid/unbounded input before consulting the published graph or seeding entities.
-    // The compiler still owns cursor advancement after it consumes the validated records.
-    if (!acceptSourceBatch(read.cursor, batch).accepted) return this.reject();
-    for (const record of batch.records) {
-      if (!(await this.seedRecordEntities(record))) return this.reject();
-    }
-    if (!(await this.compiler.acceptBatch(read, batch))) return this.reject();
+    // The compiler validates the cursor and selects neutral references before this callback.
+    // Full and patch builds therefore cannot disagree about whether a target is active.
+    if (!(await this.compiler.acceptBatch(read, batch, (record) => this.seedRecordEntities(record)))) return this.reject();
     return true;
   }
 
@@ -124,7 +125,8 @@ export class NormalizedSourcePatchPreparer {
     return false;
   }
 
-  private async seedRecordEntities(record: NormalizedSourceRecord): Promise<boolean> {
+  /** Seed selected endpoints only; absent dormant targets must never request structural rebuilds. */
+  private async seedRecordEntities(record: SelectedSourceRecord): Promise<boolean> {
     const refs: Array<Readonly<{ ref: SourceEntityRef; requiredPublished: boolean }>> = [
       { ref: record.source, requiredPublished: false },
     ];
@@ -154,11 +156,10 @@ export class NormalizedSourcePatchPreparer {
     return this.runtime.isCurrent();
   }
 
-  private requiresPublishedMaterializedTarget(record: NormalizedSourceRecord): boolean {
+  /** Active semantic/structural targets require exact published host entities, unlike dormant facts. */
+  private requiresPublishedMaterializedTarget(record: SelectedSourceRecord): boolean {
     return record.kind === "file-tree"
-      || record.kind === "frontmatter-ontology"
-      || record.kind === "inline-ontology"
-      || record.kind === "date-property"
-      || record.kind === "presentation-link";
+      || record.kind === "selected-reference"
+      || record.kind === "date-property";
   }
 }

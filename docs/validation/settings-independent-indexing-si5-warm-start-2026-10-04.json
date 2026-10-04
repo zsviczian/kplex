@@ -1,0 +1,5379 @@
+{
+  "schema": 1,
+  "checkpoint": "62c728393440aa3dfb57869ece83c4060092bcba",
+  "optimizationImplemented": false,
+  "clock": "Raw browser performance milliseconds; onload and disable/enable origins are explicitly separate.",
+  "counterAttribution": "Source owner/physical comparisons are Kplex hooks. Wrapped host/IDB counters count global calls in the measured window, temporally attributed; not exclusive CPU/I/O timing.",
+  "reports": {
+    "finalBuildPilot": {
+      "status": "passed",
+      "startedAt": "2026-10-04T05:04:29.475Z",
+      "checkpoint": "62c728393440aa3dfb57869ece83c4060092bcba",
+      "dirty": true,
+      "artifacts": {
+        "main.js": "3e9f586b2fd5b8cc506d2ff08fde4e889d4c9304fc4585186a49872e90f45833",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "preflight": {
+        "representativeCenterSelected": true,
+        "ready": true
+      },
+      "cleanup": {
+        "controllerRemoved": true,
+        "optInAbsent": true,
+        "backgroundThrottling": true
+      },
+      "configurationRestored": true,
+      "completedAt": "2026-10-04T05:10:25.729Z",
+      "rawReportPath": "/private/tmp/kplex-si5-warm-start-2026-10-04-autonomous/report.json",
+      "runs": [
+        {
+          "elapsedSemantics": "Milliseconds from immediately before disable/enable; diagnostics are relative to onload. Method timings are inclusive and lanes overlap.",
+          "foreground": {
+            "samples": 79,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "comparable": true
+          },
+          "operations": {
+            "metadata": {
+              "markdownInventoryCalls": 1,
+              "idb.meta.get": 3,
+              "idb.sourceHeads.getAll": 1,
+              "idb.sourceHeads.getAllKeys": 1
+            },
+            "preview": {
+              "idb.pages.get": 251,
+              "idb.meta.put": 1
+            },
+            "source-inventory": {
+              "markdownInventoryCalls": 1
+            },
+            "dependency-upgrade-validation": {
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "metadataCacheLookups": 560,
+              "idb.bodies.get": 12,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030,
+              "markdownInventoryCalls": 2
+            },
+            "host-metadata-comparison": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 20015,
+              "idb.sourceHeads.get": 40030,
+              "idb.meta.add": 40026,
+              "idb.sourceChunks.get": 20015,
+              "idb.sourcePostings.get": 484178,
+              "idb.meta.delete": 40026
+            },
+            "host-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "source-reconciliation": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030
+            },
+            "source-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "dependency-completion": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "dependency-final-validation": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "source-authority": {
+              "metadataCacheLookups": 1,
+              "idb.meta.get": 1
+            },
+            "requested-semantics": {
+              "idb.meta.get": 68,
+              "idb.sourceLocalDependencyKeys.get": 4,
+              "idb.sourceLocalDependencyOwners.get": 4,
+              "idb.sourceHeads.get": 36,
+              "metadataCacheLookups": 590,
+              "idb.meta.add": 6,
+              "idb.sourceChunks.get": 12,
+              "idb.sourcePostings.get": 21,
+              "idb.meta.delete": 6
+            },
+            "pages": {
+              "idb.snapshotChunks.get": 118,
+              "metadataCacheLookups": 18
+            },
+            "relations": {
+              "idb.snapshotChunks.get": 118
+            },
+            "preview-search": {
+              "metadataCacheLookups": 60046,
+              "idb.bodies.get": 13
+            },
+            "evidence": {
+              "idb.snapshotChunks.get": 699,
+              "metadataCacheLookups": 27
+            },
+            "complete": {
+              "idb.meta.put": 1,
+              "metadataCacheLookups": 27
+            }
+          },
+          "disableEndedMs": 27.099999964237213,
+          "enableEndedMs": 121.39999997615814,
+          "firstPlexDomMs": 791.2999999523163,
+          "sourceAuthorityMs": 71013.5,
+          "requestedSemanticsMs": 71013.59999996424,
+          "strictReadyMs": 77540.69999998808,
+          "diagnostics": {
+            "startedAtMs": 4559169.799999952,
+            "enabled": true,
+            "frozen": true,
+            "milestones": {
+              "onload": 0,
+              "settings-loaded": 12.700000047683716,
+              "layout-ready": 26.900000035762787,
+              "host-inventory-start": 47.80000001192093,
+              "host-inventory-end": 78.10000002384186,
+              "preview-available": 644.6000000238419,
+              "source-authority": 70871.30000001192,
+              "source-authority-await-ended": 70872.20000004768,
+              "first-requested-scope-authoritative": 70916.20000004768,
+              "requested-semantics-refresh-ended": 70916.90000003576,
+              "snapshot-complete": 77368.60000002384,
+              "strict-ready": 77369.20000004768
+            },
+            "phases": [
+              {
+                "lane": "hydration",
+                "phase": "metadata",
+                "total": null,
+                "processed": 0,
+                "startedMs": 29,
+                "endedMs": 78.30000001192093,
+                "counters": {
+                  "markdownInventoryCalls": 1,
+                  "idb.meta.get": 3,
+                  "idb.sourceHeads.getAll": 1,
+                  "idb.sourceHeads.getAllKeys": 1,
+                  "inventoryFiles": 20016,
+                  "inventoryFolders": 207
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview",
+                "total": null,
+                "processed": 0,
+                "startedMs": 78.30000001192093,
+                "endedMs": 462.60000002384186,
+                "counters": {
+                  "idb.pages.get": 251,
+                  "idb.meta.put": 1
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-inventory",
+                "total": null,
+                "processed": 0,
+                "startedMs": 403.5,
+                "endedMs": 406.5,
+                "counters": {
+                  "markdownInventoryCalls": 1
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-coordinates",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 406.5,
+                "endedMs": 411.2000000476837,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-upgrade-validation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 411.2000000476837,
+                "endedMs": 12146.200000047684,
+                "counters": {
+                  "sourceInspectionCalls": 40030,
+                  "idb.sourceHeads.get": 40030,
+                  "metadataCacheLookups": 560,
+                  "idb.bodies.get": 12,
+                  "dependencyChecks": 20015,
+                  "idb.meta.get": 40030,
+                  "idb.sourceLocalDependencyOwners.get": 40030,
+                  "idb.sourceLocalDependencyRepairs.get": 40030,
+                  "markdownInventoryCalls": 2
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 462.60000002384186,
+                "endedMs": 644.6000000238419,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "source-authority",
+                "total": null,
+                "processed": 0,
+                "startedMs": 644.6000000238419,
+                "endedMs": 70872,
+                "counters": {
+                  "metadataCacheLookups": 1,
+                  "idb.meta.get": 1
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "host-metadata-comparison",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 12146.200000047684,
+                "endedMs": 58390.90000003576,
+                "counters": {
+                  "metadataCacheLookups": 20015,
+                  "sourceInspectionCalls": 20015,
+                  "idb.sourceHeads.get": 40030,
+                  "idb.meta.add": 40026,
+                  "idb.sourceChunks.get": 20015,
+                  "idb.sourcePostings.get": 484178,
+                  "idb.meta.delete": 40026,
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "host-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 58390.90000003576,
+                "endedMs": 58839.200000047684,
+                "counters": {
+                  "sourceHeadPageCalls": 80,
+                  "idb.sourceHeads.getAll": 80,
+                  "idb.sourceHeads.getAllKeys": 80,
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 58839.200000047684,
+                "endedMs": 70549,
+                "counters": {
+                  "metadataCacheLookups": 20015,
+                  "sourceInspectionCalls": 40030,
+                  "idb.sourceHeads.get": 40030,
+                  "physicalRevisionComparisons": 20015,
+                  "dependencyChecks": 20015,
+                  "idb.meta.get": 40030,
+                  "idb.sourceLocalDependencyOwners.get": 40030,
+                  "idb.sourceLocalDependencyRepairs.get": 40030
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "source-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 70549,
+                "endedMs": 70865.20000004768,
+                "counters": {
+                  "sourceHeadPageCalls": 80,
+                  "idb.sourceHeads.getAll": 80,
+                  "idb.sourceHeads.getAllKeys": 80,
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-completion",
+                "total": null,
+                "processed": 0,
+                "startedMs": 70865.20000004768,
+                "endedMs": 70866.5,
+                "counters": {
+                  "dependencyInventoryChecks": 1,
+                  "idb.meta.get": 2,
+                  "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+                  "idb.sourceLocalDependencyRepairs.count": 1,
+                  "idb.meta.put": 1
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "resolution-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 70866.5,
+                "endedMs": 70870,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-final-validation",
+                "total": null,
+                "processed": 0,
+                "startedMs": 70870,
+                "endedMs": 70871.30000001192,
+                "counters": {
+                  "dependencyInventoryChecks": 1,
+                  "idb.meta.get": 2,
+                  "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+                  "idb.sourceLocalDependencyRepairs.count": 1,
+                  "idb.meta.put": 1
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 70871.30000001192,
+                "endedMs": 77369.20000004768,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "requested-semantics",
+                "total": null,
+                "processed": 0,
+                "startedMs": 70872,
+                "endedMs": 70917.10000002384,
+                "counters": {
+                  "idb.meta.get": 68,
+                  "idb.sourceLocalDependencyKeys.get": 4,
+                  "idb.sourceLocalDependencyOwners.get": 4,
+                  "idb.sourceHeads.get": 36,
+                  "metadataCacheLookups": 590,
+                  "idb.meta.add": 6,
+                  "idb.sourceChunks.get": 12,
+                  "idb.sourcePostings.get": 21,
+                  "idb.meta.delete": 6
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "pages",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 70917.10000002384,
+                "endedMs": 72551.70000004768,
+                "counters": {
+                  "idb.snapshotChunks.get": 118,
+                  "metadataCacheLookups": 18,
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "relations",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 72551.70000004768,
+                "endedMs": 74143.40000003576,
+                "counters": {
+                  "idb.snapshotChunks.get": 118
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 74143.40000003576,
+                "endedMs": 74434.80000001192,
+                "counters": {
+                  "metadataCacheLookups": 60046,
+                  "idb.bodies.get": 13
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "evidence",
+                "total": null,
+                "processed": 715032,
+                "startedMs": 74434.80000001192,
+                "endedMs": 77368,
+                "counters": {
+                  "idb.snapshotChunks.get": 699,
+                  "metadataCacheLookups": 27
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "promote",
+                "total": null,
+                "processed": 0,
+                "startedMs": 77368,
+                "endedMs": 77368.60000002384,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 77368.60000002384,
+                "endedMs": 77369.20000004768,
+                "counters": {
+                  "idb.meta.put": 1
+                },
+                "uniqueOwners": 0
+              }
+            ],
+            "overlaps": [
+              {
+                "first": "source-coordinates",
+                "second": "dependency-upgrade-validation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-reconciliation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              }
+            ]
+          },
+          "onloadOffsetMs": 79.79999995231628,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 12,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791090546327,
+            "phaseStartedAt": 1791090623666,
+            "lastProgressAt": 1791090623665,
+            "pages": 20709,
+            "relations": 20709,
+            "evidence": 715032,
+            "outcome": "complete"
+          },
+          "sourceHeadsUnchanged": true,
+          "settingsUnchanged": true,
+          "foregroundFinal": {
+            "hidden": false,
+            "documentFocused": true,
+            "windowFocused": true,
+            "throttle": true
+          },
+          "labelSummary": {
+            "changedLabels": 729,
+            "phases": {
+              "metadata": {
+                "samples": 1,
+                "first": {
+                  "ms": 122.59999996423721,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 122.59999996423721,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview": {
+                "samples": 1,
+                "first": {
+                  "ms": 222.79999995231628,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 222.79999995231628,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "dependency-upgrade-validation": {
+                "samples": 109,
+                "first": {
+                  "ms": 549.3999999761581,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 0,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 12159.399999976158,
+                  "label": "Checking cached source dependencies \u2014 19,862 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 19862,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-metadata-comparison": {
+                "samples": 454,
+                "first": {
+                  "ms": 12259.5,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 17 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 17,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 58437.69999998808,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 19,991 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 19991,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 58540.39999997616,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 58540.39999997616,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-reconciliation": {
+                "samples": 113,
+                "first": {
+                  "ms": 58947.299999952316,
+                  "label": "Checking cached index \u2014 4 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 4,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 70606.09999996424,
+                  "label": "Checking cached index \u2014 19,964 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 19964,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 70706.59999996424,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 70706.59999996424,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "pages": {
+                "samples": 9,
+                "first": {
+                  "ms": 71013.5,
+                  "label": "Loading cached nodes",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 72418.5,
+                  "label": "Loading cached nodes \u2014 18,990 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 18990,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "relations": {
+                "samples": 12,
+                "first": {
+                  "ms": 72631.69999998808,
+                  "label": "Loading cached relationships",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 74169.19999998808,
+                  "label": "Loading cached relationships \u2014 20,466 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 20466,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview-search": {
+                "samples": 1,
+                "first": {
+                  "ms": 74278.19999998808,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 74278.19999998808,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "evidence": {
+                "samples": 26,
+                "first": {
+                  "ms": 74518.5,
+                  "label": "Loading relationship evidence",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 77437.89999997616,
+                  "label": "Loading relationship evidence \u2014 712,704 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 712704,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "complete": {
+                "samples": 1,
+                "first": {
+                  "ms": 77540.69999998808,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 77540.69999998808,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              }
+            }
+          },
+          "operationTotals": {
+            "markdownInventoryCalls": 4,
+            "idb.meta.get": 80136,
+            "idb.sourceHeads.getAll": 161,
+            "idb.sourceHeads.getAllKeys": 161,
+            "idb.pages.get": 251,
+            "idb.meta.put": 4,
+            "sourceInspectionCalls": 100075,
+            "idb.sourceHeads.get": 120126,
+            "metadataCacheLookups": 101299,
+            "idb.bodies.get": 25,
+            "dependencyChecks": 40030,
+            "idb.sourceLocalDependencyOwners.get": 80064,
+            "idb.sourceLocalDependencyRepairs.get": 80060,
+            "idb.meta.add": 40032,
+            "idb.sourceChunks.get": 20027,
+            "idb.sourcePostings.get": 484199,
+            "idb.meta.delete": 40032,
+            "sourceHeadPageCalls": 160,
+            "dependencyInventoryChecks": 2,
+            "idb.sourceLocalDependencyRepairs.getAllKeys": 2,
+            "idb.sourceLocalDependencyRepairs.count": 2,
+            "idb.sourceLocalDependencyKeys.get": 4,
+            "idb.snapshotChunks.get": 935
+          }
+        }
+      ]
+    },
+    "earlierForegroundSeries": {
+      "status": "passed",
+      "startedAt": "2026-10-04T04:52:43.764Z",
+      "checkpoint": "62c728393440aa3dfb57869ece83c4060092bcba",
+      "dirty": true,
+      "artifacts": {
+        "main.js": "8e5203b7cf88ba3506ea0d5d434ef507b13e95d0bc10176ed60803b065838e48",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "preflight": {
+        "representativeCenterSelected": true,
+        "ready": true
+      },
+      "cleanup": {
+        "controllerRemoved": true,
+        "optInAbsent": true,
+        "backgroundThrottling": true
+      },
+      "configurationRestored": true,
+      "completedAt": "2026-10-04T04:56:58.163Z",
+      "rawReportPath": "/private/tmp/kplex-si5-warm-start-2026-10-04-foreground/report.json",
+      "runs": [
+        {
+          "elapsedSemantics": "Milliseconds from immediately before disable/enable; diagnostics are relative to onload. Method timings are inclusive and lanes overlap.",
+          "foreground": {
+            "samples": 80,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "comparable": true
+          },
+          "operations": {
+            "metadata": {
+              "markdownInventoryCalls": 1,
+              "idb.meta.get": 3,
+              "idb.sourceHeads.getAll": 1,
+              "idb.sourceHeads.getAllKeys": 1
+            },
+            "preview": {
+              "idb.pages.get": 251,
+              "idb.meta.put": 1
+            },
+            "preview-search": {
+              "metadataCacheLookups": 60132,
+              "idb.bodies.get": 23
+            },
+            "source-inventory": {
+              "markdownInventoryCalls": 1
+            },
+            "dependency-upgrade-validation": {
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "metadataCacheLookups": 474,
+              "markdownInventoryCalls": 2,
+              "idb.bodies.get": 2,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030
+            },
+            "host-metadata-comparison": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 20015,
+              "idb.sourceHeads.get": 40030,
+              "idb.meta.add": 40026,
+              "idb.sourceChunks.get": 20015,
+              "idb.sourcePostings.get": 484178,
+              "idb.meta.delete": 40026
+            },
+            "host-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "source-reconciliation": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030
+            },
+            "source-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "dependency-completion": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "dependency-final-validation": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "source-authority": {
+              "metadataCacheLookups": 1,
+              "idb.meta.get": 1
+            },
+            "requested-semantics": {
+              "idb.meta.get": 68,
+              "idb.sourceLocalDependencyKeys.get": 4,
+              "idb.sourceLocalDependencyOwners.get": 4,
+              "idb.sourceHeads.get": 36,
+              "metadataCacheLookups": 590,
+              "idb.meta.add": 6,
+              "idb.sourceChunks.get": 12,
+              "idb.sourcePostings.get": 21,
+              "idb.meta.delete": 6
+            },
+            "pages": {
+              "idb.snapshotChunks.get": 118,
+              "metadataCacheLookups": 18
+            },
+            "relations": {
+              "idb.snapshotChunks.get": 118
+            },
+            "evidence": {
+              "idb.snapshotChunks.get": 699,
+              "metadataCacheLookups": 27
+            },
+            "complete": {
+              "idb.meta.put": 1,
+              "metadataCacheLookups": 27
+            }
+          },
+          "disableEndedMs": 41.60000002384186,
+          "enableEndedMs": 143.5,
+          "firstPlexDomMs": 554.8000000119209,
+          "sourceAuthorityMs": 72776.39999997616,
+          "requestedSemanticsMs": 72776.60000002384,
+          "strictReadyMs": 78277.60000002384,
+          "diagnostics": {
+            "startedAtMs": 3580741.5,
+            "enabled": true,
+            "frozen": true,
+            "milestones": {
+              "onload": 0.09999996423721313,
+              "settings-loaded": 13.099999964237213,
+              "layout-ready": 26.69999998807907,
+              "host-inventory-start": 47.69999998807907,
+              "host-inventory-end": 74.39999997615814,
+              "preview-available": 416.2999999523163,
+              "source-authority": 72569.39999997616,
+              "source-authority-await-ended": 72570.69999998808,
+              "first-requested-scope-authoritative": 72606.19999998808,
+              "requested-semantics-refresh-ended": 72606.5,
+              "snapshot-complete": 78162.39999997616,
+              "strict-ready": 78162.89999997616
+            },
+            "phases": [
+              {
+                "lane": "hydration",
+                "phase": "metadata",
+                "total": null,
+                "processed": 0,
+                "startedMs": 28,
+                "endedMs": 74.5,
+                "counters": {
+                  "inventoryFiles": 20016,
+                  "inventoryFolders": 207
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview",
+                "total": null,
+                "processed": 0,
+                "startedMs": 74.5,
+                "endedMs": 391.7999999523163,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 391.7999999523163,
+                "endedMs": 416.2999999523163,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-inventory",
+                "total": null,
+                "processed": 0,
+                "startedMs": 403.2999999523163,
+                "endedMs": 405.7999999523163,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-coordinates",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 405.7999999523163,
+                "endedMs": 411.39999997615814,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-upgrade-validation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 411.39999997615814,
+                "endedMs": 10831.5,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "hydration",
+                "phase": "source-authority",
+                "total": null,
+                "processed": 0,
+                "startedMs": 416.2999999523163,
+                "endedMs": 72570.5,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "host-metadata-comparison",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 10831.5,
+                "endedMs": 60592.799999952316,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "host-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 60592.799999952316,
+                "endedMs": 60983,
+                "counters": {
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 60983,
+                "endedMs": 72252.19999998808,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "source-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 72252.19999998808,
+                "endedMs": 72563.39999997616,
+                "counters": {
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-completion",
+                "total": null,
+                "processed": 0,
+                "startedMs": 72563.39999997616,
+                "endedMs": 72564.89999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "resolution-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 72564.89999997616,
+                "endedMs": 72568.5,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-final-validation",
+                "total": null,
+                "processed": 0,
+                "startedMs": 72568.5,
+                "endedMs": 72569.29999995232,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 72569.29999995232,
+                "endedMs": 78162.89999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "requested-semantics",
+                "total": null,
+                "processed": 0,
+                "startedMs": 72570.5,
+                "endedMs": 72606.69999998808,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "pages",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 72606.69999998808,
+                "endedMs": 73785.09999996424,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "relations",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 73785.09999996424,
+                "endedMs": 75242,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 75242,
+                "endedMs": 75475.39999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "evidence",
+                "total": null,
+                "processed": 715032,
+                "startedMs": 75475.39999997616,
+                "endedMs": 78162,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "promote",
+                "total": null,
+                "processed": 0,
+                "startedMs": 78162,
+                "endedMs": 78162.39999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 78162.39999997616,
+                "endedMs": 78162.89999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              }
+            ],
+            "overlaps": [
+              {
+                "first": "source-coordinates",
+                "second": "dependency-upgrade-validation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-reconciliation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              }
+            ]
+          },
+          "onloadOffsetMs": 103.10000002384186,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 12,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791089567908,
+            "phaseStartedAt": 1791089646041,
+            "lastProgressAt": 1791089646041,
+            "pages": 20709,
+            "relations": 20709,
+            "evidence": 715032,
+            "outcome": "complete"
+          },
+          "sourceHeadsUnchanged": true,
+          "settingsUnchanged": true,
+          "foregroundFinal": {
+            "hidden": false,
+            "documentFocused": true,
+            "windowFocused": true,
+            "throttle": true
+          },
+          "labelSummary": {
+            "changedLabels": 750,
+            "phases": {
+              "metadata": {
+                "samples": 1,
+                "first": {
+                  "ms": 144.89999997615814,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 144.89999997615814,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview": {
+                "samples": 1,
+                "first": {
+                  "ms": 249.69999998807907,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 249.69999998807907,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "dependency-upgrade-validation": {
+                "samples": 104,
+                "first": {
+                  "ms": 554.6999999880791,
+                  "label": "Checking cached source dependencies \u2014 33 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 33,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 10920.800000011921,
+                  "label": "Checking cached source dependencies \u2014 19,987 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 19987,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-metadata-comparison": {
+                "samples": 485,
+                "first": {
+                  "ms": 11021,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 51 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 51,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 60693.60000002384,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 20,013 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 20013,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 60799.60000002384,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 60799.60000002384,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-reconciliation": {
+                "samples": 113,
+                "first": {
+                  "ms": 61101.39999997616,
+                  "label": "Checking cached index \u2014 16 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 16,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 72347.60000002384,
+                  "label": "Checking cached index \u2014 19,997 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 19997,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 72448.60000002384,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 72448.60000002384,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "pages": {
+                "samples": 8,
+                "first": {
+                  "ms": 72776.39999997616,
+                  "label": "Loading cached nodes",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 73658.39999997616,
+                  "label": "Loading cached nodes \u2014 18,990 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 18990,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "relations": {
+                "samples": 10,
+                "first": {
+                  "ms": 73932.69999998808,
+                  "label": "Loading cached relationships",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 75250.80000001192,
+                  "label": "Loading cached relationships \u2014 20,466 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 20466,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview-search": {
+                "samples": 1,
+                "first": {
+                  "ms": 75361.19999998808,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 75361.19999998808,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "evidence": {
+                "samples": 24,
+                "first": {
+                  "ms": 75583.19999998808,
+                  "label": "Loading relationship evidence",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 78164,
+                  "label": "Loading relationship evidence \u2014 683,008 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 683008,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "complete": {
+                "samples": 1,
+                "first": {
+                  "ms": 78277.60000002384,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 78277.60000002384,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              }
+            }
+          },
+          "operationTotals": {
+            "markdownInventoryCalls": 4,
+            "idb.meta.get": 80136,
+            "idb.sourceHeads.getAll": 161,
+            "idb.sourceHeads.getAllKeys": 161,
+            "idb.pages.get": 251,
+            "idb.meta.put": 4,
+            "metadataCacheLookups": 101299,
+            "idb.bodies.get": 25,
+            "sourceInspectionCalls": 100075,
+            "idb.sourceHeads.get": 120126,
+            "dependencyChecks": 40030,
+            "idb.sourceLocalDependencyOwners.get": 80064,
+            "idb.sourceLocalDependencyRepairs.get": 80060,
+            "idb.meta.add": 40032,
+            "idb.sourceChunks.get": 20027,
+            "idb.sourcePostings.get": 484199,
+            "idb.meta.delete": 40032,
+            "sourceHeadPageCalls": 160,
+            "dependencyInventoryChecks": 2,
+            "idb.sourceLocalDependencyRepairs.getAllKeys": 2,
+            "idb.sourceLocalDependencyRepairs.count": 2,
+            "idb.sourceLocalDependencyKeys.get": 4,
+            "idb.snapshotChunks.get": 935
+          }
+        },
+        {
+          "elapsedSemantics": "Milliseconds from immediately before disable/enable; diagnostics are relative to onload. Method timings are inclusive and lanes overlap.",
+          "foreground": {
+            "samples": 86,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "comparable": true
+          },
+          "operations": {
+            "metadata": {
+              "markdownInventoryCalls": 1,
+              "idb.meta.get": 3,
+              "idb.sourceHeads.getAll": 1,
+              "idb.sourceHeads.getAllKeys": 1
+            },
+            "preview": {
+              "idb.pages.get": 251,
+              "idb.meta.put": 1
+            },
+            "preview-search": {
+              "metadataCacheLookups": 60583,
+              "idb.bodies.get": 23
+            },
+            "source-inventory": {
+              "markdownInventoryCalls": 1
+            },
+            "dependency-upgrade-validation": {
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "markdownInventoryCalls": 2,
+              "metadataCacheLookups": 23,
+              "idb.bodies.get": 2,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030
+            },
+            "host-metadata-comparison": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 20015,
+              "idb.sourceHeads.get": 40030,
+              "idb.meta.add": 40026,
+              "idb.sourceChunks.get": 20015,
+              "idb.sourcePostings.get": 484178,
+              "idb.meta.delete": 40026
+            },
+            "host-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "source-reconciliation": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030
+            },
+            "source-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "dependency-completion": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "dependency-final-validation": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "source-authority": {
+              "metadataCacheLookups": 1,
+              "idb.meta.get": 1
+            },
+            "requested-semantics": {
+              "idb.meta.get": 68,
+              "idb.sourceLocalDependencyKeys.get": 4,
+              "idb.sourceLocalDependencyOwners.get": 4,
+              "idb.sourceHeads.get": 36,
+              "metadataCacheLookups": 590,
+              "idb.meta.add": 6,
+              "idb.sourceChunks.get": 12,
+              "idb.sourcePostings.get": 21,
+              "idb.meta.delete": 6
+            },
+            "pages": {
+              "idb.snapshotChunks.get": 118,
+              "metadataCacheLookups": 18
+            },
+            "relations": {
+              "idb.snapshotChunks.get": 118
+            },
+            "evidence": {
+              "idb.snapshotChunks.get": 699,
+              "metadataCacheLookups": 27
+            },
+            "complete": {
+              "idb.meta.put": 1,
+              "metadataCacheLookups": 27
+            }
+          },
+          "disableEndedMs": 11.400000035762787,
+          "enableEndedMs": 115.30000001192093,
+          "firstPlexDomMs": 563.4000000357628,
+          "sourceAuthorityMs": 78913,
+          "requestedSemanticsMs": 78913.10000002384,
+          "strictReadyMs": 84107.80000001192,
+          "diagnostics": {
+            "startedAtMs": 3660792.399999976,
+            "enabled": true,
+            "frozen": true,
+            "milestones": {
+              "onload": 0,
+              "settings-loaded": 12.199999988079071,
+              "layout-ready": 23.899999976158142,
+              "host-inventory-start": 39.10000002384186,
+              "host-inventory-end": 67.80000001192093,
+              "preview-available": 391.5,
+              "source-authority": 78695.89999997616,
+              "source-authority-await-ended": 78696.30000001192,
+              "first-requested-scope-authoritative": 78728.69999998808,
+              "requested-semantics-refresh-ended": 78728.89999997616,
+              "snapshot-complete": 83982.30000001192,
+              "strict-ready": 83982.69999998808
+            },
+            "phases": [
+              {
+                "lane": "hydration",
+                "phase": "metadata",
+                "total": null,
+                "processed": 0,
+                "startedMs": 25,
+                "endedMs": 68,
+                "counters": {
+                  "inventoryFiles": 20016,
+                  "inventoryFolders": 207
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview",
+                "total": null,
+                "processed": 0,
+                "startedMs": 68,
+                "endedMs": 377.60000002384186,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 377.60000002384186,
+                "endedMs": 391.5,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "source-authority",
+                "total": null,
+                "processed": 0,
+                "startedMs": 391.5,
+                "endedMs": 78696.10000002384,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-inventory",
+                "total": null,
+                "processed": 0,
+                "startedMs": 391.5,
+                "endedMs": 394,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-coordinates",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 394,
+                "endedMs": 400.30000001192093,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-upgrade-validation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 400.30000001192093,
+                "endedMs": 12013.699999988079,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "host-metadata-comparison",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 12013.699999988079,
+                "endedMs": 65801.60000002384,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "host-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 65801.60000002384,
+                "endedMs": 66381.80000001192,
+                "counters": {
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 66381.80000001192,
+                "endedMs": 78229.60000002384,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "source-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 78229.60000002384,
+                "endedMs": 78690.5,
+                "counters": {
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-completion",
+                "total": null,
+                "processed": 0,
+                "startedMs": 78690.5,
+                "endedMs": 78691.60000002384,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "resolution-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 78691.60000002384,
+                "endedMs": 78695.19999998808,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-final-validation",
+                "total": null,
+                "processed": 0,
+                "startedMs": 78695.19999998808,
+                "endedMs": 78695.89999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 78695.89999997616,
+                "endedMs": 83982.69999998808,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "requested-semantics",
+                "total": null,
+                "processed": 0,
+                "startedMs": 78696.10000002384,
+                "endedMs": 78728.89999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "pages",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 78728.89999997616,
+                "endedMs": 79781.10000002384,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "relations",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 79781.10000002384,
+                "endedMs": 81109.5,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 81109.5,
+                "endedMs": 81348.89999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "evidence",
+                "total": null,
+                "processed": 715032,
+                "startedMs": 81348.89999997616,
+                "endedMs": 83981.80000001192,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "promote",
+                "total": null,
+                "processed": 0,
+                "startedMs": 83981.80000001192,
+                "endedMs": 83982.30000001192,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 83982.30000001192,
+                "endedMs": 83982.69999998808,
+                "counters": {},
+                "uniqueOwners": 0
+              }
+            ],
+            "overlaps": [
+              {
+                "first": "source-coordinates",
+                "second": "dependency-upgrade-validation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-reconciliation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              }
+            ]
+          },
+          "onloadOffsetMs": 82.60000002384186,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 12,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791089647954,
+            "phaseStartedAt": 1791089731914,
+            "lastProgressAt": 1791089731913,
+            "pages": 20709,
+            "relations": 20709,
+            "evidence": 715032,
+            "outcome": "complete"
+          },
+          "sourceHeadsUnchanged": true,
+          "settingsUnchanged": true,
+          "foregroundFinal": {
+            "hidden": false,
+            "documentFocused": true,
+            "windowFocused": true,
+            "throttle": true
+          },
+          "labelSummary": {
+            "changedLabels": 798,
+            "phases": {
+              "metadata": {
+                "samples": 1,
+                "first": {
+                  "ms": 116.5,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 116.5,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview": {
+                "samples": 1,
+                "first": {
+                  "ms": 217.60000002384186,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 217.60000002384186,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview-search": {
+                "samples": 2,
+                "first": {
+                  "ms": 462.10000002384186,
+                  "label": "Preparing search",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 81266.90000003576,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "dependency-upgrade-validation": {
+                "samples": 111,
+                "first": {
+                  "ms": 563.3000000119209,
+                  "label": "Checking cached source dependencies \u2014 103 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 103,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 12050.400000035763,
+                  "label": "Checking cached source dependencies \u2014 19,923 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 19923,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-metadata-comparison": {
+                "samples": 521,
+                "first": {
+                  "ms": 12150.5,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 25 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 25,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 65812.10000002384,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 19,961 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 19961,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 65913.10000002384,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 65913.10000002384,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-reconciliation": {
+                "samples": 118,
+                "first": {
+                  "ms": 66516.40000003576,
+                  "label": "Checking cached index \u2014 76 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 76,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 78250.5,
+                  "label": "Checking cached index \u2014 19,887 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 19887,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 78351.20000004768,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 78351.20000004768,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "pages": {
+                "samples": 8,
+                "first": {
+                  "ms": 78913,
+                  "label": "Loading cached nodes",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 79779.40000003576,
+                  "label": "Loading cached nodes \u2014 20,466 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 20466,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "relations": {
+                "samples": 10,
+                "first": {
+                  "ms": 79905.5,
+                  "label": "Loading cached relationships",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 81161.90000003576,
+                  "label": "Loading cached relationships \u2014 20,466 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 20466,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "evidence": {
+                "samples": 23,
+                "first": {
+                  "ms": 81500.20000004768,
+                  "label": "Loading relationship evidence \u2014 20,480 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 20480,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 84007.5,
+                  "label": "Loading relationship evidence \u2014 698,368 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 698368,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "complete": {
+                "samples": 1,
+                "first": {
+                  "ms": 84107.70000004768,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 84107.70000004768,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              }
+            }
+          },
+          "operationTotals": {
+            "markdownInventoryCalls": 4,
+            "idb.meta.get": 80136,
+            "idb.sourceHeads.getAll": 161,
+            "idb.sourceHeads.getAllKeys": 161,
+            "idb.pages.get": 251,
+            "idb.meta.put": 4,
+            "metadataCacheLookups": 101299,
+            "idb.bodies.get": 25,
+            "sourceInspectionCalls": 100075,
+            "idb.sourceHeads.get": 120126,
+            "dependencyChecks": 40030,
+            "idb.sourceLocalDependencyOwners.get": 80064,
+            "idb.sourceLocalDependencyRepairs.get": 80060,
+            "idb.meta.add": 40032,
+            "idb.sourceChunks.get": 20027,
+            "idb.sourcePostings.get": 484199,
+            "idb.meta.delete": 40032,
+            "sourceHeadPageCalls": 160,
+            "dependencyInventoryChecks": 2,
+            "idb.sourceLocalDependencyRepairs.getAllKeys": 2,
+            "idb.sourceLocalDependencyRepairs.count": 2,
+            "idb.sourceLocalDependencyKeys.get": 4,
+            "idb.snapshotChunks.get": 935
+          }
+        },
+        {
+          "elapsedSemantics": "Milliseconds from immediately before disable/enable; diagnostics are relative to onload. Method timings are inclusive and lanes overlap.",
+          "foreground": {
+            "samples": 84,
+            "hidden": 0,
+            "documentUnfocused": 0,
+            "windowUnfocused": 0,
+            "throttlingDisabled": 0,
+            "comparable": true
+          },
+          "operations": {
+            "metadata": {
+              "markdownInventoryCalls": 1,
+              "idb.meta.get": 3,
+              "idb.sourceHeads.getAll": 1,
+              "idb.sourceHeads.getAllKeys": 1
+            },
+            "preview": {
+              "idb.pages.get": 251,
+              "idb.meta.put": 1
+            },
+            "preview-search": {
+              "metadataCacheLookups": 60583,
+              "idb.bodies.get": 23
+            },
+            "source-inventory": {
+              "markdownInventoryCalls": 1
+            },
+            "dependency-upgrade-validation": {
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "markdownInventoryCalls": 2,
+              "metadataCacheLookups": 23,
+              "idb.bodies.get": 2,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030
+            },
+            "host-metadata-comparison": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 20015,
+              "idb.sourceHeads.get": 40030,
+              "idb.meta.add": 40026,
+              "idb.sourceChunks.get": 20015,
+              "idb.sourcePostings.get": 484178,
+              "idb.meta.delete": 40026
+            },
+            "host-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "source-reconciliation": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030
+            },
+            "source-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "dependency-completion": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "dependency-final-validation": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "source-authority": {
+              "metadataCacheLookups": 1,
+              "idb.meta.get": 1
+            },
+            "requested-semantics": {
+              "idb.meta.get": 68,
+              "idb.sourceLocalDependencyKeys.get": 4,
+              "idb.sourceLocalDependencyOwners.get": 4,
+              "idb.sourceHeads.get": 36,
+              "metadataCacheLookups": 590,
+              "idb.meta.add": 6,
+              "idb.sourceChunks.get": 12,
+              "idb.sourcePostings.get": 21,
+              "idb.meta.delete": 6
+            },
+            "pages": {
+              "idb.snapshotChunks.get": 118,
+              "metadataCacheLookups": 18
+            },
+            "relations": {
+              "idb.snapshotChunks.get": 118
+            },
+            "evidence": {
+              "idb.snapshotChunks.get": 699,
+              "metadataCacheLookups": 27
+            },
+            "complete": {
+              "idb.meta.put": 1,
+              "metadataCacheLookups": 27
+            }
+          },
+          "disableEndedMs": 8.899999976158142,
+          "enableEndedMs": 113.5,
+          "firstPlexDomMs": 470.69999998807907,
+          "sourceAuthorityMs": 77346.19999998808,
+          "requestedSemanticsMs": 77346.19999998808,
+          "strictReadyMs": 82804.89999997616,
+          "diagnostics": {
+            "startedAtMs": 3747083,
+            "enabled": true,
+            "frozen": true,
+            "milestones": {
+              "onload": 0,
+              "settings-loaded": 12.799999952316284,
+              "layout-ready": 27.299999952316284,
+              "host-inventory-start": 43.799999952316284,
+              "host-inventory-end": 77.09999996423721,
+              "preview-available": 379.5999999642372,
+              "source-authority": 77172.29999995232,
+              "source-authority-await-ended": 77172.69999998808,
+              "first-requested-scope-authoritative": 77202.59999996424,
+              "requested-semantics-refresh-ended": 77202.69999998808,
+              "snapshot-complete": 82688.79999995232,
+              "strict-ready": 82689.39999997616
+            },
+            "phases": [
+              {
+                "lane": "hydration",
+                "phase": "metadata",
+                "total": null,
+                "processed": 0,
+                "startedMs": 28.599999964237213,
+                "endedMs": 77.29999995231628,
+                "counters": {
+                  "inventoryFiles": 20016,
+                  "inventoryFolders": 207
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview",
+                "total": null,
+                "processed": 0,
+                "startedMs": 77.29999995231628,
+                "endedMs": 371.5,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 371.5,
+                "endedMs": 379.69999998807907,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "source-authority",
+                "total": null,
+                "processed": 0,
+                "startedMs": 379.69999998807907,
+                "endedMs": 77172.59999996424,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-inventory",
+                "total": null,
+                "processed": 0,
+                "startedMs": 379.69999998807907,
+                "endedMs": 382.19999998807907,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-coordinates",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 382.19999998807907,
+                "endedMs": 386.39999997615814,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-upgrade-validation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 386.39999997615814,
+                "endedMs": 11816.899999976158,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "host-metadata-comparison",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 11816.899999976158,
+                "endedMs": 65115.299999952316,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "host-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 65115.299999952316,
+                "endedMs": 65531.59999996424,
+                "counters": {
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 65531.59999996424,
+                "endedMs": 76857,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "source-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 76857,
+                "endedMs": 77164.19999998808,
+                "counters": {
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-completion",
+                "total": null,
+                "processed": 0,
+                "startedMs": 77164.19999998808,
+                "endedMs": 77165.09999996424,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "resolution-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 77165.09999996424,
+                "endedMs": 77168.69999998808,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-final-validation",
+                "total": null,
+                "processed": 0,
+                "startedMs": 77168.69999998808,
+                "endedMs": 77172.29999995232,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 77172.29999995232,
+                "endedMs": 82689.39999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "requested-semantics",
+                "total": null,
+                "processed": 0,
+                "startedMs": 77172.59999996424,
+                "endedMs": 77203,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "pages",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 77203,
+                "endedMs": 78353.79999995232,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "relations",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 78353.79999995232,
+                "endedMs": 79772.59999996424,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 79772.59999996424,
+                "endedMs": 80035.19999998808,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "evidence",
+                "total": null,
+                "processed": 715032,
+                "startedMs": 80035.19999998808,
+                "endedMs": 82688.09999996424,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "promote",
+                "total": null,
+                "processed": 0,
+                "startedMs": 82688.09999996424,
+                "endedMs": 82688.79999995232,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 82688.79999995232,
+                "endedMs": 82689.39999997616,
+                "counters": {},
+                "uniqueOwners": 0
+              }
+            ],
+            "overlaps": [
+              {
+                "first": "source-coordinates",
+                "second": "dependency-upgrade-validation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-reconciliation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              }
+            ]
+          },
+          "onloadOffsetMs": 76,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 12,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791089734251,
+            "phaseStartedAt": 1791089816910,
+            "lastProgressAt": 1791089816909,
+            "pages": 20709,
+            "relations": 20709,
+            "evidence": 715032,
+            "outcome": "complete"
+          },
+          "sourceHeadsUnchanged": true,
+          "settingsUnchanged": true,
+          "foregroundFinal": {
+            "hidden": false,
+            "documentFocused": true,
+            "windowFocused": true,
+            "throttle": true
+          },
+          "labelSummary": {
+            "changedLabels": 797,
+            "phases": {
+              "metadata": {
+                "samples": 1,
+                "first": {
+                  "ms": 114.89999997615814,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 114.89999997615814,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview": {
+                "samples": 1,
+                "first": {
+                  "ms": 258.39999997615814,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 258.39999997615814,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "dependency-upgrade-validation": {
+                "samples": 114,
+                "first": {
+                  "ms": 470.69999998807907,
+                  "label": "Checking cached source dependencies \u2014 0 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 0,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 11870.899999976158,
+                  "label": "Checking cached source dependencies \u2014 20,004 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 20004,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-metadata-comparison": {
+                "samples": 522,
+                "first": {
+                  "ms": 11971.199999988079,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 0 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 0,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 65171.299999952316,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 20,004 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 20004,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 65272.799999952316,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 65272.799999952316,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-reconciliation": {
+                "samples": 113,
+                "first": {
+                  "ms": 65674.69999998808,
+                  "label": "Checking cached index \u2014 122 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 122,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 76910.09999996424,
+                  "label": "Checking cached index \u2014 19,968 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 19968,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 77010.5,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 77010.5,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "pages": {
+                "samples": 8,
+                "first": {
+                  "ms": 77346.19999998808,
+                  "label": "Loading cached nodes",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 78212,
+                  "label": "Loading cached nodes \u2014 18,990 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 18990,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "relations": {
+                "samples": 10,
+                "first": {
+                  "ms": 78430.09999996424,
+                  "label": "Loading cached relationships",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 79820.39999997616,
+                  "label": "Loading cached relationships \u2014 20,466 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 20466,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview-search": {
+                "samples": 1,
+                "first": {
+                  "ms": 79930.79999995232,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 79930.79999995232,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "evidence": {
+                "samples": 24,
+                "first": {
+                  "ms": 80157,
+                  "label": "Loading relationship evidence \u2014 11,264 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 11264,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 82704.39999997616,
+                  "label": "Loading relationship evidence \u2014 697,344 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 697344,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "complete": {
+                "samples": 1,
+                "first": {
+                  "ms": 82804.79999995232,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 82804.79999995232,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              }
+            }
+          },
+          "operationTotals": {
+            "markdownInventoryCalls": 4,
+            "idb.meta.get": 80136,
+            "idb.sourceHeads.getAll": 161,
+            "idb.sourceHeads.getAllKeys": 161,
+            "idb.pages.get": 251,
+            "idb.meta.put": 4,
+            "metadataCacheLookups": 101299,
+            "idb.bodies.get": 25,
+            "sourceInspectionCalls": 100075,
+            "idb.sourceHeads.get": 120126,
+            "dependencyChecks": 40030,
+            "idb.sourceLocalDependencyOwners.get": 80064,
+            "idb.sourceLocalDependencyRepairs.get": 80060,
+            "idb.meta.add": 40032,
+            "idb.sourceChunks.get": 20027,
+            "idb.sourcePostings.get": 484199,
+            "idb.meta.delete": 40032,
+            "sourceHeadPageCalls": 160,
+            "dependencyInventoryChecks": 2,
+            "idb.sourceLocalDependencyRepairs.getAllKeys": 2,
+            "idb.sourceLocalDependencyRepairs.count": 2,
+            "idb.sourceLocalDependencyKeys.get": 4,
+            "idb.snapshotChunks.get": 935
+          }
+        }
+      ]
+    },
+    "excludedFocusTrial": {
+      "status": "failed",
+      "startedAt": "2026-10-04T04:48:18.463Z",
+      "checkpoint": "62c728393440aa3dfb57869ece83c4060092bcba",
+      "dirty": true,
+      "artifacts": {
+        "main.js": "8e5203b7cf88ba3506ea0d5d434ef507b13e95d0bc10176ed60803b065838e48",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "preflight": {
+        "representativeCenterSelected": true,
+        "ready": true
+      },
+      "error": "Error: Error: Foreground samples excluded this run",
+      "failedCommand": "eval",
+      "cleanup": {
+        "controllerRemoved": true,
+        "optInAbsent": true,
+        "backgroundThrottling": true
+      },
+      "configurationRestored": true,
+      "completedAt": "2026-10-04T04:49:46.288Z",
+      "rawReportPath": "/private/tmp/kplex-si5-warm-start-2026-10-04-retry/report.json",
+      "runs": [],
+      "failure": {
+        "result": {
+          "elapsedSemantics": "Milliseconds from immediately before disable/enable; diagnostics are relative to onload. Method timings are inclusive and lanes overlap.",
+          "foreground": {
+            "samples": 84,
+            "hidden": 0,
+            "documentUnfocused": 20,
+            "windowUnfocused": 20,
+            "throttlingDisabled": 0,
+            "comparable": false
+          },
+          "operations": {
+            "metadata": {
+              "markdownInventoryCalls": 1,
+              "idb.meta.get": 3,
+              "idb.sourceHeads.getAll": 1,
+              "idb.sourceHeads.getAllKeys": 1
+            },
+            "preview": {
+              "idb.pages.get": 251,
+              "idb.meta.put": 1
+            },
+            "preview-search": {
+              "metadataCacheLookups": 60089,
+              "idb.bodies.get": 23
+            },
+            "source-inventory": {
+              "markdownInventoryCalls": 1
+            },
+            "dependency-upgrade-validation": {
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "metadataCacheLookups": 517,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030,
+              "markdownInventoryCalls": 2,
+              "idb.bodies.get": 2
+            },
+            "host-metadata-comparison": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 20015,
+              "idb.sourceHeads.get": 40030,
+              "idb.meta.add": 40026,
+              "idb.sourceChunks.get": 20015,
+              "idb.sourcePostings.get": 484178,
+              "idb.meta.delete": 40026
+            },
+            "host-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "source-reconciliation": {
+              "metadataCacheLookups": 20015,
+              "sourceInspectionCalls": 40030,
+              "idb.sourceHeads.get": 40030,
+              "dependencyChecks": 20015,
+              "idb.meta.get": 40030,
+              "idb.sourceLocalDependencyOwners.get": 40030,
+              "idb.sourceLocalDependencyRepairs.get": 40030
+            },
+            "source-retired-owner-check": {
+              "sourceHeadPageCalls": 80,
+              "idb.sourceHeads.getAll": 80,
+              "idb.sourceHeads.getAllKeys": 80
+            },
+            "dependency-completion": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "dependency-final-validation": {
+              "dependencyInventoryChecks": 1,
+              "idb.meta.get": 2,
+              "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+              "idb.sourceLocalDependencyRepairs.count": 1,
+              "idb.meta.put": 1
+            },
+            "source-authority": {
+              "metadataCacheLookups": 1,
+              "idb.meta.get": 1
+            },
+            "requested-semantics": {
+              "idb.meta.get": 68,
+              "idb.sourceLocalDependencyKeys.get": 4,
+              "idb.sourceLocalDependencyOwners.get": 4,
+              "idb.sourceHeads.get": 36,
+              "metadataCacheLookups": 590,
+              "idb.meta.add": 6,
+              "idb.sourceChunks.get": 12,
+              "idb.sourcePostings.get": 21,
+              "idb.meta.delete": 6
+            },
+            "pages": {
+              "idb.snapshotChunks.get": 118,
+              "metadataCacheLookups": 18
+            },
+            "relations": {
+              "idb.snapshotChunks.get": 118
+            },
+            "evidence": {
+              "idb.snapshotChunks.get": 699,
+              "metadataCacheLookups": 27
+            },
+            "complete": {
+              "idb.meta.put": 1,
+              "metadataCacheLookups": 27
+            }
+          },
+          "disableEndedMs": 13.199999988079071,
+          "enableEndedMs": 140.0999999642372,
+          "firstPlexDomMs": 587.5,
+          "sourceAuthorityMs": 75571.5,
+          "requestedSemanticsMs": 75676.30000001192,
+          "strictReadyMs": 82430.59999996424,
+          "diagnostics": {
+            "startedAtMs": 3314997.5999999642,
+            "enabled": true,
+            "frozen": true,
+            "milestones": {
+              "onload": 0,
+              "settings-loaded": 12.600000023841858,
+              "layout-ready": 26.900000035762787,
+              "host-inventory-start": 50.90000003576279,
+              "host-inventory-end": 70.30000001192093,
+              "preview-available": 468.60000002384186,
+              "source-authority": 75442,
+              "source-authority-await-ended": 75443.5,
+              "first-requested-scope-authoritative": 75484.5,
+              "requested-semantics-refresh-ended": 75484.69999998808,
+              "snapshot-complete": 82249.60000002384,
+              "strict-ready": 82250.30000001192
+            },
+            "phases": [
+              {
+                "lane": "hydration",
+                "phase": "metadata",
+                "total": null,
+                "processed": 0,
+                "startedMs": 28.30000001192093,
+                "endedMs": 70.60000002384186,
+                "counters": {
+                  "inventoryFiles": 20016,
+                  "inventoryFolders": 207
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview",
+                "total": null,
+                "processed": 0,
+                "startedMs": 70.60000002384186,
+                "endedMs": 434,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 434,
+                "endedMs": 468.60000002384186,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-inventory",
+                "total": null,
+                "processed": 0,
+                "startedMs": 436.60000002384186,
+                "endedMs": 439.30000001192093,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-coordinates",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 439.30000001192093,
+                "endedMs": 452.10000002384186,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-upgrade-validation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 452.10000002384186,
+                "endedMs": 10359.5,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "hydration",
+                "phase": "source-authority",
+                "total": null,
+                "processed": 0,
+                "startedMs": 468.60000002384186,
+                "endedMs": 75443.19999998808,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "host-metadata-comparison",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 10359.5,
+                "endedMs": 61631.90000003576,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "host-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 61631.90000003576,
+                "endedMs": 62198.69999998808,
+                "counters": {
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "source-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 62198.69999998808,
+                "endedMs": 75051.10000002384,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "source-retired-owner-check",
+                "total": null,
+                "processed": 0,
+                "startedMs": 75051.10000002384,
+                "endedMs": 75435.19999998808,
+                "counters": {
+                  "headPageOwners": 20036
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-completion",
+                "total": null,
+                "processed": 0,
+                "startedMs": 75435.19999998808,
+                "endedMs": 75437.10000002384,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "resolution-reconciliation",
+                "total": 20015,
+                "processed": 20015,
+                "startedMs": 75437.10000002384,
+                "endedMs": 75441.10000002384,
+                "counters": {},
+                "uniqueOwners": 20015
+              },
+              {
+                "lane": "source",
+                "phase": "dependency-final-validation",
+                "total": null,
+                "processed": 0,
+                "startedMs": 75441.10000002384,
+                "endedMs": 75442,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "source",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 75442,
+                "endedMs": 82250.30000001192,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "requested-semantics",
+                "total": null,
+                "processed": 0,
+                "startedMs": 75443.19999998808,
+                "endedMs": 75484.90000003576,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "pages",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 75484.90000003576,
+                "endedMs": 76698.10000002384,
+                "counters": {
+                  "physicalRevisionComparisons": 20015
+                },
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "relations",
+                "total": null,
+                "processed": 20709,
+                "startedMs": 76698.10000002384,
+                "endedMs": 78257.90000003576,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "preview-search",
+                "total": null,
+                "processed": 0,
+                "startedMs": 78257.90000003576,
+                "endedMs": 78868.10000002384,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "evidence",
+                "total": null,
+                "processed": 715032,
+                "startedMs": 78868.10000002384,
+                "endedMs": 82248.80000001192,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "promote",
+                "total": null,
+                "processed": 0,
+                "startedMs": 82248.80000001192,
+                "endedMs": 82249.5,
+                "counters": {},
+                "uniqueOwners": 0
+              },
+              {
+                "lane": "hydration",
+                "phase": "complete",
+                "total": null,
+                "processed": 0,
+                "startedMs": 82249.5,
+                "endedMs": 82250.30000001192,
+                "counters": {},
+                "uniqueOwners": 0
+              }
+            ],
+            "overlaps": [
+              {
+                "first": "source-coordinates",
+                "second": "dependency-upgrade-validation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-coordinates",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "host-metadata-comparison",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "dependency-upgrade-validation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "source-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "host-metadata-comparison",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              },
+              {
+                "first": "source-reconciliation",
+                "second": "resolution-reconciliation",
+                "owners": 20015
+              }
+            ]
+          },
+          "onloadOffsetMs": 95.39999997615814,
+          "status": {
+            "upToDate": true,
+            "phase": "ready",
+            "indexedFiles": 20015,
+            "totalFiles": 20015,
+            "label": "Status: index ready"
+          },
+          "source": {
+            "checked": 0,
+            "reusedBodies": 0,
+            "legacyBodies": 0,
+            "vaultReads": 0,
+            "parses": 0,
+            "repaired": 0,
+            "resolutionRefreshes": 0,
+            "pendingMetadata": 0,
+            "failures": 0
+          },
+          "semantic": {
+            "policyRevision": 1,
+            "requested": 2,
+            "prepared": 1,
+            "published": 1,
+            "cancelled": 0,
+            "pending": 1,
+            "dependencyVisits": 12,
+            "fullBuilds": 0,
+            "lastReason": null
+          },
+          "hydration": {
+            "run": 1,
+            "phase": "complete",
+            "lastActivePhase": "promote",
+            "startedAt": 1791089302168,
+            "phaseStartedAt": 1791089384388,
+            "lastProgressAt": 1791089384387,
+            "pages": 20709,
+            "relations": 20709,
+            "evidence": 715032,
+            "outcome": "complete"
+          },
+          "sourceHeadsUnchanged": true,
+          "settingsUnchanged": true,
+          "foregroundFinal": {
+            "hidden": false,
+            "documentFocused": false,
+            "windowFocused": false,
+            "throttle": true
+          },
+          "labelSummary": {
+            "changedLabels": 781,
+            "phases": {
+              "metadata": {
+                "samples": 1,
+                "first": {
+                  "ms": 141.19999998807907,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 141.19999998807907,
+                  "label": "Reading cached index metadata",
+                  "source": null,
+                  "hydration": {
+                    "phase": "metadata",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview": {
+                "samples": 1,
+                "first": {
+                  "ms": 241.69999998807907,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 241.69999998807907,
+                  "label": "Loading the requested Plex preview",
+                  "source": null,
+                  "hydration": {
+                    "phase": "preview",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "dependency-upgrade-validation": {
+                "samples": 99,
+                "first": {
+                  "ms": 587.5,
+                  "label": "Checking cached source dependencies \u2014 0 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 0,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 10416,
+                  "label": "Checking cached source dependencies \u2014 19,930 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "dependency-upgrade-validation",
+                    "processed": 19930,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-metadata-comparison": {
+                "samples": 500,
+                "first": {
+                  "ms": 10516.099999964237,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 37 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 37,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 61725.09999996424,
+                  "label": "Comparing cached notes with Obsidian metadata \u2014 20,013 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "host-metadata-comparison",
+                    "processed": 20013,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "host-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 61826,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 61826,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "host-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-reconciliation": {
+                "samples": 127,
+                "first": {
+                  "ms": 62330.09999996424,
+                  "label": "Checking cached index \u2014 68 / 20,015 notes (0%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 68,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 75067.30000001192,
+                  "label": "Checking cached index \u2014 19,854 / 20,015 notes (99%)",
+                  "source": {
+                    "phase": "source-reconciliation",
+                    "processed": 19854,
+                    "total": 20015
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "source-retired-owner-check": {
+                "samples": 1,
+                "first": {
+                  "ms": 75168.30000001192,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 75168.30000001192,
+                  "label": "Checking removed cached notes",
+                  "source": {
+                    "phase": "source-retired-owner-check",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "source-authority",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "requested-semantics": {
+                "samples": 1,
+                "first": {
+                  "ms": 75571.5,
+                  "label": "Preparing requested Plex semantics",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "requested-semantics",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 75571.5,
+                  "label": "Preparing requested Plex semantics",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "requested-semantics",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "pages": {
+                "samples": 10,
+                "first": {
+                  "ms": 75676.19999998808,
+                  "label": "Loading cached nodes",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 76774.09999996424,
+                  "label": "Loading cached nodes \u2014 20,466 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "pages",
+                    "processed": 20466,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "relations": {
+                "samples": 10,
+                "first": {
+                  "ms": 76899.30000001192,
+                  "label": "Loading cached relationships",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 78278,
+                  "label": "Loading cached relationships \u2014 20,466 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "relations",
+                    "processed": 20466,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "preview-search": {
+                "samples": 1,
+                "first": {
+                  "ms": 78398.80000001192,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 78398.80000001192,
+                  "label": "Preparing search",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "preview-search",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "evidence": {
+                "samples": 28,
+                "first": {
+                  "ms": 78968.30000001192,
+                  "label": "Loading relationship evidence",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 82329.09999996424,
+                  "label": "Loading relationship evidence \u2014 710,656 records loaded",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "evidence",
+                    "processed": 710656,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              },
+              "complete": {
+                "samples": 1,
+                "first": {
+                  "ms": 82430.5,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "last": {
+                  "ms": 82430.5,
+                  "label": "Status: index ready",
+                  "source": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  },
+                  "hydration": {
+                    "phase": "complete",
+                    "processed": 0,
+                    "total": null
+                  }
+                },
+                "monotonic": true
+              }
+            }
+          },
+          "operationTotals": {
+            "markdownInventoryCalls": 4,
+            "idb.meta.get": 80136,
+            "idb.sourceHeads.getAll": 161,
+            "idb.sourceHeads.getAllKeys": 161,
+            "idb.pages.get": 251,
+            "idb.meta.put": 4,
+            "metadataCacheLookups": 101299,
+            "idb.bodies.get": 25,
+            "sourceInspectionCalls": 100075,
+            "idb.sourceHeads.get": 120126,
+            "dependencyChecks": 40030,
+            "idb.sourceLocalDependencyOwners.get": 80064,
+            "idb.sourceLocalDependencyRepairs.get": 80060,
+            "idb.meta.add": 40032,
+            "idb.sourceChunks.get": 20027,
+            "idb.sourcePostings.get": 484199,
+            "idb.meta.delete": 40032,
+            "sourceHeadPageCalls": 160,
+            "dependencyInventoryChecks": 2,
+            "idb.sourceLocalDependencyRepairs.getAllKeys": 2,
+            "idb.sourceLocalDependencyRepairs.count": 2,
+            "idb.sourceLocalDependencyKeys.get": 4,
+            "idb.snapshotChunks.get": 935
+          }
+        },
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 20015,
+          "totalFiles": 20015,
+          "label": "Status: index ready"
+        },
+        "diagnostics": {
+          "startedAtMs": 3314997.5999999642,
+          "enabled": true,
+          "frozen": true,
+          "milestones": {
+            "onload": 0,
+            "settings-loaded": 12.600000023841858,
+            "layout-ready": 26.900000035762787,
+            "host-inventory-start": 50.90000003576279,
+            "host-inventory-end": 70.30000001192093,
+            "preview-available": 468.60000002384186,
+            "source-authority": 75442,
+            "source-authority-await-ended": 75443.5,
+            "first-requested-scope-authoritative": 75484.5,
+            "requested-semantics-refresh-ended": 75484.69999998808,
+            "snapshot-complete": 82249.60000002384,
+            "strict-ready": 82250.30000001192
+          },
+          "phases": [
+            {
+              "lane": "hydration",
+              "phase": "metadata",
+              "total": null,
+              "processed": 0,
+              "startedMs": 28.30000001192093,
+              "endedMs": 70.60000002384186,
+              "counters": {
+                "inventoryFiles": 20016,
+                "inventoryFolders": 207
+              },
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "hydration",
+              "phase": "preview",
+              "total": null,
+              "processed": 0,
+              "startedMs": 70.60000002384186,
+              "endedMs": 434,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "hydration",
+              "phase": "preview-search",
+              "total": null,
+              "processed": 0,
+              "startedMs": 434,
+              "endedMs": 468.60000002384186,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "source",
+              "phase": "source-inventory",
+              "total": null,
+              "processed": 0,
+              "startedMs": 436.60000002384186,
+              "endedMs": 439.30000001192093,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "source",
+              "phase": "source-coordinates",
+              "total": 20015,
+              "processed": 20015,
+              "startedMs": 439.30000001192093,
+              "endedMs": 452.10000002384186,
+              "counters": {},
+              "uniqueOwners": 20015
+            },
+            {
+              "lane": "source",
+              "phase": "dependency-upgrade-validation",
+              "total": 20015,
+              "processed": 20015,
+              "startedMs": 452.10000002384186,
+              "endedMs": 10359.5,
+              "counters": {},
+              "uniqueOwners": 20015
+            },
+            {
+              "lane": "hydration",
+              "phase": "source-authority",
+              "total": null,
+              "processed": 0,
+              "startedMs": 468.60000002384186,
+              "endedMs": 75443.19999998808,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "source",
+              "phase": "host-metadata-comparison",
+              "total": 20015,
+              "processed": 20015,
+              "startedMs": 10359.5,
+              "endedMs": 61631.90000003576,
+              "counters": {
+                "physicalRevisionComparisons": 20015
+              },
+              "uniqueOwners": 20015
+            },
+            {
+              "lane": "source",
+              "phase": "host-retired-owner-check",
+              "total": null,
+              "processed": 0,
+              "startedMs": 61631.90000003576,
+              "endedMs": 62198.69999998808,
+              "counters": {
+                "headPageOwners": 20036
+              },
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "source",
+              "phase": "source-reconciliation",
+              "total": 20015,
+              "processed": 20015,
+              "startedMs": 62198.69999998808,
+              "endedMs": 75051.10000002384,
+              "counters": {
+                "physicalRevisionComparisons": 20015
+              },
+              "uniqueOwners": 20015
+            },
+            {
+              "lane": "source",
+              "phase": "source-retired-owner-check",
+              "total": null,
+              "processed": 0,
+              "startedMs": 75051.10000002384,
+              "endedMs": 75435.19999998808,
+              "counters": {
+                "headPageOwners": 20036
+              },
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "source",
+              "phase": "dependency-completion",
+              "total": null,
+              "processed": 0,
+              "startedMs": 75435.19999998808,
+              "endedMs": 75437.10000002384,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "source",
+              "phase": "resolution-reconciliation",
+              "total": 20015,
+              "processed": 20015,
+              "startedMs": 75437.10000002384,
+              "endedMs": 75441.10000002384,
+              "counters": {},
+              "uniqueOwners": 20015
+            },
+            {
+              "lane": "source",
+              "phase": "dependency-final-validation",
+              "total": null,
+              "processed": 0,
+              "startedMs": 75441.10000002384,
+              "endedMs": 75442,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "source",
+              "phase": "complete",
+              "total": null,
+              "processed": 0,
+              "startedMs": 75442,
+              "endedMs": 82250.30000001192,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "hydration",
+              "phase": "requested-semantics",
+              "total": null,
+              "processed": 0,
+              "startedMs": 75443.19999998808,
+              "endedMs": 75484.90000003576,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "hydration",
+              "phase": "pages",
+              "total": null,
+              "processed": 20709,
+              "startedMs": 75484.90000003576,
+              "endedMs": 76698.10000002384,
+              "counters": {
+                "physicalRevisionComparisons": 20015
+              },
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "hydration",
+              "phase": "relations",
+              "total": null,
+              "processed": 20709,
+              "startedMs": 76698.10000002384,
+              "endedMs": 78257.90000003576,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "hydration",
+              "phase": "preview-search",
+              "total": null,
+              "processed": 0,
+              "startedMs": 78257.90000003576,
+              "endedMs": 78868.10000002384,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "hydration",
+              "phase": "evidence",
+              "total": null,
+              "processed": 715032,
+              "startedMs": 78868.10000002384,
+              "endedMs": 82248.80000001192,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "hydration",
+              "phase": "promote",
+              "total": null,
+              "processed": 0,
+              "startedMs": 82248.80000001192,
+              "endedMs": 82249.5,
+              "counters": {},
+              "uniqueOwners": 0
+            },
+            {
+              "lane": "hydration",
+              "phase": "complete",
+              "total": null,
+              "processed": 0,
+              "startedMs": 82249.5,
+              "endedMs": 82250.30000001192,
+              "counters": {},
+              "uniqueOwners": 0
+            }
+          ],
+          "overlaps": [
+            {
+              "first": "source-coordinates",
+              "second": "dependency-upgrade-validation",
+              "owners": 20015
+            },
+            {
+              "first": "source-coordinates",
+              "second": "host-metadata-comparison",
+              "owners": 20015
+            },
+            {
+              "first": "source-coordinates",
+              "second": "source-reconciliation",
+              "owners": 20015
+            },
+            {
+              "first": "source-coordinates",
+              "second": "resolution-reconciliation",
+              "owners": 20015
+            },
+            {
+              "first": "dependency-upgrade-validation",
+              "second": "host-metadata-comparison",
+              "owners": 20015
+            },
+            {
+              "first": "dependency-upgrade-validation",
+              "second": "source-reconciliation",
+              "owners": 20015
+            },
+            {
+              "first": "dependency-upgrade-validation",
+              "second": "resolution-reconciliation",
+              "owners": 20015
+            },
+            {
+              "first": "host-metadata-comparison",
+              "second": "source-reconciliation",
+              "owners": 20015
+            },
+            {
+              "first": "host-metadata-comparison",
+              "second": "resolution-reconciliation",
+              "owners": 20015
+            },
+            {
+              "first": "source-reconciliation",
+              "second": "resolution-reconciliation",
+              "owners": 20015
+            }
+          ]
+        },
+        "semantic": {
+          "policyRevision": 1,
+          "requested": 2,
+          "prepared": 1,
+          "published": 1,
+          "cancelled": 0,
+          "pending": 1,
+          "dependencyVisits": 12,
+          "fullBuilds": 0,
+          "lastReason": null
+        },
+        "hydration": {
+          "run": 1,
+          "phase": "complete",
+          "lastActivePhase": "promote",
+          "startedAt": 1791089302168,
+          "phaseStartedAt": 1791089384388,
+          "lastProgressAt": 1791089384387,
+          "pages": 20709,
+          "relations": 20709,
+          "evidence": 715032,
+          "outcome": "complete"
+        },
+        "demands": [
+          [
+            "Welcome.md",
+            1
+          ]
+        ],
+        "hidden": false,
+        "documentFocused": false,
+        "windowFocused": false
+      }
+    },
+    "failedRepresentativeSetup": {
+      "status": "failed",
+      "startedAt": "2026-10-04T04:40:40.049Z",
+      "checkpoint": "62c728393440aa3dfb57869ece83c4060092bcba",
+      "dirty": true,
+      "artifacts": {
+        "main.js": "8e5203b7cf88ba3506ea0d5d434ef507b13e95d0bc10176ed60803b065838e48",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "e9da76ff7840cea44b77912963977f1fe2ab762b69a9853d047712d7b3270494"
+      },
+      "error": "Error: Error: Representative preflight timeout",
+      "failedCommand": "eval",
+      "cleanup": {
+        "controllerRemoved": true,
+        "optInAbsent": true,
+        "backgroundThrottling": true
+      },
+      "configurationRestored": true,
+      "completedAt": "2026-10-04T04:44:40.641Z",
+      "rawReportPath": "/private/tmp/kplex-si5-warm-start-2026-10-04/report.json",
+      "runs": [],
+      "failure": {
+        "status": {
+          "upToDate": false,
+          "phase": "updating",
+          "indexedFiles": 20015,
+          "totalFiles": 20015,
+          "label": "Status: updating index"
+        },
+        "diagnostics": {
+          "startedAtMs": 2840225.5,
+          "enabled": false,
+          "frozen": false,
+          "milestones": {},
+          "phases": [],
+          "overlaps": []
+        }
+      }
+    }
+  },
+  "retainedAfterCliExit": {
+    "startedAtMs": 4559169.799999952,
+    "enabled": true,
+    "frozen": true,
+    "milestones": {
+      "onload": 0,
+      "settings-loaded": 12.700000047683716,
+      "layout-ready": 26.900000035762787,
+      "host-inventory-start": 47.80000001192093,
+      "host-inventory-end": 78.10000002384186,
+      "preview-available": 644.6000000238419,
+      "source-authority": 70871.30000001192,
+      "source-authority-await-ended": 70872.20000004768,
+      "first-requested-scope-authoritative": 70916.20000004768,
+      "requested-semantics-refresh-ended": 70916.90000003576,
+      "snapshot-complete": 77368.60000002384,
+      "strict-ready": 77369.20000004768
+    },
+    "phases": [
+      {
+        "lane": "hydration",
+        "phase": "metadata",
+        "total": null,
+        "processed": 0,
+        "startedMs": 29,
+        "endedMs": 78.30000001192093,
+        "counters": {
+          "markdownInventoryCalls": 1,
+          "idb.meta.get": 3,
+          "idb.sourceHeads.getAll": 1,
+          "idb.sourceHeads.getAllKeys": 1,
+          "inventoryFiles": 20016,
+          "inventoryFolders": 207
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "hydration",
+        "phase": "preview",
+        "total": null,
+        "processed": 0,
+        "startedMs": 78.30000001192093,
+        "endedMs": 462.60000002384186,
+        "counters": {
+          "idb.pages.get": 251,
+          "idb.meta.put": 1
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "source",
+        "phase": "source-inventory",
+        "total": null,
+        "processed": 0,
+        "startedMs": 403.5,
+        "endedMs": 406.5,
+        "counters": {
+          "markdownInventoryCalls": 1
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "source",
+        "phase": "source-coordinates",
+        "total": 20015,
+        "processed": 20015,
+        "startedMs": 406.5,
+        "endedMs": 411.2000000476837,
+        "counters": {},
+        "uniqueOwners": 20015
+      },
+      {
+        "lane": "source",
+        "phase": "dependency-upgrade-validation",
+        "total": 20015,
+        "processed": 20015,
+        "startedMs": 411.2000000476837,
+        "endedMs": 12146.200000047684,
+        "counters": {
+          "sourceInspectionCalls": 40030,
+          "idb.sourceHeads.get": 40030,
+          "metadataCacheLookups": 560,
+          "idb.bodies.get": 12,
+          "dependencyChecks": 20015,
+          "idb.meta.get": 40030,
+          "idb.sourceLocalDependencyOwners.get": 40030,
+          "idb.sourceLocalDependencyRepairs.get": 40030,
+          "markdownInventoryCalls": 2
+        },
+        "uniqueOwners": 20015
+      },
+      {
+        "lane": "hydration",
+        "phase": "preview-search",
+        "total": null,
+        "processed": 0,
+        "startedMs": 462.60000002384186,
+        "endedMs": 644.6000000238419,
+        "counters": {},
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "hydration",
+        "phase": "source-authority",
+        "total": null,
+        "processed": 0,
+        "startedMs": 644.6000000238419,
+        "endedMs": 70872,
+        "counters": {
+          "metadataCacheLookups": 1,
+          "idb.meta.get": 1
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "source",
+        "phase": "host-metadata-comparison",
+        "total": 20015,
+        "processed": 20015,
+        "startedMs": 12146.200000047684,
+        "endedMs": 58390.90000003576,
+        "counters": {
+          "metadataCacheLookups": 20015,
+          "sourceInspectionCalls": 20015,
+          "idb.sourceHeads.get": 40030,
+          "idb.meta.add": 40026,
+          "idb.sourceChunks.get": 20015,
+          "idb.sourcePostings.get": 484178,
+          "idb.meta.delete": 40026,
+          "physicalRevisionComparisons": 20015
+        },
+        "uniqueOwners": 20015
+      },
+      {
+        "lane": "source",
+        "phase": "host-retired-owner-check",
+        "total": null,
+        "processed": 0,
+        "startedMs": 58390.90000003576,
+        "endedMs": 58839.200000047684,
+        "counters": {
+          "sourceHeadPageCalls": 80,
+          "idb.sourceHeads.getAll": 80,
+          "idb.sourceHeads.getAllKeys": 80,
+          "headPageOwners": 20036
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "source",
+        "phase": "source-reconciliation",
+        "total": 20015,
+        "processed": 20015,
+        "startedMs": 58839.200000047684,
+        "endedMs": 70549,
+        "counters": {
+          "metadataCacheLookups": 20015,
+          "sourceInspectionCalls": 40030,
+          "idb.sourceHeads.get": 40030,
+          "physicalRevisionComparisons": 20015,
+          "dependencyChecks": 20015,
+          "idb.meta.get": 40030,
+          "idb.sourceLocalDependencyOwners.get": 40030,
+          "idb.sourceLocalDependencyRepairs.get": 40030
+        },
+        "uniqueOwners": 20015
+      },
+      {
+        "lane": "source",
+        "phase": "source-retired-owner-check",
+        "total": null,
+        "processed": 0,
+        "startedMs": 70549,
+        "endedMs": 70865.20000004768,
+        "counters": {
+          "sourceHeadPageCalls": 80,
+          "idb.sourceHeads.getAll": 80,
+          "idb.sourceHeads.getAllKeys": 80,
+          "headPageOwners": 20036
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "source",
+        "phase": "dependency-completion",
+        "total": null,
+        "processed": 0,
+        "startedMs": 70865.20000004768,
+        "endedMs": 70866.5,
+        "counters": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "source",
+        "phase": "resolution-reconciliation",
+        "total": 20015,
+        "processed": 20015,
+        "startedMs": 70866.5,
+        "endedMs": 70870,
+        "counters": {},
+        "uniqueOwners": 20015
+      },
+      {
+        "lane": "source",
+        "phase": "dependency-final-validation",
+        "total": null,
+        "processed": 0,
+        "startedMs": 70870,
+        "endedMs": 70871.30000001192,
+        "counters": {
+          "dependencyInventoryChecks": 1,
+          "idb.meta.get": 2,
+          "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+          "idb.sourceLocalDependencyRepairs.count": 1,
+          "idb.meta.put": 1
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "source",
+        "phase": "complete",
+        "total": null,
+        "processed": 0,
+        "startedMs": 70871.30000001192,
+        "endedMs": 77369.20000004768,
+        "counters": {},
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "hydration",
+        "phase": "requested-semantics",
+        "total": null,
+        "processed": 0,
+        "startedMs": 70872,
+        "endedMs": 70917.10000002384,
+        "counters": {
+          "idb.meta.get": 68,
+          "idb.sourceLocalDependencyKeys.get": 4,
+          "idb.sourceLocalDependencyOwners.get": 4,
+          "idb.sourceHeads.get": 36,
+          "metadataCacheLookups": 590,
+          "idb.meta.add": 6,
+          "idb.sourceChunks.get": 12,
+          "idb.sourcePostings.get": 21,
+          "idb.meta.delete": 6
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "hydration",
+        "phase": "pages",
+        "total": null,
+        "processed": 20709,
+        "startedMs": 70917.10000002384,
+        "endedMs": 72551.70000004768,
+        "counters": {
+          "idb.snapshotChunks.get": 118,
+          "metadataCacheLookups": 18,
+          "physicalRevisionComparisons": 20015
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "hydration",
+        "phase": "relations",
+        "total": null,
+        "processed": 20709,
+        "startedMs": 72551.70000004768,
+        "endedMs": 74143.40000003576,
+        "counters": {
+          "idb.snapshotChunks.get": 118
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "hydration",
+        "phase": "preview-search",
+        "total": null,
+        "processed": 0,
+        "startedMs": 74143.40000003576,
+        "endedMs": 74434.80000001192,
+        "counters": {
+          "metadataCacheLookups": 60046,
+          "idb.bodies.get": 13
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "hydration",
+        "phase": "evidence",
+        "total": null,
+        "processed": 715032,
+        "startedMs": 74434.80000001192,
+        "endedMs": 77368,
+        "counters": {
+          "idb.snapshotChunks.get": 699,
+          "metadataCacheLookups": 27
+        },
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "hydration",
+        "phase": "promote",
+        "total": null,
+        "processed": 0,
+        "startedMs": 77368,
+        "endedMs": 77368.60000002384,
+        "counters": {},
+        "uniqueOwners": 0
+      },
+      {
+        "lane": "hydration",
+        "phase": "complete",
+        "total": null,
+        "processed": 0,
+        "startedMs": 77368.60000002384,
+        "endedMs": 77369.20000004768,
+        "counters": {
+          "idb.meta.put": 1
+        },
+        "uniqueOwners": 0
+      }
+    ],
+    "overlaps": [
+      {
+        "first": "source-coordinates",
+        "second": "dependency-upgrade-validation",
+        "owners": 20015
+      },
+      {
+        "first": "source-coordinates",
+        "second": "host-metadata-comparison",
+        "owners": 20015
+      },
+      {
+        "first": "source-coordinates",
+        "second": "source-reconciliation",
+        "owners": 20015
+      },
+      {
+        "first": "source-coordinates",
+        "second": "resolution-reconciliation",
+        "owners": 20015
+      },
+      {
+        "first": "dependency-upgrade-validation",
+        "second": "host-metadata-comparison",
+        "owners": 20015
+      },
+      {
+        "first": "dependency-upgrade-validation",
+        "second": "source-reconciliation",
+        "owners": 20015
+      },
+      {
+        "first": "dependency-upgrade-validation",
+        "second": "resolution-reconciliation",
+        "owners": 20015
+      },
+      {
+        "first": "host-metadata-comparison",
+        "second": "source-reconciliation",
+        "owners": 20015
+      },
+      {
+        "first": "host-metadata-comparison",
+        "second": "resolution-reconciliation",
+        "owners": 20015
+      },
+      {
+        "first": "source-reconciliation",
+        "second": "resolution-reconciliation",
+        "owners": 20015
+      }
+    ],
+    "progress": {
+      "source": {
+        "phase": "complete",
+        "processed": 0,
+        "total": null
+      },
+      "hydration": {
+        "phase": "complete",
+        "processed": 0,
+        "total": null
+      }
+    },
+    "status": {
+      "upToDate": false,
+      "phase": "updating",
+      "indexedFiles": 20015,
+      "totalFiles": 20015
+    },
+    "hydration": {
+      "run": 1,
+      "phase": "complete",
+      "lastActivePhase": "promote",
+      "startedAt": 1791090546327,
+      "phaseStartedAt": 1791090623666,
+      "lastProgressAt": 1791090623665,
+      "pages": 20709,
+      "relations": 20709,
+      "evidence": 715032,
+      "outcome": "complete"
+    },
+    "source": {
+      "checked": 0,
+      "reusedBodies": 0,
+      "legacyBodies": 0,
+      "vaultReads": 0,
+      "parses": 0,
+      "repaired": 0,
+      "resolutionRefreshes": 0,
+      "pendingMetadata": 0,
+      "failures": 0
+    },
+    "semantic": {
+      "policyRevision": 1,
+      "requested": 2,
+      "prepared": 1,
+      "published": 1,
+      "cancelled": 0,
+      "pending": 1,
+      "dependencyVisits": 12,
+      "fullBuilds": 0,
+      "lastReason": null
+    }
+  },
+  "setupNotes": [
+    "Final pilot preflight required one existing notifyNavigation(\"Welcome.md\") after its page was available, outside timed startup. Driver now waits for page availability before notification.",
+    "No actual CLI disconnect occurred in final pilot; reconnect behavior is implemented, not demonstrated by fault injection.",
+    "Restoring original center can leave current live strict-ready false on excluded dense hub while completed trace remains frozen."
+  ]
+}

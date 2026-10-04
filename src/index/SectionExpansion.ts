@@ -176,6 +176,7 @@ function resolveNeighbourhood(
   index: GraphIndex,
   center: GraphPage,
   evidenceByTarget: Map<string, { target: GraphPage; evidence: RelationEvidence[] }>,
+  inferAllLinksAsFriends = plugin.settings.inferAllLinksAsFriends,
 ): Neighborhood {
   const buckets: Record<Exclude<Role, "sibling">, Neighbour[]> = { parent: [], child: [], left: [], right: [], previous: [], next: [] };
   const max = plugin.settings.maxItemCount;
@@ -185,7 +186,7 @@ function resolveNeighbourhood(
     if (relation.isHidden || !index.isVisiblePage(target)) continue;
     center.neighbours.set(target.path, relation);
     for (const role of ["parent", "child", "left", "right", "previous", "next"] as const) {
-      const relationType = classifyRelation(relation, role, plugin.settings.inferAllLinksAsFriends);
+      const relationType = classifyRelation(relation, role, inferAllLinksAsFriends);
       if (!relationType || (relationType === RelationType.INFERRED && !plugin.settings.showInferredNodes)) continue;
       buckets[role].push({ page: target, relationType, typeDefinition: roleDefinition(relation, role), linkDirection: relation.direction, role });
     }
@@ -401,6 +402,41 @@ export async function buildCentralSectionExpansion(
   };
 }
 
+/** Rebind current persistent evidence to cached heading ranges without rereading the Markdown body. */
+function currentSectionEvidence(index: GraphIndex, source: SectionProjectionSource): Readonly<{
+  center: EvidenceTargetMap; sections: ReadonlyMap<string, EvidenceTargetMap>;
+}> {
+  const center = new Map<string, { target: GraphPage; evidence: RelationEvidence[] }>();
+  const sections = new Map<string, EvidenceTargetMap>(source.sections.map((section) => [section.id, new Map()]));
+  const ordered = source.sections
+    .map((section) => ({ section, line: section.page.transient?.line ?? Number.MAX_SAFE_INTEGER }))
+    .sort((a, b) => a.line - b.line);
+  const sectionAt = (line: number): SectionProjectionSource["sections"][number] | null => {
+    let found: SectionProjectionSource["sections"][number] | null = null;
+    for (const candidate of ordered) {
+      if (candidate.line > line) break;
+      found = candidate.section;
+    }
+    return found;
+  };
+
+  for (const entry of index.evidenceFrom(source.centerPage.path)) {
+    const actual = index.get(entry.targetPath);
+    if (!actual) continue;
+    for (const item of entry.evidence) {
+      const bodyOwned = item.declaredByPath === source.centerPage.path
+        && (item.sourceKind === "inline-ontology" || item.sourceKind === "body-url"
+          || item.sourceKind === "obsidian-link" || item.sourceKind === "unresolved-link");
+      const section = bodyOwned && typeof item.line === "number" ? sectionAt(item.line) : null;
+      if (!section) { addEvidence(center, actual, item); continue; }
+      const target = sectionTarget(actual, section.id);
+      const projected: RelationEvidence = { ...item, sourcePath: section.page.path, targetPath: target.path };
+      addEvidence(sections.get(section.id)!, target, projected);
+    }
+  }
+  return { center, sections };
+}
+
 /** Recompute only the visible section projection from cached evidence. No Markdown is read or parsed. */
 export function projectCentralSectionExpansion(
   plugin: KplexPlugin,
@@ -408,25 +444,29 @@ export function projectCentralSectionExpansion(
   expansion: CentralSectionExpansion,
 ): CentralSectionExpansion {
   const source = expansion.projectionSource;
-  const center = clonePage(source.centerPage);
-  const centerNeighborhood = resolveNeighbourhood(plugin, index, center, source.centerEvidence);
+  const currentEvidence = currentSectionEvidence(index, source);
+  const currentCenter = index.get(source.centerPage.path) ?? source.centerPage;
+  const inferAllLinksAsFriends = index.publishedInferAllLinksAsFriends(source.centerPage.path);
+  const center = clonePage(currentCenter);
+  const centerNeighborhood = resolveNeighbourhood(plugin, index, center, currentEvidence.center, inferAllLinksAsFriends);
   // Siblings are structurally derived from the center's *currently visible* parents. Recompute
   // them from the persistent graph on every presentation projection so showing/hiding folder/tag
   // parents (or toggling sibling rendering) can both add and remove eligible siblings without
   // rereading Markdown or rebuilding section evidence.
   centerNeighborhood.siblings = index.getNeighborhood(source.centerPage.path)?.siblings ?? [];
   const explanations = new Map<string, RelationshipExplanation>();
-  for (const { target, evidence: items } of source.centerEvidence.values()) {
+  for (const { target, evidence: items } of currentEvidence.center.values()) {
     if (!center.neighbours.has(target.path)) continue;
-    explanations.set(`${center.path}\u0000${target.path}`, explainResolvedRelationship(center, target, items, plugin.settings.inferAllLinksAsFriends));
+    explanations.set(`${center.path}\u0000${target.path}`, explainResolvedRelationship(center, target, items, inferAllLinksAsFriends));
   }
 
   const sections: ExpandedSection[] = source.sections.map((raw) => {
     const page = clonePage(raw.page, raw.page.path);
-    const neighborhood = resolveNeighbourhood(plugin, index, page, raw.evidenceByTarget);
-    for (const { target, evidence: items } of raw.evidenceByTarget.values()) {
+    const evidenceByTarget = currentEvidence.sections.get(raw.id) ?? new Map<string, { target: GraphPage; evidence: RelationEvidence[] }>();
+    const neighborhood = resolveNeighbourhood(plugin, index, page, evidenceByTarget, inferAllLinksAsFriends);
+    for (const { target, evidence: items } of evidenceByTarget.values()) {
       if (!page.neighbours.has(target.path)) continue;
-      explanations.set(`${page.path}\u0000${target.path}`, explainResolvedRelationship(page, target, items, plugin.settings.inferAllLinksAsFriends));
+      explanations.set(`${page.path}\u0000${target.path}`, explainResolvedRelationship(page, target, items, inferAllLinksAsFriends));
     }
     return {
       id: raw.id, page, neighborhood, level: raw.level, parentId: raw.parentId, childIds: [...raw.childIds],

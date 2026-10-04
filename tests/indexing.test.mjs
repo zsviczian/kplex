@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { legacyGraphCheckpointWriter } from "./support/legacyGraphCheckpointWriter.mjs";
 import { createRequire } from "node:module";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runSettingsIndependence } from "./support/settingsIndependence.mjs";
 import { canonicalGraph, canonicalNeighborhood, canonicalPair, canonicalScene } from "./support/canonicalGraph.mjs";
 
 const require = createRequire(import.meta.url);
@@ -296,9 +298,9 @@ assert(!placeholderPathSource.includes("getNewFileParent"), "A placeholder must 
 
 globalThis.window = globalThis;
 
-function compile(relativePath) {
+function compile(relativePath, targetPath = relativePath) {
   const sourcePath = join(root, relativePath);
-  const outputPath = join(temp, relativePath.replace(/\.ts$/, ".js"));
+  const outputPath = join(temp, targetPath.replace(/\.ts$/, ".js"));
   mkdirSync(dirname(outputPath), { recursive: true });
   const source = readFileSync(sourcePath, "utf8");
   const result = ts.transpileModule(source, {
@@ -334,16 +336,24 @@ for (const file of [
   "src/core/contracts/fieldName.ts",
   "src/core/graph/model.ts",
   "src/core/parser/metadata.ts",
+  "src/core/parser/referenceValues.ts",
   "src/core/graph/relations.ts",
   "src/core/graph/evidence.ts",
   "src/core/graph/resolver.ts",
   "src/core/graph/source.ts",
+  "src/core/graph/sourcePolicy.ts",
   "src/core/graph/settings.ts",
+  "src/core/graph/settingsPolicy.ts",
+  "src/core/graph/presentation.ts",
+  "src/index/GraphPresentation.ts",
+  "src/index/LegacySnapshotPolicy.ts",
   "src/core/graph/compiler.ts",
   "src/core/graph/patch.ts",
+  "src/core/graph/scoped.ts",
   "src/core/plex/predicate.ts",
   "src/core/plex/predicateParser.ts",
   "src/core/plex/lens.ts",
+  "src/adapters/obsidian/startupDiagnostics.ts",
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/adjacentFileLeaf.ts",
   "src/adapters/obsidian/excalidrawIntegrationVersion.ts",
@@ -364,7 +374,24 @@ for (const file of [
   "src/index/GraphState.ts",
   "src/index/IndexSnapshot.ts",
   "src/index/IndexedDbCache.ts",
+  "src/index/SourceFacts.ts",
+  "src/index/SourceLocalDependencies.ts",
+  "src/index/SourceRepository.ts",
+  "src/index/SourceReplay.ts",
+  "src/index/SourceContributorDiscovery.ts",
+  "src/index/SourceContributorSummary.ts",
+  "src/index/SourceContributorJournal.ts",
+  "src/index/SourceContributorLease.ts",
+  "src/index/CachedSourceSemantics.ts",
+  "src/index/CachedCenterGateProjection.ts",
+  "src/index/CachedRequestedPair.ts",
+  "src/index/CachedRequestedNeighborhood.ts",
+  "src/index/CachedRequestedCandidateDegrees.ts",
+  "src/index/CachedRequestedUrlTitle.ts",
+  "src/adapters/obsidian/sourceLocalContributorDiscovery.ts",
+  "src/adapters/obsidian/sourceAcquisition.ts",
   "src/index/GraphBuilder.ts",
+  "src/index/SourceFingerprint.ts",
   "src/index/GraphIndex.ts",
   "src/index/SectionExpansion.ts",
   "src/index/style.ts",
@@ -374,7 +401,10 @@ for (const file of [
   "src/lens/GraphLensSimple.ts",
   "src/lens/SimplePlexFilter.ts",
   "src/ui/layout.ts",
+  "src/ui/components/collectionWindow.ts",
 ]) compile(file);
+
+compile("src/settings.ts", "src/settingsUnderTest.ts");
 
 const obsidianModuleDir = join(temp, "node_modules/obsidian");
 mkdirSync(obsidianModuleDir, { recursive: true });
@@ -449,11 +479,17 @@ class FileView { constructor() { this.containerEl = null; } }
 class MarkdownView extends FileView {}
 class Menu {}
 class Notice { constructor() {} }
+class Modal { constructor(app) { this.app = app; } open() { Modal.latest = this; } }
+class App {}
+class AbstractInputSuggest {}
+class PluginSettingTab { constructor(app) { this.app = app; this.containerEl = { addClass() {} }; } update() {} }
+function getIcon() { return null; }
+function getIconIds() { return []; }
 function normalizePath(path) { return path; }
 function setIcon() {}
 module.exports = {
   TAbstractFile, TFile, TFolder, getAllTags, moment, Platform, apiVersion: "1.14.2", Plugin, FileView, MarkdownView,
-  Menu, Notice, normalizePath, setIcon,
+  Menu, Notice, normalizePath, setIcon, Modal, App, AbstractInputSuggest, PluginSettingTab, getIcon, getIconIds,
 };
 `);
 
@@ -594,7 +630,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     getSavedSnapshotSummary: () => saved,
     size: 42,
     indexedMarkdownFileCount: () => 8,
-    isFullSnapshotHydrated: () => false,
+    isFullSnapshotHydrated: () => false, hasPhysicalBaseline: () => false, hasSourceBackedStartup: () => false,
     getSnapshotHydrationDiagnostics: () => ({ phase: "pages", pages: 12, evidence: 0 }),
     getIndexDiagnostics: () => [{ at: 123, stage: "restore", reason: "complete-snapshot-stale", added: 1 }],
   }, () => ({ upToDate: false, phase: "loading-cache", label: "not shared", indexedFiles: 8, totalFiles: 10 }), "0.0.5"));
@@ -609,7 +645,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
   obsidianTestApi.Platform.isTablet = true;
   const iosReport = JSON.parse(createIndexDiagnosticsReport({
     getSavedSnapshotSummary: () => saved, size: 42, indexedMarkdownFileCount: () => 8,
-    isFullSnapshotHydrated: () => false, getSnapshotHydrationDiagnostics: () => ({}),
+    isFullSnapshotHydrated: () => false, hasPhysicalBaseline: () => false, hasSourceBackedStartup: () => false, getSnapshotHydrationDiagnostics: () => ({}),
     getIndexDiagnostics: () => [],
   }, () => ({ upToDate: false, phase: "indexing", indexedFiles: 8, totalFiles: 10 }), "0.0.5"));
   assert.equal(iosReport.platform, "ios");
@@ -625,7 +661,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     cachedMarkdownFileCount: null,
     computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: false, indexDirty: true, rebuildTask: null, rebuildTimer: null,
-    index: { hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 8 },
+    index: { hasPendingSnapshotHydration: () => true, hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(status, { upToDate: false, phase: "loading-cache", indexedFiles: 8, totalFiles: null });
@@ -633,7 +669,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     cachedMarkdownFileCount: null,
     computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
-    index: { hasPendingSnapshotHydration: () => false, indexedMarkdownFileCount: () => 8 },
+    index: { hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(readyStatus, { upToDate: true, phase: "ready", indexedFiles: 8, totalFiles: null });
@@ -673,13 +709,14 @@ const indexingStatusContext = {
   index: {
     size: 3,
     hasPendingSnapshotHydration: () => false,
+    hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
     isCheckpointSaving: () => false,
     hasIncrementalRestorePatch: () => false,
     indexedMarkdownFileCount: () => 3,
   },
   translator: (key, params) => {
     if (key === "index.statusReady") return "Status: index ready";
-    if (key === "index.statusLoadingCache") return "Status: loading index from cache";
+    if (key === "index.statusLoadingCache") return "Status: restoring saved graph";
     if (key === "index.statusPreparing") return "Status: preparing index";
     if (key === "index.statusCheckingCache") return "Status: checking cached index for changes";
     if (key === "index.statusIndexingProgress") return `Status: indexing ${params.indexed} of ${params.total} files`;
@@ -687,6 +724,45 @@ const indexingStatusContext = {
     return "Status: updating index";
   },
 };
+// Startup labels describe the real pass; record loading has no invented percentage.
+{
+  const { StartupDiagnostics } = require(join(temp, "src/adapters/obsidian/startupDiagnostics.js"));
+  const diagnostics = new StartupDiagnostics();
+  diagnostics.phase("source", "source-reconciliation", 4);
+  diagnostics.processed("source");
+  const context = { ...indexingStatusContext, cachedMarkdownFileCount: 5, startupDiagnostics: diagnostics,
+    index: { ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true,
+      getSnapshotHydrationDiagnostics: () => ({ phase: "source-authority" }) },
+    translator: (key, params) => key === "index.startupChecking" ? "Verifying cached notes"
+      : key === "index.startupRechecking" ? "Processing pending changes"
+      : key === "index.startupHostComparison" ? "Validating note metadata"
+      : key === "index.startupNotesProgress" ? `${params.activity} — ${params.processed} / ${params.total} notes (${params.percent}%)`
+      : key === "index.startupEvidence" ? "Loading relationship evidence"
+      : key === "index.startupRecordsProgress" ? `${params.activity} — ${params.processed} records loaded` : key,
+  };
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Verifying cached notes — 1 / 4 notes (25%)");
+  diagnostics.processed("source");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Verifying cached notes — 2 / 4 notes (50%)");
+  diagnostics.phase("source", "host-metadata-comparison", 4);
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Validating note metadata — 0 / 4 notes (0%)");
+  diagnostics.phase("source", "source-reconciliation", 5);
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Processing pending changes — 0 / 5 notes (0%)");
+  diagnostics.processed("source");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Processing pending changes — 1 / 5 notes (20%)");
+  diagnostics.phase("hydration", "evidence");diagnostics.processed("hydration");
+  context.index.getSnapshotHydrationDiagnostics = () => ({ phase: "evidence" });
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Loading relationship evidence — 1 records loaded");
+  context.computeIndexStatusFacts = KplexPlugin.prototype.computeIndexStatusFacts;
+  context.index.getSourceAcquisitionCounters = () => ({ vaultReads: 0, parses: 0 });
+  context.index.getSemanticPreparationDiagnostics = () => ({ fullBuilds: 0 });
+  const beforeEnumeration = indexingStatusContext.markdownFileCountReads;
+  const report = KplexPlugin.prototype.getStartupDiagnostics.call(context);
+  assert.equal(report.progress.hydration.phase, "evidence");
+  assert.equal(report.progress.hydration.processed, 1);
+  assert.equal(report.source.vaultReads, 0);
+  assert.equal(indexingStatusContext.markdownFileCountReads, beforeEnumeration, "Reading startup diagnostics must not enumerate notes");
+
+}
 assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
   upToDate: false,
   phase: "indexing",
@@ -697,6 +773,71 @@ assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "First status read must capture the Markdown total once");
 KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext);
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publications must reuse the cached Markdown total");
+
+// Once the denominator is known, ordinary Markdown membership events must maintain it exactly in
+// O(1), including the status notification itself. Only a genuinely unknown initial count may enumerate.
+{
+  const statusMembershipCoordinator = new KplexPlugin();
+  const handlers = new Map();
+  let markdownEnumerations = 0;
+  statusMembershipCoordinator.app = {
+    vault: {
+      on: (name, callback) => { handlers.set(`vault:${name}`, callback); return {}; },
+      getMarkdownFiles: () => { markdownEnumerations += 1; return Array.from({ length: 999 }); },
+      getFileByPath: () => null,
+    },
+    metadataCache: { on: (name, callback) => { handlers.set(`metadata:${name}`, callback); return {}; } },
+  };
+  statusMembershipCoordinator.index = {
+    size: 10,
+    hasPendingSnapshotHydration: () => false,
+    hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
+    isCheckpointSaving: () => false,
+    hasIncrementalRestorePatch: () => false,
+    indexedMarkdownFileCount: () => 10,
+    renameFile: () => true,
+    dematerializeFile: () => undefined,
+  };
+  statusMembershipCoordinator.translator = (key) => key;
+  statusMembershipCoordinator.settings = {
+    lastActivePath: "", sidecarLastFilePath: "", navigationHistory: [], pinnedNodes: [],
+  };
+  statusMembershipCoordinator.initialIndexComplete = true;
+  statusMembershipCoordinator.indexDirty = false;
+  statusMembershipCoordinator.rebuildTask = null;
+  statusMembershipCoordinator.rebuildTimer = null;
+  statusMembershipCoordinator.hasVisibleKplexSurface = () => false;
+  statusMembershipCoordinator.scheduleRebuild = () => {};
+  statusMembershipCoordinator.saveSettings = async () => {};
+  statusMembershipCoordinator.settlePatchOnlyBacklogIfIdle = () => {};
+  statusMembershipCoordinator.registerReactiveIndexListeners();
+  statusMembershipCoordinator.cachedMarkdownFileCount = 10;
+
+  const createHandler = handlers.get("vault:create"), deleteHandler = handlers.get("vault:delete"), renameHandler = handlers.get("vault:rename");
+  assert(createHandler && deleteHandler && renameHandler, "Markdown membership handlers must be registered");
+  const countedCreate = new TFile("Counted.md", 1);
+  createHandler(countedCreate);
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 11, "Markdown create increments the known denominator exactly once");
+  assert.equal(markdownEnumerations, 0, "Create status publication must not enumerate Markdown when the count is known");
+
+  deleteHandler(countedCreate);
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 10, "Markdown delete decrements the known denominator exactly once");
+  statusMembershipCoordinator.countDeletedMarkdownFile(countedCreate);
+  deleteHandler(countedCreate);
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 10, "Overlapping parent/child delete notifications count the same physical file once");
+  KplexPlugin.prototype.getIndexStatus.call(statusMembershipCoordinator);
+  assert.equal(markdownEnumerations, 0, "Delete status reads must reuse the decremented denominator");
+
+  const renamedToMarkdown = new TFile("Counted-Renamed.md", 2);
+  renameHandler(renamedToMarkdown, "Counted-Renamed.txt");
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 11, "Non-Markdown to Markdown rename increments the known denominator");
+  assert.equal(markdownEnumerations, 0, "Rename-to-Markdown status publication must not enumerate Markdown");
+
+  const renamedFromMarkdown = new TFile("Counted-Renamed.txt", 3);
+  renameHandler(renamedFromMarkdown, "Counted-Renamed.md");
+  assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 10, "Markdown to non-Markdown rename decrements the known denominator");
+  assert.equal(markdownEnumerations, 0, "Rename-from-Markdown status publication must not enumerate Markdown");
+}
 assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
   index: { ...indexingStatusContext.index, isCheckpointSaving: () => true },
@@ -714,7 +855,7 @@ assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
 }), {
   upToDate: false,
   phase: "loading-cache",
-  label: "Status: loading index from cache",
+  label: "Status: restoring saved graph",
   indexedFiles: 0,
   totalFiles: 5,
 }, "Snapshot hydration must identify cache loading instead of presenting a misleading 0-of-total indexing status");
@@ -948,7 +1089,17 @@ for (const [sourcePath, content] of contents) {
   unresolvedLinks[sourcePath] = unresolved;
 }
 
+/** Event ownership matches the public host interface; no indexing behavior is substituted. */
+function fixtureEvents() {
+  const subscriptions = new Set();
+  return {
+    on(name, callback) { const ref = { name, callback }; subscriptions.add(ref); return ref; },
+    offref(ref) { subscriptions.delete(ref); },
+    trigger(name, ...args) { for (const ref of subscriptions) if (ref.name === name) ref.callback(...args); },
+  };
+}
 const metadataCache = {
+  ...fixtureEvents(),
   resolvedLinks,
   unresolvedLinks,
   getFileCache(file) { return caches.get(file.path) ?? null; },
@@ -960,12 +1111,14 @@ const metadataCache = {
 
 const app = {
   vault: {
+    ...fixtureEvents(),
     getName() { return "K-Plex test vault"; },
     getRoot() { return rootFolder; },
     getMarkdownFiles() { return [...files.values()]; },
     getFiles() { return [...files.values()]; },
     cachedRead(file) { return Promise.resolve(contents.get(file.path) ?? ""); },
     getFileByPath(path) { return files.get(path) ?? null; },
+    getFolderByPath(path) { return folders.get(path) ?? null; },
     getAbstractFileByPath(path) { return files.get(path) ?? folders.get(path) ?? null; },
     getResourcePath(file) { return `app://local/${encodeURIComponent(file.path)}`; },
   },
@@ -1058,6 +1211,29 @@ const settings = {
 };
 
 const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnostic() {}, manifest: { dir: "" } };
+
+// A browser clock has a different origin from wall time. Search must yield and honor cancellation
+// after a timed slice instead of comparing performance.now() with an epoch-millisecond timestamp.
+{
+  const searchIndex = new GraphIndex(plugin, app);
+  const performanceDescriptor = Object.getOwnPropertyDescriptor(globalThis, "performance");
+  const originalTimeout = window.setTimeout;
+  let ticks = 0, yields = 0, current = true;
+  Object.defineProperty(globalThis, "performance", { configurable: true, value: { now: () => ticks += 20 } });
+  window.setTimeout = (callback) => { yields++; current = false; callback(); return 0; };
+  try {
+    const pages = new Map(Array.from({ length: 1024 }, (_, i) => [String(i), { path: String(i) }]));
+    searchIndex.makeSearchEntry = page => ({ page, name: page.path, aliases: [], path: page.path });
+    assert.equal(await searchIndex.prepareSearchIndex({ pages }, () => current), null);
+    assert.equal(yields, 1, "Search yields at its first elapsed monotonic slice and cancels privately");
+    assert.equal(searchIndex.searchEntries.length, 0, "Cancelled search publishes no prefix");
+  } finally {
+    Object.defineProperty(globalThis, "performance", performanceDescriptor);
+    window.setTimeout = originalTimeout;
+    searchIndex.destroy();
+  }
+}
+
 const index = new GraphIndex(plugin, app);
 
 // Restore has a temporary event fence before the normal reactive listeners are installed.
@@ -1074,9 +1250,10 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
     getRestoreInventorySourceRevision: () => inventoryRevision,
     hasPendingSnapshotHydration: () => false,
     size: 1,
-    isFullSnapshotHydrated: () => true,
+    isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,
     hasIncrementalRestorePatch: () => true,
     reconcileRestoredSnapshot: async () => ({ reconciled: true, patched: 0 }),
+    bootstrapSemanticDependencies: async () => true,
   };
   startup.app = app;
   startup.layoutReady = true;
@@ -1116,6 +1293,26 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   assert.deepEqual([...startup.indexBacklogReasons], ["metadata:changed"],
     "A covered structural event must not turn a later note edit into a full rebuild");
   assert.deepEqual([...startup.dirtyMarkdownPaths], ["Note A.md"]);
+}
+
+// Source progress is a startup authority independently of optional full-graph hydration.
+for (const adopted of [true, false]) {
+  const startup = new KplexPlugin();
+  let fullBuilds = 0;
+  startup.index = {
+    size: 1, hasPendingSnapshotHydration: () => false, hasPhysicalBaseline: () => true,
+    hasSourceBackedStartup: () => true, adoptStartupSources: async () => adopted,
+    isFullSnapshotHydrated: () => false,
+  };
+  startup.app = app; startup.layoutReady = true; startup.indexDirty = true;
+  startup.indexBacklogReasons.add("startup:no-snapshot");
+  startup.notifyIndexStatus = () => {};
+  startup.hasVisibleKplexSurface = () => false;
+  startup.performRebuild = async () => { fullBuilds++; };
+  await startup.ensureInitialIndex();
+  assert.equal(fullBuilds, 0, "Source-backed startup does not route missing graph cache to a full build");
+  assert.equal(startup.initialIndexComplete, adopted, "Unavailable/incomplete source adoption remains explicit");
+  assert.equal(startup.indexDirty, !adopted, "Only completed source adoption retires the startup backlog");
 }
 
 function expectRole(sourcePath, role, targetPath, type) {
@@ -1202,6 +1399,20 @@ try {
   await index.rebuild();
   assert.equal(index.indexedMarkdownFileCount(), app.vault.getMarkdownFiles().length, "Authoritative build must count every indexed Markdown source");
 
+  // Obsidian/cancelled continuations can retain an unloaded index. Its ownership must be empty
+  // while independently held published pages remain intact and usable by the current index.
+  const retiredIndex = new GraphIndex(plugin, app);
+  retiredIndex.state = index.state;
+  retiredIndex.searchEntries = [...index.searchEntries];
+  retiredIndex.fieldCache.set("retired", { mtime: 0, body: { inlineFields: {}, urls: [] } });
+  retiredIndex.nodeVisualCache.set("retired", { signature: "retired", visual: null });
+  const retainedPage = index.get("Note A.md");
+  retiredIndex.destroy();
+  assert.equal(retiredIndex.size, 0, "An unloaded index retains no full graph");
+  assert.equal(retiredIndex.searchEntries.length + retiredIndex.fieldCache.size + retiredIndex.nodeVisualCache.size, 0,
+    "Retiring host references retain no search/body/visual cache payload");
+  assert.equal(index.get("Note A.md"), retainedPage, "Teardown does not mutate independently owned pages");
+
   const A = index.get("Note A.md");
   assert(A);
   const neighborhoodA = index.getNeighborhood("Note A.md");
@@ -1232,6 +1443,16 @@ try {
       .map((page) => persistedPageFromGraphPage(page, index.semanticFingerprints.get(page.path))),
     evidence: [...index.state.evidence.declarations()].map(persistedDeclarationFromEvidence),
   };
+  await runSettingsIndependence({
+    GraphIndex, GraphBuilder, KplexPlugin, settingsModule: require(join(temp, "src/settingsUnderTest.js")),
+    policy: require(join(temp, "src/core/graph/settingsPolicy.js")),
+    sanitize: require(join(temp, "src/index/IndexedDbCache.js")).sanitizeIndexDiagnostics,
+    ReferenceCollector: require(join(temp, "src/adapters/obsidian/ontologySourceCollector.js")).ObsidianReferenceSourceCollector,
+    mergeFileMetadata: require(join(temp, "src/index/fieldParser.js")).mergeFileMetadata, parseBodyMetadata,
+    app, plugin, settings, index, warmRecord, caches, obsidianTestApi, canonicalGraph,
+    computeIndexSettingsSignature, computeVaultSignature, createIndexDiagnosticsReport,
+    buildCentralSectionExpansion, projectCentralSectionExpansion,
+  });
   const newPath = "Startup Delta.md";
   const newContent = "Parent:: [[Note A]]\n";
   const newFile = new TFile(newPath, mtime++);
@@ -1245,6 +1466,10 @@ try {
   unresolvedLinks[newPath] = {};
   const makeWarmDelta = () => {
     const warmDelta = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [] } }, app);
+    warmDelta.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+      const cached = index.fieldCache.get(path);
+      return cached?.mtime === mtime ? [[path, cached.body]] : [];
+    }));
     warmDelta.indexedDb.readSnapshotMeta = async (key = "active") => key === "active" ? warmRecord.meta : null;
     warmDelta.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: warmRecord.meta, checkpoint: null, invalidActive: false });
     warmDelta.indexedDb.snapshotUsesChunks = () => true;
@@ -1434,6 +1659,7 @@ try {
   let retryClock = originalRetryNow();
   let simulatedCommits = 0;
   const checkpointAttempts = [];
+  let retryWriter;
   const syntheticSources = Array.from({ length: 2000 }, (_, n) => new TFile(`Retry Synthetic ${n}.md`, n + 1));
   Date.now = () => retryClock;
   app.vault.getMarkdownFiles = () => [...originalRetryMarkdownFiles(), ...syntheticSources];
@@ -1442,18 +1668,25 @@ try {
     return checkpointAttempts.length > 1;
   };
   GraphBuilder.prototype.patchMarkdownFiles = async function (state, batchFiles, options) {
-    if (!options.afterFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
+    if (!options.publishFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
     for (let n = 0; n < 620; n++) {
       simulatedCommits++;
       retryClock += 300;
       options.publishFileCommit({ sourcePath: syntheticSources[n].path,
         touchedPagePaths: new Set(), semanticChanged: false }, () => {});
-      await options.afterFileCommit(syntheticSources[n].path);
+      retryWriter?.committed(syntheticSources[n].path);
+      await retryWriter?.afterFileCommit();
     }
     return { ok: true, cancelled: false, rebuildRequired: false,
       touchedPagePaths: new Set(), semanticChanges: 0, semanticNoops: 0 };
   };
   try {
+    checkpointRetryIndex.scheduleSnapshotPersist = () => {};
+    assert.equal(await checkpointRetryIndex.rebuildProgressively(["Note A.md"]), true);
+    assert.deepEqual(checkpointAttempts, [],
+      "Production cold builds persist source heads, never full-graph progress checkpoints");
+    simulatedCommits = 0;
+    retryWriter = legacyGraphCheckpointWriter(checkpointRetryIndex, app.vault.getMarkdownFiles(), new Set(), computeVaultSignature);
     assert.equal(await checkpointRetryIndex.rebuildProgressively(["Note A.md"]), true);
     assert.deepEqual(checkpointAttempts, [500, 550],
       "A failed two-minute checkpoint must retry after 15 seconds, not advance to the four-minute interval");
@@ -1488,16 +1721,19 @@ try {
     savedProgress.push({ commits: resumeCommits, completed: completed.size });
     return true;
   };
+  const resumeWriter = legacyGraphCheckpointWriter(resumedCheckpointIndex, [...originalRetryMarkdownFiles(), ...resumeSources],
+    new Set(resumedCheckpointIndex.resumableCheckpointPaths), computeVaultSignature, true);
   Date.now = () => resumeClock;
   app.vault.getMarkdownFiles = () => [...originalRetryMarkdownFiles(), ...resumeSources];
   GraphBuilder.prototype.patchMarkdownFiles = async function (state, batchFiles, options) {
-    if (!options.afterFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
+    if (!options.publishFileCommit) return originalRetryPatch.call(this, state, batchFiles, options);
     for (const file of batchFiles.slice(0, 3000)) {
       resumeCommits++;
       resumeClock += 50;
       options.publishFileCommit({ sourcePath: file.path,
         touchedPagePaths: new Set(), semanticChanged: false }, () => {});
-      await options.afterFileCommit(file.path);
+      resumeWriter.committed(file.path);
+      await resumeWriter.afterFileCommit();
     }
     return { ok: true, cancelled: false, rebuildRequired: false,
       touchedPagePaths: new Set(), semanticChanges: 0, semanticNoops: 0 };
@@ -1549,6 +1785,10 @@ try {
   const fallback = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
   const damagedActive = { ...checkpointRecord.meta, key: "active", generation: "damaged-complete-generation", vaultSignature: "stale" };
   const staleCheckpointMeta = { ...checkpointRecord.meta, vaultSignature: "stale" };
+  fallback.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+    const cached = index.fieldCache.get(path);
+    return cached?.mtime === mtime ? [[path, cached.body]] : [];
+  }));
   fallback.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: damagedActive,
     checkpoint: staleCheckpointMeta, invalidActive: false, invalidCheckpoint: false });
   fallback.indexedDb.snapshotUsesChunks = () => true;
@@ -1597,6 +1837,10 @@ try {
   }
 
   const resumed = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+  resumed.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+    const cached = index.fieldCache.get(path);
+    return cached?.mtime === mtime ? [[path, cached.body]] : [];
+  }));
   resumed.indexedDb.readSnapshotMeta = async (key = "active") => key === "checkpoint" ? checkpointRecord.meta : null;
   resumed.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: null, checkpoint: checkpointRecord.meta, invalidActive: false });
   resumed.indexedDb.snapshotUsesChunks = () => true;
@@ -1658,6 +1902,10 @@ try {
   changedCompletedFile.stat.mtime = mtime++;
   changedCompletedFile.stat.size = contents.get(changedCompletedPath).length;
   const staleCheckpoint = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+  staleCheckpoint.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+    const cached = index.fieldCache.get(path);
+    return cached?.mtime === mtime ? [[path, cached.body]] : [];
+  }));
   staleCheckpoint.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: null, checkpoint: checkpointRecord.meta, invalidActive: false });
   staleCheckpoint.indexedDb.readIndexDiagnostics = async () => [];
   staleCheckpoint.indexedDb.snapshotUsesChunks = () => true;
@@ -2315,6 +2563,10 @@ try {
   const controlledIndexes = [];
   const makeRestoreIndex = () => {
     const restored = new GraphIndex({ ...plugin, settings: { ...settings, pinnedNodes: [], maxItemCount: 100 } }, app);
+    restored.indexedDb.getBodies = async (requests) => new Map(requests.flatMap(({ path, mtime }) => {
+      const cached = index.fieldCache.get(path);
+      return cached?.mtime === mtime ? [[path, cached.body]] : [];
+    }));
     restored.indexedDb.readSnapshotMeta = async () => snapshotMeta;
     restored.indexedDb.readSnapshotCatalog = async () => ({ available: true, active: await restored.indexedDb.readSnapshotMeta(), checkpoint: null, invalidActive: false });
     restored.indexedDb.snapshotUsesChunks = () => true;
@@ -2391,17 +2643,30 @@ try {
     assert.deepEqual(replaced.getSnapshotHydrationDiagnostics(), replacementDiagnostics);
     assert.equal(watchdogTimers.size, 0);
 
-    for (const phase of ["metadata", "preview", "pages", "evidence", "preview-search"]) {
+    for (const phase of ["metadata", "preview", "pages", "evidence", "preview-search", "source-authority", "requested-semantics"]) {
       const stalled = makeRestoreIndex();
       let release;
       const blocked = new Promise((resolve) => { release = resolve; });
-      const method = { metadata: "readSnapshotMeta", preview: "getPages", pages: "iterateSnapshotPages", evidence: "iterateSnapshotEvidence", "preview-search": "prepareSearchIndex" }[phase];
-      const owner = phase === "preview-search" ? stalled : stalled.indexedDb;
+      if (phase === "source-authority" || phase === "requested-semantics") {
+        stalled.startPersistedSourceInventory = async () => true;
+        stalled.sourceAcquisition.flush = async () => true;
+        stalled.sourceAcquisition.hasSemanticDependencies = () => true;
+        stalled.refreshSemanticSettings = async () => {};
+      }
+      const method = { metadata: "readSnapshotMeta", preview: "getPages", pages: "iterateSnapshotPages", evidence: "iterateSnapshotEvidence",
+        "preview-search": "prepareSearchIndex", "source-authority": "flush", "requested-semantics": "refreshSemanticSettings" }[phase];
+      const owner = phase === "source-authority" ? stalled.sourceAcquisition
+        : phase === "preview-search" || phase === "requested-semantics" ? stalled : stalled.indexedDb;
       const original = owner[method];
       owner[method] = async (...args) => { await blocked; return original.apply(owner, args); };
       const start = stalled.restoreIndexedDbSnapshot(["Note A.md"]);
       await settle();
       assert.equal(stalled.getSnapshotHydrationDiagnostics().phase, phase);
+      if (phase === "source-authority") {
+        await advanceWatchdog(60000);
+        stalled.sourceAcquisition.inventoryProgress();
+        assert.equal(stalled.getSnapshotHydrationDiagnostics().lastProgressAt, Date.now(), "Completed source work advances the watchdog");
+      }
       await advanceWatchdog(89999);
       assert.equal(stalled.hasPendingSnapshotHydration(), true, "Watchdog must honor the inactivity window");
       await advanceWatchdog(1);
@@ -2462,7 +2727,7 @@ try {
     assert.equal(watchdogTimers.size, 0, "Unload must release the watchdog immediately");
     releaseCancelled(true); await settle();
     assert.equal(cancelled.getSnapshotHydrationDiagnostics().outcome, "cancelled");
-    console.log("C08P restore watchdog: warm equality, five stalled phases, late completion/rejection and unload PASS");
+    console.log("C08P restore watchdog: warm equality, seven stalled phases, real-work progress, late completion/rejection and unload PASS");
   } finally {
     controlledIndexes.forEach((item) => item.destroy());
     controlledIndexes.length = 0;
@@ -2547,6 +2812,19 @@ try {
   caches.set(immediateFile.path, { frontmatter: {}, tags: [], links: [] });
   const immediatePage = index.insertCreatedFile(immediateFile);
   assert.equal(index.get(immediateFile.path), immediatePage);
+  {
+    const preparedOnlyFile = new TFile("Prepared-only creation.md", noteA.stat.mtime + 1001);
+    const preparedOnlyPage = { ...immediatePage, path: preparedOnlyFile.path, file: preparedOnlyFile, neighbours: new Map() };
+    const originalGet = index.get;
+    index.get = function(path) { return path === preparedOnlyFile.path ? preparedOnlyPage : originalGet.call(this, path); };
+    try {
+      const canonical = index.insertCreatedFile(preparedOnlyFile);
+      assert.equal(index.state.pages.get(preparedOnlyFile.path), canonical, "A prepared-only physical endpoint must also materialize in the canonical patch baseline");
+      assert.notEqual(canonical, preparedOnlyPage, "Creation cannot mutate only the prepared view");
+      assert.equal(index.insertCreatedFile(preparedOnlyFile), canonical, "Repeated physical materialization is idempotent");
+    } finally { index.get = originalGet; }
+    index.dematerializeFile(preparedOnlyFile.path);
+  }
   assert(index.applyRelationshipEdit("Note A.md", immediateFile.path, "child", "Children"));
   expectRole("Note A.md", "child", immediateFile.path, RelationType.DEFINED);
 
@@ -2635,6 +2913,13 @@ try {
   resolvedLinks["Note A.md"][imageFile.path] = 1;
   await index.patchMarkdownPaths(["Note A.md"]);
   expectNoRole("Note A.md", "child", imageFile.path);
+
+  // SI0: a second ordinary/prose occurrence must retain generic inferred evidence even when the
+  // first occurrence is image metadata. Selector changes therefore require semantic invalidation.
+  noteA.stat.mtime += 1000;
+  resolvedLinks["Note A.md"][imageFile.path] = 2;
+  await index.patchMarkdownPaths(["Note A.md"]);
+  expectRole("Note A.md", "child", imageFile.path, RelationType.INFERRED);
 
   noteA.stat.mtime += 1000;
   const existingChildren = noteACache.frontmatter.Child;
@@ -3017,6 +3302,14 @@ try {
 
   // P11: K-Plex-created files get complete folder ancestry immediately, even while folders are
   // hidden. Revealing folders is presentation-only and matches a clean authoritative build.
+  const emptyCreatedFolder = ensureFolder("Created Empty");
+  assert.equal(index.get("folder:Created Empty"), undefined, "A host-created empty folder is absent before its incremental event is applied");
+  const emptyCreatedPage = index.insertCreatedFolder(emptyCreatedFolder);
+  assert.equal(emptyCreatedPage.path, "folder:Created Empty");
+  assert(index.evidenceBetween("folder:/", emptyCreatedPage.path).some((item) => item.sourceKind === "file-tree"),
+    "Incremental empty-folder materialization must preserve its parent relation");
+  assert(index.search("created empty").some((page) => page === emptyCreatedPage),
+    "Incrementally materialized empty folders must enter search without a full rebuild");
   const createdFolder = ensureFolder("Created/Sub");
   const managedFile = new TFile("Created/Sub/Managed.md", noteA.stat.mtime + 5000);
   managedFile.parent = createdFolder;
@@ -3175,6 +3468,133 @@ try {
   app.vault.cachedRead = originalCachedReadForRevisionRace;
   index.cancelPendingPersistence();
 
+  // Native Obsidian folder + Markdown creation must stay on the local folder/file lanes. The old
+  // `vault:create` backlog reason made the two Markdown patches fall through to `full-rebuild`.
+  const nativeCreationCoordinator = new KplexPlugin();
+  const nativeCreationHandlers = new Map();
+  const nativeFiles = new Map();
+  const nativeFolder = new TFolder("Fixture");
+  const nativeA = new TFile("Fixture/A.md", 10_001);
+  const nativeB = new TFile("Fixture/B.md", 10_002);
+  const nativeImage = new TFile("Fixture/Image.png", 10_003);
+  nativeFiles.set(nativeA.path, nativeA);
+  nativeFiles.set(nativeB.path, nativeB);
+  nativeFiles.set(nativeImage.path, nativeImage);
+  const nativeDecisions = [];
+  const nativeFolders = [];
+  const nativeMaterializedFiles = [];
+  const nativePatchCalls = [];
+  const nativeDematerializedFiles = [];
+  let nativeFullBuilds = 0;
+  nativeCreationCoordinator.app = {
+    vault: {
+      on: (name, callback) => { nativeCreationHandlers.set(`vault:${name}`, callback); return {}; },
+      getFileByPath: (path) => nativeFiles.get(path) ?? null,
+    },
+    metadataCache: {
+      on: (name, callback) => { nativeCreationHandlers.set(`metadata:${name}`, callback); return {}; },
+    },
+  };
+  nativeCreationCoordinator.index = {
+    hasPendingStructuralMaintenance: () => false,
+    cancelRebuild: () => {},
+    size: 4,
+    isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,
+    get: (path) => nativeMaterializedFiles.includes(path) ? { file: nativeFiles.get(path) } : undefined,
+    insertCreatedFolder: (folder) => { nativeFolders.push(folder.path); return { path: `folder:${folder.path}` }; },
+    insertCreatedFile: (file) => { nativeMaterializedFiles.push(file.path); return { path: file.path, file }; },
+    dematerializeFile: (path) => { nativeDematerializedFiles.push(path); return { path, file: null }; },
+    noteBuildDecision: (kind, reason, modified) => { nativeDecisions.push({ kind, reason, modified }); },
+    patchMarkdownPaths: async (paths) => { nativePatchCalls.push([...paths]); return { outcome: "patched", count: paths.length }; },
+    rebuild: async () => { nativeFullBuilds += 1; return true; },
+  };
+  nativeCreationCoordinator.hasVisibleKplexSurface = () => true;
+  nativeCreationCoordinator.refreshBookmarkedEntryPoints = async () => {};
+  nativeCreationCoordinator.notifyIndexStatus = () => {};
+  nativeCreationCoordinator.initialIndexComplete = true;
+  nativeCreationCoordinator.scheduleRebuild = (reason) => {
+    nativeCreationCoordinator.indexDirty = true;
+    nativeCreationCoordinator.indexDirtyRevision += 1;
+    nativeCreationCoordinator.indexBacklogReasons.add(reason);
+  };
+  nativeCreationCoordinator.registerReactiveIndexListeners();
+  const nativeCreateHandler = nativeCreationHandlers.get("vault:create");
+  const nativeMetadataHandler = nativeCreationHandlers.get("metadata:changed");
+  assert(nativeCreateHandler && nativeMetadataHandler, "Native create and metadata handlers must be registered");
+  nativeCreateHandler(nativeFolder);
+  nativeCreateHandler(nativeA);
+  nativeMetadataHandler(nativeA);
+  nativeCreateHandler(nativeB);
+  nativeMetadataHandler(nativeB);
+  nativeCreateHandler(nativeImage);
+  assert.deepEqual(nativeFolders, ["Fixture"], "Empty folder is materialized directly once");
+  assert.deepEqual(nativeMaterializedFiles, [nativeA.path, nativeB.path, nativeImage.path], "Markdown and attachment endpoints materialize directly under the new folder");
+  assert(!nativeCreationCoordinator.indexBacklogReasons.has("vault:create"), "Folder creation must not leave a structural full-rebuild reason");
+  await nativeCreationCoordinator.performRebuild(false, false, "coalesced-backlog", false);
+  assert.deepEqual(nativePatchCalls, [[nativeA.path, nativeB.path]], "Folder-following Markdown files patch as one local batch");
+  assert.equal(nativeFullBuilds, 0, "Folder + Markdown creation must not invoke the full builder");
+  assert(nativeDecisions.every((decision) => decision.kind !== "full-rebuild"), "Folder + Markdown creation must record no full-rebuild decision");
+  nativeFiles.delete(nativeImage.path);
+  nativeCreationHandlers.get("vault:delete")(nativeImage);
+  assert.deepEqual(nativeDematerializedFiles, [nativeImage.path], "Attachment deletion keeps its ghost endpoint locally");
+  assert.equal(nativeCreationCoordinator.indexDirty, false, "Attachment deletion must not queue a structural rebuild");
+  nativeFiles.set(nativeImage.path, nativeImage);
+  nativeCreateHandler(nativeImage);
+  assert.equal(nativeCreationCoordinator.indexDirty, false, "Attachment recreation must remain local");
+
+  // A folder move owns its known subtree, including a second move during cooperative capture.
+  const localFolder = ensureFolder("SI4Folder");
+  const localSubfolder = ensureFolder("SI4Folder/Sub");
+  const localNote = new TFile("SI4Folder/Sub/Local.md", 10_100);
+  const localImage = new TFile("SI4Folder/Image.png", 10_101);
+  localNote.parent = localSubfolder; localSubfolder.children.push(localNote);
+  localImage.parent = localFolder; localFolder.children.push(localImage);
+  for (const file of [localNote, localImage]) { files.set(file.path, file); index.insertCreatedFile(file); }
+  const folderIdentity = index.state.pages.get("folder:SI4Folder");
+  const noteIdentity = index.state.pages.get(localNote.path);
+  const imageIdentity = index.state.pages.get(localImage.path);
+  const moveLocalFixture = (from, to) => {
+    for (const item of [localFolder, localSubfolder, localNote, localImage]) {
+      const map = item instanceof TFolder ? folders : files;
+      map.delete(item.path); item.path = to + item.path.slice(from.length);
+      item.name = item.path.split("/").pop();
+      if (item instanceof TFile) item.basename = item.name.replace(/\.[^.]+$/, "");
+      map.set(item.path, item);
+    }
+  };
+  moveLocalFixture("SI4Folder", "SI4First");
+  const movingFolder = index.renameFolder("SI4Folder", localFolder);
+  assert.equal(index.isSemanticWriteReady("Note A.md", "Note B.md"), false, "Folder preparation fences writes");
+  moveLocalFixture("SI4First", "SI4Final");
+  assert.equal(index.renameFolder("SI4First", localFolder), movingFolder, "Concurrent folder moves share one affected tree job");
+  await movingFolder;
+  assert.equal(index.state.pages.get("folder:SI4Final"), folderIdentity, "Folder identity survives coalesced moves");
+  assert.equal(index.state.pages.get(localNote.path), noteIdentity, "Markdown identity survives folder moves");
+  assert.equal(index.state.pages.get(localImage.path), imageIdentity, "Attachment identity survives folder moves");
+  assert.equal(index.get("folder:SI4Folder"), undefined);
+  assert.equal(index.get("folder:SI4First"), undefined);
+  assert(index.searchEntryByPath.has(localNote.path));
+  assert(index.searchEntryByPath.has("folder:SI4Final/Sub"));
+  assert.equal(index.state.evidence.declarationsTouching(localNote.path).filter(item =>
+    item.sourceKind === "file-tree" && item.declaredTargetPath === localNote.path).length, 1, "Move has one canonical membership declaration");
+  for (const file of [localNote, localImage]) files.delete(file.path);
+  folders.delete(localSubfolder.path); folders.delete(localFolder.path);
+  rootFolder.children = rootFolder.children.filter(item => item !== localFolder);
+  assert.equal(await index.removeDeletedFolder(localFolder), 1, "Parent-only deletion counts its one still-materialized Markdown child");
+  assert.equal(index.get("folder:SI4Final"), undefined);
+  assert.equal(index.get("folder:SI4Final/Sub"), undefined);
+  assert.equal(index.state.pages.get(localNote.path).file, null);
+  assert.equal(index.state.pages.get(localImage.path).file, null);
+  for (const file of [localNote, localImage]) index.removeVirtualPageIfUnreferenced(file.path);
+  assert.equal(index.pendingStructuralTasks, 0, "Folder operations release their lifetime");
+
+  const navigationFolder = new KplexPlugin();
+  navigationFolder.settings = { lastActivePath:"Old/Sub/A.md",sidecarLastFilePath:"Old/Sub/A.md",
+    navigationHistory:["folder:Old","Old/Sub/A.md","Other.md"],pinnedNodes:["folder:Old/Sub","Oldish/A.md"] };
+  assert.equal(navigationFolder.remapNavigationPaths("Old","New",true),true);
+  assert.deepEqual(navigationFolder.settings,{lastActivePath:"New/Sub/A.md",sidecarLastFilePath:"New/Sub/A.md",
+    navigationHistory:["folder:New","New/Sub/A.md","Other.md"],pinnedNodes:["folder:New/Sub","Oldish/A.md"]});
+
   // P15: post-parse graph work for a URL-heavy note is staged and cooperatively sliced. Prime the
   // parsed-body hot cache so this measures signature/evidence/URL/resolution/commit work rather
   // than the parser itself. Cancelling after parsing must publish nothing; retry remains searchable.
@@ -3264,9 +3684,10 @@ try {
   const coordinatorPatchStarted = new Promise((resolve) => { signalCoordinatorPatch = resolve; });
   const coordinatorPatchGate = new Promise((resolve) => { releaseCoordinatorPatch = resolve; });
   coordinator.index = {
+    hasPendingStructuralMaintenance: () => false,
     size: 1,
     noteBuildDecision: () => {},
-    isFullSnapshotHydrated: () => false,
+    isFullSnapshotHydrated: () => false, hasPhysicalBaseline: () => false, hasSourceBackedStartup: () => false,
     patchMarkdownPaths: async (paths) => {
       coordinatorPatchCalls.push([...paths]);
       if (coordinatorPatchCalls.length === 1) {
@@ -3310,9 +3731,10 @@ try {
   const creationPatchCalls = [];
   creationCoordinator.app = { vault: { getFileByPath: (path) => path === createdDuringPatch.path ? createdDuringPatch : null } };
   creationCoordinator.index = {
+    hasPendingStructuralMaintenance: () => false,
     size: 1,
     noteBuildDecision: () => {},
-    isFullSnapshotHydrated: () => true,
+    isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,
     get: () => materialized ? { file: createdDuringPatch } : undefined,
     insertCreatedFile: () => { materialized = true; },
     patchMarkdownPaths: async (paths) => { creationPatchCalls.push([...paths]); return { outcome: "patched", count: paths.length }; },

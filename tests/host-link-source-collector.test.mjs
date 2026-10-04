@@ -209,6 +209,44 @@ try {
     assert.equal(await collector.finalize(), null, "source-event revision changes must fence stale reads");
   }
 
+  {
+    const host = makeHost({
+      // JavaScript own-property enumeration is the oracle: integer-like keys precede strings,
+      // while empty and non-Markdown owners remain part of the complete coordinate.
+      resolvedLinks: { "10": {}, "2": {}, "A.md": {}, "picture.png": {} },
+      unresolvedLinks: { "Z.md": {}, "3": {}, "B.md": {} },
+    });
+    const collector = new ObsidianHostLinkSourceCollector(host, {
+      isCurrent: () => true, sourceRevision: () => 13, checkpoint: async () => true,
+    });
+    assert.deepEqual(await collector.captureOwnerOrder(), {
+      resolved: ["2", "10", "A.md", "picture.png"],
+      unresolved: ["3", "Z.md", "B.md"],
+    }, "explicit acquisition captures the complete native owner coordinate");
+  }
+
+  {
+    const host = makeHost({ resolvedLinks: { "A.md": {}, "B.md": {} } });
+    let checkpoints = 0;
+    const collector = new ObsidianHostLinkSourceCollector(host, {
+      isCurrent: () => true, sourceRevision: () => 14,
+      checkpoint: async () => {
+        checkpoints += 1;
+        if (checkpoints === 3) {
+          const a = host.metadataCache.resolvedLinks["A.md"];
+          delete host.metadataCache.resolvedLinks["A.md"];
+          host.metadataCache.resolvedLinks["A.md"] = a;
+        }
+        return true;
+      },
+    });
+    assert.equal(await collector.captureOwnerOrder(), null, "terminal double scan rejects an outer-order-only change");
+    const scoped = new ObsidianHostLinkSourceCollector(host, {
+      isCurrent: () => true, sourceRevision: () => 14, checkpoint: async () => true,
+    }, "A.md");
+    assert.equal(await scoped.captureOwnerOrder(), null, "per-file reads can never allocate a whole-map owner coordinate");
+  }
+
   console.log("Host-link normalized source collector tests passed.");
 } finally {
   rmSync(temp, { recursive: true, force: true });

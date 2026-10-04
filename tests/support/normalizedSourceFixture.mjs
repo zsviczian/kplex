@@ -1,3 +1,9 @@
+/**
+ * Frozen pre-SI2 test-only source-family/provenance oracle. This intentionally retains historic
+ * configured ontology/presentation records for comparison with accepted golden evidence. Compiler
+ * tests bridge these to neutral frames; production collection is tested independently. Never use
+ * this fixture's grammar/resolution/whole-file arrays as production acquisition or policy code.
+ */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
 

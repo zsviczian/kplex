@@ -685,13 +685,118 @@ export const englishCatalog = {
     context: "K-Plex host shell, command, toolbar, and status copy.",
     params: [],
   },
+  "index.startupMetadata": {
+    message: "Reading cached index metadata",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupPreview": {
+    message: "Loading the requested Plex preview",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupSourceAuthority": {
+    message: "Waiting for cached source validation",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupInventory": {
+    message: "Reading note inventory",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupDependencies": {
+    message: "Checking cached source dependencies",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupHostComparison": {
+    message: "Validating note metadata",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupRetiredOwners": {
+    message: "Checking removed cached notes",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupChecking": {
+    message: "Verifying cached notes",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupRechecking": {
+    message: "Processing pending changes",
+    context: "A repeated source-reconciliation pass; its real note count starts again for that pass.",
+    params: [],
+  },
+  "index.startupDependencyCompletion": {
+    message: "Finalizing note dependencies",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupResolution": {
+    message: "Finalizing link resolution",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupSemantics": {
+    message: "Applying current ontology & settings",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupVocabulary": {
+    message: "Loading node vocabulary",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupPages": {
+    message: "Loading cached nodes",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupFiles": {
+    message: "Checking cached file bindings",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupRelations": {
+    message: "Loading cached relationships",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupSearch": {
+    message: "Preparing search",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupEvidence": {
+    message: "Loading relationship evidence",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupPromotion": {
+    message: "Publishing full graph",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupNotesProgress": {
+    message: "{activity} — {processed} / {total} notes ({percent}%)",
+    context: "Actual owners visited in the current startup pass; percentage uses its captured note count.",
+    params: ["activity", "processed", "total", "percent"],
+  },
+  "index.startupRecordsProgress": {
+    message: "{activity} — {processed} records loaded",
+    context: "Actual records loaded in a startup phase with no meaningful denominator.",
+    params: ["activity", "processed"],
+  },
   "index.statusReady": {
     message: "Status: index ready",
     context: "K-Plex index indicator detail shown when the published index is authoritative.",
     params: [],
   },
   "index.statusLoadingCache": {
-    message: "Status: loading index from cache",
+    message: "Status: restoring saved graph",
     context: "K-Plex index indicator detail shown while the persisted IndexedDB graph is being hydrated.",
     params: [],
   },

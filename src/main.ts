@@ -1,7 +1,8 @@
 /**
  * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback.
  */
-import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
+import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
+import { captureSettingsPolicy, classifySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
 import { GraphIndex } from "./index/GraphIndex";
 import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
 import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelView } from "./ui/KplexView";
@@ -25,6 +26,7 @@ import { createTranslator, type Translator } from "./lang";
 import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurface } from "./core/plex/viewPresentation";
 import { createAdjacentFileLeaf } from "./adapters/obsidian/adjacentFileLeaf";
 import { isEmbeddedMarkdownLeaf } from "./adapters/obsidian/embeddedMarkdownLeaf";
+import { StartupDiagnostics } from "./adapters/obsidian/startupDiagnostics";
 import { perfNow } from "./util/perf";
 import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
 
@@ -62,6 +64,7 @@ type RecentIndexedNavigationTarget = {
 export default class KplexPlugin extends Plugin {
   settings: KplexSettings = DEFAULT_SETTINGS;
   index!: GraphIndex;
+  private savedSettingsPolicy: SettingsPolicy | null = null;
   translator: Translator = createTranslator("en");
   private rebuildTimer: number | null = null;
   private indexDirty = true;
@@ -109,11 +112,12 @@ export default class KplexPlugin extends Plugin {
   private readonly searchFocusListeners = new Map<WorkspaceLeaf, () => void>();
   private readonly relationshipFlairListeners = new Set<(path: string) => void>();
   private readonly indexStatusListeners = new Set<() => void>();
-  /** Lazily cached Markdown total; vault lifecycle events invalidate it before status publication. */
+  /** Lazily established Markdown total; known membership changes maintain it without vault enumeration. */
   private cachedMarkdownFileCount: number | null = null;
   private readonly kplexVisibilityListeners = new Set<() => void>();
   private visibleKplexLeaves = new Set<WorkspaceLeaf>();
   private lastIndexStatusKey = "";
+  private lastStartupProgressNotification = 0;
   private readonly graphLensListeners = new Set<(lenses: KplexSettings["graphLenses"]) => void>();
   private readonly managedMetadataWrites = new Map<string, number>();
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
@@ -123,6 +127,8 @@ export default class KplexPlugin extends Plugin {
   private readonly dirtyMarkdownPaths = new Set<string>();
   /** Rename-only metadata notifications are semantic no-ops when mtime/size are unchanged. */
   private readonly renameMetadataSuppressions = new Map<string, { mtime: number; size: number; until: number }>();
+  /** Parent and child deletion events may overlap; count each physical Markdown identity once. */
+  private readonly deletedMarkdownFiles = new WeakSet<TFile>();
   private activeKplexMenu: Menu | null = null;
   private activeKplexMenuDocument: Document | null = null;
   private readonly kplexMenuOutsidePointerDown = (event: PointerEvent): void => {
@@ -146,8 +152,11 @@ export default class KplexPlugin extends Plugin {
     return legacy.settings ?? null;
   }
 
-  /** Register plugin lifecycle resources, commands and host integrations. Product command/notice copy uses the translator; command IDs use the K-Plex namespace. */
+  readonly startupDiagnostics = new StartupDiagnostics();
+
+  /** Register host resources; optional startup diagnostics observe this exact production path. */
   async onload(): Promise<void> {
+    this.startupDiagnostics.begin((window as Window & { kplexStartupDiagnosticsEnabled?: boolean }).kplexStartupDiagnosticsEnabled === true);
     this.translator = createObsidianTranslator();
     const ownData: unknown = await this.loadData();
     const ownRecord = ownData && typeof ownData === "object" ? ownData as Record<string, unknown> : null;
@@ -160,11 +169,13 @@ export default class KplexPlugin extends Plugin {
       ownRecord?.noteTypeField
     );
     this.settings = migrateAndMergeSettings(ownData);
+    this.savedSettingsPolicy = captureSettingsPolicy(this.settings);
     if (alreadyKplex && !ownRecord?.kplexInitialized) {
       this.settings.kplexInitialized = true;
       await this.saveData(this.settings);
     }
 
+    this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this);
 
     this.registerView(KPLEX_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexView(leaf, this));
@@ -337,11 +348,12 @@ export default class KplexPlugin extends Plugin {
             new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
           }
           this.settings.kplexInitialized = true;
-          await this.saveData(this.settings);
+          await this.saveSettings();
         }
 
         if (this.unloading) return;
         this.layoutReady = true;
+        this.startupDiagnostics.mark("layout-ready");
 
         // Re-associate a persisted sidecar before normal recent-tab synchronization is allowed to
         // run. This uses only Obsidian's restored workspace geometry/view state; it must not wait
@@ -452,6 +464,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.startupDiagnostics.dispose();
     this.unloading = true;
     this.dismissKplexMenu();
     if (this.rebuildTimer !== null) window.clearTimeout(this.rebuildTimer);
@@ -578,18 +591,52 @@ export default class KplexPlugin extends Plugin {
     this.register(release);
   }
 
-  /** Register post-restore vault/metadata listeners and refresh cached vault-wide status facts. */
+  /** Maintain an already-established Markdown progress denominator in O(1); null remains genuinely unknown. */
+  private adjustCachedMarkdownFileCount(delta: number): void {
+    if (this.cachedMarkdownFileCount !== null) this.cachedMarkdownFileCount += delta;
+  }
+
+  /** Register post-restore vault/metadata listeners and initialize lazy vault-wide status facts. */
+  /** Preserve persisted navigation/history/pins across a known file or folder move. */
+  private remapNavigationPaths(oldPath: string, newPath: string, folder = false): boolean {
+    const remap = (path: string): string => {
+      if (path === oldPath) return newPath;
+      if (!folder) return path;
+      if (path === `folder:${oldPath}`) return `folder:${newPath}`;
+      if (path.startsWith(`${oldPath}/`)) return newPath + path.slice(oldPath.length);
+      if (path.startsWith(`folder:${oldPath}/`)) return `folder:${newPath}` + path.slice(`folder:${oldPath}`.length);
+      return path;
+    };
+    let changed = false;
+    for (const key of ["lastActivePath", "sidecarLastFilePath"] as const) {
+      const next = remap(this.settings[key]);
+      if (next !== this.settings[key]) { this.settings[key] = next; changed = true; }
+    }
+    for (const key of ["navigationHistory", "pinnedNodes"] as const) {
+      const next = this.settings[key].map(remap);
+      if (next.some((path, index) => path !== this.settings[key][index])) {
+        this.settings[key] = [...new Set(next)]; changed = true;
+      }
+    }
+    if (folder) for (const path of [...this.dirtyMarkdownPaths]) {
+      const next = remap(path);
+      if (next !== path) { this.dirtyMarkdownPaths.delete(path); this.dirtyMarkdownPaths.add(next); }
+    }
+    return changed;
+  }
+
   private registerReactiveIndexListeners(): void {
     if (this.reactiveIndexListenersRegistered) return;
     this.reactiveIndexListenersRegistered = true;
     this.cachedMarkdownFileCount = null;
 
     this.registerEvent(this.app.vault.on("create",
-      /** Invalidate the progress denominator before publishing a newly created Markdown source. */
+      /** Update the known progress denominator before publishing a newly created Markdown source. */
       (created) => {
         this.pruneManagedMetadataWrites();
         if (created instanceof TFile && created.extension === "md") {
-          this.cachedMarkdownFileCount = null;
+          this.deletedMarkdownFiles.delete(created);
+          this.adjustCachedMarkdownFileCount(1);
           this.notifyIndexStatus();
         }
         if (created instanceof TFile && (this.managedCreatedPaths.get(created.path) ?? 0) > Date.now()) return;
@@ -598,10 +645,25 @@ export default class KplexPlugin extends Plugin {
           // authoritative graph is already available; if startup is still building, reconcile it
           // after that pass instead of restarting the entire vault scan for one created file.
           this.dirtyMarkdownPaths.add(created.path);
-          if (this.initialIndexComplete && !this.rebuildTask && this.hasVisibleKplexSurface() && this.index?.isFullSnapshotHydrated()) {
+          if (this.initialIndexComplete && !this.rebuildTask && this.hasVisibleKplexSurface() && this.index?.hasPhysicalBaseline()) {
             this.index.insertCreatedFile(created);
           }
           this.scheduleRebuild("vault:create-markdown");
+          return;
+        }
+        if (created instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
+          // Empty folder creation is a known structural delta. Materialize only its root-to-folder
+          // ancestry; subsequent Markdown creates reuse the same folder pages and remain per-file
+          // patches instead of leaving a structural `vault:create` reason that forces a full rebuild.
+          this.index.cancelRebuild();
+          this.index.insertCreatedFolder(created);
+          return;
+        }
+        if (created instanceof TFile && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
+          // Attachments have no Markdown patch to consume a structural backlog. Materialize their
+          // known file-tree endpoint locally; source-local resolution maintenance owns inbound links.
+          this.index.cancelRebuild();
+          this.index.insertCreatedFile(created);
           return;
         }
         this.scheduleRebuild("vault:create");
@@ -610,7 +672,7 @@ export default class KplexPlugin extends Plugin {
       /** Remove deleted Markdown sources from both semantic progress and its cached denominator. */
       (deleted) => {
         if (deleted instanceof TFile && deleted.extension === "md") {
-          this.cachedMarkdownFileCount = null;
+          this.countDeletedMarkdownFile(deleted);
           // Deleting Markdown changes materialization, not the identity of the graph endpoint. Keep
           // the same GraphPage alive as a ghost so an active central note does not fall back to the
           // vault root. Only declarations owned by the deleted file are removed locally.
@@ -626,42 +688,45 @@ export default class KplexPlugin extends Plugin {
           this.settlePatchOnlyBacklogIfIdle();
           return;
         }
-        // Folder and non-Markdown deletions can affect topology/attachment visibility more broadly.
+        if (deleted instanceof TFile) {
+          // Attachment deletion has the same endpoint/ghost boundary as Markdown deletion. Keep
+          // surviving inbound declarations and remove physical membership without a vault rebuild.
+          this.index?.dematerializeFile(deleted.path);
+          this.settlePatchOnlyBacklogIfIdle();
+          return;
+        }
+        if (deleted instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
+          this.index.cancelRebuild();
+          void this.index.removeDeletedFolder(deleted, file => this.countDeletedMarkdownFile(file)).then(() => {
+            this.settlePatchOnlyBacklogIfIdle(); this.notifyIndexStatus();
+          }).catch(() => this.scheduleRebuild("vault:delete-folder-failed"));
+          return;
+        }
         this.scheduleRebuild("vault:delete");
       }));
     this.registerEvent(this.app.vault.on("rename",
       /** Preserve path-owned state and refresh totals when a rename changes Markdown membership. */
       (renamed, oldPath) => {
         if (!(renamed instanceof TFile)) {
-          // Folder renames can rewrite many canonical file paths at once and remain structural.
+          if (renamed instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
+            this.index.cancelRebuild();
+            void this.index.renameFolder(oldPath, renamed).catch(() => this.scheduleRebuild("vault:rename-folder-failed"));
+            if (this.remapNavigationPaths(oldPath, renamed.path, true)) void this.saveSettings(false, false);
+            return;
+          }
+          // Startup without a hydrated graph still owns authoritative structural construction.
           this.scheduleRebuild("vault:rename-folder");
           return;
         }
 
         const newPath = renamed.path;
-        if (oldPath.toLowerCase().endsWith(".md") !== (renamed.extension === "md")) {
-          this.cachedMarkdownFileCount = null;
+        const wasMarkdown = oldPath.toLowerCase().endsWith(".md");
+        const isMarkdown = renamed.extension === "md";
+        if (wasMarkdown !== isMarkdown) {
+          this.adjustCachedMarkdownFileCount(isMarkdown ? 1 : -1);
           this.notifyIndexStatus();
         }
-        let changed = false;
-        if (this.settings.lastActivePath === oldPath) {
-          this.settings.lastActivePath = newPath;
-          changed = true;
-        }
-        if (this.settings.sidecarLastFilePath === oldPath) {
-          this.settings.sidecarLastFilePath = newPath;
-          changed = true;
-        }
-        const history = this.settings.navigationHistory.map((path) => path === oldPath ? newPath : path);
-        if (history.some((path, index) => path !== this.settings.navigationHistory[index])) {
-          this.settings.navigationHistory = [...new Set(history)];
-          changed = true;
-        }
-        const pinned = this.settings.pinnedNodes.map((path) => path === oldPath ? newPath : path);
-        if (pinned.some((path, index) => path !== this.settings.pinnedNodes[index])) {
-          this.settings.pinnedNodes = [...new Set(pinned)];
-          changed = true;
-        }
+        const changed = this.remapNavigationPaths(oldPath, newPath);
 
         // Preserve a genuinely dirty file across the path change, but a clean rename is not itself a
         // re-index trigger. GraphIndex remaps path-keyed graph/evidence/search state in O(degree).
@@ -706,6 +771,13 @@ export default class KplexPlugin extends Plugin {
     // metadataCache.resolved fires in large waves during startup and after a single link edit.
     // `changed`, vault create/delete/rename and explicit K-Plex edits already cover semantic
     // invalidation without turning one relationship move into a whole-vault rebuild storm.
+  }
+
+  /** Count each physical Markdown deletion once across overlapping folder and child events. */
+  private countDeletedMarkdownFile(file: TFile): void {
+    if (this.deletedMarkdownFiles.has(file)) return;
+    this.deletedMarkdownFiles.add(file);
+    this.adjustCachedMarkdownFileCount(-1);
   }
 
   private async waitForMetadataCacheStability(): Promise<number> {
@@ -829,12 +901,31 @@ export default class KplexPlugin extends Plugin {
             this.indexBacklogReasons.add("startup:stale-snapshot");
           }
         }
-      } else if (this.index.size > 0 && !this.index.isFullSnapshotHydrated() && !this.index.hasRestoredCheckpoint()) {
+      } else if (this.index.size > 0 && !this.index.hasPhysicalBaseline() && !this.index.hasRestoredCheckpoint()) {
         // The preview task failed after it had already returned a usable partial scene. Fall back
         // to a normal rebuild instead of ever treating that partial scene as the complete index.
         this.indexDirty = true;
         this.indexDirtyRevision += 1;
         this.indexBacklogReasons.add("startup:partial-restore-incomplete");
+      }
+
+      // Missing graph acceleration is recoverable source progress, not a reason to rebuild all
+      // semantics. Source inventory owns offline/sync repair; requested scopes own current views.
+      if (this.index.hasSourceBackedStartup()) {
+        const adopted = await this.index.adoptStartupSources();
+        if (this.unloading) return;
+        this.initialIndexComplete = adopted;
+        if (adopted) {
+          for (const reason of ["startup:no-snapshot", "startup:stale-snapshot", "startup:partial-restore-incomplete"]) {
+            this.indexBacklogReasons.delete(reason);
+          }
+          if (!this.preRestoreUncoveredChanges && this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
+            this.indexDirty = false;
+          }
+          if (this.indexDirty && this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
+        }
+        this.notifyIndexStatus();
+        return;
       }
 
       // A fresh, fully hydrated semantic snapshot is already the initial index. Do not make mobile
@@ -919,6 +1010,8 @@ export default class KplexPlugin extends Plugin {
   /** Run the host rebuild workflow and report localized progress/completion while retaining the existing semantic publication and cancellation ownership. */
   private async performRebuild(showNotice: boolean, force: boolean, reason: string, allowClosed: boolean): Promise<void> {
     if (this.unloading) return;
+    if (this.index.hasPendingStructuralMaintenance()) await this.index.waitForStructuralMaintenance();
+    if (this.unloading) return;
     const explicitlyRequested = showNotice;
     if (!this.hasVisibleKplexSurface() && !allowClosed && !explicitlyRequested) {
       return;
@@ -949,10 +1042,10 @@ export default class KplexPlugin extends Plugin {
       // rebuilding the vault. A path may disappear after its metadata notification was queued;
       // prune such paths before deciding whether an incremental patch must escalate.
       this.pruneMissingDirtyMarkdownPaths();
-      if (this.initialIndexComplete && this.index.isFullSnapshotHydrated()) {
+      if (this.initialIndexComplete && this.index.hasPhysicalBaseline()) {
         for (const path of this.dirtyMarkdownPaths) {
           const file = this.app.vault.getFileByPath(path);
-          if (file?.extension === "md" && this.index.get(path)?.file !== file) this.index.insertCreatedFile(file);
+          if (file?.extension === "md") this.index.insertCreatedFile(file);
         }
       }
       const structuralDirty = [...this.indexBacklogReasons].some((item) =>
@@ -1050,7 +1143,7 @@ export default class KplexPlugin extends Plugin {
       }
       for (const path of this.dirtyMarkdownPaths) {
         const file = this.app.vault.getFileByPath(path);
-        if (file?.extension === "md" && this.index.get(path)?.file !== file) this.index.insertCreatedFile(file);
+        if (file?.extension === "md") this.index.insertCreatedFile(file);
       }
       this.indexBacklogReasons.delete("vault:create-markdown");
 
@@ -1091,11 +1184,26 @@ export default class KplexPlugin extends Plugin {
     return page;
   }
 
-  async saveSettings(reindex = false, notifyIndex = true): Promise<void> {
+  /**
+   * Persist all caller mutations through the canonical immutable settings projection. The legacy
+   * boolean is a call-site compatibility facade only: managers/imports cannot bypass classification.
+   * Capture before awaiting storage so overlapping saves cannot lose a semantic invalidation.
+   */
+  async saveSettings(_reindex = false, notifyIndex = true): Promise<void> {
     this.settings.primaryTagFieldLowerCase = this.settings.primaryTagField.toLowerCase().replaceAll(" ", "-");
+    const next = captureSettingsPolicy(this.settings);
+    const effects = classifySettingsChange(this.savedSettingsPolicy ?? next, next);
+    this.savedSettingsPolicy = next;
+    if (effects.semanticInvalidation) this.index.invalidateSemanticPolicy();
     await this.saveData(this.settings);
-    if (reindex) this.scheduleRebuild("settings");
-    else if (notifyIndex) this.index.notify();
+    if (this.unloading) return;
+    await this.index.refreshPresentationSettings();
+    if (effects.semanticInvalidation) await this.index.refreshSemanticSettings();
+    // Visibility can expand an existing requested scope; cosmetic changes reuse its coverage.
+    else if (effects.render) await this.index.refreshSemanticSettings();
+    // Workflow-only callers can still request their historical view notification. Changed settings
+    // use the separate presentation channel and never pretend relationship evidence changed.
+    if (!effects.render && notifyIndex) this.index.notifyPresentation();
   }
 
   private isDocumentLeafCandidate(leaf: WorkspaceLeaf | null): leaf is WorkspaceLeaf {
@@ -1983,6 +2091,7 @@ export default class KplexPlugin extends Plugin {
     return this.computeIndexStatusFacts(this.cachedMarkdownFileCount);
   }
 
+  /** Aggregate cache, requested-semantic and global-search readiness without scheduling work. */
   private computeIndexStatusFacts(totalFiles: number | null): {
     upToDate: boolean;
     phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating";
@@ -1990,11 +2099,15 @@ export default class KplexPlugin extends Plugin {
     totalFiles: number | null;
   } {
     const loadingCache = this.index.hasPendingSnapshotHydration();
+    const semanticPreparing = this.index.hasPendingSemanticPreparation();
     const upToDate = this.initialIndexComplete
       && !this.indexDirty
       && this.rebuildTask === null
       && this.rebuildTimer === null
-      && !loadingCache;
+      && !loadingCache
+      && !semanticPreparing
+      && !this.index.hasPendingSearchVocabulary();
+    if (upToDate) this.startupDiagnostics?.finish();
     const indexedFiles = totalFiles === null
       ? this.index.indexedMarkdownFileCount()
       : upToDate ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
@@ -2041,7 +2154,56 @@ export default class KplexPlugin extends Plugin {
               : phase === "saving-cache"
                 ? this.translator("index.statusSavingCache")
               : this.translator("index.statusUpdating");
-    return { ...facts, label, totalFiles };
+    const hydration = this.index.getSnapshotHydrationDiagnostics?.();
+    const progress = phase === "loading-cache" && hydration?.phase === "source-authority"
+      ? this.startupDiagnostics?.progress("source") : phase === "loading-cache" ? this.startupDiagnostics?.progress("hydration") : null;
+    const activityKeys = {
+      "metadata": "index.startupMetadata", "preview": "index.startupPreview", "source-authority": "index.startupSourceAuthority",
+      "source-inventory": "index.startupInventory", "source-coordinates": "index.startupInventory", "dependency-upgrade-validation": "index.startupDependencies",
+      "host-metadata-comparison": "index.startupHostComparison", "host-retired-owner-check": "index.startupRetiredOwners",
+      "source-reconciliation": "index.startupChecking", "source-retired-owner-check": "index.startupRetiredOwners",
+      "dependency-completion": "index.startupDependencyCompletion", "dependency-final-validation": "index.startupDependencyCompletion",
+      "resolution-reconciliation": "index.startupResolution", "requested-semantics": "index.startupSemantics",
+      "node-vocabulary": "index.startupVocabulary", "pages": "index.startupPages", "file-rebind": "index.startupFiles",
+      "relations": "index.startupRelations", "preview-search": "index.startupSearch", "evidence": "index.startupEvidence",
+      "resolve": "index.startupResolution", "authoritative-search": "index.startupSearch", "promote": "index.startupPromotion",
+    } as const;
+    const activityKey = progress?.phase === "source-reconciliation" && progress.pass > 1
+      ? "index.startupRechecking" : progress && activityKeys[progress.phase as keyof typeof activityKeys];
+    const activity = activityKey ? this.translator(activityKey) : null;
+    const progressLabel = progress && activity
+      ? progress.total !== null && progress.total > 0
+        ? this.translator("index.startupNotesProgress", { activity, processed: progress.processed.toLocaleString(),
+          total: progress.total.toLocaleString(), percent: Math.floor(progress.processed * 100 / progress.total) })
+        : progress.processed > 0
+          ? this.translator("index.startupRecordsProgress", { activity, processed: progress.processed.toLocaleString() }) : activity
+      : label;
+    return { ...facts, label: progressLabel, totalFiles };
+  }
+
+  /**
+   * Read retained startup timings, current work and aggregate counters without vault enumeration or
+   * scheduling. A CLI client can reconnect after a timeout; startup continues independently and the
+   * completed trace remains available for this plugin lifetime. No owner identities are exported.
+   */
+  getStartupDiagnostics() {
+    const status = this.index ? this.computeIndexStatusFacts(this.cachedMarkdownFileCount) : null;
+    return {
+      ...this.startupDiagnostics.snapshot(),
+      progress: { source: this.startupDiagnostics.progress("source"), hydration: this.startupDiagnostics.progress("hydration") },
+      status,
+      hydration: this.index?.getSnapshotHydrationDiagnostics() ?? null,
+      source: this.index?.getSourceAcquisitionCounters() ?? null,
+      semantic: this.index?.getSemanticPreparationDiagnostics() ?? null,
+    };
+  }
+
+  /** Notify actual startup activity at most four times per second, without graph revisions or new timers. */
+  notifyStartupProgress(): void {
+    const now = window.performance.now();
+    if (now - this.lastStartupProgressNotification < 250) return;
+    this.lastStartupProgressNotification = now;
+    this.notifyIndexStatus();
   }
 
   subscribeIndexStatus(listener: () => void): () => void {
@@ -2628,8 +2790,9 @@ export default class KplexPlugin extends Plugin {
     await this.createGhostNote(page);
   }
 
+  /** Render facets and styles under the same prepared policy, including during async refresh. */
   getViewSettings(surface: KplexViewSurface): KplexSettings {
-    return effectiveViewSettings(this.settings, surface, readObsidianPresentationEnvironment());
+    return effectiveViewSettings(this.index.withPreparedPresentationSettings(this.settings), surface, readObsidianPresentationEnvironment());
   }
 
   getActiveLayoutProfile(surface: KplexViewSurface): KplexLayoutProfile {
@@ -3137,6 +3300,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Create the requested relationship to an existing graph page through the current persistence path with localized feedback. */
   async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string): Promise<void> {
+    if (!this.index.isSemanticWriteReady(origin.path, target.path)) return;
     if (origin.path === target.path) return;
     const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
     if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
@@ -3173,6 +3337,7 @@ export default class KplexPlugin extends Plugin {
     selectedField: string,
     storagePathOverride: string | null = null,
   ): Promise<void> {
+    if (!this.index.isSemanticWriteReady(center.path, neighbour.path)) return;
     const centerFile = center.file?.extension === "md" ? center.file : null;
     const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
     if (!centerFile && !neighbourFile) {
@@ -3214,6 +3379,7 @@ export default class KplexPlugin extends Plugin {
     existingDirection: LinkDirection | null = null,
     storagePathOverride: string | null = null,
   ): Promise<void> {
+    if (!this.index.isSemanticWriteReady(center.path, neighbour.path)) return;
     const centerFile = center.file?.extension === "md" ? center.file : null;
     const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
     if (!centerFile && !neighbourFile) {
@@ -3520,7 +3686,7 @@ export default class KplexPlugin extends Plugin {
 
     // Remaining references are handled above. Once they are gone, remove the dematerialized graph
     // endpoint when nothing else still references it; focus/history have already moved away.
-    if (!this.index.removeVirtualPageIfUnreferenced(path)) return;
+    if (!(await this.index.removeVirtualPageIfUnreferencedFromSources(path))) return;
   }
 
   private async frontmatterPropertyLineRange(file: TFile, fieldName: string): Promise<{ start: number; end: number } | null> {
@@ -3992,6 +4158,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Persist the ontology link for a newly created related file, retaining the optimistic relationship and localized failure path. */
   async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = ""): Promise<GraphPage> {
+    if (!this.index.isSemanticWriteReady(origin.path, origin.path)) throw new Error("Semantic relationship preparation is still pending");
     // K-Plex already knows the complete minimum fact set for a newly created node. Publish both the
     // page and relationship before awaiting processFrontMatter/MetadataCache, then let the normal
     // incremental path reconcile richer metadata in the background.
@@ -4030,6 +4197,7 @@ export default class KplexPlugin extends Plugin {
     rawAlias: string,
     selectedField: string,
   ): Promise<GraphPage | null> {
+    if (!this.index.isSemanticWriteReady(origin.path, origin.path)) return null;
     if (origin.file?.extension !== "md") {
       new Notice(this.translator("notice.webLinkMarkdownOnly"), 2800);
       return null;
@@ -4065,6 +4233,7 @@ export default class KplexPlugin extends Plugin {
     rawName: string,
     selectedField: string,
   ): Promise<GraphPage | null> {
+    if (!this.index.isSemanticWriteReady(origin.path, origin.path)) return null;
     const validation = this.validateRelatedNoteName(rawName);
     if (!validation.valid) {
       new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
