@@ -538,3 +538,18 @@ Do not treat file mtime as dependency authority: physical statistics already gov
 local derivatives require exact source revision/sequence and repair/version validation, and other-file
 resolution changes can update source facts without changing the referring file's mtime. Report one
 candidate's actual work/timing deltas before extending the correction.
+
+
+The next [clean dependency-selection correction and native retest](docs/validation/settings-independent-indexing-si5-clean-selection-2026-10-04.md)
+was developed after checkpointing the prior fix at `8cd10b7d6746d607f8214ad192670a0b9a370778`. It removes
+120,090 IDB reads across a clean 20,015-note restart while retaining source-head/repair/freshness
+checks. Its median is 82.149 seconds versus 80.137 seconds immediately before; no overall latency
+improvement is demonstrated. Keep each independently validated correction in its own commit before
+adding another behavior change. Posting batching and scheduling changes remain unimplemented.
+
+When staging, distinguish configured enablement from a loaded plugin instance. After native
+`app.plugins.disablePlugin()`, CLI `plugin:enable` can report “already enabled” while
+`app.plugins.plugins["k-plex"]` is absent. Use matched native disable/enable operations with retained
+completion/error state and bounded polls; verify the actual instance and installed artifact hashes.
+Preserve and byte-compare the original settings and community-plugin enablement list. A configured-state
+mismatch is a staging issue, not a slow-start timeout; neither requires resetting Obsidian configuration.

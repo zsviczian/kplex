@@ -1,5 +1,7 @@
 # SI5 minimal warm-restart correction — 2026-10-04
 
+**Historical baseline:** this first correction and diagnostics were committed at `8cd10b7d6746d607f8214ad192670a0b9a370778` before the [clean selection-reuse follow-up](settings-independent-indexing-si5-clean-selection-2026-10-04.md). Original measurements and candidate state below are retained; the follow-up owns current results.
+
 **Implemented and validated:** combine restart dependency upgrade and host comparison in one owner traversal, reusing the existing top-level inspection. The later source-reconciliation/freshness pass stays intact. There is no database/cache/projection redesign, memory increase, cold-start optimization or change to the accepted synthetic dense-hub stress limit.
 
 The exact reduction is **five owner walks → four**, **100,075 inspect calls → 80,060**, **120,126 source-head point reads → 100,111**. Every remaining owner walk visits the same 20,015 owners. Actual dependency/host-fact authentication is retained, with zero Markdown reads, parses, reacquisitions, repairs, source rewrites or full builds. No further optimization or commit/push/release was made. The pre-instrumentation checkpoint remains `62c728393440aa3dfb57869ece83c4060092bcba`; the correction and diagnostics are uncommitted.

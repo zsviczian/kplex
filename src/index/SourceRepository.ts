@@ -2157,9 +2157,14 @@ export class NeutralSourceRepository {
     const db = await this.open(); if (!db) return this.storage.unavailableReason?.() ?? "storage-unavailable";
     let stagingRevision: string | null = null;
     try {
-      const settled = await this.settleLocalDependencyWork(db, sourceId, current);
-      if (settled !== "ready") return settled;
       let selected = await this.localDependencySelection(db, sourceId, current);
+      // Clean owners already have the selection needed below. Settlement is only necessary when
+      // that selection contains repair work; reread after it because repair can replace the owner.
+      if (selected.repair) {
+        const settled = await this.settleLocalDependencyWork(db, sourceId, current);
+        if (settled !== "ready") return settled;
+        selected = await this.localDependencySelection(db, sourceId, current);
+      }
       const inspection = await this.inspect(sourceId, [], current);
       if (!current() || this.closed) return "cancelled";
       const head = inspection.head;

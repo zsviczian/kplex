@@ -90,6 +90,45 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
       })()`), true);
     });
 
+    await t.test("clean dependency verification reads one selection without changing the source or skipping its head check", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await fixture('local-r2-clean-selection');
+        try{
+          f.add('A.md','Friends:: [[Ghost]]');await f.acquire();ok(await f.acquisition.reconcile(),'Seed complete local owner');
+          const r=f.repository,db=await f.cache.open(),before=(await r.inspect('A.md')).head;
+          const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));
+          const select=r.localDependencySelection.bind(r),inspect=r.inspect.bind(r),settle=r.settleLocalDependencyWork.bind(r);let selections=0,inspections=0,settlements=0;
+          r.localDependencySelection=(...args)=>{selections++;return select(...args)};r.inspect=(...args)=>{inspections++;return inspect(...args)};r.settleLocalDependencyWork=(...args)=>{settlements++;return settle(...args)};
+          equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),'ready','Clean owner verified');
+          equal(selections,1,'Exactly one local selection on the clean path');equal(inspections,1,'Selected head remains checked');equal(settlements,0,'No repair settlement needed');
+          r.localDependencySelection=select;r.inspect=inspect;r.settleLocalDependencyWork=settle;
+          equal((await r.inspect('A.md')).head,before,'Clean verification does not rewrite source head');
+          equal(await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md')),owner,'Clean verification does not rewrite owner');
+          equal(await r.completeLocalDependencyInventory(),'ready','Global dependency closure remains ready');return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("head replacement after the reused selection fails closed and a fresh check converges", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await fixture('local-r2-clean-selection-race');
+        try{
+          f.add('A.md','Friends:: [[Ghost]]');await f.acquire();ok(await f.acquisition.reconcile(),'Seed selected owner');
+          const r=f.repository,db=await f.cache.open(),before=(await r.inspect('A.md')).head;
+          const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));
+          const select=r.localDependencySelection.bind(r);let replaced=false;
+          r.localDependencySelection=async(...args)=>{const selected=await select(...args);if(!replaced){replaced=true;
+            equal((await r.replace(await r1Input(r,'A.md','replacement-',3))).outcome,'activated','Concurrent replacement uses production activation');
+          }return selected};
+          equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),'dependency-invalid','Old captured owner cannot validate a new selected source');
+          ok(replaced,'Replacement occurs between selection and head inspection');r.localDependencySelection=select;
+          const after=(await r.inspect('A.md')).head;ok(after.sourceRevision!==before.sourceRevision,'Selected source really changed');
+          equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),'ready','Fresh selection validates current source');
+          equal(await r.completeLocalDependencyInventory(),'ready','Current owner inventory closes after replacement');return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
     await t.test("accepted R1 owners lazily add resolver-neutral memberships without rewriting source heads", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const M=sourceModules,f=await fixture('local-r2-resolver-upgrade');
