@@ -711,7 +711,7 @@ export const englishCatalog = {
     params: [],
   },
   "index.startupHostComparison": {
-    message: "Checking note metadata",
+    message: "Validating note metadata",
     context: "Actual startup activity; no estimated percentage is implied.",
     params: [],
   },
@@ -721,27 +721,27 @@ export const englishCatalog = {
     params: [],
   },
   "index.startupChecking": {
-    message: "Checking cached notes",
+    message: "Verifying cached notes",
     context: "Actual startup activity; no estimated percentage is implied.",
     params: [],
   },
   "index.startupRechecking": {
-    message: "Rechecking cached notes",
+    message: "Processing pending changes",
     context: "A repeated source-reconciliation pass; its real note count starts again for that pass.",
     params: [],
   },
   "index.startupDependencyCompletion": {
-    message: "Validating dependency inventory",
+    message: "Finalizing note dependencies",
     context: "Actual startup activity; no estimated percentage is implied.",
     params: [],
   },
   "index.startupResolution": {
-    message: "Checking reference resolution",
+    message: "Finalizing link resolution",
     context: "Actual startup activity; no estimated percentage is implied.",
     params: [],
   },
   "index.startupSemantics": {
-    message: "Preparing requested Plex semantics",
+    message: "Applying current ontology & settings",
     context: "Actual startup activity; no estimated percentage is implied.",
     params: [],
   },
@@ -776,7 +776,7 @@ export const englishCatalog = {
     params: [],
   },
   "index.startupPromotion": {
-    message: "Publishing the index",
+    message: "Publishing full graph",
     context: "Actual startup activity; no estimated percentage is implied.",
     params: [],
   },
@@ -796,7 +796,7 @@ export const englishCatalog = {
     params: [],
   },
   "index.statusLoadingCache": {
-    message: "Status: loading index from cache",
+    message: "Status: restoring saved graph",
     context: "K-Plex index indicator detail shown while the persisted IndexedDB graph is being hydrated.",
     params: [],
   },

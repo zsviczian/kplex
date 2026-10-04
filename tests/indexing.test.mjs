@@ -716,7 +716,7 @@ const indexingStatusContext = {
   },
   translator: (key, params) => {
     if (key === "index.statusReady") return "Status: index ready";
-    if (key === "index.statusLoadingCache") return "Status: loading index from cache";
+    if (key === "index.statusLoadingCache") return "Status: restoring saved graph";
     if (key === "index.statusPreparing") return "Status: preparing index";
     if (key === "index.statusCheckingCache") return "Status: checking cached index for changes";
     if (key === "index.statusIndexingProgress") return `Status: indexing ${params.indexed} of ${params.total} files`;
@@ -733,22 +733,22 @@ const indexingStatusContext = {
   const context = { ...indexingStatusContext, cachedMarkdownFileCount: 5, startupDiagnostics: diagnostics,
     index: { ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true,
       getSnapshotHydrationDiagnostics: () => ({ phase: "source-authority" }) },
-    translator: (key, params) => key === "index.startupChecking" ? "Checking cached notes"
-      : key === "index.startupRechecking" ? "Rechecking cached notes"
-      : key === "index.startupHostComparison" ? "Checking note metadata"
+    translator: (key, params) => key === "index.startupChecking" ? "Verifying cached notes"
+      : key === "index.startupRechecking" ? "Processing pending changes"
+      : key === "index.startupHostComparison" ? "Validating note metadata"
       : key === "index.startupNotesProgress" ? `${params.activity} — ${params.processed} / ${params.total} notes (${params.percent}%)`
       : key === "index.startupEvidence" ? "Loading relationship evidence"
       : key === "index.startupRecordsProgress" ? `${params.activity} — ${params.processed} records loaded` : key,
   };
-  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Checking cached notes — 1 / 4 notes (25%)");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Verifying cached notes — 1 / 4 notes (25%)");
   diagnostics.processed("source");
-  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Checking cached notes — 2 / 4 notes (50%)");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Verifying cached notes — 2 / 4 notes (50%)");
   diagnostics.phase("source", "host-metadata-comparison", 4);
-  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Checking note metadata — 0 / 4 notes (0%)");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Validating note metadata — 0 / 4 notes (0%)");
   diagnostics.phase("source", "source-reconciliation", 5);
-  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Rechecking cached notes — 0 / 5 notes (0%)");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Processing pending changes — 0 / 5 notes (0%)");
   diagnostics.processed("source");
-  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Rechecking cached notes — 1 / 5 notes (20%)");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Processing pending changes — 1 / 5 notes (20%)");
   diagnostics.phase("hydration", "evidence");diagnostics.processed("hydration");
   context.index.getSnapshotHydrationDiagnostics = () => ({ phase: "evidence" });
   assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Loading relationship evidence — 1 records loaded");
@@ -855,7 +855,7 @@ assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
 }), {
   upToDate: false,
   phase: "loading-cache",
-  label: "Status: loading index from cache",
+  label: "Status: restoring saved graph",
   indexedFiles: 0,
   totalFiles: 5,
 }, "Snapshot hydration must identify cache loading instead of presenting a misleading 0-of-total indexing status");

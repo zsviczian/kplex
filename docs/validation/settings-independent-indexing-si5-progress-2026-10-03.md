@@ -1,5 +1,11 @@
 # SI5 implementation and validation — 2026-10-03
 
+## Final acceptance — 2026-10-04
+
+**SI0–SI5 are complete.** The maintainer reports successful physical iPad and Android tests and requests closure and a PR. The [final acceptance report](settings-independent-indexing-si5-acceptance-2026-10-04.md) records this qualitative device acceptance, final startup wording across eight catalogs, exact final validation and remaining measurement limits. Numerical device latency/memory and per-workflow traces were not supplied. Merge/release are separate actions; C15–C26 remain paused.
+
+All following sections are historical checkpoint records, superseded for current status by this acceptance. Their timings, artifact hashes, failures and unmeasured cases remain unchanged.
+
 ## Revised SI5 scope — maintainer decision, 2026-10-04
 
 The implementation was committed **before instrumentation** as `62c728393440aa3dfb57869ece83c4060092bcba`. Diagnostics/progress and the first warm correction are independently committed at `8cd10b7d6746d607f8214ad192670a0b9a370778`; subsequent corrections are separate checkpoints. No push/release. C15–C26 remain paused.

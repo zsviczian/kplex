@@ -1,4 +1,18 @@
-# SI5 physical-device checklist
+# SI5 physical-device checklist — accepted
+
+## Maintainer acceptance — 2026-10-04
+
+The maintainer reports that physical iPad and Android testing both passed successfully and requests indexing-independence closure. **The device gate is closed on this qualitative acceptance.** No new manual test is required for the subsequent catalog wording change. The [final acceptance report](settings-independent-indexing-si5-acceptance-2026-10-04.md) separates final desktop validation from the earlier device candidate.
+
+| Target | Reported outcome | Evidence limits |
+| --- | --- | --- |
+| Physical iPad | Passed — maintainer report | Model/OS/Obsidian, fixture, device artifact hash verification, individual workflow results, numerical latency/memory and recordings/diagnostics not supplied. |
+| Physical Android | Passed — maintainer report | Same limits; no independent device measurement by the agent. |
+
+The frozen hashes below identify the handed-off implementation, not an independently verified device installation. The remainder is the historical procedure and candidate record; its pending/return instructions are superseded by the maintainer acceptance above.
+
+## Frozen candidate and historical procedure
+
 
 Desktop closeout is complete on implementation commit **`9d8b5c9cb3e5fd7e42edc7d3a65684eda241ee5e`**. The [exact report](settings-independent-indexing-si5-merged-selection-2026-10-04.md) and [settings-route/retirement audit](settings-independent-indexing-si5-closeout-audit-2026-10-04.md) record the completed automated/native work. The narrow correction removes redundant transactions; overall warm latency did not demonstrate improvement. No further automatic architecture, dense-hub, cold-start or performance change is queued.
 

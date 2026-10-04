@@ -442,7 +442,7 @@ When changing provenance navigation, preserve host-view ownership: an open sidec
 
 After exact-build staging, run `npm run verify:obsidian:si5` with the same three disposable test-vault variables and an explicit `KPLEX_HOST_REPORT_DIR`. The default scenario creates owned notes, saves an ontology change, reloads, removes/corrupts optional graph acceleration, damages one requested source chunk and simulates an offline edit. Missing/corrupt graph cases also assert global virtual/URL search, aliases and inline type suggestions outside requested scopes. Its small-fixture setup may seed complete acceleration after an earlier fault run; measured restarts start on the newly loaded instance. It restores settings, wrapped Vault methods, owned notes and original throttling. Back up the test vault/cache before fault injection; never use a personal vault. Run native drivers serially; do not overlap manual CLI probes with their polling.
 
-Set `KPLEX_SI5_RESTART_ONLY=true` for three warm restarts of an existing large fixture; it does not seed a fixture build. The report records named hardware, exact hashes, readiness, source/build counters, renderer visibility, heap samples and total CLI/restart elapsed time; `progress.json` identifies the active phase between completed probes. These are functional restart measurements, not actual-paint or physical-device acceptance. The [SI5 report](docs/validation/settings-independent-indexing-si5-progress-2026-10-03.md) and [device procedure](docs/validation/settings-independent-indexing-si5-device-checklist.md) track the remaining release gates.
+Set `KPLEX_SI5_RESTART_ONLY=true` for three warm restarts of an existing large fixture; it does not seed a fixture build. The report records named hardware, exact hashes, readiness, source/build counters, renderer visibility, heap samples and total CLI/restart elapsed time; `progress.json` identifies the active phase between completed probes. These are functional restart measurements, not actual-paint or physical-device acceptance. The [SI5 report](docs/validation/settings-independent-indexing-si5-progress-2026-10-03.md) and [device procedure](docs/validation/settings-independent-indexing-si5-device-checklist.md) retain historical validation procedures; [final SI5 acceptance](docs/validation/settings-independent-indexing-si5-acceptance-2026-10-04.md) records completed feature acceptance and its measurement limits.
 
 Keep Obsidian in the foreground throughout comparable runs. The driver shows the application before
 focusing the test window, retains its original background throttling, and samples document visibility,
@@ -574,7 +574,9 @@ Measured yields do not justify scheduling changes. Keep diagnostic-driver and su
 changes in separate commits. No next optimization until the measured proposal is reviewed.
 
 Startup progress labels distinguish note metadata, cached-note validation and repeated reconciliation
-with **Rechecking cached notes**. Diagnostic progress includes the one-based lane/phase `pass`;
+with **Processing pending changes**. Metadata comparison is **Validating note metadata**, initial
+source reconciliation is **Verifying cached notes**, and requested semantic preparation is
+**Applying current ontology & settings**. Diagnostic progress includes the one-based lane/phase `pass`;
 counts restart at the actual pass boundary. This also works without detailed opt-in. The
 [controlled retry validation](docs/validation/settings-independent-indexing-si5-progress-labels-2026-10-04.md)
 records the exact test-only MetadataCache miss recipe, failed untimed background setup and successful
@@ -588,4 +590,4 @@ wait probe enabled, keeping the test renderer in the foreground and all other te
 Head requests and dependency checks are distinct from transaction boundaries: consolidation does
 not remove their validation or the later freshness pass. The [closeout audit](docs/validation/settings-independent-indexing-si5-closeout-audit-2026-10-04.md)
 inventories current settings routes, retired writers and deliberately retained compatibility seams.
-Physical iPad/Android outcomes remain required in the [device checklist](docs/validation/settings-independent-indexing-si5-device-checklist.md).
+The maintainer reports successful physical iPad and Android tests; the [device checklist](docs/validation/settings-independent-indexing-si5-device-checklist.md) retains the procedure and qualitative acceptance record. [SI5 is closed](docs/validation/settings-independent-indexing-si5-acceptance-2026-10-04.md); no further automatic optimization or refactor work is queued.

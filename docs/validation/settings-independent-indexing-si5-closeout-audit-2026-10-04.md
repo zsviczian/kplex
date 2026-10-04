@@ -1,5 +1,7 @@
 # SI5 closeout audit — 2026-10-04
 
+**Accepted — 2026-10-04:** the maintainer reports physical iPad and Android passes and explicitly requests SI5 closure. The [final acceptance report](settings-independent-indexing-si5-acceptance-2026-10-04.md) closes the device gate on that qualitative report; model/OS, per-workflow diagnostics and numerical device timings/memory were not supplied. The audit below is the preceding desktop checkpoint; its “Remaining” column and device instructions describe requirements at that time, not outstanding work. Retained compatibility seams and measured limitations remain valid.
+
 SI4 remains accepted at `323b260127e4fb81e1d3697d4ee8b0282f8cdb12`. SI5's implementation checkpoint was preserved before instrumentation at `62c728393440aa3dfb57869ece83c4060092bcba`. The final correction is committed at **`9d8b5c9cb3e5fd7e42edc7d3a65684eda241ee5e`**, following the independent progress-label checkpoint `b48643c62fb5a21d105f6f5db38c4025223ca785`; exact final verification and artifact measurements are recorded in the [merged-selection report](settings-independent-indexing-si5-merged-selection-2026-10-04.md).
 
 This is a caller/compatibility audit of the bounded SI5 implementation, not a new architectural extraction. Desktop full verification, six comparable foreground plugin restarts and the final normal-production smoke are complete. No overall warm speedup was demonstrated; exact measurements remain visible. Physical iPad and Android results remain required before SI5 is accepted.
