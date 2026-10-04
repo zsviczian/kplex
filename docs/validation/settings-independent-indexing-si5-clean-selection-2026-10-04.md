@@ -1,5 +1,7 @@
 # SI5 clean dependency-selection reuse — 2026-10-04
 
+**Historical baseline:** selection reuse is committed at `80a14ecaff42daa657c0e86aa04ff4ecd46046fc`. The [separate posting-batching follow-up](settings-independent-indexing-si5-posting-batching-2026-10-04.md) owns current results; original measurements and candidate state below are retained.
+
 The previous diagnostics, truthful progress and first owner-loop correction were checkpointed **before this edit** as **`8cd10b7d6746d607f8214ad192670a0b9a370778`**. This correction is a separate nine-line production diff in `SourceRepository.ts`, plus two real-IndexedDB tests and its evidence/docs. The native measurements below were collected against an uncommitted candidate based on that clean checkpoint; this independently validated change forms the next checkpoint. No push/release, posting-reader optimization, scheduling change, architectural redesign or memory increase.
 
 [Machine-readable exact timings/counters/cleanup](settings-independent-indexing-si5-clean-selection-2026-10-04.json); [immediate committed baseline](settings-independent-indexing-si5-minimal-warm-correction-2026-10-04.md); [original attribution](settings-independent-indexing-si5-warm-start-2026-10-04.md).

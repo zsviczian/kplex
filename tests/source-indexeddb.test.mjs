@@ -138,6 +138,76 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
       })()`), true);
     });
 
+    await t.test("posting range reads stay bounded across batch boundaries and isolate immutable families", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const isolated=await fresh('posting-range-bounds'),r=isolated.sources;
+        const get=IDBObjectStore.prototype.get,getAll=IDBObjectStore.prototype.getAll;let pointReads=0,ranges=[];
+        try {
+          const input=await make(r,'A');input.families.metadata=async emit=>{for(let i=0;i<600;i++)if(!await emit({kind:'host-literal',ordinal:i,rawTarget:'target-'+i}))return false;return true;};
+          equal((await r.replace(input)).outcome,'activated','Multi-batch source');
+          equal((await r.replace(await make(r,'B'))).outcome,'activated','Adjacent owner');
+          const before=await r.inspect('A',[]);equal(before.head.families.metadata.postings,601,'Family plus all literal postings');
+          IDBObjectStore.prototype.get=function(...args){if(this.name==='sourcePostings')pointReads++;return get.apply(this,args)};
+          IDBObjectStore.prototype.getAll=function(range,count){if(this.name==='sourcePostings'){ok(range instanceof IDBKeyRange,'Explicit key range');ok(count>0&&count<=256,'Existing record bound');
+            equal(range.lower.slice(0,3),['A',before.head.families.metadata.revision,'metadata'],'Exact lower family');equal(range.upper.slice(0,3),range.lower.slice(0,3),'Exact upper family');
+            equal(range.upper[3]-range.lower[3]+1,count,'Contiguous capped interval');ranges.push([range.lower[3],range.upper[3],count]);}return getAll.call(this,range,count)};
+          const seen=[];equal(await r.visit('A','metadata',records=>{seen.push(...records);return true;}),'ready','Every bounded batch validated');
+          equal(seen.length,600,'All facts replayed');equal(pointReads,0,'No per-posting point requests');
+          equal(ranges,[[0,255,256],[256,256,1],[257,512,256],[513,600,88]],'One request per existing posting batch including boundary tail');
+          equal((await r.inspect('A',[])).head,before.head,'Validation keeps source head unchanged');return true;
+        } finally {IDBObjectStore.prototype.get=get;IDBObjectStore.prototype.getAll=getAll;isolated.close();}
+      })()`),true);
+    });
+
+    await t.test("posting range holes, boundary gaps and malformed replacement rows fail closed", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const isolated=await fresh('posting-range-corruption'),r=isolated.sources,db=await isolated.open();
+        try {
+          for(const fault of ['first','middle','boundary','last','wrong-key','fractional-key']){
+            const input=await make(r,fault);input.families.metadata=async emit=>{for(let i=0;i<300;i++)if(!await emit({kind:'host-literal',ordinal:i,rawTarget:'target-'+i}))return false;return true;};
+            equal((await r.replace(input)).outcome,'activated','Seed '+fault);const selected=await r.inspect(fault,[]),revision=selected.head.families.metadata.revision;
+            await edit(db,['sourcePostings'],async tx=>{const store=tx.objectStore('sourcePostings');
+              const index={first:0,middle:128,boundary:256,last:300,'wrong-key':128,'fractional-key':128}[fault];
+              const key=[fault,revision,'metadata',index],row=await requestValue(store.get(key));
+              if(fault==='wrong-key')store.put({...row,key:'corrupt'});
+              else if(fault==='fractional-key')store.put({...row,index:127.5});
+              else {store.delete(key);store.put({...row,family:'resolution'});store.put({...row,sourceId:fault+'-other'});}
+            });
+            let consumed=0;const result=await r.readSelected(fault,()=> 'ready',async reader=>{await reader.visit('metadata',records=>{consumed+=records.length;return true;});return 'must not publish';});
+            equal(result.outcome,'invalid-family','Corrupt range rejected '+fault);equal(result.reason,fault==='wrong-key'||fault==='fractional-key'?'invalid-posting':'missing-posting','Exact corruption reason '+fault);
+            ok(!('value' in result),'No partial result escapes '+fault);
+            equal(await requestValue(db.transaction('meta').objectStore('meta').index('sourceLease').count([fault,selected.head.sourceRevision])),0,'Failure releases leases '+fault);
+            ok(consumed<=256,'At most earlier private chunks consumed');
+          }return true;
+        } finally {isolated.close();}
+      })()`),true);
+    });
+
+    await t.test("posting range await preserves replacement, cleanup and cancellation fences", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const first=await fresh('posting-range-race'),second=await fresh('posting-range-race'),r=first.sources,other=second.sources,db=await second.open();
+        try {
+          for(const mode of ['replacement','cancelled']){
+            equal((await r.replace(await make(r,mode))).outcome,'activated','Seed '+mode);const selected=await r.inspect(mode,[]);
+            const leases=()=>requestValue(db.transaction('meta').objectStore('meta').index('sourceLease').count([mode,selected.head.sourceRevision]));
+            const transaction=r.transaction.bind(r);let signal,release,paused=false,valid=true;
+            const reached=new Promise(resolve=>signal=resolve),gate=new Promise(resolve=>release=resolve);
+            r.transaction=async(...args)=>{const value=await transaction(...args);if(!paused&&args[1].includes('sourcePostings')&&args[2]==='readonly'){paused=true;signal();await gate;}return value;};
+            const task=r.readSelected(mode,()=> 'ready',async reader=>{await reader.visit('values',()=>true);return 'must not escape';},()=>valid);
+            await reached;ok(await leases()>0,'Await retains exact revision lease');
+            if(mode==='replacement'){
+              equal((await other.replace(await make(other,mode,selected.expected,'Field:: [[Replacement]]'))).outcome,'activated','Concurrent head replacement');
+              equal(await other.cleanupRevision(mode,selected.head.sourceRevision),false,'Retired family remains pinned during range await');
+            }else valid=false;
+            release();const result=await task;r.transaction=transaction;
+            equal(result.outcome,mode==='replacement'?'stale':'cancelled','Await fence '+mode);ok(!('value' in result),'No stale/cancelled result');equal(await leases(),0,'Terminal lease cleanup');
+            equal(r.decodeBytes,0,'Decode reservation released');
+            if(mode==='replacement')ok(await other.cleanupRevision(mode,selected.head.sourceRevision),'Retired revision collectible after read exits');
+          }return true;
+        } finally {first.close();second.close();}
+      })()`),true);
+    });
+
     await t.test("cross-connection CAS rejects an obsolete writer; pinned and head-selected revisions cannot be cleaned", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const r=cache.sources;const initial=await r.inspect('A');

@@ -1187,10 +1187,16 @@ export class NeutralSourceRepository {
             if (view.memory) stored = batch.map((posting) => view.memory?.postings.get(memoryKey(family, posting.index)));
             else {
               const db = await this.open(); if (!db || !current()) return "storage-unavailable";
+              const first = batch[0], last = batch[batch.length - 1];
+              // The primary key orders one immutable family by posting index. Keep the existing
+              // byte/record-bounded batch and cap the result even when stored keys are malformed.
+              const range = IDBKeyRange.bound([first.sourceId, first.revision, first.family, first.index],
+                [last.sourceId, last.revision, last.family, last.index]);
               stored = await this.transaction(db, [SOURCE_POSTING_STORE], "readonly", view.head.sourceId, (transaction) =>
-                Promise.all(batch.map((posting) => unknownValue(transaction.objectStore(SOURCE_POSTING_STORE).get([posting.sourceId, posting.revision, posting.family, posting.index])))));
+                requestValue<unknown[]>(transaction.objectStore(SOURCE_POSTING_STORE).getAll(range, batch.length)));
             }
             if (!current()) return "cancelled";
+            if (stored.length !== batch.length) return this.fail("missing-posting", family);
             for (let i = 0; i < batch.length; i += 1) {
               if (stored[i] === undefined) return this.fail("missing-posting", family);
               const posting = stored[i];

@@ -545,7 +545,7 @@ was developed after checkpointing the prior fix at `8cd10b7d6746d607f8214ad19267
 120,090 IDB reads across a clean 20,015-note restart while retaining source-head/repair/freshness
 checks. Its median is 82.149 seconds versus 80.137 seconds immediately before; no overall latency
 improvement is demonstrated. Keep each independently validated correction in its own commit before
-adding another behavior change. Posting batching and scheduling changes remain unimplemented.
+adding another behavior change. Posting batching is validated separately below; scheduling remains unchanged.
 
 When staging, distinguish configured enablement from a loaded plugin instance. After native
 `app.plugins.disablePlugin()`, CLI `plugin:enable` can report “already enabled” while
@@ -553,3 +553,13 @@ When staging, distinguish configured enablement from a loaded plugin instance. A
 completion/error state and bounded polls; verify the actual instance and installed artifact hashes.
 Preserve and byte-compare the original settings and community-plugin enablement list. A configured-state
 mismatch is a staging issue, not a slow-start timeout; neither requires resetting Obsidian configuration.
+
+
+The [bounded posting-read correction and native results](docs/validation/settings-independent-indexing-si5-posting-batching-2026-10-04.md)
+use one count-limited primary-key range request per existing byte/record-bounded batch, with every
+posting/digest/frame and source-head/lease/freshness/cancellation check retained. Three foreground
+restarts pass at 66.170/65.324/74.123 seconds (median 66.170, prior 82.149); posting requests fall from
+484,199 point reads to 20,027 bounded range reads. Full verify passes 199 browser tests and the actual
+production build. These are sequential observations, not randomized paired or physical-device tests.
+Existing yields remain; measure their exclusive wait cost before changing scheduling. Preserve a clean
+checkpoint between independently validated corrections.
