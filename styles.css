@@ -15,6 +15,7 @@
   --kplex-muted: rgba(222, 231, 243, 0.56);
   --kplex-text: #e9f1fb;
   --kplex-accent: #74b6ff;
+  --kplex-control-bg: rgba(12,17,23,.78);
   /* Host-owned values for migrated action controls. Keep the current dark Plex palette until
      the broader shell is themed; the component itself remains independent of Obsidian CSS. */
   --kplex-action-fg: var(--kplex-text);
@@ -167,6 +168,7 @@
 
 .kplex-topbar button,
 .kplex-content-actions button,
+.kplex-find button,
 .kplex-zoom-controls button {
   color: var(--kplex-text);
   background: rgba(255,255,255,.055);
@@ -179,6 +181,7 @@
 
 .kplex-topbar button:hover,
 .kplex-content-actions button:hover,
+.kplex-find button:hover,
 .kplex-zoom-controls button:hover { background: rgba(255,255,255,.11); }
 .kplex-topbar button.is-on { color: #dcecff; border-color: rgba(116,182,255,.48); background: rgba(67,132,205,.18); }
 .kplex-topbar button:disabled { opacity: .28; cursor: default; }
@@ -419,7 +422,8 @@
 .kplex-sibling-content { position: relative; width: 100%; min-height: 100%; }
 
 .kplex-zoom-controls { position: absolute; z-index: 20; right: 12px; bottom: 12px; display: flex; gap: 5px; }
-.kplex-zoom-controls button { width: 30px; padding: 0; background: rgba(12,17,23,.78); }
+.kplex-zoom-controls button,
+.kplex-find button { width: 30px; padding: 0; background: var(--kplex-control-bg); }
 
 .kplex-content-pane {
   width: var(--kplex-content-width);
@@ -2517,8 +2521,9 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
 .kplex-node-visual {
   position: relative;
   z-index: 1;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
   width: 18px;
   height: 18px;
@@ -2530,6 +2535,10 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
   display: block;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
   border-radius: inherit;
   object-fit: cover;
   background: var(--background-secondary);
@@ -3216,3 +3225,71 @@ button.kplex-style-manager-row { height: fit-content; }
 .kplex-plex.is-central-editor-maximized .kplex-role-center.has-embedded-content {
   box-shadow: none;
 }
+
+/* Optional fixed-height two-line thought labels keep graph rows aligned while exposing longer titles. */
+.kplex-thought-label.is-two-line > .kplex-thought-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  line-height: 1.15;
+  max-height: 2.3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Native image views fit both dimensions of the untransformed embedded editor. */
+.kplex-central-editor-leaf-host [data-type="image"] .view-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.kplex-central-editor-leaf-host [data-type="image"] .view-content img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Find stays local to the Plex, with a touch target and no result popup. */
+.kplex-find {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 16px);
+  padding: 0;
+}
+.kplex-view-host .kplex-find-input {
+  width: 170px;
+  min-width: 0;
+  height: 28px;
+  color: var(--kplex-text);
+  background: var(--kplex-control-bg);
+  border: 1px solid var(--kplex-line);
+}
+.kplex-find-count {
+  color: var(--kplex-muted);
+  font-size: var(--font-smallest);
+  white-space: nowrap;
+  background: var(--kplex-control-bg);
+  border-radius: 7px;
+  padding: 3px 5px;
+}
+.kplex-plex.is-finding .kplex-thought.is-highlighted,
+.kplex-expanded-mini-thought.is-find-match {
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+.kplex-plex.is-finding .kplex-edge.is-highlighted .kplex-edge-visible,
+.kplex-expanded-edge.is-find-match { stroke: var(--interactive-accent); }
+
+.kplex-vault-stats { display: grid; gap: 4px; margin: 8px 0 14px; }
+.kplex-vault-stats-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: baseline; }
+.kplex-vault-stats-row.is-nested { padding-left: 18px; color: var(--text-muted); }
+.kplex-vault-stats-value { font-variant-numeric: tabular-nums; text-align: right; }

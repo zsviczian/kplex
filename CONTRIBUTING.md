@@ -346,6 +346,25 @@ When touching search, verify:
 - large paths/titles remain readable
 - fuzzy ordered-subsequence matches work and rank below stronger matches
 
+Vault search uses **F4** and includes every real Vault file type independently of Plex visibility. **Ctrl/Cmd+F** opens the separate current-Plex Find field: no dropdown, literal label/path/alias highlighting, overflow reveal, Enter/Shift+Enter cycling and Escape dismissal without changing the center/history. Check Graph Lens exclusions, area filters, expanded descendants and section projections.
+
+After `npm run verify:obsidian` stages the exact production build, run the native UX regression driver serially:
+
+```bash
+PATH=/Users/zsviczian/.local/share/fnm/node-versions/v22.22.2/installation/bin:$PATH \
+KPLEX_TEST_VAULT_NAME=kplex-test \
+KPLEX_TEST_VAULT_PATH=/Users/zsviczian/Obsidian/kplex-test \
+KPLEX_TEST_CONFIG_DIR=/Users/zsviczian/Obsidian/kplex-test/.obsidian \
+KPLEX_HOST_REPORT_DIR=/private/tmp/kplex-ux-native \
+npm run verify:obsidian:ux
+```
+
+The driver rejects mismatched artifacts and preexisting fixture paths. It creates an owned relationship fixture, tall/wide PNGs and a Canvas, then tests Vault search, projected Find, About vault double-click/double-tap, native image fit and collapse history, thumbnail centering, intermediate captured-pointer area resizing, Canvas explorer-drop routing and wheel zoom before pan. A native popout checks Find focus/highlighting/history in its owning document and compares its Find/zoom styling. The driver removes its fixture/views/controller and restores settings bytes, enablement and window geometry/throttling. Native pointer resizing uses Electron input with the held-button modifier; the area-settings menu uses the public DOM mode, and the explorer-drop lane supplies Obsidian's actual internal payload to the real DOM handler. These are functional desktop checks, not paint/performance measurements or physical touch acceptance. Separately test iPad trackpad zoom, phone/tablet double-tap versus long-press and native Canvas controls on physical devices.
+
+Setup temporarily selects the existing `Welcome.md` (override with `KPLEX_UX_SETUP_CENTER`) and calls the normal view-readiness entry point before waiting for strict index readiness, avoiding the separately documented extreme-hub decode limit. The original center is restored during cleanup. After fixture metadata settles, setup seeds a complete graph through the production rebuild coordinator; it requires all three fixture aliases and the expanded relationship to be materialized. This lane validates UI behavior on a complete graph and does not establish warm-vocabulary publication completeness. Fixture reconciliation may take up to 15 minutes in the 20k-note vault; this is a test setup deadline, not a change to production timing limits. Individual CLI reads have a 30-second hard timeout; polling retries transport timeouts and records them separately from native assertion failures. The style assertion compares Find's rendered dimensions, background and border radius with the zoom controls.
+
+Set `KPLEX_UX_EMULATE_MOBILE=true` to add actual Obsidian mobile emulation at tablet and phone widths after the desktop fixture is cleaned up. This lane records the production adapter's selected device profile, actual viewport dimensions, Find field focus/clipping and keyboard-hint behavior, and restores the original mobile mode and window minimum size. It does not establish physical touch or iPad trackpad acceptance.
+
 ## Relationship editing checklist
 
 ### New relationship from a gate

@@ -1,7 +1,7 @@
 /**
  * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback.
  */
-import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
+import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, getAllTags, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { captureSettingsPolicy, classifySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
 import { GraphIndex } from "./index/GraphIndex";
 import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
@@ -110,7 +110,7 @@ export default class KplexPlugin extends Plugin {
   private transientDocumentFollowSuppression: { path: string; until: number } | null = null;
   private readonly navigationListeners = new Set<(path: string) => void>();
   private readonly searchFocusListeners = new Map<WorkspaceLeaf, () => void>();
-  private readonly relationshipFlairListeners = new Set<(path: string) => void>();
+  private readonly nodeFlairListeners = new Set<(path: string) => void>();
   private readonly indexStatusListeners = new Set<() => void>();
   /** Lazily established Markdown total; known membership changes maintain it without vault enumeration. */
   private cachedMarkdownFileCount: number | null = null;
@@ -474,7 +474,7 @@ export default class KplexPlugin extends Plugin {
     // A managed sidecar is still an ordinary Obsidian content tab. Plugin unload/disable must not
     // close the user's note; simply release K-Plex ownership and leave workspace leaves intact.
     this.sidecarLeaves.clear();
-    this.relationshipFlairListeners.clear();
+    this.nodeFlairListeners.clear();
     this.indexStatusListeners.clear();
     this.kplexVisibilityListeners.clear();
     this.visibleKplexLeaves.clear();
@@ -2230,13 +2230,13 @@ export default class KplexPlugin extends Plugin {
     for (const listener of this.graphLensListeners) listener(lenses);
   }
 
-  subscribeRelationshipFlair(listener: (path: string) => void): () => void {
-    this.relationshipFlairListeners.add(listener);
-    return () => this.relationshipFlairListeners.delete(listener);
+  subscribeNodeFlair(listener: (path: string) => void): () => void {
+    this.nodeFlairListeners.add(listener);
+    return () => this.nodeFlairListeners.delete(listener);
   }
 
-  requestRelationshipFlair(path: string): void {
-    for (const listener of this.relationshipFlairListeners) listener(path);
+  requestNodeFlair(path: string): void {
+    for (const listener of this.nodeFlairListeners) listener(path);
   }
 
   subscribeSidecar(listener: () => void): () => void {
@@ -2773,6 +2773,31 @@ export default class KplexPlugin extends Plugin {
     await this.app.workspace.revealLeaf(leaf);
   }
 
+
+  /** Report whether Obsidian's internal Web Viewer is available for explicit URL actions. */
+  canOpenUrlInWebViewer(): boolean {
+    return isWebViewerAvailable(this.app);
+  }
+
+  /** Open a URL in the device browser, bypassing the optional internal Web Viewer. */
+  openUrlInBrowser(url: string, ownerDocument = this.app.workspace.containerEl.ownerDocument): void {
+    const viewWindow = ownerDocument.defaultView ?? window;
+    viewWindow.open(url, "_blank", "noopener");
+  }
+
+  /** Open a URL in a dedicated native Web Viewer tab when that core view is enabled. */
+  async openUrlInWebViewer(url: string): Promise<void> {
+    if (!isWebViewerAvailable(this.app)) {
+      new Notice(this.translator("notice.webViewerUnavailable"), 2600);
+      return;
+    }
+    let leaf: WorkspaceLeaf;
+    try { leaf = this.app.workspace.getLeaf("tab"); }
+    catch { leaf = this.app.workspace.getLeaf(true); }
+    await leaf.setViewState({ type: "webviewer", state: { url, navigate: true }, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
   /** Open a graph page through its supported host target and localize product feedback; semantic identities remain unchanged. */
   async openPage(page: GraphPage, ownerDocument = this.app.workspace.containerEl.ownerDocument): Promise<void> {
     if (page.url) {
@@ -3142,6 +3167,62 @@ export default class KplexPlugin extends Plugin {
     return [...h.parents, ...h.children, ...h.leftFriends, ...h.rightFriends, ...h.previous, ...h.next];
   }
 
+  /** Collect vault/index counts on demand for the About vault dialog without changing graph state. */
+  getVaultStatistics(): {
+    indexStatus: string; markdownFiles: number; notes: number; excalidrawDrawings: number | null;
+    urls: number; folders: number; tags: number; placeholders: number;
+    attachments: number; images: number; video: number; otherAttachments: number;
+    ontologyTotal: number; ontologyUsed: number;
+  } {
+    const markdownFiles = this.app.vault.getMarkdownFiles();
+    const excalidrawAvailable = this.isExcalidrawAvailable();
+    const excalidrawDrawings = excalidrawAvailable
+      ? markdownFiles.filter((file) => /\.excalidraw\.md$/i.test(file.path)
+        || Boolean(this.app.metadataCache.getFileCache(file)?.frontmatter?.["excalidraw-plugin"])).length
+      : null;
+    const attachments = this.app.vault.getFiles().filter((file) => file.extension.toLowerCase() !== "md");
+    const imageExtensions = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "heic", "heif"]);
+    const videoExtensions = new Set(["mp4", "webm", "mov", "m4v", "avi", "mkv", "ogv"]);
+    const images = attachments.filter((file) => imageExtensions.has(file.extension.toLowerCase())).length;
+    const video = attachments.filter((file) => videoExtensions.has(file.extension.toLowerCase())).length;
+    const pages = this.index.allPages();
+    const vaultRoot = this.app.vault.getRoot();
+    const folders = this.app.vault.getAllLoadedFiles().filter((item) => item instanceof TFolder && item !== vaultRoot).length;
+    const tags = new Set<string>();
+    for (const file of markdownFiles) {
+      const cache = this.app.metadataCache.getFileCache(file);
+      if (!cache) continue;
+      for (const tag of getAllTags(cache) ?? []) tags.add(tag);
+    }
+    const ontologyNames = new Set(this.allOntologyFields().map(normalizeFieldName));
+    const usedOntology = new Set<string>();
+    for (const page of pages) {
+      for (const relation of this.index.evidenceFrom(page.path)) {
+        for (const evidence of relation.evidence) {
+          if (!evidence.fieldName) continue;
+          const normalized = normalizeFieldName(evidence.fieldName);
+          if (ontologyNames.has(normalized)) usedOntology.add(normalized);
+        }
+      }
+    }
+    return {
+      indexStatus: this.getIndexStatus().label,
+      markdownFiles: markdownFiles.length,
+      notes: markdownFiles.length - (excalidrawDrawings ?? 0),
+      excalidrawDrawings,
+      urls: pages.filter((page) => Boolean(page.url)).length,
+      folders,
+      tags: tags.size,
+      placeholders: pages.filter((page) => !page.file && !page.url && !page.isFolder && !page.isTag).length,
+      attachments: attachments.length,
+      images,
+      video,
+      otherAttachments: attachments.length - images - video,
+      ontologyTotal: ontologyNames.size,
+      ontologyUsed: usedOntology.size,
+    };
+  }
+
   private referenceForPage(page: GraphPage, storageFile: TFile): string {
     if (page.file) return this.app.fileManager.generateMarkdownLink(page.file, storageFile.path);
     if (page.url) return page.url;
@@ -3430,37 +3511,28 @@ export default class KplexPlugin extends Plugin {
     }
   }
 
-  /** Validate a proposed note name and return localized user feedback; filename rules and collision behavior remain unchanged. */
+  /** Derive a portable physical filename from a freely entered display title. */
   validateRelatedNoteName(rawName: string): { stem: string; valid: boolean; error: string | null; existing: TFile | null } {
-    let stem = rawName.trim();
-    stem = stem.replace(/\.excalidraw(?:\.md)?$/i, "").replace(/\.md$/i, "").trim();
-    if (!stem) return { stem: "", valid: false, error: this.translator("note.validation.type"), existing: null };
+    const displayName = rawName.trim();
+    if (!displayName) return { stem: "", valid: false, error: this.translator("note.validation.type"), existing: null };
 
-    // Keep creation portable across desktop/mobile vaults and synced filesystems. These are the
-    // characters Windows/macOS/Obsidian users most commonly cannot safely use in a filename.
-    const hasProhibitedCharacter = [...stem].some((character) => {
+    const source = displayName.replace(/\.excalidraw(?:\.md)?$/i, "").replace(/\.md$/i, "").trim();
+    let stem = "";
+    for (const character of source) {
       const codePoint = character.codePointAt(0) ?? 0;
-      return codePoint < 0x20 || '<>:"/\\|?*'.includes(character);
-    });
-    if (hasProhibitedCharacter) {
-      return { stem, valid: false, error: this.translator("note.validation.prohibitedCharacters"), existing: null };
+      stem += codePoint < 0x20 || '<>:"/\\|?*'.includes(character) ? "-" : character;
     }
-    if (/[. ]$/.test(stem)) {
-      return { stem, valid: false, error: this.translator("note.validation.trailingPeriodSpace"), existing: null };
-    }
-    if (stem === "." || stem === "..") {
-      return { stem, valid: false, error: this.translator("note.validation.chooseDifferent"), existing: null };
-    }
-    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(stem)) {
-      return { stem, valid: false, error: this.translator("note.validation.reserved"), existing: null };
-    }
+    stem = stem.replace(/\s+/g, " ").replace(/[. ]+$/g, "").trim();
+    if (!stem || stem === "." || stem === "..") stem = "Untitled";
+    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(stem)) stem = `${stem}-note`;
 
     const normalized = stem.toLocaleLowerCase();
-    const existing = this.app.vault.getMarkdownFiles().find((file) => {
-      const name = file.name.toLocaleLowerCase();
-      const candidate = name.endsWith(".excalidraw.md")
+    const existing = this.app.vault.getFiles().find((file) => {
+      const lowerName = file.name.toLocaleLowerCase();
+      if (file.extension !== "md" && file.extension !== "excalidraw") return false;
+      const candidate = lowerName.endsWith(".excalidraw.md")
         ? file.name.slice(0, -".excalidraw.md".length)
-        : file.name.replace(/\.md$/i, "");
+        : file.name.replace(/\.(?:md|excalidraw)$/i, "");
       return candidate.toLocaleLowerCase() === normalized;
     }) ?? null;
 
@@ -3987,9 +4059,9 @@ export default class KplexPlugin extends Plugin {
     const normalizedFolder = configuredFolder ? normalizePath(configuredFolder) : "";
     await this.ensureFolderPath(normalizedFolder);
 
-    const proposedName = kind === "excalidraw" ? `${leafName}.excalidraw.md` : `${leafName}.md`;
+    const proposedName = `${leafName}.md`;
     const destination = normalizePath(normalizedFolder ? `${normalizedFolder}/${proposedName}` : proposedName);
-    if (this.app.vault.getAbstractFileByPath(destination)) {
+    if (kind === "markdown" && this.app.vault.getAbstractFileByPath(destination)) {
       new Notice(this.translator("file.existsAt", { path: destination }), 3000);
       return null;
     }
@@ -3998,12 +4070,27 @@ export default class KplexPlugin extends Plugin {
     // inside create()/the Excalidraw API. K-Plex materializes the page itself as soon as the
     // returned TFile is available, so that event must not schedule a redundant whole-vault build.
     this.managedCreatedPaths.set(destination, Date.now() + MANAGED_CREATED_PATH_TTL_MS);
-    const alternateExcalidrawPath = kind === "excalidraw"
-      ? normalizePath(normalizedFolder ? `${normalizedFolder}/${leafName}.md` : `${leafName}.md`)
-      : null;
-    if (alternateExcalidrawPath) this.managedCreatedPaths.set(alternateExcalidrawPath, Date.now() + MANAGED_CREATED_PATH_TTL_MS);
+    const alternateExcalidrawPaths = kind === "excalidraw"
+      ? ["excalidraw.md", "excalidraw"].map((extension) => normalizePath(normalizedFolder ? `${normalizedFolder}/${leafName}.${extension}` : `${leafName}.${extension}`))
+      : [];
+    for (const path of alternateExcalidrawPaths) this.managedCreatedPaths.set(path, Date.now() + MANAGED_CREATED_PATH_TTL_MS);
 
     if (kind === "excalidraw") {
+      type RuntimePlugin = Plugin & {
+        settings?: { compatibilityMode?: boolean; useExcalidrawExtension?: boolean };
+        createDrawing?: (filename: string, foldername?: string) => Promise<TFile | string>;
+      };
+      type PluginManagerBridge = { plugins?: Record<string, RuntimePlugin> };
+      const manager = (this.app as unknown as { plugins?: PluginManagerBridge }).plugins;
+      const excalidraw = manager?.plugins?.["obsidian-excalidraw-plugin"];
+      const compatibilityMode = excalidraw?.settings?.compatibilityMode === true;
+      const useExcalidrawExtension = excalidraw?.settings?.useExcalidrawExtension !== false;
+      const drawingFilename = compatibilityMode
+        ? `${leafName}.excalidraw`
+        : useExcalidrawExtension
+          ? `${leafName}.excalidraw.md`
+          : `${leafName}.md`;
+
       type Automate = {
         reset?: () => void;
         getAPI?: () => Automate;
@@ -4011,11 +4098,14 @@ export default class KplexPlugin extends Plugin {
       };
       const globalEA = (window as unknown as { ExcalidrawAutomate?: Automate }).ExcalidrawAutomate;
       const ea = typeof globalEA?.getAPI === "function" ? globalEA.getAPI() : globalEA;
-      if (ea?.create) {
+
+      // ExcalidrawAutomate appends `.excalidraw.md` to every explicit filename that does not end
+      // in `.md`, so compatibility-mode drawings must use the plugin's lower-level creator.
+      if (!compatibilityMode && ea?.create) {
         try {
           ea.reset?.();
           const createdPath = normalizePath(await ea.create({
-            filename: leafName,
+            filename: drawingFilename,
             foldername: normalizedFolder || undefined,
             onNewPane: false,
             silent: true,
@@ -4023,44 +4113,29 @@ export default class KplexPlugin extends Plugin {
           const created = this.app.vault.getAbstractFileByPath(createdPath);
           if (!(created instanceof TFile)) throw new Error(this.translator("error.excalidrawCreatedFileMissing"));
           this.managedCreatedPaths.set(created.path, Date.now() + MANAGED_CREATED_PATH_TTL_MS);
-          if (created.extension !== "md") {
-            this.managedCreatedPaths.delete(destination);
-            if (alternateExcalidrawPath) this.managedCreatedPaths.delete(alternateExcalidrawPath);
-            new Notice(this.translator("notice.excalidrawLegacyDrawing"), 5000);
-            return null;
-          }
           return this.rememberManagedCreatedFile(created);
         } catch (error) {
           this.managedCreatedPaths.delete(destination);
-          if (alternateExcalidrawPath) this.managedCreatedPaths.delete(alternateExcalidrawPath);
+          for (const path of alternateExcalidrawPaths) this.managedCreatedPaths.delete(path);
           throw error;
         }
       }
 
-      type RuntimePlugin = Plugin & { createDrawing?: (filename: string, foldername?: string) => Promise<TFile | string> };
-      type PluginManagerBridge = { plugins?: Record<string, RuntimePlugin> };
-      const manager = (this.app as unknown as { plugins?: PluginManagerBridge }).plugins;
-      const excalidraw = manager?.plugins?.["obsidian-excalidraw-plugin"];
       if (!excalidraw?.createDrawing) {
         this.managedCreatedPaths.delete(destination);
-        if (alternateExcalidrawPath) this.managedCreatedPaths.delete(alternateExcalidrawPath);
+        for (const path of alternateExcalidrawPaths) this.managedCreatedPaths.delete(path);
         new Notice(this.translator("notice.excalidrawUnavailable"), 2200);
         return null;
       }
       try {
-        const created = await excalidraw.createDrawing(leafName, normalizedFolder || undefined);
+        const created = await excalidraw.createDrawing(drawingFilename, normalizedFolder || undefined);
         const file = typeof created === "string" ? this.app.vault.getAbstractFileByPath(normalizePath(created)) : created;
         if (!(file instanceof TFile)) throw new Error(this.translator("error.excalidrawCreatedFileMissing"));
-        if (file.extension !== "md") {
-          this.managedCreatedPaths.delete(destination);
-          if (alternateExcalidrawPath) this.managedCreatedPaths.delete(alternateExcalidrawPath);
-          new Notice(this.translator("notice.excalidrawLegacyDrawing"), 5000);
-          return null;
-        }
+        this.managedCreatedPaths.set(file.path, Date.now() + MANAGED_CREATED_PATH_TTL_MS);
         return this.rememberManagedCreatedFile(file);
       } catch (error) {
         this.managedCreatedPaths.delete(destination);
-        if (alternateExcalidrawPath) this.managedCreatedPaths.delete(alternateExcalidrawPath);
+        for (const path of alternateExcalidrawPaths) this.managedCreatedPaths.delete(path);
         throw error;
       }
     }
@@ -4093,7 +4168,11 @@ export default class KplexPlugin extends Plugin {
         ? normalizePath(folder.path.slice("folder:".length))
         : "";
     const file = await this.createNewFileInFolder(validation.stem, kind, folderPath);
-    return file ? this.index.insertCreatedFile(file) : null;
+    if (!file) return null;
+    const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
+    const displayField = this.configuredDisplayNameField();
+    const normalizedDisplayField = displayField ? normalizeFieldName(displayField) : "";
+    return this.index.insertCreatedFile(file, displayName && (normalizedDisplayField === "alias" || normalizedDisplayField === "aliases") ? [displayName] : []);
   }
 
   openCreateInFolderModal(folder: GraphPage, hostLeaf?: WorkspaceLeaf): void {
@@ -4101,8 +4180,36 @@ export default class KplexPlugin extends Plugin {
     new CreateFolderNoteModal(this, folder, hostLeaf).open();
   }
 
+  private configuredDisplayNameField(): string | null {
+    return this.settings.nameFields.split(",").map((field) => field.trim()).find(Boolean) ?? null;
+  }
+
+  /** Preserve the freely-entered title in the first field configured to provide node display names. */
+  private async writeCreatedNodeDisplayName(file: TFile, rawDisplayName: string): Promise<string> {
+    const displayName = rawDisplayName;
+    const configuredField = this.configuredDisplayNameField();
+    if (!displayName.trim() || !configuredField || file.extension !== "md") return "";
+    this.pruneManagedMetadataWrites();
+    this.managedMetadataWrites.set(file.path, Date.now() + 15000);
+    await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
+      const normalizedConfigured = normalizeFieldName(configuredField);
+      const key = Object.keys(frontmatter).find((candidate) => normalizeFieldName(candidate) === normalizedConfigured) ?? configuredField;
+      if (normalizedConfigured === "alias" || normalizedConfigured === "aliases") {
+        const current = frontmatter[key];
+        const aliases = Array.isArray(current)
+          ? current.filter((value): value is string => typeof value === "string")
+          : typeof current === "string" && current.trim() ? [current] : [];
+        if (!aliases.includes(displayName)) frontmatter[key] = [displayName, ...aliases];
+      } else {
+        frontmatter[key] = displayName;
+      }
+    });
+    return displayName;
+  }
+
   private async writeCreatedNodeAlias(file: TFile, rawAlias: string): Promise<string> {
     const alias = rawAlias.trim();
+    if (file.extension !== "md") return "";
     if (!alias) return "";
     this.pruneManagedMetadataWrites();
     this.managedMetadataWrites.set(file.path, Date.now() + 15000);
@@ -4152,18 +4259,25 @@ export default class KplexPlugin extends Plugin {
     const configuredFolder = configuredParent.path === "/" ? "" : configuredParent.path;
     const file = await this.createNewFileInFolder(validation.stem, kind, configuredFolder);
     if (!file) return null;
+    await this.writeCreatedNodeDisplayName(file, rawName);
     await this.writeCreatedNodeAlias(file, rawAlias);
     return file;
   }
 
   /** Persist the ontology link for a newly created related file, retaining the optimistic relationship and localized failure path. */
-  async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = ""): Promise<GraphPage> {
+  async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = "", rawDisplayName = ""): Promise<GraphPage> {
     if (!this.index.isSemanticWriteReady(origin.path, origin.path)) throw new Error("Semantic relationship preparation is still pending");
     // K-Plex already knows the complete minimum fact set for a newly created node. Publish both the
     // page and relationship before awaiting processFrontMatter/MetadataCache, then let the normal
     // incremental path reconcile richer metadata in the background.
     const alias = rawAlias.trim();
-    const target = this.index.insertCreatedFile(file, alias ? [alias] : []);
+    const displayName = rawDisplayName.trim() ? rawDisplayName : "";
+    const displayField = this.configuredDisplayNameField();
+    const normalizedDisplayField = displayField ? normalizeFieldName(displayField) : "";
+    const aliases = normalizedDisplayField === "alias" || normalizedDisplayField === "aliases"
+      ? [displayName, alias].filter(Boolean)
+      : alias ? [alias] : [];
+    const target = this.index.insertCreatedFile(file, aliases);
     if (origin.file?.extension === "md") {
       this.index.applyRelationshipEdit(origin.path, target.path, semanticRole, selectedField);
       try {
@@ -4321,10 +4435,12 @@ export default class KplexPlugin extends Plugin {
     stem: string,
     kind: GhostMaterializationKind,
     folderPath: string,
+    rawDisplayName = page.name,
   ): Promise<boolean> {
     const file = await this.createNewFileInFolder(stem, kind, folderPath);
     if (!file) return false;
 
+    await this.writeCreatedNodeDisplayName(file, rawDisplayName);
     await this.rememberNewNodeDefaultType(kind);
     if (page.path === file.path) this.index.insertCreatedFile(file);
     else if (!this.index.renameFile(page.path, file)) this.index.insertCreatedFile(file);
@@ -4358,7 +4474,7 @@ export default class KplexPlugin extends Plugin {
       : "markdown";
 
     if (locations.length === 1 && !excalidrawAvailable) {
-      await this.materializeGhostPage(page, validation.stem, "markdown", locations[0].folderPath);
+      await this.materializeGhostPage(page, validation.stem, "markdown", locations[0].folderPath, rawLeafName);
       return;
     }
 
@@ -4368,7 +4484,7 @@ export default class KplexPlugin extends Plugin {
       locations,
       excalidrawAvailable,
       defaultKind,
-      (kind, folderPath) => this.materializeGhostPage(page, validation.stem, kind, folderPath),
+      (kind, folderPath) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName),
     ).open();
   }
 

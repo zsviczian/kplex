@@ -3,7 +3,8 @@
  * presentation caches, atomic per-file publication and source-backed startup adoption; builders stage
  * semantics privately. With durable neutral sources, available preview scopes prepare before optional
  * full snapshot hydration. After cache loss, the same compiler restores complete node vocabulary
- * without relationships, and finite changed-owner incidence closes shared synthetic lifetimes.
+ * without relationships, independently of display-only controls, and finite changed-owner incidence
+ * closes shared synthetic lifetimes.
  * This class decides when partial cold-start or authoritative state may
  * become visible to UI readers.
  */
@@ -444,7 +445,8 @@ export class GraphIndex {
    * Close source-backed startup in consumer order: source authority, requested scopes, global nodes.
    * The catalog is compiled privately from durable facts and published atomically without evidence.
    * A policy/source/maintenance interruption retains the earlier coherent baseline and returns false
-   * to the existing startup coordinator; no partial vocabulary claims readiness.
+   * to the existing startup coordinator; no partial vocabulary claims readiness. Display-only changes
+   * remain live: final presentation preparation captures them without abandoning source adoption.
    */
   async adoptStartupSources(): Promise<boolean> {
     if (!this.sourceBackedStartup || this.diagnosticsClosed) return false;
@@ -463,7 +465,9 @@ export class GraphIndex {
       && run === this.snapshotHydrationRun
       && generation === this.generation && publication === this.publicationRevision
       && policy === this.semanticPolicyRevision && source === this.plugin.getIndexSourceRevision()
-      && !classifySettingsChange(presentationPolicy, captureSettingsPolicy(this.plugin.settings)).render
+      // Only compiler-owned node facets invalidate replay. Layout/editor controls do not change
+      // source facts; treating them as a failed restore makes the coordinator rebuild from zero.
+      && !classifySettingsChange(presentationPolicy, captureSettingsPolicy(this.plugin.settings)).presentationFacets
       && maintenance === this.sourceAcquisition.getMaintenanceRevision() && this.sourceAcquisition.hasSemanticDependencies();
     const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
       this.indexedDb, current, new Map(), this.sourceAcquisition);
@@ -606,9 +610,7 @@ export class GraphIndex {
     this.semanticDemandCounts.set(path, previous + 1);
     if (previous === 0) this.semanticDemandRevision.set(path, (this.semanticDemandRevision.get(path) ?? 0) + 1);
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
-    const scope = this.semanticScopes.get(path);
-    if (this.fullSemanticPolicyRevision !== this.semanticPolicyRevision || this.fullSemanticMaintenanceRevision !== maintenanceRevision
-      || scope?.policyRevision !== this.semanticPolicyRevision || scope.maintenanceRevision !== maintenanceRevision) void this.ensureSemanticScope(path);
+    if (this.fullSemanticPolicyRevision !== this.semanticPolicyRevision || this.fullSemanticMaintenanceRevision !== maintenanceRevision) void this.ensureSemanticScope(path);
     let released = false;
     return () => {
       if (released) return;
@@ -909,6 +911,10 @@ export class GraphIndex {
   /** Coalesce one center/revision request and reject stale completion through the captured demand token. */
   private ensureSemanticScope(centerPath: string): Promise<void> {
     if (this.pendingStructuralTasks > 0) return Promise.resolve();
+    // A complete current publication already owns aliases, outgoing relationships and search.
+    // Do not replace it with a narrower source projection on navigation or a stale task's retry.
+    if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
+      && this.fullSemanticMaintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()) return Promise.resolve();
     const policyRevision = this.semanticPolicyRevision;
     const demandRevision = this.semanticDemandRevision.get(centerPath) ?? 0;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
@@ -1093,6 +1099,8 @@ export class GraphIndex {
    * Prepare current presentation/search privately, retrying changed policies. A source-compiled node
    * projection already owns current type/style facets under the caller's captured policy fence;
    * preserve those validated fields rather than replacing them with absent legacy body-cache inputs.
+   * A display change during any awaited preparation restarts private presentation work, while the
+   * caller's source/compiler lifetime still fences which nodes may be published.
    */
   private async preparePresentationPublication(
     state: ReturnType<typeof createGraphState>, isCurrent: () => boolean, onProgress?: () => void, structuralPreview = false, sourceCompiledFacets = false,
@@ -1116,12 +1124,13 @@ export class GraphIndex {
           readyFacets.set(page, { ...readyFacets.get(page), status: { noteType: "ready", styleTags: "ready" } });
           if ((++processed & 127) === 0) {
             await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-            if (!policyCurrent()) return null;
+            if (!policyCurrent()) break;
           }
         }
+        if (!policyCurrent()) continue;
         const ready = { ...facets, facets: readyFacets };
         const search = await this.prepareSearchIndex(state, current, onProgress, settings, ready);
-        if (!search || !policyCurrent() || !ready.isCurrent()) return null;
+        if (!search || !policyCurrent() || !ready.isCurrent()) continue;
         return { settings, facets: ready, search };
       }
       // Cold structural publication keeps its bounded seed search and never preloads all bodies.
@@ -4062,11 +4071,16 @@ export class GraphIndex {
     return output;
   }
 
-  search(query: string, limit = 40): GraphPage[] {
+  /** Rank global catalog matches; Vault-file search includes every file type independently of Plex visibility. */
+  search(query: string, limit = 40, scope: "visible" | "vault-files" = "visible"): GraphPage[] {
     const q = query.trim().toLowerCase();
     const settings = this.plugin.settings;
     const max = Math.max(1, limit);
     const searchEntries = this.effectiveSearchEntries();
+    /** File search ignores graph filters but never returns synthetic or deleted file entries. */
+    const eligible = (page: GraphPage): boolean => scope === "vault-files"
+      ? Boolean(page.file && this.app.vault.getFileByPath(page.file.path) === page.file)
+      : this.isVisiblePage(page, settings);
 
     if (!q) {
       const output: GraphPage[] = [];
@@ -4074,13 +4088,13 @@ export class GraphIndex {
       const preferred = [...this.searchEntryPointPaths, ...this.plugin.settings.pinnedNodes];
       for (const path of preferred) {
         const page = this.get(path);
-        if (!page || seen.has(page.path) || !this.isVisiblePage(page, settings)) continue;
+        if (!page || seen.has(page.path) || !eligible(page)) continue;
         seen.add(page.path);
         output.push(page);
         if (output.length >= max) return output;
       }
       for (const entry of searchEntries) {
-        if (seen.has(entry.page.path) || !this.isVisiblePage(entry.page, settings)) continue;
+        if (seen.has(entry.page.path) || !eligible(entry.page)) continue;
         seen.add(entry.page.path);
         output.push(entry.page);
         if (output.length >= max) break;
@@ -4107,7 +4121,7 @@ export class GraphIndex {
       const score = searchEntryScore(entry, q);
       if (score === null) continue;
       textualMatches.push(entry);
-      if (!this.isVisiblePage(entry.page, settings)) continue;
+      if (!eligible(entry.page)) continue;
       if (best.length >= max && score >= best[best.length - 1].score) continue;
 
       let at = best.length;

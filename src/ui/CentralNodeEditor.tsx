@@ -1,8 +1,9 @@
-/** Native Obsidian view for a Markdown-backed central Plex node, including Excalidraw when installed. */
+/** Native Obsidian view for a file- or URL-backed central Plex node. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Notice, type TFile, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { Translator } from "../lang";
+import type { GraphPage } from "../types";
 import {
   mountEmbeddedMarkdownLeaf,
   type EmbeddedDocumentView,
@@ -11,11 +12,11 @@ import {
 } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { ObsidianIcon } from "./ObsidianIcon";
 
-/** Render one native Markdown-backed leaf for the center and expose local view/maximize controls. */
+/** Render one native embedded leaf for the center and expose local view/maximize controls. */
 export function CentralNodeEditor({
   plugin,
   hostLeaf,
-  file,
+  page,
   defaultMode,
   maximized,
   allowMaximize,
@@ -28,7 +29,7 @@ export function CentralNodeEditor({
 }: {
   plugin: KplexPlugin;
   hostLeaf: WorkspaceLeaf;
-  file: TFile;
+  page: GraphPage;
   defaultMode: EmbeddedMarkdownMode;
   maximized: boolean;
   allowMaximize: boolean;
@@ -41,14 +42,14 @@ export function CentralNodeEditor({
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<EmbeddedMarkdownLeafController | null>(null);
-  const fileRef = useRef(file);
+  const fileRef = useRef(page.file);
   const defaultModeRef = useRef(defaultMode);
   const onNavigateRef = useRef(onNavigate);
   const [mode, setMode] = useState<EmbeddedMarkdownMode>(defaultMode);
   const [documentView, setDocumentView] = useState<EmbeddedDocumentView | null>(null);
   const [excalidrawFile, setExcalidrawFile] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  fileRef.current = file;
+  fileRef.current = page.file;
   defaultModeRef.current = defaultMode;
   onNavigateRef.current = onNavigate;
 
@@ -58,7 +59,7 @@ export function CentralNodeEditor({
     let controller: EmbeddedMarkdownLeafController;
     try {
       controller = mountEmbeddedMarkdownLeaf(plugin.app, hostLeaf, mount, (nextFile) => {
-        if (nextFile.path !== fileRef.current.path) onNavigateRef.current(nextFile);
+        if (nextFile.path !== fileRef.current?.path) onNavigateRef.current(nextFile);
       }, (requiredVersion) => {
         new Notice(plugin.translator("notice.excalidrawUpdateRequired", {
           version: requiredVersion,
@@ -67,7 +68,7 @@ export function CentralNodeEditor({
         setDocumentView(nextView);
       }, activateHostLeafOnInteraction);
     } catch (error) {
-      console.error("K-Plex failed to create the embedded central Markdown leaf.", error);
+      console.error("K-Plex failed to create the embedded central leaf.", error);
       setStatus("error");
       return;
     }
@@ -87,17 +88,22 @@ export function CentralNodeEditor({
     setDocumentView(null);
     setExcalidrawFile(false);
     setStatus("loading");
-    void controller.open(file, initialMode).then(() => {
+    const openTarget = page.url
+      ? controller.openUrl(page.url)
+      : page.file
+        ? controller.open(page.file, initialMode)
+        : Promise.reject(new Error("Central node has no renderable target"));
+    void openTarget.then(() => {
       if (cancelled) return;
       setDocumentView(controller.getDocumentView());
-      setExcalidrawFile(plugin.isExcalidrawAvailable() && controller.isExcalidrawFile());
+      setExcalidrawFile(Boolean(page.file) && plugin.isExcalidrawAvailable() && controller.isExcalidrawFile());
       setStatus("ready");
     }).catch((error: unknown) => {
-      console.error(`K-Plex failed to open ${file.path} in the embedded central Markdown leaf.`, error);
+      console.error(`K-Plex failed to open ${page.path} in the embedded central leaf.`, error);
       if (!cancelled) setStatus("error");
     });
     return () => { cancelled = true; };
-  }, [file]);
+  }, [page.path, page.file, page.url, plugin]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -142,8 +148,12 @@ export function CentralNodeEditor({
 
   return <div
     className={`kplex-central-editor-content${maximized ? " is-maximized" : ""}${mode === "source" ? " is-edit-mode" : ""}`}
-    onPointerDownCapture={() => controllerRef.current?.activate()}
-    onFocusCapture={() => controllerRef.current?.activate()}
+    onPointerDownCapture={/** Native document gestures route commands to its leaf; local buttons keep the Plex active. */ (event) => {
+      if (!(event.target as Element).closest(".kplex-central-editor-toolbar")) controllerRef.current?.activate();
+    }}
+    onFocusCapture={/** Toolbar focus must not activate a synthetic file leaf during collapse. */ (event) => {
+      if (!(event.target as Element).closest(".kplex-central-editor-toolbar")) controllerRef.current?.activate();
+    }}
   >
     <div ref={mountRef} className="kplex-central-editor-leaf-host" />
     <div className="kplex-central-editor-toolbar" role="toolbar" aria-label={translate("centralEditor.toolbar")}>
@@ -152,11 +162,11 @@ export function CentralNodeEditor({
         aria-label={translate(documentView === "excalidraw" ? "centralEditor.showMarkdown" : "centralEditor.showDrawing")}
         onClick={toggleExcalidrawView}
       ><ObsidianIcon name={documentView === "excalidraw" ? "text" : "palette"} size={12} /></button>}
-      <button
+      {documentView && <button
         type="button"
         aria-label={translate(mode === "source" ? "centralEditor.showPreview" : "centralEditor.showEditor")}
         onClick={toggleMode}
-      ><ObsidianIcon name={mode === "source" ? "book-open" : "square-pen"} size={12} /></button>
+      ><ObsidianIcon name={mode === "source" ? "book-open" : "square-pen"} size={12} /></button>}
       {allowMaximize && <button
         type="button"
         aria-label={translate(maximized ? "centralEditor.restore" : "centralEditor.maximize")}

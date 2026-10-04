@@ -1001,6 +1001,66 @@ test("SearchBox plain read model and revision browser behavior", () => {
   runBrowserDom(graphSearchBrowserEntry(), "Graph search read consumer behavior passed");
 });
 
+/** Exercise the independent Find field with real React input/focus/keyboard events. */
+function plexFindBrowserEntry() {
+  return `
+import React from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { PlexFind, matchesFindText } from ${JSON.stringify(join(root, "src/ui/features/PlexFind.tsx"))};
+const result=document.querySelector("#result"), container=document.createElement("div");
+document.body.append(container);
+const root=createRoot(container);
+const check=(ok,message)=>{if(!ok)throw new Error(message)};
+let query="", focusRequest=0, cycles=[];
+const render=()=>flushSync(()=>root.render(React.createElement(PlexFind,{
+  query,focusRequest,icon:"Find",closeIcon:"Close",label:"Find in Plex",placeholder:"Find in Plex…",
+  closeLabel:"Close Find",matchLabel:"2 matches",
+  onChange:value=>{query=value;render()},onNext:backward=>cycles.push(backward)
+})));
+try {
+  render();
+  check(!container.querySelector("input"),"Find should initially show only its magnifier");
+  flushSync(()=>container.querySelector("button").click());
+  let input=container.querySelector("input");
+  check(document.activeElement===input,"magnifier must focus its independent input");
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"Alias Match");
+  flushSync(()=>input.dispatchEvent(new Event("input",{bubbles:true})));
+  check(query==="Alias Match","Find must keep its controlled query");
+  check(!container.querySelector('[role="listbox"], [role="option"], .kplex-search-results'),"Find must never render a dropdown");
+  check(matchesFindText(query,["unrelated","An ALIAS MATCH title"]),"case-insensitive alias match missing");
+  check(!matchesFindText("  ",["anything"]),"empty query must clear highlights");
+  check(!matchesFindText("a.*b",["a random b"]),"Find must use literal text, not regex");
+  input.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));
+  input.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",shiftKey:true,bubbles:true}));
+  check(JSON.stringify(cycles)==="[false,true]","Enter/Shift+Enter must cycle projected matches");
+  focusRequest++;render();
+  check(input.selectionStart===0 && input.selectionEnd===query.length,"repeat shortcut must select current term");
+  flushSync(()=>input.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+  check(query==="" && !container.querySelector("input"),"Escape must clear and close Find");
+  check(document.activeElement===container.querySelector("button"),"dismissal must restore magnifier focus");
+  focusRequest++;render();
+  // Shortcut disclosure schedules a local React state update; inspect after its commit/effect.
+  let focusAttempts=0;
+  const inspectFocus=()=>{
+    try {
+      if(document.activeElement!==container.querySelector("input") && focusAttempts++<50) {
+        setTimeout(inspectFocus,10);return;
+      }
+      check(document.activeElement===container.querySelector("input"),"shortcut must reopen Find");
+      root.unmount();
+      result.dataset.status="passed";result.textContent="Plex Find independent field behavior passed";
+    } catch(error) {result.dataset.status="failed";result.textContent=error.stack;}
+  };
+  setTimeout(inspectFocus,10);
+} catch(error) {result.dataset.status="failed";result.textContent=error.stack;}
+`;
+}
+
+test("Plex Find independent field focus, literal matching, cycling and dismissal", () => {
+  runBrowserDom(plexFindBrowserEntry(), "Plex Find independent field behavior passed");
+});
+
 /** Exercise the real portable area-height control without an Obsidian runtime. */
 function areaFrameBrowserEntry() {
   return `

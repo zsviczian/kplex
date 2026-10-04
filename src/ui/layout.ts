@@ -10,6 +10,15 @@ import { resolveLinkStyle, resolveNodeStyle } from "../index/style";
 import type { GraphIndex } from "../index/GraphIndex";
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+/** Overlay live area heights while retaining inherited layout-profile settings and style dictionaries.
+ * The source facade remains unchanged; spreading its own fields would discard inherited settings.
+ */
+export function withAreaHeightOverrides(settings: KplexSettings, overrides: Partial<Pick<KplexSettings, "parentMaxHeight" | "childMaxHeight" | "friendMaxHeight" | "siblingMaxHeight">>): KplexSettings {
+  const next = Object.create(settings) as KplexSettings;
+  return Object.assign(next, overrides);
+}
+
 export function siblingScale(settings: KplexSettings): number {
   return clamp(settings.siblingRelativeSize / 100, 0.3, 0.85);
 }
@@ -64,17 +73,28 @@ export function effectiveLabelLimit(settings: KplexSettings, configured = 30, ce
   const density = clamp(settings.compactingFactor / 1.5, 0.5, 2);
   const base = Math.max(8, configured);
   const scaled = Math.round(base / density);
-  return clamp(scaled + (center ? 8 : 0), center ? 18 : 8, center ? 72 : 52);
+  return Math.max(center ? 18 : 8, scaled + (center ? 8 : 0));
 }
 
-function nodeSize(label: string, fontSize: number, settings: KplexSettings, center = false, configuredMax = 30): { width: number; height: number } {
+function nodeSize(
+  label: string,
+  fontSize: number,
+  settings: KplexSettings,
+  center = false,
+  configuredMax = 30,
+  configuredMaxWidth?: number,
+): { width: number; height: number } {
   const visibleLength = Math.min(label.length, effectiveLabelLimit(settings, configuredMax, center));
   const minWidth = center ? 180 : 112;
-  const maxWidth = center ? 370 : 286;
+  const defaultMaxWidth = center ? 370 : 286;
+  const maxWidth = Math.max(minWidth, configuredMaxWidth ?? defaultMaxWidth);
   const width = clamp(70 + visibleLength * Math.max(4.8, fontSize * 0.29), minWidth, maxWidth);
 
-  // These are the tight/compact paddings, now used everywhere.
-  return { width, height: center ? 48 : 26 };
+  // Two-line mode reserves the full two line boxes plus the node's vertical padding. Keep the
+  // compact single-line defaults unchanged when wrapping is disabled.
+  const singleLineHeight = center ? 48 : 26;
+  const twoLineHeight = Math.ceil(fontSize * 2.3 + (center ? 16 : 8));
+  return { width, height: settings.wrapNodeLabels ? Math.max(singleLineHeight, twoLineHeight) : singleLineHeight };
 }
 
 function makeNode(
@@ -91,7 +111,7 @@ function makeNode(
     gateRadius: (resolved.gateRadius ?? settings.baseNodeStyle.gateRadius ?? 5) * scale,
   };
   const label = index.titleFor(n.page);
-  const baseSize = nodeSize(`${resolved.prefix ?? ""}${label}`, resolved.fontSize ?? 18, settings, false, resolved.maxLabelLength ?? 30);
+  const baseSize = nodeSize(`${resolved.prefix ?? ""}${label}`, resolved.fontSize ?? 18, settings, false, resolved.maxLabelLength ?? 30, resolved.maxWidth ?? settings.baseNodeStyle.maxWidth);
   const size = scale === 1 ? baseSize : { width: baseSize.width * scale, height: baseSize.height * scale };
   return {
     page: n.page,
@@ -350,7 +370,7 @@ export function buildScene(
 ): PlexScene {
   const centerStyle = resolveNodeStyle(neighborhood.center, null, "center", settings);
   const centerLabel = index.titleFor(neighborhood.center);
-  const normalCenterSize = nodeSize(`${centerStyle.prefix ?? ""}${centerLabel}`, centerStyle.fontSize ?? 30, settings, true, centerStyle.maxLabelLength ?? 30);
+  const normalCenterSize = nodeSize(`${centerStyle.prefix ?? ""}${centerLabel}`, centerStyle.fontSize ?? 30, settings, true, centerStyle.maxLabelLength ?? 30, centerStyle.maxWidth ?? settings.centralNodeStyle.maxWidth ?? settings.baseNodeStyle.maxWidth);
   const centerSize = centerSizeOverride
     ? { width: Math.max(180, centerSizeOverride.width), height: Math.max(48, centerSizeOverride.height) }
     : normalCenterSize;
@@ -675,7 +695,8 @@ export function buildSectionExpandedScene(
   const makeSectionNode = (section: import("../index/SectionExpansion").ExpandedSection, depth: number, relations: ReturnType<typeof collectForVisibleSection>): PositionedNode => {
     const pseudo: Neighbour = { page: section.page, role: "child", relationType: RelationType.DEFINED, typeDefinition: "section", linkDirection: null };
     const node = makeNode(pseudo, "child", index, settings);
-    node.width = Math.max(172, Math.min(286, node.width + mix(16, 2)));
+    const maxSectionWidth = Math.max(172, node.style.maxWidth ?? settings.baseNodeStyle.maxWidth ?? 286);
+    node.width = Math.max(172, Math.min(maxSectionWidth, node.width + mix(16, 2)));
     node.height = Math.max(32, node.height + mix(3, -1));
     // x is the card centre; rootLeft is the left edge of the first heading card.
     node.x = rootLeft + node.width / 2 + depth * depthIndent;

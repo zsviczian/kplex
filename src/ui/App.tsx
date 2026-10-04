@@ -13,23 +13,26 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
-import { Menu, type TFile, type WorkspaceLeaf } from "obsidian";
+import { FileView, Menu, type TFile, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
-import { isSearchFocusShortcut } from "../core/plex/shortcutPresentation";
+import { isSearchFocusShortcut, isPlexFindShortcut } from "../core/plex/shortcutPresentation";
 import type { Translator } from "../lang";
 import { physicalPositionLabel } from "./features/positionPresentation";
 import { searchFieldCopy } from "./features/searchPresentation";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdownMode, SidecarPosition } from "../settings";
 import { SearchBox } from "./features/SearchBox";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
-import { getDraggedMarkdownFile } from "../adapters/obsidian/fileExplorerDrag";
+import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
+import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
 import { ActionButton } from "./components/ActionButton";
+import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { InfoBubble } from "./components/InfoBubble";
 import type { FloatingLayerDismissReason } from "./components/FloatingLayer";
 import { PlexGraph } from "./PlexGraph";
 import { ObsidianIcon } from "./ObsidianIcon";
+import { VaultStatsModal } from "./VaultStatsModal";
 import { EMPTY_PLEX_FILTER, PlexFilter, type GraphFilterLayoutMode, type PlexFilterState, type PlexVisibilitySetting } from "./PlexFilter";
 import { compilePlexFilter } from "../lens/SimplePlexFilter";
 import { compileGraphLensDefinitions, type GraphLensDefinition } from "../lens/GraphLens";
@@ -68,7 +71,7 @@ function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStat
   return status;
 }
 
-/** Render the compact colored index state marker as an accessible hover/click/touch target. */
+/** Show status on hover and open the vault summary by double-click, stationary double-tap or keyboard. */
 function IndexStatusIndicator({
   status,
   indicatorRef,
@@ -84,17 +87,42 @@ function IndexStatusIndicator({
   onHoverEnd: () => void;
   onToggle: () => void;
 }) {
+  const taps = useRef(new DoubleTapGesture());
+  const press = useRef<{ time: number; x: number; y: number } | null>(null);
+  const lastTouch = useRef(-1000);
   return <button
     ref={indicatorRef}
     type="button"
     className={`kplex-index-status${status.upToDate ? " is-ready" : " is-updating"}`}
     aria-label={status.label}
     aria-expanded={open}
+    aria-haspopup="dialog"
     onMouseEnter={onHoverStart}
     onMouseLeave={onHoverEnd}
     onFocus={onHoverStart}
     onBlur={onHoverEnd}
-    onClick={onToggle}
+    onDoubleClick={/** Ignore the mouse double-click synthesized after a handled touch pair. */ (event) => {
+      if (event.timeStamp - lastTouch.current > 800) onToggle();
+    }}
+    onPointerDown={/** Record short stationary touch presses; long-press tooltips retain their own guard. */ (event) => {
+      if (event.pointerType === "touch") press.current = { time: event.timeStamp, x: event.clientX, y: event.clientY };
+    }}
+    onPointerCancel={() => { press.current = null; taps.current.reset(); }}
+    onPointerUp={/** Use completed tap pairs because mobile WebViews need not synthesize double-click. */ (event) => {
+      if (event.pointerType !== "touch") return;
+      lastTouch.current = event.timeStamp;
+      const start = press.current;
+      press.current = null;
+      if (!start || event.timeStamp - start.time > 400 || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 7) {
+        taps.current.reset(); return;
+      }
+      if (taps.current.complete("index-status", event.timeStamp, event.clientX, event.clientY)) onToggle();
+    }}
+    onKeyDown={/** Keep keyboard activation available without opening on a single pointer click. */ (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      onToggle();
+    }}
   />;
 }
 
@@ -126,10 +154,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
   const indexStatusRef = useRef<HTMLButtonElement>(null);
   const indexStatus = useIndexStatus(plugin, hostLeaf);
   const [showStartupIndexBubble, setShowStartupIndexBubble] = useState(false);
-  const [indexStatusInfoMode, setIndexStatusInfoMode] = useState<"closed" | "hover" | "pinned">("closed");
+  const [indexStatusInfoMode, setIndexStatusInfoMode] = useState<"closed" | "hover">("closed");
   const suppressRestoredIndexStatusFocusRef = useRef(false);
   const [renderRevision, forceRender] = useState(0);
-  const graphSearchRead = useMemo(() => createLegacyGraphSearchRead(plugin.index), [plugin.index]);
   const [plexFilter, setPlexFilter] = useState<PlexFilterState>(EMPTY_PLEX_FILTER);
   const [filterLayoutMode, setFilterLayoutMode] = useState<GraphFilterLayoutMode>("keep");
   const plexFilterPredicate = useMemo(() => compilePlexFilter(plexFilter), [plexFilter]);
@@ -139,6 +166,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
   const [hostWidth, setHostWidth] = useState(0);
   const [sidecarRevision, setSidecarRevision] = useState(0);
   const [searchFocusRequest, setSearchFocusRequest] = useState(0);
+  const [findFocusRequest, setFindFocusRequest] = useState(0);
   const [areaSettingsMode, setAreaSettingsMode] = useState(false);
   const [initialWorkspaceFile] = useState<TFile | null>(() => plugin.app.workspace.getActiveFile());
   const [activePath, setActivePath] = useState(() => {
@@ -249,10 +277,26 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     () => plugin.subscribeSearchFocus(hostLeaf, () => setSearchFocusRequest((value) => value + 1)),
     [plugin, hostLeaf],
   );
+  useEffect(/** Route the active native view's Find shortcut before Obsidian's document-level handler. */ () => {
+    const scope = hostLeaf.view.scope;
+    if (!scope) return;
+    const handler = scope.register(["Mod"], "f", /** Leave native editor Find intact; otherwise disclose this Plex's field. */ (event) => {
+      const target = event.target as Element | null;
+      if (target?.closest(".kplex-central-editor-content")) return;
+      event.stopPropagation();
+      setFindFocusRequest((value) => value + 1);
+      return false;
+    });
+    return /** Unmount/window migration releases only this surface's hotkey registration. */ () => scope.unregister(handler);
+  }, [hostLeaf]);
 
   useEffect(() => {
     const followFile = (file: TFile | null) => {
       if (!plugin.isKplexLeafVisible(hostLeaf)) return;
+      const activeView = plugin.app.workspace.getActiveViewOfType(FileView);
+      // Embedded navigation has its own callback. Re-activating/detaching that leaf must not
+      // follow Obsidian's previous document back into the Plex's navigation history.
+      if (!activeView || activeView.leaf === hostLeaf || isEmbeddedMarkdownLeaf(activeView.leaf)) return;
       if (!file || !plugin.shouldFollowDocumentFile(file) || !plugin.index.get(file.path)) return;
       const target = plugin.index.get(file.path);
       if (target) activate(target, true);
@@ -276,6 +320,11 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     ?? (fallbackPath ? plugin.index.get(fallbackPath) : undefined)
     ?? plugin.index.get("folder:/");
   const hasPage = Boolean(page);
+  const graphSearchRead = useMemo(() => createLegacyGraphSearchRead({
+    /** Preserve whole-Vault file search even when attachments or notes are hidden in the Plex. */
+    search: (query, limit) => plugin.index.search(query, limit, "vault-files"),
+    titleFor: (target) => plugin.index.titleFor(target),
+  }), [plugin.index]);
 
   useEffect(/** Claim startup guidance after the first useful page, and permanently close it on readiness. */ () => {
     if (indexStatus.upToDate) {
@@ -297,26 +346,27 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     setShowStartupIndexBubble(false);
   }, [plugin, indexStatus.upToDate]);
 
-  /** Open transient index details for pointer hover or keyboard focus unless already pinned. */
+  /** Open transient index details for pointer hover or keyboard focus. */
   const showIndexStatusOnHover = useCallback((): void => {
     if (suppressRestoredIndexStatusFocusRef.current) {
       suppressRestoredIndexStatusFocusRef.current = false;
       return;
     }
     acknowledgeIndexStatusInspection();
-    setIndexStatusInfoMode((current) => current === "pinned" ? current : "hover");
+    setIndexStatusInfoMode("hover");
   }, [acknowledgeIndexStatusInspection]);
 
-  /** Close only a transient hover/focus detail, preserving an explicitly pinned detail. */
+  /** Close the transient hover/focus detail. */
   const hideIndexStatusAfterHover = useCallback((): void => {
-    setIndexStatusInfoMode((current) => current === "hover" ? "closed" : current);
+    setIndexStatusInfoMode("closed");
   }, []);
 
-  /** Toggle the persistent click/touch detail state for the index indicator. */
-  const togglePinnedIndexStatus = useCallback((): void => {
+  /** Open the persistent About vault dialog from double-click/double-tap or keyboard input. */
+  const openVaultStats = useCallback((): void => {
     acknowledgeIndexStatusInspection();
-    setIndexStatusInfoMode((current) => current === "pinned" ? "closed" : "pinned");
-  }, [acknowledgeIndexStatusInspection]);
+    setIndexStatusInfoMode("closed");
+    new VaultStatsModal(plugin).open();
+  }, [acknowledgeIndexStatusInspection, plugin]);
 
   /** Dismiss index details while preventing Escape focus restoration from reopening them. */
   const dismissIndexStatusInfo = useCallback((reason?: FloatingLayerDismissReason): void => {
@@ -518,15 +568,17 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
   const searchCopy = searchFieldCopy(translate, environment);
 
   const handlePlexKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (!isSearchFocusShortcut(event)) return;
+    const find = isPlexFindShortcut(event);
+    if (!find && !isSearchFocusShortcut(event)) return;
     const target = event.target as Element | null;
     // The central editor is a native Obsidian Markdown surface. Do not steal editor shortcuts
     // such as Ctrl/Cmd+F while focus is inside it; the graph search remains available from the
     // toolbar after the editor has been enabled.
-    if (target?.closest(".kplex-central-editor-content")) return;
+    if (find && target?.closest(".kplex-central-editor-content")) return;
     event.preventDefault();
     event.stopPropagation();
-    activateSearch();
+    if (find) setFindFocusRequest((value) => value + 1);
+    else activateSearch();
   };
 
   /** Keep ordinary pointer focus behavior separate from File Explorer drag/drop handling. */
@@ -537,15 +589,15 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     rootRef.current?.focus({ preventScroll: true });
   };
 
-  /** Allow the browser drop gesture only for a single Markdown note from Obsidian File Explorer. */
+  /** Accept a single current Vault file from Obsidian File Explorer, including images and Canvas. */
   const handlePlexDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
-    if (!getDraggedMarkdownFile(plugin.app)) return;
+    if (!getDraggedFile(plugin.app)) return;
     event.preventDefault();
   };
 
-  /** Re-center this K-Plex surface on a File Explorer note, queuing it while partial indexing catches up. */
+  /** Re-center on the dropped file, queuing it while partial indexing catches up. */
   const handlePlexDrop = (event: ReactDragEvent<HTMLDivElement>) => {
-    const file = getDraggedMarkdownFile(plugin.app);
+    const file = getDraggedFile(plugin.app);
     if (!file) return;
     event.preventDefault();
     event.stopPropagation();
@@ -570,7 +622,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
         open={indexStatusInfoOpen}
         onHoverStart={showIndexStatusOnHover}
         onHoverEnd={hideIndexStatusAfterHover}
-        onToggle={togglePinnedIndexStatus}
+        onToggle={openVaultStats}
       />
       <InfoBubble
         open={indexStatusInfoOpen}
@@ -650,7 +702,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
             open={indexStatusInfoOpen}
             onHoverStart={showIndexStatusOnHover}
             onHoverEnd={hideIndexStatusAfterHover}
-            onToggle={togglePinnedIndexStatus}
+            onToggle={openVaultStats}
           />
           <InfoBubble
             open={showStartupIndexBubble && !indexStatus.upToDate && !indexStatusInfoOpen}
@@ -686,7 +738,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
             revision={renderRevision}
             onActivate={(id) => {
               const target = plugin.index.get(id);
-              if (target) activate(target);
+              if (target) activate(target, true);
             }}
             focusRequest={searchFocusRequest}
             placeholder={searchCopy.placeholder}
@@ -754,7 +806,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
           <div className="kplex-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
           <div className="kplex-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="kplex-zone-label zone-child">{translate("app.zoneChildren")}</div>
-          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision}
+          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
           semanticRevision={plugin.index.getSemanticRevision()} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode} />
         </section>
       </main>
@@ -775,7 +827,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
             const item = plugin.index.get(path);
             if (!item) return null;
             const title = plugin.index.titleFor(item);
-            return <button key={`${path}:${indexValue}`} title={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => activate(item)}>{title}</button>;
+            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} title={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => activate(item)}>{title}</button>;
           })}
         </div>
       </footer>

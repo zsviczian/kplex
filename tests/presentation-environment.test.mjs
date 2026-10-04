@@ -178,6 +178,11 @@ test("File Explorer drag adapter accepts one current Markdown file and rejects u
 
   app.dragManager.draggable = { type: "file", file: image };
   assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "attachments are not note-navigation drops");
+  assert.equal(fileExplorerDrag.getDraggedFile(app), image, "Plex navigation supports image attachments");
+  const canvas = { path: "Projects/Board.canvas", extension: "canvas" };
+  files.set(canvas.path, canvas);
+  app.dragManager.draggable = { type: "file", file: canvas };
+  assert.equal(fileExplorerDrag.getDraggedFile(app), canvas, "Canvas files are navigation targets");
 
   app.dragManager.draggable = { type: "link", file: note };
   assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "editor/internal link drags are outside the File Explorer scope");

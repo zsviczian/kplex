@@ -9,6 +9,39 @@ import { fullCenterIndex, currentNeighborhoodView, centerGateSettings } from "./
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
 
+test("navigation and a superseded scope retry preserve complete graph aliases and expanded relationships", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('ux-complete-authority');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},centerGateSettings=${centerGateSettings.toString()};
+      let index,release;
+      try {
+        f.text=f.texts;f.add('Hub.md','Friends:: [[Friend.md]]\\nChild:: [[Child.md]]');
+        f.add('Friend.md','',{aliases:['Shared alias']});f.add('Child.md','Child:: [[Grandchild.md]]',{aliases:['Shared alias']});f.add('Grandchild.md','');
+        await f.acquire();equal(await f.repository.completeLocalDependencyInventory(),'ready');
+        f.acquisition.localDependenciesReady=f.acquisition.localDependencyAuthorityReady=true;
+        const semantic={hierarchy:{hidden:[],parents:[],children:['Child'],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
+          inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const presentation={noteTypeField:'Type',primaryTagField:'Style'},view=centerGateSettings({showFolderNodes:false});
+        index=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,presentation,true),semantic,view);
+        index.sourceAcquisition.close();index.sourceAcquisition=f.acquisition;
+        ok(await index.rebuild(),'Production complete graph publication');
+        index.plugin.settings.lastActivePath='Hub.md';const before=index.getSemanticPreparationDiagnostics(),counters=f.acquisition.getCounters();
+        release=index.acquireSemanticDemand('Hub.md');
+        await index.ensureSemanticScope('Hub.md'); // A stale task can request this retry after a full publication.
+        equal(index.getSemanticPreparationDiagnostics().requested,before.requested,'Complete current graph requires no partial overlay');
+        equal(index.semanticScopes.size,0,'No narrower source scope replaces complete nodes');
+        equal(index.get('Friend.md').aliases,['Shared alias']);equal(index.get('Child.md').aliases,['Shared alias']);
+        ok(index.neighbours(index.get('Child.md'),'child').some(n=>n.page.path==='Grandchild.md'),'Expanded outgoing relationship retained');
+        equal(index.search('Shared alias',10).map(n=>n.path).sort(),['Child.md','Friend.md'],'Global alias search retained');
+        equal(f.acquisition.getCounters(),counters,'Navigation/retry performs no source work');return true;
+      } finally {release?.();index?.destroy();f.close();}
+    })()`), true);
+  } finally {await browser.cleanup();}
+});
+
 for (const { cancel, retry } of [{ cancel: false, retry: false }, { cancel: true, retry: false }, { cancel: false, retry: true }, { cancel: true, retry: true }]) {
   test(`source authority and requested views precede full hydration${cancel ? retry ? " with a pending authority observer cancelled" : " with late cancellation fenced" : retry ? " across a transient resolver retry" : " while preserving global search"}`, async () => {
     const browser = await chromiumHarness(bundle);
@@ -408,6 +441,58 @@ test("source-backed vocabulary repairs deleted owners without a graph or vocabul
       }finally{release?.();index?.destroy();f.close()}
     })()`),true);
   }finally{await browser.cleanup()}
+});
+
+/** Display-only controls remain usable while damaged graph acceleration recovers from sources. */
+for (const stage of ["replay", "presentation"]) test(`embedded-center toggle during ${stage} retains source-backed startup`, async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('startup-display-${stage}');
+      const hostOracle=${hostOracle.toString()},collect=${collect.toString()},fullCenterIndex=${fullCenterIndex.toString()};
+      const centerGateSettings=${centerGateSettings.toString()};let initial,index,release,unblock;
+      try {
+        f.text=f.texts;f.app.vault.getName=()=> 'startup-display-${stage}';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.add('C.md','[Remote URL](https://example.com/remote)');
+        await f.acquire();ok(await f.acquisition.reconcile(),'Durable source inventory');
+        const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
+          inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const view=centerGateSettings({showFolderNodes:false}),settings={...semantic,...view,lastActivePath:'A.md',embedCentralNode:false};
+        initial=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md','C.md'],semantic,{noteTypeField:'Type',primaryTagField:'Style'},true),semantic,view);
+        ok(await f.cache.writeSnapshot({createdAt:Date.now(),vaultSignature:M.computeVaultSignature(f.app),
+          settingsSignature:M.computeIndexSettingsSignature(initial.plugin.settings),discoveredFields:[]},
+          [...initial.state.pages.values()].map(p=>M.persistedPageFromGraphPage(p)),
+          [...initial.state.evidence.declarations()].map(e=>M.persistedDeclarationFromEvidence(e))),'Graph acceleration saved');
+        const db=await f.cache.open(),heads=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
+        await edit(db,['snapshotChunks'],tx=>tx.objectStore('snapshotChunks').clear());
+        initial.destroy();initial=null;f.acquisition.close();
+        index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);
+        index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
+        let entered;const started=new Promise(r=>entered=r),blocked=new Promise(r=>unblock=r);
+        ${stage === "replay" ? `const replay=index.sourceAcquisition.replayNodeMetadata;
+        index.sourceAcquisition.replayNodeMetadata=async function(id,...args){if(id==='C.md'){entered();await blocked}return replay.call(this,id,...args)};` : `const prepare=index.prepareSearchIndex;let blockedOnce=false;
+        index.prepareSearchIndex=async function(state,...args){
+          if(index.hasSourceBackedStartup()&&state.pages.has('https://example.com/remote')&&!blockedOnce){blockedOnce=true;entered();await blocked}
+          return prepare.call(this,state,...args)};`}
+        ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Coherent startup preview');
+        const hydration=index.waitForSnapshotHydration();await started;
+        ok(index.get('A.md').neighbours.get('B.md')?.isLeftFriend,'Requested relationships ready before toggle');
+        settings.embedCentralNode=true;await index.refreshPresentationSettings();await index.refreshSemanticSettings();
+        unblock();ok((await hydration).restored,'Display-only toggle cannot fail source adoption');
+        equal(index.getSnapshotHydrationDiagnostics().phase,'complete','Hydration completes');
+        ok(index.hasSourceBackedStartup(),'Retained source-backed authority');ok(!index.hasPendingSearchVocabulary(),'Complete vocabulary');
+        ok(index.get('A.md').neighbours.get('B.md')?.isLeftFriend,'Requested relationships retained');
+        ok(index.search('Remote URL',10).some(p=>p.path==='https://example.com/remote'),'Global search retained');
+        equal(index.withPreparedPresentationSettings(settings).embedCentralNode,true,'Latest display preference');
+        equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No full rebuild');
+        equal(index.getSourceAcquisitionCounters().vaultReads,0,'No body reads');equal(index.getSourceAcquisitionCounters().parses,0,'No reparsing');
+        equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll()),heads,'Durable sources untouched');
+        return true;
+      }finally{unblock?.();release?.();initial?.destroy();index?.destroy();f.close()}
+    })()`), true);
+  } finally { await browser.cleanup(); }
 });
 
 /** A policy supersession after replay has begun must retain the previously complete vocabulary. */

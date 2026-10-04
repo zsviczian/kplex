@@ -11,6 +11,7 @@
     "lint:obsidian": "eslint 'src/**/*.{ts,tsx}'",
     "verify": "npm run check:architecture && npm run check:core && npm run lint:obsidian && npm test && npm run build",
     "verify:obsidian": "node scripts/testing/obsidian/verify.mjs",
+    "verify:obsidian:ux": "node scripts/testing/obsidian/ux.mjs",
     "fixture:large": "node scripts/testing/generate-large-vault.mjs",
     "repo:export": "node scripts/generate-repository-zip.mjs",
     "repo:update": "node scripts/update-repository.mjs",

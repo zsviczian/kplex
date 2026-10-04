@@ -96,7 +96,7 @@ function RelatedNoteComposer({
       const field = await prepareField();
       if (!field) return;
       await plugin.createRelationToPage(origin, role, target, field);
-      plugin.requestRelationshipFlair(target.path);
+      plugin.requestNodeFlair(target.path);
       onCommitted?.();
       onClose();
     } catch (error) {
@@ -112,12 +112,12 @@ function RelatedNoteComposer({
     try {
       const field = await prepareField();
       if (!field) return;
-      const file = await plugin.createNewRelatedFileForOrigin(origin, nameValidation.stem, kind, alias);
+      const file = await plugin.createNewRelatedFileForOrigin(origin, query, kind, alias);
       if (!file) return;
       setDefaultCreateType(kind);
       void plugin.rememberNewNodeDefaultType(kind);
-      const page = await plugin.linkNewRelatedFile(origin, role, file, field, alias);
-      plugin.requestRelationshipFlair(file.path);
+      const page = await plugin.linkNewRelatedFile(origin, role, file, field, alias, query);
+      plugin.requestNodeFlair(file.path);
       onCommitted?.();
       onClose();
       if (editAfterCreate) await plugin.finishNewRelatedNode(page, hostLeaf, true);
@@ -139,7 +139,7 @@ function RelatedNoteComposer({
       if (!field) return;
       const page = await plugin.createPlaceholderRelatedPage(origin, role, nameValidation.stem, field);
       if (!page) return;
-      plugin.requestRelationshipFlair(page.path);
+      plugin.requestNodeFlair(page.path);
       onCommitted?.();
       onClose();
     } catch (error) {
@@ -157,7 +157,7 @@ function RelatedNoteComposer({
       if (!field) return;
       const page = await plugin.createWebLinkRelatedPage(origin, role, webUrl, alias, field);
       if (!page) return;
-      plugin.requestRelationshipFlair(page.path);
+      plugin.requestNodeFlair(page.path);
       onCommitted?.();
       onClose();
     } catch (error) {

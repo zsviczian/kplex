@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "startedAt": "2026-10-04T17:40:54.302Z",
+  "source": {
+    "revision": "7fc7fd97a2892f7a98331f11685e3ae79792b13c",
+    "dirty": true,
+    "node": "v22.22.2",
+    "os": "darwin 23.5.0"
+  },
+  "target": {
+    "vaultName": "kplex-test",
+    "vaultPath": "/Users/zsviczian/Obsidian/kplex-test",
+    "configDir": "/Users/zsviczian/Obsidian/kplex-test/.obsidian"
+  },
+  "capabilities": {
+    "version": "1.14.4 (installer 1.14.0)",
+    "commands": [
+      "version",
+      "vault",
+      "plugin:disable",
+      "plugin:enable",
+      "commands",
+      "command",
+      "dev:dom",
+      "dev:errors"
+    ]
+  },
+  "artifacts": {
+    "sourceHashes": {
+      "main.js": "7a1ead5c35648c6c4f90d48d8db06f30f24762c6c0604c82e673be0743cec707",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "5e4f36ac0a71ed466f5c96843e68d2008159016db8b396703afa4b3f6ea81ea9"
+    },
+    "pluginVersion": "0.0.5",
+    "stagedHashes": {
+      "main.js": "7a1ead5c35648c6c4f90d48d8db06f30f24762c6c0604c82e673be0743cec707",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "5e4f36ac0a71ed466f5c96843e68d2008159016db8b396703afa4b3f6ea81ea9"
+    }
+  },
+  "scenarios": [
+    {
+      "id": "open-kplex",
+      "status": "passed",
+      "assertions": [
+        "plugin command registered",
+        "rendered .kplex-app contains K-Plex",
+        "no captured JavaScript errors"
+      ],
+      "elapsedMs": 93
+    }
+  ],
+  "completedAt": "2026-10-04T17:51:14.379Z"
+}

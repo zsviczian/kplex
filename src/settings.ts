@@ -43,6 +43,7 @@ export const DEFAULT_NODE_STYLE: NodeStyle = {
   fontSize: 20,
   fontFamily: 3,
   maxLabelLength: 30,
+  maxWidth: 286,
   roughness: 0,
   strokeShaprness: "round",
   strokeWidth: 1,
@@ -139,6 +140,8 @@ export interface KplexSettings {
   showTagNodes: boolean;
   showPageNodes: boolean;
   showNeighborCount: boolean;
+  /** Give every Plex thought a fixed two-line label area so long titles can wrap without breaking row alignment. */
+  wrapNodeLabels: boolean;
   showFullTagName: boolean;
   maxItemCount: number;
   renderSiblings: boolean;
@@ -265,6 +268,7 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   showTagNodes: false,
   showPageNodes: true,
   showNeighborCount: true,
+  wrapNodeLabels: false,
   showFullTagName: false,
   maxItemCount: 100,
   renderSiblings: false,
@@ -272,7 +276,7 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   crossLinkOpacity: 85,
   applyPowerFilter: false,
   baseNodeStyle: DEFAULT_NODE_STYLE,
-  centralNodeStyle: { fontSize: 30, backgroundColor: "#b5b5b5ff", textColor: "#000000ff" },
+  centralNodeStyle: { fontSize: 30, maxWidth: 370, backgroundColor: "#b5b5b5ff", textColor: "#000000ff" },
   inferredNodeStyle: { backgroundColor: "#000005b3", textColor: "#95c7f3ff" },
   urlNodeStyle: { icon: "globe" },
   virtualNodeStyle: { backgroundColor: "#ff000066", fillStyle: "hachure", textColor: "#ffffffff" },
@@ -1429,7 +1433,10 @@ type DeclarativeSettingKey =
   | "baseLinkStyle.showLabel"
   | "baseLinkStyle.textColorHex"
   | "baseLinkStyle.fontSize"
-  | "baseNodeStyle.gateRadius";
+  | "baseNodeStyle.gateRadius"
+  | "baseNodeStyle.maxLabelLength"
+  | "baseNodeStyle.maxWidth"
+  | "centralNodeStyle.maxWidth";
 
 type EditableHierarchyKey = Exclude<keyof Hierarchy, "friends" | "exclusions">;
 
@@ -1835,6 +1842,10 @@ export class KplexSettingTab extends PluginSettingTab {
                 type: "group",
                 heading: translate("settings.ui.node.appearance"),
                 items: [
+                  { name: translate("settings.ui.max.label.length"), desc: translate("settings.ui.max.label.length.help"), control: { type: "slider", key: "baseNodeStyle.maxLabelLength", min: 8, max: 120, step: 1 } },
+                  { name: translate("settings.ui.wrap.node.labels"), desc: translate("settings.ui.wrap.node.labels.help"), control: { type: "toggle", key: "wrapNodeLabels" } },
+                  { name: translate("settings.ui.maximum.node.width"), desc: translate("settings.ui.maximum.node.width.help"), control: { type: "slider", key: "baseNodeStyle.maxWidth", min: 160, max: 800, step: 10 } },
+                  { name: translate("settings.ui.maximum.central.node.width"), desc: translate("settings.ui.maximum.central.node.width.help"), control: { type: "slider", key: "centralNodeStyle.maxWidth", min: 180, max: 1000, step: 10 } },
                   { name: translate("settings.ui.gate.radius"), desc: translate("settings.ui.radius.of.the.relationship.gates.around.nodes.in.pixels"), control: { type: "slider", key: "baseNodeStyle.gateRadius", min: 2, max: 8, step: 0.5 } },
                   { name: translate("settings.ui.style.property"), desc: translate("settings.ui.a.yaml.or.dataview.style.property.whose.value.can.select"), control: { type: "text", key: "noteTypeField" } },
                   {
@@ -1951,6 +1962,9 @@ export class KplexSettingTab extends PluginSettingTab {
     if (key === "baseLinkStyle.textColorHex") return sixHex(this.kplexPlugin.settings.baseLinkStyle.textColor, "#ffffff").toLowerCase();
     if (key === "baseLinkStyle.fontSize") return this.kplexPlugin.settings.baseLinkStyle.fontSize ?? DEFAULT_LINK_STYLE.fontSize ?? 10;
     if (key === "baseNodeStyle.gateRadius") return this.kplexPlugin.settings.baseNodeStyle.gateRadius ?? DEFAULT_NODE_STYLE.gateRadius ?? 5;
+    if (key === "baseNodeStyle.maxLabelLength") return this.kplexPlugin.settings.baseNodeStyle.maxLabelLength ?? DEFAULT_NODE_STYLE.maxLabelLength ?? 30;
+    if (key === "baseNodeStyle.maxWidth") return this.kplexPlugin.settings.baseNodeStyle.maxWidth ?? DEFAULT_NODE_STYLE.maxWidth ?? 286;
+    if (key === "centralNodeStyle.maxWidth") return this.kplexPlugin.settings.centralNodeStyle.maxWidth ?? DEFAULT_SETTINGS.centralNodeStyle.maxWidth ?? 370;
     return this.kplexPlugin.settings[key as keyof KplexSettings];
   }
 
@@ -2019,6 +2033,21 @@ export class KplexSettingTab extends PluginSettingTab {
     }
     if (key === "baseNodeStyle.gateRadius") {
       this.kplexPlugin.settings.baseNodeStyle.gateRadius = Number(value);
+      await this.kplexPlugin.saveSettings(false);
+      return;
+    }
+    if (key === "baseNodeStyle.maxLabelLength") {
+      this.kplexPlugin.settings.baseNodeStyle.maxLabelLength = Math.max(8, Math.min(120, Math.round(Number(value) || 30)));
+      await this.kplexPlugin.saveSettings(false);
+      return;
+    }
+    if (key === "baseNodeStyle.maxWidth") {
+      this.kplexPlugin.settings.baseNodeStyle.maxWidth = Math.max(160, Math.min(800, Math.round(Number(value) || 286)));
+      await this.kplexPlugin.saveSettings(false);
+      return;
+    }
+    if (key === "centralNodeStyle.maxWidth") {
+      this.kplexPlugin.settings.centralNodeStyle.maxWidth = Math.max(180, Math.min(1000, Math.round(Number(value) || 370)));
       await this.kplexPlugin.saveSettings(false);
       return;
     }

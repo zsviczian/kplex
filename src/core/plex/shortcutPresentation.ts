@@ -19,9 +19,13 @@ export type ShortcutKeyboardEvent = Readonly<{
 /** F4 is the search gesture verified to focus K-Plex without a conflicting host binding. */
 export const SEARCH_FOCUS_SHORTCUT: ShortcutSpec = { key: "F4" };
 
-/** Preserve the current search handler: F4, or Ctrl/Meta+F with Alt not pressed. */
+/** Focus Vault search without consuming the independent current-Plex Find shortcut. */
 export function isSearchFocusShortcut(event: ShortcutKeyboardEvent): boolean {
-  if (event.key === "F4") return true;
+  return event.key === "F4";
+}
+
+/** Open the current surface's Find field; native editor callers retain their own shortcut. */
+export function isPlexFindShortcut(event: ShortcutKeyboardEvent): boolean {
   return event.key.toLocaleLowerCase() === "f" && (event.ctrlKey || event.metaKey) && !event.altKey;
 }
 

@@ -77,7 +77,7 @@ K-Plex uses positional animation when navigating: notes that exist in both scene
 
 ### Search, history and pins
 
-The search box finds notes by display name, file name, alias and path using fuzzy matching. Exact and prefix matches rank above looser matches.
+The toolbar search box searches files throughout the Vault, including attachments and Canvas files, by display name, file name, alias and path using fuzzy matching. Exact and prefix matches rank above looser matches.
 
 Display names are configurable in **Settings → K-Plex → Visual styling → Canvas & labels → Name fields**. Enter a comma-separated precedence list such as `title, aliases, backup_names`. K-Plex uses the first non-empty text/list value and falls back to the file name. The default is `aliases`, which preserves the previous alias-rendering behavior.
 
@@ -86,7 +86,9 @@ Keyboard shortcuts while K-Plex has focus:
 - **Up / Down** — move through search results
 - **Enter** — activate the selected result
 - **Escape** — close the result list
-- **F4** or **Ctrl/Cmd+F** — focus search
+- **F4** — focus Vault search
+
+Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the Plex, to **Find in Plex**. This separate field highlights matching nodes and links in the current Plex and reveals matches in scrollable areas. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find.
 
 K-Plex also keeps a **Past nodes** history for back/forward navigation. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
 

@@ -47,6 +47,10 @@ export type FuzzySuggesterProps<T> = {
   focusRequest?: number;
   className?: string;
   highlightMatches?: boolean;
+  /** Keep the input/results open after choosing an item. Useful for repeated in-place find. */
+  closeOnChoose?: boolean;
+  /** Advance to the next result after choosing while the list stays open. */
+  advanceOnChoose?: boolean;
 };
 
 function matchIndices(text: string, rawQuery: string): Set<number> {
@@ -120,6 +124,8 @@ export function FuzzySuggester<T>({
   focusRequest,
   className = "",
   highlightMatches = true,
+  closeOnChoose = true,
+  advanceOnChoose = false,
 }: FuzzySuggesterProps<T>) {
   const [focused, setFocused] = useState(false);
   const [editedSinceFocus, setEditedSinceFocus] = useState(false);
@@ -159,7 +165,13 @@ export function FuzzySuggester<T>({
 
   const choose = (item: T) => {
     onChoose(item);
-    close();
+    if (closeOnChoose) {
+      close();
+      return;
+    }
+    if (advanceOnChoose && visibleResults.length > 0) {
+      setSelectedIndex((current) => (Math.max(0, Math.min(visibleResults.length - 1, current)) + 1) % visibleResults.length);
+    }
   };
 
   useEffect(() => {

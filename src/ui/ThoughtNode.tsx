@@ -159,7 +159,7 @@ export function ThoughtNode({
       onClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onDoubleClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
       onContextMenu={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
-    >{content}</div> : <span className="kplex-thought-label">
+    >{content}</div> : <span className={`kplex-thought-label${settings.wrapNodeLabels ? " is-two-line" : ""}`}>
       {node.page.transient?.kind === "section"
         ? <span className="kplex-section-heading-mark" aria-hidden="true">{(() => {
           const level = node.page.transient?.level ?? 1;
@@ -175,7 +175,7 @@ export function ThoughtNode({
         ? <span className="kplex-node-visual is-replace" title={visual.alt}>
           <img src={visual.src} alt={visual.alt} loading="lazy" decoding="async" draggable={false} />
         </span>
-        : <span>{display}</span>}
+        : <span className="kplex-thought-text" title={label}>{display}</span>}
     </span>}
     {cornerAction && <button
       type="button"

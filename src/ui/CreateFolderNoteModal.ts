@@ -47,7 +47,7 @@ export class CreateFolderNoteModal extends Modal {
     this.creating = true;
     this.refreshButtons();
     try {
-      const page = await this.plugin.createNewNodeInFolder(this.folder, validation.stem, kind);
+      const page = await this.plugin.createNewNodeInFolder(this.folder, this.noteName, kind);
       if (!page) return;
       await this.plugin.rememberNewNodeDefaultType(kind);
       this.close();
