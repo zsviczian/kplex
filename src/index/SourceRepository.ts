@@ -11,6 +11,8 @@
  * normal selected-source readers remain masked and the observer expires before tombstone activation.
  * Retired impact leases retain bounded retry ownership until an exact deletion commits; a cleanup-
  * only storage port can release them after a failed/closed normal connection, without new authority.
+ * Clean dependency checks select the owner/journal and durable head in one readonly transaction;
+ * overlays and exceptional heads retain ordinary inspection, and repair writes require a reread.
  */
 import { estimateReferenceRecordBytes } from "../core/graph/source";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
@@ -325,6 +327,7 @@ export class NeutralSourceRepository {
   private readonly pendingDeletes = new Map<string, PendingSourceDeletion>();
   private deleteTask: Promise<SourceWriteResult> | null = null;
   private readonly knownHeads = new Map<string, number>();
+  private sourceActivationRevision = 0;
   private memoryBytes = 0;
   private retryTimer: number | null = null;
   private retryFailures = 0;
@@ -1477,16 +1480,23 @@ export class NeutralSourceRepository {
       : this.repairLocalDependencies(db, sourceId, current);
   }
 
-  /** Read the selected local owner and any resumable count journal without scanning its rows. */
-  private async localDependencySelection(db: IDBDatabase, sourceId: string, current: () => boolean): Promise<Readonly<{
+  /**
+   * Read the selected local owner/journal without scanning rows. Dependency verification may also
+   * select a valid complete disk head in this same transaction; it grants no family-read lease and
+   * the caller must still reject memory/unsaved/deletion overlays after the await.
+   */
+  private async localDependencySelection(db: IDBDatabase, sourceId: string, current: () => boolean, includeHead = false): Promise<Readonly<{
     state: SourceLocalDependencyState; owner: SourceLocalDependencyOwner | null; repair: SourceLocalDependencyRepair | null;
+    head: SourceHead | null;
   }>> {
     if (!current() || this.closed) throw new SourceFactError("cancelled");
-    return this.transaction(db, [SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE, META_STORE], "readonly", sourceId, async (transaction) => {
-      const [rawState, rawOwner, rawRepair] = await Promise.all([
+    return this.transaction(db, [SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE, META_STORE,
+      ...(includeHead ? [SOURCE_HEAD_STORE] : [])], "readonly", sourceId, async (transaction) => {
+      const [rawState, rawOwner, rawRepair, rawHead] = await Promise.all([
         unknownValue(transaction.objectStore(META_STORE).get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY)),
         unknownValue(transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).get(sourceId)),
         unknownValue(transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).get(sourceId)),
+        includeHead ? unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId)) : undefined,
       ]);
       const state = rawState === undefined ? sourceLocalDependencyState() : validSourceLocalDependencyState(rawState) ? rawState : null;
       if (!state) throw new SourceFactError("dependency-invalid");
@@ -1497,7 +1507,8 @@ export class NeutralSourceRepository {
       // Pending is global across sources. A local journal requires at least one pending slot; the
       // inverse is not true because another source may own the remaining journal.
       if (repair !== null && !this.isLocalDependencyPrivateRepair(repair) && state.pending === 0) throw new SourceFactError("dependency-invalid");
-      return { state, owner, repair };
+      const head = includeHead && sourceHeadReason(rawHead) === "ready" ? decodeSourceHead(rawHead) : null;
+      return { state, owner, repair, head: head?.sourceId === sourceId && head.state === "complete" ? head : null };
     });
   }
 
@@ -1925,6 +1936,8 @@ export class NeutralSourceRepository {
         if (!current() || this.closed) throw new SourceFactError("cancelled");
         return activated;
       });
+      // Selection consumers must reread after an intervening durable commit, including tombstones.
+      this.sourceActivationRevision++;
       this.runtime.localDependencyCheckpoint?.("after-local-activation");
       const repaired = await this.repairLocalDependencies(db, head.sourceId, current);
       if (repaired !== "ready" && repaired !== "cancelled") this.diagnostics.lastReason = repaired;
@@ -2157,21 +2170,32 @@ export class NeutralSourceRepository {
     } catch (error) { return !current() || this.closed ? "cancelled" : errorReason(error, "dependency-invalid"); }
   }
 
-  /** Backfill or verify one durable source-local dependency owner without changing the source head. */
+  /**
+   * Backfill or verify a durable dependency owner without changing its source head. Clean checks
+   * share a readonly owner/head selection; exceptional heads/overlays use ordinary inspection.
+   * Repair and legacy upgrade retain rereads and all revision/sequence/cancellation fences.
+   */
   async ensureLocalDependencies(sourceId: string, order: number, markdownOrder: number, current: () => boolean = () => true): Promise<SourceReason> {
     if (!sourceCount(order) || !sourceCount(markdownOrder) || this.closed || !current()) return "cancelled";
     const db = await this.open(); if (!db) return this.storage.unavailableReason?.() ?? "storage-unavailable";
     let stagingRevision: string | null = null;
     try {
-      let selected = await this.localDependencySelection(db, sourceId, current);
+      const activationRevision = this.sourceActivationRevision;
+      let selected = await this.localDependencySelection(db, sourceId, current, true);
       // Clean owners already have the selection needed below. Settlement is only necessary when
       // that selection contains repair work; reread after it because repair can replace the owner.
       if (selected.repair) {
         const settled = await this.settleLocalDependencyWork(db, sourceId, current);
         if (settled !== "ready") return settled;
-        selected = await this.localDependencySelection(db, sourceId, current);
+        selected = await this.localDependencySelection(db, sourceId, current, true);
       }
-      const inspection = await this.inspect(sourceId, [], current);
+      // Only a complete valid disk head can bypass inspection. Overlays may have appeared while
+      // IDB was awaited; they must continue masking that head exactly as ordinary pin() does.
+      const inspection: SourceInspection = selected.head && activationRevision === this.sourceActivationRevision && !this.memory.has(sourceId)
+        && !this.unsaved.has(sourceId) && !this.pendingDeletes.has(sourceId)
+        ? { head: selected.head, sequence: selected.head.sequence, saved: true,
+          expected: expectation(selected.head), reason: "ready", families: {} }
+        : await this.inspect(sourceId, [], current);
       if (!current() || this.closed) return "cancelled";
       const head = inspection.head;
       if (!inspection.saved || !head || inspection.sequence === null || head.state !== "complete") return inspection.reason;

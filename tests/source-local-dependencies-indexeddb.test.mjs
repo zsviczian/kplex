@@ -97,11 +97,12 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           f.add('A.md','Friends:: [[Ghost]]');await f.acquire();ok(await f.acquisition.reconcile(),'Seed complete local owner');
           const r=f.repository,db=await f.cache.open(),before=(await r.inspect('A.md')).head;
           const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));
-          const select=r.localDependencySelection.bind(r),inspect=r.inspect.bind(r),settle=r.settleLocalDependencyWork.bind(r);let selections=0,inspections=0,settlements=0;
+          const select=r.localDependencySelection.bind(r),inspect=r.inspect.bind(r),settle=r.settleLocalDependencyWork.bind(r);let selections=0,inspections=0,settlements=0;const transactions=[],reads=[];const transaction=r.transaction.bind(r),get=IDBObjectStore.prototype.get;
+          r.transaction=(...args)=>{transactions.push({stores:[...args[1]].sort(),mode:args[2]});return transaction(...args)};IDBObjectStore.prototype.get=function(...args){reads.push(this.name);return get.apply(this,args)};
           r.localDependencySelection=(...args)=>{selections++;return select(...args)};r.inspect=(...args)=>{inspections++;return inspect(...args)};r.settleLocalDependencyWork=(...args)=>{settlements++;return settle(...args)};
-          equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),'ready','Clean owner verified');
-          equal(selections,1,'Exactly one local selection on the clean path');equal(inspections,1,'Selected head remains checked');equal(settlements,0,'No repair settlement needed');
-          r.localDependencySelection=select;r.inspect=inspect;r.settleLocalDependencyWork=settle;
+          try{equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),'ready','Clean owner verified');
+          equal(selections,1,'Exactly one local selection on the clean path');equal(inspections,0,'No second head-inspection transaction');equal(transactions,[{stores:['meta',M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_REPAIR_STORE,'sourceHeads'].sort(),mode:'readonly'}],'One atomic owner/head transaction');equal(reads.sort(),['meta',M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_REPAIR_STORE,'sourceHeads'].sort(),'Head and all dependency authority inputs remain checked');equal(settlements,0,'No repair settlement needed');
+          }finally{r.localDependencySelection=select;r.inspect=inspect;r.settleLocalDependencyWork=settle;r.transaction=transaction;IDBObjectStore.prototype.get=get;}
           equal((await r.inspect('A.md')).head,before,'Clean verification does not rewrite source head');
           equal(await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md')),owner,'Clean verification does not rewrite owner');
           equal(await r.completeLocalDependencyInventory(),'ready','Global dependency closure remains ready');return true;
@@ -125,6 +126,62 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           const after=(await r.inspect('A.md')).head;ok(after.sourceRevision!==before.sourceRevision,'Selected source really changed');
           equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),'ready','Fresh selection validates current source');
           equal(await r.completeLocalDependencyInventory(),'ready','Current owner inventory closes after replacement');return true;
+        }finally{f.close();}
+      })()`), true);
+    });
+
+    await t.test("merged dependency selection still honors cancellation and unload after its await", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules;
+        for(const mode of ['cancel','unload']){
+          const f=await fixture('local-merged-'+mode);
+          try{
+            f.add('A.md','Friends:: [[Ghost]]');await f.acquire();ok(await f.acquisition.reconcile(),'Seed authority');
+            const r=f.repository,db=await f.cache.open(),before=await value(db.transaction('sourceHeads').objectStore('sourceHeads').get('A.md'));
+            const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));
+            let live=true;const select=r.localDependencySelection.bind(r);
+            r.localDependencySelection=async(...args)=>{const selected=await select(...args);if(mode==='cancel')live=false;else r.close();return selected};
+            equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder,()=>live),'cancelled','No authority after cancellation/unload');
+            equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').get('A.md')),before,'Cancellation leaves head unchanged');
+          }finally{f.close();}
+        }return true;
+      })()`), true);
+    });
+
+    await t.test("unsaved and deletion overlays appearing after merged selection mask its disk head", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules;
+        for(const mode of ['unsaved','deletion']){
+          const f=await fixture('local-merged-overlay-'+mode);
+          try{
+            f.add('A.md','Friends:: [[Ghost]]');await f.acquire();ok(await f.acquisition.reconcile(),'Seed authority');
+            const r=f.repository,db=await f.cache.open(),owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));
+            const select=r.localDependencySelection.bind(r);let fired=false;
+            r.localDependencySelection=async(...args)=>{const selected=await select(...args);if(!fired){fired=true;if(mode==='unsaved')r.unsaved.add('A.md');else equal((await r.tombstone('A.md')).outcome,'activated','Production tombstone commits after selection')}return selected};
+            equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),mode==='unsaved'?'unsaved':'tombstone','Masked disk snapshot is never accepted');
+            r.localDependencySelection=select;r.unsaved.delete('A.md');
+          }finally{f.close();}
+        }return true;
+      })()`), true);
+    });
+
+    await t.test("merged selection retains head/owner sequence and malformed-head failure checks", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await fixture('local-merged-invalid');
+        try{
+          f.add('A.md','Friends:: [[Ghost]]');await f.acquire();ok(await f.acquisition.reconcile(),'Seed authority');
+          const r=f.repository,db=await f.cache.open(),head=await value(db.transaction('sourceHeads').objectStore('sourceHeads').get('A.md'));
+          const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));
+          await edit(db,[M.SOURCE_LOCAL_OWNER_STORE],tx=>tx.objectStore(M.SOURCE_LOCAL_OWNER_STORE).put({...owner,sequence:owner.sequence+1}));
+          equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),'dependency-invalid','Owner/head sequence mismatch rejected');
+          await edit(db,[M.SOURCE_LOCAL_OWNER_STORE],tx=>tx.objectStore(M.SOURCE_LOCAL_OWNER_STORE).put(owner));
+          for(const damaged of [{...head,formatVersion:-1},{...head,state:'incomplete'},null]){
+            await edit(db,['sourceHeads'],tx=>{tx.objectStore('sourceHeads').delete('A.md');if(damaged)tx.objectStore('sourceHeads').put(damaged)});
+            const expected=(await r.inspect('A.md',[])).reason;
+            ok(expected!=='ready','Bad head cannot grant authority');equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),expected,'Exceptional head retains ordinary inspection reason');
+          }
+          await edit(db,['sourceHeads'],tx=>tx.objectStore('sourceHeads').put(head));
+          equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),'ready','Restored source converges');return true;
         }finally{f.close();}
       })()`), true);
     });
