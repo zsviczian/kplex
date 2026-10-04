@@ -711,7 +711,7 @@ export const englishCatalog = {
     params: [],
   },
   "index.startupHostComparison": {
-    message: "Comparing cached notes with Obsidian metadata",
+    message: "Checking note metadata",
     context: "Actual startup activity; no estimated percentage is implied.",
     params: [],
   },
@@ -721,8 +721,13 @@ export const englishCatalog = {
     params: [],
   },
   "index.startupChecking": {
-    message: "Checking cached index",
+    message: "Checking cached notes",
     context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupRechecking": {
+    message: "Rechecking cached notes",
+    context: "A repeated source-reconciliation pass; its real note count starts again for that pass.",
     params: [],
   },
   "index.startupDependencyCompletion": {

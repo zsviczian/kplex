@@ -16,14 +16,26 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Online SI5 result — unchanged-build wait attribution
+# Online SI5 result — distinct phase/retry labels validated
 
-Posting correction checkpoint **`ea41d4b4484b9957d8700cf44920809912ca1ee4`** is clean. [Wait attribution](docs/validation/settings-independent-indexing-si5-wait-attribution-2026-10-04.md) and its JSON capture the unchanged installed `c9cc8a49…` build. Three foreground warm restarts pass 64.523 / 64.592 / 67.665 seconds, median 64.592. Test-only bounded timing wrappers preserve original promises; host yields total 0.165 / 0.152 / 0.165 seconds, transaction intervals 36.776 / 35.870 / 37.344 seconds. Unwrapped remainder includes lease release/other work, not CPU-only. No optimization implemented.
+## Independent checkpoints and scope
 
-Four full owner walks remain; all zero source-work counters remain. 10/10 driver tests, 18 evidence assertions, restored configuration/enablement and removed wrappers/controller/opt-in, zero private owner sets, 21 frozen phases. Full production verify/build remains exact posting checkpoint with 199 browser tests. Untimed navigation notification was lost before view listener subscription; recovered before measured runs. Driver now gates listener and selected center; subsequent native validation needed. CLI reconnects zero; individual 30-second cap, bounded polls and no outer native deadline remain. Live status after restoring excluded hub settings is updating; completed measurements are historical.
+Posting batching **`ea41d4b4484b9957d8700cf44920809912ca1ee4`**; diagnostic-only wait attribution **`0f58ea606dbd406f0b100f49c7374d470027c039`**; the separate current UX correction is validated below (use `git log -1` for its resulting commit SHA). No push/release. Explicit online CLI/Git/development authority applies; C15–C26 paused.
 
-Next performance proposal, **not implemented**: combine clean local-dependency selection and fresh head validation into one bounded readonly transaction, preserving overlay/repair/version/revision/cancellation/storage/freshness fences. Review before implementation. Do not remove yields or later freshness pass based only on owner overlap.
+SI5 remains open for physical iPad/Android and the final settings-route/retirement/evidence audit. Extreme cold is accepted; 20k hub decode-budget is outside the critical path. No architecture/cache/database/projection/memory/cold redesign.
 
-Current user UX request: two identical cache-check rounds in a now-closed personal vault. No old trace available, no personal vault opened/read, retry cause unknown. Next independent checkpoint should distinguish “Checking note metadata”, “Checking cached notes” and “Rechecking cached notes” for a repeated reconciliation. Preserve true counts/percentages. Validate and commit separately from this diagnostic checkpoint.
+## Current UX result
 
-SI5 remains open for physical iPad/Android and final settings-route/retirement/evidence audit. Extreme cold accepted, 20k hub decode-budget outside critical path; no architecture/cache/projection/memory/cold redesign, C15–C26 paused. No push/release. Explicit online development/CLI/Git authority applies.
+[Exact validation](docs/validation/settings-independent-indexing-si5-progress-labels-2026-10-04.md) and JSON distinguish **Checking note metadata**, **Checking cached notes**, and **Rechecking cached notes** on repeated reconciliation, in all eight catalogs. Bounded one-based phase/pass counting works without detailed opt-in; real denominators and monotonic counts preserved. No source validation, authority, scheduling, cache or watchdog changes.
+
+Installed/final `main.js` hash **`bd1e24ae6946eaa8a5d4fab3b36587e8be423b7f41a820a11a30c124b194d2ad`**. Full verify passes architecture7/core62/Node144/UI7/portable317/browser199, official lint and actual build/types. Focused21/21, runner10/10, native15 assertions. One controlled missing MetadataCache entry produced two genuine complete 20,015-note reconciliation passes with distinct retry copy and final strict-ready. Zero source reads/parses/repairs/full builds, unchanged source heads/settings, original settings/enablement byte-identical after all attempts, no captured errors, one app/center DOM/canonical command. Foreground99/99, normal throttling, reconnects0; controller/wrappers/opt-in removed, private owner sets0, 25 frozen phases retained. Restoring excluded original center makes live status updating; historical strict-ready is not current authority.
+
+Initial **untimed** setup ran hidden/unfocused and hit the existing production hydration watchdog; no trial started. Failure retained, setup stopped and configuration cleaned, foreground matched reload/retest passed. Driver now foregrounds exact test window before preflight as well as timed runs, waits for listener and selected center. Functional injected-retry elapsed 97.361 seconds overlaps browser verification and is not a performance comparison. Individual CLI30s and native autonomous/bounded poll/no outer deadline contracts unchanged. Backup `/private/tmp/kplex-si5-progress-labels-before-2026-10-04`. Only disposable test vault modified.
+
+The maintainer's original identical rounds were in a now-closed personal vault. No old trace is available and its exact retry cause is unknown; no personal vault reopened/read. On its next startup, verify distinct metadata/cache/retry names.
+
+## Measured performance and remaining decision
+
+[Unchanged-build wait attribution](docs/validation/settings-independent-indexing-si5-wait-attribution-2026-10-04.md) applies to the **prior c9cc8a49… artifact**, not this UX build. Three foreground runs 64.523/64.592/67.665 seconds; host yields only0.165/0.152/0.165 seconds, observed transaction intervals36.776/35.870/37.344 seconds. Unwrapped remainder includes lease-release/other work, not CPU-only. Four whole-owner walks and zero source work remain. No yield removal or other optimization added.
+
+Next proposed minimal performance correction, **not implemented**: combine clean local-dependency selection and its fresh source-head validation into one bounded readonly transaction. Preserve overlay/repair/version/revision/cancellation/storage/freshness fences and later validation pass. Review proposal before implementing; no generalized abstraction or new cache. Then retest same foreground condition/build and perform final audit/device checks.

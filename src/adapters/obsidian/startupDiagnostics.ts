@@ -5,7 +5,7 @@
  * Owner identities remain private and are discarded when strict readiness freezes the report.
  */
 export type StartupLane = "source" | "hydration";
-export type StartupProgress = { phase: string; processed: number; total: number | null };
+export type StartupProgress = { phase: string; pass: number; processed: number; total: number | null };
 type Phase = StartupProgress & { lane: StartupLane; startedMs: number; endedMs: number | null; counters: Record<string, number>; uniqueOwners: number };
 
 /** Records bounded phase boundaries without changing the production startup sequence. */
@@ -15,6 +15,7 @@ export class StartupDiagnostics {
   private frozen = false;
   private phases: Phase[] = [];
   private active = new Map<StartupLane, Phase>();
+  private passes = new Map<string, number>();
   private owners = new Map<Phase, Set<string>>();
   private milestones: Record<string, number> = {};
   private overlaps: { first: string; second: string; owners: number }[] = [];
@@ -29,13 +30,17 @@ export class StartupDiagnostics {
   mark(name: string): void {
     if (this.enabled && !this.frozen && this.milestones[name] === undefined) this.milestones[name] = window.performance.now() - this.startedAt;
   }
-  /** Close a lane's preceding phase and start actual work, with an optional real denominator. */
+  /** Close the preceding activity and count its actual pass, including retries without timing opt-in. */
   phase(lane: StartupLane, phase: string, total: number | null = null): void {
     if (this.frozen) return;
     const now = this.enabled ? window.performance.now() - this.startedAt : 0;
     const previous = this.active.get(lane);
     if (previous) previous.endedMs = now;
-    const row: Phase = { lane, phase, total, processed: 0, startedMs: now, endedMs: null, counters: {}, uniqueOwners: 0 };
+    const key = `${lane}:${phase}`;
+    const pass = (this.passes.get(key) ?? 0) + 1;
+    // Production uses a finite phase vocabulary; bound unexpected diagnostic labels as well.
+    if (this.passes.has(key) || this.passes.size < 128) this.passes.set(key, pass);
+    const row: Phase = { lane, phase, pass, total, processed: 0, startedMs: now, endedMs: null, counters: {}, uniqueOwners: 0 };
     this.active.set(lane, row);
     if (this.enabled && this.phases.length < 128) this.phases.push(row);
   }
@@ -60,7 +65,7 @@ export class StartupDiagnostics {
   /** Return O(1) actual progress for presentation and native counter attribution. */
   progress(lane: StartupLane): StartupProgress | null {
     const row = this.active.get(lane);
-    return row ? { phase: row.phase, processed: row.processed, total: row.total } : null;
+    return row ? { phase: row.phase, pass: row.pass, processed: row.processed, total: row.total } : null;
   }
   /** Freeze the measured lifetime and release all private owner identities on strict readiness. */
   finish(): void {

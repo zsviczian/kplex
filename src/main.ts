@@ -2168,7 +2168,8 @@ export default class KplexPlugin extends Plugin {
       "relations": "index.startupRelations", "preview-search": "index.startupSearch", "evidence": "index.startupEvidence",
       "resolve": "index.startupResolution", "authoritative-search": "index.startupSearch", "promote": "index.startupPromotion",
     } as const;
-    const activityKey = progress && activityKeys[progress.phase as keyof typeof activityKeys];
+    const activityKey = progress?.phase === "source-reconciliation" && progress.pass > 1
+      ? "index.startupRechecking" : progress && activityKeys[progress.phase as keyof typeof activityKeys];
     const activity = activityKey ? this.translator(activityKey) : null;
     const progressLabel = progress && activity
       ? progress.total !== null && progress.total > 0

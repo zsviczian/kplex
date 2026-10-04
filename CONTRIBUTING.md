@@ -572,3 +572,10 @@ unwrapped remainder includes other work/waits, not CPU alone. Probe starts after
 snapshot-cache transactions are not included. See [wait attribution and proposed correction](docs/validation/settings-independent-indexing-si5-wait-attribution-2026-10-04.md).
 Measured yields do not justify scheduling changes. Keep diagnostic-driver and subsequent UX/behavior
 changes in separate commits. No next optimization until the measured proposal is reviewed.
+
+Startup progress labels distinguish note metadata, cached-note validation and repeated reconciliation
+with **Rechecking cached notes**. Diagnostic progress includes the one-based lane/phase `pass`;
+counts restart at the actual pass boundary. This also works without detailed opt-in. The
+[controlled retry validation](docs/validation/settings-independent-indexing-si5-progress-labels-2026-10-04.md)
+records the exact test-only MetadataCache miss recipe, failed untimed background setup and successful
+foreground retry. Do not use fault-injected or browser-overlapping elapsed times as warm baselines.

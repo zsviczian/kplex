@@ -134,6 +134,9 @@ try {
     if (report.artifacts[name] !== hash(join(target.pluginDir, name))) throw Error(`Installed ${name} differs from build`);
   }
   if (selectedCenter) report.preflight = await probe(`
+    const remote=require('@electron/remote'),w=remote.getCurrentWindow();
+    remote.app.show();remote.app.focus({steal:true});w.show();w.moveTop();w.focus();
+    await new Promise(resolve=>window.setTimeout(resolve,350));
     const p=app.plugins.plugins['k-plex'];if(!app.vault.getFileByPath(${JSON.stringify(selectedCenter)}))throw Error('Selected existing center missing');
     for(const leaf of app.workspace.getLeavesOfType('k-plex-react-view'))leaf.detach();
     p.settings.lastActivePath=${JSON.stringify(selectedCenter)};await p.saveSettings(false,false);await p.activateView();
