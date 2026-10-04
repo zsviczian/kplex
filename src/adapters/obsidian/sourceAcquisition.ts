@@ -12,6 +12,7 @@
  * Source-backed search retains only bounded changed-owner endpoint incidence until publication;
  * cached canonical compilation decides materialization and rename/delete retire that incidence safely.
  */
+import type { StartupDiagnostics } from "./startupDiagnostics";
 import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidian";
 import type { GraphCompilerRuntime, NormalizedGraphCompiler, CompiledGraphNode } from "../../core/graph/compiler";
 import { estimateReferenceRecordBytes, sourceRevision, acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type NormalizedSourceBatch,
@@ -180,7 +181,8 @@ export class ObsidianSourceAcquisition {
    */
   constructor(private readonly app: App, private readonly cache: KplexIndexedDbCache, private readonly parse: SourceBodyParser,
     private readonly inventoryReady?: () => void,
-    private readonly inventoryProgress?: () => void) {
+    private readonly inventoryProgress?: () => void,
+    private readonly startupDiagnostics?: StartupDiagnostics) {
     this.repository = cache.sources;
     this.metadataHost = createObsidianMetadataSourceHost(app);
   }
@@ -490,48 +492,48 @@ export class ObsidianSourceAcquisition {
     }
   }
 
-  /** Upgrade accepted R1 owners before restart fan-out so unresolved relative/subpath tokens exist. */
-  private async upgradeRestartLocalDependencies(markdown: readonly TFile[], structuralOrder: ReadonlyMap<string, number>,
+  /**
+   * On first restart inventory, compare current MetadataCache facts with durable source-local facts.
+   * Upgrade accepted R1 owners in the same walk before any resolution fan-out. Offline alias/path/
+   * create/delete drift marks only the changed source and proven referrers.
+   */
+  private async reconcileRestartHostInventory(markdown: readonly TFile[], structuralOrder: ReadonlyMap<string, number>,
     current: () => boolean): Promise<boolean> {
+    if (this.restartInventoryChecked) return true;
+    this.startupDiagnostics?.phase("source", "host-metadata-comparison", markdown.length);
+    const keys = new Set<string>(), changedPaths = new Set<string>();
     const checkpoint = inventoryCheckpoint();
     for (const [markdownOrder, file] of markdown.entries()) {
       if (!current()) return false;
       const order = structuralOrder.get(file.path);
       if (order === undefined) return false;
-      const inspection = await this.repository.inspect(file.path, [], current);
-      if (!current()) return false;
-      this.inventoryProgress?.();
-      if (!inspection.saved || !inspection.head || inspection.head.state !== "complete") continue;
-      const reason = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
-      if (reason !== "ready") return false;
-      await checkpoint();
-    }
-    return current();
-  }
-
-  /**
-   * On first restart inventory, compare current MetadataCache facts with durable source-local facts.
-   * Offline alias/path/create/delete drift marks only the changed source and proven referrers.
-   */
-  private async reconcileRestartHostInventory(markdown: readonly TFile[], current: () => boolean): Promise<boolean> {
-    if (this.restartInventoryChecked) return true;
-    const keys = new Set<string>(), changedPaths = new Set<string>();
-    for (const file of markdown) {
-      if (!current()) return false;
-      const cache = this.app.metadataCache.getFileCache(file);
-      if (!cache) continue;
-      // durableHostInventory validates this same family's chunks/postings while collecting facts;
-      // inspecting it here as well would decode every restart metadata family twice.
+      // Share the top-level inspection between dependency upgrade and host comparison. Dependencies
+      // must also be upgraded for owners whose MetadataCache is not available yet, and all upgrades
+      // must finish before the deferred resolution fan-out below can query their memberships.
       const inspection = await this.repository.inspect(file.path, [], current);
       if (!current()) return false;
       const head = inspection.head;
+      if (inspection.saved && head?.state === "complete") {
+        const reason = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
+        if (!current() || reason !== "ready") return false;
+        await checkpoint();
+        if (!current()) return false;
+      }
+      const cache = this.app.metadataCache.getFileCache(file);
+      if (!cache) {
+        this.startupDiagnostics?.processed("source", file.path);
+        this.inventoryProgress?.();
+        continue;
+      }
+      // durableHostInventory validates the metadata family's chunks/postings while collecting facts;
+      // the shared top-level inspection above does not decode that family a second time.
       this.inventoryProgress?.();
       const now = this.currentHostInventory(file, cache);
       if (!head || head.state !== "complete") {
         // Storage-unavailable operation has no durable restart evidence. Preserve the established
         // current-process/legacy body path instead of inventing a recreation from absence that
         // cannot be authenticated.
-        if (!head && inspection.expected.kind === "unavailable") continue;
+        if (!head && inspection.expected.kind === "unavailable") { this.startupDiagnostics?.processed("source", file.path); continue; }
         changedPaths.add(file.path);
         const state = this.state(file);
         // A current file over a missing/tombstoned selected binding is a restart recreation. Its
@@ -541,12 +543,14 @@ export class ObsidianSourceAcquisition {
         if (!state.dirty) { state.dirty = true; state.revision += 1; }
         state.bodyDirty = true; state.created = true;
         for (const key of this.resolutionImpactKeys(file.path, now)) keys.add(key);
+        this.startupDiagnostics?.processed("source", file.path);
         continue;
       }
       const durable = await this.durableHostInventory(file.path, current);
       if (!current()) return false;
       this.inventoryProgress?.();
       const sameFacts = durable.reason === "ready" && JSON.stringify(durable.facts) === JSON.stringify(now);
+      this.startupDiagnostics?.count("source", "physicalRevisionComparisons");
       const samePhysical = physicalMatches(head.physical,
         { identity: head.physical.identity, path: file.path, mtime: file.stat.mtime, size: file.stat.size, ctime: file.stat.ctime });
       if (!sameFacts || !samePhysical) {
@@ -557,10 +561,14 @@ export class ObsidianSourceAcquisition {
         for (const key of this.resolutionImpactKeys(file.path, durable.facts)) keys.add(key);
         for (const key of this.resolutionImpactKeys(file.path, now)) keys.add(key);
       }
+      this.startupDiagnostics?.processed("source", file.path);
+      this.inventoryProgress?.();
     }
+    this.startupDiagnostics?.phase("source", "host-retired-owner-check");
     let after: string | null = null;
     while (current()) {
       const page = await this.repository.headPage(after);
+      this.startupDiagnostics?.count("source", "headPageOwners", page.heads.length);
       if (current()) this.inventoryProgress?.();
       // Durable restart reconciliation is an enhancement; storage-degraded operation cannot prove
       // offline drift and retains the established in-memory path.
@@ -738,6 +746,7 @@ export class ObsidianSourceAcquisition {
     current: () => boolean): Promise<boolean> {
     let complete = true;
     for (const [markdownOrder, file] of markdown.entries()) {
+      this.startupDiagnostics?.processed("source", file.path);
       if (!current()) return false;
       const state = this.state(file);
       if (!state.resolutionDirty) continue;
@@ -1388,12 +1397,15 @@ export class ObsidianSourceAcquisition {
         let environmentMaintenanceFenced = this.uncertainResolution || this.environmentMaintenancePending;
         this.uncertainResolution = false; this.environmentMaintenancePending = false;
         const movedPaths = new Set<string>();
+        this.startupDiagnostics?.phase("source", "source-inventory");
         const markdown = this.app.vault.getMarkdownFiles();
         const structuralOrder = structuralMarkdownSourceOrder(this.app.vault);
         if (structuralOrder.size !== markdown.length) return false;
         this.sourceCoordinates.clear();
         this.nextSourceOrder = 0; this.nextMarkdownOrder = markdown.length;
+        this.startupDiagnostics?.phase("source", "source-coordinates", markdown.length);
         for (const [markdownOrder, file] of markdown.entries()) {
+          this.startupDiagnostics?.processed("source", file.path);
           const order = structuralOrder.get(file.path);
           if (order === undefined) return false;
           this.sourceCoordinates.set(file.path, { order, markdownOrder });
@@ -1401,8 +1413,8 @@ export class ObsidianSourceAcquisition {
         }
         this.environmentFields.clear();
         this.dailyNotesObservation = JSON.stringify(this.metadataHost.dailyNotesSettings());
-        if (!this.restartInventoryChecked && !(await this.upgradeRestartLocalDependencies(markdown, structuralOrder, current))) return false;
-        if (!(await this.reconcileRestartHostInventory(markdown, current))) return false;
+        if (!(await this.reconcileRestartHostInventory(markdown, structuralOrder, current))) return false;
+        this.startupDiagnostics?.phase("source", "source-reconciliation", markdown.length);
         const checkpoint = inventoryCheckpoint();
         for (const [markdownOrder, file] of markdown.entries()) {
           const order = structuralOrder.get(file.path);
@@ -1411,7 +1423,7 @@ export class ObsidianSourceAcquisition {
           const capture = this.capture(file);
           if (capture.state.oldPath) movedPaths.add(capture.state.oldPath);
           const hostCache = this.app.metadataCache.getFileCache(file);
-          if (!hostCache) { this.counters.pendingMetadata += 1; complete = false; continue; }
+          if (!hostCache) { this.counters.pendingMetadata += 1; complete = false; this.startupDiagnostics?.processed("source", file.path); continue; }
           this.observeEnvironment(hostCache);
           const environment = await this.repository.observationDigest(this.environment(hostCache));
           const inspection = await this.repository.inspect(file.path, [], current);
@@ -1429,6 +1441,7 @@ export class ObsidianSourceAcquisition {
             && (head.observation.epoch === this.epoch && head.observation.revision === this.hostRevision
               || capture.state.validatedHostRevision === this.hostRevision
               || this.hostRevision === 0 && !capture.state.dirty);
+          this.startupDiagnostics?.count("source", "physicalRevisionComparisons");
           if (inspection.saved && head?.state === "complete" && !capture.state.dirty && !capture.state.resolutionDirty && !capture.state.created
             && physicalMatches(head.physical, capture.physical) && hostCurrent) {
             // A clean restart may reuse the exact durable source head without rewriting its host
@@ -1438,6 +1451,7 @@ export class ObsidianSourceAcquisition {
             const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
             if (!current()) return false;
             complete &&= local === "ready";
+            this.startupDiagnostics?.processed("source", file.path);
             this.inventoryProgress?.();
             await checkpoint();
             continue;
@@ -1457,13 +1471,16 @@ export class ObsidianSourceAcquisition {
               state.oldPath = undefined;
             }
           }
+          this.startupDiagnostics?.processed("source", file.path);
           if (current()) this.inventoryProgress?.();
           await checkpoint();
         }
         // Missing graph pages or a broken graph snapshot never enter this catalog decision.
+        this.startupDiagnostics?.phase("source", "source-retired-owner-check");
         let after: string | null = null;
         while (current()) {
           const page = await this.repository.headPage(after);
+          this.startupDiagnostics?.count("source", "headPageOwners", page.heads.length);
           if (!page.available || !current()) return false;
           if (page.invalid > 0) complete = false;
           for (const head of page.heads) if (head.state === "complete" && !this.app.vault.getFileByPath(head.physical.path)) {
@@ -1475,12 +1492,15 @@ export class ObsidianSourceAcquisition {
         }
         let ready = current() && complete;
         if (ready) {
+          this.startupDiagnostics?.phase("source", "dependency-completion");
           const local = await this.repository.completeLocalDependencyInventory(current);
           ready = current() && local === "ready";
           if (ready) {
+            this.startupDiagnostics?.phase("source", "resolution-reconciliation", markdown.length);
             const deferred = await this.retryDeferredResolutionImpacts(current);
             ready = deferred === "ready" && await this.repairResolutionDirtySources(markdown, structuralOrder, current);
             if (ready) {
+              this.startupDiagnostics?.phase("source", "dependency-final-validation");
               const repairedLocal = await this.repository.completeLocalDependencyInventory(current);
               ready = current() && repairedLocal === "ready";
             }
@@ -1492,6 +1512,8 @@ export class ObsidianSourceAcquisition {
         this.localInventoryCompletionPending = false;
         if (ready) {
           this.pendingKnownFiles.clear();
+          this.startupDiagnostics?.phase("source", "complete");
+          this.startupDiagnostics?.mark("source-authority");
           this.inventoryReady?.();
         }
         return ready;

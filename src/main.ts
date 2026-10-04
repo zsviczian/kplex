@@ -26,6 +26,7 @@ import { createTranslator, type Translator } from "./lang";
 import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurface } from "./core/plex/viewPresentation";
 import { createAdjacentFileLeaf } from "./adapters/obsidian/adjacentFileLeaf";
 import { isEmbeddedMarkdownLeaf } from "./adapters/obsidian/embeddedMarkdownLeaf";
+import { StartupDiagnostics } from "./adapters/obsidian/startupDiagnostics";
 import { perfNow } from "./util/perf";
 import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
 
@@ -116,6 +117,7 @@ export default class KplexPlugin extends Plugin {
   private readonly kplexVisibilityListeners = new Set<() => void>();
   private visibleKplexLeaves = new Set<WorkspaceLeaf>();
   private lastIndexStatusKey = "";
+  private lastStartupProgressNotification = 0;
   private readonly graphLensListeners = new Set<(lenses: KplexSettings["graphLenses"]) => void>();
   private readonly managedMetadataWrites = new Map<string, number>();
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
@@ -150,8 +152,11 @@ export default class KplexPlugin extends Plugin {
     return legacy.settings ?? null;
   }
 
-  /** Register plugin lifecycle resources, commands and host integrations. Product command/notice copy uses the translator; command IDs use the K-Plex namespace. */
+  readonly startupDiagnostics = new StartupDiagnostics();
+
+  /** Register host resources; optional startup diagnostics observe this exact production path. */
   async onload(): Promise<void> {
+    this.startupDiagnostics.begin((window as Window & { kplexStartupDiagnosticsEnabled?: boolean }).kplexStartupDiagnosticsEnabled === true);
     this.translator = createObsidianTranslator();
     const ownData: unknown = await this.loadData();
     const ownRecord = ownData && typeof ownData === "object" ? ownData as Record<string, unknown> : null;
@@ -170,6 +175,7 @@ export default class KplexPlugin extends Plugin {
       await this.saveData(this.settings);
     }
 
+    this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this);
 
     this.registerView(KPLEX_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexView(leaf, this));
@@ -347,6 +353,7 @@ export default class KplexPlugin extends Plugin {
 
         if (this.unloading) return;
         this.layoutReady = true;
+        this.startupDiagnostics.mark("layout-ready");
 
         // Re-associate a persisted sidecar before normal recent-tab synchronization is allowed to
         // run. This uses only Obsidian's restored workspace geometry/view state; it must not wait
@@ -457,6 +464,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.startupDiagnostics.dispose();
     this.unloading = true;
     this.dismissKplexMenu();
     if (this.rebuildTimer !== null) window.clearTimeout(this.rebuildTimer);
@@ -2099,6 +2107,7 @@ export default class KplexPlugin extends Plugin {
       && !loadingCache
       && !semanticPreparing
       && !this.index.hasPendingSearchVocabulary();
+    if (upToDate) this.startupDiagnostics?.finish();
     const indexedFiles = totalFiles === null
       ? this.index.indexedMarkdownFileCount()
       : upToDate ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
@@ -2145,7 +2154,55 @@ export default class KplexPlugin extends Plugin {
               : phase === "saving-cache"
                 ? this.translator("index.statusSavingCache")
               : this.translator("index.statusUpdating");
-    return { ...facts, label, totalFiles };
+    const hydration = this.index.getSnapshotHydrationDiagnostics?.();
+    const progress = phase === "loading-cache" && hydration?.phase === "source-authority"
+      ? this.startupDiagnostics?.progress("source") : phase === "loading-cache" ? this.startupDiagnostics?.progress("hydration") : null;
+    const activityKeys = {
+      "metadata": "index.startupMetadata", "preview": "index.startupPreview", "source-authority": "index.startupSourceAuthority",
+      "source-inventory": "index.startupInventory", "source-coordinates": "index.startupInventory", "dependency-upgrade-validation": "index.startupDependencies",
+      "host-metadata-comparison": "index.startupHostComparison", "host-retired-owner-check": "index.startupRetiredOwners",
+      "source-reconciliation": "index.startupChecking", "source-retired-owner-check": "index.startupRetiredOwners",
+      "dependency-completion": "index.startupDependencyCompletion", "dependency-final-validation": "index.startupDependencyCompletion",
+      "resolution-reconciliation": "index.startupResolution", "requested-semantics": "index.startupSemantics",
+      "node-vocabulary": "index.startupVocabulary", "pages": "index.startupPages", "file-rebind": "index.startupFiles",
+      "relations": "index.startupRelations", "preview-search": "index.startupSearch", "evidence": "index.startupEvidence",
+      "resolve": "index.startupResolution", "authoritative-search": "index.startupSearch", "promote": "index.startupPromotion",
+    } as const;
+    const activityKey = progress && activityKeys[progress.phase as keyof typeof activityKeys];
+    const activity = activityKey ? this.translator(activityKey) : null;
+    const progressLabel = progress && activity
+      ? progress.total !== null && progress.total > 0
+        ? this.translator("index.startupNotesProgress", { activity, processed: progress.processed.toLocaleString(),
+          total: progress.total.toLocaleString(), percent: Math.floor(progress.processed * 100 / progress.total) })
+        : progress.processed > 0
+          ? this.translator("index.startupRecordsProgress", { activity, processed: progress.processed.toLocaleString() }) : activity
+      : label;
+    return { ...facts, label: progressLabel, totalFiles };
+  }
+
+  /**
+   * Read retained startup timings, current work and aggregate counters without vault enumeration or
+   * scheduling. A CLI client can reconnect after a timeout; startup continues independently and the
+   * completed trace remains available for this plugin lifetime. No owner identities are exported.
+   */
+  getStartupDiagnostics() {
+    const status = this.index ? this.computeIndexStatusFacts(this.cachedMarkdownFileCount) : null;
+    return {
+      ...this.startupDiagnostics.snapshot(),
+      progress: { source: this.startupDiagnostics.progress("source"), hydration: this.startupDiagnostics.progress("hydration") },
+      status,
+      hydration: this.index?.getSnapshotHydrationDiagnostics() ?? null,
+      source: this.index?.getSourceAcquisitionCounters() ?? null,
+      semantic: this.index?.getSemanticPreparationDiagnostics() ?? null,
+    };
+  }
+
+  /** Notify actual startup activity at most four times per second, without graph revisions or new timers. */
+  notifyStartupProgress(): void {
+    const now = window.performance.now();
+    if (now - this.lastStartupProgressNotification < 250) return;
+    this.lastStartupProgressNotification = now;
+    this.notifyIndexStatus();
   }
 
   subscribeIndexStatus(listener: () => void): () => void {

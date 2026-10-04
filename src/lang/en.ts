@@ -685,6 +685,106 @@ export const englishCatalog = {
     context: "K-Plex host shell, command, toolbar, and status copy.",
     params: [],
   },
+  "index.startupMetadata": {
+    message: "Reading cached index metadata",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupPreview": {
+    message: "Loading the requested Plex preview",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupSourceAuthority": {
+    message: "Waiting for cached source validation",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupInventory": {
+    message: "Reading note inventory",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupDependencies": {
+    message: "Checking cached source dependencies",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupHostComparison": {
+    message: "Comparing cached notes with Obsidian metadata",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupRetiredOwners": {
+    message: "Checking removed cached notes",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupChecking": {
+    message: "Checking cached index",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupDependencyCompletion": {
+    message: "Validating dependency inventory",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupResolution": {
+    message: "Checking reference resolution",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupSemantics": {
+    message: "Preparing requested Plex semantics",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupVocabulary": {
+    message: "Loading node vocabulary",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupPages": {
+    message: "Loading cached nodes",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupFiles": {
+    message: "Checking cached file bindings",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupRelations": {
+    message: "Loading cached relationships",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupSearch": {
+    message: "Preparing search",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupEvidence": {
+    message: "Loading relationship evidence",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupPromotion": {
+    message: "Publishing the index",
+    context: "Actual startup activity; no estimated percentage is implied.",
+    params: [],
+  },
+  "index.startupNotesProgress": {
+    message: "{activity} — {processed} / {total} notes ({percent}%)",
+    context: "Actual owners visited in the current startup pass; percentage uses its captured note count.",
+    params: ["activity", "processed", "total", "percent"],
+  },
+  "index.startupRecordsProgress": {
+    message: "{activity} — {processed} records loaded",
+    context: "Actual records loaded in a startup phase with no meaningful denominator.",
+    params: ["activity", "processed"],
+  },
   "index.statusReady": {
     message: "Status: index ready",
     context: "K-Plex index indicator detail shown when the published index is authoritative.",

@@ -1,5 +1,7 @@
 # SI5 physical-device checklist
 
+The 2026-10-04 maintainer scope supersedes earlier synthetic scale prerequisites: finish the measured warm-restart investigation and minimal proposed correction first; physical iPad/Android validation remains separate. Implementation checkpoint: `62c728393440aa3dfb57869ece83c4060092bcba`.
+
 Prepared for the maintainer's iOS and Android runs. **Do not treat this candidate as SI5 accepted or release-ready:** desktop restart/fault validation and remaining catalog/performance work must finish first. Use the final approved artifact hashes from the SI5 validation report, not a similarly versioned `0.0.5` build.
 
 Use a disposable vault. Copy `dist/main.js`, `dist/manifest.json` and `dist/styles.css` together into its `.obsidian/plugins/k-plex/`, then reload K-Plex. Record device model, RAM if known, OS, Obsidian version, build hashes, fixture identity/file count and whether the app stayed in the foreground. Required targets are a physical iPad and Android device; record an iPhone run separately rather than substituting it for the iPad.
@@ -15,6 +17,6 @@ Create `SI5 A.md` containing `SI5Friends:: [[SI5 B]]` and an empty `SI5 B.md`. A
 | Edit the unconfigured field, restart, then configure it | The latest reference appears, including after a semantic no-op edit while the field was unconfigured. |
 | Touch and lifecycle | Tap navigation, pan, pinch, long-press, scrolling and focus work together. Closing/reopening the final view preserves camera/folds and allows progress to resume. Record behavior after OS suspension and any WebView termination. |
 
-Use the 20k/large-file fixture and the separately identified dense/high-node/high-degree fixtures. Record sampled diagnostics and any OS memory/termination evidence; browser JS heap is not device/process peak memory. Desktop emulation cannot close these gates.
+The 20k dense hub is a documented stress limit, not a required SI5 device gate. Use representative notes with hundreds of links (around a thousand for an extreme realistic note). The maintainer has accepted the existing extreme-vault cold behavior; no further synthetic cold optimization or high-node redesign is required. Record sampled diagnostics and any OS memory/termination evidence; browser JS heap is not device/process peak memory. Desktop emulation cannot close these gates.
 
 Return the recordings, copied diagnostics and a pass/fail/unmeasured row for each workflow. A failed latency, memory, interruption or touch result remains an open SI5 gate; no implicit waiver follows from a passing desktop run.

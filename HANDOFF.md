@@ -16,71 +16,36 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Online result — warm measurements complete; bounded scale correction decision required
+# Online SI5 result — minimal correction implemented and retested
 
-SI4 is accepted/committed at `323b260`; SI5a `e50dd52` and SI5b `7bd14cf` are interim checkpoints
-on `indexing-optimization-v2`. Source-first/global node recovery remains uncommitted per the
-maintainer's latest instruction. All original SI5 exits stay open; C15–C26 paused. No push/release.
-This online agent has pinned Node 22.22.2, real Chromium/IDB, Git and native Obsidian CLI.
+## Scope and checkpoint
 
-## Candidate and new results
+Pre-instrumentation implementation checkpoint **`62c728393440aa3dfb57869ece83c4060092bcba`** remains HEAD. Diagnostics/progress and the maintainer-authorized minimal correction are uncommitted. No push/release or further optimization. C15–C26 remain paused; explicit online Git/CLI/development authorization overrides standing offline restrictions.
 
-Exact unchanged production `main.js` is `9c9a2545a0b1bc2ba4c97bb4502fc3ad88966907bcbaf5feb77378b01ad239c3`.
-Previously recorded full runtime verify (317 portable/192 browser/actual installed types/build),
-retirement 26/26, native smoke and five small fault cases remain applicable. New changes are fixture
-tooling/docs only: focused generator tests 3/3 and full 20,000-file byte/inventory verification pass.
-No new aggregate whole-tree verification is claimed for that tooling addition.
+Existing extreme-vault cold behavior is accepted. The 20k-contributor hub `decode-budget` result is a known stress limit outside the critical path. No projection redesign, new database/cache/architecture, memory increase or further cold optimization. Physical iPad/Android and final SI5 audit remain pending.
 
-Three same-build warm restart samples pass all foreground checks at 72,974 / 74,267 / 77,422 ms:
-median 74,267, maximum 77,422 ms. Heads are unchanged; source reads/parses/acquisitions/resolution
-writes/full builds are zero. Maximum sampled renderer heap is 980,683,923 bytes, not process/device
-peak. Explicit settled warm snapshot restore passes separately at 6,018 ms (one pilot): page/relation
-calls 2,723 ms, evidence 2,945 ms, presentation 235 ms, 14 cached body requests 4.2 ms, source flush
-0.5 ms. Inclusive timings are not summed. Historical C08P ~5.8 s is this restore procedure, not full
-restart; no matched pre-implementation restart baseline or speedup percentage exists.
+## Implemented, measured and validated
 
-Native reference-neighborhood main/popout functional checks pass separate Documents/centers,
-current policy, both demands, camera preservation and independent teardown with zero source work
-or full builds. Hidden-view navigation, folds, settings-popout/edit and actual paint remain open.
+[Exact correction, phase timings, counts, commands, CLI limitations and next candidates](docs/validation/settings-independent-indexing-si5-minimal-warm-correction-2026-10-04.md); [machine-readable results](docs/validation/settings-independent-indexing-si5-minimal-warm-correction-2026-10-04.json). The [original measurement report](docs/validation/settings-independent-indexing-si5-warm-start-2026-10-04.md) remains historical baseline evidence.
 
-The actual native hub repeatedly rejects `decode-budget` with no publication. Existing-method
-attribution proves direct discovery succeeds for 20,000 owners/four host facts, then canonical
-neighborhood compilation rejects before degree/URL-title work. No source IO/repair/full build.
-Unfocused timings are excluded; browser supported-completion does not waive this fixture failure.
+`upgradeRestartLocalDependencies()` is removed; its work is merged into `reconcileRestartHostInventory()` using the existing top-level inspection. Missing-MetadataCache owners still upgrade, all upgrades precede deferred resolution fan-out, cancellation and pending progress are preserved, and the later freshness reconciliation is unchanged.
 
-A cold app reload has 111 valid foreground samples but fails the unchanged 30-second CLI timeout
-while source authority is at 4,969 owners; optional full pages/evidence have not started. Later
-20,015 valid sources/full graph converge with zero body work; hydration stamp difference 259,523 ms
-has no continuous remaining focus trace and is not cold timing acceptance. The 240-second readiness
-limit stays unchanged. Temporary power assertions/wrappers/controllers are gone.
+Installed build **`3a8e2110…`** passes three native foreground restarts: **80,137.3 / 83,119.2 / 78,468.6 ms**, median **80,137.3 ms** versus earlier three-run median **82,804.9 ms**. Ranges overlap and the separate prior pilot was faster; no reliable causal latency improvement is established. The exact reduction is **five owner walks → four**, inspections **100,075 → 80,060**, source-head point reads **120,126 → 100,111**. Every remaining loop visits the same 20,015 owners. All source read/parse/reacquisition/repair/rewrite/full-build counters stay zero. Dependency checks remain 40,030; source correctness/authentication is not skipped.
 
-## Proposed next delivery / decision
+Merged dependency/host phase takes 57.864–60.116 seconds; later source reconciliation 12.298–16.566 seconds; post-requested hydration 5.208–5.974 seconds. Native foreground samples 82/82, 85/85, 80/80 all valid; normal throttling remains on. Original source-head digests/settings/enablement are unchanged and byte restoration passes. Fresh backup `/private/tmp/kplex-si5-minimal-before-2026-10-04`; candidate stays installed in disposable kplex-test. No personal-vault changes.
 
-Per the design's repeated-blocker rule, report the smallest alternative instead of another cap/codec
-adjustment: bounded canonical requested projections, compact parent/sibling/degree accumulation and
-pair-local provenance through existing readers. Preserve exact center/gates/siblings/degrees/labels,
-source multiplicity, shared lifetimes, current-policy edit checks and all final fences. This changes
-the requested-consumer contract and may increase streamed reads; one integrated implementation and
-native review must include the real 715,032-declaration hub and high-node fixture. No new classifier,
-parser/catalog/journal/schema or cap/deadline/golden relaxation. Proposal is not implemented; obtain
-the maintainer's scope decision before replacing the full-compilation contract. Independently
-attribute/batch existing cold source-adoption validation; do not assume projections fix authority.
-Physical iOS/Android is not ready.
+Full verify passes architecture 7/core 62/Node 138/UI 7/portable 317/browser **194**, installed Obsidian types and production build. Two new browser tests protect legacy-owner upgrades before fan-out with missing metadata, and cancellation during dependency await. Existing offline alias/path/create/delete/recreate, corruption, repair/process-restart and storage cases pass. Final affected indexing/lint checks pass. Do not repeat unchanged expensive browser tests merely to accumulate passes.
 
-The high-node fixture at `/private/tmp/kplex-si5-high-node-2026-10-03` is generated/byte-verified:
-20,000 notes, 80,000 placeholders, 8,000 URLs, 259,000 source link occurrences, 160 dormant fields,
-19,999 hub contributors, 8,831,230 bytes, content SHA-256 `50b8cb12…`. Counts are input, not actual
-host graph/evidence/latency. Generator refuses existing output. No files merged into test/personal vaults.
+## Additional opportunities — not implemented
 
-## Cleanup and continuing discipline
+1. **Smallest next:** reuse the clean no-repair local-dependency selection inside `ensureLocalDependencies()`. Direct counters confirm **80,060 selections for 40,030 checks**, reading owner/repair/state twice per check. Retain rereads after actual repairs, exact source-head/sequence, pending journals and concurrency/cancellation fences. Potentially remove 40,030 readonly selections/120,090 requests; actual time saving is unmeasured.
+2. **Largest request-count candidate:** existing metadata-family batches issue **484,178 posting point reads**. Bounded contiguous key-range reads could reduce requests while checking every posting/length/order/digest/frame and retaining original leases/budgets. Require corruption/cleanup/head-replacement race tests, then exact-build warm measurements; no schema/framework.
+3. **Measure before scheduling changes:** host-family validation issues **20,015 repository yields**. Count is confirmed; timer wait cost is not. Investigate exclusive scheduling delay before considering cooperative elapsed budgets. Preserve responsiveness/mobile/cancellation/progress; do not remove yields blindly.
 
-Small original fourteen stores/config remain restored/compared and its originally absent plugin
-removed. Large original data/enablement are byte-identical, all 20,015 Markdown files intact,
-source/main view ready, no inventory/scope tasks/controllers/owned fixtures/popouts and original
-background throttling true. Large window remains open; CLI foreground now succeeds intermittently.
-Do not request Computer Use again without resolved macOS permissions (still pending, costly timeout).
-Run native drivers serially/quietly and exclude every hidden/unfocused/throttling-disabled timing.
-No native driver remains active. Personal vault untouched. Do not commit current work.
+Do not infer that unchanged file mtime grants dependency authority. `mtime`/size/ctime are already used for physical reuse. Dependency ownership checks source revision/sequence/version and repairs; other-file resolution changes can revise source facts without changing this note's mtime. Missing/corrupt/stale derivatives also cannot be authenticated by filesystem timestamps.
 
-[Progress, proposed correction and remaining acceptance](docs/validation/settings-independent-indexing-si5-progress-2026-10-03.md)
-[Exact source/artifact/native evidence and retained failures](docs/validation/settings-independent-indexing-si5-native-2026-10-03.json)
+## CLI strategy and actual limitation
+
+Retained `main.ts.getStartupDiagnostics()` remains readable after CLI exit, with **21 frozen phases, zero private owner sets**, no controller/opt-in. Completed milestones are historical; restoring the original Reference-center settings can leave live status updating on the excluded hub.
+
+During staging, `plugin:disable` lost its response and default SIGTERM did not end the waiting client. Only that CLI client was killed; fresh bounded eval confirmed the native disable had finished before candidate copying. Retried staging with SIGKILL-bounded calls/presence check passed. Obsidian was not restarted or its native work cancelled. No lost read occurred inside measured restarts. Driver uses 30-second CLI cap, five-second polls/ten-second reconnect, no outer readiness deadline; production watchdog unchanged. Initial submission/cleanup still require responsive CLI. Next correction requires maintainer review of these measured candidates; physical devices and final SI5 acceptance remain open.

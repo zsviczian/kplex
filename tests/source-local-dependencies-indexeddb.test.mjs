@@ -430,6 +430,51 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
       })()`), true);
     });
 
+    await t.test("restart upgrades all legacy owners before fan-out, including pending MetadataCache owners", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await fixture('local-r2-merged-restart'),cache2=new M.KplexIndexedDbCache('local-r2-merged-restart');let acquisition2;
+        try{
+          const ref=f.add('Ref.md','Friends:: [[AliasTarget]]'),pending=f.add('Pending.md','Friends:: [[OtherUnresolved]]');
+          const fallback=f.app.metadataCache.getFirstLinkpathDest;f.app.metadataCache.getFirstLinkpathDest=(literal,source)=>literal==='AliasTarget'?[...f.files.values()].find(file=>(f.metadata.get(file.path)?.frontmatter?.aliases??[]).includes(literal))??null:fallback(literal,source);
+          await f.acquire();ok(await f.acquisition.reconcile(),'Seed current dependency owners');const db=await f.cache.open();
+          const heads=[(await f.repository.inspect(ref.path)).head,(await f.repository.inspect(pending.path)).head];
+          await r2DowngradeResolverOwner(db,ref.path);await r2DowngradeResolverOwner(db,pending.path);f.acquisition.close();f.cache.close();
+          f.add('Target.md','',{aliases:['AliasTarget']});const pendingMetadata=f.metadata.get(pending.path);f.metadata.delete(pending.path);f.reads.length=0;f.parses.length=0;
+          ok(await cache2.open(),'Reopen legacy dependency owners');acquisition2=new M.ObsidianSourceAcquisition(f.app,cache2,async text=>{f.parses.push(text);return M.parseBodyMetadata(text);});
+          const liveFanout=acquisition2.markResolutionDependents.bind(acquisition2);let fanouts=0;
+          acquisition2.markResolutionDependents=async(...args)=>{
+            const reopened=await cache2.open();for(const file of [ref,pending]){
+              const owner=await value(reopened.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get(file.path));
+              equal(owner.version,M.SOURCE_LOCAL_DEPENDENCY_VERSION,'All owners upgraded before resolution lookup, even missing metadata');
+            }fanouts++;return liveFanout(...args);
+          };
+          equal(await acquisition2.reconcile(),false,'Missing MetadataCache cannot grant source authority');ok(fanouts>0,'Offline target creation exercises deferred fan-out');
+          equal(acquisition2.hasSemanticDependencies(),false,'Pending owner leaves semantic writes fenced');
+          equal((await cache2.sources.inspect(pending.path)).head,heads[1],'Upgrade does not rewrite pending source head');
+          f.metadata.set(pending.path,pendingMetadata);ok(await acquisition2.reconcile(),'Metadata settlement completes restart');ok(acquisition2.hasSemanticDependencies(),'Authority follows settlement');
+          const records=[];equal(await cache2.sources.visit(ref.path,'resolution',rows=>{records.push(...rows);return true;}),'ready','Read repaired legacy referrer');
+          equal(records.filter(row=>row.kind==='reference-resolution').map(row=>row.target.entity.id),['Target.md'],'Legacy unresolved token follows offline alias creation');
+          equal(f.reads,['Target.md'],'Only new target body is read');equal(f.parses.length,1,'Only new target body is parsed');return true;
+        }finally{acquisition2?.close();cache2.close();f.close();}
+      })()`), true);
+    });
+
+    await t.test("restart dependency await cancellation cannot enter host comparison or grant authority", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const M=sourceModules,f=await fixture('local-r2-merged-cancel'),cache2=new M.KplexIndexedDbCache('local-r2-merged-cancel');let acquisition2;
+        try{
+          f.add('A.md','Friends:: [[Ghost]]');await f.acquire();ok(await f.acquisition.reconcile(),'Seed clean restart');f.acquisition.close();f.cache.close();
+          ok(await cache2.open(),'Reopen clean source');acquisition2=new M.ObsidianSourceAcquisition(f.app,cache2,async text=>M.parseBodyMetadata(text));
+          const repository=cache2.sources,live=repository.ensureLocalDependencies.bind(repository),host=acquisition2.currentHostInventory.bind(acquisition2);let comparisons=0,checks=0;
+          acquisition2.currentHostInventory=(...args)=>{comparisons++;return host(...args)};
+          repository.ensureLocalDependencies=async(...args)=>{checks++;const reason=await live(...args);f.app.metadataCache.trigger('resolved');return reason};
+          equal(await acquisition2.reconcile(),false,'Resolver event cancels the captured restart');equal(checks,1,'Cancellation occurs inside dependency await');equal(comparisons,0,'Cancelled inspection never reaches host facts');
+          equal(acquisition2.hasSemanticDependencies(),false,'Cancelled merged pass publishes no source authority');
+          repository.ensureLocalDependencies=live;ok(await acquisition2.reconcile(),'Fresh captured inventory converges after cancellation');ok(acquisition2.hasSemanticDependencies(),'Fresh pass reopens authority');return true;
+        }finally{acquisition2?.close();cache2.close();f.close();}
+      })()`), true);
+    });
+
     await t.test("offline create delete and recreate repair inbound owners on restart without reading unchanged Markdown", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const M=sourceModules,vault='local-r2-restart-impact',f=await fixture(vault);let cache2=null,acquisition2=null;

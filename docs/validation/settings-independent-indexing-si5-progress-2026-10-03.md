@@ -1,5 +1,31 @@
 # SI5 implementation and validation — 2026-10-03
 
+## Revised SI5 scope — maintainer decision, 2026-10-04
+
+The implementation was committed **before instrumentation** as `62c728393440aa3dfb57869ece83c4060092bcba`. The following diagnostic/progress diff is separate and uncommitted. No push/release. C15–C26 remain paused.
+
+The active closeout is now **understand warm restart → make progress truthful → propose the smallest evidence-based warm-restart correction → close SI5**. The synthetic ~20,000-contributor hub `decode-budget` rejection is a known stress limit outside the critical path; bounded canonical projections, another indexing architecture and increased memory limits are explicitly deferred. Realistic requested notes have hundreds of links, with roughly a thousand an extreme case. The separately generated high-node stress profile is also outside this bounded investigation.
+
+The maintainer accepts the existing extreme-vault cold behavior for SI5. No more cold-start optimization or three-run cold timing gate is required here. Timestamp clarification: the retained cold report observed 4,969 / 20,015 owners across 111 foreground samples before a **30-second individual CLI command timeout**; it does not establish that 4,969 completed within 30 seconds. Markdown reads/parses/repairs remained zero. This distinction does not change the maintainer's acceptance.
+
+Warm restart remains the measured concern: 72.974 / 74.267 / 77.422 seconds with valid durable sources versus a separate settled explicit restore pilot at 6.018 seconds. Neither the total nor that subtraction establishes a cause. Instrument the actual production phases, owner walks and operations first; report exact results and a minimal proposed correction **before implementing an optimization**. Physical iPad/Android checks remain separate maintainer work after the warm investigation; prior desktop/device evidence is retained without making every historical synthetic gate a new prerequisite.
+
+## Minimal warm correction implemented and retested — 2026-10-04
+
+[Correction/results](settings-independent-indexing-si5-minimal-warm-correction-2026-10-04.md) and [exact evidence](settings-independent-indexing-si5-minimal-warm-correction-2026-10-04.json) own the current state. Dependency upgrade and host comparison share one traversal/inspection; later freshness reconciliation remains. Four 20,015-owner loops replace five, inspect calls fall from 100,075 to 80,060, head point reads from 120,126 to 100,111. Zero source reads/parses/reacquisitions/repairs/rewrites/full builds. All three foreground runs pass at **80.137 / 83.119 / 78.469 seconds**, median **80.137 seconds**. Earlier three-run median was 82.805 seconds, but ranges overlap and the separate prior pilot was faster; no reliable latency speedup is claimed.
+
+Full verify passes including **194 browser assertions** and production build; new missing-cache legacy/fan-out and cancellation regressions pass. Settings/enablement byte restoration, source-head digests, wrappers/controllers, owner-set release and retained trace checks pass. One lost staging-disable response recovered by inspecting native state with a fresh bounded CLI read; measured restart polling had no read failure. Correction/diagnostics remain uncommitted on checkpoint `62c7283`.
+
+Further candidates, **not implemented**: reuse clean dependency selection (80,060 calls for 40,030 checks); batch 484,178 metadata posting point reads within existing bounded batches; measure the cost of 20,015 metadata-family yields before changing scheduling. The first is the smallest next correction. Preserve current-source/repair/cancellation/lease/byte-budget fences and remeasure one change at a time. Unchanged `file.stat.mtime` already enables physical reuse but cannot by itself authenticate derivative state or other-file resolution changes. Physical iPad/Android and final SI5 audit remain open; no dense-hub/cold redesign is reopened.
+
+## Before-correction warm-start investigation — 2026-10-04
+
+[Exact phase/counter report](settings-independent-indexing-si5-warm-start-2026-10-04.md) and [machine-readable evidence](settings-independent-indexing-si5-warm-start-2026-10-04.json) supersede the unmeasured warm-start attribution below. Final foreground pilot: 77,540.7 ms strict-ready; dependency validation 11,735.0 ms, host comparison 46,244.7 ms, reconciliation 11,709.8 ms. Five loops visit the same 20,015 owners; dependency checks run twice per owner. Snapshot completion after requested semantics is 6,451.7 ms. No source I/O/parsing/repair/rewrite/full build. Full verification and affected final-accessor checks pass.
+
+Progress now names actual source/hydration stages and shows real completed counts/percentages. Plugin memory preserves reports across CLI process exit; polling reconnects after failed reads without cancel/reload or an outer readiness deadline. Proposed next change is merging the existing dependency-upgrade and host-comparison owner loops with shared top-level inspection, preserving actual dependency work and later freshness reconciliation. **Not implemented yet**: maintainer review of measurements/proposal comes first. Physical-device validation and final audit remain pending; the historical projection redesign below is deferred outside SI5.
+
+## Historical assessment — superseded scope, retained evidence
+
 SI4 is finalized at `323b260127e4fb81e1d3697d4ee8b0282f8cdb12` on `indexing-optimization-v2`. All ten original SI4 Delivery 1/2 exits are accepted. The maintainer authorized that commit and SI5 implementation, with Obsidian CLI testing and later manual iOS/Android testing. No push or release was made.
 
 **SI5 remains in progress; the maintainer-authorized SI5a interim is committed at `e50dd521550e09d12de2b155018dce9cb8026201`. SI5b is committed at `7bd14cf` with its known limitations. This is a candidate report, not SI5 acceptance or readiness for physical-device sign-off.** The five original Delivery 3 boxes remain open. Required desktop consumer coverage and scale measurements must finish before the maintainer's device runs can close the remaining gates. C15–C26 remain paused.
@@ -415,7 +441,9 @@ on the actual native fixture despite the prior consolidated continuation/memory 
 [design's repeated-blocker rule](../INDEX_SETTINGS_INDEPENDENCE_DESIGN.md#transparent-progress-and-cost-control),
 report an alternative instead of assigning another cap/codec adjustment on the same assumption.
 
-**Recommended next delivery:** change the existing requested-consumer path to bounded canonical
+**Historical proposal — withdrawn from the SI5 critical path by the maintainer on 2026-10-04; do not implement for this closeout.** The bounded warm report above owns the active next step.
+
+**Former recommended next delivery:** change the existing requested-consumer path to bounded canonical
 projections: retain exact center incidence, compact parent/sibling/degree accumulation, and pair-local
 provenance through existing readers, without retaining a complete over-cover graph for every
 contributor. Preserve canonical classification, source multiplicity, exact counts, shared lifetime,

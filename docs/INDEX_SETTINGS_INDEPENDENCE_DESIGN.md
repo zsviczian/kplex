@@ -1,5 +1,15 @@
 # Settings-independent source indexing
 
+## Revised SI5 scope — maintainer decision, 2026-10-04
+
+The implementation was committed **before instrumentation** as `62c728393440aa3dfb57869ece83c4060092bcba`. The following diagnostic/progress diff is separate and uncommitted. No push/release. C15–C26 remain paused.
+
+The active closeout is now **understand warm restart → make progress truthful → propose the smallest evidence-based warm-restart correction → close SI5**. The synthetic ~20,000-contributor hub `decode-budget` rejection is a known stress limit outside the critical path; bounded canonical projections, another indexing architecture and increased memory limits are explicitly deferred. Realistic requested notes have hundreds of links, with roughly a thousand an extreme case. The separately generated high-node stress profile is also outside this bounded investigation.
+
+The maintainer accepts the existing extreme-vault cold behavior for SI5. No more cold-start optimization or three-run cold timing gate is required here. Timestamp clarification: the retained cold report observed 4,969 / 20,015 owners across 111 foreground samples before a **30-second individual CLI command timeout**; it does not establish that 4,969 completed within 30 seconds. Markdown reads/parses/repairs remained zero. This distinction does not change the maintainer's acceptance.
+
+Warm restart remains the measured concern: 72.974 / 74.267 / 77.422 seconds with valid durable sources versus a separate settled explicit restore pilot at 6.018 seconds. Neither the total nor that subtraction establishes a cause. Instrument the actual production phases, owner walks and operations first; report exact results and a minimal proposed correction **before implementing an optimization**. Physical iPad/Android checks remain separate maintainer work after the warm investigation; prior desktop/device evidence is retained without making every historical synthetic gate a new prerequisite.
+
 ## Current status and delivery reset — 2026-10-01
 
 **Objective:** maintain a durable, settings-neutral index with work proportional to changed notes or requested relationships. Adding/moving ontology must reuse that index, perform zero Markdown reads/parses for valid facts, and make the requested Plex usable without a full-vault rebuild.
@@ -348,7 +358,7 @@ The five product checkpoints remain SI1–SI5, with SI0 characterization. The th
 | SI2 | Accepted | Settings-neutral facts including dormant candidates; shared full/patch selection. |
 | SI3 | Accepted | Durable per-source facts, source-local acquisition/repair and reuse of legacy bodies. |
 | SI4 | Accepted (`323b260`) | All ten original Delivery 1/2 exits pass on the exact final artifact. [Evidence](validation/settings-independent-indexing-si4-acceptance-2026-10-03.md). |
-| SI5 | Implementing; not accepted | [Candidate evidence](validation/settings-independent-indexing-si5-progress-2026-10-03.md): SI5a `e50dd52`, SI5b `7bd14cf`; source-first startup/global node-only recovery are implemented in the uncommitted candidate; full verification and five small native faults pass; previous large warm functional restarts pass; three comparable warm restart samples pass (74.267 s median); cold foreground preflight remains open. Native dense-hub compilation rejects `decode-budget` after successful 20k-owner discovery; bounded requested projections are proposed for a scope decision. Full consumer coverage and physical-device/performance evidence remain required. |
+| SI5 | Bounded warm-restart investigation | Implementation checkpoint `62c728393440aa3dfb57869ece83c4060092bcba`; cold behavior accepted, 20k hub retained as a stress limit outside the critical path. Measure startup phases/counters and truthful progress, then report a minimal proposed correction before optimizing. Physical device sign-off remains pending. |
 
 ### SI4 recovery packages after the incomplete maintenance return
 
@@ -389,12 +399,14 @@ The original Delivery 1/2 checkboxes are closed by the final [acceptance report]
 - [x] Crash/concurrent-write tests reject stale activation/resurrection; cancelled work and repeated settings/navigation leave bounded caches/leases and no retained second full graph. Remove unused wrappers/prototype runtime paths after their replacement consumers pass; preserve required stored-data compatibility.
 - [x] Required automated and native maintenance checks pass. Deliveries 1 and 2 together close SI4; no unresolved normal-workflow pending state is hidden by the clean-host test.
 
+**Active 2026-10-04 closeout interpretation:** [warm restart has been measured](validation/settings-independent-indexing-si5-warm-start-2026-10-04.md), truthful progress and the [minimal loop consolidation are implemented and retested](validation/settings-independent-indexing-si5-minimal-warm-correction-2026-10-04.md). Four owner walks replace five with 20,015 fewer inspections/head reads; native median is 80.137 seconds with overlapping baseline ranges, so no reliable latency gain is claimed. Further candidates are reported without implementation. The maintainer accepts existing extreme-vault cold behavior and explicitly excludes the synthetic 20k hub/high-node redesign from the SI5 critical path. Section 12 remains a historical stress/reference matrix; its excluded cases do not reopen this scope. Physical-device checks and final correctness/retirement audit remain required.
+
 **Delivery 3 — Restart, scale and release acceptance (SI5).** Offline owner: startup adoption/resume, optional derived-cache handling, cleanup and regressions in one package. Online owner: exact-build native measurements, main-window/pop-out checks and maintainer physical-device procedures. Depends on accepted SI4.
 
 - [ ] Restart after settings changes or during acquisition/sync adopts valid source heads and resumes missing/dirty work. Inventory/stat comparison is allowed; warm adoption cannot routinely replay every source family merely because the session changed.
 - [ ] Missing/corrupt graph acceleration restores requested views from facts; one corrupt source chunk repairs that source; unavailable storage remains explicit. Legacy body/graph migration preserves reusable work and user data.
 - [ ] Retire superseded full-graph progress persistence and remaining unused SI4 runtime prototypes through explicit compatibility cleanup; update implemented architecture/instructions.
-- [ ] Complete the section 12 20k-file/high-degree work, latency and memory measurements on exact builds, including desktop main-window/pop-out and physical iPad/Android interruption/resume. Required failed/unrun checks remain visible; no implicit waiver.
+- [ ] Under the explicit 2026-10-04 scope decision, measure valid-cache foreground warm restart, report truthful phase progress and review/validate the smallest correction; then complete physical iPad/Android interruption/resume and representative workflows (hundreds of links, roughly a thousand at an extreme). Retain prior desktop/main-window/pop-out evidence and excluded synthetic stress failures visibly. Existing extreme-vault cold behavior is accepted; section 12’s synthetic dense-hub/high-node redesign and further cold optimization are outside this closeout.
 - [ ] Record all acceptance outcomes and build identities, confirm no live settings route still schedules a source/full-graph rebuild for valid facts, and mark SI5 complete only when these outcomes pass.
 
 **Delivery 1 main-agent preflight (part of the delivery, not a separate external handoff):** confirm the configured disposable vault and exact build; record native cache/event completion for selected fields and source changes; select the existing production seams; record the caller list and the tie decision. Native readiness cannot remain an unspecified task assigned to an offline agent. The last review had no test-vault environment variables set; that does not establish that no test vault exists. If native setup is unavailable, report that exact external dependency and continue independent implementation only; do not claim native acceptance or issue successive proof-only assignments.

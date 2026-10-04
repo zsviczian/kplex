@@ -468,3 +468,73 @@ measure actual graph nodes/evidence in Obsidian, including structural nodes/cach
 verification is not startup, latency, memory or device acceptance. Keep it separate from the existing
 large-vault cold/warm baseline; never merge its files into a personal vault or compare profiles as one
 condition. `--files` permits small harness fixtures while preserving the proportions.
+
+### Bounded SI5 warm-start attribution
+
+The maintainer's 2026-10-04 scope accepts the existing extreme-vault cold behavior and records the
+20k-contributor hub `decode-budget` result as a stress limit outside the critical path. Do not pursue
+bounded canonical projections, memory-limit changes or further cold optimization for this closeout.
+
+After verification and exact-build staging, run the dedicated production-path probe serially:
+
+```bash
+PATH=/Users/zsviczian/.local/share/fnm/node-versions/v22.22.2/installation/bin:$PATH \
+KPLEX_TEST_VAULT_NAME=kplex-test \
+KPLEX_TEST_VAULT_PATH=/Users/zsviczian/Obsidian/kplex-test \
+KPLEX_TEST_CONFIG_DIR=/Users/zsviczian/Obsidian/kplex-test/.obsidian \
+KPLEX_HOST_REPORT_DIR=/private/tmp/kplex-si5-warm-start \
+KPLEX_SI5_WARM_CENTER=Welcome.md \
+KPLEX_SI5_RESTART_RUNS=3 \
+caffeinate -d -i node scripts/testing/obsidian/startup.mjs
+```
+
+`caffeinate` applies only while the child runs on macOS; it prevents display/system idle sleep and
+changes neither renderer throttling nor timing bounds. Require a settled existing cache and actual
+foreground throughout. The optional existing center temporarily avoids the excluded hub; its setup waits
+for the page to be available before the existing navigation notification. The driver
+restores the exact original `data.json`, verifies the enabled list and removes all wrappers/controllers.
+The native test opts in to `window.kplexStartupDiagnosticsEnabled` before enable and restores its
+previous value. Normal operation retains phase progress but no detailed owner/timing trace. Private
+owner identities are discarded on strict readiness or unload; reports contain counts and overlap only.
+
+Phase timestamps are relative to `onload`; native elapsed timestamps start immediately before
+plugin disable/enable. Hydration and source lanes overlap and must not be summed. IDB counters count
+requests issued, not disk bytes or transaction latency; paged head counters separately count returned
+owners. Physical revision comparisons use existing `TFile.stat` values; adapter stat I/O is a separate
+counter. Wrapped host/IDB calls count global operations in the time window, temporally attributed to
+the current phase; they are not exclusive caller or latency attribution. DOM-center availability is observed at 100 ms intervals, not actual paint or interaction latency.
+Requested-scope publication and source authority have separate milestones from strict graph/search
+readiness. Percentages use the captured pass denominator and are floored; unknown totals show activity
+and actual record counts. Progress notifications are throttled to 250 ms without adding timers or
+advancing graph revisions. Each pass resets progress only at its own phase boundary.
+
+The dedicated startup probe retains the 30-second individual CLI process timeout, but has no outer
+readiness deadline following the maintainer's 2026-10-04 instruction. Obsidian runs independently;
+CLI polling occurs every five seconds and reconnects ten seconds after a failed read. A lost CLI
+response neither reloads the plugin nor cancels the native measurement. The production hydration
+watchdog is unchanged. Failed focus samples still exclude the trial from timing comparisons.
+
+Read the passive report at any time without starting new work:
+
+```bash
+obsidian vault=kplex-test eval 'code=JSON.stringify(app.plugins.plugins["k-plex"].getStartupDiagnostics())'
+```
+
+Its current phase/progress, completed phase intervals, owner overlap and aggregate counters stay in
+plugin memory for that enable lifetime. The native probe adds actual operation counts to the same
+report; no console logging or diagnostic persistence is required. A fresh plugin enable starts a fresh
+trace. Completed timings freeze at strict-ready, while live status can subsequently change, including
+after restoring a previously unsupported synthetic center. The final pilot had no actual CLI
+disconnect; retry behavior is implemented, not fault-injection validated. Initial submission and final
+cleanup still require a responsive CLI. See the [measured warm report](docs/validation/settings-independent-indexing-si5-warm-start-2026-10-04.md).
+Retain CLI errors separately from terminal plugin failure. Report measurements and a minimal
+proposed correction before implementing any warm-start optimization.
+
+
+The first [minimal warm correction and native retest](docs/validation/settings-independent-indexing-si5-minimal-warm-correction-2026-10-04.md)
+combine dependency upgrade/host comparison while retaining the later freshness pass. The driver also
+counts existing local-dependency selections/settlements and repository yields through passive forwarding.
+Do not treat file mtime as dependency authority: physical statistics already govern source reuse;
+local derivatives require exact source revision/sequence and repair/version validation, and other-file
+resolution changes can update source facts without changing the referring file's mtime. Report one
+candidate's actual work/timing deltas before extending the correction.

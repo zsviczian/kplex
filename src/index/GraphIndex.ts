@@ -332,8 +332,9 @@ export class GraphIndex {
       () => {
         if (this.snapshotHydrationDiagnostics.phase === "source-authority") {
           this.touchSnapshotHydrationProgress(this.snapshotHydrationRun);
+          this.plugin.notifyStartupProgress?.();
         }
-      });
+      }, plugin.startupDiagnostics);
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
     // cache; localStorage is a poor fit for large vaults because serialization duplicates memory.
     void this.indexedDb.clearLegacyLocalStorage(app);
@@ -895,6 +896,8 @@ export class GraphIndex {
     this.noteSemanticPreparation("prepared", null);
     // No await below this line: the revisioned page/evidence/gate/search overlay becomes visible together.
     this.semanticScopes.set(centerPath, scope);
+    this.plugin.startupDiagnostics?.mark("first-requested-scope-authoritative");
+    this.plugin.startupDiagnostics?.mark("first-requested-scope-authoritative");
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
     this.searchCandidateCache.clear();
     this.titleCache.clear();
@@ -1657,7 +1660,10 @@ export class GraphIndex {
         persistedPhysicalPaths.add(page.filePath);
         const rebound = next.pages.get(page.path)?.file;
         if (rebound) {
-          if (rebound.extension === "md" && typeof page.mtime === "number" && rebound.stat.mtime !== page.mtime) modifiedMarkdownPaths.add(rebound.path);
+          if (rebound.extension === "md" && typeof page.mtime === "number") {
+            this.plugin.startupDiagnostics?.count("hydration", "physicalRevisionComparisons");
+            if (rebound.stat.mtime !== page.mtime) modifiedMarkdownPaths.add(rebound.path);
+          }
         } else missingFileBindings.add(page.path);
       }
     }, isCurrent, (reason) => {
@@ -1912,7 +1918,11 @@ export class GraphIndex {
         }
         return { restored: false, fresh: false, createdAt };
       }
+      this.plugin.startupDiagnostics?.mark("host-inventory-start");
       const inventory = captureVaultInventory(this.app);
+      this.plugin.startupDiagnostics?.mark("host-inventory-end");
+      this.plugin.startupDiagnostics?.count("hydration", "inventoryFiles", inventory.filesByPath.size);
+      this.plugin.startupDiagnostics?.count("hydration", "inventoryFolders", inventory.folderPaths.size);
       this.restoreInventorySourceRevision = this.plugin.getIndexSourceRevision();
       const vaultSignature = inventory.signature;
       // Preserve active/checkpoint freshness preference and corruption fallback after classification.
@@ -1944,7 +1954,10 @@ export class GraphIndex {
         this.setSnapshotHydrationPhase(run, "preview");
         const previewPublished = await this.publishSnapshotPreview(meta, seedPaths, isCurrent);
         if (!isCurrent()) return { restored: false, fresh: false, createdAt };
-        if (previewPublished) reportPreview({ restored: true, fresh, createdAt, partial: true });
+        if (previewPublished) {
+          this.plugin.startupDiagnostics?.mark("preview-available");
+          reportPreview({ restored: true, fresh, createdAt, partial: true });
+        }
         // Optional graph/evidence reads must not compete with the restart source-authority pass.
         // Keep the bounded preview visible, prepare its current-policy scopes, then hydrate the
         // complete search acceleration. This does not claim complete global vocabulary early.
@@ -1957,7 +1970,9 @@ export class GraphIndex {
             break;
           }
           this.setSnapshotHydrationPhase(run, "requested-semantics");
+          this.plugin.startupDiagnostics?.mark("source-authority-await-ended");
           await this.refreshSemanticSettings();
+          this.plugin.startupDiagnostics?.mark("requested-semantics-refresh-ended");
           if (!isCurrent()) return { restored: false, fresh: false, createdAt };
         }
         const result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory, isCurrent, upgradePaths);
@@ -1999,8 +2014,10 @@ export class GraphIndex {
     return Promise.race([preview, task]);
   }
 
+  /** Start watchdog facts and the optional passive timing lane for this exact restore lifetime. */
   private beginSnapshotHydrationDiagnostics(run: number): void {
     const now = Date.now();
+    this.plugin.startupDiagnostics?.phase("hydration", "metadata");
     this.snapshotHydrationDiagnostics = {
       run, phase: "metadata", lastActivePhase: "metadata", startedAt: now, phaseStartedAt: now, lastProgressAt: now,
       pages: 0, relations: 0, evidence: 0, outcome: "running",
@@ -2012,9 +2029,12 @@ export class GraphIndex {
       this.snapshotHydrationDiagnostics.outcome === "running";
   }
 
+  /** Observe actual phase transitions; neither timing nor UI progress changes authority or scheduling. */
   private setSnapshotHydrationPhase(run: number, phase: SnapshotHydrationPhase): void {
     if (!this.isSnapshotHydrationRunning(run)) return;
     const now = Date.now();
+    this.plugin.startupDiagnostics?.phase("hydration", phase);
+    this.plugin.notifyStartupProgress?.();
     this.snapshotHydrationDiagnostics.phase = phase;
     this.snapshotHydrationDiagnostics.lastActivePhase = phase;
     this.snapshotHydrationDiagnostics.phaseStartedAt = now;
@@ -2025,18 +2045,26 @@ export class GraphIndex {
     if (this.isSnapshotHydrationRunning(run)) this.snapshotHydrationDiagnostics.lastProgressAt = Date.now();
   }
 
+  /** Count decoded records exactly; sample clock and UI notifications at existing batch boundaries. */
   private noteSnapshotHydrationProgress(run: number, kind: "pages" | "relations" | "evidence"): void {
     if (!this.isSnapshotHydrationRunning(run)) return;
     this.snapshotHydrationDiagnostics[kind] += 1;
+    this.plugin.startupDiagnostics?.processed("hydration");
     // Sample time reads, not counters. Search/resolver loops also signal bounded real progress.
-    if ((this.snapshotHydrationDiagnostics[kind] & 255) === 0) this.touchSnapshotHydrationProgress(run);
+    if ((this.snapshotHydrationDiagnostics[kind] & 255) === 0) {
+      this.touchSnapshotHydrationProgress(run);
+      this.plugin.notifyStartupProgress?.();
+    }
   }
 
+  /** Seal watchdog outcome and timing; late superseded callbacks cannot rewrite the result. */
   private finishSnapshotHydrationDiagnostics(
     run: number,
     outcome: Exclude<SnapshotHydrationDiagnostics["outcome"], "idle" | "running">,
   ): void {
     if (!this.isSnapshotHydrationRunning(run)) return;
+    this.plugin.startupDiagnostics?.phase("hydration", outcome);
+    this.plugin.startupDiagnostics?.mark("snapshot-" + outcome);
     this.snapshotHydrationDiagnostics.phase = outcome;
     this.snapshotHydrationDiagnostics.phaseStartedAt = Date.now();
     // Preserve the actual last work timestamp and phase for diagnosing stalls. Terminal outcomes

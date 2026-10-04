@@ -353,6 +353,7 @@ for (const file of [
   "src/core/plex/predicate.ts",
   "src/core/plex/predicateParser.ts",
   "src/core/plex/lens.ts",
+  "src/adapters/obsidian/startupDiagnostics.ts",
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/adjacentFileLeaf.ts",
   "src/adapters/obsidian/excalidrawIntegrationVersion.ts",
@@ -723,6 +724,37 @@ const indexingStatusContext = {
     return "Status: updating index";
   },
 };
+// Startup labels describe the real pass; record loading has no invented percentage.
+{
+  const { StartupDiagnostics } = require(join(temp, "src/adapters/obsidian/startupDiagnostics.js"));
+  const diagnostics = new StartupDiagnostics();
+  diagnostics.phase("source", "source-reconciliation", 4);
+  diagnostics.processed("source");
+  const context = { ...indexingStatusContext, cachedMarkdownFileCount: 5, startupDiagnostics: diagnostics,
+    index: { ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true,
+      getSnapshotHydrationDiagnostics: () => ({ phase: "source-authority" }) },
+    translator: (key, params) => key === "index.startupChecking" ? "Checking cached index"
+      : key === "index.startupNotesProgress" ? `${params.activity} — ${params.processed} / ${params.total} notes (${params.percent}%)`
+      : key === "index.startupEvidence" ? "Loading relationship evidence"
+      : key === "index.startupRecordsProgress" ? `${params.activity} — ${params.processed} records loaded` : key,
+  };
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Checking cached index — 1 / 4 notes (25%)");
+  diagnostics.processed("source");
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Checking cached index — 2 / 4 notes (50%)");
+  diagnostics.phase("hydration", "evidence");diagnostics.processed("hydration");
+  context.index.getSnapshotHydrationDiagnostics = () => ({ phase: "evidence" });
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "Loading relationship evidence — 1 records loaded");
+  context.computeIndexStatusFacts = KplexPlugin.prototype.computeIndexStatusFacts;
+  context.index.getSourceAcquisitionCounters = () => ({ vaultReads: 0, parses: 0 });
+  context.index.getSemanticPreparationDiagnostics = () => ({ fullBuilds: 0 });
+  const beforeEnumeration = indexingStatusContext.markdownFileCountReads;
+  const report = KplexPlugin.prototype.getStartupDiagnostics.call(context);
+  assert.equal(report.progress.hydration.phase, "evidence");
+  assert.equal(report.progress.hydration.processed, 1);
+  assert.equal(report.source.vaultReads, 0);
+  assert.equal(indexingStatusContext.markdownFileCountReads, beforeEnumeration, "Reading startup diagnostics must not enumerate notes");
+
+}
 assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext), {
   upToDate: false,
   phase: "indexing",
