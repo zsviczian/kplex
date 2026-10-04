@@ -579,3 +579,13 @@ counts restart at the actual pass boundary. This also works without detailed opt
 [controlled retry validation](docs/validation/settings-independent-indexing-si5-progress-labels-2026-10-04.md)
 records the exact test-only MetadataCache miss recipe, failed untimed background setup and successful
 foreground retry. Do not use fault-injected or browser-overlapping elapsed times as warm baselines.
+
+The maintainer-approved [merged dependency/head selection and exact retest](docs/validation/settings-independent-indexing-si5-merged-selection-2026-10-04.md)
+follows the independent phase-label checkpoint `b48643c62fb5a21d105f6f5db38c4025223ca785`. Clean checks
+select owner/state/journal/head atomically, then honor overlays, intervening source activation,
+cancellation and unload. Repair and legacy upgrade retain rereads. Compare with the same optional
+wait probe enabled, keeping the test renderer in the foreground and all other test workloads stopped.
+Head requests and dependency checks are distinct from transaction boundaries: consolidation does
+not remove their validation or the later freshness pass. The [closeout audit](docs/validation/settings-independent-indexing-si5-closeout-audit-2026-10-04.md)
+inventories current settings routes, retired writers and deliberately retained compatibility seams.
+Physical iPad/Android outcomes remain required in the [device checklist](docs/validation/settings-independent-indexing-si5-device-checklist.md).
