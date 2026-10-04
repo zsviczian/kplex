@@ -115,12 +115,13 @@ test("target creation/alias settlement replays both lexical spellings without re
   } finally { f.close(); }
 });
 
-test("source-relative move reuses immutable body and tombstones the old binding; deletion cannot keep contributing", async () => {
+for (const tracking of [false, true]) test(`source-relative move reuses immutable body and tombstones the old binding; deletion cannot keep contributing (node impacts ${tracking})`, async () => {
   const f = hostFixture();
   try {
-    const source = f.add("One/source.md"); const left = f.add("left.png", ""); const right = f.add("right.png", "");
+    const source = f.add("One/source.md", "Links:: [[Alias]] [[Target]]\n[Retired URL](https://retire.example/path)"); const left = f.add("left.png", ""); const right = f.add("right.png", "");
     f.resolutions.set(`${source.path}:Alias`, left.path);
     const body = parseBodyMetadata(f.text.get(source.path)); await f.acquisition.acquire(source, body);
+    if (tracking) f.acquisition.enableNodeImpactTracking();
     const oldPath = source.path;
     f.files.delete(oldPath); source.path = "Two/source.md"; f.files.set(source.path, source);
     f.metadata.set(source.path, f.metadata.get(oldPath)); f.metadata.delete(oldPath);

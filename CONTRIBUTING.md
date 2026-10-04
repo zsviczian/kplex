@@ -440,7 +440,7 @@ When changing provenance navigation, preserve host-view ownership: an open sidec
 
 ### SI5 native restart validation
 
-After exact-build staging, run `npm run verify:obsidian:si5` with the same three disposable test-vault variables and an explicit `KPLEX_HOST_REPORT_DIR`. The default scenario creates owned notes, saves an ontology change, reloads, removes/corrupts optional graph acceleration, damages one requested source chunk and simulates an offline edit. Its small-fixture setup may seed complete acceleration after an earlier fault run; measured restarts start on the newly loaded instance. It restores settings, wrapped Vault methods, owned notes and original throttling. Back up the test vault/cache before fault injection; never use a personal vault. Run native drivers serially; do not overlap manual CLI probes with their polling.
+After exact-build staging, run `npm run verify:obsidian:si5` with the same three disposable test-vault variables and an explicit `KPLEX_HOST_REPORT_DIR`. The default scenario creates owned notes, saves an ontology change, reloads, removes/corrupts optional graph acceleration, damages one requested source chunk and simulates an offline edit. Missing/corrupt graph cases also assert global virtual/URL search, aliases and inline type suggestions outside requested scopes. Its small-fixture setup may seed complete acceleration after an earlier fault run; measured restarts start on the newly loaded instance. It restores settings, wrapped Vault methods, owned notes and original throttling. Back up the test vault/cache before fault injection; never use a personal vault. Run native drivers serially; do not overlap manual CLI probes with their polling.
 
 Set `KPLEX_SI5_RESTART_ONLY=true` for three warm restarts of an existing large fixture; it does not seed a fixture build. The report records named hardware, exact hashes, readiness, source/build counters, renderer visibility, heap samples and total CLI/restart elapsed time; `progress.json` identifies the active phase between completed probes. These are functional restart measurements, not actual-paint or physical-device acceptance. The [SI5 report](docs/validation/settings-independent-indexing-si5-progress-2026-10-03.md) and [device procedure](docs/validation/settings-independent-indexing-si5-device-checklist.md) track the remaining release gates.
 
@@ -454,3 +454,17 @@ sampled heap are separate from paint latency and process/device peak memory.
 
 `KPLEX_SI5_RESTART_RUNS=1` or `2` can replace an excluded run without repeating valid runs. The
 default remains three; acceptance still needs three comparable runs of the same condition/build.
+
+
+### SI5 high-node fixture
+
+The existing 20k/large-file fixture and a high-node fixture exercise different workloads. Generate
+an isolated high-node fixture with `node scripts/testing/generate-high-node-vault.mjs --out /absolute/new/disposable-directory`
+and verify it with `node scripts/testing/generate-high-node-vault.mjs --verify /absolute/new/disposable-directory`.
+Generation refuses an existing output. The default supplies 20,000 Markdown files, 80,000 distinct
+body-linked placeholders, 8,000 distinct URLs, 259,000 source link occurrences, 160 dormant property
+names and a hub referenced by 19,999 owners. These are deterministic **source-input counts**;
+measure actual graph nodes/evidence in Obsidian, including structural nodes/cache mirrors. Fixture
+verification is not startup, latency, memory or device acceptance. Keep it separate from the existing
+large-vault cold/warm baseline; never merge its files into a personal vault or compare profiles as one
+condition. `--files` permits small harness fixtures while preserving the proportions.

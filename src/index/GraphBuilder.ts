@@ -2,7 +2,8 @@
  * Obsidian-bound graph construction and per-file semantic patch staging. Full builds collect host
  * structure, cached link maps and Markdown semantics into a private snapshot; cold startup can also
  * publish a structure/link baseline and then reuse the same atomic per-file patch boundary to add
- * Markdown semantics progressively without exposing half-committed source state.
+ * Markdown semantics progressively without exposing half-committed source state. Node-only recovery
+ * streams current durable source facts through the same compiler without retaining relationships.
  */
 import { Platform, TFile, type App } from "obsidian";
 import type KplexPlugin from "../main";
@@ -18,7 +19,7 @@ import type { EvidenceProvenance, EvidenceSourceKind } from "./RelationEvidence"
 import { resolveEvidencePair } from "./RelationResolver";
 import { createGraphState, getGraphPage, type GraphState } from "./GraphState";
 import { perfNow } from "../util/perf";
-import { NormalizedGraphCompiler, type CompiledGraphNode, type CompiledRelationEvidence, type GraphCompilerSourceRead, type PortableGraphCompilation } from "../core/graph/compiler";
+import { NormalizedGraphCompiler, type CompiledGraphNode, type CompiledRelationEvidence, type GraphCompilerSourceRead, type PortableGraphCompilation, type PortableNodeCompilation } from "../core/graph/compiler";
 import { graphCompilerSettingsFromLegacy } from "../adapters/obsidian/graphContracts";
 import { NormalizedSourcePatchPreparer, type PreparedSourcePatch, type SourcePatchReadPort } from "../core/graph/patch";
 import { nodeId, type NodeId } from "../core/graph/model";
@@ -605,22 +606,109 @@ export class GraphBuilder {
    * Build the low-cost cold-start baseline from vault structure, tag structure and Obsidian's
    * already-resolved link maps without reading Markdown bodies.
    *
-   * @returns A graph containing materialized vault nodes and host-link relationships, or `null` if
+   * @returns A graph containing materialized vault nodes and optional host-link relationships, or `null` if
    * the source revision changes while the private read is in flight. The caller may patch Markdown
    * semantics into this state before publishing it as a non-authoritative startup preview.
    */
   async buildStructuralBaseline(): Promise<GraphState | null> {
-    const compiler = this.createFullCompiler();
+    return this.buildStructuralProjection("graph");
+  }
+
+  /** Recover structural vocabulary with canonical materialization and no retained relationships. */
+  async buildStructuralNodeBaseline(): Promise<GraphState | null> {
+    return this.buildStructuralProjection("nodes");
+  }
+
+  /** Shared structural/tag/host collection and final binding for graph and node-only baselines. */
+  private async buildStructuralProjection(projection: "graph" | "nodes"): Promise<GraphState | null> {
+    const compiler = this.createFullCompiler(projection);
     const structuralRead = await this.collectStructuralSources(compiler);
     if (!structuralRead) return null;
     if (!(await this.collectHostLinkSources(compiler))) return null;
     if (!(await this.finalizeStructuralSources(compiler, structuralRead))) return null;
 
-    const compiled = await compiler.finish();
+    const compiled = projection === "nodes" ? await compiler.finishNodes() : await compiler.finish();
     if (!compiled || !structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) || !this.isCurrent()) return null;
     const state = await this.bindCompiledGraph(compiled, structuralRead.collector);
     if (!state || !structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) || !this.isCurrent()) return null;
     return state;
+  }
+
+  /**
+   * Recover complete search/suggestion metadata from source authority after graph acceleration loss.
+   * This is a node projection, never a full graph build. One Markdown owner is pinned/decoded at a
+   * time in the full builder's native Markdown order, preserving the first meaningful URL label.
+   * Final physical/host/source fences discard all private nodes on interruption.
+   */
+  async buildSourceNodeCatalog(onProgress?: () => void): Promise<GraphState | null> {
+    const acquisition = this.sourceAcquisition;
+    if (!acquisition?.hasSemanticDependencies()) return null;
+    const maintenance = acquisition.getMaintenanceRevision();
+    const current = (): boolean => this.isCurrent() && acquisition.hasSemanticDependencies()
+      && acquisition.getMaintenanceRevision() === maintenance;
+    const baseRuntime = this.patchCompilerRuntime();
+    const runtime = { ...baseRuntime, isCurrent: current,
+      /** Only completed compiler/replay slices advance the caller's progress observer. */
+      yield: async (): Promise<void> => {
+        await baseRuntime.yield();
+        if (current()) onProgress?.();
+      } };
+    const compiler = new NormalizedGraphCompiler(this.fullCompilerSettings(), runtime, "nodes");
+    const structuralRead = await this.collectStructuralSources(compiler);
+    if (!structuralRead || !current() || !(await this.collectHostLinkSources(compiler))) return null;
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      if (!current() || !(await acquisition.replayNodeMetadata(file.path,
+        this.metadataSourceSettings, compiler, runtime)) || !current()) return null;
+      onProgress?.();
+    }
+    if (!(await this.finalizeStructuralSources(compiler, structuralRead)) || !current()) return null;
+    const compiled = await compiler.finishNodes();
+    if (!compiled || !structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) || !current()) return null;
+    const state = await this.bindCompiledGraph(compiled, structuralRead.collector);
+    return state && structuralRead.collector.isBoundaryCurrent(structuralRead.read.boundary) && current() ? state : null;
+  }
+
+  /**
+   * Stage the finite synthetic endpoints of a retired source against current contributor authority.
+   * Negative materialization closes obsolete partial evidence; positive results update finite facets
+   * or insert a newly materialized synthetic node. Copy-on-write state remains private until publish.
+   */
+  async prepareNodeImpactPatch(state: GraphState, endpoints: Iterable<SourceEntityRef>): Promise<
+    Readonly<{ touched: ReadonlySet<string>; publish: () => void }> | null> {
+    if (!this.sourceAcquisition || !this.isCurrent()) return null;
+    const staged = this.createPatchState(state);
+    const touched = new Set<string>();
+    for (const endpoint of endpoints) {
+      if (!endpoint.semanticPath) return null;
+      const path = endpoint.semanticPath;
+      const node = await this.sourceAcquisition.currentEndpointNode(endpoint,
+        { revision: "source-node-impact", settings: this.fullCompilerSettings(), isCurrent: this.isCurrent },
+        this.metadataSourceSettings, this.patchCompilerRuntime());
+      if (node === null || !this.isCurrent()) return null;
+      const page = staged.pages.get(path);
+      if (page?.file || page?.isFolder) continue;
+      if (node) {
+        if (page) page.name = node.name;
+        else {
+          const restored = this.createPage({ path, name: node.name, file: null, url: node.url,
+            isFolder: false, isTag: node.kind === "tag", mtime: node.semanticMtime,
+            aliases: [...node.aliases], tags: [...node.tags], noteType: node.noteType,
+            primaryStyleTag: node.primaryStyleTag, styleTags: [...node.styleTags], maxLabelLength: node.maxLabelLength });
+          this.addPage(staged, restored);
+        }
+      } else if (page) {
+        const removed = await staged.evidence.removeDeclarationsTouchingCooperative(path, () => true, () => this.yieldToHost());
+        if (removed === null || !this.isCurrent()) return null;
+        for (const neighbour of page.neighbours.keys()) { staged.pages.get(neighbour)?.neighbours.delete(path); touched.add(neighbour); }
+        staged.pages.delete(path); staged.lowercasePathMap.delete(path.toLowerCase());
+      }
+      touched.add(path);
+      if (!(await this.yieldToHost())) return null;
+    }
+    if (!this.isCurrent()) return null;
+    return { touched,
+      /** The caller performs the final synchronous lifetime fence immediately before publication. */
+      publish: (): void => { this.commitPatchState(state, staged); } };
   }
 
   /** Capture interpretation settings once for full/patch compilation, never for neutral collection. */
@@ -628,14 +716,15 @@ export class GraphBuilder {
     return graphCompilerSettingsFromLegacy(this.plugin.settings);
   }
 
-  private createFullCompiler(): NormalizedGraphCompiler {
+  /** Create either projection with the same captured policy and cooperative cancellation contract. */
+  private createFullCompiler(projection: "graph" | "nodes" = "graph"): NormalizedGraphCompiler {
     return new NormalizedGraphCompiler(this.fullCompilerSettings(), {
       now: perfNow,
       yield: async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); },
       isCurrent: this.isCurrent,
       sliceBudgetMs: Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13,
       resolverBatchSize: Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
-    });
+    }, projection);
   }
 
   private patchCompilerRuntime() {
@@ -900,12 +989,13 @@ export class GraphBuilder {
     return this.collectFinalCompilerSource(compiler, relations);
   }
 
+  /** Bind canonical node facets to exact current host files; node projections retain empty evidence. */
   private async bindCompiledGraph(
-    compiled: PortableGraphCompilation,
+    compiled: PortableGraphCompilation | PortableNodeCompilation,
     structuralCollector: ObsidianStructuralSourceCollector,
   ): Promise<GraphState | null> {
     if (!this.isCurrent()) return null;
-    const evidence = compiled.legacyEvidence();
+    const evidence = "legacyEvidence" in compiled ? compiled.legacyEvidence() : createGraphState().evidence;
     if (!evidence) return null;
     const state = createGraphState();
     state.evidence = evidence;
@@ -1103,6 +1193,8 @@ export class GraphBuilder {
       useDurableCache?: boolean;
       awaitBodyWrite?: boolean;
       publishFileCommit?: PatchFilePublisher;
+      /** A recovered vocabulary has no complete evidence; validate shared synthetic lifetimes locally. */
+      sourceNodeBaseline?: boolean;
       /** Full cold-start ingestion counts every discovered field exactly once per source. */
       discoveryMode?: "patch" | "rebuild";
     } = {},
@@ -1194,6 +1286,8 @@ export class GraphBuilder {
       if (acquisition?.current === false || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
+      const retiredEndpoints = options.sourceNodeBaseline ? this.sourceAcquisition?.nodeImpactEndpoints(sourcePath) : undefined;
+      if (retiredEndpoints === null) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       const signature = await this.semanticSourceSignatureCooperative(file, body);
       if (!signature || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
@@ -1227,6 +1321,7 @@ export class GraphBuilder {
         }
         publishFileCommit(false, () => {
           this.commitPatchState(state, stagedState);
+          if (retiredEndpoints) this.sourceAcquisition?.acknowledgeNodeImpacts(sourcePath, retiredEndpoints);
           this.rememberFieldCache(sourcePath, { mtime: revision.mtime, body, semanticSignature: signature });
           this.semanticFingerprints.set(sourcePath, signature);
         });
@@ -1239,6 +1334,13 @@ export class GraphBuilder {
       const affected = new Set<string>();
       const oldTagPaths = new Set<string>();
       const oldUrlPaths = new Set<string>();
+      const oldVirtualPaths = new Set<string>();
+      for (const endpoint of retiredEndpoints?.values() ?? []) {
+        if (!endpoint.semanticPath) continue;
+        if (endpoint.kind === "tag") oldTagPaths.add(endpoint.semanticPath);
+        else if (endpoint.kind === "url") oldUrlPaths.add(endpoint.semanticPath);
+        else if (endpoint.kind === "unresolved") oldVirtualPaths.add(endpoint.semanticPath);
+      }
       const desiredUrlOrigins = new Map<string, string>();
       touchedPagePaths.add(sourcePath);
       const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), body);
@@ -1283,7 +1385,7 @@ export class GraphBuilder {
         processed += 1;
         if ((processed & 127) === 0 && !(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
-      if (!(await this.pruneEmptyTagNodesCooperative(stagedState, oldTagPaths, affected))) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
+      if (!(await this.pruneEmptyTagNodesCooperative(stagedState, oldTagPaths, affected, options.sourceNodeBaseline))) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       if (!(await this.reconcilePreparedUrlOriginsCooperative(stagedState, oldUrlPaths, desiredUrlOrigins, affected))) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       for (const targetPath of affected) {
         fileTouchedPagePaths.add(targetPath);
@@ -1294,7 +1396,17 @@ export class GraphBuilder {
         processed += 1;
         if ((processed & 31) === 0 && !(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
-      if (!(await this.pruneUnusedUrlNodesCooperative(stagedState, oldUrlPaths, affected))) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
+      if (!(await this.pruneUnusedUrlNodesCooperative(stagedState, oldUrlPaths, affected, options.sourceNodeBaseline))) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
+      for (const path of oldVirtualPaths) {
+        const old = stagedState.pages.get(path);
+        if (!old || old.file || old.url || old.isTag || old.isFolder) continue;
+        const ref: SourceEntityRef = { id: nodeId(path), kind: "unresolved", state: "unresolved", semanticPath: path };
+        const node = await this.sourceAcquisition?.currentEndpointNode(ref,
+          { revision: "source-node-prune", settings: this.fullCompilerSettings(), isCurrent: this.isCurrent },
+          this.metadataSourceSettings, this.patchCompilerRuntime());
+        if (node === null || !this.sourceAcquisition || !this.isCurrent()) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
+        if (!node) { stagedState.pages.delete(path); stagedState.lowercasePathMap.delete(path.toLowerCase()); affected.add(path); }
+      }
       for (const targetPath of affected) fileTouchedPagePaths.add(targetPath);
 
       if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
@@ -1306,6 +1418,7 @@ export class GraphBuilder {
       }
       publishFileCommit(topologyChanged, () => {
         this.commitPatchState(state, stagedState);
+        if (retiredEndpoints) this.sourceAcquisition?.acknowledgeNodeImpacts(sourcePath, retiredEndpoints);
         this.rememberFieldCache(sourcePath, { mtime: revision.mtime, body, semanticSignature: signature });
         this.semanticFingerprints.set(sourcePath, signature);
       });
@@ -1369,10 +1482,27 @@ export class GraphBuilder {
       && this.isCurrent();
   }
 
+  /** Reuse source-local canonical compilation to distinguish a shared node from an orphan. */
+  private async retainSourceNode(page: GraphPage): Promise<boolean | null> {
+    if (!this.sourceAcquisition) return null;
+    const endpoint: SourceEntityRef = { id: nodeId(page.path), semanticPath: page.path,
+      kind: page.isTag ? "tag" : "url", state: "materialized" };
+    const runtime = this.patchCompilerRuntime();
+    const node = await this.sourceAcquisition.currentEndpointNode(endpoint,
+      { revision: "source-node-prune", settings: this.fullCompilerSettings(), isCurrent: this.isCurrent },
+      this.metadataSourceSettings, runtime);
+    if (node === null || !this.isCurrent()) return null;
+    if (!node) return false;
+    page.name = node.name;
+    return true;
+  }
+
+  /** Prune old tag candidates only when neither staged evidence nor current source owners retain them. */
   private async pruneEmptyTagNodesCooperative(
     state: GraphState,
     candidates: Iterable<string>,
     affected: Set<string>,
+    sourceNodeBaseline = false,
   ): Promise<boolean> {
     const pending = new Set([...candidates].filter((path) => path.startsWith("tag:")));
     let processed = 0;
@@ -1392,6 +1522,11 @@ export class GraphBuilder {
         }
         const hasOutgoing = local.some((item) => item.sourceKind === "tag-tree" && item.declaredByPath === path);
         if (hasOutgoing) continue;
+        if (sourceNodeBaseline) {
+          const retained = await this.retainSourceNode(page);
+          if (retained === null) return false;
+          if (retained) { affected.add(path); continue; }
+        }
         const parents = local
           .filter((item) => item.sourceKind === "tag-tree" && item.declaredTargetPath === path && item.declaredByPath.startsWith("tag:"))
           .map((item) => item.declaredByPath);
@@ -1419,10 +1554,12 @@ export class GraphBuilder {
     return this.isCurrent();
   }
 
+  /** Remove old URL candidates only after the same source-local shared-lifetime check. */
   private async pruneUnusedUrlNodesCooperative(
     state: GraphState,
     candidatePaths: Iterable<string>,
     affected: Set<string>,
+    sourceNodeBaseline = false,
   ): Promise<boolean> {
     const children = new Set<string>();
     const origins = new Set<string>();
@@ -1446,6 +1583,11 @@ export class GraphBuilder {
       let hasEvidence = false;
       if (page?.url && !page.file) {
         hasEvidence = !state.evidence.declarationsTouchingIterator(path).next().done;
+      }
+      if (page?.url && !page.file && !hasEvidence && sourceNodeBaseline) {
+        const retained = await this.retainSourceNode(page);
+        if (retained === null) return false;
+        if (retained) { hasEvidence = true; affected.add(path); }
       }
       if (page?.url && !page.file && !hasEvidence) {
         for (const neighborPath of page.neighbours.keys()) {

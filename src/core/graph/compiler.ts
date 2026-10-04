@@ -2,6 +2,8 @@
  * Portable source-to-evidence compiler. Semantic rules remain canonical here; presentation fields
  * are a finite compatibility output delegated to the shared presentation owner until SI4. Neutral
  * reference reads use sourcePolicy before materialization; only active evidence survives compilation.
+ * The node projection reuses that policy/materialization owner without retaining or resolving evidence;
+ * its distinct result cannot authorize relationship readiness.
  */
 import { selectStyleTags, tagDisplayName, unwrapNoteType } from "./presentation";
 import {
@@ -87,6 +89,13 @@ export type CompiledGraphNode = {
   /** Resolver keys are private identity bindings, not semantic paths. */
   neighbours: Map<string, SemanticRelation<CompiledGraphNode>>;
 };
+
+/** Complete node vocabulary only; empty neighbours never assert complete relationship coverage. */
+export type PortableNodeCompilation = Readonly<{
+  kind: "node-metadata";
+  nodes: ReadonlyMap<NodeId, CompiledGraphNode>;
+  discoveredFields: ReadonlyMap<string, { name: string; count: number }>;
+}>;
 
 export type CompiledEvidenceOwnership = Readonly<{
   sourceId: NodeId;
@@ -241,10 +250,11 @@ export class NormalizedGraphCompiler {
   private nextResolverKey = 0;
   private nextSyntheticId = 0;
 
-  /** Capture reference selection once; collection never receives ontology or image assignments. */
+  /** Capture reference selection once; node projection skips evidence without changing materialization. */
   constructor(
     private readonly settings: GraphCompilerSettings,
     private readonly runtime: GraphCompilerRuntime,
+    private readonly projection: "graph" | "nodes" = "graph",
   ) {
     this.sliceStartedAt = runtime.now();
     this.referenceSelector = new ReferencePolicySelector(settings);
@@ -312,9 +322,7 @@ export class NormalizedGraphCompiler {
 
   /** Reconcile private evidence order/suppression and resolve; cancellation never publishes a graph. */
   async finish(): Promise<PortableGraphCompilation | null> {
-    if (this.finished || this.rejected || this.openReads.size || !this.runtime.isCurrent()) return null;
-    this.finished = true;
-    for (const id of this.requiredMaterializedEntityFacts) if (!this.entityFactSeen.has(id)) return null;
+    if (this.projection !== "graph" || !(await this.finalizeNodes())) return null;
 
     // Natural physical collection order must not replace the accepted configured-field order.
     // Reorder only the existing private evidence buckets; no raw candidate replay/DTO is retained.
@@ -323,12 +331,6 @@ export class NormalizedGraphCompiler {
     ))) return null;
     this.referenceOrderByEvidenceId.clear();
     this.referenceSourceOrder.clear();
-    let processed = 0;
-    for (const node of this.nodes.values()) {
-      this.finalizeMetadata(node);
-      processed += 1;
-      if ((processed & 127) === 0 && !(await this.checkpoint())) return null;
-    }
     if (!(await this.applyPresentationSuppression())) return null;
     if (!this.runtime.isCurrent()) return null;
 
@@ -349,6 +351,28 @@ export class NormalizedGraphCompiler {
       this.evidence,
       this.ownershipByEvidenceId,
     );
+  }
+
+  /**
+   * Finish global vocabulary under the same terminal read/materialization fences as a full build.
+   * No evidence ordering, suppression or relationship resolution runs in this projection.
+   */
+  async finishNodes(): Promise<PortableNodeCompilation | null> {
+    if (this.projection !== "nodes" || !(await this.finalizeNodes())) return null;
+    return { kind: "node-metadata", nodes: this.nodes, discoveredFields: this.discoveredFields };
+  }
+
+  /** Finalize finite metadata only after every producer and required physical entity has closed. */
+  private async finalizeNodes(): Promise<boolean> {
+    if (this.finished || this.rejected || this.openReads.size || !this.runtime.isCurrent()) return false;
+    this.finished = true;
+    for (const id of this.requiredMaterializedEntityFacts) if (!this.entityFactSeen.has(id)) return false;
+    let processed = 0;
+    for (const node of this.nodes.values()) {
+      this.finalizeMetadata(node);
+      if ((++processed & 127) === 0 && !(await this.checkpoint())) return false;
+    }
+    return this.runtime.isCurrent();
   }
 
   /** Terminal rejection releases any partially assembled value payloads and temporary order keys. */
@@ -474,7 +498,7 @@ export class NormalizedGraphCompiler {
       if (assignment.role === "hidden") this.addHidden(record, source, target, provenance, assignment);
       else this.addEvidence(record, source, target, assignment.role, RelationType.DEFINED, LinkDirection.FROM, provenance, assignment);
     }
-    if (record.selection.image) {
+    if (this.projection === "graph" && record.selection.image) {
       const key = this.pairCountKey(this.keyForNode(source), this.keyForNode(target));
       const count = this.presentationCounts.get(key) ?? { visual: 0, host: record.hostOccurrenceCount };
       count.visual += 1;
@@ -733,7 +757,7 @@ export class NormalizedGraphCompiler {
   /** Record the original directional hidden declaration, retaining selected reference order. */
   private addHidden(record: SelectedSourceRecord, source: CompiledGraphNode, target: CompiledGraphNode,
     provenance: EvidenceProvenance, assignment?: ReferenceAssignment): void {
-    if (source.id === target.id) return;
+    if (this.projection === "nodes" || source.id === target.id) return;
     const id = this.evidence.addHidden(this.keyForNode(source), this.keyForNode(target), provenance);
     if (id) {
       this.ownershipByEvidenceId.set(id, this.ownership(record));
@@ -752,7 +776,7 @@ export class NormalizedGraphCompiler {
     provenance: EvidenceProvenance,
     assignment?: ReferenceAssignment,
   ): void {
-    if (source.id === target.id) return;
+    if (this.projection === "nodes" || source.id === target.id) return;
     const id = this.evidence.addPair(this.keyForNode(source), this.keyForNode(target), role, relationType, direction, provenance);
     if (id) {
       this.ownershipByEvidenceId.set(id, this.ownership(record));

@@ -9,10 +9,12 @@
  * durable legacy UNKNOWN-impact journal for storage compatibility; no inverse resolver is invented.
  * Restart resolver closes validate canonical output before rewriting sources. Exact-head body-read
  * certificates avoid duplicate decoding and weak ownership does not retain parsed bodies at rest.
+ * Source-backed search retains only bounded changed-owner endpoint incidence until publication;
+ * cached canonical compilation decides materialization and rename/delete retire that incidence safely.
  */
 import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidian";
-import type { GraphCompilerRuntime } from "../../core/graph/compiler";
-import { acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type NormalizedSourceBatch,
+import type { GraphCompilerRuntime, NormalizedGraphCompiler, CompiledGraphNode } from "../../core/graph/compiler";
+import { estimateReferenceRecordBytes, sourceRevision, acceptSourceBatch, beginSourceRead, sourceReadCanPublish, type NormalizedSourceBatch,
   type NormalizedSourceRecord, type SourceReadBoundary } from "../../core/graph/source";
 import type { CachedSemanticPolicy } from "../../index/CachedSourceSemantics";
 import { CachedRequestedNeighborhoodReader, type CachedCenterGatePreparation,
@@ -25,18 +27,18 @@ import type { SourcePatchReadPort } from "../../core/graph/patch";
 import type { SourceEntityRef } from "../../core/graph/source";
 import { SourceLocalContributorDiscovery } from "./sourceLocalContributorDiscovery";
 import type { ContributorHostChange } from "../../index/SourceContributorJournal";
-import type { CachedSourceHost, CachedSourceRequest } from "../../index/SourceReplay";
-import { selectedSourceFailure, type SelectedSourceResult } from "../../index/SourceRepository";
+import { CachedSourceReplay, type CachedSourceHost, type CachedSourceRequest } from "../../index/SourceReplay";
+import { selectedSourceFailure, type SelectedSourceResult, type SelectedSourceReader } from "../../index/SourceRepository";
 import type { ParsedBodyMetadata, ParsedFileMetadata } from "../../core/parser/metadata";
 import { mergeFileMetadata } from "../../index/fieldParser";
 import type { KplexIndexedDbCache } from "../../index/IndexedDbCache";
-import { SOURCE_FAMILIES, SOURCE_MAX_BATCH_RECORDS, SourceFactError, sourceFieldNames, sourceValueSteps, type SourceFamily, type SourceFamilyManifest,
+import { SOURCE_DECODE_BUDGET_BYTES, SOURCE_FAMILIES, SOURCE_MAX_BATCH_RECORDS, SourceFactError, sourceFieldNames, sourceValueSteps, type SourceFamily, type SourceFamilyManifest,
   type SourceObservation, type SourcePhysical, type SourceReason, type StoredMetadataFact, type StoredSourceFact } from "../../index/SourceFacts";
 import type { SourceFamilyProducer, SourceInspection, SourceRepositoryDiagnostics } from "../../index/SourceRepository";
 import { sourceLocalDependencyKey, sourceLocalResolverDependencyKey, sourceLocalResolverPathDependencyKey } from "../../index/SourceLocalDependencies";
 import { createObsidianMetadataSourceHost, normalizedBodyUrl, ObsidianMetadataSourceCollector, type ObsidianMetadataSourceSettings } from "./metadataSourceCollector";
 import { entityFactForFile, entityFactForFolder, ObsidianStructuralPatchSourceCollector,
-  structuralMarkdownSourceOrder } from "./structuralSourceCollector";
+  structuralMarkdownSourceOrder, tagRef } from "./structuralSourceCollector";
 import { hostLinkRecord } from "./hostLinkSourceCollector";
 import { resolveObsidianReferenceTarget } from "./ontologySourceCollector";
 
@@ -125,6 +127,12 @@ export class ObsidianSourceAcquisition {
   private restartInventoryChecked = false;
   /** Coalesces an unscoped resolver wave into one cached-fact host refresh. */
   private uncertainResolution = false;
+  /** Temporary changed-owner incidence only; never a whole-vault source/graph mirror. */
+  private nodeImpactTracking = false;
+  private readonly nodeImpacts = new Map<string, Map<string, SourceEntityRef>>();
+  private nodeImpactBytes = 0;
+  private nodeImpactsComplete = true;
+
   /** One bounded causal token replaces per-event resolver bookkeeping for native TFile waves. */
   private knownResolverWave = false;
   /** Folder/non-file activity poisons the current wave: a following resolved event remains uncertain. */
@@ -165,9 +173,14 @@ export class ObsidianSourceAcquisition {
   private counters = { checked: 0, reusedBodies: 0, legacyBodies: 0, vaultReads: 0, parses: 0,
     repaired: 0, resolutionRefreshes: 0, pendingMetadata: 0, failures: 0 };
 
-  /** Construction is side-effect free; start() explicitly owns host subscriptions. */
+  /**
+   * Construction is side-effect free; start() explicitly owns host subscriptions.
+   * The optional progress observer reports completed inventory work for startup diagnostics only;
+   * it must not schedule acquisition or change authority, cancellation or publication decisions.
+   */
   constructor(private readonly app: App, private readonly cache: KplexIndexedDbCache, private readonly parse: SourceBodyParser,
-    private readonly inventoryReady?: () => void) {
+    private readonly inventoryReady?: () => void,
+    private readonly inventoryProgress?: () => void) {
     this.repository = cache.sources;
     this.metadataHost = createObsidianMetadataSourceHost(app);
   }
@@ -211,28 +224,32 @@ export class ObsidianSourceAcquisition {
     };
     const create = this.app.vault.on("create", (file) => changed(file instanceof TFile ? file : undefined, true));
     const modify = this.app.vault.on("modify", (file) => changed(file instanceof TFile ? file : undefined, false, undefined, true));
-    const rename = this.app.vault.on("rename", (file, oldPath) => {
+    const rename = this.app.vault.on("rename",
+      /** Fence the new path immediately; retire old body/incidence after existing fan-out closes. */
+      (file, oldPath) => {
       changed(file instanceof TFile ? file : undefined, false, oldPath);
       if (file instanceof TFile) {
         const state = this.state(file), fanout = this.knownFanoutTasks.get(file) ?? Promise.resolve();
         const prior = state.impact ?? Promise.resolve();
         this.knownImpactTasks += 1;
-        const tombstone = this.repository.tombstone(oldPath,
-          () => !this.closed && !this.app.vault.getFileByPath(oldPath), true,
-          Promise.all([prior, fanout]).then(() => undefined)).then(() => undefined)
+        const tombstone = this.repository.tombstone(oldPath, () => !this.closed && !this.app.vault.getFileByPath(oldPath), true,
+          Promise.all([prior, fanout]).then(() => undefined), this.nodeImpactTracking
+            ? (reader, reason) => this.captureRetirementNodeImpacts(file, oldPath, reader, reason) : undefined).then(() => undefined)
           .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
         state.impact = tombstone; void tombstone.finally(() => { if (state.impact === tombstone) state.impact = null; });
       }
     });
-    const remove = this.app.vault.on("delete", (file) => {
+    const remove = this.app.vault.on("delete",
+      /** Mask source authority immediately and preserve finite retired incidence before deletion. */
+      (file) => {
       changed(file instanceof TFile ? file : undefined, false, undefined, false, "topology");
       if (file instanceof TFile) {
         const path = file.path, state = this.state(file), fanout = this.knownFanoutTasks.get(file) ?? Promise.resolve();
         const prior = state.impact ?? Promise.resolve();
         this.knownImpactTasks += 1;
-        const tombstone = this.repository.tombstone(path,
-          () => !this.closed && !this.app.vault.getFileByPath(path), false,
-          Promise.all([prior, fanout]).then(() => undefined)).then(() => undefined)
+        const tombstone = this.repository.tombstone(path, () => !this.closed && !this.app.vault.getFileByPath(path), false,
+          Promise.all([prior, fanout]).then(() => undefined), this.nodeImpactTracking
+            ? (reader, reason) => this.captureRetirementNodeImpacts(file, path, reader, reason) : undefined).then(() => undefined)
           .finally(() => { this.knownImpactTasks = Math.max(0, this.knownImpactTasks - 1); if (!this.closed) this.requestInventory(); });
         state.impact = tombstone; void tombstone.finally(() => { if (state.impact === tombstone) state.impact = null; });
       }
@@ -297,6 +314,7 @@ export class ObsidianSourceAcquisition {
   /** Cancel every continuation and release event/timer ownership; unload does not await persistence. */
   close(): void {
     this.closed = true; this.inventoryRevision += 1;
+    this.nodeImpacts.clear(); this.nodeImpactBytes = 0;
     for (const dispose of this.cleanup.splice(0)) dispose();
     if (this.timer !== null) window.clearTimeout(this.timer);
     if (this.pollTimer !== null) window.clearTimeout(this.pollTimer);
@@ -482,6 +500,7 @@ export class ObsidianSourceAcquisition {
       if (order === undefined) return false;
       const inspection = await this.repository.inspect(file.path, [], current);
       if (!current()) return false;
+      this.inventoryProgress?.();
       if (!inspection.saved || !inspection.head || inspection.head.state !== "complete") continue;
       const reason = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
       if (reason !== "ready") return false;
@@ -506,6 +525,7 @@ export class ObsidianSourceAcquisition {
       const inspection = await this.repository.inspect(file.path, [], current);
       if (!current()) return false;
       const head = inspection.head;
+      this.inventoryProgress?.();
       const now = this.currentHostInventory(file, cache);
       if (!head || head.state !== "complete") {
         // Storage-unavailable operation has no durable restart evidence. Preserve the established
@@ -525,6 +545,7 @@ export class ObsidianSourceAcquisition {
       }
       const durable = await this.durableHostInventory(file.path, current);
       if (!current()) return false;
+      this.inventoryProgress?.();
       const sameFacts = durable.reason === "ready" && JSON.stringify(durable.facts) === JSON.stringify(now);
       const samePhysical = physicalMatches(head.physical,
         { identity: head.physical.identity, path: file.path, mtime: file.stat.mtime, size: file.stat.size, ctime: file.stat.ctime });
@@ -540,6 +561,7 @@ export class ObsidianSourceAcquisition {
     let after: string | null = null;
     while (current()) {
       const page = await this.repository.headPage(after);
+      if (current()) this.inventoryProgress?.();
       // Durable restart reconciliation is an enhancement; storage-degraded operation cannot prove
       // offline drift and retains the established in-memory path.
       if (!page.available) { this.restartInventoryChecked = true; return current(); }
@@ -835,6 +857,28 @@ export class ObsidianSourceAcquisition {
     } catch { return selectedSourceFailure(current() ? "storage-unavailable" : "stale"); }
   }
 
+  /**
+   * Feed one current owner's durable Markdown facts into private global node compilation.
+   * Structure and host-link maps are collected globally by GraphBuilder in canonical order;
+   * this read visits all four families once and releases its pin before the next owner.
+   * Damaged families use the existing selective repair owner, never a body read in this path.
+   */
+  async replayNodeMetadata(sourceId: string, presentation: ObsidianMetadataSourceSettings,
+    compiler: NormalizedGraphCompiler, runtime: GraphCompilerRuntime): Promise<boolean> {
+    const capture = await this.captureForReplay(sourceId, presentation, runtime);
+    if (capture.outcome !== "ready" || !runtime.isCurrent()) return false;
+    let read: ReturnType<NormalizedGraphCompiler["beginRead"]> | undefined;
+    const result = await new CachedSourceReplay(this.repository).read(capture.request, runtime,
+      /** The compiler owns bounded policy decoding; no normalized records escape this read. */
+      async (batch) => {
+        read ??= compiler.beginRead(batch.boundary);
+        return compiler.acceptBatch(read, batch);
+      }, undefined, "markdown");
+    if (runtime.isCurrent()) this.requestReplayRepair(result);
+    return result.outcome === "ready" && runtime.isCurrent() && capture.request.host.isCurrent()
+      && read !== undefined && compiler.completeRead(read, result.value.boundary);
+  }
+
   /** Return exact current host entity facts for cached preparation without reading file bodies. */
   private cachedEntityReadPort(runtime: GraphCompilerRuntime): SourcePatchReadPort {
     return {
@@ -886,6 +930,131 @@ export class ObsidianSourceAcquisition {
         this.promoteUnknownFanout();
         this.requestInventory();
       });
+  }
+
+  /** Enable bounded edit impact capture only for a published source-backed node projection. */
+  enableNodeImpactTracking(): void { this.nodeImpactTracking = true; }
+
+  /** A complete global node publication covers every older pending edit impact. */
+  resetNodeImpacts(): void { this.nodeImpacts.clear(); this.nodeImpactBytes = 0; this.nodeImpactsComplete = true; }
+
+  /** Current bounded edit/deletion backlog; callers must acknowledge exact borrowed membership. */
+  pendingNodeImpactOwners(): ReadonlyMap<string, ReadonlyMap<string, SourceEntityRef>> { return this.nodeImpacts; }
+
+  /** False keeps global vocabulary readiness pending after an incomplete retired-family read. */
+  hasCompleteNodeImpacts(): boolean { return this.nodeImpactsComplete; }
+
+  /** Preserve retired candidates under the repository's exact writer pin while live readers stay masked. */
+  private async captureRetirementNodeImpacts(file: TFile, path: string,
+    reader: SelectedSourceReader | null, reason: SourceReason): Promise<void> {
+    if (!this.nodeImpactTracking || this.closed || !this.nodeImpactsComplete) return;
+    const current = (): boolean => !this.closed && !this.app.vault.getFileByPath(path);
+    if (!current()) return;
+    if (!reader) { if (reason !== "missing") this.nodeImpactsComplete = false; return; }
+    try {
+      const endpoints = await this.collectNodeImpacts(file, reader, current);
+      if (current()) this.mergeNodeImpacts(reader.head.sourceId, endpoints);
+    } catch { if (current()) this.nodeImpactsComplete = false; }
+  }
+
+  /** Borrow one changed owner's conservative endpoints; null keeps incomplete coverage pending. */
+  nodeImpactEndpoints(sourceId: string): ReadonlyMap<string, SourceEntityRef> | null {
+    return this.nodeImpactsComplete ? this.nodeImpacts.get(sourceId) ?? new Map() : null;
+  }
+
+  /** Retire only the exact backlog borrowed by a synchronously published file patch. */
+  acknowledgeNodeImpacts(sourceId: string, selected: ReadonlyMap<string, SourceEntityRef>): void {
+    if (this.nodeImpacts.get(sourceId) !== selected) return;
+    for (const ref of selected.values()) this.nodeImpactBytes -= estimateReferenceRecordBytes(ref) + 64;
+    this.nodeImpacts.delete(sourceId);
+  }
+
+  /**
+   * Capture conservative retired endpoints before replacing their selected source head. Stored
+   * incidence supplies candidates only; canonical requested compilation later decides existence.
+   * One pinned owner, bounded normalized-family batches and an aggregate decode budget prevent a
+   * sync burst from retaining a second graph. Damage/overflow marks coverage pending, never empty.
+   */
+  private async captureNodeImpacts(file: TFile, inspection: SourceInspection, current: () => boolean): Promise<void> {
+    const head = inspection.head;
+    if (!this.nodeImpactTracking || !head || !this.nodeImpactsComplete) return;
+    const result = await this.repository.readSelected(head.sourceId,
+      /** This historical selection authenticates edit candidates, never current semantic authority. */
+      stamp => stamp.head.sourceRevision === head.sourceRevision && stamp.sequence === inspection.sequence ? "ready" : "superseded",
+      reader => this.collectNodeImpacts(file, reader, current), current);
+    if (!current()) return;
+    if (result.outcome !== "ready") { this.nodeImpactsComplete = false; return; }
+    this.mergeNodeImpacts(head.sourceId, result.value);
+  }
+
+  /** Decode one pinned owner's conservative old endpoints without publishing any partial family. */
+  private async collectNodeImpacts(file: TFile, reader: SelectedSourceReader,
+    current: () => boolean): Promise<ReadonlyMap<string, SourceEntityRef>> {
+    const endpoints = new Map<string, SourceEntityRef>();
+    let bytes = 0;
+    /** Reserve an exact synthetic endpoint once; physical nodes keep their existing lifecycle owner. */
+    const add = (ref: SourceEntityRef | undefined): void => {
+      if (!ref || ref.kind !== "url" && ref.kind !== "tag" && ref.kind !== "unresolved" || endpoints.has(ref.id)) return;
+      bytes += estimateReferenceRecordBytes(ref) + 64;
+      if (this.nodeImpactBytes + bytes > SOURCE_DECODE_BUDGET_BYTES) throw new SourceFactError("decode-budget");
+      endpoints.set(ref.id, { ...ref });
+    };
+    const checkpoint = inventoryCheckpoint();
+    const source = entityFactForFile(file).entity;
+    const revision = sourceRevision(reader.head.sourceRevision);
+    for (const family of ["metadata", "resolution", "body-urls"] as const) {
+      const reason = await reader.visit(family, async records => {
+        for (const record of records) {
+          if (record.kind === "reference-resolution" || record.kind === "literal-resolution" || record.kind === "date-property") add(record.target?.entity);
+          else if (record.kind === "host-link") add(hostLinkRecord(this.app, source, revision, record.target,
+            record.count, record.state === "resolved" ? "obsidian-link" : "unresolved-link").target.entity);
+          else if (record.kind === "body-url") {
+            const url = normalizedBodyUrl(source, revision, record); add(url.target.entity); add(url.origin?.entity);
+          } else if (record.kind === "tag") {
+            const parts = record.value.replace(/^#/, "").split("/");
+            for (let length = 1; length <= parts.length; length++) add(tagRef(parts.slice(0, length).join("/")) ?? undefined);
+          }
+          await checkpoint(); if (!current()) return false;
+        }
+        return current();
+      });
+      if (reason !== "ready") throw new SourceFactError(reason, family);
+    }
+    return endpoints;
+  }
+
+  /** Replace bounded backlog membership atomically; an older patch cannot acknowledge this capture. */
+  private mergeNodeImpacts(sourceId: string, endpoints: ReadonlyMap<string, SourceEntityRef>): void {
+    const merged = new Map(this.nodeImpacts.get(sourceId));
+    for (const [id, ref] of endpoints) if (!merged.has(id)) {
+      this.nodeImpactBytes += estimateReferenceRecordBytes(ref) + 64; merged.set(id, ref);
+    }
+    if (merged.size) this.nodeImpacts.set(sourceId, merged);
+  }
+
+  /**
+   * Recheck one shared synthetic endpoint before pruning a node-only baseline. The existing local
+   * contributor/semantic owner proves materialization under the captured policy; no global replay or
+   * retained source-to-target map is introduced. Undefined proves absence; null keeps pruning pending.
+   */
+  async currentEndpointNode(endpoint: SourceEntityRef, policy: CachedSemanticPolicy,
+    presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CompiledGraphNode | undefined | null> {
+    if (!(await this.flush()) || !runtime.isCurrent() || !policy.isCurrent()) return null;
+    const discovery = this.localContributorDiscovery(runtime);
+    if (!discovery) return null;
+    /** Capture exact current host inputs under the same endpoint request lifetime. */
+    const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
+    const result = await new CachedRequestedNeighborhoodReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
+      .prepare({ kind: "neighborhood", center: endpoint }, policy, runtime);
+    if (runtime.isCurrent()) this.requestReplayRepair(result);
+    if (result.outcome !== "ready" || !runtime.isCurrent() || !policy.isCurrent()) return null;
+    const node = result.preparation.compilation.node(endpoint.id);
+    if (node?.kind === "url") {
+      const title = await this.prepareRequestedUrlTitle(endpoint, policy, presentation, runtime);
+      if (title.outcome !== "ready" || !runtime.isCurrent() || !policy.isCurrent()) return null;
+      node.name = title.input.name;
+    }
+    return node;
   }
 
   /** Prepare one exact center from cached facts; incomplete local dependencies remain explicitly pending. */
@@ -1103,6 +1272,8 @@ export class ObsidianSourceAcquisition {
             resolution: this.resolution(metadata, file, cache, inspection, !forceFresh && validFamily("values"), !forceFresh && validFamily("metadata"), current),
           } }, observationCurrent);
       };
+      await this.captureNodeImpacts(file, inspection, observationCurrent);
+      if (!observationCurrent()) return { current: false, saved: false, reason: "cancelled" };
       let result = await write(false);
       // A retained disk family can become unavailable after inspection. Re-acquire once from the
       // already owned body + MetadataCache, not from Markdown and not by rebuilding the graph.
@@ -1267,6 +1438,7 @@ export class ObsidianSourceAcquisition {
             const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
             if (!current()) return false;
             complete &&= local === "ready";
+            this.inventoryProgress?.();
             await checkpoint();
             continue;
           }
@@ -1285,6 +1457,7 @@ export class ObsidianSourceAcquisition {
               state.oldPath = undefined;
             }
           }
+          if (current()) this.inventoryProgress?.();
           await checkpoint();
         }
         // Missing graph pages or a broken graph snapshot never enter this catalog decision.

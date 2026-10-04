@@ -114,7 +114,8 @@ function fileRef(file: TFile): SourceEntityRef {
   };
 }
 
-function tagRef(rawTag: string): SourceEntityRef | null {
+/** Bind a raw host tag to the canonical legacy identity, including conservative retired edit inputs. */
+export function tagRef(rawTag: string): SourceEntityRef | null {
   const canonical = rawTag.replace(/^#/, "").split("/").map((part) => part.trim()).filter(Boolean).join("/");
   if (!canonical) return null;
   return {

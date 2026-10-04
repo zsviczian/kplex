@@ -9,6 +9,77 @@ import { fullCenterIndex, currentNeighborhoodView, centerGateSettings } from "./
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
 
+for (const { cancel, retry } of [{ cancel: false, retry: false }, { cancel: true, retry: false }, { cancel: false, retry: true }, { cancel: true, retry: true }]) {
+  test(`source authority and requested views precede full hydration${cancel ? retry ? " with a pending authority observer cancelled" : " with late cancellation fenced" : retry ? " across a transient resolver retry" : " while preserving global search"}`, async () => {
+    const browser = await chromiumHarness(bundle);
+    try {
+      assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+      assert.equal(await browser.evaluate(`(async()=>{
+        const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,cancel=${cancel},retry=${retry},f=await fixture('si5-source-first-'+cancel+'-'+retry);
+        const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()};
+        const centerGateSettings=${centerGateSettings.toString()};let initial,index,release,unblock;
+        const wait=async predicate=>{const at=Date.now();while(Date.now()-at<10000){if(predicate())return;await new Promise(r=>setTimeout(r,20))}throw Error('Source-first phase not reached')};
+        try{
+          f.text=f.texts;f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.add('C.md','Friends:: [[RemoteGhost]]');
+          f.app.vault.getName=()=> 'si5-source-first-'+cancel+'-'+retry;
+          f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+          await f.acquire();ok(await f.acquisition.reconcile(),'Durable authority seeded');
+          const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
+            inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+          const view=centerGateSettings({showFolderNodes:false}),presentation={noteTypeField:'Type',primaryTagField:'Style'};
+          initial=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md','C.md'],semantic,presentation,true),semantic,view);
+          ok(await f.cache.writeSnapshot({createdAt:Date.now(),vaultSignature:M.computeVaultSignature(f.app),
+            settingsSignature:M.computeIndexSettingsSignature(initial.plugin.settings),discoveredFields:[]},
+            [...initial.state.pages.values()].map(p=>M.persistedPageFromGraphPage(p)),
+            [...initial.state.evidence.declarations()].map(e=>M.persistedDeclarationFromEvidence(e))),'Complete acceleration seeded');
+          initial.destroy();initial=null;f.acquisition.close();
+          const db=await f.cache.open(),heads=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
+          index=new M.GraphIndex({app:f.app,settings:{...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
+          index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
+          let entered=false,pagePasses=0,evidencePasses=0;
+          const blocked=new Promise(resolve=>{unblock=resolve}),flush=index.sourceAcquisition.flush;
+          index.sourceAcquisition.flush=async function(){
+            entered=true;await blocked;
+            if(retry&&cancel){f.app.metadataCache.trigger('resolved');this.pauseInventory();return false}
+            const task=flush.call(this);
+            if(retry)f.app.metadataCache.trigger('resolved');
+            const adopted=await task;if(retry)ok(!adopted,'Native resolver wave interrupts the first pass');return adopted;
+          };
+          const pages=index.indexedDb.iterateSnapshotPages,evidence=index.indexedDb.iterateSnapshotEvidence;
+          index.indexedDb.iterateSnapshotPages=async function(...args){
+            pagePasses++;ok(index.sourceAcquisition.hasSemanticDependencies(),'Authority before full pages');
+            ok(index.semanticScopes.has('A.md'),'Requested publication before full pages');
+            ok(index.get('A.md').neighbours.get('B.md')?.isLeftFriend,'Current requested role before acceleration');
+            return pages.apply(this,args);
+          };
+          index.indexedDb.iterateSnapshotEvidence=async function(...args){evidencePasses++;return evidence.apply(this,args)};
+          const restored=await index.restorePersistedSnapshot(['A.md']);ok(restored.partial,'Bounded preview remains usable');
+          await wait(()=>entered);equal(index.getSnapshotHydrationDiagnostics().phase,'source-authority','Observable priority phase');
+          equal(pagePasses,0,'No full page reads during source adoption');equal(evidencePasses,0,'No evidence retention during source adoption');
+          ok(!index.search('RemoteGhost',10).length,'Unloaded global vocabulary not claimed early');
+          if(cancel){
+            if(retry){unblock();await wait(()=>index.startupSourceAuthorityWaiter!==null)}
+            const pending=index.waitForSnapshotHydration();index.invalidateSemanticPolicy();equal((await pending).restored,false,'Cancelled startup');
+            const state=index.state,diagnostics=index.getSnapshotHydrationDiagnostics();unblock();await new Promise(r=>setTimeout(r,100));
+            equal(index.startupSourceAuthorityWaiter,null,'Cancelled authority observer released immediately');
+            equal(pagePasses,0,'Late authority cannot launch cancelled hydration');equal(evidencePasses,0,'No late evidence reads');
+            ok(index.state===state,'Late authority cannot replace publication');equal(index.getSnapshotHydrationDiagnostics(),diagnostics,'Terminal diagnostics immutable');
+          }else{
+            unblock();equal((await index.waitForSnapshotHydration()).restored,true,'Complete search acceleration still loads');
+            ok(pagePasses>0&&evidencePasses>0,'Full reads follow authority/requested publication');
+            ok(index.search('RemoteGhost',10).some(p=>p.path==='RemoteGhost'),'Body-only global vocabulary preserved');
+            equal(index.startupSourceAuthorityWaiter,null,'Restore authority observer released');
+            equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No new full build');
+            equal(index.getSourceAcquisitionCounters().vaultReads,0,'No valid body reads');equal(index.getSourceAcquisitionCounters().parses,0,'No parsing');
+            equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll()),heads,'Exact source heads preserved');
+          }
+          return true;
+        }finally{unblock?.();release?.();initial?.destroy();index?.destroy();f.close()}
+      })()`), true);
+    } finally { await browser.cleanup(); }
+  });
+}
+
 test("restart resolver waves retain identical heads and automatically update genuinely changed bindings", async () => {
   const browser = await chromiumHarness(bundle);
   try {
@@ -156,13 +227,15 @@ for (const damage of ["missing", "metadata", "chunks", "offline-edit"]) {
         const currentNeighborhoodView=${currentNeighborhoodView.toString()},centerGateSettings=${centerGateSettings.toString()};
         let initial,index,oracle,release;
         try {
-          f.text=f.texts;f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.app.vault.getName=()=>name;
+          f.text=f.texts;f.add('A.md','Friends:: [[B]]');f.add('B.md','');
+          f.add('C.md','Friends:: [[RemoteGhost]]\\nType:: RemoteType\\nDormant:: [[DormantGhost]]\\n[Remote URL](https://example.com/remote)',{aliases:['RemoteAlias']});
+          f.metadata.get('C.md').hostTags=['#remote/nested'];f.metadata.get('C.md').tags=[{tag:'#remote/nested'}];f.app.vault.getName=()=>name;
           f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
           await f.acquire();ok(await f.acquisition.reconcile(),'Initial facts complete');
           const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
             inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
           const presentation={noteTypeField:'Type',primaryTagField:'Style'},view=centerGateSettings({showFolderNodes:false});
-          initial=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md'],semantic,presentation,true),semantic,view);
+          initial=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md','C.md'],semantic,presentation,true),semantic,view);
           if(damage==='chunks')ok(await f.cache.writeSnapshot({createdAt:Date.now(),vaultSignature:M.computeVaultSignature(f.app),
             settingsSignature:M.computeIndexSettingsSignature(initial.plugin.settings),discoveredFields:[]},
             [...initial.state.pages.values()].map(p=>M.persistedPageFromGraphPage(p)),
@@ -179,13 +252,21 @@ for (const damage of ["missing", "metadata", "chunks", "offline-edit"]) {
           ok(index.hasSourceBackedStartup(),'Distinct source-backed startup, not full graph authority');
           ok(index.hasPhysicalBaseline(),'Physical operations supported');equal(index.isFullSnapshotHydrated(),false,'No fabricated full graph');
           ok(await index.adoptStartupSources(),'Normal source owner closes startup readiness');
+          ok(index.search('RemoteGhost',10).some(p=>p.path==='RemoteGhost'),'Body-only virtual target outside requested scope restored');
+          ok(index.search('Remote URL',10).some(p=>p.path==='https://example.com/remote'),'Body-only URL label outside scope restored');
+          ok(index.search('RemoteAlias',10).some(p=>p.path==='C.md'),'Global alias restored');
+          ok(!index.search('DormantGhost',10).some(p=>p.path==='DormantGhost'),'Dormant references cannot materialize search nodes');
+          const suggestions=index.suggestionCatalog();ok(suggestions.noteTypes.includes('RemoteType'),'Inline note type suggestion outside scope restored');
+          ok(suggestions.tags.includes('#remote/nested'),'Host tag suggestion outside scope restored');
+          equal(index.state.evidence.declarationCount,0,'Global vocabulary retains no full evidence');
+          for(const page of index.state.pages.values())equal(page.neighbours.size,0,'Only requested scopes own relationships');
           const counters=index.getSourceAcquisitionCounters();equal(counters.vaultReads,damage==='offline-edit'?1:0,'Only offline body misses read');
           equal(counters.parses,damage==='offline-edit'?1:0,'Only offline body misses parse');
           equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No full graph/source rebuild');
           const after=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
           if(damage!=='offline-edit')equal(after,heads,'Valid neutral heads preserved exactly');
           else equal(after.find(h=>h.sourceId==='B.md'),heads.find(h=>h.sourceId==='B.md'),'Unchanged owner preserved');
-          oracle=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md'],semantic,presentation,true),semantic,view);
+          oracle=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md','C.md'],semantic,presentation,true),semantic,view);
           equal(currentNeighborhoodView(index,'A.md'),currentNeighborhoodView(oracle,'A.md'),'Canonical requested view, provenance and gates');
           index.scheduleSnapshotPersist();equal(index.snapshotPersistTimer,null,'Partial scopes cannot overwrite full graph pointer');
           return true;
@@ -252,4 +333,108 @@ test("a damaged requested source schedules one local repair and automatic ready 
       }finally{f.close()}
     })()`), true);
   } finally { await browser.cleanup(); }
+});
+
+/** Cache-loss vocabulary must retain a shared URL when only one referring note drops it. */
+test("source-backed node vocabulary preserves shared URL lifetime through ordinary edits", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('si5-node-shared-lifetime');
+      const centerGateSettings=${centerGateSettings.toString()};let index,release;
+      try {
+        f.app.vault.getName=()=> 'si5-node-shared-lifetime';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        const url='https://example.com/shared';
+        f.add('A.md','');f.add('C.md','[First label]('+url+')');f.add('D.md','[Second label]('+url+')');
+        await f.acquire();ok(await f.acquisition.reconcile(),'Durable source inventory');f.acquisition.close();
+        const settings={...centerGateSettings({showFolderNodes:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},
+          inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30,lastActivePath:'A.md'};
+        index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);
+        index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
+        ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Source-backed restore');
+        if(index.hasPendingSnapshotHydration())ok((await index.waitForSnapshotHydration()).restored,'Vocabulary hydration completes');
+        ok(await index.adoptStartupSources(),'Global vocabulary complete');
+        const C=f.files.get('C.md');
+        f.texts.set('C.md','[First label]('+url+')\\nType:: Changed');C.stat.mtime++;
+        f.app.vault.trigger('modify',C);
+        equal((await index.patchMarkdownPaths(['C.md'])).outcome,'patched','First ordinary patch');
+        f.texts.set('C.md','Type:: Changed');C.stat.mtime++;
+        f.app.vault.trigger('modify',C);
+        equal((await index.patchMarkdownPaths(['C.md'])).outcome,'patched','Second ordinary patch');
+        ok(index.search('shared',10).some(p=>p.path===url),'Unchanged D still materializes shared URL');
+        equal(index.get(url).name,'Second label','URL label moves to the remaining first meaningful owner');
+        const D=f.files.get('D.md');f.texts.set('D.md','');D.stat.mtime++;f.app.vault.trigger('modify',D);
+        equal((await index.patchMarkdownPaths(['D.md'])).outcome,'patched','First edit on an evidence-free owner');
+        ok(!index.search('shared',10).some(p=>p.path===url),'Last owner removal prunes URL on its first edit');
+        ok(!index.search('https://example.com',10).some(p=>p.path==='https://example.com'),'Unused URL origin pruned');
+        equal(index.sourceAcquisition.nodeImpacts.size,0,'Committed edit backlog released');
+        return true;
+      }finally{release?.();index?.destroy();f.close()}
+    })()`),true);
+  }finally{await browser.cleanup()}
+});
+
+/** Deleted owners retire source incidence before tombstoning, then close global vocabulary locally. */
+test("source-backed vocabulary repairs deleted owners without a graph or vocabulary rebuild", async () => {
+  const browser=await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('si5-node-deletion');
+      const centerGateSettings=${centerGateSettings.toString()};let index,release;
+      const wait=async predicate=>{const at=Date.now();while(Date.now()-at<10000){if(predicate())return;await new Promise(r=>setTimeout(r,20))}throw Error('Node impact repair did not close')};
+      try {
+        f.app.vault.getName=()=> 'si5-node-deletion';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        f.add('A.md','');f.add('C.md','Friends:: [[Ghost]]\\n[Deleted URL](https://example.com/deleted)');
+        await f.acquire();ok(await f.acquisition.reconcile(),'Initial facts');f.acquisition.close();
+        const settings={...centerGateSettings({showFolderNodes:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
+          inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30,lastActivePath:'A.md'};
+        index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
+        ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Source-backed restore');ok(index.hasPendingSearchVocabulary(),'Physical baseline is not global vocabulary');
+        if(index.hasPendingSnapshotHydration())ok((await index.waitForSnapshotHydration()).restored,'Vocabulary hydration completes');
+        ok(await index.adoptStartupSources(),'Global vocabulary');ok(!index.hasPendingSearchVocabulary(),'Vocabulary ready');
+        equal(index.removeVirtualPageIfUnreferenced('Ghost'),false,'Empty optional evidence is not global absence proof');
+        equal(await index.removeVirtualPageIfUnreferencedFromSources('Ghost'),false,'Current source still materializes ghost');
+        const C=f.files.get('C.md');f.files.delete('C.md');f.texts.delete('C.md');f.metadata.delete('C.md');
+        f.app.vault.trigger('delete',C);index.dematerializeFile('C.md');ok(await index.flushSourceRepository(),'Tombstone and dependencies close');
+        await wait(()=>!index.hasPendingSearchVocabulary());
+        ok(!index.search('Ghost',10).some(p=>p.path==='Ghost'),'Retired virtual target pruned');
+        ok(!index.search('Deleted URL',10).some(p=>p.path==='https://example.com/deleted'),'Retired body URL pruned');
+        equal(index.getSourceAcquisitionCounters().vaultReads,0,'No body IO for retirement');equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No global graph rebuild');
+        return true;
+      }finally{release?.();index?.destroy();f.close()}
+    })()`),true);
+  }finally{await browser.cleanup()}
+});
+
+/** A policy supersession after replay has begun must retain the previously complete vocabulary. */
+for (const cancellation of ["policy", "restore"]) test(`late ${cancellation} cancellation cannot publish a partially replayed global vocabulary`, async()=>{
+  const browser=await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('si5-node-cancellation');const centerGateSettings=${centerGateSettings.toString()};let index,release,unblock,originalCatalog;
+      try {
+        f.app.vault.getName=()=> 'si5-node-cancellation';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        f.add('A.md','');f.add('C.md','[URL](https://example.com/late)');await f.acquire();ok(await f.acquisition.reconcile(),'Initial facts');f.acquisition.close();
+        const settings={...centerGateSettings({showFolderNodes:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},
+          inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30,lastActivePath:'A.md'};
+        index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
+        let finished;const catalogFinished=new Promise(r=>finished=r);originalCatalog=M.GraphBuilder.prototype.buildSourceNodeCatalog;
+        M.GraphBuilder.prototype.buildSourceNodeCatalog=async function(...args){const result=await originalCatalog.apply(this,args);finished(result);return result};
+        let entered;const started=new Promise(r=>entered=r),blocked=new Promise(r=>unblock=r),replay=index.sourceAcquisition.replayNodeMetadata;
+        index.sourceAcquisition.replayNodeMetadata=async function(id,...args){if(id==='C.md'){entered();await blocked}return replay.call(this,id,...args)};
+        ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Source baseline preview');
+        const task=index.waitForSnapshotHydration();await started;const state=index.state;
+        ${cancellation === 'policy' ? 'index.invalidateSemanticPolicy()' : 'index.cancelSnapshotHydration()'};unblock();equal((await task).restored,false,'Cancelled catalog stays pending');
+        equal(await catalogFinished,null,'Cancelled private catalog rejects before binding/publication');
+        ok(index.state===state,'No partially compiled global state published');ok(!index.search('late',10).length,'No late URL leak');
+        equal(index.sourceAcquisition.repository.readers.size,0,'Selected reader pins released');return true;
+      }finally{if(originalCatalog)M.GraphBuilder.prototype.buildSourceNodeCatalog=originalCatalog;unblock?.();release?.();index?.destroy();f.close()}
+    })()`),true);
+  }finally{await browser.cleanup()}
 });

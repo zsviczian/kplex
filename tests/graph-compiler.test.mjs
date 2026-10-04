@@ -52,7 +52,7 @@ const boundary = (name = "fixture") => ({
 
 async function compileRecords(records, options = {}) {
   records = neutralizeLegacyReferenceFixtures(records);
-  const compiler = new core.NormalizedGraphCompiler(options.settings ?? settings, options.runtime ?? runtime());
+  const compiler = new core.NormalizedGraphCompiler(options.settings ?? settings, options.runtime ?? runtime(), options.projection ?? "graph");
   const readBoundary = options.boundary ?? boundary("compile");
   const read = compiler.beginRead(readBoundary);
   if (records.length === 0) {
@@ -69,7 +69,7 @@ async function compileRecords(records, options = {}) {
     }
   }
   assert.equal(compiler.completeRead(read, options.currentBoundary ?? readBoundary), options.expectComplete ?? true);
-  return { compiler, compilation: options.expectComplete === false ? null : await compiler.finish() };
+  return { compiler, compilation: options.expectComplete === false ? null : await (options.projection === "nodes" ? compiler.finishNodes() : compiler.finish()) };
 }
 
 const stableSort = (items) => items.map((item) => JSON.stringify(item)).sort();
@@ -459,4 +459,43 @@ test("portable evidence cannot fabricate a missing contribution revision", async
   store.addPair(source.id, target.id, "parent", core.RelationType.DEFINED, core.LinkDirection.FROM, { sourceKind: "inline-ontology" });
   const unowned = new core.PortableGraphCompilation(compilation.nodes, compilation.discoveredFields, nodes, keys, store, new Map());
   assert.throws(() => [...unowned.declarations()], /no contribution ownership/);
+});
+
+/** Compare the vocabulary against full semantics across neutral policy selection, never a second oracle. */
+test("node-only compilation preserves canonical vocabulary and facets without evidence or resolver work", async () => {
+  const records = produceNormalizedFixtureRecords(join(root, "tests/fixtures/excalibrain-indexing/Vault")).records;
+  for (const policy of [settings, { ...settings, hierarchy: { ...settings.hierarchy, parents: [], leftFriends: ["Parent", "Children"] },
+    thumbnailProperty: "Friends", showFullTagName: false }]) {
+    const full = await compileRecords(records, { settings: policy });
+    let resolverProgress = 0;
+    const nodes = await compileRecords(records, { settings: policy, projection: "nodes",
+      runtime: runtime({ onProgress: () => { resolverProgress += 1; } }) });
+    assert(nodes.compilation);
+    const facets = (result) => [...result.nodes.values()].map(({ neighbours, ...node }) => node);
+    assert.deepEqual(facets(nodes.compilation), facets(full.compilation));
+    assert.deepEqual(nodes.compilation.discoveredFields, full.compilation.discoveredFields);
+    assert.equal(nodes.compilation.kind, "node-metadata");
+    assert.equal(nodes.compilation.declarations, undefined);
+    assert.equal(resolverProgress, 0);
+    assert.equal(nodes.compiler.evidence.declarationCount, 0);
+    assert.equal(nodes.compiler.presentationCounts.size, 0);
+    for (const node of nodes.compilation.nodes.values()) assert.equal(node.neighbours.size, 0);
+    assert.equal(await nodes.compiler.finish(), null, "Node vocabulary cannot become complete graph authority");
+  }
+});
+
+/** Terminal invalidation must discard the node projection just as it discards a full graph. */
+test("node-only compilation rejects incomplete materialization, open reads and cancellation", async () => {
+  const ref = { id: core.nodeId("opaque physical"), kind: "document", state: "materialized", physicalPath: "A.md" };
+  const rev = core.sourceRevision("node-only:1");
+  const incomplete = await compileRecords([{ kind: "field-name", source: ref, sourceRevision: rev,
+    fieldName: "Unused", normalizedFieldName: "unused" }], { projection: "nodes" });
+  assert.equal(incomplete.compilation, null);
+  let current = true;
+  const compiler = new core.NormalizedGraphCompiler(settings, runtime({ isCurrent: () => current }), "nodes");
+  compiler.beginRead(boundary("node-only-open"));
+  assert.equal(await compiler.finishNodes(), null);
+  current = false;
+  assert.equal(await compiler.finishNodes(), null);
+  assert.equal(await new core.NormalizedGraphCompiler(settings, runtime()).finishNodes(), null);
 });

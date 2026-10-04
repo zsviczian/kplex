@@ -1,4 +1,4 @@
-/** Exact-build SI5 native restart/cache recovery in a configured disposable vault. */
+/** Exact-build SI5 native restart/cache recovery, including global vocabulary outside requested scopes, in a disposable vault. */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -40,9 +40,10 @@ try{
     ${restartOnly?"c.expectedHeadDigest=await headsDigest(p);":""}
     void p.activateView();
     return {ready:true,hidden:document.hidden,throttle:c.throttle,markdownFiles:app.vault.getMarkdownFiles().length};`,"preflight");initialized=true;
-  if(!restartOnly)await run(`${helper}const p=await settle(),c=window.kplexSi5Native,A='__kplex_si5_A.md',B='__kplex_si5_B.md';
-    ok(!app.vault.getFileByPath(A)&&!app.vault.getFileByPath(B),'Fixture collision');
-    for(const [path,text] of [[B,''],[A,'SI5Friends:: [['+B+']]']]){c.created.push(path);await app.vault.create(path,text);await settle()}
+  if(!restartOnly)await run(`${helper}const p=await settle(),c=window.kplexSi5Native,A='__kplex_si5_A.md',B='__kplex_si5_B.md',C='__kplex_si5_C.md';
+    ok([A,B,C].every(path=>!app.vault.getFileByPath(path)),'Fixture collision');
+    const remoteText='---\\naliases: [SI5RemoteAlias]\\n---\\nSI5Friends:: [[__kplex_si5_RemoteGhost]]\\n'+p.settings.noteTypeField+':: SI5RemoteType\\n[SI5Remote URL](https://si5.example/remote)';
+    for(const [path,text] of [[B,''],[A,'SI5Friends:: [['+B+']]'],[C,remoteText]]){c.created.push(path);await app.vault.create(path,text);await settle()}
     const leaf=app.workspace.getLeaf(true);await leaf.openFile(app.vault.getFileByPath(A),{active:true});c.fixtureLeaf=leaf;
     for(const existing of app.workspace.getLeavesOfType('k-plex-react-view'))existing.detach();p.settings.lastActivePath=A;await p.saveSettings();await p.activateView();ok(current(),'Cancelled fixture setup');await p.index.refreshSemanticSettings();await settle();
     ok(current(),'Cancelled fixture setup');
@@ -90,10 +91,11 @@ try{
       ${restartOnly?"ok(await headsDigest(p)===c.expectedHeadDigest,'Warm restart rewrote selected source heads');":""}
       ${restartOnly?"":"ok(i.get('__kplex_si5_A.md')?.neighbours.get('__kplex_si5_B.md')?.isRightFriend,'Saved ontology after reload');ok(i.isSemanticWriteReady('__kplex_si5_A.md','__kplex_si5_B.md'),'Current write authority');for(const path of c.created)if(path!=='__kplex_si5_A.md'||"+JSON.stringify(name)+"!=='offline-edit')ok(JSON.stringify(heads[path])===JSON.stringify(c.heads[path]),'Valid neutral head rewritten');"}
       ${name==='offline-edit'?"ok(i.get('__kplex_si5_A.md')?.neighbours.get('__kplex_si5_Ghost')?.isRightFriend,'Latest offline candidate replayed');":""}
+      ${!restartOnly&&(name==='missing-cache'||name==='corrupt-cache')?"ok(!i.hasPendingSearchVocabulary(),'Global vocabulary readiness');ok(i.search('SI5RemoteAlias',10).some(n=>n.path==='__kplex_si5_C.md'),'Remote alias outside scope');ok(i.search('SI5Remote URL',10).some(n=>n.path==='https://si5.example/remote'),'Remote body URL outside scope');ok(i.search('__kplex_si5_RemoteGhost',10).some(n=>n.path==='__kplex_si5_RemoteGhost'),'Remote virtual node outside scope');ok(i.suggestionCatalog().noteTypes.includes('SI5RemoteType'),'Remote inline type suggestion');":""}
       const center=p.settings.lastActivePath,node=[...document.querySelectorAll('[data-kplex-path]')].find(el=>el.getAttribute('data-kplex-path')===center&&el.classList.contains('kplex-role-center'));
       ok(node,'Rendered restored center');return {status:p.getIndexStatus(),counters,semantic:sem,sourceBackedStartup:i.hasSourceBackedStartup(),
         sourceBackedSemantics:i.sourceBackedSemantics,hydration:i.getSnapshotHydrationDiagnostics(),hidden:document.hidden,backgroundThrottling:require('@electron/remote').getCurrentWindow().webContents.getBackgroundThrottling(),
-        markdownReads:c.reads,trace:c.trace,jsHeapBytes:performance.memory?.usedJSHeapSize??null,renderedCenter:true,${restartOnly?"sourceHeadsUnchanged:true,":""}};`,name);
+        markdownReads:c.reads,trace:c.trace,jsHeapBytes:performance.memory?.usedJSHeapSize??null,renderedCenter:true,globalVocabularyRecovered:${!restartOnly&&(name==='missing-cache'||name==='corrupt-cache')},${restartOnly?"sourceHeadsUnchanged:true,":""}};`,name);
     report.runs.push({name,elapsedMs:Date.now()-started,...result});
   }
   report.status="passed";

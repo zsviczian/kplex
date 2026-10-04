@@ -2083,6 +2083,7 @@ export default class KplexPlugin extends Plugin {
     return this.computeIndexStatusFacts(this.cachedMarkdownFileCount);
   }
 
+  /** Aggregate cache, requested-semantic and global-search readiness without scheduling work. */
   private computeIndexStatusFacts(totalFiles: number | null): {
     upToDate: boolean;
     phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating";
@@ -2096,7 +2097,8 @@ export default class KplexPlugin extends Plugin {
       && this.rebuildTask === null
       && this.rebuildTimer === null
       && !loadingCache
-      && !semanticPreparing;
+      && !semanticPreparing
+      && !this.index.hasPendingSearchVocabulary();
     const indexedFiles = totalFiles === null
       ? this.index.indexedMarkdownFileCount()
       : upToDate ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
@@ -3626,7 +3628,7 @@ export default class KplexPlugin extends Plugin {
 
     // Remaining references are handled above. Once they are gone, remove the dematerialized graph
     // endpoint when nothing else still references it; focus/history have already moved away.
-    if (!this.index.removeVirtualPageIfUnreferenced(path)) return;
+    if (!(await this.index.removeVirtualPageIfUnreferencedFromSources(path))) return;
   }
 
   private async frontmatterPropertyLineRange(file: TFile, fieldName: string): Promise<{ start: number; end: number } | null> {

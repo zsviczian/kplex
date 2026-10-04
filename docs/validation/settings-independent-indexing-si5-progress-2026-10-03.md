@@ -2,7 +2,22 @@
 
 SI4 is finalized at `323b260127e4fb81e1d3697d4ee8b0282f8cdb12` on `indexing-optimization-v2`. All ten original SI4 Delivery 1/2 exits are accepted. The maintainer authorized that commit and SI5 implementation, with Obsidian CLI testing and later manual iOS/Android testing. No push or release was made.
 
-**SI5 remains in progress; the maintainer-authorized SI5a interim is committed at `e50dd521550e09d12de2b155018dce9cb8026201`. This is a candidate report, not SI5 acceptance or readiness for physical-device sign-off.** The five original Delivery 3 boxes remain open. Required desktop consumer coverage and scale measurements must finish before the maintainer's device runs can close the remaining gates. C15–C26 remain paused.
+**SI5 remains in progress; the maintainer-authorized SI5a interim is committed at `e50dd521550e09d12de2b155018dce9cb8026201`. SI5b is committed at `7bd14cf` with its known limitations. This is a candidate report, not SI5 acceptance or readiness for physical-device sign-off.** The five original Delivery 3 boxes remain open. Required desktop consumer coverage and scale measurements must finish before the maintainer's device runs can close the remaining gates. C15–C26 remain paused.
+
+## Current progress and next decision
+
+| Work in the existing SI5 finish plan | Current outcome |
+| --- | --- |
+| Source-first startup and global vocabulary recovery | Implemented; exact production verify and five small native recovery faults pass. |
+| Three comparable warm restart samples | Complete: 72.974 / 74.267 / 77.422 s; median 74.267 s. No matched pre-implementation restart baseline. |
+| Desktop main/popout | Reference-neighborhood independent centers/current policy/cameras/demand release pass. Other consumer workflows and paint remain open. |
+| Dense/high-node work | Native 20k hub repeatedly fails `decode-budget` before publication. Separate 108k-target/259k-occurrence source fixture generated/verified; actual host counts/performance unmeasured. |
+| Cold, acquisition/sync interruption and storage | Small/browser recovery coverage passes; large cold CLI observation fails during source authority. Full native interruption/storage and three cold samples remain open. |
+| Physical iOS/Android and acceptance audit | Pending desktop readiness; all five aggregate Delivery 3 boxes stay open. |
+
+The next scope decision is the proposed bounded requested-projection correction described at the end
+of this report. Source/adoption attribution remains a separate observed bottleneck. No cap, deadline,
+golden, schema, device gate or performance failure is waived. Current candidate remains uncommitted.
 
 ## Implemented behavior
 
@@ -140,7 +155,7 @@ excluded replacement is retained, and one further foreground run is pending coop
 
 ## Maintainer-approved progress and next steps
 
-The reviewed large-convergence correction is authorized for an **SI5b interim commit**. The known
+The reviewed large-convergence correction is committed as **SI5b `7bd14cf`**. The known
 cold preflight failure and missing third comparable warm result remain explicit; this commit does
 not accept SI5. The maintainer also approves source-first startup with global vocabulary recovery.
 
@@ -148,10 +163,273 @@ not accept SI5. The maintainer also approves source-first startup with global vo
 | --- | --- | --- |
 | SI4 settings independence and ordinary maintenance | Complete, `323b260` | No further SI4 validation |
 | SI5a source-backed startup, selective recovery and writer retirement | Committed, `e50dd52` | Retain existing regression coverage |
-| SI5b canonical host reuse and large warm functional convergence | Reviewed; interim commit authorized | Keep cold timing failure visible |
-| Source-first startup and full virtual/URL search/suggestion recovery | Approved, starting | Reuse existing owners; validate cancellation and consumer parity |
+| SI5b canonical host reuse and large warm functional convergence | Committed, `7bd14cf` | Keep cold timing failure visible |
+| Source-first startup and full virtual/URL search/suggestion recovery | Uncommitted implementation passes full verification and small native faults | Complete exact-build large foreground validation; retain performance limits |
 | Desktop startup/sync/interruption/storage/foreground scale acceptance | Incomplete | Exact-build cold run, three comparable warm runs, dense/high-node cases and popout teardown |
 | Physical iOS/Android | Pending desktop readiness | Maintainer follows device checklist |
 | Final SI5 retirement/evidence audit and acceptance | Pending | Close original five exits only from required results |
 
 This is the existing finish plan. No extra prerequisite checkpoint, percentage or finish date is added.
+
+
+## Approved source-first startup — implemented candidate, native timing still open
+
+SI5b is committed at `7bd14cf252dd5e61be36e56d369ecd54bf275cdd`. The following approved
+startup change is a separate **uncommitted working-tree candidate**, not another accepted SI5 gate.
+
+GraphIndex now keeps the bounded preview visible, waits for neutral-source authority and prepares
+available requested current-policy scopes before reading complete snapshot pages/relations/evidence.
+A compatible cached graph also stays acceleration for these requested consumers. Complete global
+cache search still loads afterward; this first change does **not** remove complete hydration from
+global readiness or implement missing-cache body-only virtual/URL search/suggestion recovery.
+No new store, catalog, parser, classifier or scheduler is introduced. The existing watchdog retains
+its 90-second inactivity bound and advances only from completed source work/compiler continuations.
+
+The first native pilot exposed an early resolver wave cancelling `flush()`. Treating that transient
+result as missing authority discarded the available full cache. The correction waits for the existing
+source scheduler's readiness callback, with one restore-owned observer cancelled by the existing
+watchdog/policy/unload lifetime; it preserves subsequent complete cache loading. Real-browser tests
+drive that resolver event without manual reconciliation and cover immediate observer release.
+
+| Candidate | Actual verification |
+| --- | --- |
+| First ordering build `1e752bc9…` | Full `npm test`: Node 133 / UI 7 / portable sources 314 / real-browser IDB 186; strict indexing/settings and large 20,015-owner exact publication pass. Architecture 7, core 60, zero-warning scanner, actual types/build pass as separate verification commands. |
+| Corrected build `0f60a717…` | Affected startup/IDB 14, strict indexing/settings plus seven watchdog phases, architecture and zero-warning scanner pass; actual types/build and exact-build native command/render/error smoke pass. Full suite was not redundantly repeated after this local retry correction. |
+| Corrected small native | All five cases pass: policy/cache restarts have zero acquisition counters; source corruption repairs exactly one owner from body-v2 without body reads/parses; offline edit reads/parses exactly one owner. Every case has zero full builds. |
+
+First build SHA-256: `1e752bc983eed4f8366a907e578187f0db4a1224380ac051d18b11619d8e8fa4`.
+Corrected SHA-256: `0f60a71706e702464c7d57e2d12ba0e78722ff3b402873d9de99fabc79c12806`.
+Manifest/CSS hashes remain unchanged. Aggregate acquisition counters do not count every inventory
+head/family visit; zero body IO/writes must not be described as zero startup validation work.
+
+Both large attempts remain failures in the existing machine-readable evidence. First build misses
+the unchanged 240-second preflight after 17,251 checked owners, with zero reads/parses/repairs/
+resolution writes/failures/full builds. All 241 foreground samples pass; sampled renderer JS heap
+peaks at 1,482,723,839 bytes. Its early transient fallback is the corrected defect above. Corrected
+build stops on a 30-second CLI `eval` timeout; all 41 samples are unfocused and timing is excluded.
+That is neither a passing cold measurement nor a proved crash/memory diagnosis. A later serial probe
+finds corrected source authority ready, all 20,015 owners checked/reused, complete acceleration
+(20,709 pages / 715,032 declarations), one current requested publication with 12 dependency visits,
+no readiness observer/inventory and zero reads/parses/rewrites/full builds. Its hydration diagnostic
+span is 275,596 ms, not a comparable foreground startup/paint measurement. Functional convergence
+is established; cold/three-comparable-warm timing acceptance is not. Old SI5b warm timings cannot
+be combined with a different build to satisfy that requirement.
+
+Development failures are retained: the sandbox initially denied the browser localhost listener; two
+new fixtures initially omitted their injected assertion helper; a strict URL-heavy 51.9 ms timer
+assertion failed while checks overlapped. Required access/fixture corrections and serial reruns pass
+with unchanged thresholds. No golden, deadline, cap or memory allowance changed.
+
+Cleanup passes: all fourteen original small stores/config restored and compared, temporary plugin
+and fixtures/controllers removed, two original files and original throttling. Large is source-ready
+with complete acceleration, 20,015 original files, no fixtures/controllers/waiter, original throttling;
+its test window is closed and verified build/valid progress retained. Personal vault untouched.
+
+**Proceed:** finish global neutral-fact search/suggestion recovery and the associated consumer
+readiness split, then validate exact-build cold and three comparable warm runs, acquisition/sync
+interruption/storage failure, dense/high-node foreground latency/memory and main-window/popout
+teardown. The maintainer's physical iOS/Android tests follow desktop readiness. Final retirement/
+evidence audit closes the original five SI5 exits only when all required outcomes pass.
+
+
+## Global node recovery candidate — exact build `9c9a2545…`
+
+The maintainer asks to continue the plan without committing. This uncommitted candidate extends the
+existing canonical compiler with an explicit node projection. It restores global body-only virtual/URL
+nodes, first meaningful URL labels, aliases, tags, inline type/style facets and suggestions after optional
+graph-cache loss. It retains no global relationship evidence. Physical preview, requested semantic
+readiness and complete search vocabulary remain distinct; only complete, current node metadata/search
+publishes atomically. No new storage schema/catalog/journal/parser/classifier or scheduler is introduced.
+
+Normal edits preserve shared URL labels and lifetime through the existing local contributor/compiler
+owners. A byte-bounded changed-owner backlog supplies conservative old synthetic endpoint candidates;
+its exact borrowed membership retires with synchronous publication. Rename/deletion masks source
+readers immediately and captures old candidates privately under the existing tombstone writer pin.
+Corrupt/oversized retired incidence remains pending and requests exceptional node-only recovery.
+Policy, source, physical/host, publication, generation and restore-run cancellation fences reject late
+private work. The restore watchdog keeps its original inactivity deadline.
+
+`main.js` is `9c9a2545a0b1bc2ba4c97bb4502fc3ad88966907bcbaf5feb77378b01ad239c3`;
+manifest/CSS hashes are unchanged. Node 22.22.2 `npm run verify` passes: architecture 7, core 62,
+strict indexing/settings (24 settings scenarios and seven existing watchdog phases), Node 135, UI 7,
+portable sources 317, real Chromium/IndexedDB 192, actual installed Obsidian types and production
+build. A local restore-run fence was added during the long full run; the final browser policy/restore
+terminal-rejection cases and actual final types/build pass afterward, with the scanner rechecked
+with zero warnings. Focused retirement regressions pass 26/26. Required goldens, caps and deadlines
+are unchanged. The exact machine evidence retains failed development/staging attempts.
+
+The 20,015-owner browser regression publishes once with exact semantic/provenance, gates, siblings,
+degrees and no body I/O; cancellation takes two yields. Cached publication is 240,773.3 ms,
+sampled peak JS heap 537,621,630 bytes, combined reservation peak 719,667,320 bytes. This is
+supported completion, not native paint latency or device peak memory acceptance.
+
+Exact native smoke passes. All five small native scenarios pass: changed saved ontology, missing
+and corrupt optional graph acceleration, one damaged source and offline edit. Missing/corrupt graph
+cases also assert a remote alias, body-only URL/virtual target and inline type suggestion outside
+requested scopes. Valid source heads remain unchanged; acquisition counters are zero except the
+single damaged owner (legacy body reuse, no Vault parse) and offline owner (one read/parse).
+Native renderer-related Markdown reads are reported separately and are not claimed as zero.
+Cleanup restores/compares all fourteen original stores/configuration, removes the originally absent
+temporary plugin and all fixtures/controllers, retains two original Markdown files and original throttling.
+
+The new large native cold preflight fails the unchanged 240-second readiness bound at 18,881 checked
+owners, zero body I/O, source repairs/resolution rewrites/full builds, and sampled peak JS heap
+867,676,745 bytes. All 241 samples are document/window-unfocused (visible, original throttling true),
+so this run is **excluded from comparable performance evidence**. No warm run starts. A later probe
+finds all 20,015 sources ready, 20,709 pages and 715,032 evidence declarations hydrated, current
+requested publication (12 dependency visits), and zero body I/O/resolution rewrites/full builds.
+This is eventual functional convergence, not a cold timing pass.
+
+Native CLI application/window focus calls did not activate the window. Computer-use fallback is
+blocked by pending macOS Accessibility and Screen Recording permissions. The immediate manual
+step is to bring **kplex-test** Obsidian to the foreground and keep it active while exact-build cold
+and three comparable warm measurements run. No further security permission is necessary if the
+maintainer activates the window manually. If a comparable cold failure survives the consolidated
+source-first correction, the design's repeated-blocker rule requires a concrete alternative/cost
+report before further work on that assumption.
+
+Large settings and enabled-plugin files compare byte-for-byte with their backups. All 20,015 original
+Markdown files remain; no test fixtures/controllers, inventory or readiness observer remains, and
+original throttling is true. The verified build and valid source progress remain installed; the test
+window is left open for manual foreground activation. Personal vault is untouched.
+
+The original SI5 exits remain open. Main-window/popout scale, interrupted acquisition/sync and physical
+iOS/Android coverage remain required before acceptance; physical testing is not yet requested.
+
+
+## Timing baseline and resumed foreground runs
+
+The maintainer closes excalidraw-test and foregrounds kplex-test. Native checks confirm document/window
+focus true, visibility and original throttling before the new serial run. Two exact `9c9a2545…` warm
+restarts pass at **72,974 ms** and **74,267 ms**. All 73/75 respective foreground samples are valid;
+selected-head digests are unchanged, body acquisition/parser/resolution writes/full builds are zero,
+the center renders, and full acceleration hydrates. Sampled renderer heap peaks are 942,614,130 and
+974,579,133 bytes, not process/device peak memory.
+
+The third run reaches the existing 240-second readiness timeout after Obsidian becomes hidden and
+unfocused: 62 hidden and 63 unfocused samples out of 123; original throttling remains enabled. It is
+excluded. Source authority and the current requested publication are already ready with zero source
+work/full builds. A post-driver probe sees optional hydration still in preview-search, 20,709 pages/
+relations and zero evidence loaded. That location is observed; the hidden interval prevents causal
+latency attribution. The driver restores settings/methods/throttle and removes controllers. No third
+comparable result or three-run median is claimed. Bring the window back to foreground for one
+replacement run; the existing one-run replacement option preserves the first two valid results.
+
+There is **no matched pre-implementation full-restart baseline** for this procedure. The historical
+[C08P warm restore report](C08P-2026-09-26.md) measures three explicit snapshot restores after startup
+has settled: accepted HEAD `04f04eb` is **6.569 / 5.801 / 4.735 seconds**, median **5.801 seconds**;
+the accepted C08P final build is **6.159 / 5.745 / 5.487 seconds**, median **5.745 seconds**. Those
+measure the restore call through full hydration, not plugin/app restart, neutral-source authority or
+first paint. They also use Obsidian 1.14.2 and the earlier 20,013-file/20,701-node fixture, rather than
+the present 1.14.4 / 20,015-file/20,709-node state. These values are historical references, not
+interchangeable with the SI5 restart timings.
+
+The nearest same-procedure implementation reference is SI5b's two valid foreground restarts,
+**90.475 / 90.902 seconds**. SI5b already contains indexing-independence implementation, so it is
+not a pre-implementation baseline; its third comparable sample is also absent. No speedup percentage
+or performance acceptance is inferred. Next separate source/requested/presentation/hydration work
+and cold versus warm readiness. If a pre-implementation A/B claim is needed, replay a matched
+procedure/settings/fixture on an isolated legacy-compatible cache instead of using the current DB
+with an older binary or treating the historical 5.8-second number as full startup.
+
+
+## Three foreground warm runs complete; explicit restore attributed
+
+The replacement warm restart passes on exact `9c9a2545…` at **77,422 ms**, with all 77 foreground
+samples valid. Together with 72,974 and 74,267 ms, the three same-build samples have a **74,267 ms
+median / 77,422 ms maximum**. Each preserves selected-head digests and performs zero source body
+reads/parses/acquisitions, resolution rewrites or full builds. Maximum sampled renderer heap across
+the three is **980,683,923 bytes**; this remains renderer sampling, not process/device peak memory.
+The excluded hidden third attempt remains recorded. This closes the three warm sample requirement,
+not all SI5 performance acceptance.
+
+A separate foreground explicit snapshot restore after settled startup passes at **6,018 ms**, with
+all seven focus samples valid. Inclusive wrappers attribute 2,723 ms to page/relation cursor calls,
+2,945 ms to evidence, 235 ms to presentation preparation, 4.2 ms to 14 cached body requests and
+0.5 ms to source flush. Overlapping calls must not be summed as wall-clock work. Source acquisition,
+parser, resolution rewriting and full builds remain zero. This one-run pilot is close to the
+historical explicit-restore reference; it does not provide a matched three-run A/B or explain
+all restart time.
+
+The first cold attribution attempt fails during harness setup because the native `eval` command has
+not registered 200 ms after app reload. No timing wrappers/controller are installed and no cold
+performance result is claimed. The temporary probe now retries that specific registration failure
+for at most 15 seconds within the original absolute 240-second deadline. Later source authority and
+full hydration settle with all 20,015 valid owners and no body IO; unobserved foreground conditions
+exclude that elapsed duration. CLI activation still cannot consistently establish focus; independent
+desktop functional checks continue rather than waiting for activation. No production change, commit,
+push, deadline/cap adjustment or device-readiness claim is added by these probes.
+
+
+## Desktop independent views pass; dense-hub rejection remains
+
+Native main-window/popout functional checks on the exact candidate pass with separate owning
+Documents, independent centers, both requested demands and three current-policy scope publications.
+An inference change preserves both cameras and centers; source reads/parses/repairs and full builds
+remain zero. Closing the popout releases only its demand and retains the main center/demand. Settings,
+zoom, temporary controller and owned popout are cleaned up; original throttling remains enabled.
+This does not cover settings-popout interaction, hidden-view navigation, folds, relationship edits,
+actual paint latency or physical devices.
+
+The initial second-center choice selects a real scale hub. Its requested neighborhood repeatedly
+rejects with **`decode-budget`** and no publication. A separate existing-method attribution reproduces
+that rejection **inside requested-neighborhood preparation, before candidate-degree or URL-title
+preparation**, with zero body IO/parser/repair/resolution/full-build work. The 68.772-second diagnostic
+interval is unfocused and is not performance evidence. The driver itself completes successfully as
+an attribution probe; the hub **product workflow fails**. Settings/source authority and the original
+main view remain ready after demand cleanup. The automated 20,015-owner completion result does not
+waive this different native fixture rejection. The narrower reference-neighborhood two-window test
+passes; retained setup/timeout attempts remain in machine-readable evidence.
+
+A separate deterministic high-node fixture generator now supplies the required source-input profile:
+20,000 real notes, 80,000 body-linked placeholder targets, 8,000 URLs, 259,000 link occurrences,
+160 dormant property names and 19,999 hub contributors. Focused fixture tests pass **3/3**, checking
+repeatable content identity, inventory/manifest corruption, changed bytes and refusal to overwrite.
+Actual host node/evidence counts and native foreground latency/memory remain unmeasured. The
+existing 20k/large-file timings stay tied to their original fixture and build.
+
+
+## Cold foreground attempt and required correction decision
+
+With actual foreground verified, the revised cold probe retries one native command-registration
+miss and then runs with **111 valid focus samples**, normal background throttling and temporary
+`caffeinate -d -i` assertions limited to the child process. It fails on the unchanged **30-second
+CLI command timeout** while source authority is still pending: 4,969 owners checked/reused, zero
+body reads/parses/repairs/resolution rewrites/full builds, no full optional pages/evidence loaded.
+The wrappers/controller are restored/removed. The existing 240-second readiness limit is unchanged;
+this early harness failure is not a four-minute readiness pass or an automatically waived host fault.
+
+A later aggregate observation finds all 20,015 sources ready, no inventory/scope tasks/controllers,
+20,709 pages and 715,032 evidence, with zero body work. Hydration's recorded start→complete phase
+stamp difference is **259,523 ms**, but the continuous focus trace ended at the CLI failure, so this
+is later convergence evidence rather than a comparable accepted cold timing. Source/requested
+readiness already precedes optional hydration in production; the observed delay is in source
+authority/host startup, not the separately measured six-second warm full snapshot restore. The
+relative contributions of Obsidian startup, source validation, storage and synchronous work still
+require attribution. Original settings/enablement remain byte-identical; no caps are raised.
+
+The hub failure is independently reproduced after successful direct discovery of **20,000 source
+owners and four host facts**. Canonical neighborhood preparation rejects with `decode-budget` before
+publishing and before degree/URL-title work. This repeats the original scale/retained-state blocker
+on the actual native fixture despite the prior consolidated continuation/memory correction. Per the
+[design's repeated-blocker rule](../INDEX_SETTINGS_INDEPENDENCE_DESIGN.md#transparent-progress-and-cost-control),
+report an alternative instead of assigning another cap/codec adjustment on the same assumption.
+
+**Recommended next delivery:** change the existing requested-consumer path to bounded canonical
+projections: retain exact center incidence, compact parent/sibling/degree accumulation, and pair-local
+provenance through existing readers, without retaining a complete over-cover graph for every
+contributor. Preserve canonical classification, source multiplicity, exact counts, shared lifetime,
+current-policy edit checks and all terminal publication fences. The tradeoff is a changed requested
+consumer contract and potentially more streamed reads; this needs one integrated implementation and
+native review, including this actual 715,032-declaration hub and the verified high-node fixture.
+No separate parser/classifier/catalog/journal, new schema or higher time/memory cap is proposed.
+Attribute/batch existing source adoption independently; do not assume projections fix cold authority.
+This proposal is **not implemented** and needs the maintainer's scope decision before replacing the
+current full-compilation contract. Physical iOS/Android remains premature.
+
+The high-node fixture is now generated and every file byte/inventory/manifest verified at 20,000
+files, 8,831,230 Markdown bytes and content SHA-256
+`50b8cb12ef83c3cd62f1605390fe6ff793079a9f6e37e471e59d0060cf287cd0`.
+No files were added to either running test vault. Focused generator checks pass 3/3; the previously
+recorded full runtime verification belongs to the unchanged production source/artifact, before this
+new tooling-only addition. No new whole-working-tree aggregate verify run is claimed.

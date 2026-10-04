@@ -271,3 +271,38 @@ test("a retry snapshot cannot discard a newer coalesced deletion or its unsaved 
     assert(state.repository.unsaved.has("second"), "A cancelled older predicate is not authority to clear the new mask");
   } finally { release?.(); state.repository.close(); }
 });
+
+
+for (const cancelled of [false, true]) test(`retirement observer retains private candidates while normal reads stay masked and flush owns its lifetime (cancelled ${cancelled})`, async () => {
+  const state = fixture();
+  let release, entered, escaped;
+  const hold = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { entered = resolve; });
+  let current = true;
+  try {
+    await state.repository.replace(await state.input("retire"));
+    const retirement = state.repository.tombstone("retire", () => current, false, undefined, async reader => {
+      assert(reader); escaped = reader;
+      assert.equal(await reader.visit("values", () => true), "ready");
+      entered(); await hold;
+      assert.equal(await reader.visit("values", () => true), cancelled ? "cancelled" : "ready");
+    });
+    await started;
+    assert.equal((await state.repository.inspect("retire")).reason, "tombstone");
+    assert.equal((await state.repository.readSelected("retire", () => "ready", async () => assert.fail("masked head escaped"))).reason, "tombstone");
+    let flushed = false;
+    const flush = state.repository.flush().then(() => { flushed = true; });
+    await Promise.resolve(); assert.equal(flushed, false);
+    if (cancelled) current = false;
+    release();
+    const result = await retirement;
+    await flush;
+    assert.equal(result.outcome, cancelled ? "cancelled" : "unsaved");
+    assert.equal(await escaped.visit("values", () => assert.fail("retired reader escaped")), "cancelled");
+    assert.equal(state.repository.readers.size, 0);
+    if (cancelled) {
+      await state.repository.replace(await state.input("retire", metadata("Field:: [[Replacement]]")));
+      assert.equal((await state.repository.inspect("retire")).reason, "ready");
+    }
+  } finally { release?.(); state.repository.close(); }
+});

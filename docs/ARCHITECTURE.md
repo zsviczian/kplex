@@ -155,7 +155,8 @@ inputs; `NeutralSourceRepository` owns immutable bounded facts, selected heads a
 GraphIndex compiles requested scopes from those facts. Complete graph snapshots are optional
 acceleration, and a physical fallback never becomes complete semantic authority by implication.
 Source heads own acquisition progress; legacy graph checkpoint reads remain, while their production
-progress writer is retired. Global body-only search/suggestion recovery and SI5 acceptance remain open.
+progress writer is retired. A source-backed global node projection now restores body-only virtual/URL
+search and finite suggestions after cache loss; SI5 acceptance remains open.
 
 An unscoped resolver event still closes source readiness and requires cooperative reconciliation.
 Current canonical resolution output can be compared with an exact selected family using deterministic
@@ -169,3 +170,26 @@ subsequent inspection selects the exact same durable revision and sequence. Host
 independently validated, and a changed head falls back to full validation. Inventory CPU slices use
 elapsed budgets rather than a timer per source. These changes remain within the existing acquisition,
 repository and publication owners; they do not resume C15–C26.
+
+
+During durable-source startup, GraphIndex publishes a bounded saved preview, waits for the existing
+source owner's authority and prepares available current requested scopes before full optional cache
+hydration. Source readiness retries remain in ObsidianSourceAcquisition; GraphIndex owns only one
+readiness observer, cancelled with the restore's existing watchdog/policy/unload lifetime. Completed
+inventory work and compiler continuations advance the unchanged inactivity watchdog. Compatible full
+cache search still loads afterward. After cache loss, `NormalizedGraphCompiler` uses its explicit node
+projection over canonical structural, host-link and cached Markdown facts. `PortableNodeCompilation`
+contains node metadata/discovered fields, retains no evidence or neighbours and cannot authorize
+relationship readiness. GraphBuilder binds the nodes privately; GraphIndex atomically publishes finite
+presentation facets and search only after source/host/policy/generation fences close. Requested-scope
+semantics and complete search vocabulary have separate readiness checks.
+
+Ordinary source-backed edits retain a byte-bounded backlog of conservative old synthetic endpoints,
+not a second source-to-target catalog. Existing source-local discovery and requested compilation prove
+shared tag/URL/virtual materialization before pruning. Rename/delete masks live source readers
+synchronously; a retirement observer reads authenticated old families under the existing tombstone
+writer pin, expires before activation and remains owned by repository flush. Backlog membership is
+acknowledged only with the exact synchronous publication. Incomplete old incidence keeps search
+readiness pending and requests one exceptional node-only recovery, never a normal full graph rebuild.
+Neither source progress, a physical preview nor empty node-projection neighbours prove global
+relationship coverage. Native scale and physical-device acceptance remain SI5 work.

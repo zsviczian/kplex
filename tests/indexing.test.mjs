@@ -660,7 +660,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     cachedMarkdownFileCount: null,
     computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: false, indexDirty: true, rebuildTask: null, rebuildTimer: null,
-    index: { hasPendingSnapshotHydration: () => true, hasPendingSemanticPreparation: () => false, indexedMarkdownFileCount: () => 8 },
+    index: { hasPendingSnapshotHydration: () => true, hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(status, { upToDate: false, phase: "loading-cache", indexedFiles: 8, totalFiles: null });
@@ -668,7 +668,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     cachedMarkdownFileCount: null,
     computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
-    index: { hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => false, indexedMarkdownFileCount: () => 8 },
+    index: { hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(readyStatus, { upToDate: true, phase: "ready", indexedFiles: 8, totalFiles: null });
@@ -708,7 +708,7 @@ const indexingStatusContext = {
   index: {
     size: 3,
     hasPendingSnapshotHydration: () => false,
-    hasPendingSemanticPreparation: () => false,
+    hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
     isCheckpointSaving: () => false,
     hasIncrementalRestorePatch: () => false,
     indexedMarkdownFileCount: () => 3,
@@ -751,7 +751,7 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   statusMembershipCoordinator.index = {
     size: 10,
     hasPendingSnapshotHydration: () => false,
-    hasPendingSemanticPreparation: () => false,
+    hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
     isCheckpointSaving: () => false,
     hasIncrementalRestorePatch: () => false,
     indexedMarkdownFileCount: () => 10,
@@ -2603,17 +2603,30 @@ try {
     assert.deepEqual(replaced.getSnapshotHydrationDiagnostics(), replacementDiagnostics);
     assert.equal(watchdogTimers.size, 0);
 
-    for (const phase of ["metadata", "preview", "pages", "evidence", "preview-search"]) {
+    for (const phase of ["metadata", "preview", "pages", "evidence", "preview-search", "source-authority", "requested-semantics"]) {
       const stalled = makeRestoreIndex();
       let release;
       const blocked = new Promise((resolve) => { release = resolve; });
-      const method = { metadata: "readSnapshotMeta", preview: "getPages", pages: "iterateSnapshotPages", evidence: "iterateSnapshotEvidence", "preview-search": "prepareSearchIndex" }[phase];
-      const owner = phase === "preview-search" ? stalled : stalled.indexedDb;
+      if (phase === "source-authority" || phase === "requested-semantics") {
+        stalled.startPersistedSourceInventory = async () => true;
+        stalled.sourceAcquisition.flush = async () => true;
+        stalled.sourceAcquisition.hasSemanticDependencies = () => true;
+        stalled.refreshSemanticSettings = async () => {};
+      }
+      const method = { metadata: "readSnapshotMeta", preview: "getPages", pages: "iterateSnapshotPages", evidence: "iterateSnapshotEvidence",
+        "preview-search": "prepareSearchIndex", "source-authority": "flush", "requested-semantics": "refreshSemanticSettings" }[phase];
+      const owner = phase === "source-authority" ? stalled.sourceAcquisition
+        : phase === "preview-search" || phase === "requested-semantics" ? stalled : stalled.indexedDb;
       const original = owner[method];
       owner[method] = async (...args) => { await blocked; return original.apply(owner, args); };
       const start = stalled.restoreIndexedDbSnapshot(["Note A.md"]);
       await settle();
       assert.equal(stalled.getSnapshotHydrationDiagnostics().phase, phase);
+      if (phase === "source-authority") {
+        await advanceWatchdog(60000);
+        stalled.sourceAcquisition.inventoryProgress();
+        assert.equal(stalled.getSnapshotHydrationDiagnostics().lastProgressAt, Date.now(), "Completed source work advances the watchdog");
+      }
       await advanceWatchdog(89999);
       assert.equal(stalled.hasPendingSnapshotHydration(), true, "Watchdog must honor the inactivity window");
       await advanceWatchdog(1);
@@ -2674,7 +2687,7 @@ try {
     assert.equal(watchdogTimers.size, 0, "Unload must release the watchdog immediately");
     releaseCancelled(true); await settle();
     assert.equal(cancelled.getSnapshotHydrationDiagnostics().outcome, "cancelled");
-    console.log("C08P restore watchdog: warm equality, five stalled phases, late completion/rejection and unload PASS");
+    console.log("C08P restore watchdog: warm equality, seven stalled phases, real-work progress, late completion/rejection and unload PASS");
   } finally {
     controlledIndexes.forEach((item) => item.destroy());
     controlledIndexes.length = 0;

@@ -7,6 +7,8 @@
  * catalog uses this same transaction owner. v7 retains its original summary/root proof in a durable
  * repair journal before mutation, with a separate non-queryable impact certificate and root leases.
  * A deletion-only pin capability can retire a masked head without making it readable as live data.
+ * A bounded retirement observer may retain old endpoint candidates under that same writer pin;
+ * normal selected-source readers remain masked and the observer expires before tombstone activation.
  * Retired impact leases retain bounded retry ownership until an exact deletion commits; a cleanup-
  * only storage port can release them after a failed/closed normal connection, without new authority.
  */
@@ -139,6 +141,8 @@ export type SelectedSourceStamp = Readonly<{
 export type SelectedSourceReader = SelectedSourceStamp & Readonly<{
   visit(family: SourceFamily, consume: (records: readonly StoredSourceFact[]) => Promise<boolean> | boolean): Promise<SourceReason>;
 }>;
+/** Private historical candidates only; unavailable retirement input is distinct from an absent head. */
+export type SourceRetirementObserver = (reader: SelectedSourceReader | null, reason: SourceReason) => Promise<void>;
 /** Closed outcomes prevent an unavailable or incomplete source from masquerading as an empty one. */
 export type SelectedSourceResult<T> =
   | Readonly<{ outcome: "ready"; stamp: SelectedSourceStamp; value: T }>
@@ -178,7 +182,7 @@ type MemorySource = {
   current: () => boolean;
 };
 /** An identity-fenced deletion capability, distinct from a normal include-tombstone body reader. */
-type PendingSourceDeletion = Readonly<{ current: () => boolean; retain: boolean; ready?: Promise<void> }>;
+type PendingSourceDeletion = Readonly<{ current: () => boolean; retain: boolean; ready?: Promise<void>; observe?: SourceRetirementObserver }>;
 type SourceWriteLane = {
   ticket: number;
   active: Promise<SourceWriteResult>;
@@ -1934,9 +1938,11 @@ export class NeutralSourceRepository {
    * Hide a deleted binding immediately, even when storage is unavailable. One coalesced tombstone
    * transaction runs beside the bounded source lanes; the remaining queue contains only dirty IDs
    * and validity predicates. A captured rename may retain independently validated old body families.
+   * The optional observer runs before activation under the writer's bounded pin. It supplies retired
+   * candidates only, must await each visit, and cannot unmask a source or survive this request.
    */
   tombstone(sourceId: string, caller: () => boolean = () => true, retainFamilies = false,
-    ready?: Promise<void>): Promise<SourceWriteResult> {
+    ready?: Promise<void>, observe?: SourceRetirementObserver): Promise<SourceWriteResult> {
     if (this.closed || !caller()) return Promise.resolve(this.result("cancelled", "cancelled"));
     this.cancelSource(sourceId);
     const previous = this.pendingDeletes.get(sourceId);
@@ -1944,7 +1950,8 @@ export class NeutralSourceRepository {
     // that disk head only to retire it. Repeated requests can drop retention, never restore it.
     const canRetain = previous ? previous.retain : !this.unsaved.has(sourceId) || this.memory.has(sourceId);
     const prerequisite = previous?.ready && ready ? Promise.all([previous.ready, ready]).then(() => undefined) : ready ?? previous?.ready;
-    const pending: PendingSourceDeletion = { current: caller, retain: retainFamilies && canRetain, ready: prerequisite };
+    const pending: PendingSourceDeletion = { current: caller, retain: retainFamilies && canRetain,
+      ready: prerequisite, observe: observe ?? previous?.observe };
     this.pendingDeletes.set(sourceId, pending); this.unsaved.add(sourceId); this.knownHeads.delete(sourceId);
     if (this.deleteTask) { this.scheduleRetry(); return Promise.resolve(this.result("unsaved", "backpressure", null, true)); }
     /** Fence every continuation against the exact coalesced absence request. */
@@ -1971,6 +1978,8 @@ export class NeutralSourceRepository {
         return this.result("cancelled", "cancelled");
       }
       if (!pinned.view) {
+        if (pending.observe) await pending.observe(null, pinned.reason);
+        if (!current()) return this.result("cancelled", "cancelled");
         if (pinned.expected.kind === "missing") {
           if (mutationDb) await this.transaction(mutationDb, [SOURCE_HEAD_STORE, META_STORE, SOURCE_IMPACT_STORE], "readwrite", sourceId, async (transaction) => {
             if (!current() || await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId)) !== undefined) throw new SourceFactError("superseded");
@@ -1984,6 +1993,27 @@ export class NeutralSourceRepository {
       }
       const view = pinned.view;
       try {
+        if (pending.observe && view.head.state !== "tombstone") {
+          let active = true, visiting = false;
+          /** A retiring reader belongs to this exact absence request, never to live source selection. */
+          const valid = (): boolean => active && current();
+          try {
+            await pending.observe({ head: view.head, sequence: view.sequence, saved: view.saved,
+              /** Reuse bounded authenticated family decoding; forbid escaped/concurrent callbacks. */
+              visit: async (family, consume) => {
+                if (!valid()) return "cancelled";
+                if (visiting) return "invalid-frame";
+                visiting = true;
+                try {
+                  const reason = await this.visitFamily(view, family, consume, valid);
+                  return valid() ? reason : "cancelled";
+                }
+                finally { visiting = false; }
+              } }, "ready");
+            if (visiting) throw new SourceFactError("invalid-frame");
+          } finally { active = false; }
+          if (!current()) return this.result("cancelled", "cancelled");
+        }
         const head: SourceManifest = { ...view.head, sourceRevision: this.runtime.uniqueId(), state: "tombstone",
           families: pending.retain ? view.head.families : {} };
         const db = await this.open();
