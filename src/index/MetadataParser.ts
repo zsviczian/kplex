@@ -1,3 +1,8 @@
+/**
+ * Obsidian parser execution owner. One worker runs the canonical grammar where supported; mobile
+ * fallback parsing cooperates within long lines and optionally pauses background work after a yield.
+ * This instance owns worker cleanup and generation-based cancellation, never graph publication.
+ */
 import { Platform } from "obsidian";
 import { parseBodyMetadataCore, type ParsedBodyMetadata } from "../core/parser/metadata";
 import { parseBodyMetadataCooperative } from "./fieldParser";
@@ -75,7 +80,8 @@ export class MetadataParser {
     }
   }
 
-  async parse(content: string): Promise<ParsedBodyMetadata> {
+  /** Parse through the canonical grammar; optional background pauses never affect foreground callers. */
+  async parse(content: string, backgroundCheckpoint?: () => Promise<void>): Promise<ParsedBodyMetadata> {
     if (this.disposed) throw new MetadataParseCancelledError();
     if (this.disabled || !this.worker) {
       const generation = this.fallbackGeneration;
@@ -83,6 +89,7 @@ export class MetadataParser {
         return await parseBodyMetadataCooperative(
           content,
           () => !this.disposed && generation === this.fallbackGeneration,
+          4, backgroundCheckpoint,
         );
       } catch (error) {
         if (this.disposed || generation !== this.fallbackGeneration) throw new MetadataParseCancelledError();
@@ -109,6 +116,7 @@ export class MetadataParser {
         return await parseBodyMetadataCooperative(
           content,
           () => !this.disposed && generation === this.fallbackGeneration,
+          4, backgroundCheckpoint,
         );
       } catch (fallbackError) {
         if (this.disposed || generation !== this.fallbackGeneration) throw new MetadataParseCancelledError();

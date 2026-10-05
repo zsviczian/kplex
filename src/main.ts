@@ -87,6 +87,8 @@ export default class KplexPlugin extends Plugin {
   private readonly indexBacklogReasons = new Set<string>();
   private indexDirtyRevision = 0;
   private rebuildTask: Promise<void> | null = null;
+  private visibleMetadataTimer: number | null = null;
+  private readonly visibleMetadataPaths = new Set<string>();
   private unloading = false;
   private initialIndexTask: Promise<void> | null = null;
   private initialIndexComplete = false;
@@ -374,6 +376,10 @@ export default class KplexPlugin extends Plugin {
         if (this.unloading) return;
         this.layoutReady = true;
         this.startupDiagnostics.mark("layout-ready");
+        await this.index.primePhysicalSearchCatalog();
+        if (this.unloading) return;
+        const hostCenter = this.startupGraphSeedPaths()[0];
+        if (hostCenter) void this.index.withForegroundPriority(() => this.index.publishHostMetadataPreview(hostCenter), 1);
 
         // Re-associate a persisted sidecar before normal recent-tab synchronization is allowed to
         // run. This uses only Obsidian's restored workspace geometry/view state; it must not wait
@@ -502,6 +508,8 @@ export default class KplexPlugin extends Plugin {
     this.visibleKplexLeaves.clear();
     this.graphLensListeners.clear();
     this.linkedDocumentLeaf = null;
+    if (this.visibleMetadataTimer !== null) window.clearTimeout(this.visibleMetadataTimer);
+    this.visibleMetadataPaths.clear();
     this.index?.destroy();
   }
 
@@ -590,15 +598,30 @@ export default class KplexPlugin extends Plugin {
       this.preRestoreReasons.set(reason, this.indexDirtyRevision);
       if (file?.extension === "md") this.preRestoreMarkdownPaths.set(file.path, this.indexDirtyRevision);
     };
-    const created = this.app.vault.on("create", (item) => mark(
-      item instanceof TFile && item.extension === "md" ? "vault:create-markdown" : "vault:create",
-      item instanceof TFile ? item : undefined,
-    ));
-    const deleted = this.app.vault.on("delete", (item) => mark("vault:delete",
-      item instanceof TFile ? item : undefined));
-    const renamed = this.app.vault.on("rename", (item) => mark("vault:rename",
-      item instanceof TFile ? item : undefined));
-    const metadata = this.app.metadataCache.on("changed", (file) => mark("metadata:changed", file));
+    const created = this.app.vault.on("create", (item) => {
+      mark(item instanceof TFile && item.extension === "md" ? "vault:create-markdown" : "vault:create",
+        item instanceof TFile ? item : undefined);
+      if (item instanceof TFile) this.index.updateHostFileAvailability(item.path, item);
+      else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(item.path, item);
+    });
+    const deleted = this.app.vault.on("delete", (item) => {
+      mark("vault:delete", item instanceof TFile ? item : undefined);
+      if (item instanceof TFile) this.index.updateHostFileAvailability(item.path);
+      else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(item.path);
+    });
+    const renamed = this.app.vault.on("rename", (item, oldPath) => {
+      mark("vault:rename", item instanceof TFile ? item : undefined);
+      if (item instanceof TFile) this.index.updateHostFileAvailability(oldPath, item);
+      else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(oldPath, item);
+    });
+    const resolved = this.app.metadataCache.on("resolve", (file) => {
+      if (this.app.vault.getFileByPath(file.path) === file) this.index.refreshVisibleHostMetadataPreviews(file.path);
+    });
+    const metadata = this.app.metadataCache.on("changed", (file) => {
+      if (this.app.vault.getFileByPath(file.path) !== file) return;
+      mark("metadata:changed", file);
+      if (this.index.refreshVisibleHostMetadataPreviews(file.path)) this.scheduleVisibleMetadataRefresh(file.path);
+    });
     let released = false;
     const release = (): void => {
       if (released) return;
@@ -607,6 +630,7 @@ export default class KplexPlugin extends Plugin {
       this.app.vault.offref(deleted);
       this.app.vault.offref(renamed);
       this.app.metadataCache.offref(metadata);
+      this.app.metadataCache.offref(resolved);
       this.preRestoreListenerCleanup = null;
     };
     this.preRestoreListenerCleanup = release;
@@ -761,7 +785,14 @@ export default class KplexPlugin extends Plugin {
         });
         if (changed) void this.saveSettings(false, false);
       }));
+    this.registerEvent(this.app.metadataCache.on("resolve", (file) => {
+      if (this.app.vault.getFileByPath(file.path) === file) this.index.refreshVisibleHostMetadataPreviews(file.path);
+    }));
     this.registerEvent(this.app.metadataCache.on("changed", (file) => {
+      /** Capture preview freshness after this event's source revision has been advanced. */
+      const refreshVisible = (): void => {
+        if (this.index.refreshVisibleHostMetadataPreviews(file.path)) this.scheduleVisibleMetadataRefresh(file.path);
+      };
       this.pruneManagedMetadataWrites();
       // MetadataCache can emit one final `changed` notification for a TFile that Vault has already
       // deleted. Treat that event as stale. Re-queuing the vanished path would make the incremental
@@ -772,13 +803,14 @@ export default class KplexPlugin extends Plugin {
         return;
       }
       const until = this.managedMetadataWrites.get(file.path) ?? 0;
-      if (until > Date.now()) return;
+      if (until > Date.now()) { refreshVisible(); return; }
       this.managedMetadataWrites.delete(file.path);
       const renameSuppression = this.renameMetadataSuppressions.get(file.path);
       if (renameSuppression && renameSuppression.until > Date.now() &&
           renameSuppression.mtime === file.stat.mtime && renameSuppression.size === file.stat.size) {
         // Obsidian commonly emits metadataCache.changed after a pure rename. The TFile and contents
         // are unchanged, and GraphIndex already remapped the path synchronously above.
+        refreshVisible();
         return;
       }
       if (renameSuppression) this.renameMetadataSuppressions.delete(file.path);
@@ -789,6 +821,7 @@ export default class KplexPlugin extends Plugin {
       // still allowed through the incremental patch path. This reconciles aliases/body fields and
       // plugin-generated content without waiting for, or triggering, a whole-vault rebuild.
       this.scheduleRebuild("metadata:changed");
+      refreshVisible();
     }));
     // metadataCache.resolved fires in large waves during startup and after a single link edit.
     // `changed`, vault create/delete/rename and explicit K-Plex edits already cover semantic
@@ -854,6 +887,24 @@ export default class KplexPlugin extends Plugin {
     return delayMs;
   }
 
+  /** Collapse a host event burst, then run only visible sources in the actual priority lane. */
+  private scheduleVisibleMetadataRefresh(path: string): void {
+    if (!this.hasVisibleKplexSurface() || this.unloading) return;
+    this.visibleMetadataPaths.add(path);
+    if (this.visibleMetadataTimer !== null) window.clearTimeout(this.visibleMetadataTimer);
+    this.visibleMetadataTimer = window.setTimeout(() => {
+      this.visibleMetadataTimer = null;
+      const paths = [...this.visibleMetadataPaths];
+      this.visibleMetadataPaths.clear();
+      void (async () => {
+        for (const selected of paths) {
+          if (this.unloading || !this.hasVisibleKplexSurface()) return;
+          await this.index.refreshVisibleMarkdownPath(selected);
+        }
+      })().catch(error => console.error("K-Plex visible source preparation failed", error));
+    }, 120);
+  }
+
   private scheduleRebuild(reason = "unknown"): void {
     this.indexDirty = true;
     this.indexDirtyRevision += 1;
@@ -892,6 +943,23 @@ export default class KplexPlugin extends Plugin {
     // under memory pressure.
     if (this.initialIndexComplete || Platform.isIosApp) this.index.cancelRebuild();
     this.index.cancelPendingPersistence();
+  }
+
+  /** Complete the initial source owner without treating its node catalog as a hydrated full graph. */
+  private async adoptInitialSourceIndex(): Promise<void> {
+    const adopted = await this.index.adoptStartupSources();
+    if (this.unloading) return;
+    this.initialIndexComplete = adopted;
+    if (adopted) {
+      for (const reason of ["startup:no-snapshot", "startup:stale-snapshot", "startup:partial-restore-incomplete"]) {
+        this.indexBacklogReasons.delete(reason);
+      }
+      if (!this.preRestoreUncoveredChanges && this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
+        this.indexDirty = false;
+      }
+      if (this.indexDirty && this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
+    }
+    this.notifyIndexStatus();
   }
 
   private async ensureInitialIndex(): Promise<void> {
@@ -934,19 +1002,7 @@ export default class KplexPlugin extends Plugin {
       // Missing graph acceleration is recoverable source progress, not a reason to rebuild all
       // semantics. Source inventory owns offline/sync repair; requested scopes own current views.
       if (this.index.hasSourceBackedStartup()) {
-        const adopted = await this.index.adoptStartupSources();
-        if (this.unloading) return;
-        this.initialIndexComplete = adopted;
-        if (adopted) {
-          for (const reason of ["startup:no-snapshot", "startup:stale-snapshot", "startup:partial-restore-incomplete"]) {
-            this.indexBacklogReasons.delete(reason);
-          }
-          if (!this.preRestoreUncoveredChanges && this.indexBacklogReasons.size === 0 && this.dirtyMarkdownPaths.size === 0) {
-            this.indexDirty = false;
-          }
-          if (this.indexDirty && this.hasVisibleKplexSurface()) this.scheduleRebuild("startup:post-initial-backlog");
-        }
-        this.notifyIndexStatus();
+        await this.adoptInitialSourceIndex();
         return;
       }
 
@@ -1000,6 +1056,7 @@ export default class KplexPlugin extends Plugin {
         // Startup itself is already an allow-closed demand lane; do not mark an empty cold start as
         // an explicit forced rebuild, because that would bypass progressive first publication.
         await this.performRebuild(false, false, "startup:initial-index", true);
+        if (this.index.hasSourceBackedStartup()) return;
       }
       if (this.unloading) return;
       // A progressive cold build may have published a useful neighborhood before cancellation.
@@ -1037,9 +1094,30 @@ export default class KplexPlugin extends Plugin {
     // Reactive backlog can arrive after a preview but before optional cache hydration finishes.
     // The initial coordinator owns the final restore/reconciliation decision; rebuilding the
     // preview here would race that owner and reset a usable cached scene to a cold build.
-    // Its own rebuild call occurs after its hydration await, so this branch cannot self-await.
+    // Hydration can be installed while the initial owner awaits host metadata or structural work.
+    // That owner's own cold-start call must join the actual restore directly, never its own task.
     if (!force && !showNotice && this.index.hasPendingSnapshotHydration()) {
-      await this.ensureInitialIndex();
+      if (allowClosed && reason === "startup:initial-index") {
+        const restored = await this.index.waitForSnapshotHydration();
+        if (!restored.restored) {
+          this.indexDirty = true;
+          this.indexDirtyRevision += 1;
+          this.indexBacklogReasons.add("startup:partial-restore-incomplete");
+        } else {
+          await this.refreshBookmarkedEntryPoints();
+          if (!restored.fresh) {
+            this.indexDirty = true;
+            this.indexBacklogReasons.add("startup:stale-snapshot");
+          }
+        }
+        if (this.unloading) return;
+        // A late graph-cache failure can still retain durable sources. Keep the same initial
+        // adoption decision as a restore that was already pending when this owner first ran.
+        if (this.index.hasSourceBackedStartup()) {
+          await this.adoptInitialSourceIndex();
+          return;
+        }
+      } else await this.ensureInitialIndex();
       if (this.unloading) return;
     }
     const explicitlyRequested = showNotice;
@@ -1106,6 +1184,7 @@ export default class KplexPlugin extends Plugin {
           if (this.indexDirtyRevision === startRevision && this.dirtyMarkdownPaths.size === 0) {
             this.indexDirty = false;
             this.indexBacklogReasons.clear();
+            this.index.acknowledgeHostPresentation();
           }
           await this.refreshBookmarkedEntryPoints();
           return;
@@ -3507,34 +3586,36 @@ export default class KplexPlugin extends Plugin {
 
   /** Persist an existing-target relationship under exact current pair authority, then await canonical saved publication. */
   async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string): Promise<void> {
-    const originPath = origin.path;
-    const targetPath = target.path;
-    if (originPath === targetPath) return;
-    [origin, target] = await this.prepareRelationshipMutation(originPath, targetPath);
-    const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
-    if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
-      new Notice(this.translator("notice.alreadyConnected"), 1800);
-      return;
-    }
+    return this.index.withForegroundPriority(async () => {
+      const originPath = origin.path;
+      const targetPath = target.path;
+      if (originPath === targetPath) return;
+      [origin, target] = await this.prepareRelationshipMutation(originPath, targetPath);
+      const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
+      if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
+        new Notice(this.translator("notice.alreadyConnected"), 1800);
+        return;
+      }
 
-    // A target connected through another gate remains a valid drag target. Treat that gesture
-    // as a relink so the new YAML relationship becomes authoritative over any stale body link.
-    if (this.index.isConnected(origin, target.path)) {
-      await this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
-      return;
-    }
+      // A target connected through another gate remains a valid drag target. Treat that gesture
+      // as a relink so the new YAML relationship becomes authoritative over any stale body link.
+      if (this.index.isConnected(origin, target.path)) {
+        await this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
+        return;
+      }
 
-    if (origin.file?.extension === "md") {
-      await this.writeRelationship(origin.file, target, selectedField);
-      await this.publishSavedRelationship(origin.path, target.path);
-    } else if (target.file?.extension === "md") {
-      const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-      await this.writeRelationship(target.file, origin, inverseField);
-      await this.publishSavedRelationship(target.path, origin.path);
-    } else {
-      new Notice(this.translator("notice.dragOriginRequiresMarkdownTarget"), 2800);
-      return;
-    }
+      if (origin.file?.extension === "md") {
+        await this.writeRelationship(origin.file, target, selectedField);
+        await this.publishSavedRelationship(origin.path, target.path);
+      } else if (target.file?.extension === "md") {
+        const inverseField = this.inverseOntologyField(selectedField, semanticRole);
+        await this.writeRelationship(target.file, origin, inverseField);
+        await this.publishSavedRelationship(target.path, origin.path);
+      } else {
+        new Notice(this.translator("notice.dragOriginRequiresMarkdownTarget"), 2800);
+        return;
+      }
+    });
   }
 
   /** Append ontology evidence to a connection while preserving its existing sources and localizing validation/confirmation feedback. */
@@ -3545,35 +3626,37 @@ export default class KplexPlugin extends Plugin {
     selectedField: string,
     storagePathOverride: string | null = null,
   ): Promise<void> {
-    [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path);
-    const centerFile = center.file?.extension === "md" ? center.file : null;
-    const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
-    if (!centerFile && !neighbourFile) {
-      new Notice(this.translator("notice.relationshipNeedsMarkdown"), 2600);
-      return;
-    }
+    return this.index.withForegroundPriority(async () => {
+      [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path);
+      const centerFile = center.file?.extension === "md" ? center.file : null;
+      const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
+      if (!centerFile && !neighbourFile) {
+        new Notice(this.translator("notice.relationshipNeedsMarkdown"), 2600);
+        return;
+      }
 
-    const candidates = this.index.relationshipStorageCandidates(center.path, neighbour.path);
-    let storagePath: string | null = storagePathOverride && candidates.includes(storagePathOverride)
-      ? storagePathOverride
-      : (candidates.length > 0 ? candidates[0] : null);
-    if (!storagePath) storagePath = centerFile?.path ?? neighbourFile?.path ?? null;
+      const candidates = this.index.relationshipStorageCandidates(center.path, neighbour.path);
+      let storagePath: string | null = storagePathOverride && candidates.includes(storagePathOverride)
+        ? storagePathOverride
+        : (candidates.length > 0 ? candidates[0] : null);
+      if (!storagePath) storagePath = centerFile?.path ?? neighbourFile?.path ?? null;
 
-    if (storagePath === centerFile?.path && centerFile) {
-      await this.addRelationshipOntology(centerFile, neighbour, selectedField);
-      await this.publishSavedRelationship(center.path, neighbour.path);
-    } else if (storagePath === neighbourFile?.path && neighbourFile) {
-      const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-      await this.addRelationshipOntology(neighbourFile, center, inverseField);
-      await this.publishSavedRelationship(center.path, neighbour.path);
-    } else if (centerFile) {
-      await this.addRelationshipOntology(centerFile, neighbour, selectedField);
-      await this.publishSavedRelationship(center.path, neighbour.path);
-    } else if (neighbourFile) {
-      const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-      await this.addRelationshipOntology(neighbourFile, center, inverseField);
-      await this.publishSavedRelationship(center.path, neighbour.path);
-    }
+      if (storagePath === centerFile?.path && centerFile) {
+        await this.addRelationshipOntology(centerFile, neighbour, selectedField);
+        await this.publishSavedRelationship(center.path, neighbour.path);
+      } else if (storagePath === neighbourFile?.path && neighbourFile) {
+        const inverseField = this.inverseOntologyField(selectedField, semanticRole);
+        await this.addRelationshipOntology(neighbourFile, center, inverseField);
+        await this.publishSavedRelationship(center.path, neighbour.path);
+      } else if (centerFile) {
+        await this.addRelationshipOntology(centerFile, neighbour, selectedField);
+        await this.publishSavedRelationship(center.path, neighbour.path);
+      } else if (neighbourFile) {
+        const inverseField = this.inverseOntologyField(selectedField, semanticRole);
+        await this.addRelationshipOntology(neighbourFile, center, inverseField);
+        await this.publishSavedRelationship(center.path, neighbour.path);
+      }
+    });
   }
 
   /** Move the selected central relationship through its existing ontology persistence path and localize user-visible validation. */
@@ -3585,53 +3668,55 @@ export default class KplexPlugin extends Plugin {
     existingDirection: LinkDirection | null = null,
     storagePathOverride: string | null = null,
   ): Promise<void> {
-    [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path);
-    const centerFile = center.file?.extension === "md" ? center.file : null;
-    const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
-    if (!centerFile && !neighbourFile) {
-      new Notice(this.translator("notice.relationshipNeedsMarkdown"), 2600);
-      return;
-    }
+    return this.index.withForegroundPriority(async () => {
+      [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path);
+      const centerFile = center.file?.extension === "md" ? center.file : null;
+      const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
+      if (!centerFile && !neighbourFile) {
+        new Notice(this.translator("notice.relationshipNeedsMarkdown"), 2600);
+        return;
+      }
 
-    const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-    const candidates = this.index.relationshipStorageCandidates(center.path, neighbour.path);
-    let storagePath: string | null = storagePathOverride && candidates.includes(storagePathOverride)
-      ? storagePathOverride
-      : (candidates.length > 0 ? candidates[0] : null);
-    if (!storagePath) storagePath = centerFile?.path ?? neighbourFile?.path ?? null;
+      const inverseField = this.inverseOntologyField(selectedField, semanticRole);
+      const candidates = this.index.relationshipStorageCandidates(center.path, neighbour.path);
+      let storagePath: string | null = storagePathOverride && candidates.includes(storagePathOverride)
+        ? storagePathOverride
+        : (candidates.length > 0 ? candidates[0] : null);
+      if (!storagePath) storagePath = centerFile?.path ?? neighbourFile?.path ?? null;
 
-    // Prefer the note that already owns the defining relationship evidence. If both Markdown
-    // notes are valid declarers, RelationModal exposes a small "Store relationship in" chooser
-    // with this intelligent choice preselected. We update one canonical frontmatter declaration,
-    // rather than duplicating metadata in both notes. If the relationship previously had YAML on
-    // the opposite note, remove that stale declaration first; body ontology is retained and the
-    // resolver records it as overridden evidence when it conflicts with the new YAML authority.
-    const existingFrontmatterOwners = new Set(
-      this.index.evidenceBetween(center.path, neighbour.path)
-        .filter((item) => item.sourceKind === "frontmatter-ontology")
-        .map((item) => item.declaredByPath),
-    );
-    const cleanup: Promise<void>[] = [];
-    if (centerFile && storagePath !== centerFile.path && existingFrontmatterOwners.has(centerFile.path)) {
-      cleanup.push(this.clearFrontmatterRelationship(centerFile, neighbour));
-    }
-    if (neighbourFile && storagePath !== neighbourFile.path && existingFrontmatterOwners.has(neighbourFile.path)) {
-      cleanup.push(this.clearFrontmatterRelationship(neighbourFile, center));
-    }
-    if (cleanup.length) await Promise.all(cleanup);
-    if (storagePath === centerFile?.path && centerFile) {
-      await this.writeRelationship(centerFile, neighbour, selectedField);
-      await this.publishSavedRelationship(center.path, neighbour.path);
-    } else if (storagePath === neighbourFile?.path && neighbourFile) {
-      await this.writeRelationship(neighbourFile, center, inverseField);
-      await this.publishSavedRelationship(center.path, neighbour.path);
-    } else if (centerFile) {
-      await this.writeRelationship(centerFile, neighbour, selectedField);
-      await this.publishSavedRelationship(center.path, neighbour.path);
-    } else if (neighbourFile) {
-      await this.writeRelationship(neighbourFile, center, inverseField);
-      await this.publishSavedRelationship(center.path, neighbour.path);
-    }
+      // Prefer the note that already owns the defining relationship evidence. If both Markdown
+      // notes are valid declarers, RelationModal exposes a small "Store relationship in" chooser
+      // with this intelligent choice preselected. We update one canonical frontmatter declaration,
+      // rather than duplicating metadata in both notes. If the relationship previously had YAML on
+      // the opposite note, remove that stale declaration first; body ontology is retained and the
+      // resolver records it as overridden evidence when it conflicts with the new YAML authority.
+      const existingFrontmatterOwners = new Set(
+        this.index.evidenceBetween(center.path, neighbour.path)
+          .filter((item) => item.sourceKind === "frontmatter-ontology")
+          .map((item) => item.declaredByPath),
+      );
+      const cleanup: Promise<void>[] = [];
+      if (centerFile && storagePath !== centerFile.path && existingFrontmatterOwners.has(centerFile.path)) {
+        cleanup.push(this.clearFrontmatterRelationship(centerFile, neighbour));
+      }
+      if (neighbourFile && storagePath !== neighbourFile.path && existingFrontmatterOwners.has(neighbourFile.path)) {
+        cleanup.push(this.clearFrontmatterRelationship(neighbourFile, center));
+      }
+      if (cleanup.length) await Promise.all(cleanup);
+      if (storagePath === centerFile?.path && centerFile) {
+        await this.writeRelationship(centerFile, neighbour, selectedField);
+        await this.publishSavedRelationship(center.path, neighbour.path);
+      } else if (storagePath === neighbourFile?.path && neighbourFile) {
+        await this.writeRelationship(neighbourFile, center, inverseField);
+        await this.publishSavedRelationship(center.path, neighbour.path);
+      } else if (centerFile) {
+        await this.writeRelationship(centerFile, neighbour, selectedField);
+        await this.publishSavedRelationship(center.path, neighbour.path);
+      } else if (neighbourFile) {
+        await this.writeRelationship(neighbourFile, center, inverseField);
+        await this.publishSavedRelationship(center.path, neighbour.path);
+      }
+    });
   }
 
   /** Derive a portable physical filename from a freely entered display title. */
@@ -3965,38 +4050,40 @@ export default class KplexPlugin extends Plugin {
   }
 
   async unlinkFrontmatterEvidence(evidence: RelationEvidence): Promise<boolean> {
-    if (evidence.sourceKind !== "frontmatter-ontology" || !evidence.fieldName) return false;
-    const storage = this.app.vault.getFileByPath(evidence.declaredByPath);
-    const [, target] = await this.prepareRelationshipMutation(evidence.declaredByPath, evidence.declaredTargetPath);
-    if (!storage || storage.extension !== "md" || !target) return false;
-    // Raw payloads contain the whole property. Another target's legitimate edit may change that
-    // payload without changing this exact declaration; owner/target/field/role/direction must match.
-    const currentEvidence = this.index.evidenceBetween(storage.path, target.path).find(
-      /** Reauthorize the semantic declaration, never its attempt-local evidence ID or old payload. */
-      item => item.sourceKind === "frontmatter-ontology" && item.declaredByPath === evidence.declaredByPath
-        && item.declaredTargetPath === evidence.declaredTargetPath && item.declaredRole === evidence.declaredRole
-        && item.direction === evidence.direction && normalizeFieldName(item.fieldName ?? "") === normalizeFieldName(evidence.fieldName!));
-    if (!currentEvidence) return false;
+    return this.index.withForegroundPriority(async () => {
+      if (evidence.sourceKind !== "frontmatter-ontology" || !evidence.fieldName) return false;
+      const storage = this.app.vault.getFileByPath(evidence.declaredByPath);
+      const [, target] = await this.prepareRelationshipMutation(evidence.declaredByPath, evidence.declaredTargetPath);
+      if (!storage || storage.extension !== "md" || !target) return false;
+      // Raw payloads contain the whole property. Another target's legitimate edit may change that
+      // payload without changing this exact declaration; owner/target/field/role/direction must match.
+      const currentEvidence = this.index.evidenceBetween(storage.path, target.path).find(
+        /** Reauthorize the semantic declaration, never its attempt-local evidence ID or old payload. */
+        item => item.sourceKind === "frontmatter-ontology" && item.declaredByPath === evidence.declaredByPath
+          && item.declaredTargetPath === evidence.declaredTargetPath && item.declaredRole === evidence.declaredRole
+          && item.direction === evidence.direction && normalizeFieldName(item.fieldName ?? "") === normalizeFieldName(evidence.fieldName!));
+      if (!currentEvidence) return false;
 
-    this.pruneManagedMetadataWrites();
-    this.managedMetadataWrites.set(storage.path, Date.now() + 15000);
-    let changed = false;
-    const wanted = normalizeFieldName(evidence.fieldName);
-    await this.mutateRelationshipMetadata(storage, new Set([wanted]), (frontmatter: Record<string, unknown>) => {
-      for (const key of Object.keys(frontmatter)) {
-        if (normalizeFieldName(key) !== wanted) continue;
-        if (!this.valueContainsTarget(frontmatter[key], storage, target)) continue;
-        const next = this.removeTargetFromValue(frontmatter[key], storage, target);
-        if (next === undefined) delete frontmatter[key];
-        else frontmatter[key] = next;
-        changed = true;
-        break;
-      }
-    }, target.path);
+      this.pruneManagedMetadataWrites();
+      this.managedMetadataWrites.set(storage.path, Date.now() + 15000);
+      let changed = false;
+      const wanted = normalizeFieldName(evidence.fieldName);
+      await this.mutateRelationshipMetadata(storage, new Set([wanted]), (frontmatter: Record<string, unknown>) => {
+        for (const key of Object.keys(frontmatter)) {
+          if (normalizeFieldName(key) !== wanted) continue;
+          if (!this.valueContainsTarget(frontmatter[key], storage, target)) continue;
+          const next = this.removeTargetFromValue(frontmatter[key], storage, target);
+          if (next === undefined) delete frontmatter[key];
+          else frontmatter[key] = next;
+          changed = true;
+          break;
+        }
+      }, target.path);
 
-    if (!changed) return false;
-    await this.publishSavedRelationship(storage.path, target.path);
-    return true;
+      if (!changed) return false;
+      await this.publishSavedRelationship(storage.path, target.path);
+      return true;
+    });
   }
 
   /** Resolve source locations for pair evidence while keeping actual note content untouched and localizing unavailable-source feedback. */
@@ -4286,28 +4373,30 @@ export default class KplexPlugin extends Plugin {
 
   /** Create and materialize a folder child using the existing optimistic/index reconciliation workflow and localized feedback. */
   async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind): Promise<GraphPage | null> {
-    if (!folder.isFolder) return null;
-    const validation = this.validateRelatedNoteName(rawName);
-    if (!validation.valid) {
-      new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
-      return null;
-    }
-    if (validation.existing) {
-      new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
-      return null;
-    }
+    return this.index.withForegroundPriority(async () => {
+      if (!folder.isFolder) return null;
+      const validation = this.validateRelatedNoteName(rawName);
+      if (!validation.valid) {
+        new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
+        return null;
+      }
+      if (validation.existing) {
+        new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
+        return null;
+      }
 
-    const folderPath = folder.path === "folder:/"
-      ? ""
-      : folder.path.startsWith("folder:")
-        ? normalizePath(folder.path.slice("folder:".length))
-        : "";
-    const file = await this.createNewFileInFolder(validation.stem, kind, folderPath);
-    if (!file) return null;
-    const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
-    const displayField = this.configuredDisplayNameField();
-    const normalizedDisplayField = displayField ? normalizeFieldName(displayField) : "";
-    return this.index.insertCreatedFile(file, displayName && (normalizedDisplayField === "alias" || normalizedDisplayField === "aliases") ? [displayName] : []);
+      const folderPath = folder.path === "folder:/"
+        ? ""
+        : folder.path.startsWith("folder:")
+          ? normalizePath(folder.path.slice("folder:".length))
+          : "";
+      const file = await this.createNewFileInFolder(validation.stem, kind, folderPath);
+      if (!file) return null;
+      const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
+      const displayField = this.configuredDisplayNameField();
+      const normalizedDisplayField = displayField ? normalizeFieldName(displayField) : "";
+      return this.index.insertCreatedFile(file, displayName && (normalizedDisplayField === "alias" || normalizedDisplayField === "aliases") ? [displayName] : []);
+    });
   }
 
   openCreateInFolderModal(folder: GraphPage, hostLeaf?: WorkspaceLeaf): void {
@@ -4375,55 +4464,59 @@ export default class KplexPlugin extends Plugin {
 
   /** Create a related file for the selected origin while preserving folder/name validation and localized product feedback. */
   async createNewRelatedFileForOrigin(origin: GraphPage, rawName: string, kind: GhostMaterializationKind, rawAlias = ""): Promise<TFile | null> {
-    const validation = this.validateRelatedNoteName(rawName);
-    if (!validation.valid) {
-      new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
-      return null;
-    }
-    if (validation.existing) {
-      new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
-      return null;
-    }
+    return this.index.withForegroundPriority(async () => {
+      const validation = this.validateRelatedNoteName(rawName);
+      if (!validation.valid) {
+        new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
+        return null;
+      }
+      if (validation.existing) {
+        new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
+        return null;
+      }
 
-    // FileManager.getNewFileParent is the public Obsidian API that applies the user's new-note
-    // location preference. Resolve it against the relationship origin rather than whichever editor
-    // tab happens to be active while the modal is open.
-    const proposedName = kind === "excalidraw" ? `${validation.stem}.excalidraw.md` : `${validation.stem}.md`;
-    const sourcePath = origin.file?.path ?? origin.path;
-    const configuredParent = this.app.fileManager.getNewFileParent(sourcePath, proposedName);
-    const configuredFolder = configuredParent.path === "/" ? "" : configuredParent.path;
-    const file = await this.createNewFileInFolder(validation.stem, kind, configuredFolder);
-    if (!file) return null;
-    await this.writeCreatedNodeDisplayName(file, rawName);
-    await this.writeCreatedNodeAlias(file, rawAlias);
-    return file;
+      // FileManager.getNewFileParent is the public Obsidian API that applies the user's new-note
+      // location preference. Resolve it against the relationship origin rather than whichever editor
+      // tab happens to be active while the modal is open.
+      const proposedName = kind === "excalidraw" ? `${validation.stem}.excalidraw.md` : `${validation.stem}.md`;
+      const sourcePath = origin.file?.path ?? origin.path;
+      const configuredParent = this.app.fileManager.getNewFileParent(sourcePath, proposedName);
+      const configuredFolder = configuredParent.path === "/" ? "" : configuredParent.path;
+      const file = await this.createNewFileInFolder(validation.stem, kind, configuredFolder);
+      if (!file) return null;
+      await this.writeCreatedNodeDisplayName(file, rawName);
+      await this.writeCreatedNodeAlias(file, rawAlias);
+      return file;
+    });
   }
 
   /** Bind a newly created file, then complete its relationship through current canonical pair publication. */
   async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = "", rawDisplayName = ""): Promise<GraphPage> {
-    // Retain the existing minimal physical node insertion. Relationship authority belongs to the
-    // exact bound pair; a creation event does not require the origin's entire neighborhood again.
-    const alias = rawAlias.trim();
-    const displayName = rawDisplayName.trim() ? rawDisplayName : "";
-    const displayField = this.configuredDisplayNameField();
-    const normalizedDisplayField = displayField ? normalizeFieldName(displayField) : "";
-    const aliases = normalizedDisplayField === "alias" || normalizedDisplayField === "aliases"
-      ? [displayName, alias].filter(Boolean)
-      : alias ? [alias] : [];
-    let target = this.index.insertCreatedFile(file, aliases);
-    [origin, target] = await this.prepareRelationshipMutation(origin.path, target.path);
-    if (origin.file?.extension === "md") {
-      await this.writeRelationship(origin.file, target, selectedField);
-      await this.publishSavedRelationship(origin.path, target.path);
-      return this.index.get(target.path) ?? target;
-    }
-    if (target.file?.extension === "md") {
-      const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-      await this.writeRelationship(target.file, origin, inverseField);
-      await this.publishSavedRelationship(origin.path, target.path);
-      return this.index.get(target.path) ?? target;
-    }
-    throw new Error(this.translator("error.relationshipRequiresMarkdownEndpoint"));
+    return this.index.withForegroundPriority(async () => {
+      // Retain the existing minimal physical node insertion. Relationship authority belongs to the
+      // exact bound pair; a creation event does not require the origin's entire neighborhood again.
+      const alias = rawAlias.trim();
+      const displayName = rawDisplayName.trim() ? rawDisplayName : "";
+      const displayField = this.configuredDisplayNameField();
+      const normalizedDisplayField = displayField ? normalizeFieldName(displayField) : "";
+      const aliases = normalizedDisplayField === "alias" || normalizedDisplayField === "aliases"
+        ? [displayName, alias].filter(Boolean)
+        : alias ? [alias] : [];
+      let target = this.index.insertCreatedFile(file, aliases);
+      [origin, target] = await this.prepareRelationshipMutation(origin.path, target.path);
+      if (origin.file?.extension === "md") {
+        await this.writeRelationship(origin.file, target, selectedField);
+        await this.publishSavedRelationship(origin.path, target.path);
+        return this.index.get(target.path) ?? target;
+      }
+      if (target.file?.extension === "md") {
+        const inverseField = this.inverseOntologyField(selectedField, semanticRole);
+        await this.writeRelationship(target.file, origin, inverseField);
+        await this.publishSavedRelationship(origin.path, target.path);
+        return this.index.get(target.path) ?? target;
+      }
+      throw new Error(this.translator("error.relationshipRequiresMarkdownEndpoint"));
+    });
   }
 
   /** Materialize a related URL node through existing URL/relationship semantics and report localized validation feedback. */
@@ -4434,29 +4527,31 @@ export default class KplexPlugin extends Plugin {
     rawAlias: string,
     selectedField: string,
   ): Promise<GraphPage | null> {
-    if (origin.file?.extension !== "md") {
-      new Notice(this.translator("notice.webLinkMarkdownOnly"), 2800);
-      return null;
-    }
-    const url = this.normalizedWebUrl(rawUrl);
-    if (!url) {
-      new Notice(this.translator("notice.invalidWebLink"), 2800);
-      return null;
-    }
-    const alias = rawAlias.trim();
-    const provisional: GraphPage = {
-      path: url, file: null, name: alias || url, url, isFolder: false, isTag: false, mtime: null,
-      neighbours: new Map(), aliases: [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 0,
-    };
-    const escapedAlias = alias.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
-    const reference = alias ? `[${escapedAlias}](${url})` : url;
-    if (!(await this.index.prepareRelationshipPair(origin.path, provisional.path, provisional))) throw new Error(this.translator("relation.preparingRelationship"));
-    const currentOrigin = this.index.get(origin.path);
-    if (currentOrigin?.file !== origin.file) throw new Error(this.translator("relation.preparingRelationship"));
-    await this.writeRelationship(origin.file, provisional, selectedField, reference);
-    const target = this.index.insertUrlPage(url, alias);
-    await this.publishSavedRelationship(origin.path, target.path);
-    return this.index.get(target.path) ?? target;
+    return this.index.withForegroundPriority(async () => {
+      if (origin.file?.extension !== "md") {
+        new Notice(this.translator("notice.webLinkMarkdownOnly"), 2800);
+        return null;
+      }
+      const url = this.normalizedWebUrl(rawUrl);
+      if (!url) {
+        new Notice(this.translator("notice.invalidWebLink"), 2800);
+        return null;
+      }
+      const alias = rawAlias.trim();
+      const provisional: GraphPage = {
+        path: url, file: null, name: alias || url, url, isFolder: false, isTag: false, mtime: null,
+        neighbours: new Map(), aliases: [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 0,
+      };
+      const escapedAlias = alias.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
+      const reference = alias ? `[${escapedAlias}](${url})` : url;
+      if (!(await this.index.prepareRelationshipPair(origin.path, provisional.path, provisional))) throw new Error(this.translator("relation.preparingRelationship"));
+      const currentOrigin = this.index.get(origin.path);
+      if (currentOrigin?.file !== origin.file) throw new Error(this.translator("relation.preparingRelationship"));
+      await this.writeRelationship(origin.file, provisional, selectedField, reference);
+      const target = this.index.insertUrlPage(url, alias);
+      await this.publishSavedRelationship(origin.path, target.path);
+      return this.index.get(target.path) ?? target;
+    });
   }
 
   private placeholderPath(stem: string): string {
@@ -4472,41 +4567,43 @@ export default class KplexPlugin extends Plugin {
     rawName: string,
     selectedField: string,
   ): Promise<GraphPage | null> {
-    const validation = this.validateRelatedNoteName(rawName);
-    if (!validation.valid) {
-      new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
-      return null;
-    }
-    if (validation.existing) {
-      new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
-      return null;
-    }
-    if (origin.file?.extension !== "md") {
-      new Notice(this.translator("notice.placeholderNeedsMarkdown"), 2800);
-      return null;
-    }
+    return this.index.withForegroundPriority(async () => {
+      const validation = this.validateRelatedNoteName(rawName);
+      if (!validation.valid) {
+        new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
+        return null;
+      }
+      if (validation.existing) {
+        new Notice(this.translator("note.existsNamed", { name: validation.stem }), 2800);
+        return null;
+      }
+      if (origin.file?.extension !== "md") {
+        new Notice(this.translator("notice.placeholderNeedsMarkdown"), 2800);
+        return null;
+      }
 
-    const path = this.placeholderPath(validation.stem);
-    const existing = this.index.get(path);
-    if (existing) {
-      await this.createRelationToPage(origin, semanticRole, existing, selectedField);
-      return existing;
-    }
+      const path = this.placeholderPath(validation.stem);
+      const existing = this.index.get(path);
+      if (existing) {
+        await this.createRelationToPage(origin, semanticRole, existing, selectedField);
+        return existing;
+      }
 
-    // Write the unresolved wiki link first. Only publish the virtual page after the vault write
-    // succeeds, so a failed frontmatter edit cannot leave a detached placeholder in the live graph.
-    const provisional: GraphPage = {
-      path, file: null, name: validation.stem, url: null, isFolder: false, isTag: false, mtime: null,
-      neighbours: new Map(), aliases: [], tags: [], noteType: null, primaryStyleTag: null,
-      styleTags: [], maxLabelLength: 0,
-    };
-    if (!(await this.index.prepareRelationshipPair(origin.path, provisional.path, provisional))) throw new Error(this.translator("relation.preparingRelationship"));
-    const currentOrigin = this.index.get(origin.path);
-    if (currentOrigin?.file !== origin.file) throw new Error(this.translator("relation.preparingRelationship"));
-    await this.writeRelationship(origin.file, provisional, selectedField);
-    const target = this.index.insertVirtualPage(path);
-    await this.publishSavedRelationship(origin.path, target.path);
-    return this.index.get(target.path) ?? target;
+      // Write the unresolved wiki link first. Only publish the virtual page after the vault write
+      // succeeds, so a failed frontmatter edit cannot leave a detached placeholder in the live graph.
+      const provisional: GraphPage = {
+        path, file: null, name: validation.stem, url: null, isFolder: false, isTag: false, mtime: null,
+        neighbours: new Map(), aliases: [], tags: [], noteType: null, primaryStyleTag: null,
+        styleTags: [], maxLabelLength: 0,
+      };
+      if (!(await this.index.prepareRelationshipPair(origin.path, provisional.path, provisional))) throw new Error(this.translator("relation.preparingRelationship"));
+      const currentOrigin = this.index.get(origin.path);
+      if (currentOrigin?.file !== origin.file) throw new Error(this.translator("relation.preparingRelationship"));
+      await this.writeRelationship(origin.file, provisional, selectedField);
+      const target = this.index.insertVirtualPage(path);
+      await this.publishSavedRelationship(origin.path, target.path);
+      return this.index.get(target.path) ?? target;
+    });
   }
 
   async finishNewRelatedNode(

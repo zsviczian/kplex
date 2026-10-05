@@ -610,3 +610,19 @@ Head requests and dependency checks are distinct from transaction boundaries: co
 not remove their validation or the later freshness pass. The [closeout audit](docs/validation/settings-independent-indexing-si5-closeout-audit-2026-10-04.md)
 inventories current settings routes, retired writers and deliberately retained compatibility seams.
 The maintainer reports successful physical iPad and Android tests; the [device checklist](docs/validation/settings-independent-indexing-si5-device-checklist.md) retains the procedure and qualitative acceptance record. [SI5 is closed](docs/validation/settings-independent-indexing-si5-acceptance-2026-10-04.md); no further automatic optimization or refactor work is queued.
+
+### Foreground indexing interaction smoke
+
+After `npm run verify:obsidian` stages the exact build in a disposable vault, run
+`npm run verify:obsidian:foreground` with the same explicit `KPLEX_TEST_VAULT_NAME`,
+`KPLEX_TEST_VAULT_PATH`, `KPLEX_TEST_CONFIG_DIR` and a new `KPLEX_HOST_REPORT_DIR`.
+Prefer `kplex-test-small` for this functional probe; reserve `kplex-test` for scale timings.
+Run native drivers serially and keep Obsidian foreground with its original throttling.
+
+The driver pauses the actual source-acquisition checkpoint outside transactions, then exercises
+navigation, relationship add/remove, note creation and visible frontmatter edits before releasing
+inventory. It asserts canonical saved-pair evidence, zero foreground broad flush calls and eventual
+source closure. It owns one fixture folder, removes wrappers/controller/notes, and restores exact
+settings and enabled-list bytes. Measurements are inclusive native API/DOM completion, not actual
+paint, trusted pointer latency or physical-mobile acceptance. An unsuccessful cleanup is a failed run.
+The report refuses installed/build hash mismatches.

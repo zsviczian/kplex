@@ -1,3 +1,9 @@
+/**
+ * Legacy host graph and Plex presentation contracts shared by index binding and rendering. Semantic
+ * flags delegate to the portable graph owner; host file references and display facets stay here.
+ * Gate coverage may be partial: omitted completeness preserves complete callers, while false marks
+ * available counts as lower bounds without granting relationship authority.
+ */
 import type { TFile } from "obsidian";
 import { LinkDirection, RelationType, type Role, type RelationshipRole, type SemanticRelation } from "./core/graph/relations";
 
@@ -111,11 +117,13 @@ export type Neighborhood = {
 };
 
 export type GateStat = {
-  /** Connections currently visible after K-Plex visibility/inferred filters, before a local Plex filter/lens. */
+  /** Available connections after visibility/inferred filters, before a local Plex filter/lens. */
   visibleCount: number;
+  /** False when available incidence is partial and counts are lower bounds; omitted means complete. */
+  complete?: boolean;
   /** Connections surviving the currently active Quick Filter / Graph Lenses. Undefined when no global filter is active. */
   shownCount?: number;
-  /** True when the semantic gate has any relationship, even when its target is filtered out. */
+  /** True when an available semantic relationship occupies the gate, even if its target is filtered out. */
   hasAny: boolean;
 };
 

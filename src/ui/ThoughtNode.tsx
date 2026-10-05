@@ -1,5 +1,7 @@
 /**
- * Plex node and gate presentation with localized accessibility and interaction hints. Physical gate labels are layout copy; semantic roles and drag effects belong to callers.
+ * Plex node and gate presentation with localized accessibility and interaction hints. Partial gate
+ * incidence displays lower bounds and never claims an empty complete relationship set. Physical gate
+ * labels are layout copy; semantic roles, coverage and drag effects belong to callers.
  */
 import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
@@ -201,15 +203,16 @@ export function ThoughtNode({
       const stat = node.gateStats[gate];
       const gateDisabled = node.page.isTag || (node.page.isFolder && gate !== "bottom");
       const gateLabel = physicalPositionLabel(gate, translate);
-      const gateTitle = node.page.isTag
+      const gateHint = node.page.isTag
         ? translate("node.gateTagDisabled", { gate: gateLabel })
         : node.page.isFolder
           ? gate === "bottom"
             ? translate("node.gateFolderChild")
             : translate("node.gateFolderDisabled", { gate: gateLabel })
-          : stat.hasAny
+          : stat.hasAny || stat.complete === false
             ? translate("node.gateVisible", { gate: gateLabel, count: stat.visibleCount })
             : translate("node.gateEmpty", { gate: gateLabel });
+      const gateTitle = stat.complete === false ? `${gateHint} · ${translate("node.gatePartial")}` : gateHint;
       return <span key={gate} className={`kplex-gate-wrap gate-wrap-${gate}${stat.hasAny ? "" : " is-empty"}`}>
         <span
           className={`kplex-gate gate-${gate}${stat.hasAny ? " has-connections" : " is-empty"}${highlightedGates.has(gate) ? " is-highlighted" : ""}${gateDisabled ? " is-link-disabled" : ""}`}
@@ -221,7 +224,11 @@ export function ThoughtNode({
           aria-label={gateTitle}
           data-tooltip-position="top"
         />
-        {settings.showNeighborCount && stat.visibleCount > 0 && <span className="kplex-gate-count">{stat.shownCount === undefined ? stat.visibleCount : `${stat.shownCount}/${stat.visibleCount}`}</span>}
+        {settings.showNeighborCount && (stat.visibleCount > 0 || stat.complete === false) && <span className="kplex-gate-count">{
+          stat.complete === false
+            ? stat.visibleCount === 0 ? "…" : stat.shownCount === undefined ? `≥${stat.visibleCount}` : `${stat.shownCount}/≥${stat.visibleCount}`
+            : stat.shownCount === undefined ? stat.visibleCount : `${stat.shownCount}/${stat.visibleCount}`
+        }</span>}
       </span>;
     })}
   </div>;

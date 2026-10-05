@@ -144,6 +144,7 @@ const spanishTranslations = {
   "node.gateFolderChild": "Puerta hija · arrastra para crear una nota en esta carpeta",
   "node.gateFolderDisabled": "Puerta {gate} · la edición de relaciones de carpeta está desactivada",
   "node.gateVisible": "Puerta {gate} · {count} visibles",
+  "node.gatePartial": "Puede haber más relaciones disponibles",
   "node.gateEmpty": "Puerta {gate} · sin relaciones",
   "relation.move": "Mover relación",
   "relation.addRole": "Añadir {role}",

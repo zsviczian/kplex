@@ -271,6 +271,12 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
     }
     const localFence = { revision: 1, sequence: Math.max(...[...stamps.values()].map(stamp => stamp.sequence)) };
     const localPort = {
+      // The Node host has no storage. Counts derive from the same frozen setup projection as
+      // memberships and use its existing fence; actual ledger/count authentication is tested in IDB.
+      lookupLocalDependencyCounts: async (keys, current) => current()
+        ? { outcome: "ready", value: { fence: localFence,
+          counts: keys.map(key => ({ key, owners: (localByKey.get(key) ?? []).length })), work: { keys: keys.length } } }
+        : { outcome: "cancelled", reason: "cancelled" },
       lookupLocalDependencies: async (keys, current) => {
         if (!current()) return { outcome: "cancelled", reason: "cancelled" };
         const selectedIds = [...new Set(keys.flatMap(key => localByKey.get(key) ?? []))]
@@ -333,8 +339,9 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
         const builder = new M.GraphBuilder(oraclePlugin, oracleApp, new Map(), oracle.metadataParser, f.cache, () => true);
         const state = await builder.build({ acquireSources: false });
         assert(state, "Fresh full GraphBuilder oracle must complete");
-        oracle.state = state;
-        oracle.rebuildSearchIndex();
+        // A blank index now grants no full-graph authority. Publish the genuine completed live
+        // builder result through its production boundary before comparing writable candidates.
+        oracle.publishRestoredState(state);
         // This oracle bypasses production source acquisition intentionally; mark its already-built
         // source authority ready so relationship-write candidate comparison remains meaningful.
         oracle.sourceAcquisition.localDependenciesReady = true;
@@ -342,6 +349,9 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
       } catch (error) { oracle.destroy(); throw error; }
     };
     const assertOracle = async label => {
+      // Foreground refresh now closes direct incidence first. Equality with a full-build oracle
+      // includes the separately tracked optional ordinary-parent sibling pass after it settles.
+      await index.workScheduler.checkpoint(4);
       assert.equal(index.hasPendingSemanticPreparation(), false, `${label}: ${JSON.stringify(index.getSemanticPreparationDiagnostics())}`);
       const oracle = await oracleForCurrentSettings();
       try {
@@ -438,7 +448,7 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
       let unblockNavigation, enteredNavigation;
       const navigationEntered = new Promise(resolve => { enteredNavigation = resolve; });
       f.acquisition.prepareRequestedNeighborhood = async (...args) => {
-        if (args[0].center.id === "B.md") {
+        if (args[0].center.id === "B.md" && args[0].siblingClosure !== "selected") {
           enteredNavigation(); await new Promise(resolve => { unblockNavigation = resolve; });
         }
         return navigationPrepare(...args);
@@ -456,12 +466,14 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
         assert.equal(index.semanticScopes.has("B.md"), false, "Released navigation cannot publish its old scope");
       } finally { latestOracle.destroy(); latestNavigation(); f.acquisition.prepareRequestedNeighborhood = navigationPrepare; }
 
-      // Three overlapping policy requests may finish in any order, but only the final revision is
-      // publishable. Hold all three at the production acquisition boundary to make the race exact.
+      // Three overlapping foreground policy requests may finish in any order, but only the final
+      // revision is publishable. Hold those direct requests at the production acquisition boundary;
+      // the winning publication's later optional selected-parent pass must remain free to settle.
       const livePrepareNeighborhood = f.acquisition.prepareRequestedNeighborhood.bind(f.acquisition);
       const blockers = [];
       let enteredResolve = [];
       f.acquisition.prepareRequestedNeighborhood = async (...args) => {
+        if (args[0].siblingClosure === "selected") return livePrepareNeighborhood(...args);
         const ordinal = blockers.length;
         let release;
         const blocked = new Promise(resolve => { release = resolve; });
@@ -483,6 +495,7 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
       index.invalidateSemanticPolicy(); const s3 = index.refreshSemanticSettings(); await waitEntered(2);
       for (const blocker of blockers) blocker.release();
       await Promise.all([s1, s2, s3]);
+      assert.equal(blockers.length, 3, "Only the three foreground policy requests are held");
       f.acquisition.prepareRequestedNeighborhood = livePrepareNeighborhood;
       const supersessionAfter = index.getSemanticPreparationDiagnostics();
       assert.equal(supersessionAfter.published, supersessionBefore.published + 1, "Only S3 may publish");
@@ -495,6 +508,7 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
       let enteredAwait;
       const afterAwait = new Promise(resolve => { enteredAwait = resolve; });
       f.acquisition.prepareRequestedNeighborhood = async (...args) => {
+        if (args[0].siblingClosure === "selected") return livePrepareNeighborhood(...args);
         enteredAwait();
         await new Promise(resolve => { releaseAwait = resolve; });
         return livePrepareNeighborhood(...args);

@@ -143,6 +143,7 @@ const dutchTranslations = {
   "node.gateFolderChild": "Onderliggende poort · sleep om een notitie in deze map te maken",
   "node.gateFolderDisabled": "{gate}-poort · het bewerken van maprelaties is uitgeschakeld",
   "node.gateVisible": "{gate}-poort · {count} zichtbaar",
+  "node.gatePartial": "Er zijn mogelijk meer relaties beschikbaar",
   "node.gateEmpty": "{gate}-poort · geen relaties",
   "relation.move": "Relatie verplaatsen",
   "relation.addRole": "{role} toevoegen",

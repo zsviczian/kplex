@@ -18,7 +18,9 @@
  * Optional legacy URL-alias upgrades authenticate unchanged primary families and exact dependency
  * memberships, then select durable metadata only in the existing CAS transaction. Failed optional
  * writes cannot mask primary facts through unsaved fallback. Inactive private row reclamation is
- * cleanup rather than selected-count repair, under exact closed owner/head/journal fences.
+ * cleanup rather than selected-count repair, under exact closed owner/head/journal fences. Optional
+ * parent admission may read fenced local owner counts without loading memberships; those counts
+ * schedule bounded work and never certify a semantic degree, relation or absence.
  */
 import { estimateReferenceRecordBytes } from "../core/graph/source";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
@@ -2560,6 +2562,74 @@ export class NeutralSourceRepository {
       });
       return current() ? "ready" : "cancelled";
     } catch (error) { return errorReason(error, "dependency-invalid"); }
+  }
+
+  /**
+   * Read closed-world dependency-owner counts for optional work admission, without enumerating
+   * memberships, heads or source families. Counts are conservative contributor bounds, not semantic
+   * degree or incidence certificates. The later canonical lookup still authenticates every selected
+   * owner and count; malformed/pending/currentness failures never return a partial count prefix.
+   */
+  async lookupLocalDependencyCounts(keys: readonly string[], current: () => boolean = () => true,
+    requireCurrentProjection = false): Promise<SourceLocalDependencyLookupResult<Readonly<{
+      fence: Readonly<{ revision: number; sequence: number }>;
+      counts: readonly Readonly<{ key: string; owners: number }>[];
+      work: Readonly<{ keys: number; keyPages: number }>;
+    }>>> {
+    try {
+      this.localDependencyAvailable(current);
+      if (!keys.length || keys.length * 128 > SOURCE_DECODE_BUDGET_BYTES) throw new SourceFactError("unsupported-scope");
+      let retainedBytes = 0;
+      for (const key of keys) {
+        if (typeof key !== "string" || !key) throw new SourceFactError("unsupported-scope");
+        retainedBytes += 2 * key.length + 128;
+        if (retainedBytes > SOURCE_DECODE_BUDGET_BYTES) throw new SourceFactError("decode-budget");
+      }
+      const requestedKeys = [...keys];
+      if (new Set(requestedKeys).size !== requestedKeys.length) throw new SourceFactError("unsupported-scope");
+      const db = await this.open(); if (!db) return selectedSourceFailure(this.storage.unavailableReason?.() ?? "storage-unavailable");
+      const fence = await this.transaction(db, [META_STORE], "readonly", "", async (transaction) => {
+        const meta = transaction.objectStore(META_STORE);
+        const rawState = await unknownValue(meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
+        const sequenceRecord = await unknownValue(meta.get(SOURCE_SEQUENCE_KEY));
+        if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
+          || requireCurrentProjection && rawState.version !== SOURCE_LOCAL_STATE_VERSION) throw new SourceFactError("dependency-pending");
+        if (sequenceRecord !== undefined && (!sourceObject(sequenceRecord) || sequenceRecord.key !== SOURCE_SEQUENCE_KEY
+          || !sourceCount(sequenceRecord.value))) throw new SourceFactError("dependency-invalid");
+        return { revision: rawState.revision, sequence: sourceObject(sequenceRecord) && sourceCount(sequenceRecord.value) ? sequenceRecord.value : 0 };
+      });
+      const counts: Array<Readonly<{ key: string; owners: number }>> = [];
+      let keyPages = 0;
+      for (let offset = 0; offset < requestedKeys.length; offset += SOURCE_MAX_BATCH_RECORDS) {
+        this.localDependencyAvailable(current);
+        const page = requestedKeys.slice(offset, offset + SOURCE_MAX_BATCH_RECORDS);
+        const entries = await this.transaction(db, [META_STORE, SOURCE_LOCAL_KEY_STORE], "readonly", "", async (transaction) => {
+          const meta = transaction.objectStore(META_STORE);
+          const state = await unknownValue(meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
+          const sequenceRecord = await unknownValue(meta.get(SOURCE_SEQUENCE_KEY));
+          const sequence = sequenceRecord === undefined ? 0
+            : sourceObject(sequenceRecord) && sequenceRecord.key === SOURCE_SEQUENCE_KEY && sourceCount(sequenceRecord.value) ? sequenceRecord.value : -1;
+          if (!validSourceLocalDependencyState(state) || !state.complete || state.pending !== 0
+            || requireCurrentProjection && state.version !== SOURCE_LOCAL_STATE_VERSION
+            || state.revision !== fence.revision || sequence !== fence.sequence) throw new SourceFactError("superseded");
+          return Promise.all(page.map(/** Read only the selected count ledger; do not materialize owner memberships. */
+            async (key) => {
+            const value = await unknownValue(transaction.objectStore(SOURCE_LOCAL_KEY_STORE).get(key));
+            if (value === undefined) return { key, owners: 0 };
+            if (!validSourceLocalDependencyKeyState(value) || value.key !== key) throw new SourceFactError("dependency-invalid");
+            return { key, owners: value.count };
+          }));
+        });
+        counts.push(...entries); keyPages++;
+        if (offset + SOURCE_MAX_BATCH_RECORDS < requestedKeys.length) {
+          await this.runtime.yield(); this.localDependencyAvailable(current);
+        }
+      }
+      const checked = await this.validateLocalDependencies(fence, [], current, requireCurrentProjection);
+      if (checked !== "ready") throw new SourceFactError(checked);
+      this.localDependencyAvailable(current);
+      return { outcome: "ready", value: { fence, counts, work: { keys: requestedKeys.length, keyPages } } };
+    } catch (error) { return selectedSourceFailure(errorReason(error, "dependency-invalid")); }
   }
 
   /** Authenticated source-local lookup. Hot keys continue in bounded pages and publish only after a final fence check. */

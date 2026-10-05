@@ -90,6 +90,15 @@ const nativeController = `(()=>{
   const c=window.${controller}={p,settings:JSON.parse(JSON.stringify(p.settings)),owned:[],leaf:null,done:false,error:null,
     bounds:win.getBounds(),throttling:win.webContents.getBackgroundThrottling(),folder:${JSON.stringify(folder)},
     denseTarget:${JSON.stringify(process.env.KPLEX_UX_DENSE_TARGET || null)},scenarios:[],notices:[]};
+  // Passive bounded pair observations preserve each original call and its Promise identity.
+  c.pairTrace=[];
+  const index=p.index,source=index.sourceAcquisition,originalPair=index.prepareRelationshipPair,originalSourcePair=source.prepareRequestedPair;
+  const tracePair=(owner,args,invoke)=>{const at=performance.now(),pub=index.publicationRevision,revision=p.getIndexSourceRevision(),maintenance=source.getMaintenanceRevision(),paths=owner==="index"?args.slice(0,2):args[0].endpoints.map(ref=>ref.physicalPath??ref.semanticPath),tokens=paths.map(path=>{const file=app.vault.getFileByPath(path);return {path,file,cache:file?app.metadataCache.getFileCache(file):null,mtime:file?.stat.mtime,size:file?.stat.size,event:file?source.getFileRevision(file):null}});
+    const observe=(value,error)=>{if(c.pairTrace.length>=128)c.pairTrace.shift();c.pairTrace.push({owner,paths,elapsedMs:performance.now()-at,outcome:error?"threw":owner==="index"?(value?"ready":"not-ready"):value.outcome,reason:owner==="source"?value?.reason:undefined,error:error?String(error):undefined,publicationChanged:pub!==index.publicationRevision,sourceChanged:revision!==p.getIndexSourceRevision(),maintenanceChanged:maintenance!==source.getMaintenanceRevision(),selected:tokens.map(t=>({cacheChanged:Boolean(t.file&&app.metadataCache.getFileCache(t.file)!==t.cache),fileChanged:app.vault.getFileByPath(t.path)!==t.file||t.file?.stat.mtime!==t.mtime||t.file?.stat.size!==t.size,eventChanged:Boolean(t.file&&source.getFileRevision(t.file)!==t.event)}))})};
+    let result;try{result=invoke()}catch(error){observe(undefined,error);throw error}result.then(value=>observe(value),error=>observe(undefined,error));return result};
+  index.prepareRelationshipPair=function(...args){return tracePair("index",args,()=>originalPair.apply(this,args))};
+  source.prepareRequestedPair=function(...args){return tracePair("source",args,()=>originalSourcePair.apply(this,args))};
+  c.restorePairTrace=()=>{index.prepareRelationshipPair=originalPair;source.prepareRequestedPair=originalSourcePair};
   // Record bounded observable notices without wrapping plugin actions or changing their result.
   const notices=document.querySelector(".notice-container");
   if(notices){c.noticeObserver=new MutationObserver(()=>{for(const element of notices.querySelectorAll(".notice")){const text=element.textContent;if(text&&!c.notices.includes(text)){c.notices.push(text);if(c.notices.length>12)c.notices.shift()}}});c.noticeObserver.observe(notices,{childList:true,subtree:true,characterData:true})}
@@ -573,7 +582,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
 })().catch(e=>{c.error=e.stack;c.done=true});return JSON.stringify(true)})()`;
 
 /** Clean up even a partially created fixture and flush the original settings before byte restoration. */
-const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(true);c.noticeObserver?.disconnect();c.done=false;c.error=null;(async()=>{
+const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(true);c.noticeObserver?.disconnect();c.restorePairTrace?.();c.done=false;c.error=null;(async()=>{
   c.statsModalEl?.querySelector(".modal-content button.mod-cta")?.click();
   if(c.ownsRelationModal){
     // Obsidian's Modal has no close-button element in this host; use its real Escape lifecycle.
@@ -732,7 +741,7 @@ try {
       center:r?c.center():c.p.settings.lastActivePath,status:c.p.getIndexStatus(),activeClass:document.activeElement?.className,
       findOpen:r?.querySelector(".kplex-find button")?.getAttribute("aria-expanded"),
       findValue:r?.querySelector(".kplex-find-input")?.value,matchLabel:r?.querySelector(".kplex-find-count")?.textContent,fixtureAliases:c.fixtureAliases,
-      notices:c.notices,linkDisabled:document.querySelector(".kplex-add-related-link-button")?.disabled,relationshipWrites:c.p.relationshipWriteCancels.size,sourceDiagnostics:c.p.index.getSourceRepositoryDiagnostics(),highlightedNodes:r?.querySelectorAll(".kplex-thought.is-highlighted").length,resize:c.lastResize,gate:c.lastGate,bodyDrag:c.lastBodyDrag,dragEvents:c.dragEvents,lastClick:c.lastClick,
+      pairTrace:c.pairTrace,notices:c.notices,linkDisabled:document.querySelector(".kplex-add-related-link-button")?.disabled,relationshipWrites:c.p.relationshipWriteCancels.size,sourceDiagnostics:c.p.index.getSourceRepositoryDiagnostics(),highlightedNodes:r?.querySelectorAll(".kplex-thought.is-highlighted").length,resize:c.lastResize,gate:c.lastGate,bodyDrag:c.lastBodyDrag,dragEvents:c.dragEvents,lastClick:c.lastClick,
       vaultInput:r?.querySelector(".kplex-search")?.value,vaultResults:r?.querySelector(".kplex-search-results")?.textContent,
       popoutRootConnected:c.popoutRootForFind?.isConnected,
       popoutRootCurrent:c.popoutRootForFind===c.popoutLeaf?.view.contentEl.querySelector(".kplex-app"),
@@ -757,12 +766,14 @@ try {
       evaluate(cleanup);
       await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "UX cleanup timed out");
     }
-    evaluate(`(()=>{delete window.${controller};return JSON.stringify(true)})()`);
+    evaluate(`(()=>{window.${controller}?.restorePairTrace?.();delete window.${controller};return JSON.stringify(true)})()`);
     writeFileSync(dataPath,originalData);
     assert(readFileSync(dataPath).equals(originalData),"Original settings bytes were not restored");
     assert(readFileSync(enabledPath).equals(originalEnabled),"Community plugin enablement changed");
     report.cleanup="passed";
   } catch(error) {report.cleanup=error.stack;report.status="failed"}
+  // Wrapper lifetime is independent of fixture cleanup and its native async failures.
+  if(installed)try{evaluate(`(()=>{window.${controller}?.restorePairTrace?.();return JSON.stringify(true)})()`)}catch(error){report.traceCleanupError=error.message;report.status="failed"}
   if(report.status==="passed"&&process.env.KPLEX_UX_EMULATE_MOBILE==="true")try{await deviceMatrix()}catch(error){report.deviceError=error.stack;report.status="failed"}
   try {hashes()} catch(error) {report.artifactError=error.message;report.status="failed"}
   report.completedAt = new Date().toISOString();

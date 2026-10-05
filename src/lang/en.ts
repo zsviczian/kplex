@@ -558,6 +558,11 @@ export const englishCatalog = {
     context: "Legacy K-Plex user-facing copy migrated during the full English catalog pass.",
     params: ["gate", "count"],
   },
+  "node.gatePartial": {
+    message: "Additional relationships may be available",
+    context: "Appended to the gate tooltip for a node with partial relationship coverage. Counts include only prepared relationships and do not assert complete incidence or absence.",
+    params: [],
+  },
   "node.gateEmpty": {
     message: "{gate} gate · no relationships",
     context: "Legacy K-Plex user-facing copy migrated during the full English catalog pass.",

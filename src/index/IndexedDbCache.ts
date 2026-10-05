@@ -220,7 +220,7 @@ export class KplexIndexedDbCache {
   private newerDatabase = false;
 
   /** Share one recoverable connection owner without coupling source progress to graph snapshots. */
-  constructor(private vaultName: string) {
+  constructor(private vaultName: string, private readonly backgroundCheckpoint?: () => Promise<void>) {
     this.sources = new NeutralSourceRepository({ open: () => this.open(), failed: (db) => this.storageFailed(db),
       unavailableReason: () => this.newerDatabase ? "newer-database" : "storage-unavailable",
       /** Cleanup borrows no normal writer authority and accepts only an ended reader's lease. */
@@ -552,6 +552,7 @@ export class KplexIndexedDbCache {
       const readBatch = Platform.isIosApp ? 4 : Platform.isMobile ? 8 : 12;
       let sliceStartedAt = performance.now();
       for (let start = 0; start < chunkCount; start += readBatch) {
+        await this.backgroundCheckpoint?.();
         if (!isCurrent()) { onFailure?.("cancelled"); return false; }
         const end = Math.min(chunkCount, start + readBatch);
         const tx = this.openTransaction(db, SNAPSHOT_CHUNK_STORE, "readonly");
@@ -575,6 +576,7 @@ export class KplexIndexedDbCache {
           }
           if (performance.now() - sliceStartedAt >= (Platform.isMobile ? 6 : 8)) {
             await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+            await this.backgroundCheckpoint?.();
             sliceStartedAt = performance.now();
             if (!isCurrent()) { onFailure?.("cancelled"); return false; }
           }
@@ -662,6 +664,7 @@ export class KplexIndexedDbCache {
     let pageChunkCount = 0;
     let evidenceChunkCount = 0;
     const yieldBetweenBatches = async (): Promise<void> => {
+      await this.backgroundCheckpoint?.();
       // IndexedDB completion is asynchronous, but serialization/structured cloning happens on the
       // caller thread. Give input/paint a real task boundary after every bounded write wave on all
       // platforms; desktop gets larger waves above, so this does not become a per-record yield.
@@ -814,7 +817,9 @@ export class KplexIndexedDbCache {
   }
 
   /** Remove unreachable chunks while retaining both the complete and partial active generations. */
+  /** Sweep unreachable generations at transaction-free background priority boundaries. */
   async cleanupOrphanGenerations(activeGeneration: string, isCurrent: () => boolean = () => true): Promise<void> {
+    await this.backgroundCheckpoint?.();
     if (!isCurrent()) return;
     const db = await this.open();
     if (!db || !isCurrent() || !db.objectStoreNames.contains(SNAPSHOT_CHUNK_STORE)) return;
@@ -842,6 +847,7 @@ export class KplexIndexedDbCache {
       const stale = generations.filter((generation) => generation !== activeGeneration &&
         generation !== active?.generation && generation !== checkpoint?.generation);
       for (const generation of stale) {
+        await this.backgroundCheckpoint?.();
         if (!isCurrent()) return;
         await this.deleteGeneration(generation, isCurrent);
       }
