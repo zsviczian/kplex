@@ -3,6 +3,9 @@
  * Queries touch only requested dependency keys plus the selected owners. Structural facts are
  * reconstructed from bounded current host coordinates with the canonical Obsidian constructors;
  * no Markdown inventory scan, global contributor-catalog bootstrap or graph snapshot is involved.
+ * Editable pair discovery also supports a finite document-owner proof while global inventory is
+ * unfinished. It certifies exact selected heads and delegates positive/negative evidence to full
+ * cached family replay; it never grants global incidence or source-readiness authority.
  */
 import { canonicalTagPaths } from "../../core/graph/tagPaths";
 import { TFile, TFolder, type App } from "obsidian";
@@ -314,6 +317,96 @@ export class SourceLocalContributorDiscovery {
         { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }, certificate.sources, this.current, true);
       if (reason === "dependency-invalid") this.onDependencyInvalid?.();
       return reason;
+    } catch (error) { return error instanceof SourceFactError ? error.reason : "read-error"; }
+  }
+}
+
+/**
+ * Exact editable-pair ownership proof independent of the global incidence inventory. Every
+ * non-structural declaration relating a document to another endpoint is owned by that document;
+ * inverse reconciliation therefore needs at most the two document endpoints. An unrelated note's
+ * shared URL/attachment incidence cannot describe this pair. Full-family cached replay authenticates
+ * each selected owner's positive and negative declarations; no global key-count claim is made.
+ */
+export class EditablePairContributorDiscovery {
+  /** Bind the same finite host/lifetime fence used by endpoint acquisition and cached replay. */
+  constructor(private readonly repository: NeutralSourceRepository, private readonly app: App,
+    private readonly stamp: ContributorHostStamp, private readonly current: () => boolean) {}
+
+  /** Reject structural and ownerless requests rather than granting invented negative coverage. */
+  static supports(request: ContributorRequest): boolean {
+    return request.kind === "pair" && request.endpoints.length === 2
+      && request.endpoints[0].id !== request.endpoints[1].id
+      && request.endpoints.some(endpoint => endpoint.kind === "document")
+      && request.endpoints.every(endpoint => endpoint.kind !== "container" && endpoint.kind !== "tag")
+      && request.fields === undefined && request.literals === undefined;
+  }
+
+  /** Pair proofs expire on demand cancellation or any observed host/source event. */
+  isGenerationCurrent(): boolean { return this.current(); }
+
+  /** Final cached readers recheck empty/host-only coverage through this same host fence. */
+  isHostCurrent(): boolean { return this.current(); }
+
+  /** Select only explicit document owners; no whole-vault enumeration or dependency lookup occurs. */
+  async discover(input: ContributorRequest): Promise<ContributorDiscoveryResult> {
+    if (!EditablePairContributorDiscovery.supports(input)) return failure("unsupported-scope");
+    try {
+      const scope = copyRequest(input), sourceIds: string[] = [];
+      const sources: ContributorCertificate["sources"][number][] = [];
+      for (const endpoint of scope.endpoints) {
+        if (endpoint.kind !== "document") continue;
+        if (!this.current()) return failure("host-catalog-stale");
+        const file = endpoint.physicalPath === undefined ? null : this.app.vault.getFileByPath(endpoint.physicalPath);
+        if (!(file instanceof TFile) || file.extension !== "md" || entityFactForFile(file).entity.id !== endpoint.id) return failure("host-catalog-stale");
+        const selected = await this.repository.inspect(file.path, [], this.current);
+        if (!selected.saved || !selected.head || selected.head.state !== "complete" || selected.sequence === null) return failure(selected.reason === "ready" ? "unsaved" : selected.reason);
+        sourceIds.push(file.path);
+        sources.push({ head: selected.head, sequence: selected.sequence, saved: true });
+      }
+      // Structural pairs are rejected above. Only endpoint entities are needed here; parent
+      // topology/tag incidence cannot contribute to this editable pair. In particular, hashing
+      // a root folder's entire child set would turn this local proof into high-degree work.
+      const hostFacts: ContributorCertificate["hostFacts"][number][] = [];
+      for (const endpoint of scope.endpoints) {
+        if (endpoint.physicalPath === undefined) continue;
+        const file = this.app.vault.getFileByPath(endpoint.physicalPath);
+        if (!(file instanceof TFile)) return failure("host-catalog-stale");
+        const fact = entityFactForFile(file);
+        if (fact.entity.id !== endpoint.id || fact.entity.kind !== endpoint.kind) return failure("host-catalog-stale");
+        hostFacts.push({ order: hostFacts.length, fact });
+      }
+      const scopeIdentity = await scopeDigest(this.repository, scope, this.current, true);
+      const selectionIdentity = await selectionDigest(this.repository, sources, hostFacts, undefined, this.current);
+      // This is a request-local certificate marker, never a durable global dependency generation.
+      const certificate: ContributorCertificate = { coverage: "complete-direct-contributors", scope,
+        scopeIdentity, host: { ...this.stamp }, sources, hostFacts, hostFactOrder: "scope-local",
+        dependency: { generation: "editable-pair-owners-v1", slot: 0, revision: 0, sequence: 0, digest: scopeIdentity }, selectionIdentity };
+      const reason = await this.revalidate(certificate);
+      if (reason !== "ready") return failure(reason);
+      return { outcome: "ready", ...certificate, sourceIds,
+        work: { buckets: 0, pages: 0, bytes: 0, sourceOwners: sourceIds.length, hostFacts: hostFacts.length } };
+    } catch (error) { return failure(error instanceof SourceFactError ? error.reason : "read-error"); }
+  }
+
+  /** Recheck exact source heads and request/host commitment; family replay supplies absence proof. */
+  async revalidate(certificate: ContributorCertificate): Promise<SourceReason> {
+    try {
+      if (!this.current() || !sameHost(certificate.host, this.stamp)
+        || !EditablePairContributorDiscovery.supports(certificate.scope)
+        || certificate.dependency.generation !== "editable-pair-owners-v1"
+        || certificate.scopeIdentity !== await scopeDigest(this.repository, certificate.scope, this.current, true)
+        || certificate.selectionIdentity !== await selectionDigest(this.repository, certificate.sources, certificate.hostFacts, undefined, this.current)) return "superseded";
+      const owners = certificate.scope.endpoints.filter(endpoint => endpoint.kind === "document");
+      if (owners.length !== certificate.sources.length) return "dependency-invalid";
+      for (const [index, owner] of owners.entries()) {
+        const stamp = certificate.sources[index];
+        if (owner.physicalPath !== stamp.head.sourceId) return "dependency-invalid";
+        const selected = await this.repository.inspect(stamp.head.sourceId, [], this.current);
+        if (!this.current()) return "host-catalog-stale";
+        if (!selected.saved || selected.sequence !== stamp.sequence || selected.head?.sourceRevision !== stamp.head.sourceRevision) return "superseded";
+      }
+      return this.current() ? "ready" : "host-catalog-stale";
     } catch (error) { return error instanceof SourceFactError ? error.reason : "read-error"; }
   }
 }

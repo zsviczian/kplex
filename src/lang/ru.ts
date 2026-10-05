@@ -145,6 +145,7 @@ const russianTranslations = {
   "node.gateFolderChild": "Дочерний порт · перетащите, чтобы создать заметку в этой папке",
   "node.gateFolderDisabled": "Порт {gate} · редактирование связей папок отключено",
   "node.gateVisible": "Порт {gate} · видно: {count}",
+  "node.gatePartial": "Могут быть доступны дополнительные связи",
   "node.gateEmpty": "Порт {gate} · связей нет",
   "relation.move": "Переместить связь",
   "relation.addRole": "Добавить: {role}",

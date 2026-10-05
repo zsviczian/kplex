@@ -1,14 +1,16 @@
 /**
  * Private clean-host neighborhood relation closure. Complete neutral center incidence is compiled
- * under one captured policy; relation-only reads close every parent, while gate/scene reads close
- * every policy-visible parent before top-N. A second combined range closes sibling witnesses in
- * original contributor order. Both passes use the canonical cached compiler, never a graph mirror.
+ * under one captured policy. Sibling reads close every or an explicitly admitted subset of parents;
+ * direct-center reads deliberately defer parent incidence before top-N. A second combined range
+ * closes sibling witnesses in original contributor order. Both passes use the canonical cached
+ * compiler, never a graph mirror.
  * Only final root/head/journal/host/policy/demand-fenced inputs escape. A separate private gate
  * request also captures visibility policy and proves physical target facets; sorted visible lists,
  * GraphIndex publication, source acquisition and changed-host repair are not capabilities.
  */
 import type { GraphCompilerRuntime, PortableGraphCompilation } from "../core/graph/compiler";
 import type { SourcePatchReadPort } from "../core/graph/patch";
+import type { NodeId } from "../core/graph/model";
 import { RelationType } from "../core/graph/relations";
 import { classifyRelation } from "../core/graph/resolver";
 import type { SourceEntityRef } from "../core/graph/source";
@@ -23,27 +25,37 @@ import { SOURCE_MAX_BATCH_RECORDS, type SourceReason } from "./SourceFacts";
 import { cachedSourceMatches, type CachedSourceRequest } from "./SourceReplay";
 import { selectedSourceFailure, type NeutralSourceRepository } from "./SourceRepository";
 
-/** One exact center; there is deliberately no top-N, displayed-parent list or gate-count option. */
-export type CachedNeighborhoodRequest = Readonly<{ kind: "neighborhood"; center: SourceEntityRef }>;
-/** Both directions of center and parent incidence, not arbitrary edges in the over-cover graph. */
-type CachedRelationCertificate<Coverage extends "complete-neighborhood-relations" | "complete-visible-parent-relations"> = Readonly<{
+/** One exact center with an explicit optional sibling-incidence request, independent of top-N. */
+export type CachedNeighborhoodRequest = Readonly<{
+  kind: "neighborhood";
+  center: SourceEntityRef;
+  /** Complete closes all parents, selected closes only admitted IDs, deferred closes just the center. */
+  siblingClosure?: "complete" | "deferred" | "selected";
+  /** Opaque canonical parent IDs admitted separately for optional bounded sibling work. */
+  siblingParents?: readonly NodeId[];
+}>;
+/** Both center directions are complete; only completeParents certify additional parent incidence. */
+type CachedRelationCertificate<Coverage extends "complete-neighborhood-relations" | "complete-visible-parent-relations" | "complete-center-relations" | "complete-selected-parent-relations"> = Readonly<{
   coverage: Coverage;
   center: SourceEntityRef;
   parents: readonly SourceEntityRef[];
+  /** Only these parent nodes have complete incidence; other parents remain exact direct targets. */
+  completeParents: readonly SourceEntityRef[];
+  siblingClosure: "complete" | "deferred" | "selected";
   policyRevision: string;
   gateTotals: "not-certified";
   contributors: ContributorCertificate;
 }>;
-/** Relation-only callers retain all parent incidence, independent of presentation visibility. */
-export type CachedNeighborhoodCertificate = CachedRelationCertificate<"complete-neighborhood-relations">;
-/** Gate/scene callers certify the entire center and every policy-visible parent before top-N. */
-export type CachedVisibleParentCertificate = CachedRelationCertificate<"complete-visible-parent-relations">;
+/** Relation-only callers retain every semantic parent; deferred reads do not certify its incidence. */
+export type CachedNeighborhoodCertificate = CachedRelationCertificate<"complete-neighborhood-relations" | "complete-center-relations" | "complete-selected-parent-relations">;
+/** Gate callers certify the entire center and explicitly requested visible-parent closure before top-N. */
+export type CachedVisibleParentCertificate = CachedRelationCertificate<"complete-visible-parent-relations" | "complete-center-relations" | "complete-selected-parent-relations">;
 type Failure = ContributorFailure | Exclude<CachedSemanticPreparation, { outcome: "ready" }>;
 type Discovered = Extract<ContributorDiscoveryResult, { outcome: "ready" }>;
-/** Point-in-time private inputs, including all parent/child sibling witnesses and no partial scopes. */
+/** Final direct-center inputs with explicitly complete or deferred parent/child sibling witnesses. */
 export type CachedNeighborhoodPreparation = Failure | Readonly<{
   outcome: "ready";
-  coverage: "complete-neighborhood-relations";
+  coverage: "complete-neighborhood-relations" | "complete-center-relations" | "complete-selected-parent-relations";
   certificate: CachedNeighborhoodCertificate;
   preparation: Extract<CachedSemanticPreparation, { outcome: "ready" }>;
   work: Readonly<{ passes: number; sourceReplays: number; familyVisits: number }>;
@@ -186,10 +198,13 @@ export class CachedRequestedNeighborhoodReader {
   }
 
   /**
-   * Close one center and every semantic parent's incidence with at most two bounded discoveries.
+   * Close one center and the requested canonical parent incidence with at most two discoveries.
    * The final combined discovery supplies global owner order; source/structure lists are never
    * concatenated. The first private compilation goes out of scope before a second is constructed.
-   * Empty/no-parent scopes take one pass. Any failure discards everything and triggers no fallback.
+   * Empty/no-parent and explicitly deferred sibling scopes take one pass; selected scopes close
+   * only the supplied IDs from the canonical parent frontier. Deferred results prove
+   * the entire center, never complete parent incidence or sibling absence. Any failure discards
+   * everything and triggers no fallback.
    */
   prepare(request: CachedNeighborhoodRequest, policy: CachedSemanticPolicy,
     runtime: GraphCompilerRuntime): Promise<CachedNeighborhoodPreparation> {
@@ -232,7 +247,18 @@ export class CachedRequestedNeighborhoodReader {
     };
     const scopedRuntime = { ...runtime, isCurrent: current };
     if (!current()) return selectedSourceFailure(reason());
-    if (!request || request.kind !== "neighborhood" || !request.center) return selectedSourceFailure("unsupported-scope");
+    if (!request || request.kind !== "neighborhood" || !request.center
+      || request.siblingClosure !== undefined && request.siblingClosure !== "complete" && request.siblingClosure !== "deferred" && request.siblingClosure !== "selected"
+      || request.siblingClosure !== "selected" && request.siblingParents !== undefined) {
+      return selectedSourceFailure("unsupported-scope");
+    }
+    const siblingClosure = request.siblingClosure ?? "complete";
+    // Optional selection is bounded independently of required direct incidence; snapshot before IO.
+    if (siblingClosure === "selected" && (!request.siblingParents || request.siblingParents.length > SOURCE_MAX_BATCH_RECORDS
+      || request.siblingParents.some(/** Reject malformed IDs without interpreting their opaque contents. */
+        id => typeof id !== "string" || !id || id.length * 2 > 32 * 1024 * 1024))) return selectedSourceFailure("unsupported-scope");
+    const selectedParents = new Set(request.siblingParents ?? []);
+    if (selectedParents.size !== (request.siblingParents?.length ?? 0)) return selectedSourceFailure("unsupported-scope");
     try {
       const center = copyRef(request.center);
       const visibility = presentation ? captureCachedCenterGateSettings(presentation.settings) : null;
@@ -278,15 +304,19 @@ export class CachedRequestedNeighborhoodReader {
         if (!current()) return selectedSourceFailure(reason());
         if (parentProjection.outcome !== "ready") return selectedSourceFailure(parentProjection.reason);
         const parents = parentProjection.parents;
+        const closureParents = siblingClosure === "complete" ? parents : siblingClosure === "selected"
+          ? parents.filter(/** Only the current canonical parent frontier can gain optional completeness. */
+            parent => selectedParents.has(parent.id)) : [];
+        if (siblingClosure === "selected" && closureParents.length !== selectedParents.size) return selectedSourceFailure("unsupported-scope");
         if (frontier && !(await sameScope({ kind: "neighborhood", endpoints: parents },
           { kind: "neighborhood", endpoints: frontier }, scopedRuntime))) {
           if (!current()) return selectedSourceFailure(reason());
           return selectedSourceFailure("dependency-invalid");
         }
-        if (pass === 0 && parents.length) {
+        if (pass === 0 && closureParents.length) {
           initial = discovered;
           frontier = parents;
-          endpoints = [center, ...parents];
+          endpoints = [center, ...closureParents];
           // Keep only bounded refs/owner stamps/work, not this preparation or its graph, across passes.
           continue;
         }
@@ -305,17 +335,21 @@ export class CachedRequestedNeighborhoodReader {
         // No source callbacks exist for empty/host-only scopes, but their host observation must close.
         if (!this.discovery.isHostCurrent()) return selectedSourceFailure("host-catalog-stale");
         if (!current()) return selectedSourceFailure(reason());
-        const certificate: CachedNeighborhoodCertificate = { coverage: "complete-neighborhood-relations",
-          center, parents, policyRevision: revision, gateTotals: "not-certified", contributors: discovered };
+        const coverage = siblingClosure === "complete" ? "complete-neighborhood-relations"
+          : siblingClosure === "selected" && closureParents.length ? "complete-selected-parent-relations" : "complete-center-relations";
+        const certificate: CachedNeighborhoodCertificate = { coverage,
+          center, parents, completeParents: closureParents, siblingClosure,
+          policyRevision: revision, gateTotals: "not-certified", contributors: discovered };
         if (projected && presentationRevision !== undefined) return {
           outcome: "ready", coverage: "complete-center-gates",
-          certificate: { coverage: "complete-center-gates", relations: { ...certificate, coverage: "complete-visible-parent-relations" },
+          certificate: { coverage: "complete-center-gates", relations: { ...certificate, coverage: siblingClosure === "complete" ? "complete-visible-parent-relations"
+            : siblingClosure === "selected" && closureParents.length ? "complete-selected-parent-relations" : "complete-center-relations" },
             presentationRevision, visibleLists: "not-certified" },
           gates: projected.gates, preparation: prepared,
           work: { passes: pass + 1, sourceReplays, familyVisits,
             gateRelations: projected.work.relations, gateEntityReads: projected.work.entityReads },
         };
-        return { outcome: "ready", coverage: "complete-neighborhood-relations", certificate, preparation: prepared,
+        return { outcome: "ready", coverage, certificate, preparation: prepared,
           work: { passes: pass + 1, sourceReplays, familyVisits } };
       }
       return selectedSourceFailure("dependency-invalid");

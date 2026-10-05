@@ -54,6 +54,7 @@ for (const role of ["parent", "child", "left", "right"]) {
     const staleOrigin = page("Origin.md"), staleTarget = page("Target.md"), origin = page(staleOrigin.path), target = page(staleTarget.path);
     const frontmatter = {}, events = [];
     const context = { translator: key => key, index: {
+      withForegroundPriority: async work => work(),
       prepareRelationshipPair: async (...paths) => { events.push(["prepare", ...paths]); return true; },
       isSemanticWriteReady: () => true, get: path => path === origin.path ? origin : target,
       gateNeighbourPaths: current => { assert.equal(current, origin); return new Set(); }, isConnected: () => false,
@@ -72,7 +73,7 @@ for (const role of ["parent", "child", "left", "right"]) {
 
 test("existing-target Link refuses unavailable exact pair authority before any write", async () => {
   const origin = page("Origin.md"), target = page("Target.md");
-  const context = { translator: key => key, index: { prepareRelationshipPair: async () => false },
+  const context = { translator: key => key, index: { withForegroundPriority: async work => work(), prepareRelationshipPair: async () => false },
     writeRelationship: () => assert.fail("An unready pair must not mutate the vault"),
     prepareRelationshipMutation: productionFunction("src/main.ts", "prepareRelationshipMutation", {}) };
   const commit = productionFunction("src/main.ts", "createRelationToPage", { Notice: class {} });
@@ -170,6 +171,65 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
   assert.equal(context.indexDirty, false); assert.equal(context.indexBacklogReasons.size, 0);
 });
 
+/** A view may own cold startup before the cooperative physical catalog installs warm hydration. */
+for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]) {
+  test(`late ${outcome} startup hydration never joins its own initial task`, { timeout: 2000 }, async () => {
+    let releaseMetadata, releaseHydration, hydrating = false, hydrated = false, sourceBacked = false;
+    const metadata = new Promise(resolve => { releaseMetadata = resolve; });
+    const hydration = new Promise(resolve => { releaseHydration = resolve; });
+    const events = [];
+    const context = {
+      unloading: false, layoutReady: true, initialIndexTask: null, initialIndexComplete: false,
+      indexDirty: true, indexDirtyRevision: 0, preRestoreUncoveredChanges: false,
+      indexBacklogReasons: new Set(["startup:no-snapshot"]), dirtyMarkdownPaths: new Set(), metadataStabilized: false,
+      metadataStabilityPromise: null, rebuildTask: null, rebuildTimer: null,
+      index: {
+        size: 0, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
+        hasSourceBackedStartup: () => sourceBacked, isFullSnapshotHydrated: () => hydrated,
+        hasPhysicalBaseline: () => hydrated || sourceBacked, hasRestoredCheckpoint: () => false,
+        hasIncrementalRestorePatch: () => false,
+        waitForSnapshotHydration: async () => {
+          events.push("hydrate"); await hydration; hydrating = false;
+          hydrated = outcome === "fresh" || outcome === "stale";
+          sourceBacked = outcome.startsWith("sources"); context.index.size = 3;
+          // The normal host restore classifier already closes a fresh snapshot's empty backlog.
+          if (outcome === "fresh") { context.indexDirty = false; context.indexBacklogReasons.clear(); }
+          return { restored: hydrated, fresh: outcome === "fresh" };
+        },
+        adoptStartupSources: async () => { events.push("adopt"); return outcome === "sources"; },
+        noteBuildDecision: () => {},
+        rebuild: async () => { events.push("full"); hydrated = true; return true; },
+        rebuildProgressively: async () => { events.push("progressive"); hydrated = true; return true; },
+      },
+      waitForMetadataCacheStability: async () => { events.push("metadata"); await metadata; },
+      refreshBookmarkedEntryPoints: async () => {}, notifyIndexStatus: () => {}, hasVisibleKplexSurface: () => true,
+      scheduleRebuild: () => assert.fail("This settled startup needs no additional rebuild"),
+      pruneMissingDirtyMarkdownPaths: () => {}, startupGraphSeedPaths: () => [],
+    };
+    for (const name of ["ensureInitialIndex", "performRebuild", "adoptInitialSourceIndex"]) {
+      context[name] = productionFunction("src/main.ts", name, { Platform: { isIosApp: false } });
+    }
+    const task = context.ensureInitialIndex();
+    assert.deepEqual(events, ["metadata"]);
+    hydrating = true; releaseMetadata();
+    // No native sleeps: drain the finite coordinator continuation until it reaches the restore.
+    for (let turn = 0; turn < 6; turn++) await Promise.resolve();
+    assert.deepEqual(events, ["metadata", "hydrate"]);
+    assert.equal(context.rebuildTask, null); assert.equal(context.initialIndexComplete, false);
+    releaseHydration(); await task;
+    const expected = outcome === "fresh" ? [] : outcome === "stale" ? ["full"]
+      : outcome === "failed" ? ["progressive"] : ["adopt"];
+    assert.deepEqual(events, ["metadata", "hydrate", ...expected]);
+    assert.equal(context.initialIndexComplete, outcome !== "sources-pending");
+    assert.equal(context.indexDirty, outcome === "sources-pending");
+    if (outcome.startsWith("sources")) assert.equal(hydrated, false, "Source adoption cannot claim full graph hydration");
+    if (outcome === "sources-pending") {
+      assert.equal(context.initialIndexTask, null, "Failed adoption must release startup for a later real attempt");
+      assert(context.indexBacklogReasons.has("startup:partial-restore-incomplete"));
+    } else assert.equal(context.indexBacklogReasons.size, 0);
+  });
+}
+
 /** Pending coverage does not imply a renderer task is still running after a bounded request fails. */
 test("settled semantic failure exposes incomplete status while real active work retains updating status", async () => {
   let active = false;
@@ -207,4 +267,53 @@ test("optional alias progress and failure use distinct status copy while relatio
   assert.equal(JSON.parse((await status.call(context)).label).key,"index.statusSearchIncomplete");
   relationshipFailure="decode-budget";
   assert.equal(JSON.parse((await status.call(context)).label).key,"index.statusRelationshipLimit");
+});
+
+test("pre-restore file events update temporary availability while preserving backlog revision fences", async () => {
+  class TFile { constructor(path) { this.path = path; this.extension = "md"; } }
+  class TFolder { constructor(path) { this.path = path; } }
+  const vaultEvents = new Map(), metadataEvents = new Map(), updates = [], cleanup = [];
+  const context = { preRestoreListenerCleanup: null, preRestoreChanged: false, indexDirtyRevision: 0,
+    preRestoreReasons: new Map(), preRestoreMarkdownPaths: new Map(),
+    app: { vault: { on: (kind, callback) => { vaultEvents.set(kind, callback); return kind; }, offref: kind => vaultEvents.delete(kind) },
+      metadataCache: { on: (kind, callback) => { metadataEvents.set(kind, callback); return kind; }, offref: kind => metadataEvents.delete(kind) } },
+    index: { updateHostFileAvailability: (...args) => updates.push([context.indexDirtyRevision, ...args]),
+      updateHostFolderAvailability: async (...args) => updates.push([context.indexDirtyRevision, ...args]) }, register: callback => cleanup.push(callback) };
+  const install = productionFunction("src/main.ts", "installPreRestoreChangeFence", { TFile, TFolder });
+  await install.call(context);
+  const file = new TFile("Created.md");
+  vaultEvents.get("create")(file);
+  file.path = "Renamed.md"; vaultEvents.get("rename")(file, "Created.md");
+  vaultEvents.get("delete")(file);
+  assert.deepEqual(updates, [[1, "Created.md", file], [2, "Created.md", file], [3, "Renamed.md"]]);
+  assert.equal(context.preRestoreChanged, true);
+  assert.equal(context.preRestoreReasons.get("vault:rename"), 2);
+  assert.equal(context.preRestoreMarkdownPaths.get("Renamed.md"), 3);
+  const folder = new TFolder("NewFolder");
+  vaultEvents.get("create")(folder); folder.path = "MovedFolder"; vaultEvents.get("rename")(folder, "NewFolder");
+  vaultEvents.get("delete")(folder);
+  assert.deepEqual(updates.slice(3), [[4, "NewFolder", folder], [5, "NewFolder", folder], [6, "MovedFolder"]]);
+  cleanup[0](); assert.equal(vaultEvents.size, 0); assert.equal(metadataEvents.size, 0);
+});
+
+/** An ordinary host edit advances its source fence before starting asynchronous visible preparation. */
+test("visible metadata preview captures the event's new source revision", async () => {
+  const handlers = new Map(), file = { path: "Visible.md", extension: "md", stat: { mtime: 2, size: 20 } };
+  const captures = [], visible = [];
+  const context = { reactiveIndexListenersRegistered: false, indexDirtyRevision: 0,
+    app: { vault: { on: () => ({}), getFileByPath: path => path === file.path ? file : null },
+      metadataCache: { on: (kind, callback) => { handlers.set(kind, callback); return {}; } } },
+    registerEvent: () => {}, pruneManagedMetadataWrites: () => {}, managedMetadataWrites: new Map(),
+    renameMetadataSuppressions: new Map(), dirtyMarkdownPaths: new Set(),
+    scheduleRebuild: () => { context.indexDirtyRevision++; },
+    scheduleVisibleMetadataRefresh: path => visible.push(path),
+    index: { refreshVisibleHostMetadataPreviews: path => { captures.push([path, context.indexDirtyRevision]); return true; } },
+  };
+  await productionFunction("src/main.ts", "registerReactiveIndexListeners", {}).call(context);
+  handlers.get("changed")(file);
+  assert.deepEqual(captures, [[file.path, 1]], "the preview must not capture the revision invalidated later in the same callback");
+  assert.deepEqual(visible, [file.path]);
+  context.managedMetadataWrites.set(file.path, Date.now() + 10000);
+  handlers.get("changed")(file);
+  assert.deepEqual(captures[1], [file.path, 1], "managed writes refresh presentation without scheduling a duplicate dirty batch");
 });

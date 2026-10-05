@@ -1,0 +1,560 @@
+{
+  "schemaVersion": 1,
+  "condition": "one comparable 20,015-note warm restart; Welcome.md representative center; original production checkpoint",
+  "sourceRevision": "961da6dca8cfa24a3e32107647f88ab238e6a545",
+  "node": "v22.22.3",
+  "obsidian": "1.14.4 (installer 1.14.0)",
+  "os": "Darwin 23.5.0",
+  "artifacts": {
+    "main.js": "2eeaf1fbcce062c3647240d045b34dba35f7b59fc0cdb1e0103f895ac5bb1b00",
+    "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+    "styles.css": "37efdfe8399533c2a36335adc672719677adb37adb2777250fc784de8f15cd8e"
+  },
+  "baseline": {
+    "strictReadyMs": 89950.29999995232,
+    "firstPlexDomMs": 2416,
+    "sourceAuthorityMs": 63860.60000002384,
+    "requestedSemanticsMs": 63969.39999997616,
+    "onloadOffsetMs": 122.29999995231628,
+    "diagnostics": {
+      "startedAtMs": 593125.8999999762,
+      "enabled": true,
+      "frozen": true,
+      "milestones": {
+        "onload": 0,
+        "settings-loaded": 13.200000047683716,
+        "layout-ready": 25.200000047683716,
+        "host-inventory-start": 49.5,
+        "host-inventory-end": 83.10000002384186,
+        "preview-available": 2210.2000000476837,
+        "source-authority": 63727.700000047684,
+        "source-authority-await-ended": 63728.300000071526,
+        "first-requested-scope-authoritative": 63756.200000047684,
+        "requested-semantics-refresh-ended": 63756.60000002384,
+        "snapshot-complete": 89789.60000002384,
+        "strict-ready": 89790.39999997616
+      },
+      "phases": [
+        {
+          "lane": "hydration",
+          "phase": "metadata",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 27.899999976158142,
+          "endedMs": 129.89999997615814,
+          "counters": {
+            "markdownInventoryCalls": 1,
+            "idb.meta.get": 3,
+            "idb.sourceHeads.getAll": 1,
+            "idb.sourceHeads.getAllKeys": 1,
+            "inventoryFiles": 20016,
+            "inventoryFolders": 207
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "hydration",
+          "phase": "preview",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 129.89999997615814,
+          "endedMs": 2190.5,
+          "counters": {
+            "idb.pages.get": 451,
+            "idb.meta.put": 1
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "source",
+          "phase": "source-inventory",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 1012.5,
+          "endedMs": 1015.7000000476837,
+          "counters": {
+            "markdownInventoryCalls": 1
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "source",
+          "phase": "source-coordinates",
+          "pass": 1,
+          "total": 20015,
+          "processed": 20015,
+          "startedMs": 1015.7000000476837,
+          "endedMs": 1021,
+          "counters": {},
+          "uniqueOwners": 20015
+        },
+        {
+          "lane": "source",
+          "phase": "host-metadata-comparison",
+          "pass": 1,
+          "total": 20015,
+          "processed": 20015,
+          "startedMs": 1021,
+          "endedMs": 55871.5,
+          "counters": {
+            "sourceInspectionCalls": 20015,
+            "idb.sourceHeads.get": 60046,
+            "dependencyChecks": 20015,
+            "localDependencySelectionCalls": 20015,
+            "idb.meta.get": 20015,
+            "idb.sourceLocalDependencyOwners.get": 20015,
+            "idb.sourceLocalDependencyRepairs.get": 20015,
+            "metadataCacheLookups": 20565,
+            "idb.bodies.get": 12,
+            "idb.meta.add": 47656,
+            "idb.sourceChunks.get": 20017,
+            "markdownInventoryCalls": 2,
+            "idb.sourcePostings.getAll": 20017,
+            "repositoryYieldCalls": 20017,
+            "idb.meta.delete": 47656,
+            "physicalRevisionComparisons": 20015
+          },
+          "uniqueOwners": 20015
+        },
+        {
+          "lane": "hydration",
+          "phase": "preview-search",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 2190.5,
+          "endedMs": 2210.2000000476837,
+          "counters": {},
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "hydration",
+          "phase": "source-authority",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 2210.2000000476837,
+          "endedMs": 63728.200000047684,
+          "counters": {
+            "metadataCacheLookups": 1,
+            "idb.meta.get": 1
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "source",
+          "phase": "host-retired-owner-check",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 55871.5,
+          "endedMs": 56385.200000047684,
+          "counters": {
+            "sourceHeadPageCalls": 80,
+            "idb.sourceHeads.getAll": 80,
+            "idb.sourceHeads.getAllKeys": 80,
+            "headPageOwners": 20096
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "source",
+          "phase": "source-reconciliation",
+          "pass": 1,
+          "total": 20015,
+          "processed": 20015,
+          "startedMs": 56385.200000047684,
+          "endedMs": 63415.700000047684,
+          "counters": {
+            "idb.meta.get": 20016,
+            "metadataCacheLookups": 20015,
+            "sourceInspectionCalls": 20015,
+            "idb.sourceHeads.get": 40031,
+            "physicalRevisionComparisons": 20015,
+            "dependencyChecks": 20015,
+            "localDependencySelectionCalls": 20015,
+            "idb.sourceLocalDependencyOwners.get": 20015,
+            "idb.sourceLocalDependencyRepairs.get": 20015,
+            "idb.meta.add": 1,
+            "idb.sourceChunks.get": 1,
+            "idb.sourcePostings.getAll": 1,
+            "repositoryYieldCalls": 1,
+            "idb.meta.delete": 1
+          },
+          "uniqueOwners": 20015
+        },
+        {
+          "lane": "source",
+          "phase": "source-retired-owner-check",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 63415.700000047684,
+          "endedMs": 63721.39999997616,
+          "counters": {
+            "sourceHeadPageCalls": 80,
+            "idb.sourceHeads.getAll": 80,
+            "idb.sourceHeads.getAllKeys": 80,
+            "headPageOwners": 20096
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "source",
+          "phase": "dependency-completion",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 63721.39999997616,
+          "endedMs": 63722.700000047684,
+          "counters": {
+            "dependencyInventoryChecks": 1,
+            "idb.meta.get": 4,
+            "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+            "idb.sourceLocalDependencyRepairs.count": 1,
+            "idb.meta.put": 1
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "source",
+          "phase": "resolution-reconciliation",
+          "pass": 1,
+          "total": 20015,
+          "processed": 20015,
+          "startedMs": 63722.700000047684,
+          "endedMs": 63726.39999997616,
+          "counters": {},
+          "uniqueOwners": 20015
+        },
+        {
+          "lane": "source",
+          "phase": "dependency-final-validation",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 63726.39999997616,
+          "endedMs": 63727.700000047684,
+          "counters": {
+            "dependencyInventoryChecks": 1,
+            "idb.meta.get": 4,
+            "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+            "idb.sourceLocalDependencyRepairs.count": 1,
+            "idb.meta.put": 1
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "source",
+          "phase": "complete",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 63727.700000047684,
+          "endedMs": 89790.39999997616,
+          "counters": {},
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "hydration",
+          "phase": "requested-semantics",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 63728.200000047684,
+          "endedMs": 63756.700000047684,
+          "counters": {
+            "idb.meta.get": 47,
+            "idb.sourceLocalDependencyKeys.get": 2,
+            "idb.sourceLocalDependencyOwners.get": 3,
+            "idb.sourceHeads.get": 25,
+            "metadataCacheLookups": 397,
+            "idb.meta.add": 2,
+            "idb.sourceChunks.get": 8,
+            "idb.sourcePostings.getAll": 8,
+            "repositoryYieldCalls": 8,
+            "idb.meta.delete": 2
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "hydration",
+          "phase": "pages",
+          "pass": 1,
+          "total": null,
+          "processed": 20771,
+          "startedMs": 63756.700000047684,
+          "endedMs": 72660,
+          "counters": {
+            "idb.snapshotChunks.get": 118,
+            "metadataCacheLookups": 8,
+            "physicalRevisionComparisons": 20015
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "hydration",
+          "phase": "relations",
+          "pass": 1,
+          "total": null,
+          "processed": 20771,
+          "startedMs": 72660,
+          "endedMs": 83788.60000002384,
+          "counters": {
+            "idb.snapshotChunks.get": 118
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "hydration",
+          "phase": "preview-search",
+          "pass": 2,
+          "total": null,
+          "processed": 0,
+          "startedMs": 83788.60000002384,
+          "endedMs": 84074.5,
+          "counters": {
+            "metadataCacheLookups": 60046,
+            "idb.bodies.get": 13
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "hydration",
+          "phase": "evidence",
+          "pass": 1,
+          "total": null,
+          "processed": 715036,
+          "startedMs": 84074.5,
+          "endedMs": 89789,
+          "counters": {
+            "idb.snapshotChunks.get": 699,
+            "metadataCacheLookups": 27
+          },
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "hydration",
+          "phase": "promote",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 89789,
+          "endedMs": 89789.60000002384,
+          "counters": {},
+          "uniqueOwners": 0
+        },
+        {
+          "lane": "hydration",
+          "phase": "complete",
+          "pass": 1,
+          "total": null,
+          "processed": 0,
+          "startedMs": 89789.60000002384,
+          "endedMs": 89790.39999997616,
+          "counters": {
+            "idb.meta.put": 1
+          },
+          "uniqueOwners": 0
+        }
+      ],
+      "overlaps": [
+        {
+          "first": "source-coordinates",
+          "second": "host-metadata-comparison",
+          "owners": 20015
+        },
+        {
+          "first": "source-coordinates",
+          "second": "source-reconciliation",
+          "owners": 20015
+        },
+        {
+          "first": "source-coordinates",
+          "second": "resolution-reconciliation",
+          "owners": 20015
+        },
+        {
+          "first": "host-metadata-comparison",
+          "second": "source-reconciliation",
+          "owners": 20015
+        },
+        {
+          "first": "host-metadata-comparison",
+          "second": "resolution-reconciliation",
+          "owners": 20015
+        },
+        {
+          "first": "source-reconciliation",
+          "second": "resolution-reconciliation",
+          "owners": 20015
+        }
+      ]
+    },
+    "hydration": {
+      "run": 1,
+      "phase": "complete",
+      "lastActivePhase": "promote",
+      "startedAt": 1791218446097,
+      "phaseStartedAt": 1791218535857,
+      "lastProgressAt": 1791218535856,
+      "pages": 20771,
+      "relations": 20771,
+      "evidence": 715036,
+      "outcome": "complete"
+    },
+    "source": {
+      "checked": 0,
+      "reusedBodies": 0,
+      "legacyBodies": 0,
+      "vaultReads": 0,
+      "parses": 0,
+      "repaired": 0,
+      "resolutionRefreshes": 0,
+      "pendingMetadata": 0,
+      "failures": 0
+    },
+    "semantic": {
+      "policyRevision": 1,
+      "requested": 2,
+      "prepared": 1,
+      "published": 1,
+      "cancelled": 0,
+      "pending": 1,
+      "dependencyVisits": 8,
+      "fullBuilds": 0,
+      "lastReason": null
+    },
+    "operations": {
+      "metadata": {
+        "markdownInventoryCalls": 1,
+        "idb.meta.get": 3,
+        "idb.sourceHeads.getAll": 1,
+        "idb.sourceHeads.getAllKeys": 1
+      },
+      "preview": {
+        "idb.pages.get": 451,
+        "idb.meta.put": 1
+      },
+      "source-inventory": {
+        "markdownInventoryCalls": 1
+      },
+      "host-metadata-comparison": {
+        "sourceInspectionCalls": 20015,
+        "idb.sourceHeads.get": 60046,
+        "dependencyChecks": 20015,
+        "localDependencySelectionCalls": 20015,
+        "idb.meta.get": 20015,
+        "idb.sourceLocalDependencyOwners.get": 20015,
+        "idb.sourceLocalDependencyRepairs.get": 20015,
+        "metadataCacheLookups": 20565,
+        "idb.bodies.get": 12,
+        "idb.meta.add": 47656,
+        "idb.sourceChunks.get": 20017,
+        "markdownInventoryCalls": 2,
+        "idb.sourcePostings.getAll": 20017,
+        "repositoryYieldCalls": 20017,
+        "idb.meta.delete": 47656
+      },
+      "host-retired-owner-check": {
+        "sourceHeadPageCalls": 80,
+        "idb.sourceHeads.getAll": 80,
+        "idb.sourceHeads.getAllKeys": 80
+      },
+      "source-reconciliation": {
+        "idb.meta.get": 20016,
+        "metadataCacheLookups": 20015,
+        "sourceInspectionCalls": 20015,
+        "idb.sourceHeads.get": 40031,
+        "dependencyChecks": 20015,
+        "localDependencySelectionCalls": 20015,
+        "idb.sourceLocalDependencyOwners.get": 20015,
+        "idb.sourceLocalDependencyRepairs.get": 20015,
+        "idb.meta.add": 1,
+        "idb.sourceChunks.get": 1,
+        "idb.sourcePostings.getAll": 1,
+        "repositoryYieldCalls": 1,
+        "idb.meta.delete": 1
+      },
+      "source-retired-owner-check": {
+        "sourceHeadPageCalls": 80,
+        "idb.sourceHeads.getAll": 80,
+        "idb.sourceHeads.getAllKeys": 80
+      },
+      "dependency-completion": {
+        "dependencyInventoryChecks": 1,
+        "idb.meta.get": 4,
+        "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+        "idb.sourceLocalDependencyRepairs.count": 1,
+        "idb.meta.put": 1
+      },
+      "dependency-final-validation": {
+        "dependencyInventoryChecks": 1,
+        "idb.meta.get": 4,
+        "idb.sourceLocalDependencyRepairs.getAllKeys": 1,
+        "idb.sourceLocalDependencyRepairs.count": 1,
+        "idb.meta.put": 1
+      },
+      "source-authority": {
+        "metadataCacheLookups": 1,
+        "idb.meta.get": 1
+      },
+      "requested-semantics": {
+        "idb.meta.get": 47,
+        "idb.sourceLocalDependencyKeys.get": 2,
+        "idb.sourceLocalDependencyOwners.get": 3,
+        "idb.sourceHeads.get": 25,
+        "metadataCacheLookups": 397,
+        "idb.meta.add": 2,
+        "idb.sourceChunks.get": 8,
+        "idb.sourcePostings.getAll": 8,
+        "repositoryYieldCalls": 8,
+        "idb.meta.delete": 2
+      },
+      "pages": {
+        "idb.snapshotChunks.get": 118,
+        "metadataCacheLookups": 8
+      },
+      "relations": {
+        "idb.snapshotChunks.get": 118
+      },
+      "preview-search": {
+        "metadataCacheLookups": 60046,
+        "idb.bodies.get": 13
+      },
+      "evidence": {
+        "idb.snapshotChunks.get": 699,
+        "metadataCacheLookups": 27
+      },
+      "complete": {
+        "idb.meta.put": 1,
+        "metadataCacheLookups": 27
+      }
+    },
+    "foreground": {
+      "samples": 91,
+      "hidden": 0,
+      "documentUnfocused": 0,
+      "windowUnfocused": 0,
+      "throttlingDisabled": 0,
+      "comparable": true
+    },
+    "sourceHeadsUnchanged": true,
+    "settingsUnchanged": true
+  },
+  "cleanup": {
+    "controllerRemoved": true,
+    "optInAbsent": true,
+    "backgroundThrottling": true
+  },
+  "configurationRestored": true,
+  "limits": [
+    "Single sequential observation, no statistical performance conclusion.",
+    "DOM observation at 100 ms intervals; no actual-paint or physical-mobile latency.",
+    "Inclusive lanes overlap; do not sum source/hydration timings.",
+    "Untimed selected-center preflight precedes measured restart; no cache clearing."
+  ]
+}

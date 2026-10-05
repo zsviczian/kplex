@@ -142,6 +142,7 @@ const japaneseTranslations = {
   "node.gateFolderChild": "子ゲート · ドラッグしてこのフォルダーにノートを作成",
   "node.gateFolderDisabled": "{gate} ゲート · フォルダー関係の編集は無効です",
   "node.gateVisible": "{gate} ゲート · {count} 件表示",
+  "node.gatePartial": "他の関係が利用できる場合があります",
   "node.gateEmpty": "{gate} ゲート · 関係なし",
   "relation.move": "関係を移動",
   "relation.addRole": "{role} を追加",

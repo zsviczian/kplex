@@ -144,6 +144,7 @@ const frenchTranslations = {
   "node.gateFolderChild": "Porte enfant · faites glisser pour créer une note dans ce dossier",
   "node.gateFolderDisabled": "Porte {gate} · la modification des relations de dossier est désactivée",
   "node.gateVisible": "Porte {gate} · {count} visibles",
+  "node.gatePartial": "D’autres relations peuvent être disponibles",
   "node.gateEmpty": "Porte {gate} · aucune relation",
   "relation.move": "Déplacer la relation",
   "relation.addRole": "Ajouter {role}",

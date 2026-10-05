@@ -240,6 +240,7 @@ export class GraphBuilder {
     private isCurrent: () => boolean,
     private semanticFingerprints: Map<string, string> = new Map(),
     private sourceAcquisition: ObsidianSourceAcquisition | null = null,
+    private readonly backgroundCheckpoint?: () => Promise<void>,
   ) {
     this.metadataSourceHost = createObsidianMetadataSourceHost(app);
     this.metadataSourceSettings = {
@@ -672,6 +673,8 @@ export class GraphBuilder {
    * Stage the finite synthetic endpoints of a retired source against current contributor authority.
    * Negative materialization closes obsolete partial evidence; positive results update finite facets
    * or insert a newly materialized synthetic node. Copy-on-write state remains private until publish.
+   * Unclosed source incidence returns a pending patch without joining inventory; a foreground
+   * caller must never wait for the background owner it currently pre-empts.
    */
   async prepareNodeImpactPatch(state: GraphState, endpoints: Iterable<SourceEntityRef>): Promise<
     Readonly<{ touched: ReadonlySet<string>; publish: () => void }> | null> {
@@ -857,18 +860,20 @@ export class GraphBuilder {
     return { outcome: prepared.outcome };
   }
 
+  /** Release a consumed CPU slice and pause background builders at a transaction-free priority boundary. */
   private async yieldToHost(force = false): Promise<boolean> {
     if (!this.isCurrent()) return false;
     const budgetMs = Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13;
     if (!force && perfNow() - this.sliceStartedAt < budgetMs) return true;
     await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await this.backgroundCheckpoint?.();
     this.sliceStartedAt = perfNow();
     return this.isCurrent();
   }
 
   private async parseBody(content: string): Promise<ParsedBodyMetadata | null> {
     try {
-      return await this.metadataParser.parse(content);
+      return await this.metadataParser.parse(content, this.backgroundCheckpoint);
     } catch (error) {
       if (error instanceof MetadataParseCancelledError || !this.isCurrent()) return null;
       throw error;
@@ -1486,7 +1491,7 @@ export class GraphBuilder {
       && this.isCurrent();
   }
 
-  /** Reuse source-local canonical compilation to distinguish a shared node from an orphan. */
+  /** Reuse closed source-local authority to distinguish shared nodes from orphans; null defers pruning without a global flush. */
   private async retainSourceNode(page: GraphPage): Promise<boolean | null> {
     if (!this.sourceAcquisition) return null;
     const endpoint: SourceEntityRef = { id: nodeId(page.path), semanticPath: page.path,

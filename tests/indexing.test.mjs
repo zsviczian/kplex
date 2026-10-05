@@ -395,6 +395,8 @@ for (const file of [
   "src/index/GraphBuilder.ts",
   "src/index/SourceFingerprint.ts",
   "src/index/GraphIndex.ts",
+  "src/index/ForegroundWorkScheduler.ts",
+  "src/index/HostMetadataPreview.ts",
   "src/index/SectionExpansion.ts",
   "src/index/style.ts",
   "src/lens/GraphPredicate.ts",
@@ -2678,6 +2680,9 @@ try {
       let release;
       const blocked = new Promise((resolve) => { release = resolve; });
       if (phase === "source-authority" || phase === "requested-semantics") {
+        // These watchdog phases belong to the verified stale path. A fresh compatible schema-3
+        // generation intentionally publishes navigation before starting source authority now.
+        stalled.indexedDb.readSnapshotMeta = async () => ({ ...snapshotMeta, vaultSignature: "stale-watchdog-fixture" });
         stalled.startPersistedSourceInventory = async () => true;
         stalled.sourceAcquisition.flush = async () => true;
         stalled.sourceAcquisition.hasSemanticDependencies = () => true;
@@ -2720,9 +2725,15 @@ try {
         coordinator.indexDirty = false; coordinator.indexBacklogReasons.clear();
       };
       await coordinator.ensureInitialIndex();
-      assert.equal(rebuilds, 1, "Timeout must route startup to an authoritative build");
+      if (phase === "evidence") {
+        assert.equal(rebuilds, 0, "A navigable trusted warm graph retains source-backed recovery after evidence timeout");
+        assert.equal(stalled.hasSourceBackedStartup(), true);
+        assert.equal(coordinator.getIndexStatus().upToDate, false, "Unfinished recovery must not claim authority");
+      } else {
+        assert.equal(rebuilds, 1, "Timeout before trusted navigation must route startup to an authoritative build");
+        assert.equal(coordinator.getIndexStatus().upToDate, true);
+      }
       assert.equal(stalled.size, index.size);
-      assert.equal(coordinator.getIndexStatus().upToDate, true);
       const rebuiltState = stalled.state;
       const terminal = stalled.getSnapshotHydrationDiagnostics();
       release(); await settle();
@@ -3533,6 +3544,8 @@ try {
     },
   };
   nativeCreationCoordinator.index = {
+    refreshVisibleHostMetadataPreviews: () => false,
+    acknowledgeHostPresentation: () => {},
     hasPendingStructuralMaintenance: () => false,
     hasPendingSnapshotHydration: () => false,
     cancelRebuild: () => {},
@@ -3722,6 +3735,7 @@ try {
   const coordinatorPatchStarted = new Promise((resolve) => { signalCoordinatorPatch = resolve; });
   const coordinatorPatchGate = new Promise((resolve) => { releaseCoordinatorPatch = resolve; });
   coordinator.index = {
+    acknowledgeHostPresentation: () => {},
     hasPendingStructuralMaintenance: () => false,
     hasPendingSnapshotHydration: () => false,
     size: 1,
@@ -3770,6 +3784,8 @@ try {
   const creationPatchCalls = [];
   creationCoordinator.app = { vault: { getFileByPath: (path) => path === createdDuringPatch.path ? createdDuringPatch : null } };
   creationCoordinator.index = {
+    acknowledgeHostPresentation: () => {},
+    withForegroundPriority: work => work(),
     hasPendingStructuralMaintenance: () => false,
     hasPendingSnapshotHydration: () => false,
     size: 1,
@@ -3827,7 +3843,7 @@ try {
       on: (name, callback) => { renameHandlers.set(`metadata:${name}`, callback); return {}; },
     },
   };
-  renameCoordinator.index = { renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
+  renameCoordinator.index = { refreshVisibleHostMetadataPreviews: () => false, renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
   renameCoordinator.settings = {
     ...settings,
     primaryTagField: "Note type",

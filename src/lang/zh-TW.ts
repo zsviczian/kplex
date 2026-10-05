@@ -142,6 +142,7 @@ const traditionalChineseTranslations = {
   "node.gateFolderChild": "子節點閘門 · 拖曳以在此資料夾建立筆記",
   "node.gateFolderDisabled": "{gate} 閘門 · 已停用資料夾關係編輯",
   "node.gateVisible": "{gate} 閘門 · 顯示 {count} 個",
+  "node.gatePartial": "可能還有其他可用的關係",
   "node.gateEmpty": "{gate} 閘門 · 無關係",
   "relation.move": "移動關係",
   "relation.addRole": "新增{role}",

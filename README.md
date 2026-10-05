@@ -2,7 +2,7 @@
 
 # K-Plex
 
-> On the very first startup on a device expect to see a longer indexing period. Once the index is created K-Plex will start in 1-2 seconds. The index is cached on the device locally, so if you restart Obsidian, the index does not need to be rebuilt from scratch.
+> K-Plex makes filename search and the current note’s Obsidian-known relationships available while indexing continues. Later starts reuse the local graph cache; full validation can take longer on large vaults.
 
 ![KPLEX Screenshot](docs/KPlex-Screenshot-3.png)
 
@@ -302,7 +302,9 @@ Phone and tablet layouts can use their own density and column settings.
 
 K-Plex is designed to remain practical on large real-world vaults.
 
-After the first index has been created, K-Plex restores cached graph information on later starts so you can usually begin working quickly. The current neighborhood is prioritized first and the rest can continue loading in the background.
+Filename/path **Find in vault** and the current note’s Obsidian-known relationships become available while indexing continues. A compatible graph cache restores navigation before background source validation and provenance finish. Body URLs and sibling expansion may appear later. Relationship edits prepare their selected endpoints when needed; navigation, creation and visible note changes take priority over background work.
+
+A note’s membership in a large tag or folder does not require loading every sibling before the note opens. A **≥** gate count shows the relationships prepared so far; more may become available as that node’s neighborhood loads.
 
 While you work, changes are handled incrementally: editing one note does not normally require K-Plex to rebuild the entire vault. If every K-Plex tab or side panel is hidden, automatic indexing pauses and K-Plex coalesces the pending changes; showing a K-Plex surface catches up once. Background updates also preserve your current camera and scroll position rather than repeatedly recentering the graph.
 

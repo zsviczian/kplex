@@ -17,7 +17,11 @@
  * repairs without adding a scheduler, changing repository fences or retaining another work queue.
  * An explicit inventory pass consumes its queued debounce; newer events remain requested and are
  * scheduled by that pass's existing finally owner, avoiding duplicate unchanged readiness signals.
+ * Background-only owner/page checkpoints defer to the caller's foreground lane without retiring
+ * inventory progress. Editable pair requests acquire only their exact document owners; full replay
+ * certifies both positive and negative declarations before global incidence inventory is ready.
  */
+import { canonicalTagPaths } from "../../core/graph/tagPaths";
 import type { StartupDiagnostics } from "./startupDiagnostics";
 import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidian";
 import type { GraphCompilerRuntime, NormalizedGraphCompiler, CompiledGraphNode } from "../../core/graph/compiler";
@@ -33,7 +37,7 @@ import { CachedRequestedUrlTitleReader, type CachedUrlTitlePreparation } from ".
 import type { CachedCenterGatePolicy } from "../../index/CachedCenterGateProjection";
 import type { SourcePatchReadPort } from "../../core/graph/patch";
 import type { SourceEntityRef } from "../../core/graph/source";
-import { SourceLocalContributorDiscovery } from "./sourceLocalContributorDiscovery";
+import { SourceLocalContributorDiscovery, EditablePairContributorDiscovery } from "./sourceLocalContributorDiscovery";
 import type { ContributorHostChange } from "../../index/SourceContributorJournal";
 import { CachedSourceReplay, type CachedSourceHost, type CachedSourceRequest } from "../../index/SourceReplay";
 import { selectedSourceFailure, type SelectedSourceResult, type SelectedSourceReader } from "../../index/SourceRepository";
@@ -54,7 +58,10 @@ type FileObservation = { identity: string | null; observation?: SourceObservatio
 type SourceCoordinates = Readonly<{ order: number; markdownOrder: number }>;
 type Capture = { physical: SourcePhysical; revision: number; hostRevision: number; state: FileObservation; file: TFile };
 /** Narrow parser port: acquisition does not import GraphBuilder or own a second parser. */
-export type SourceBodyParser = (content: string) => Promise<ParsedBodyMetadata>;
+export type SourceBodyParser = (content: string, backgroundCheckpoint?: () => Promise<void>) => Promise<ParsedBodyMetadata>;
+/** Exact pair lifetime rechecks finite captured host tokens; it grants no global source authority. */
+export type SourcePairPreparation = Exclude<CachedPairPreparation, { outcome: "ready" }>
+  | (Extract<CachedPairPreparation, { outcome: "ready" }> & Readonly<{ isCurrent(): boolean }>);
 /** These counters are aggregate-only and reset with the adapter's lifetime. */
 export type SourceAcquisitionCounters = Readonly<{
   checked: number; reusedBodies: number; legacyBodies: number; vaultReads: number; parses: number;
@@ -190,11 +197,14 @@ export class ObsidianSourceAcquisition {
    * Construction is side-effect free; start() explicitly owns host subscriptions.
    * The optional progress observer reports completed inventory work for startup diagnostics only;
    * it must not schedule acquisition or change authority, cancellation or publication decisions.
+   * The optional background checkpoint pauses only inventory and optional URL owners between bounded
+   * work units. Foreground capture/acquisition never calls it, avoiding a foreground self-deadlock.
    */
   constructor(private readonly app: App, private readonly cache: KplexIndexedDbCache, private readonly parse: SourceBodyParser,
     private readonly inventoryReady?: () => void,
     private readonly inventoryProgress?: () => void,
-    private readonly startupDiagnostics?: StartupDiagnostics) {
+    private readonly startupDiagnostics?: StartupDiagnostics,
+    private readonly backgroundCheckpoint?: () => Promise<void>) {
     this.repository = cache.sources;
     this.metadataHost = createObsidianMetadataSourceHost(app);
   }
@@ -519,6 +529,7 @@ export class ObsidianSourceAcquisition {
     const keys = new Set<string>(), changedPaths = new Set<string>();
     const checkpoint = inventoryCheckpoint();
     for (const [markdownOrder, file] of markdown.entries()) {
+      await this.backgroundCheckpoint?.();
       if (!current()) return false;
       const order = structuralOrder.get(file.path);
       if (order === undefined) return false;
@@ -582,6 +593,8 @@ export class ObsidianSourceAcquisition {
     this.startupDiagnostics?.phase("source", "host-retired-owner-check");
     let after: string | null = null;
     while (current()) {
+      await this.backgroundCheckpoint?.();
+      if (!current()) return false;
       const page = await this.repository.headPage(after);
       this.startupDiagnostics?.count("source", "headPageOwners", page.heads.length);
       if (current()) this.inventoryProgress?.();
@@ -698,6 +711,7 @@ export class ObsidianSourceAcquisition {
       if (files.length) this.localInventoryCompletionPending = true;
       let retryPendingMetadata = false;
       for (const file of files) {
+        await this.backgroundCheckpoint?.();
         if (!current()) return false;
         // Delete before work: a concurrent event for this same TFile re-adds it and cannot be erased
         // by successful completion of the older observation. Unvisited snapshot entries stay queued.
@@ -718,7 +732,7 @@ export class ObsidianSourceAcquisition {
           complete = false;
           continue;
         }
-        const body = await this.loadBody(file, current);
+        const body = await this.loadBody(file, current, false, true);
         if (!body || !current()) { this.pendingKnownFiles.add(file); return false; }
         const acquired = await this.acquire(file, body, current);
         if (!acquired.current) { this.pendingKnownFiles.add(file); return false; }
@@ -769,13 +783,14 @@ export class ObsidianSourceAcquisition {
     current: () => boolean): Promise<boolean> {
     let complete = true;
     for (const [markdownOrder, file] of markdown.entries()) {
+      await this.backgroundCheckpoint?.();
       this.startupDiagnostics?.processed("source", file.path);
       if (!current()) return false;
       const state = this.state(file);
       if (!state.resolutionDirty) continue;
       const order = structuralOrder.get(file.path);
       if (order === undefined) return false;
-      const body = await this.loadBody(file, current);
+      const body = await this.loadBody(file, current, false, true);
       if (!body || !current()) return false;
       const acquired = await this.acquire(file, body, current);
       if (!acquired.current) return false;
@@ -816,8 +831,11 @@ export class ObsidianSourceAcquisition {
    * Capture host inputs not represented by neutral source facts. Current-session memory/disk replay
    * keeps its established identity path. A clean process restart may adopt an unchanged durable head
    * after physical/environment checks, without rewriting that head solely to stamp the new epoch.
+   * Exact editable-pair reads may omit the global inventory-maintenance fence: their own current
+   * resolver validation and file/cache/environment/source-event fences close the selected owners.
    */
-  async captureForReplay(sourceId: string, settings: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<
+  async captureForReplay(sourceId: string, settings: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime,
+    pairLocal = false): Promise<
     Readonly<{ outcome: "ready"; request: CachedSourceRequest }> | Exclude<SelectedSourceResult<never>, { outcome: "ready" }>> {
     if (!runtime.isCurrent() || this.closed) return selectedSourceFailure("cancelled");
     const file = this.app.vault.getFileByPath(sourceId);
@@ -828,7 +846,7 @@ export class ObsidianSourceAcquisition {
     if (capture.state.dirty || capture.state.bodyDirty || capture.state.resolutionDirty || capture.state.created) return selectedSourceFailure("unsaved");
     const environmentText = this.environment(cache);
     const maintenanceRevision = this.maintenanceRevision;
-    const current = (): boolean => this.current(capture, runtime.isCurrent) && this.maintenanceRevision === maintenanceRevision
+    const current = (): boolean => this.current(capture, runtime.isCurrent) && (pairLocal || this.maintenanceRevision === maintenanceRevision)
       && this.app.metadataCache.getFileCache(file) === cache && this.environment(cache) === environmentText;
     try {
       const environment = await this.repository.observationDigest(environmentText);
@@ -1068,10 +1086,16 @@ export class ObsidianSourceAcquisition {
    * Recheck one shared synthetic endpoint before pruning a node-only baseline. The existing local
    * contributor/semantic owner proves materialization under the captured policy; no global replay or
    * retained source-to-target map is introduced. Undefined proves absence; null keeps pruning pending.
+   * This read never joins global inventory: incomplete authority schedules the existing background
+   * owner and returns null, so foreground pruning cannot wait on its own priority barrier.
    */
   async currentEndpointNode(endpoint: SourceEntityRef, policy: CachedSemanticPolicy,
     presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CompiledGraphNode | undefined | null> {
-    if (!(await this.flush()) || !runtime.isCurrent() || !policy.isCurrent()) return null;
+    // A foreground patch must never join the background inventory while holding priority.
+    // Unclosed global incidence cannot prove absence: retain the node and let the existing
+    // inventory/readiness observer retry this private patch after authority has closed.
+    if (!this.hasSemanticDependencies()) { this.requestInventory(); return null; }
+    if (!runtime.isCurrent() || !policy.isCurrent()) return null;
     const discovery = this.localContributorDiscovery(runtime);
     if (!discovery) return null;
     /** Capture exact current host inputs under the same endpoint request lifetime. */
@@ -1092,18 +1116,109 @@ export class ObsidianSourceAcquisition {
   /**
    * Prepare the exact editable pair from authenticated current sources, without closing either
    * endpoint's neighborhood. Document-owned evidence avoids unrelated shared URL/attachment owners;
-   * the canonical pair reader still closes both directions, negative counts and all final fences.
+   * the canonical pair reader closes both directed owners and all final source/host fences.
+   * This exact ownership proof works before global incidence inventory; no global readiness is granted.
    */
   async prepareRequestedPair(request: CachedPairRequest, policy: CachedSemanticPolicy,
-    presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CachedPairPreparation> {
-    const discovery = this.localContributorDiscovery(runtime, true);
-    if (!discovery) return selectedSourceFailure("dependency-pending");
+    presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<SourcePairPreparation> {
+    this.start();
+    if (!EditablePairContributorDiscovery.supports(request)) return selectedSourceFailure("unsupported-scope");
+    // Editable relations are owned exclusively by their document endpoints. A third note's
+    // incoming URL/attachment declaration cannot describe this unordered pair. Recompute those
+    // owners' host resolution even on restart: an unrelated offline alias/path edit may have
+    // changed their target while their body and physical revision stayed unchanged.
+    const revision = this.hostRevision, observation = this.contributorObservation;
+    const endpoints: Array<{ capture: Capture; cache: CachedMetadata | null }> = [];
+    for (const endpoint of request.endpoints) {
+      if (endpoint.physicalPath === undefined) continue;
+      const file = this.app.vault.getFileByPath(endpoint.physicalPath);
+      if (!(file instanceof TFile) || entityFactForFile(file).entity.id !== endpoint.id) return selectedSourceFailure("host-catalog-stale");
+      endpoints.push({ capture: this.capture(file), cache: file.extension === "md" ? this.app.metadataCache.getFileCache(file) : null });
+    }
+    const current = (): boolean => !this.closed && runtime.isCurrent()
+      && revision === this.hostRevision && observation === this.contributorObservation
+      && endpoints.every(token => this.current(token.capture, runtime.isCurrent)
+        && (token.capture.file.extension !== "md" || this.app.metadataCache.getFileCache(token.capture.file) === token.cache));
+    const scoped = { ...runtime, isCurrent: current };
+    for (const endpoint of request.endpoints) {
+      if (endpoint.kind !== "document") continue;
+      if (!current()) return selectedSourceFailure("cancelled");
+      const file = endpoint.physicalPath === undefined ? null : this.app.vault.getFileByPath(endpoint.physicalPath);
+      if (!(file instanceof TFile) || entityFactForFile(file).entity.id !== endpoint.id) return selectedSourceFailure("host-catalog-stale");
+      const body = await this.loadBody(file, current);
+      if (!body || !current()) return selectedSourceFailure(current() ? "pending-metadata" : "cancelled");
+      this.state(file).resolutionDirty = true;
+      const acquired = await this.acquire(file, body, current);
+      if (!acquired.current || !acquired.saved) return selectedSourceFailure(acquired.reason);
+    }
+    const discovery = new EditablePairContributorDiscovery(this.repository, this.app,
+      { epoch: this.epoch, revision, token: `${this.epoch}:${revision}:${observation}:editable-pair` }, current);
     /** Capture exact source bodies/host identities under the pair owner's current lifetime. */
-    const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
+    const hosts: CachedSourceHost[] = [];
+    const capture = async (sourceId: string, scoped: GraphCompilerRuntime) => {
+      const selected = await this.captureForReplay(sourceId, presentation, scoped, true);
+      if (selected.outcome === "ready") hosts.push(selected.request.host);
+      return selected;
+    };
     const result = await new CachedRequestedPairReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
-      .prepare(request, policy, runtime);
+      .prepare(request, policy, scoped);
     if (runtime.isCurrent()) this.requestReplayRepair(result);
-    return result;
+    if (result.outcome !== "ready") return result;
+    return { ...result,
+      /** Retain only selected owner capabilities; source/event, physical/cache and Date drift retire the pair. */
+      isCurrent: (): boolean => current() && policy.isCurrent() && hosts.every(host => host.isCurrent()),
+    };
+  }
+
+  /**
+   * Admit optional sibling-parent closures by authenticated aggregate owner counts, never by
+   * decoding membership or source families. This grants no degree or relationship authority;
+   * the caller must canonically prepare each admitted parent and mark every other parent deferred.
+   * A conservative total bound includes physical container children, since non-Markdown children
+   * need no neutral source owner. Pending storage/host/source authority simply defers enrichment.
+   */
+  async admitRequestedSiblingParents(parents: readonly SourceEntityRef[], maxOwners: number,
+    runtime: GraphCompilerRuntime): Promise<readonly SourceEntityRef[]> {
+    if (!Number.isSafeInteger(maxOwners) || maxOwners < 0 || !this.hasSemanticDependencies()) return [];
+    const revision = this.hostRevision, observation = this.contributorObservation, maintenance = this.maintenanceRevision;
+    const current = (): boolean => !this.closed && runtime.isCurrent() && this.hasSemanticDependencies()
+      && revision === this.hostRevision && observation === this.contributorObservation && maintenance === this.maintenanceRevision;
+    const candidates: Array<{ parent: SourceEntityRef; key: string; physicalChildren: number }> = [];
+    for (const parent of parents) {
+      if (!current()) return [];
+      let key: string;
+      let physicalChildren = 0;
+      if (parent.kind === "tag") {
+        if (!parent.semanticPath?.startsWith("tag:")) continue;
+        let canonical: string | null = null;
+        for (const path of canonicalTagPaths(parent.semanticPath.slice(4))) canonical = path;
+        if (canonical !== parent.semanticPath) continue;
+        key = sourceLocalDependencyKey("node", canonical);
+      } else if (parent.kind === "container" && parent.physicalPath !== undefined) {
+        const folder = parent.physicalPath === "" || parent.physicalPath === "/" ? this.app.vault.getRoot()
+          : this.app.vault.getFolderByPath(parent.physicalPath);
+        if (!(folder instanceof TFolder) || folder.children.length > maxOwners) continue;
+        physicalChildren = folder.children.length;
+        key = sourceLocalDependencyKey("node", parent.id);
+      } else if (parent.kind !== "container") key = sourceLocalDependencyKey("node", parent.id);
+      else continue;
+      candidates.push({ parent: { ...parent }, key, physicalChildren });
+    }
+    if (!candidates.length || !current()) return [];
+    const selected = await this.repository.lookupLocalDependencyCounts(candidates.map(entry => entry.key), current, true);
+    if (selected.outcome !== "ready" || !current()) return [];
+    const counts = new Map(selected.value.counts.map(entry => [entry.key, entry.owners]));
+    const admitted: SourceEntityRef[] = [];
+    let owners = 0;
+    for (const candidate of candidates) {
+      const count = counts.get(candidate.key);
+      if (count === undefined || !Number.isSafeInteger(count) || count < 0) return [];
+      const upperBound = count + candidate.physicalChildren;
+      if (upperBound > maxOwners - owners) continue;
+      owners += upperBound;
+      admitted.push(candidate.parent);
+    }
+    return current() ? admitted : [];
   }
 
   /** Prepare one exact center from cached facts; incomplete local dependencies remain explicitly pending. */
@@ -1174,12 +1289,13 @@ export class ObsidianSourceAcquisition {
     const current = (): boolean => caller() && !this.closed && revision === this.inventoryRevision && this.hasSemanticDependencies();
     for (const path of this.pendingUrlAliasSources) {
       if (!current()) return "superseded";
+      await this.backgroundCheckpoint?.();
       if (beforeOwner) await beforeOwner();
       if (!current()) return "superseded";
       const file = this.app.vault.getFileByPath(path);
       if (!file) return "superseded";
       const capture = this.capture(file);
-      const body = await this.loadBody(file, current, true);
+      const body = await this.loadBody(file, current, true, true);
       if (!body || !this.current(capture, current)) return current() ? "read-error" : "superseded";
       const result = await this.acquire(file, body, current, true, true);
       if (!result.current || !result.saved || !this.current(capture, current)) return current() ? result.reason : "superseded";
@@ -1211,8 +1327,8 @@ export class ObsidianSourceAcquisition {
     if (body) this.counters.reusedBodies += 1;
     return body;
   }
-  /** Load one actual body miss serially; even mobile's stricter acquisition concurrency is retained. */
-  private async loadBody(file: TFile, current: () => boolean, requireCurrentParser = false): Promise<ParsedBodyMetadata | null> {
+  /** Load one actual body miss serially; only background misses pass the cooperative parser pause capability. */
+  private async loadBody(file: TFile, current: () => boolean, requireCurrentParser = false, background = false): Promise<ParsedBodyMetadata | null> {
     const capture = this.capture(file); const valid = (): boolean => this.current(capture, current);
     const neutral = await this.readBody(file, valid, requireCurrentParser); if (!valid()) return null;
     if (neutral) return neutral;
@@ -1224,7 +1340,7 @@ export class ObsidianSourceAcquisition {
     const text = Platform.isMobile ? await this.app.vault.read(file) : await this.app.vault.cachedRead(file);
     if (!valid()) return null;
     this.counters.parses += 1;
-    const body = await this.parse(text);
+    const body = await this.parse(text, background ? this.backgroundCheckpoint : undefined);
     if (!valid()) return null;
     // Versioned parser body cache remains an optional accelerator, not neutral-source durability.
     await this.cache.putBody(capture.physical.path, capture.physical.mtime, body);
@@ -1530,7 +1646,11 @@ export class ObsidianSourceAcquisition {
     this.inventory = (async () => {
       let complete = true;
       try {
-        while (this.knownImpactTasks > 0 && current()) await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+        await this.backgroundCheckpoint?.();
+        while (this.knownImpactTasks > 0 && current()) {
+          await this.backgroundCheckpoint?.();
+          await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+        }
         if (!current()) return false;
         if (this.localDependencyAuthorityReady && this.restartInventoryChecked
           && !this.uncertainResolution && !this.environmentMaintenancePending) return this.reconcileKnownImpacts(current);
@@ -1570,9 +1690,10 @@ export class ObsidianSourceAcquisition {
           complete = false;
         }
         for (const [markdownOrder, file] of markdown.entries()) {
+          await this.backgroundCheckpoint?.();
+          if (!current()) return false;
           const order = structuralOrder.get(file.path);
           if (order === undefined) return false;
-          if (!current()) return false;
           const capture = this.capture(file);
           if (capture.state.oldPath) movedPaths.add(capture.state.oldPath);
           const hostCache = this.app.metadataCache.getFileCache(file);
@@ -1610,7 +1731,7 @@ export class ObsidianSourceAcquisition {
             await checkpoint();
             continue;
           }
-          const body = await this.loadBody(file, current);
+          const body = await this.loadBody(file, current, false, true);
           if (!body || !current()) return false;
           const acquired = await this.acquire(file, body, current);
           if (!acquired.current) return false;
@@ -1633,6 +1754,8 @@ export class ObsidianSourceAcquisition {
         this.startupDiagnostics?.phase("source", "source-retired-owner-check");
         let after: string | null = null;
         while (current()) {
+          await this.backgroundCheckpoint?.();
+          if (!current()) return false;
           const page = await this.repository.headPage(after);
           this.startupDiagnostics?.count("source", "headPageOwners", page.heads.length);
           if (!page.available || !current()) return false;

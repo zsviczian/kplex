@@ -59,16 +59,21 @@ function stringifyTag(value: unknown): string[] {
 
 /**
  * Legacy host facade for renderer-thread parsing. The portable parser requires an explicit runtime;
- * this adapter retains the historical caller signature and selects the renderer window scheduler.
+ * this adapter retains historical callers and selects the renderer window scheduler. An optional
+ * background boundary pauses only after the parser has yielded without exposing partial results.
  */
 export function parseBodyMetadataCooperative(
   content: string,
   shouldContinue: (phase?: string) => boolean = () => true,
   budgetMs = 4,
+  afterYield?: () => Promise<void>,
 ): Promise<ParsedBodyMetadata> {
   return parseBodyMetadataCooperativeCore(content, {
     now: () => Date.now(),
-    yield: () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)),
+    yield: async () => {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await afterYield?.();
+    },
     shouldContinue,
   }, budgetMs);
 }

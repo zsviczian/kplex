@@ -9,6 +9,57 @@ import { fullCenterIndex, currentNeighborhoodView, centerGateSettings } from "./
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
 
+/** An exception after complete navigation must retain that owner until existing neutral recovery finishes. */
+test("trusted warm evidence exception retains navigable graph for source recovery", async () => {
+  const browser=await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('startup-evidence-exception');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()},centerGateSettings=${centerGateSettings.toString()};
+      let initial,index,release,resume;
+      try {
+        f.text=f.texts;f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.add('Remote.md','[Remote exception URL](https://example.com/exception)');
+        f.app.vault.getName=()=> 'startup-evidence-exception';
+        f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        await f.acquire();ok(await f.acquisition.reconcile(),'Seed genuine neutral source authority');
+        const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,{noteTypeField:'Type',primaryTagField:'Style'},true),semantic,centerGateSettings({showFolderNodes:false}));
+        const settings={...initial.plugin.settings,lastActivePath:'A.md',pinnedNodes:[]};
+        ok(await f.cache.writeSnapshot({createdAt:Date.now(),urlAliasVersion:2,vaultSignature:M.computeVaultSignature(f.app),settingsSignature:M.computeIndexSettingsSignature(settings),discoveredFields:[]},
+          [...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page)),[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item))),'Seed exact trusted warm acceleration');
+        initial.destroy();initial=null;f.acquisition.close();
+        index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+        index.rebuild=()=>{throw Error('Existing warm recovery must not start a full rebuild');};
+        let inventoryScans=0,navigable;const scan=index.startPersistedSourceInventory.bind(index);
+        index.startPersistedSourceInventory=async(...args)=>{inventoryScans++;return scan(...args);};
+        const gate=new Promise(resolve=>{resume=resolve}),flush=index.sourceAcquisition.flush,reconcile=index.sourceAcquisition.reconcile;
+        index.sourceAcquisition.flush=async function(...args){await gate;return flush.apply(this,args);};
+        index.sourceAcquisition.reconcile=async function(...args){await gate;return reconcile.apply(this,args);};
+        index.indexedDb.iterateSnapshotEvidence=async()=>{
+          navigable=index.state;
+          ok(index.get('A.md').neighbours.get('B.md')?.isLeftFriend,'Complete relation maps publish before provenance exception');
+          ok(index.search('Remote exception URL',10).some(page=>page.path==='https://example.com/exception'),'Complete global search available before exception');
+          throw Error('Injected optional evidence read exception');
+        };
+        release=index.acquireSemanticDemand('A.md');ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Bounded preview available');
+        equal((await index.waitForSnapshotHydration()).restored,false,'Optional evidence failure remains truthful');
+        ok(navigable&&index.state===navigable,'Exception cannot replace complete navigable owner with a physical baseline');
+        equal([...index.state.evidence.declarations()].length,0,'Failed provenance never becomes authoritative');
+        equal(inventoryScans,0,'Post-navigation exception does not restart source inventory classification');
+        ok(index.hasSourceBackedStartup(),'Existing source-backed recovery owner retained');
+        equal(index.isSemanticWriteReady('A.md','B.md'),false,'Borrowed navigation cannot authorize a relationship write');
+        resume();ok(await index.adoptStartupSources(),'Existing neutral owner converges without whole-graph rebuild');
+        ok(!index.hasPendingSemanticPreparation(),'Requested canonical scope closes');
+        ok(index.get('A.md').neighbours.get('B.md')?.isLeftFriend,'Canonical current relationship matches coherent cache');
+        ok(index.search('Remote exception URL',10).some(page=>page.path==='https://example.com/exception'),'Canonical global vocabulary retained');
+        equal(index.getSourceAcquisitionCounters().vaultReads,0,'Existing sources need no body reads');equal(index.getSourceAcquisitionCounters().parses,0,'No parser work');
+        equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No fallback full build');return true;
+      } finally {resume?.();release?.();initial?.destroy();index?.destroy();f.close();}
+    })()`),true);
+  } finally {await browser.cleanup();}
+});
+
 /** Real source/storage work consumes a queued debounce while a genuinely newer event retains its own pass. */
 for(const lateEvent of [false,true]){
   test(`explicit source reconciliation consumes its scheduled request${lateEvent?' and preserves an event during the pass':''}`,async()=>{
@@ -92,6 +143,8 @@ for (const replace of [false, true]) {
           const bind=index.preparedPageFromNode;let sparseFriend=false,sparseChild=false;
           index.preparedPageFromNode=function(node){if(node.semanticPath==='Friend.md'&&!node.aliases.length)sparseFriend=true;if(node.semanticPath==='Child.md'&&!node.aliases.length)sparseChild=true;return bind.call(this,node);};
           release=index.acquireSemanticDemand('Hub.md');await index.restorePersistedSnapshot(['Hub.md']);ok((await index.waitForSnapshotHydration()).restored,'Actual full cache hydrated');
+          ok(await index.flushSourceRepository(),'Background neutral authority closes independently of warm graph hydration');
+          await index.refreshSemanticSettings();
           ok(index.semanticScopes.has('Hub.md'),'Current requested scope over coherent cache');ok(sparseFriend&&sparseChild,'Canonical compiler endpoints are genuinely sparse');
           const scope=index.semanticScopes.get('Hub.md');
           for(const name of ['Parent','Friend','Child']){
@@ -192,7 +245,7 @@ test("navigation and a superseded scope retry preserve complete graph aliases an
 });
 
 for (const { cancel, retry } of [{ cancel: false, retry: false }, { cancel: true, retry: false }, { cancel: false, retry: true }, { cancel: true, retry: true }]) {
-  test(`source authority and requested views precede full hydration${cancel ? retry ? " with a pending authority observer cancelled" : " with late cancellation fenced" : retry ? " across a transient resolver retry" : " while preserving global search"}`, async () => {
+  test(`untrusted active generation source authority and requested views precede full hydration${cancel ? retry ? " with a pending authority observer cancelled" : " with late cancellation fenced" : retry ? " across a transient resolver retry" : " while preserving global search"}`, async () => {
     const browser = await chromiumHarness(bundle);
     try {
       assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
@@ -210,7 +263,9 @@ for (const { cancel, retry } of [{ cancel: false, retry: false }, { cancel: true
             inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
           const view=centerGateSettings({showFolderNodes:false}),presentation={noteTypeField:'Type',primaryTagField:'Style'};
           initial=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md','C.md'],semantic,presentation,true),semantic,view);
-          ok(await f.cache.writeSnapshot({createdAt:Date.now(),vaultSignature:M.computeVaultSignature(f.app),
+          // A stale acceleration certificate must retain source-first certification. The separate
+          // trusted-warm regressions prove that an exact current schema-3 generation navigates first.
+          ok(await f.cache.writeSnapshot({createdAt:Date.now(),vaultSignature:'stale:'+M.computeVaultSignature(f.app),
             settingsSignature:M.computeIndexSettingsSignature(initial.plugin.settings),discoveredFields:[]},
             [...initial.state.pages.values()].map(p=>M.persistedPageFromGraphPage(p)),
             [...initial.state.evidence.declarations()].map(e=>M.persistedDeclarationFromEvidence(e))),'Complete acceleration seeded');
@@ -253,7 +308,8 @@ for (const { cancel, retry } of [{ cancel: false, retry: false }, { cancel: true
           equal(index.search('Orphan.png',10,'visible'),[],'Vault prefix matches cannot leak filename-only facets into graph search');
           equal(index.search('Orphan.png',10,'vault-files').map(p=>p.path),['Orphan.png'],'Alternating search scopes preserve independent prefix coverage');
           ok(index.getVaultSearchPage('Orphan.png')?.file===f.files.get('Orphan.png'),'Filename-only hit binds the exact current file');
-          ok(!index.get('Orphan.png'),'Physical search does not claim a prepared graph page');
+          ok(!index.state.pages.has('Orphan.png'),'Physical search does not publish a canonical graph page');
+          ok(!index.semanticScopes.get('Orphan.png')?.completePaths.has('Orphan.png'),'Physical filename does not certify a semantic scope');
           if(cancel){
             if(retry){unblock();await wait(()=>index.startupSourceAuthorityWaiter!==null)}
             const pending=index.waitForSnapshotHydration();index.invalidateSemanticPolicy();equal((await pending).restored,false,'Cancelled startup');
@@ -557,17 +613,29 @@ test("source-backed node vocabulary preserves shared URL lifetime through ordina
         ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Source-backed restore');
         if(index.hasPendingSnapshotHydration())ok((await index.waitForSnapshotHydration()).restored,'Vocabulary hydration completes');
         ok(await index.adoptStartupSources(),'Global vocabulary complete');
+        const patch=async paths=>{
+          const result=await index.withForegroundPriority(()=>index.patchMarkdownPaths(paths),2);
+          if(result.outcome!=='cancelled')return result;
+          equal(result.count,0,'Pending global negative proof cannot partially commit a file');
+          equal(result.pendingPaths,paths,'Exact uncommitted source retains its normal coordinator retry');
+          ok(index.get(url),'Pending synthetic lifetime proof retains the coherent shared URL');
+          ok(index.search('shared',10).some(page=>page.path===url),'Pending synthetic removal retains coherent global search');
+          // The coordinator keeps cancelled paths. Let the actual source owner close its indexes
+          // outside foreground priority, then perform the same finite retry without a full rebuild.
+          ok(await index.flushSourceRepository(),'Actual source maintenance closes pending synthetic negative proof');
+          return index.withForegroundPriority(()=>index.patchMarkdownPaths(paths),2);
+        };
         const C=f.files.get('C.md');
         f.texts.set('C.md','[First label]('+url+')\\nType:: Changed');C.stat.mtime++;
         f.app.vault.trigger('modify',C);
-        equal((await index.patchMarkdownPaths(['C.md'])).outcome,'patched','First ordinary patch');
+        equal((await patch(['C.md'])).outcome,'patched','First ordinary patch');
         f.texts.set('C.md','Type:: Changed');C.stat.mtime++;
         f.app.vault.trigger('modify',C);
-        equal((await index.patchMarkdownPaths(['C.md'])).outcome,'patched','Second ordinary patch');
+        equal((await patch(['C.md'])).outcome,'patched','Second ordinary patch');
         ok(index.search('shared',10).some(p=>p.path===url),'Unchanged D still materializes shared URL');
         equal(index.get(url).name,'Second label','URL label moves to the remaining first meaningful owner');
         const D=f.files.get('D.md');f.texts.set('D.md','');D.stat.mtime++;f.app.vault.trigger('modify',D);
-        equal((await index.patchMarkdownPaths(['D.md'])).outcome,'patched','First edit on an evidence-free owner');
+        equal((await patch(['D.md'])).outcome,'patched','First edit on an evidence-free owner');
         ok(!index.search('shared',10).some(p=>p.path===url),'Last owner removal prunes URL on its first edit');
         ok(!index.search('https://example.com',10).some(p=>p.path==='https://example.com'),'Unused URL origin pruned');
         equal(index.sourceAcquisition.nodeImpacts.size,0,'Committed edit backlog released');
@@ -718,7 +786,8 @@ test("warm decode-budget failure settles truthfully and navigation prepares anot
           return prepare.call(this,request,...args);
         };
         releaseA=index.acquireSemanticDemand('A.md');await index.restorePersistedSnapshot(['A.md']);
-        ok((await index.waitForSnapshotHydration()).restored,'Optional graph cache still usable');await index.refreshSemanticSettings();
+        ok((await index.waitForSnapshotHydration()).restored,'Optional graph cache still usable');
+        ok(await index.flushSourceRepository(),'Current source authority closes independently of optional graph cache');await index.refreshSemanticSettings();
         ok(index.hasPendingSemanticPreparation(),'Failed request never claims complete authority');
         equal(index.hasActiveSemanticPreparation(),false,'No nonexistent work continues spinning');
         equal(index.getSemanticPreparationFailure(),'decode-budget','Exact current failure retained');
@@ -834,7 +903,8 @@ for (const { failure, oldParser, interruption, storageFailure } of [{ failure: f
                   const prepare=restarted.sourceAcquisition.prepareUrlAliasVocabulary;let resume;const hold=new Promise(resolve=>resume=resolve);
                   restarted.sourceAcquisition.prepareUrlAliasVocabulary=async function(...args){await hold;return prepare.apply(this,args)};
                   releaseRestart=restarted.acquireSemanticDemand('Remote.md');await restarted.restorePersistedSnapshot(['Remote.md']);
-                  ok((await restarted.waitForSnapshotHydration()).restored,'Reopened cache primary inventory ignores only safe inactive reclaim');await restarted.refreshSemanticSettings();
+                  ok((await restarted.waitForSnapshotHydration()).restored,'Reopened graph remains usable despite safe inactive reclaim');
+                  ok(await restarted.flushSourceRepository(),'Reopened source authority authenticates independently of warm navigation');await restarted.refreshSemanticSettings();
                   ok(!restarted.hasPendingSemanticPreparation(),'Reopened requested semantics remain ready after reclaim failure');
                   ok(restarted.neighbours(restarted.get('Remote.md'),'child').some(n=>n.page.path===oldUrl.path),'Fresh current URL primary semantics retain their canonical child role');
                   restarted.destroy();resume();

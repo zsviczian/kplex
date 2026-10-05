@@ -143,6 +143,7 @@ const germanTranslations = {
   "node.gateFolderChild": "Untergeordnetes Tor · ziehen, um in diesem Ordner eine Notiz zu erstellen",
   "node.gateFolderDisabled": "{gate}-Tor · Bearbeiten von Ordnerbeziehungen ist deaktiviert",
   "node.gateVisible": "{gate}-Tor · {count} sichtbar",
+  "node.gatePartial": "Weitere Beziehungen sind möglicherweise verfügbar",
   "node.gateEmpty": "{gate}-Tor · keine Beziehungen",
   "relation.move": "Beziehung verschieben",
   "relation.addRole": "{role} hinzufügen",

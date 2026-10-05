@@ -139,6 +139,43 @@ test("saved relationships survive endpoint scope publication and subsequent pair
  }finally{await browser.cleanup();}
 });
 
+/** Ordinary endpoint events refresh saved overlays without globally discarding other exact edits. */
+test("selected host changes replace retained pairs while unrelated saved targets survive",async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('pair-preview-refresh'),i=f.index,c=f.context;
+   try{
+    const refresh=i.refreshChangedRelationshipPairs.bind(i);let refreshTask;
+    i.refreshChangedRelationshipPairs=(...args)=>{refreshTask=refresh(...args);return refreshTask;};
+    f.plugin.settings.lastActivePath='A.md';
+    await c.createRelationToPage(i.get('A.md'),'child',i.get('image.png'),'Children');
+    await c.createRelationToPage(i.get('A.md'),'child',i.get('https://Obsidian.md'),'Children');
+    ok(i.isConnected(i.get('A.md'),'image.png'),'Saved attachment overlay is present');
+    // Use actual Vault/MetadataCache changes, without a managed mutation preparation call.
+    const change=async(path,frontmatter)=>{
+     const file=f.files.get(path);file.stat.mtime++;f.texts.set(path,f.texts.get(path)+'\\n');
+     f.app.vault.trigger('modify',file);const cache={...f.metadata.get(path),frontmatter};f.metadata.set(path,cache);
+     f.app.metadataCache.trigger('changed',file,f.texts.get(path),cache);i.refreshVisibleHostMetadataPreviews(path);
+     await refreshTask;
+     while(i.relationshipPairTasks.size)await Promise.all([...i.relationshipPairTasks.values()]);
+    };
+    await change('Unrelated.md',{Title:'Changed'});
+    ok(i.isConnected(i.get('A.md'),'image.png'),'Unrelated endpoint churn retains saved overlay');
+    await change('A.md',{Children:['https://Obsidian.md']});
+    ok(!i.isConnected(i.get('A.md'),'image.png'),'Current negative canonical pair replaces removed saved attachment');
+    equal(i.evidenceBetween('A.md','image.png').length,0,'Stale ontology evidence cannot shadow current negative pair');
+    ok(i.isConnected(i.get('A.md'),'https://Obsidian.md'),'Other saved target remains after same-source edit');
+    ok(await i.prepareRelationshipPair('A.md','B.md'),'Inverse declaration has an exact retained overlay');
+    ok(i.isConnected(i.get('A.md'),'B.md'),'Inverse B declaration present');
+    await change('B.md',{});ok(!i.isConnected(i.get('A.md'),'B.md'),'Inverse-owner edit also replaces its saved pair');
+    equal(i.getSemanticPreparationDiagnostics().fullBuilds,0,'No whole-vault build needed');return true;
+   }finally{f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
 /** Delayed/old metadata events and saved cancellation must never silently complete a commit. */
 for(const mode of ['delayed-conflict','old-event','no-op','cancel','rename','delete']){
  test(`frontmatter convergence ${mode} retains authoritative write semantics`,async()=>{
@@ -173,6 +210,91 @@ for(const mode of ['delayed-conflict','old-event','no-op','cancel','rename','del
      }
      publish();equal(await task,'ready','Genuine matching cache/current body completes saved write');equal(cancel,null,'Observer released');equal(notified,0,'No false timeout completion');return true;
     }finally{cancel?.();f.close();}
+   })()`),true);
+  }finally{await browser.cleanup();}
+ });
+}
+
+/** A newer selected observation drains an older exact task without borrowing its cancellation or negative result. */
+for(const changeWhileDraining of [false,true]){
+ test(`new selected pair observation ${changeWhileDraining?'cancels if changed again':'publishes after the retired task drains'}`,async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+   assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+   assert.equal(await browser.evaluate(`(async()=>{
+    const f=await makeRelationshipFixture('pair-observation-${changeWhileDraining}'),i=f.index,changedAgain=${changeWhileDraining};let release;
+    try{
+     const prepare=i.sourceAcquisition.prepareRequestedPair.bind(i.sourceAcquisition);let entered,once=true,calls=0;
+     const reached=new Promise(done=>entered=done),blocked=new Promise(done=>release=done);
+     i.sourceAcquisition.prepareRequestedPair=async(...args)=>{calls++;const result=await prepare(...args);if(once){once=false;entered();await blocked;}return result;};
+     const old=i.prepareRelationshipPair('A.md','image.png');ok(i.prepareRelationshipPair('A.md','image.png')===old,'Unchanged observation preserves original task identity');await reached;
+     const file=f.files.get('A.md');file.stat.mtime++;f.texts.set(file.path,f.texts.get(file.path)+'\\n');f.app.vault.trigger('modify',file);
+     const cache={...f.metadata.get(file.path),frontmatter:{Children:['[[image.png]]']}};f.metadata.set(file.path,cache);f.app.metadataCache.trigger('changed',file,f.texts.get(file.path),cache);
+     const fresh=i.prepareRelationshipPair('A.md','image.png');ok(fresh!==old,'New observation owns a fresh task');
+     ok(i.relationshipPairTasks.get(JSON.stringify(['A.md','image.png']))===fresh,'Alias/source owners drain the latest task including its predecessor');
+     ok(i.prepareRelationshipPair('A.md','image.png')===fresh,'Same new observation shares queued original promise');equal(calls,1,'New task cannot overtake the retired exact writer');
+     if(changedAgain)f.metadata.set(file.path,{...cache,frontmatter:{Children:['[[B]]']}});
+     release();equal(await old,false,'Old caller remains cancelled after selected change');equal(await fresh,!changedAgain,'New caller may use only its own unchanged captured observation');
+     equal(calls,changedAgain?1:2,'Fresh canonical source read occurs once only after drain');
+     equal(i.relationshipPairTasks.size,0,'All task ownership released');
+     if(!changedAgain){ok(i.isConnected(i.get('A.md'),'image.png'),'Authenticated current positive pair replaces the former negative');ok(i.evidenceBetween('A.md','image.png').some(e=>e.sourceKind==='frontmatter-ontology'),'Current exact declaration provenance');ok(i.isSemanticWriteReady('A.md','image.png'),'New canonical pair grants immediate write authority');}
+     else ok(!i.isConnected(i.get('A.md'),'image.png'),'Cancelled new observation cannot publish evidence');
+     equal(i.getSemanticPreparationDiagnostics().fullBuilds,0,'No whole-vault rebuild');return true;
+    }finally{release?.();f.close();}
+   })()`),true);
+  }finally{await browser.cleanup();}
+ });
+}
+
+/** Different editable pairs cannot invalidate a shared document's in-progress source replay. */
+test("concurrent distinct pairs drain only their shared document owners through full replay",async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('pair-shared-owner'),i=f.index;let release;
+   try{
+    const prepare=i.sourceAcquisition.prepareRequestedPair.bind(i.sourceAcquisition);let entered,once=true;const calls=[];
+    const reached=new Promise(done=>entered=done),blocked=new Promise(done=>release=done);
+    i.sourceAcquisition.prepareRequestedPair=async(...args)=>{calls.push(args[0].endpoints.map(ref=>ref.semanticPath));const result=await prepare(...args);if(once){once=false;entered();await blocked;}return result;};
+    const image=i.prepareRelationshipPair('A.md','image.png');await reached;
+    const inverse=i.prepareRelationshipPair('A.md','B.md'),url=i.prepareRelationshipPair('A.md','https://Obsidian.md');
+    ok(inverse!==image&&url!==image&&url!==inverse,'Each exact pair retains its own task');
+    equal(calls.length,1,'Shared-owner pair preparations cannot enter before the older complete replay drains');
+    ok(await i.prepareRelationshipPair('Unrelated.md','https://obsidian.md'),'Disjoint document owner prepares while A replay is held');
+    equal(calls.length,2,'Only the disjoint owner may overtake held A source work');release();
+    ok(await image&&await inverse&&await url,'All shared-owner canonical pairs complete after finite ordered drain');
+    equal(calls.length,4,'Each requested pair canonically prepared once');
+    ok(i.isConnected(i.get('A.md'),'B.md'),'Inverse B ontology remains canonical');ok(!i.isConnected(i.get('A.md'),'image.png'),'Genuine attachment negative remains authoritative');
+    ok(i.isSemanticWriteReady('A.md','B.md')&&i.isSemanticWriteReady('A.md','image.png'),'Shared-owner pairs retain exact write authority');
+    equal(i.relationshipPairTasks.size,0,'All finite task lifetimes released');equal(i.getWorkPriorityDiagnostics().active,[0,0,0,0,0],'No priority owner leaks');return true;
+   }finally{release?.();f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
+/** Retired parser cancellation belongs to its original caller, including equal-stat/cache native events. */
+for(const eventOnly of [false,true]){
+ test(`new pair drains thrown cancellation after ${eventOnly?'same-cache/stat selected event':'selected cache replacement'}`,async()=>{
+  const browser=await chromiumHarness(bundle);
+  try{
+   assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+   assert.equal(await browser.evaluate(`(async()=>{
+    const f=await makeRelationshipFixture('pair-thrown-${eventOnly}'),i=f.index,eventOnly=${eventOnly};let release;
+    try{
+     const prepare=i.sourceAcquisition.prepareRequestedPair.bind(i.sourceAcquisition);let entered,once=true,calls=0;
+     const reached=new Promise(done=>entered=done),blocked=new Promise(done=>release=done),cancelled=new Error('MetadataParseCancelledError');
+     i.sourceAcquisition.prepareRequestedPair=async(...args)=>{calls++;const result=await prepare(...args);if(once){once=false;entered();await blocked;throw cancelled;}return result;};
+     const original=i.prepareRelationshipPair('A.md','image.png'),oldOutcome=original.catch(error=>error);await reached;
+     const file=f.files.get('A.md'),beforeStat={...file.stat},beforeCache=f.metadata.get(file.path);
+     if(eventOnly)beforeCache.frontmatter={...beforeCache.frontmatter,Children:['[[image.png]]']};
+     else{file.stat.mtime++;f.texts.set(file.path,f.texts.get(file.path)+'\\n');f.app.vault.trigger('modify',file);f.metadata.set(file.path,{...beforeCache,frontmatter:{Children:['[[image.png]]']}});}
+     f.app.metadataCache.trigger('changed',file,f.texts.get(file.path),f.metadata.get(file.path));
+     if(eventOnly){equal(file.stat,beforeStat,'Actual native event leaves physical stats identical');ok(f.metadata.get(file.path)===beforeCache,'Actual native event retains cache identity');}
+     const fresh=i.prepareRelationshipPair('A.md','image.png');ok(fresh!==original,'Selected native event owns new task even with equal stats/cache');equal(calls,1,'Retired exact task drains before fresh source work');release();
+     ok(await oldOutcome===cancelled,'Original caller receives its original cancellation error');ok(await fresh,'New selected observation independently certifies after old throw');equal(calls,2,'Exactly one new source preparation, with no action retry');
+     ok(i.isConnected(i.get('A.md'),'image.png'),'Current positive declaration published');ok(i.isSemanticWriteReady('A.md','image.png'),'Current exact pair grants write authority');equal(i.relationshipPairTasks.size,0,'Task lifetime released');return true;
+    }finally{release?.();f.close();}
    })()`),true);
   }finally{await browser.cleanup();}
  });
@@ -302,42 +424,57 @@ for(const kind of ['file','url','placeholder']){
  });
 }
 
-/** A later native metadata event retires the already-running modify pass; saved publication joins its queued replacement once. */
+/** A later metadata event retires blocked background work; exact saved-pair publication never joins it. */
 for (const followup of ['queued','already-started']) {
-test(`subscribed pair writes join the newer ${followup} metadata pass and retain immediate unlink authority`,async()=>{
+test(`subscribed pair writes pre-empt the newer ${followup} metadata pass and retain immediate unlink authority`,async()=>{
  const browser=await chromiumHarness(bundle);
  try{
   assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
   assert.equal(await browser.evaluate(`(async()=>{
    const f=await makeRelationshipFixture('pair-native-metadata-${followup}'),i=f.index,c=f.context,a=i.sourceAcquisition,followup=${JSON.stringify(followup)};
-   let releaseBody,oldPass,intercept=true,notifications=0;
+   let oldPass,newPass,oldSettled=false,newSettled=false,notifications=0,foregroundFlushes=0,gate=null;
    const releases=[i.subscribe(()=>{notifications++;i.getNeighborhood('A.md');})];
-   const load=a.loadBody.bind(a),flush=a.flush.bind(a),nativeWrite=f.app.fileManager.processFrontMatter;
-   let reached;const bodyReached=new Promise(done=>{reached=done;});
+   const checkpoint=a.backgroundCheckpoint,flush=a.flush.bind(a),nativeWrite=f.app.fileManager.processFrontMatter;
+   /** The production background checkpoint is intercepted before any owner read or writer lane. */
+   const barrier=()=>{let release,reached;const blocked=new Promise(done=>release=done),entered=new Promise(done=>reached=done);return {release,reached,blocked,entered};};
+   const retired=barrier(),replacement=barrier();
    try{
+    // The production plugin source revision tracks host events separately from maintenance.
+    // This older shared fixture aliases them; use the existing event observation for this probe.
+    f.plugin.getIndexSourceRevision=()=>a.contributorObservation;
     f.plugin.settings.lastActivePath='A.md';i.invalidateSemanticPolicy();
     releases.push(i.acquireSemanticDemand('A.md'));
     await i.refreshSemanticSettings();
-    a.loadBody=async(...args)=>{const body=await load(...args);
-     if(intercept){intercept=false;await new Promise(done=>{releaseBody=done;reached();});}return body;};
-    a.flush=async(...args)=>{
-     if(releaseBody){ok(a.inventoryCaptureRevision!==a.inventoryRevision,'Flush joins an actual retired pass');
-      const release=releaseBody;releaseBody=null;release();}
-     return flush(...args);
-    };
+    a.backgroundCheckpoint=async()=>{const selected=gate;if(selected){selected.reached();await selected.blocked;}
+     // A retired pass performs no further owner work; expose its normal post-checkpoint rejection
+     // before the foreground barrier so the second variant can capture an already-started replacement.
+     if(a.inventoryCaptureRevision!==a.inventoryRevision)return;await checkpoint?.();};
+    a.flush=async(...args)=>{foregroundFlushes++;return flush(...args);};
     f.app.fileManager.processFrontMatter=async(file,update)=>{
      const frontmatter=structuredClone(f.metadata.get(file.path).frontmatter??{});update(frontmatter);
      file.stat.mtime++;const body=f.texts.get(file.path);f.texts.set(file.path,body+'\\n');
      f.app.vault.trigger('modify',file);
-     oldPass=a.reconcile();await bodyReached;
-     if(followup==='already-started')a.inventory.then(()=>a.reconcile());
+     gate=retired;oldPass=a.reconcile();oldPass.then(()=>{oldSettled=true;});await retired.entered;
      const cache={...f.metadata.get(file.path),frontmatter};f.metadata.set(file.path,cache);
      f.app.metadataCache.trigger('changed',file,f.texts.get(file.path),cache);
+     ok(a.inventoryCaptureRevision!==a.inventoryRevision,'Actual native metadata event retires the captured modify pass');
+     if(followup==='already-started'){
+      gate=replacement;retired.release();equal(await oldPass,false,'Old captured pass rejects the newer metadata event');
+      newPass=a.reconcile();newPass.then(()=>{newSettled=true;});await replacement.entered;
+      equal(a.inventoryCaptureRevision,a.inventoryRevision,'Replacement is a real current captured pass');
+     }
     };
     await c.createRelationToPage(i.get('A.md'),'child',i.get('image.png'),'Children');
-    equal(await oldPass,false,'The older pass remains canceled, never relabeled ready');
-    ok(i.isSemanticWriteReady('A.md','image.png'),'Queued replacement grants actual current authority');
+    equal(foregroundFlushes,0,'Foreground saved relationship never joins a broad source flush');
+    equal(followup==='queued'?oldSettled:newSettled,false,'Saved pair completes while unrelated background owner stays blocked');
+    ok(!a.hasSemanticDependencies(),'Current pair does not fabricate global source readiness');
+    ok(i.isSemanticWriteReady('A.md','image.png'),'Exact pair grants current write authority ahead of inventory');
     ok(i.neighbours(i.get('A.md'),'child').some(x=>x.page.path==='image.png'),'Saved child is published');
+    a.maintenanceRevision++;ok(i.isSemanticWriteReady('A.md','image.png'),'Unrelated inventory maintenance cannot retire current exact pair');
+    gate=null;retired.release();replacement.release();
+    equal(await oldPass,false,'The older pass remains canceled, never relabeled ready');
+    if(newPass)ok(await newPass,'Current replacement resumes and closes without restart');
+    a.flush=flush;ok(await a.flush(),'Released background work eventually restores full source authority');
     f.app.fileManager.processFrontMatter=nativeWrite;
     await i.refreshSemanticSettings();
     await c.createRelationToPage(i.get('A.md'),'child',i.get('https://Obsidian.md'),'Children');
@@ -349,7 +486,7 @@ test(`subscribed pair writes join the newer ${followup} metadata pass and retain
     ok(i.isConnected(i.get('A.md'),'https://Obsidian.md'),'Later exact URL survives unlink');
     ok(notifications>0,'Actual live subscriber observed publications');
     equal(i.getSemanticPreparationDiagnostics().fullBuilds,0,'No full index rebuild');return true;
-   }finally{releaseBody?.();for(const release of releases)release();f.close();}
+   }finally{gate=null;retired.release();replacement.release();a.backgroundCheckpoint=checkpoint;a.flush=flush;for(const release of releases)release();f.close();}
   })()`),true);
  }finally{await browser.cleanup();}
 });

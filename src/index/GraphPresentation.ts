@@ -1,7 +1,7 @@
 /**
  * Obsidian presentation preparation for the synchronous GraphPage compatibility facade. Only
  * selected MetadataCache fields and mtime-valid parsed-body records are read. Preparation is
- * private, batched and cancellable; the repository publishes all facets and policy without awaits.
+ * private, batched and cancellable; optional background checkpoints run before cache batches; the repository publishes all facets and policy without awaits.
  * Missing inputs remain explicitly pending and never cause Markdown acquisition or graph work.
  */
 import type { App, TFile } from "obsidian";
@@ -95,6 +95,7 @@ export async function prepareGraphPresentation(
   pages: Iterable<GraphPage>, settings: KplexSettings, selection: FacetSelection,
   app: App, hot: ReadonlyMap<string, FieldCacheEntry>, storage: Pick<KplexIndexedDbCache, "getBodies">,
   isCurrent: () => boolean, onProgress?: () => void,
+  backgroundCheckpoint?: () => Promise<void>,
 ): Promise<PreparedGraphPresentation | null> {
   const facets = new Map<GraphPage, PreparedPageFacets>();
   const revisions: Array<{ file: TFile; path: string; mtime: number; size: number }> = [];
@@ -106,6 +107,7 @@ export async function prepareGraphPresentation(
     file.path === path && file.stat.mtime === mtime && file.stat.size === size && app.vault.getFileByPath(path) === file);
   /** Consume one bounded cache batch; no parser or Vault read exists in this provider. */
   const flush = async (): Promise<boolean> => {
+    await backgroundCheckpoint?.();
     if (!isCurrent()) return false;
     const bodies = new Map<string, ParsedBodyMetadata>();
     const requests: Array<{ path: string; mtime: number }> = [];
