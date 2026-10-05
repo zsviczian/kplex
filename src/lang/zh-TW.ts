@@ -268,6 +268,7 @@ const traditionalChineseTranslations = {
   "addRelated.aliasAria": "別名（選填）",
   "addRelated.ontologyPlaceholder": "本體 · {field}",
   "addRelated.ontologyAria": "本體欄位",
+  "relation.savedUpdatePending": "關係已儲存；圖譜更新仍在等待中。",
   "relation.preparingRelationship": "關係資料仍在準備中。請在索引完成後再試一次。",
   "addRelated.showOntologyFields": "顯示所有本體欄位",
   "addRelated.createMarkdownLink": "建立 Markdown 筆記並連結",
@@ -917,6 +918,7 @@ const traditionalChineseTranslations = {
   "vaultStats.ontologyValue": "{total} total · {used} used",
   "find.ariaLabel": "在 Plex 中搜尋",
   "find.placeholder": "在 Plex 中搜尋…",
+  "find.includePath": "也搜尋檔案路徑",
   "find.close": "關閉搜尋",
   "find.matches": { other: "{count} 個符合項目" },
 } as const satisfies LocaleTranslationMap;

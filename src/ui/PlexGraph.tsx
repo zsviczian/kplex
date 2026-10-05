@@ -1,5 +1,5 @@
 /**
- * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption.
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. Find uses rendered facets with an explicit local path mode; history drag hover shares endpoint eligibility with gate-role/body-role routing.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
@@ -17,7 +17,7 @@ import { ThoughtNode, type ConnectionDragState } from "./ThoughtNode";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { CentralNodeEditor } from "./CentralNodeEditor";
-import { PlexFind, matchesFindText, matchesOntologyFind } from "./features/PlexFind";
+import { PlexFind, matchesFindNode, matchesOntologyFind } from "./features/PlexFind";
 import { RelationshipExplanationModal } from "./RelationshipExplanationModal";
 import { RenameNoteModal } from "./RenameNoteModal";
 import { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion, type CentralSectionExpansion } from "../index/SectionExpansion";
@@ -348,6 +348,7 @@ function edgeGeometry(a: Point, b: Point, sourceGate: GateSide, targetGate: Gate
   };
 }
 
+/** Return the actual connector label; default role/topology definitions remain visually suppressed. */
 function relationLabel(typeDefinition?: string): string | null {
   const label = typeDefinition?.trim();
   if (!label || GENERIC_RELATION_LABELS.has(label.toLowerCase())) return null;
@@ -689,6 +690,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
 }) {
   const translate = plugin.translator;
   const [findQuery, setFindQuery] = useState("");
+  const [findIncludePath, setFindIncludePath] = useState(false);
   const [findCursor, setFindCursor] = useState(0);
   const [areaHeightOverrides, setAreaHeightOverrides] = useState<Partial<Record<AreaHeightKey, number>>>({});
   const settings = useMemo(() => withAreaHeightOverrides(viewSettings, areaHeightOverrides), [viewSettings, areaHeightOverrides]);
@@ -872,6 +874,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   const flairClearTimer = useRef<number | null>(null);
   const flairPendingTimer = useRef<number | null>(null);
   const [expandedScrollTop, setExpandedScrollTop] = useState<Record<string, number>>({});
+  const historyDragHover = useRef<HTMLElement | null>(null);
   const [connectDrag, setConnectDrag] = useState<ConnectDrag | null>(null);
   const [nodeDrag, setNodeDrag] = useState<NodeDrag | null>(null);
   const [areaHover, setAreaHover] = useState<AreaHoverState>(null);
@@ -1870,13 +1873,13 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     const zone = zoneForRole(node.role);
     if (!filterMatchedNodePaths.has(node.page.path)) continue;
     if (zone && scene.zoneViewports[zone] && !zoneDisplayLayouts[zone]?.localPositions.has(node.page.path)) continue;
-    if (matchesFindText(findQuery, [node.label, node.page.path, ...node.page.aliases])) findNodePaths.add(node.page.path);
+    if (matchesFindNode(findQuery, node.label, node.page.path, findIncludePath)) findNodePaths.add(node.page.path);
   }
   for (const cluster of expandedClusters) for (const child of cluster.children) {
-    if (matchesFindText(findQuery, [child.label, child.relation.page.path, ...child.relation.page.aliases])) findNodePaths.add(child.relation.page.path);
+    if (matchesFindNode(findQuery, child.label, child.relation.page.path, findIncludePath)) findNodePaths.add(child.relation.page.path);
   }
   const findPaths = [...findNodePaths];
-  const finding = Boolean(findQuery.trim());
+  const finding = !centralEditorMaximized && Boolean(findQuery.trim());
   const findHitKey = JSON.stringify(findPaths);
   /** Reveal a projected hit through its own overflow list and this surface's camera. */
   const revealFindHit = (path: string): void => {
@@ -1897,8 +1900,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     if (dx || dy) applyCamera((current) => ({ ...current, x: current.x + dx, y: current.y + dy }));
   };
   useEffect(/** Typing/cycling reveals a hit without changing the center or history. */ () => {
-    if (findPaths.length) revealFindHit(findPaths[((findCursor % findPaths.length) + findPaths.length) % findPaths.length]);
-  }, [findQuery, findCursor, findHitKey]);
+    if (!centralEditorMaximized && findPaths.length) revealFindHit(findPaths[((findCursor % findPaths.length) + findPaths.length) % findPaths.length]);
+  }, [findQuery, findCursor, findHitKey, centralEditorMaximized]);
 
   const visibleEdges = useMemo(() => scene.edges
     .filter((edge) => visibleNodePaths.has(edge.sourcePath) && visibleNodePaths.has(edge.targetPath))
@@ -2037,12 +2040,14 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  /** Prepare relinking or a stationary node tap, with touch long-press context-menu ownership. */
+  /** Prepare relinking/taps with stable viewport capture across a node's move into the drag layer. */
   const startNodeDrag = (node: PositionedNode, event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "touch") touchDoubleTap.current.reset();
     const target = event.target as Element;
     if (target.closest("[data-kplex-gate], button")) return;
     if (event.button !== 0 || !normalizedRole(node.role) || node.page.isFolder || node.page.isTag || node.page.transient || neighborhood?.center.isFolder || neighborhood?.center.isTag) return;
+    const captureElement = viewport.current;
+    if (!captureElement) return;
     clearHoverIntent(true);
     event.preventDefault();
     event.stopPropagation();
@@ -2059,13 +2064,15 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       y: displayed.y,
       moved: false,
     });
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // Dragging removes an overflow row and renders a new floating thought. The original
+    // row cannot retain capture across that DOM replacement; the viewport owns the gesture.
+    captureElement.setPointerCapture(event.pointerId);
 
     if (event.pointerType === "touch") {
       cancelTouchLongPress();
       touchPointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       viewport.current?.classList.add("is-touch-gesturing");
-      const element = event.currentTarget;
+      const element = captureElement;
       const pointerId = event.pointerId;
       const clientX = event.clientX;
       const clientY = event.clientY;
@@ -2281,6 +2288,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     updateAreaSettingsDismiss(e);
     if (connectDrag) {
       if (e.pointerId !== connectDrag.pointerId) return;
+      updateHistoryDragHover(index.get(connectDrag.originPath), e.clientX, e.clientY, e.currentTarget.ownerDocument);
       setConnectDrag((current) => current ? {
         ...current,
         current: toWorld(e.clientX, e.clientY),
@@ -2290,6 +2298,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     }
     if (nodeDrag) {
       if (e.pointerId !== nodeDrag.pointerId) return;
+      updateHistoryDragHover(index.get(nodeDrag.path), e.clientX, e.clientY, e.currentTarget.ownerDocument);
       const world = toWorld(e.clientX, e.clientY);
       if (e.pointerType === "touch") touchPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const moved = nodeDrag.moved || Math.hypot(e.clientX - nodeDrag.startClientX, e.clientY - nodeDrag.startClientY) > 6;
@@ -2375,12 +2384,44 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     }
   };
 
-  /** Offer the same explicit relationship roles for node-body and gate drops onto history. */
-  const openHistoryRelationshipMenu = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document): boolean => {
-    const historyButton = ownerDocument.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-kplex-history-path]");
-    const historyPath = historyButton?.dataset.kplexHistoryPath;
-    const target = historyPath ? index.get(historyPath) : undefined;
-    if (!target || target.path === origin.path || target.isFolder || target.isTag || origin.isFolder || origin.isTag) return false;
+  /** Resolve one eligible historical endpoint for both hover and commit routing. */
+  const historyRelationshipTarget = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document): { button: HTMLElement; target: GraphPage } | null => {
+    const button = ownerDocument.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-kplex-history-path]");
+    const path = button?.dataset.kplexHistoryPath;
+    const target = path ? index.get(path) : undefined;
+    return button && target && target.path !== origin.path && !target.isFolder && !target.isTag && !origin.isFolder && !origin.isTag
+      ? { button, target } : null;
+  };
+
+  /** Retire the view-owned historical drag affordance on leave, release, cancellation or unload. */
+  const clearHistoryDragHover = (): void => {
+    historyDragHover.current?.classList.remove("is-relationship-drop-target");
+    historyDragHover.current = null;
+  };
+  useEffect(/** Retire the affordance when drag ownership ends or this graph unmounts. */ () => {
+    if (!connectDrag && !nodeDrag) clearHistoryDragHover();
+    return clearHistoryDragHover;
+  }, [connectDrag?.originPath, nodeDrag?.path]);
+
+  /** Highlight only the same eligible endpoint that an eventual drop can select. */
+  const updateHistoryDragHover = (origin: GraphPage | undefined, clientX: number, clientY: number, ownerDocument: Document): void => {
+    const next = origin ? historyRelationshipTarget(origin, clientX, clientY, ownerDocument)?.button ?? null : null;
+    if (next === historyDragHover.current) return;
+    clearHistoryDragHover();
+    next?.classList.add("is-relationship-drop-target");
+    historyDragHover.current = next;
+  };
+
+  /** A gate states its role directly; node-body history drops ask for one of the four roles. */
+  const openHistoryRelationshipMenu = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: GateRole): boolean => {
+    const hit = historyRelationshipTarget(origin, clientX, clientY, ownerDocument);
+    if (!hit) return false;
+    const { target } = hit;
+    if (semanticRole) {
+      plugin.openRelationModal({ hostLeaf, mode: "create", origin, fixedTarget: target, semanticRole,
+        onCommitted: /** Retire ordinary graph hover after the explicit composer commit. */ () => clearHoverIntent(true) });
+      return true;
+    }
     const menu = new Menu();
     const roles: Array<{ role: GateRole; labelKey: PlainTranslationKey; icon: string }> = [
       { role: "parent", labelKey: "role.parent", icon: "arrow-up" },
@@ -2407,6 +2448,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
 
   /** Finish resize, drag, pan or touch activation with one owner; movement cannot complete a tap pair. */
   const up = (e: PointerEvent<HTMLDivElement>) => {
+    clearHistoryDragHover();
     if (areaResizeDrag.current?.pointerId === e.pointerId) {
       const ownerDocument = e.currentTarget.ownerDocument;
       const hitTarget = ownerDocument.elementFromPoint(e.clientX, e.clientY);
@@ -2426,7 +2468,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         if (drag.moved) plugin.openCreateInFolderModal(origin, hostLeaf);
         return;
       }
-      if (origin && drag.moved && openHistoryRelationshipMenu(origin, e.clientX, e.clientY, e.currentTarget.ownerDocument)) {
+      if (origin && drag.moved && openHistoryRelationshipMenu(origin, e.clientX, e.clientY, e.currentTarget.ownerDocument, semanticRoleForGate(drag.gate))) {
         setConnectDrag(null);
         clearHoverIntent(true);
         suppressActivateUntil.current = Date.now() + 220;
@@ -2586,6 +2628,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
 
   /** Release cancelled pointer ownership, persist area changes and discard pending touch taps. */
   const cancel = (e: PointerEvent<HTMLDivElement>) => {
+    clearHistoryDragHover();
     touchDoubleTap.current.reset();
     if (areaSettingsDismissPointer.current?.pointerId === e.pointerId) areaSettingsDismissPointer.current = null;
     if (areaResizeDrag.current?.pointerId === e.pointerId) {
@@ -2610,6 +2653,18 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       if (touchPointers.current.size === 0) viewport.current?.classList.remove("is-touch-gesturing");
     }
     if (panDrag.current?.pointerId === e.pointerId) panDrag.current = null;
+  };
+
+  /** Retire lost child-owned relationship captures while keeping area resize capture viewport-owned. */
+  const lostPointerCapture = (event: PointerEvent<HTMLDivElement>): void => {
+    if (connectDrag?.pointerId === event.pointerId || nodeDrag?.pointerId === event.pointerId) {
+      cancel(event);
+      return;
+    }
+    if (event.target === event.currentTarget) {
+      clearHistoryDragHover();
+      if (finishAreaResize(event.pointerId)) setAreaHoverIfChanged(null);
+    }
   };
 
   if (!neighborhood) return <div className="kplex-empty">{translate("graph.selectNote")}</div>;
@@ -2815,6 +2870,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, doc);
   };
 
+  /** Route node context gestures through the shared host-destination/action policy. */
   const showNodeContextMenu = (node: PositionedNode, event: MouseEvent<HTMLDivElement>): void => {
     if (Date.now() < suppressActivateUntil.current) return;
     showNodeContextMenuAt(node, event.clientX, event.clientY);
@@ -3124,16 +3180,16 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     onPointerMove={move}
     onPointerUp={up}
     onPointerCancel={cancel}
-    onLostPointerCapture={/** Persist an interrupted viewport resize without consuming child-owned captures. */ (event: PointerEvent<HTMLDivElement>) => {
-      if (event.target === event.currentTarget && finishAreaResize(event.pointerId)) setAreaHoverIfChanged(null);
-    }}
+    onLostPointerCapture={lostPointerCapture}
     onPointerLeave={(event: PointerEvent<HTMLDivElement>) => {
       if (!areaResizeDrag.current && event.pointerType !== "touch") setAreaHoverIfChanged(null);
     }}
     onContextMenu={(event: MouseEvent<HTMLDivElement>) => event.preventDefault()}
   >
     {relationshipUpdating && <div className="kplex-relationship-updating" aria-live="polite" aria-busy="true"><ObsidianIcon name="loader-circle" size={16} /><span>{translate("graph.updatingRelationship")}</span></div>}
-    <PlexFind query={findQuery} focusRequest={findFocusRequest}
+    <PlexFind query={findQuery} focusRequest={findFocusRequest} visible={!centralEditorMaximized}
+      includePath={findIncludePath} onIncludePathChange={/** A new vocabulary starts its own reveal cycle. */ (includePath) => { setFindIncludePath(includePath); setFindCursor(0); }}
+      pathIcon={<ObsidianIcon name="folder-kanban" size={15} />} pathLabel={translate("find.includePath")}
       onChange={/** Start a fresh cycle for each edited term. */ (query) => { setFindQuery(query); setFindCursor(0); }}
       onNext={/** Cycle in either direction without global navigation. */ (backward) => setFindCursor((cursor) => cursor + (backward ? -1 : 1))}
       icon={<ObsidianIcon name="search" size={15} />} closeIcon={<ObsidianIcon name="x" size={14} />}
@@ -3182,7 +3238,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
           connectorStyle={settings.connectorStyle}
           labelBackground={alphaHexToCss(settings.backgroundColor, "#0c3e6a")}
           crossLinkOpacity={Math.max(0, Math.min(1, settings.crossLinkOpacity / 100))}
-          highlighted={!connectDrag && (finding ? matchesOntologyFind(findQuery, edge.typeDefinition) : interaction.edgeIds.has(edge.id))}
+          highlighted={!connectDrag && (finding ? matchesOntologyFind(findQuery, edge.style.showLabel ? relationLabel(edge.typeDefinition) ?? undefined : undefined) : interaction.edgeIds.has(edge.id))}
           dimmed={connectDrag ? connectBlockedEdgeIds.has(edge.id) : !finding && hover !== null && !interaction.edgeIds.has(edge.id)}
           onHover={(event) => { if (!connectDrag && !nodeDrag) scheduleEdgeHover(edge, event); }}
           onMove={(event) => { if (!connectDrag && !nodeDrag) moveEdgeHover(edge, event); }}
@@ -3195,7 +3251,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         />)}
         {expandedConnectors.map((connector) => <path
           key={`expanded-edge:${connector.key}`}
-          className={`kplex-expanded-edge${matchesOntologyFind(findQuery, connector.definition) ? " is-find-match" : ""}`}
+          className="kplex-expanded-edge"
           d={connector.d}
           fill="none"
           stroke={connector.stroke}
@@ -3249,6 +3305,10 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         onModeChange={onCentralNodeModeChange}
         onMaximizedChange={setCentralEditorMaximizedState}
         onCollapse={collapseCentralEditor}
+        onOpenMenu={/** Reuse the exact central node's context policy and owning view menu. */ (button) => {
+          const bounds = button.getBoundingClientRect();
+          showNodeContextMenuAt(centralEditorNode, bounds.left, bounds.bottom);
+        }}
         onNavigate={(nextFile) => {
           const target = index.get(nextFile.path);
           if (target) onActivate(target);

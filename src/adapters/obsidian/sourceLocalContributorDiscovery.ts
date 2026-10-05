@@ -4,6 +4,7 @@
  * reconstructed from bounded current host coordinates with the canonical Obsidian constructors;
  * no Markdown inventory scan, global contributor-catalog bootstrap or graph snapshot is involved.
  */
+import { canonicalTagPaths } from "../../core/graph/tagPaths";
 import { TFile, TFolder, type App } from "obsidian";
 import { contributorRecordKeys, type ContributorCertificate,
   type ContributorDiscoveryResult, type ContributorFailure, type ContributorHostStamp,
@@ -11,11 +12,11 @@ import { contributorRecordKeys, type ContributorCertificate,
 import { SOURCE_MAX_BATCH_RECORDS, SOURCE_MAX_RECORD_BYTES, SOURCE_CHUNK_TARGET_BYTES, SOURCE_DECODE_BUDGET_BYTES, SourceFactError, type SourceReason } from "../../index/SourceFacts";
 import { sourceLocalDependencyKey } from "../../index/SourceLocalDependencies";
 import type { NeutralSourceRepository } from "../../index/SourceRepository";
-import { estimateReferenceRecordBytes, type SourceEntityRef } from "../../core/graph/source";
+import { sourceRevision, estimateReferenceRecordBytes, type SourceEntityRef } from "../../core/graph/source";
 import { entityFactForFile, entityFactForFolder, structuralFileTreeOccurrence,
   structuralTagMembershipFacts } from "./structuralSourceCollector";
 
-const GENERATION = "source-local-dependencies-v1";
+const GENERATION = "source-local-dependencies-v3";
 
 function bytes(value: string): number { return new TextEncoder().encode(value).byteLength; }
 function sameHost(left: ContributorHostStamp, right: ContributorHostStamp): boolean {
@@ -46,7 +47,7 @@ function copyRequest(request: ContributorRequest): ContributorRequest {
 }
 
 /** Select finite neutral dependency keys and bound retained request metadata, without scanning owners. */
-async function queryKeys(request: ContributorRequest, current: () => boolean): Promise<readonly string[]> {
+async function queryKeys(request: ContributorRequest, current: () => boolean, editablePair: boolean): Promise<readonly string[]> {
   if ((request.kind !== "pair" && request.kind !== "neighborhood") || request.endpoints.length < 1
     || request.kind === "pair" && request.endpoints.length !== 2) {
     throw new SourceFactError("unsupported-scope");
@@ -54,11 +55,26 @@ async function queryKeys(request: ContributorRequest, current: () => boolean): P
   const keys = new Set<string>();
   let retainedBytes = 0;
   let visited = 0;
+  const documentPair = editablePair && request.kind === "pair"
+    && request.endpoints.some(/** Document declarations own every editable document/non-document pair. */
+      endpoint => endpoint.kind === "document");
   for (const endpoint of request.endpoints) {
     if (!endpoint || typeof endpoint.id !== "string" || !endpoint.id || typeof endpoint.kind !== "string"
       || typeof endpoint.state !== "string") throw new SourceFactError("unsupported-scope");
-    keys.add(sourceLocalDependencyKey("node", endpoint.id));
-    if (endpoint.kind === "tag") keys.add(sourceLocalDependencyKey("family", "tag-tree"));
+    if (endpoint.kind === "tag") {
+      let canonical: string | null = null;
+      if (endpoint.semanticPath?.startsWith("tag:")) {
+        for (const path of canonicalTagPaths(endpoint.semanticPath.slice(4))) canonical = path;
+      }
+      if (!canonical || canonical !== endpoint.semanticPath) throw new SourceFactError("unsupported-scope");
+      keys.add(sourceLocalDependencyKey("node", canonical));
+    } else if (!documentPair || endpoint.kind === "document") {
+      // Shared URL/attachment owners cannot contribute a relation to this exact document.
+      // Retain both document keys for inverse declarations; no endpoint-incidence claim is made.
+      keys.add(sourceLocalDependencyKey("node", endpoint.id));
+    }
+    // Current local-owner authority includes canonical ancestors; the global tag forest is not
+    // a contributor to every individual tag request. Closed-world key counts certify absence.
     retainedBytes += estimateReferenceRecordBytes(endpoint);
     if (retainedBytes > 64 * 1024 * 1024) throw new SourceFactError("decode-budget");
     visited += 1; await requestCheckpoint(visited, current);
@@ -105,8 +121,8 @@ async function digestCertificateValues(repository: NeutralSourceRepository, dige
 
 /** Hash scope identity in bounded slices instead of serializing one arbitrarily large endpoint array. */
 async function scopeDigest(repository: NeutralSourceRepository, scope: ContributorRequest,
-  current: () => boolean): Promise<string> {
-  let digest = await repository.observationDigest(JSON.stringify([GENERATION, "scope", scope.kind,
+  current: () => boolean, editablePair = false): Promise<string> {
+  let digest = await repository.observationDigest(JSON.stringify([GENERATION, editablePair, "scope", scope.kind,
     scope.fields === undefined, scope.literals === undefined]));
   for (const [label, values] of [["endpoints", scope.endpoints], ["fields", scope.fields ?? []], ["literals", scope.literals ?? []]] as const) {
     digest = await digestCertificateValues(repository, digest, label, values, current);
@@ -134,9 +150,14 @@ async function structuralFacts(app: App, request: ContributorRequest, sourceIds:
     if (!current()) throw new SourceFactError("host-catalog-stale");
   };
   /** Retain only relevant, compactly deduplicated facts under the aggregate structural budget. */
-  const add = async (fact: ContributorStructuralFact): Promise<void> => {
-    let relevant = false;
+  const add = async (fact: ContributorStructuralFact, requestedIdentity = false): Promise<void> => {
+    let relevant = requestedIdentity;
     for (const key of contributorRecordKeys(fact)) if (keys.has(key)) { relevant = true; break; }
+    if (!relevant && fact.kind === "tag-tree" && fact.membership === "entity-member") {
+      for (const path of canonicalTagPaths(fact.provenance?.rawValue ?? "")) {
+        if (keys.has(sourceLocalDependencyKey("node", path))) { relevant = true; break; }
+      }
+    }
     if (!relevant) { await checkpoint(); return; }
     // Structural constructors are deterministic for a current source/target pair. Deduplicate
     // compact exact IDs per kind/source instead of retaining serialized copies of every fact.
@@ -169,6 +190,13 @@ async function structuralFacts(app: App, request: ContributorRequest, sourceIds:
     }
   };
 
+  // Bind requested ancestor identities explicitly; the compiler alone derives hierarchy edges
+  // from the genuine descendant memberships below. No opaque ID is decoded into a tag path.
+  for (const endpoint of request.endpoints) if (endpoint.kind === "tag") {
+    await add({ kind: "entity", source: endpoint, entity: endpoint,
+      sourceRevision: sourceRevision(`tag:${endpoint.semanticPath ?? ""}`),
+      name: endpoint.semanticPath?.replace(/^tag:/, "") ?? "", url: null, semanticMtime: null }, true);
+  }
   for (const sourceId of sourceIds) {
     if (!current()) throw new SourceFactError("host-catalog-stale");
     const file = app.vault.getFileByPath(sourceId);
@@ -211,7 +239,7 @@ export class SourceLocalContributorDiscovery {
   private queries = 0;
   constructor(private readonly repository: NeutralSourceRepository, private readonly app: App,
     private readonly stamp: ContributorHostStamp, private readonly current: () => boolean,
-    private readonly onDependencyInvalid?: () => void) {}
+    private readonly onDependencyInvalid?: () => void, private readonly editablePair = false) {}
 
   /** Source-local requests share the acquisition owner's monotonic maintenance/host fence. */
   isGenerationCurrent(): boolean { return this.current(); }
@@ -233,8 +261,8 @@ export class SourceLocalContributorDiscovery {
     this.queries += 1;
     try {
       if (!this.current()) throw new SourceFactError("host-catalog-stale");
-      const scope = copyRequest(input), keys = await queryKeys(scope, this.current), keySet = new Set(keys);
-      const selected = await this.repository.lookupLocalDependencies(keys, this.current);
+      const scope = copyRequest(input), keys = await queryKeys(scope, this.current, this.editablePair), keySet = new Set(keys);
+      const selected = await this.repository.lookupLocalDependencies(keys, this.current, true);
       if (selected.outcome !== "ready") {
         if (selected.reason === "dependency-invalid") this.onDependencyInvalid?.();
         return failure(selected.reason);
@@ -252,7 +280,7 @@ export class SourceLocalContributorDiscovery {
       }
       const dependencyDigest = await this.repository.observationDigest(JSON.stringify([GENERATION, selected.value.fence]));
       if (!this.current()) throw new SourceFactError("host-catalog-stale");
-      const scopeIdentity = await scopeDigest(this.repository, scope, this.current);
+      const scopeIdentity = await scopeDigest(this.repository, scope, this.current, this.editablePair);
       const selectionIdentity = await selectionDigest(this.repository, sources, hostFacts, order, this.current);
       if (!this.current()) throw new SourceFactError("host-catalog-stale");
       const certificate: ContributorCertificate = {
@@ -273,7 +301,7 @@ export class SourceLocalContributorDiscovery {
     try {
       if (!this.current() || !sameHost(certificate.host, this.stamp) || certificate.coverage !== "complete-direct-contributors"
         || certificate.hostFactOrder !== "scope-local" || certificate.dependency.generation !== GENERATION || certificate.dependency.slot !== 0
-        || certificate.scopeIdentity !== await scopeDigest(this.repository, certificate.scope, this.current)) return "superseded";
+        || certificate.scopeIdentity !== await scopeDigest(this.repository, certificate.scope, this.current, this.editablePair)) return "superseded";
       const digest = await this.repository.observationDigest(JSON.stringify([GENERATION,
         { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }]));
       if (digest !== certificate.dependency.digest) return "dependency-invalid";
@@ -283,7 +311,7 @@ export class SourceLocalContributorDiscovery {
         || certificate.markdownOrder.some((value, index, values) => !Number.isSafeInteger(value) || value < 0
           || index > 0 && value <= values[index - 1]))) return "dependency-invalid";
       const reason = await this.repository.validateLocalDependencies(
-        { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }, certificate.sources, this.current);
+        { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }, certificate.sources, this.current, true);
       if (reason === "dependency-invalid") this.onDependencyInvalid?.();
       return reason;
     } catch (error) { return error instanceof SourceFactError ? error.reason : "read-error"; }

@@ -4,7 +4,7 @@ import test from "node:test";
 import { contributorBrowserBundle, contributorBrowserInitialize } from "./support/contributorBrowserFixture.mjs";
 import { chromiumHarness } from "./support/browserTypeScript.mjs";
 
-const bundle = await contributorBrowserBundle(["src/index/SourceRepository.ts"]);
+const bundle = await contributorBrowserBundle(["src/index/SourceRepository.ts", "src/index/CachedRequestedNeighborhood.ts"]);
 
 /** Optional alias writes prove primary equivalence and preserve every selected authority input before CAS. */
 test("optional alias replacement rejects primary, dependency-count and final selection changes without fallback", async () => {
@@ -69,6 +69,115 @@ test("private reclaim inventory validates every marker and the exact final seque
         r.repairAllLocalDependencies=sweep;equal(await r.completeLocalDependencyInventory(),'ready','Fresh sweep authenticates both inactive markers');
         await edit(db,['meta'],async tx=>{const store=tx.objectStore('meta'),sequence=await value(store.get('source-sequence'));store.put({...sequence,unexpected:true});});
         equal(await r.completeLocalDependencyInventory(),'dependency-invalid','Malformed same-value sequence cannot authorize private closure');
+        return true;
+      }finally{f.close();}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
+/** Exact ancestor memberships avoid unrelated tagged owners while retaining authenticated negative ranges. */
+test("local tag ancestor queries upgrade historical derivatives without selecting the global tag forest", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('local-tag-ancestor-v3');
+      try{
+        for(const [id,tags] of [['A.md',['#project/nested/leaf']],['B.md',['#project/other']],['C.md',['#unrelated']]]){
+          f.add(id,'',{tags});f.metadata.get(id).hostTags=tags;
+        }
+        await f.acquire();ok(await f.acquisition.reconcile(),'Initial current authority');
+        const db=await f.cache.open(),r=f.repository,headBefore=(await r.inspect('A.md')).head;
+        const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));
+        const rows=await value(db.transaction(M.SOURCE_LOCAL_DEPENDENCY_STORE).objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE).index(M.SOURCE_LOCAL_REVISION_INDEX).getAll(IDBKeyRange.only(['A.md',owner.sourceRevision])));
+        const removed=rows.filter(row=>['tag:project','tag:project/nested'].includes(JSON.parse(row.key)[1]));
+        const keep=rows.filter(row=>!removed.includes(row)).map((row,index)=>({...row,index}));
+        const digest=await r.observationDigest('0'.repeat(64)+JSON.stringify(keep.map(row=>row.key)));
+        await edit(db,[M.SOURCE_LOCAL_DEPENDENCY_STORE,M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_KEY_STORE],async tx=>{
+          const store=tx.objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE);store.delete(IDBKeyRange.bound(['A.md',owner.sourceRevision,0],['A.md',owner.sourceRevision,Number.MAX_SAFE_INTEGER]));
+          for(const row of keep)store.put(row);
+          for(const row of removed){const keys=tx.objectStore(M.SOURCE_LOCAL_KEY_STORE),selected=await value(keys.get(row.key));keys.put({...selected,count:selected.count-1});}
+          tx.objectStore(M.SOURCE_LOCAL_OWNER_STORE).put({...owner,version:2,records:keep.length,digest});
+        });
+        await edit(db,['meta'],async tx=>{const store=tx.objectStore('meta'),state=await value(store.get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY));store.put({...state,version:1});});
+        const absentKey=M.sourceLocalDependencyKey('node','tag:absent');
+        equal((await r.lookupLocalDependencies([absentKey],()=>true,true)).reason,'dependency-pending','Historical complete inventory cannot certify a new-projection negative');
+        const incomplete=await r.beginLocalDependencyInventoryProjection(3,()=>true);
+        equal(await r.completeLocalDependencyInventory(()=>true,incomplete),'dependency-pending','Unvisited owner pass cannot promote the format');
+        let live=true;const yieldBefore=r.runtime.yield;r.runtime.yield=async()=>{live=false;};
+        equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder,()=>live),'cancelled','Cancelled staged augmentation cannot activate');
+        equal((await r.inspect('A.md')).head,headBefore,'Cancellation never restamps source head');r.runtime.yield=yieldBefore;
+        equal(await r.ensureLocalDependencies('A.md',owner.order,owner.markdownOrder),'ready','Historical v2 upgrade resumes');
+        equal(await r.completeLocalDependencyInventory(),'ready','Count journal closes');
+        equal((await r.inspect('A.md')).head,headBefore,'Successful derivative upgrade never changes source head');
+        const upgraded=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));
+        equal(upgraded.version,3,'Current ancestor projection');equal(upgraded.records,owner.records,'Resumed rows counted exactly once');
+        equal((await r.lookupLocalDependencies([absentKey],()=>true,true)).reason,'dependency-pending','Selected-owner upgrade alone cannot certify negative projection coverage');
+        const foreign=await r.beginLocalDependencyInventoryProjection(3,()=>true);
+        for(const [ordinal,id] of ['A.md','B.md','C.md'].entries())equal(await r.ensureLocalDependencies(id,ordinal,ordinal,()=>true,foreign),'ready','Authenticate entire captured current-owner pass');
+        await edit(db,['meta'],async tx=>{const store=tx.objectStore('meta'),sequence=await value(store.get('source-sequence'));store.put({...sequence,value:sequence.value+1});});
+        equal(await r.completeLocalDependencyInventory(()=>true,foreign),'superseded','Foreign source CAS cannot close a captured old inventory');
+        equal((await r.lookupLocalDependencies([absentKey],()=>true,true)).reason,'dependency-pending','Failed closure retains historical state');
+        // A fresh native inventory uses its real per-file selection/physical/cache authority.
+        f.acquisition.close();const acquisition=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>M.parseBodyMetadata(text));
+        ok(await acquisition.reconcile(),'Actual all-owner acquisition closes current projection');
+        const state=await value(db.transaction('meta').objectStore('meta').get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY));equal(state.version,2,'Current inventory closure is persisted');
+        const discovery=acquisition.localContributorDiscovery(runtime());ok(discovery,'Current production adapter available');
+        const query=async path=>discovery.discover({kind:'neighborhood',endpoints:[ref(path,'tag')]});
+        const ancestor=await query('tag:project');equal(ancestor.outcome,'ready','Ancestor closed range');equal(ancestor.sourceIds,['A.md','B.md'],'Only genuine descendants selected');
+        ok(ancestor.hostFacts.some(entry=>entry.fact.kind==='entity'&&entry.fact.entity.id==='tag:project'),'Requested ancestor opaque identity is bound explicitly');
+        equal((await query('tag:project/nested')).sourceIds,['A.md'],'Nested ancestor selects exact descendant');
+        equal((await query('tag:unrelated')).sourceIds,['C.md'],'Sibling tree isolated');
+        const absent=await query('tag:absent');equal(absent.outcome,'ready','Authenticated negative tag range');equal(absent.sourceIds,[],'No global tag forest leaks into negative query');
+        equal(f.parses.length,0,'No Markdown parser invoked by derivative maintenance');
+        const policy={revision:'tag-policy',settings:{hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30},isCurrent:()=>true};
+        const gates={revision:'tag-gates',settings:{excludeFilepaths:[],showVirtualNodes:true,showAttachments:true,showFolderNodes:false,showTagNodes:true,showPageNodes:true,showURLNodes:true,showInferredNodes:true},isCurrent:()=>true};
+        const ancestorRef={id:'opaque-ancestor',kind:'tag',state:'materialized',semanticPath:'tag:project'};
+        const opaque=await discovery.discover({kind:'neighborhood',endpoints:[ancestorRef]});equal(opaque.sourceIds,['A.md','B.md'],'Opaque ancestor ID uses explicit semantic coordinate');
+        const prepared=await acquisition.prepareRequestedNeighborhood({kind:'neighborhood',center:ancestorRef},policy,{noteTypeField:'Type',primaryTagField:'Style'},gates,runtime());
+        equal(prepared.outcome,'ready','Canonical ancestor neighborhood completes');
+        const center=prepared.preparation.compilation.node('opaque-ancestor');ok(center,'Requested exact opaque ancestor identity retained');
+        equal([...center.neighbours.values()].map(item=>item.target.semanticPath).sort(),['tag:project/nested','tag:project/other'],'Compiler preserves descendant child hierarchy without unrelated tree');
+        acquisition.close();return true;
+      }finally{f.close();}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
+/** Hidden tag parents keep semantic gates but need no unrelated sibling incidence in scene coverage. */
+test("projected center gates close only visible parents while relation-only reads retain the full frontier", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('local-tag-visible-parent');
+      try{
+        f.add('A.md','',{tags:['scale'],Parent:'[[P]]'});f.metadata.get('A.md').hostTags=['#scale'];
+        f.add('P.md','');f.add('Sibling.md','',{Parent:'[[P]]'});
+        for(let i=0;i<80;i++){f.add('Scale-'+i+'.md','',{tags:['scale']});f.metadata.get('Scale-'+i+'.md').hostTags=['#scale'];}
+        await f.acquire();ok(await f.acquisition.reconcile(),'All current source authority');
+        const policy={revision:'visible-policy',settings:{hierarchy:{hidden:[],parents:['Parent'],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30},isCurrent:()=>true};
+        const settings={excludeFilepaths:[],showVirtualNodes:true,showAttachments:true,showFolderNodes:false,showTagNodes:false,showPageNodes:true,showURLNodes:true,showInferredNodes:true};
+        const gates={revision:'visible-gates',settings,isCurrent:()=>true},presentation={noteTypeField:'Type',primaryTagField:'Style'};
+        const discovery=f.acquisition.localContributorDiscovery(runtime()),discover=discovery.discover.bind(discovery),requests=[];
+        discovery.discover=async scope=>{requests.push(scope.endpoints.map(ref=>ref.id));return discover(scope);};
+        const capture=(id,scope)=>f.acquisition.captureForReplay(id,presentation,scope);
+        const Reader=M.CachedRequestedNeighborhoodReader;
+        const reader=new Reader(f.repository,discovery,capture,f.acquisition.cachedEntityReadPort(runtime()));
+        const projected=await reader.prepareCenterGates({kind:'neighborhood',center:ref('A.md')},policy,gates,runtime());
+        equal(projected.outcome,'ready','Ordinary scope stays complete');equal(projected.certificate.relations.coverage,'complete-visible-parent-relations','Accurate projected coverage');
+        equal(projected.certificate.relations.parents.map(ref=>ref.id),['P.md'],'Every visible parent before top-N');
+        equal(requests,[['A.md'],['A.md','P.md']],'Hidden tag and folder incidence never requested');
+        ok(projected.preparation.compilation.node('A.md').neighbours.has('tag:scale'),'Complete center retains hidden semantic parent');
+        ok(projected.preparation.compilation.node('P.md').neighbours.has('Sibling.md'),'Visible parent closes sibling witnesses');
+        equal(projected.gates.top,{hasAny:true,visibleCount:1},'Semantic gate fill retained, visible count exact');
+        ok(!projected.preparation.compilation.node('Scale-0.md'),'Unrelated hidden-tag child is not overcaptured');
+        requests.length=0;const complete=await reader.prepare({kind:'neighborhood',center:ref('A.md')},policy,runtime());
+        equal(complete.outcome,'ready','Relation-only full closure remains available');equal(complete.coverage,'complete-neighborhood-relations','Original full coverage retained');
+        ok(complete.certificate.parents.some(ref=>ref.id==='tag:scale'),'Relation-only includes hidden tag parent');
+        ok(complete.preparation.compilation.node('Scale-0.md'),'Complete hidden-parent incidence remains in full read');
+        let current=true;const cancelled=await reader.prepareCenterGates({kind:'neighborhood',center:ref('A.md')},policy,gates,{...runtime(),now:()=>10,yield:async()=>{current=false;},sliceBudgetMs:0,isCurrent:()=>current});
+        ok(cancelled.outcome!=='ready','Cancellation publishes no projected prefix');
         return true;
       }finally{f.close();}
     })()`), true);
@@ -141,7 +250,7 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
             const store=db.transaction(name).objectStore(name);schema.push({name,keyPath:store.keyPath,autoIncrement:store.autoIncrement,indexes:[...store.indexNames].map(index=>{const item=store.index(index);return {name:index,keyPath:item.keyPath,unique:item.unique,multiEntry:item.multiEntry};})});
             rows[name]=await value(store.getAll());
           }
-          rows.meta=rows.meta.map(row=>row.key===M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY?{key:row.key,version:row.version,revision:row.revision,complete:row.complete}:row);
+          rows.meta=rows.meta.map(row=>row.key===M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY?{key:row.key,version:1,revision:row.revision,complete:row.complete}:row);
           for(const required of ['pages','evidence','snapshotChunks','sourceHeads','sourceChunks','sourcePostings','bodies',M.SOURCE_DEPENDENCY_STORE,M.SOURCE_LOCAL_DEPENDENCY_STORE,M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_KEY_STORE]){
             ok(rows[required].length>0,'Seed accepted '+required);
           }

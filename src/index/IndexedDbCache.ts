@@ -3,7 +3,9 @@
  * Complete and partial checkpoint metadata point to independent chunk generations only after
  * their writes finish; callers own semantic validity, disposable URL-facet versions and plugin-lifetime cancellation. Retired
  * contributor pins may use one cleanup-only existing-database connection after normal-handle
- * failure; cleanup never resets write backoff or acquires source/publication authority.
+ * failure; cleanup never resets write backoff or acquires source/publication authority. Attributed
+ * source cancellation/domain rollback AbortErrors preserve the healthy shared connection; genuine
+ * storage faults still close the handle and enter the existing bounded recovery backoff.
  */
 import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
 import { Platform } from "obsidian";
@@ -250,6 +252,14 @@ export class KplexIndexedDbCache {
     this.openRetryAfter = Date.now() + (this.openFailureCount === 1 ? 1000 : this.openFailureCount === 2 ? 5000 : 30000);
   }
 
+  /** Ignore only native AbortErrors from a source transaction deliberately canceled or rolled back. */
+  private isExpectedSourceAbort(event: Event): boolean {
+    const target = event.target;
+    const transaction = target instanceof IDBRequest ? target.transaction : target instanceof IDBTransaction ? target : null;
+    const error = target instanceof IDBRequest || target instanceof IDBTransaction ? target.error : null;
+    return error?.name === "AbortError" && transaction !== null && this.sources.isExpectedTransactionAbort(transaction);
+  }
+
   /** A synchronously closed/invalid legacy transaction must not leave the shared owner ready. */
   private openTransaction(db: IDBDatabase, stores: string | string[], mode: IDBTransactionMode): IDBTransaction {
     try { return db.transaction(stores, mode); }
@@ -370,9 +380,9 @@ export class KplexIndexedDbCache {
           this.connection = db;
           db.onversionchange = () => { this.storageFailed(db); };
           db.onclose = () => { this.storageFailed(db); };
-          db.onerror = () => { this.storageFailed(db); };
+          db.onerror = (event) => { if (!this.isExpectedSourceAbort(event)) this.storageFailed(db); };
           db.onabort = (event) => {
-            if (event.target instanceof IDBTransaction && event.target.error) this.storageFailed(db);
+            if (!this.isExpectedSourceAbort(event) && event.target instanceof IDBTransaction && event.target.error) this.storageFailed(db);
           };
           resolve(db);
         };

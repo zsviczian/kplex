@@ -327,7 +327,7 @@ test("owner-summary codecs enforce identity, original ordering, self membership 
   assert.equal(oversized.state.reads, 0);
 });
 
-/** Activation memberships retain canonical replay coverage and add resolver-neutral lexical fan-out keys. */
+/** Current memberships retain replay coverage and add canonical ancestors and resolver fan-out keys. */
 test("source-local activation memberships cover canonical owner-summary dependencies plus resolver tokens", async () => {
   const f = replayFixture();
   try {
@@ -351,7 +351,7 @@ test("source-local activation memberships cover canonical owner-summary dependen
     const legacyKeys = new Set(summarized.value.summary.keys);
     for (const key of legacyKeys) assert(projected.has(key), `missing canonical dependency key ${key}`);
     const additive = [...projected].filter(key => !legacyKeys.has(key)).sort();
-    assert.deepEqual(additive, [M.sourceLocalResolverDependencyKey("B")],
-      "R2 adds only resolver-neutral lexical fan-out beyond canonical replay dependencies");
+    assert.deepEqual(additive, [M.sourceLocalDependencyKey("node", "tag:project"), M.sourceLocalResolverDependencyKey("B")].sort(),
+      "R3 adds the canonical tag ancestor and resolver-neutral lexical fan-out beyond replay dependencies");
   } finally { f.close(); }
 });

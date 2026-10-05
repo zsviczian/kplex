@@ -269,6 +269,7 @@ const dutchTranslations = {
   "addRelated.aliasAria": "Alias (optioneel)",
   "addRelated.ontologyPlaceholder": "Ontologie · {field}",
   "addRelated.ontologyAria": "Ontologieveld",
+  "relation.savedUpdatePending": "Relatie opgeslagen; het bijwerken van de grafiek is nog in behandeling.",
   "relation.preparingRelationship": "Relatiegegevens worden nog voorbereid. Probeer het opnieuw nadat het indexeren is voltooid.",
   "addRelated.showOntologyFields": "Alle ontologievelden tonen",
   "addRelated.createMarkdownLink": "Markdown-notitie maken en koppelen",
@@ -921,6 +922,7 @@ const dutchTranslations = {
   "vaultStats.ontologyValue": "{total} total · {used} used",
   "find.ariaLabel": "Zoeken in de Plex",
   "find.placeholder": "Zoeken in de Plex…",
+  "find.includePath": "Ook bestandspaden doorzoeken",
   "find.close": "Zoeken sluiten",
   "find.matches": { one: "{count} overeenkomst", other: "{count} overeenkomsten" },
 } as const satisfies LocaleTranslationMap;

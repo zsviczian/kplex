@@ -9,6 +9,9 @@
  * URL alias cache facets replay from authenticated neutral facts without replacing cached relations.
  * Optional alias owners join current requested preparations and their existing supersession retries
  * before changing repository fences; exact failed-demand records prevent repetitive background retries.
+ * Exact canonical editable pairs compose over coherent scopes under their own semantic policy;
+ * source invalidation closes their authority without erasing saved presentation. Complete matching
+ * publications retire their bounded evidence/negative replacements.
  * Finite requested physical notes capture current canonical alias facets separately from sparse
  * incidence, under the same byte ceiling, cooperative runtime and final file/cache/source fences.
  * This class decides when partial cold-start or authoritative state may
@@ -18,8 +21,8 @@ import { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisitio
 import { graphCompilerSettingsFromLegacy, graphNodeViewFromLegacy } from "../adapters/obsidian/graphContracts";
 import type { CompiledGraphNode, GraphCompilerRuntime, GraphCompilerSettings } from "../core/graph/compiler";
 import type { NodeId } from "../core/graph/model";
-import type { SourceEntityRef } from "../core/graph/source";
-import type { RelationEvidenceStore } from "../core/graph/evidence";
+import { estimateReferenceRecordBytes, type SourceEntityRef } from "../core/graph/source";
+import { RelationEvidenceStore } from "../core/graph/evidence";
 import { Platform, TFile, TFolder, normalizePath, type App, type CachedMetadata } from "obsidian";
 import type KplexPlugin from "../main";
 import type { KplexSettings } from "../settings";
@@ -124,6 +127,16 @@ type PreparedSemanticScope = Readonly<{
   gates: GateStats;
   suppressedPaths: ReadonlySet<string>;
 }>;
+
+/** Exact canonical pair publication. Retained views survive invalidation; authority never does. */
+type PreparedRelationshipPair = Readonly<{
+  paths: readonly [string, string]; settings: GraphCompilerSettings; evidence: RelationEvidenceStore;
+  relations: ReadonlyMap<string, Relation | undefined>; policyRevision: number; sourceRevision: number;
+  maintenanceRevision: number; bytes: number; current: () => boolean;
+}>;
+
+/** Collision-free unordered physical/semantic coordinates; opaque node IDs remain adapter-owned. */
+function relationshipPairKey(a: string, b: string): string { return JSON.stringify(a < b ? [a, b] : [b, a]); }
 
 /** Aggregate-only SI4 diagnostics; no source contents or user values are retained here. */
 export type SemanticPreparationDiagnostics = Readonly<{
@@ -265,6 +278,12 @@ export class GraphIndex {
   private folderRenameTasks = new WeakMap<TFolder, Promise<void>>();
   private pendingStructuralTasks = 0;
   private semanticScopes = new Map<string, PreparedSemanticScope>();
+  /** Saved pairs compose until a complete matching publication replaces them; there is no arbitrary eviction. */
+  private relationshipPairs = new Map<string, PreparedRelationshipPair>();
+  private relationshipPairBytes = 0;
+  private relationshipPairRevision = 0;
+  private relationshipPairTasks = new Map<string, Promise<boolean>>();
+  private relationshipPairViews = new WeakMap<GraphPage, { revision: number; page: GraphPage }>();
   private semanticPreparationTasks = new Map<string, Readonly<{
     policyRevision: number; demandRevision: number; maintenanceRevision: number; coverageSignature: string;
     sourceRevision: number; publicationRevision: number; presentationRevision: number; task: Promise<void>;
@@ -799,7 +818,7 @@ export class GraphIndex {
     /** Drain actual owners, including replacement tasks started by their existing finally retry. */
     const drain = async (): Promise<void> => {
       while (current() && this.sourceAcquisition.hasSemanticDependencies()) {
-        const tasks: Promise<void>[] = [];
+        const tasks: Promise<unknown>[] = [...this.relationshipPairTasks.values()];
         for (const path of paths()) {
           const active = this.semanticPreparationTasks.get(path);
           if (active) tasks.push(active.task);
@@ -997,7 +1016,7 @@ export class GraphIndex {
     };
   }
 
-  /** Stage and atomically publish one center plus all parent incidence needed for sibling witnesses. */
+  /** Stage and atomically publish one complete center and all policy-visible parent incidence needed for sibling witnesses. */
   private async prepareSemanticScope(centerPath: string, policyRevision: number, demandRevision: number): Promise<void> {
     const sourceRevision = this.plugin.getIndexSourceRevision();
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
@@ -1067,7 +1086,7 @@ export class GraphIndex {
     if (!legacyEvidence) { pending("unsupported-scope"); return; }
     const center = compilation.node(centerId);
     if (!center?.semanticPath || center.semanticPath !== centerPath) { pending("missing-center"); return; }
-    // The private cover proves every semantic parent. Publish complete incidence only for
+    // The private cover proves the complete center and every policy-visible parent. Publish incidence for
     // parents the view can render: a hidden root's entire child inventory is not a request to
     // replay every Markdown owner for labels/degrees before an ordinary note can appear.
     const visibleParents = parentIds.filter((id) => {
@@ -1194,6 +1213,7 @@ export class GraphIndex {
     this.noteSemanticPreparation("prepared", null);
     // No await below this line: the revisioned page/evidence/gate/search overlay becomes visible together.
     this.semanticScopes.set(centerPath, scope);
+    this.retireRelationshipPairs(scope);
     this.semanticPreparationFailures.delete(centerPath);
     this.plugin.startupDiagnostics?.mark("first-requested-scope-authoritative");
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
@@ -1261,9 +1281,16 @@ export class GraphIndex {
       dependencyVisits: this.semanticPreparationDiagnostics.dependencyVisits + count };
   }
 
-  /** Return the newest coherent prepared page; stale maintenance may remain readable while repair publishes. */
+  /** Prefer complete incidence over sparse endpoints at the current revision; retain coherent older views during repair. */
   private semanticPage(path: string): GraphPage | undefined {
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+    // An endpoint borrowed by another center can be sparse even when a complete current scope
+    // owns this path. Direct get() and relation consumers must select that same complete baseline.
+    for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
+      && scope.policyRevision === this.semanticPolicyRevision && scope.completePaths.has(path)) {
+      const page = scope.pagesByPath.get(path);
+      if (page) return page;
+    }
     // A page prepared by any current scope wins over suppression recorded by another current scope.
     // This keeps two visible Plexes composable when their bounded affected sets overlap.
     for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
@@ -1463,10 +1490,11 @@ export class GraphIndex {
   isCheckpointSaving(): boolean { return this.checkpointSaving; }
   get(path: string): GraphPage | undefined {
     const exactPrepared = this.semanticPage(path);
-    if (exactPrepared && exactPrepared !== this.state.pages.get(path)) return exactPrepared;
+    if (exactPrepared && exactPrepared !== this.state.pages.get(path)) return this.composeRelationshipPairs(exactPrepared);
     const base = getGraphPage(this.state, path);
-    if (!base) return exactPrepared;
-    return this.semanticPage(base.path);
+    if (!base) return exactPrepared ? this.composeRelationshipPairs(exactPrepared) : undefined;
+    const page = this.semanticPage(base.path);
+    return page ? this.composeRelationshipPairs(page) : undefined;
   }
   allPages(): GraphPage[] { return [...this.state.pages.values()]; }
 
@@ -1771,7 +1799,12 @@ export class GraphIndex {
     this.semanticDemandRevision.clear();
     this.semanticDemandCounts.clear();
     this.semanticScopes.clear();
+    this.relationshipPairs.clear();
+    this.relationshipPairBytes = 0;
+    this.relationshipPairRevision++;
     this.semanticPreparationTasks.clear();
+    this.relationshipPairTasks.clear();
+    this.relationshipPairViews = new WeakMap();
     this.semanticPreparationFailures.clear();
     this.presentationListeners.clear();
     this.generation += 1;
@@ -1840,6 +1873,7 @@ export class GraphIndex {
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();
+      this.retirePublishedRelationshipPairs();
     }
     this.titleCache.clear();
     this.suggestionCatalogCache = null;
@@ -2573,6 +2607,7 @@ export class GraphIndex {
    * when graph topology changed. The publisher never awaits or retains the prepared-state callback. */
   private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
     this.commitPreparedFile(commit, publishPreparedState);
+    this.retirePublishedRelationshipPairs();
     if (commit.semanticChanged) this.emit();
     else this.emitPresentation();
   };
@@ -3113,6 +3148,7 @@ export class GraphIndex {
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();
+      this.retirePublishedRelationshipPairs();
       this.fullSnapshotHydrated = true;
       this.sourceAcquisition.enableInventory();
       this.fullSnapshotFresh = true;
@@ -3181,6 +3217,7 @@ export class GraphIndex {
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();
+      this.retirePublishedRelationshipPairs();
       this.semanticFingerprints = nextFingerprints;
       this.fullSnapshotHydrated = true;
       this.sourceAcquisition.enableInventory();
@@ -3287,9 +3324,126 @@ export class GraphIndex {
     if (this.activeSnapshotGeneration) this.scheduleOrphanCleanup(this.activeSnapshotGeneration);
   }
 
+  /**
+   * Prepare and atomically publish canonical evidence for one editable pair. This grants exact pair
+   * authority only, without demanding the other endpoint's complete incidence or joining unrelated
+   * view preparation. Optional alias owners drain this actual task before their next CAS. One in-flight
+   * writer conflict may retry after that writer has finished; unchanged terminal inputs never loop.
+   */
+  prepareRelationshipPair(sourcePath: string, targetPath: string, provisionalTarget?: GraphPage): Promise<boolean> {
+    const key = relationshipPairKey(sourcePath, targetPath);
+    const existing = this.relationshipPairTasks.get(key);
+    if (existing) return existing;
+    const task = this.prepareRelationshipPairOwned(sourcePath, targetPath, provisionalTarget).finally(() => {
+      if (this.relationshipPairTasks.get(key) === task) this.relationshipPairTasks.delete(key);
+      if (!this.diagnosticsClosed) this.emitPresentation();
+    });
+    this.relationshipPairTasks.set(key, task);
+    return task;
+  }
+
+  /** Exact selected endpoints and private staged evidence close at the final current-policy/source fence. */
+  private async prepareRelationshipPairOwned(sourcePath: string, targetPath: string, provisionalTarget?: GraphPage): Promise<boolean> {
+    const requestedPolicy = this.semanticPolicyRevision, requestedSettings = JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings));
+    // Creation supplies only an explicit unbound URL/ghost coordinate. It remains private negative
+    // coverage until the established creator inserts that endpoint after its successful vault write.
+    if (provisionalTarget && (provisionalTarget.path !== targetPath || provisionalTarget.file
+      || provisionalTarget.isFolder || provisionalTarget.isTag || provisionalTarget.neighbours.size)) return false;
+    const original = [this.get(sourcePath), this.get(targetPath) ?? provisionalTarget];
+    if (original.some(page => !page)) return false;
+    const originalPhysical = original.filter((page): page is GraphPage => Boolean(page?.file)).map(
+      /** Preserve the selected observation across retries; only unrelated source churn may restart. */
+      page => ({ path: page.path, file: page.file!, revision: captureFileRevision(page.file!),
+        cache: page.file!.extension === "md" ? this.app.metadataCache.getFileCache(page.file!) : null }));
+    /** The caller's selected physical identity and policy cannot silently become a replacement file/action. */
+    const requestedCurrent = (): boolean => this.semanticPolicyRevision === requestedPolicy
+      && JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings)) === requestedSettings
+      && originalPhysical.every(token => this.app.vault.getFileByPath(token.path) === token.file
+        && fileRevisionMatches(token.file, token.revision)
+        && (token.file.extension !== "md" || this.app.metadataCache.getFileCache(token.file) === token.cache));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (!requestedCurrent() || this.diagnosticsClosed || this.pendingStructuralTasks || sourcePath === targetPath) return false;
+      if (!(await this.sourceAcquisition.flush()) || this.diagnosticsClosed || !requestedCurrent()) return false;
+      const source = this.get(sourcePath), target = this.get(targetPath) ?? provisionalTarget;
+      if (!source || !target || (!source.file || source.file.extension !== "md") && (!target.file || target.file.extension !== "md")) return false;
+      const policyRevision = this.semanticPolicyRevision, sourceRevision = this.plugin.getIndexSourceRevision();
+      const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision(), publicationRevision = this.publicationRevision;
+      const settings = graphCompilerSettingsFromLegacy(this.plugin.settings), signature = JSON.stringify(settings);
+      const endpoints = [this.semanticSourceRef(source), this.semanticSourceRef(target)] as const;
+      const physical = [source, target].filter(page => page.file).map(
+        /** Borrow exact native identities; no inferred mtime or whole graph capture grants authority. */
+        page => ({ path: page.path, file: page.file!, revision: captureFileRevision(page.file!),
+          cache: page.file!.extension === "md" ? this.app.metadataCache.getFileCache(page.file!) : null }));
+      /** Physical replacements, actual policy/source edits and publication supersession cancel the whole private pair. */
+      const current = (): boolean => requestedCurrent() && !this.diagnosticsClosed && !this.pendingStructuralTasks
+        && policyRevision === this.semanticPolicyRevision && sourceRevision === this.plugin.getIndexSourceRevision()
+        && maintenanceRevision === this.sourceAcquisition.getMaintenanceRevision() && publicationRevision === this.publicationRevision
+        && signature === JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings))
+        && physical.every(
+          /** Every selected physical endpoint retains its exact observation through publication and writes. */
+          token => this.app.vault.getFileByPath(token.path) === token.file && fileRevisionMatches(token.file, token.revision)
+            && (token.file.extension !== "md" || this.app.metadataCache.getFileCache(token.file) === token.cache));
+      const runtime = { ...this.semanticPreparationRuntime(current), retainedBytes: this.relationshipPairBytes };
+      const policy = { revision: String(policyRevision), settings, isCurrent: current };
+      const prepared = await this.sourceAcquisition.prepareRequestedPair({ kind: "pair", endpoints }, policy,
+        { noteTypeField: this.plugin.settings.noteTypeField, primaryTagField: this.plugin.settings.primaryTagField }, runtime);
+      if (prepared.outcome !== "ready" || !current()) {
+        if (attempt === 0 && (!current() || prepared.outcome !== "ready" && ["superseded", "dependency-pending", "cancelled"].includes(prepared.reason))) continue;
+        return false;
+      }
+      const canonical = prepared.preparation.compilation.legacyEvidence();
+      if (!canonical) return false;
+      const evidence = new RelationEvidenceStore();
+      const key = relationshipPairKey(sourcePath, targetPath), previous = this.relationshipPairs.get(key);
+      const retained = this.relationshipPairBytes - (previous?.bytes ?? 0);
+      // Reserve directed relation/target metadata and both immutable derived-map views before save.
+      // Borrowed native files and existing baseline objects are not recursively counted as graphs.
+      let bytes = 512 + estimateReferenceRecordBytes(settings) + 2 * (sourcePath.length + targetPath.length);
+      for (const page of [source, target]) bytes += 256 + 256 * page.neighbours.size
+        + estimateReferenceRecordBytes({ name: page.name, aliases: page.aliases, tags: page.tags,
+          noteType: page.noteType, primaryStyleTag: page.primaryStyleTag, styleTags: page.styleTags });
+      let checked = 0, lastYield = runtime.now();
+      for (const item of canonical.declarationsForPair(sourcePath, targetPath)) {
+        bytes += 256 + estimateReferenceRecordBytes(item);
+        if (retained + bytes > MAX_CACHED_SCOPE_RETAINED_BYTES) return false;
+        evidence.addDeclaration(item.declaredByPath, item.declaredTargetPath, item.declaredRole, item.relationType, item.direction, item);
+        if (++checked % 32 === 0 && runtime.now() - lastYield >= (runtime.sliceBudgetMs ?? 8)) {
+          await runtime.yield(); lastYield = runtime.now(); if (!current()) return false;
+        }
+      }
+      const pages = new Map([[sourcePath, { ...source, neighbours: new Map<string, Relation>() }], [targetPath, { ...target, neighbours: new Map<string, Relation>() }]]);
+      resolveEvidencePair(pages, evidence, sourcePath, targetPath);
+      resolveEvidencePair(pages, evidence, targetPath, sourcePath);
+      if (!current() || this.relationshipPairBytes - (previous?.bytes ?? 0) + bytes > MAX_CACHED_SCOPE_RETAINED_BYTES) return false;
+      // No await below: both directed relations and exact provenance/negative coverage publish once.
+      const pair: PreparedRelationshipPair = { paths: [sourcePath, targetPath], settings, evidence,
+        relations: new Map([[sourcePath, pages.get(sourcePath)!.neighbours.get(targetPath)], [targetPath, pages.get(targetPath)!.neighbours.get(sourcePath)]]),
+        policyRevision, sourceRevision, maintenanceRevision, bytes, current };
+      this.relationshipPairs.set(key, pair);
+      this.relationshipPairBytes += bytes - (previous?.bytes ?? 0);
+      this.relationshipPairRevision++;
+      for (const token of physical) if (token.file.extension === "md") {
+        this.fieldCache.delete(token.path);
+        this.titleCache.delete(token.path);
+        this.nodeVisualCache.delete(token.path);
+      }
+      this.patchSearchIndex(physical.map(token => token.path));
+      this.searchCandidateCache.clear();
+      this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+      this.emit();
+      return true;
+    }
+    return false;
+  }
+
   /** True only when at least one endpoint is backed by current policy and current source authority. */
   isSemanticWriteReady(sourcePath: string, targetPath: string): boolean {
     if (this.pendingStructuralTasks > 0) return false;
+    const pair = this.relationshipPairs.get(relationshipPairKey(sourcePath, targetPath));
+    if (pair && pair.policyRevision === this.semanticPolicyRevision
+      && pair.current() && pair.sourceRevision === this.plugin.getIndexSourceRevision()
+      && pair.maintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()
+      && this.sourceAcquisition.hasSemanticDependencies()) return true;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
       && this.fullSemanticMaintenanceRevision === maintenanceRevision) return true;
@@ -4026,17 +4180,97 @@ export class GraphIndex {
   /** Select the immutable relation source and semantic policy associated with that coherent publication. */
   private semanticRelationSource(page: GraphPage): Readonly<{ page: GraphPage; settings: GraphCompilerSettings }> {
     const info = this.preparedPageInfo.get(page);
-    if (info?.completeRelations) return { page, settings: info.settings };
+    if (info?.completeRelations) return { page: this.composeRelationshipPairs(page), settings: info.settings };
     const scope = this.semanticScopeForPath(page.path);
-    if (scope) {
-      const prepared = scope.pagesByPath.get(page.path);
-      if (prepared) return { page: prepared, settings: scope.settings };
+    const prepared = scope?.pagesByPath.get(page.path);
+    return { page: this.composeRelationshipPairs(prepared ?? this.state.pages.get(page.path) ?? page), settings: scope?.settings ?? this.fullSemanticSettings };
+  }
+
+  /** Compose immutable exact pair replacements, including negative pairs, against this coherent baseline. */
+  private composeRelationshipPairs(page: GraphPage): GraphPage {
+    if (!this.relationshipPairs.size) return page;
+    const cached = this.relationshipPairViews.get(page);
+    if (cached?.revision === this.relationshipPairRevision) return cached.page;
+    let copy: GraphPage | null = null;
+    for (const pair of this.relationshipPairs.values()) {
+      if (!pair.paths.includes(page.path)) continue;
+      copy ??= { ...page, neighbours: new Map(page.neighbours) };
+      const targetPath = pair.paths[0] === page.path ? pair.paths[1] : pair.paths[0];
+      const relation = pair.relations.get(page.path);
+      if (relation) copy.neighbours.set(targetPath, { ...relation, target: this.semanticPage(targetPath) ?? relation.target });
+      else copy.neighbours.delete(targetPath);
     }
-    return { page, settings: this.fullSemanticSettings };
+    const result = copy ?? page;
+    const info = this.preparedPageInfo.get(page);
+    if (info && copy) this.preparedPageInfo.set(copy, info);
+    this.relationshipPairViews.set(page, { revision: this.relationshipPairRevision, page: result });
+    return result;
+  }
+
+  /** Classification belongs to each canonical pair's policy, even over a retained old-policy scope. */
+  private relationshipInference(sourcePath: string, targetPath: string, fallback: boolean): boolean {
+    return this.relationshipPairs.get(relationshipPairKey(sourcePath, targetPath))?.settings.inferAllLinksAsFriends ?? fallback;
+  }
+
+  /** Retire pair replacements only after both directed readers have complete current baselines. */
+  private retireRelationshipPairs(scope: PreparedSemanticScope): void {
+    const sourceRevision = this.plugin.getIndexSourceRevision();
+    const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+    for (const [key, pair] of this.relationshipPairs) {
+      if (scope.policyRevision !== pair.policyRevision || scope.sourceRevision !== sourceRevision
+        || scope.maintenanceRevision !== maintenanceRevision) continue;
+      if (!scope.completePaths.has(pair.paths[0]) && !scope.completePaths.has(pair.paths[1])) continue;
+      // A scoped baseline can later be replaced by a full-state publication. Do not discard an
+      // edit until that fallback also contains its exact directed semantics and provenance.
+      if (!this.relationshipPairMatchesPublishedState(pair)) continue;
+      // A complete target scope does not replace the origin's retained older incidence. Keep the
+      // immutable pair until both readers can see its positive or negative result without it.
+      if (!pair.paths.every(/** Require actual complete current incidence for each directed reader. */ path => {
+        const baseline = this.semanticScopeForPath(path);
+        return baseline?.policyRevision === pair.policyRevision && baseline.sourceRevision === sourceRevision
+          && baseline.maintenanceRevision === maintenanceRevision;
+      })) continue;
+      this.relationshipPairBytes -= pair.bytes;
+      this.relationshipPairs.delete(key);
+      this.relationshipPairRevision++;
+    }
+  }
+
+  /** Compare canonical pair semantics/provenance with the full fallback, ignoring IDs and array-wide raw payloads. */
+  private relationshipPairMatchesPublishedState(pair: PreparedRelationshipPair): boolean {
+    if (this.fullSemanticPolicyRevision !== pair.policyRevision
+      || JSON.stringify(this.fullSemanticSettings) !== JSON.stringify(pair.settings)) return false;
+    for (const path of pair.paths) {
+      const target = pair.paths[0] === path ? pair.paths[1] : pair.paths[0];
+      const actual = this.state.pages.get(path)?.neighbours.get(target), expected = pair.relations.get(path);
+      /** Serialize scalar relation flags in stable order without traversing the bound target graph. */
+      const signature = (relation: Relation | undefined): string => JSON.stringify(relation
+        ? Object.entries(relation).filter(([key]) => key !== "target").sort(([a], [b]) => a.localeCompare(b)) : null);
+      if (signature(actual) !== signature(expected)) return false;
+    }
+    /** Preserve declaration multiplicity and editable coordinates; unrelated values may change the YAML array payload. */
+    const evidenceSignature = (store: RelationEvidenceStore): string => JSON.stringify(
+      [...store.declarationsForPair(...pair.paths)].map(/** Serialize the actual semantic/provenance identity, not cache-local IDs. */ item => JSON.stringify([
+        item.sourceKind, item.declaredByPath, item.declaredTargetPath, item.declaredRole,
+        item.relationType, item.direction, item.fieldName, item.definition, item.line, item.start, item.end,
+      ])).sort());
+    return evidenceSignature(this.state.evidence) === evidenceSignature(pair.evidence);
+  }
+
+  /** Retire only pair updates absorbed by a real full-state publication, retaining unmatched edits across swaps. */
+  private retirePublishedRelationshipPairs(): void {
+    for (const [key, pair] of this.relationshipPairs) {
+      if (!this.relationshipPairMatchesPublishedState(pair)) continue;
+      this.relationshipPairBytes -= pair.bytes;
+      this.relationshipPairs.delete(key);
+      this.relationshipPairRevision++;
+    }
   }
 
   /** Return evidence from the same coherent semantic publication as the relation source. */
   private semanticEvidence(sourcePath: string, targetPath: string): Readonly<{ evidence: RelationEvidence[]; settings: GraphCompilerSettings }> {
+    const pair = this.relationshipPairs.get(relationshipPairKey(sourcePath, targetPath));
+    if (pair) return { evidence: pair.evidence.between(sourcePath, targetPath), settings: pair.settings };
     const scope = this.semanticScopeForPair(sourcePath, targetPath);
     if (scope) return { evidence: scope.evidence.between(sourcePath, targetPath), settings: scope.settings };
     return { evidence: this.state.evidence.between(sourcePath, targetPath), settings: this.fullSemanticSettings };
@@ -4171,15 +4405,15 @@ export class GraphIndex {
 
       // A filled gate represents semantic relationships even when the target is currently hidden.
       for (const role of concreteRoles) {
-        if (classifyRelation(relation, role, inferAllLinksAsFriends) !== null) gateStats[roleGate(role)].hasAny = true;
+        if (classifyRelation(relation, role, this.relationshipInference(source.path, relation.target.path, inferAllLinksAsFriends)) !== null) gateStats[roleGate(role)].hasAny = true;
       }
 
       if (!this.isVisiblePage(relation.target, settings)) continue;
       for (const role of concreteRoles) {
-        const relationType = classifyRelation(relation, role, inferAllLinksAsFriends);
+        const relationType = classifyRelation(relation, role, this.relationshipInference(source.path, relation.target.path, inferAllLinksAsFriends));
         if (!relationType || (relationType === RelationType.INFERRED && !settings.showInferredNodes)) continue;
         roles[role].push({
-          page: relation.target,
+          page: this.get(relation.target.path) ?? relation.target,
           relationType,
           typeDefinition: typeDefinitionFor(relation, role),
           linkDirection: relation.direction,
@@ -4215,8 +4449,8 @@ export class GraphIndex {
     const result: GraphPage[] = [];
     for (const relation of semantic.page.neighbours.values()) {
       if (relation.isHidden) continue;
-      if (classifyRelation(relation, "parent", semantic.settings.inferAllLinksAsFriends) === null) continue;
-      result.push(relation.target);
+      if (classifyRelation(relation, "parent", this.relationshipInference(page.path, relation.target.path, semantic.settings.inferAllLinksAsFriends)) === null) continue;
+      result.push(this.get(relation.target.path) ?? relation.target);
     }
     return result;
   }
@@ -4243,10 +4477,10 @@ export class GraphIndex {
     for (const relation of semantic.page.neighbours.values()) {
       if (!targetPaths.has(relation.target.path) || relation.isHidden || !this.isVisiblePage(relation.target)) continue;
       for (const role of roles) {
-        const relationType = classifyRelation(relation, role, semantic.settings.inferAllLinksAsFriends);
+        const relationType = classifyRelation(relation, role, this.relationshipInference(semantic.page.path, relation.target.path, semantic.settings.inferAllLinksAsFriends));
         if (!relationType || (relationType === RelationType.INFERRED && !settings.showInferredNodes)) continue;
         result.push({
-          page: relation.target,
+          page: this.get(relation.target.path) ?? relation.target,
           relationType,
           typeDefinition: definitionFor(relation, role),
           linkDirection: relation.direction,
@@ -4286,7 +4520,7 @@ export class GraphIndex {
     // only the currently visible ones.
     for (const relation of semantic.page.neighbours.values()) {
       if (relation.isHidden) continue;
-      if (roleSets[gate].some((role) => classifyRelation(relation, role, semantic.settings.inferAllLinksAsFriends) !== null)) paths.add(relation.target.path);
+      if (roleSets[gate].some((role) => classifyRelation(relation, role, this.relationshipInference(semantic.page.path, relation.target.path, semantic.settings.inferAllLinksAsFriends)) !== null)) paths.add(relation.target.path);
     }
     return paths;
   }

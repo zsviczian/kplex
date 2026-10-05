@@ -2,7 +2,9 @@
  * Durable neutral-source repository. Immutable bounded family chunks/postings are staged privately,
  * validated, then selected by one compare-and-swap source head. Disk activation and live publication
  * are explicitly different outcomes. This module owns source transactions, cross-connection reader
- * leases, conservative cleanup, bounded unsaved facts/backoff and aggregate-only diagnostics; it
+ * leases, conservative cleanup, bounded unsaved facts/backoff and aggregate-only diagnostics. Owned
+ * cancellation/domain rollback rejects without poisoning healthy storage; genuine faults retain
+ * the shared cache owner’s existing failure/backoff policy. This repository
  * never reads a Vault, selects a relationship policy, or serializes a graph. The additive SI4b1
  * catalog uses this same transaction owner. v7 retains its original summary/root proof in a durable
  * repair journal before mutation, with a separate non-queryable impact certificate and root leases.
@@ -46,8 +48,8 @@ import {
 
 import { releaseContributorRootLease, type ContributorRootLease } from "./SourceContributorLease";
 import {
-  SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_DEPENDENCY_VERSION, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
-  sourceLocalDependencyState, sourceLocalStoredDependencyKeys, sourceLocalStoredResolverKeys, sourceLocalStructuralBaseKeys, validSourceLocalDependencyOwner,
+  SOURCE_LOCAL_STATE_VERSION, SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_DEPENDENCY_VERSION, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
+  sourceLocalDependencyState, sourceLocalStoredDependencyKeys, sourceLocalStoredUpgradeKeys, sourceLocalStructuralBaseKeys, validSourceLocalDependencyOwner,
   validSourceLocalDependencyKeyState, validSourceLocalDependencyRepair, validSourceLocalDependencyRow, validSourceLocalDependencyState, type SourceLocalDependencyKeyState, type SourceLocalDependencyOwner, type SourceLocalDependencyRepair, type SourceLocalDependencyRow,
   type SourceLocalDependencyState,
 } from "./SourceLocalDependencies";
@@ -315,6 +317,9 @@ function* postingBatches(sourceId: string, revision: string, family: SourceFamil
   if (batch.length) yield batch;
 }
 
+/** Repository-owned receipt for one existing all-owner inventory pass; no source facts are retained. */
+export type SourceLocalInventoryProjection = Readonly<{ ownerVersion: typeof SOURCE_LOCAL_DEPENDENCY_VERSION }>;
+
 /**
  * Settings-neutral source store with at most two active source lanes and one replaceable pending
  * writer per lane. Callers producing multiple files await each result; excess independent writers
@@ -322,6 +327,7 @@ function* postingBatches(sourceId: string, revision: string, family: SourceFamil
  */
 export class NeutralSourceRepository {
   private closed = false;
+  private readonly localInventoryProjections = new WeakMap<SourceLocalInventoryProjection, { total: number; next: number; sequence: number; activations: number; current: () => boolean }>();
   private owner = "";
   private ticket = 0;
   private readonly lanes = new Map<string, SourceWriteLane>();
@@ -329,6 +335,8 @@ export class NeutralSourceRepository {
   /** In-process guard: a durable staging marker owned by this process must not be reclaimed by a concurrent inventory pass. */
   private readonly localStaging = new Map<string, string>();
   private readonly cancelledTransactions = new WeakSet<IDBTransaction>();
+  /** Domain precondition rollback aborts pending requests without making the storage handle unhealthy. */
+  private readonly rolledBackTransactions = new WeakSet<IDBTransaction>();
   private readonly readers = new Set<SourceView>();
   private readonly memory = new Map<string, MemorySource>();
   private readonly unsaved = new Set<string>();
@@ -826,6 +834,14 @@ export class NeutralSourceRepository {
       try { transaction.abort(); } catch { /* A completed disk activation cannot be retracted. */ }
     }
   }
+  /**
+   * Identify only transaction aborts deliberately owned by this repository. The storage owner uses
+   * this attribution for native AbortError events; constraint/quota/timeouts and foreign failures
+   * remain actual storage faults. A rollback retains its original domain rejection reason.
+   */
+  isExpectedTransactionAbort(transaction: IDBTransaction): boolean {
+    return this.cancelledTransactions.has(transaction) || this.rolledBackTransactions.has(transaction);
+  }
   /** Unload never claims to await a last flush. Abort all outstanding work and stop bounded retries. */
   close(): void {
     this.closed = true;
@@ -869,7 +885,9 @@ export class NeutralSourceRepository {
     return db;
   }
   /**
-   * Own a bounded transaction, aborting timeouts and surfacing only stable errors. The callback may
+   * Own a bounded transaction, aborting timeouts and surfacing only stable errors. Attributed native
+   * aborts reject as cancellation whichever request/transaction promise wins; domain rollback keeps
+   * its original rejection. Genuine storage faults still notify the shared connection owner. The callback may
    * await IDB requests, but never timers, hashing or host work (which would auto-close the transaction).
    */
   private async transaction<T>(db: IDBDatabase, stores: string[], mode: IDBTransactionMode, sourceId: string,
@@ -885,7 +903,12 @@ export class NeutralSourceRepository {
         active.oncomplete = () => resolve();
         active.onabort = () => reject(this.closed || this.cancelledTransactions.has(active)
           ? new SourceFactError("cancelled") : active.error ?? new SourceFactError(mode === "readonly" ? "read-error" : "write-error"));
-        active.onerror = () => reject(active.error ?? new SourceFactError("write-error"));
+        /** Request errors bubble before onabort; preserve attributed cancellation whichever promise wins. */
+        active.onerror = (event) => {
+          const error = active.error ?? (event.target instanceof IDBRequest ? event.target.error : null);
+          reject(this.cancelledTransactions.has(active) && error?.name === "AbortError"
+            ? new SourceFactError("cancelled") : error ?? new SourceFactError("write-error"));
+        };
         timer = this.runtime.schedule(() => {
           try { active.abort(); } catch { /* It may already have completed before this task ran. */ }
           reject(new SourceFactError(mode === "readonly" ? "read-error" : "write-error"));
@@ -896,11 +919,20 @@ export class NeutralSourceRepository {
       const [result] = await Promise.all([Promise.resolve().then(() => work(active)), done]);
       return result;
     } catch (error) {
-      try { transaction?.abort(); } catch { /* idempotent failure/cancellation */ }
-      if (!(error instanceof SourceFactError) || error.reason === "read-error" || error.reason === "write-error") {
-        this.storage.failed(db, error); this.diagnostics.storage = "unavailable";
+      // Request rejection can beat onabort's cancellation result. Normalize only an attributed
+      // AbortError; a genuine native storage error cannot become cancellation merely by racing it.
+      const failure: unknown = transaction && this.cancelledTransactions.has(transaction)
+        && error instanceof DOMException && error.name === "AbortError"
+        ? new SourceFactError("cancelled") : error;
+      if (transaction && failure instanceof SourceFactError
+        && failure.reason !== "read-error" && failure.reason !== "write-error") {
+        this.rolledBackTransactions.add(transaction);
       }
-      throw error;
+      try { transaction?.abort(); } catch { /* idempotent failure/cancellation */ }
+      if (!(failure instanceof SourceFactError) || failure.reason === "read-error" || failure.reason === "write-error") {
+        this.storage.failed(db, failure); this.diagnostics.storage = "unavailable";
+      }
+      throw failure;
     } finally {
       if (timer !== null) this.runtime.cancel(timer);
       if (transaction) this.transactions.delete(transaction);
@@ -2249,14 +2281,14 @@ export class NeutralSourceRepository {
     } catch { return { available: false, heads: [], invalid: 0, next: null }; }
   }
   /**
-   * Upgrade one accepted R1 owner by appending only resolver-neutral lexical memberships. The source
+   * Upgrade an accepted historical owner by appending resolver and canonical tag ancestor memberships. The source
    * revision/head never changes: immutable rows are staged idempotently, then the existing selected
    * count journal publishes their counts exactly once before closed-world lookup can resume.
    */
   private async upgradeLocalDependencyOwner(db: IDBDatabase, owner: SourceLocalDependencyOwner, head: SourceManifest,
     current: () => boolean): Promise<SourceReason> {
     if (owner.version >= SOURCE_LOCAL_DEPENDENCY_VERSION) return "ready";
-    if (owner.version !== 1 || owner.state !== "complete" || head.state !== "complete"
+    if ((owner.version !== 1 && owner.version !== 2) || owner.state !== "complete" || head.state !== "complete"
       || owner.sourceRevision !== head.sourceRevision) return "dependency-invalid";
     try {
       let rows: SourceLocalDependencyRow[] = []; let bytes = 0; let records = owner.records; let digest = owner.digest;
@@ -2288,9 +2320,9 @@ export class NeutralSourceRepository {
       };
       const read = await this.readSelected(owner.sourceId, (stamp) => stamp.saved && stamp.sequence === owner.sequence
         && stamp.head.sourceRevision === owner.sourceRevision ? "ready" : "superseded", async (reader) => {
-        for (const family of ["values", "metadata"] as const) {
+        for (const family of (owner.version === 1 ? ["values", "metadata"] : ["metadata"]) as readonly SourceFamily[]) {
           const reason = await reader.visit(family, async (familyRows) => {
-            for (const record of familyRows) for (const key of sourceLocalStoredResolverKeys(head.physical.path, record)) await add(key);
+            for (const record of familyRows) for (const key of sourceLocalStoredUpgradeKeys(head.physical.path, record, owner.version)) await add(key);
             return current();
           });
           if (reason !== "ready") throw new SourceFactError(reason, family);
@@ -2307,7 +2339,7 @@ export class NeutralSourceRepository {
           const rawRepair = await unknownValue(transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).get(owner.sourceId));
           const rawState = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
           if (!rawHead || rawHead.sourceRevision !== owner.sourceRevision || rawHead.sequence !== owner.sequence
-            || !validSourceLocalDependencyOwner(rawOwner) || rawOwner.version !== 1
+            || !validSourceLocalDependencyOwner(rawOwner) || rawOwner.version !== owner.version
             || rawOwner.sourceRevision !== owner.sourceRevision || rawOwner.sequence !== owner.sequence
             || rawOwner.records !== owner.records || rawOwner.digest !== owner.digest || rawRepair !== undefined
             || !validSourceLocalDependencyState(rawState) || rawState.pending >= Number.MAX_SAFE_INTEGER) {
@@ -2331,7 +2363,8 @@ export class NeutralSourceRepository {
    * share a readonly owner/head selection; exceptional heads/overlays use ordinary inspection.
    * Repair and legacy upgrade retain rereads and all revision/sequence/cancellation fences.
    */
-  async ensureLocalDependencies(sourceId: string, order: number, markdownOrder: number, current: () => boolean = () => true): Promise<SourceReason> {
+  async ensureLocalDependencies(sourceId: string, order: number, markdownOrder: number, current: () => boolean = () => true,
+    projection?: SourceLocalInventoryProjection): Promise<SourceReason> {
     if (!sourceCount(order) || !sourceCount(markdownOrder) || this.closed || !current()) return "cancelled";
     const db = await this.open(); if (!db) return this.storage.unavailableReason?.() ?? "storage-unavailable";
     let stagingRevision: string | null = null;
@@ -2366,7 +2399,10 @@ export class NeutralSourceRepository {
           if (!selected.owner || selected.owner.version !== SOURCE_LOCAL_DEPENDENCY_VERSION
             || selected.owner.sourceRevision !== head.sourceRevision || selected.owner.sequence !== inspection.sequence) return "dependency-invalid";
         }
-        if (selected.owner.order === order && selected.owner.markdownOrder === markdownOrder) return "ready";
+        if (selected.owner.order === order && selected.owner.markdownOrder === markdownOrder) {
+          this.recordLocalDependencyProjection(projection, markdownOrder);
+          return "ready";
+        }
         await this.transaction(db, [SOURCE_LOCAL_OWNER_STORE, META_STORE, SOURCE_HEAD_STORE], "readwrite", sourceId, async (transaction) => {
           const rawHead = decodeSourceHead(await unknownValue(transaction.objectStore(SOURCE_HEAD_STORE).get(sourceId)));
           const rawOwner = await unknownValue(transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).get(sourceId));
@@ -2377,7 +2413,9 @@ export class NeutralSourceRepository {
           transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).put({ ...rawOwner, order, markdownOrder });
           transaction.objectStore(META_STORE).put({ ...rawState, revision: rawState.revision + 1 });
         });
-        return current() ? "ready" : "cancelled";
+        if (!current()) return "cancelled";
+        this.recordLocalDependencyProjection(projection, markdownOrder);
+        return "ready";
       }
       if (selected.state.complete) return "dependency-invalid";
 
@@ -2428,8 +2466,8 @@ export class NeutralSourceRepository {
             || !validSourceLocalDependencyState(rawState) || rawState.complete || !staging
             || staging.fromRevision !== head.sourceRevision || staging.fromRecords !== records) throw new SourceFactError("superseded");
           if (rawOwner !== undefined) {
-            if (!validSourceLocalDependencyOwner(rawOwner) || rawOwner.sourceRevision !== head.sourceRevision
-              || rawOwner.sequence !== inspection.sequence || rawOwner.state !== "complete") throw new SourceFactError("superseded");
+            if (!validSourceLocalDependencyOwner(rawOwner) || rawOwner.version !== SOURCE_LOCAL_DEPENDENCY_VERSION
+              || rawOwner.sourceRevision !== head.sourceRevision || rawOwner.sequence !== inspection.sequence || rawOwner.state !== "complete") throw new SourceFactError("superseded");
             if (rawOwner.order !== order || rawOwner.markdownOrder !== markdownOrder) {
               transaction.objectStore(SOURCE_LOCAL_OWNER_STORE).put({ ...rawOwner, order, markdownOrder });
               transaction.objectStore(META_STORE).put({ ...rawState, revision: rawState.revision + 1 });
@@ -2449,22 +2487,64 @@ export class NeutralSourceRepository {
         const repaired = await this.repairLocalDependencies(db, sourceId, current);
         if (repaired !== "ready") return repaired;
       }
-      return current() ? "ready" : "cancelled";
+      if (!current()) return "cancelled";
+      this.recordLocalDependencyProjection(projection, markdownOrder);
+      return "ready";
     } catch (error) { return !current() || this.closed ? "cancelled" : errorReason(error, "dependency-invalid"); }
     finally { if (stagingRevision !== null && this.localStaging.get(sourceId) === stagingRevision) this.localStaging.delete(sourceId); }
   }
 
+  /**
+   * Begin the acquisition owner's captured all-Markdown pass without changing selected authority.
+   * The final global source sequence admits this repository's current-version canonical activations
+   * and rejects a different connection's writes; each checked owner advances one exact ordinal.
+   */
+  async beginLocalDependencyInventoryProjection(total: number, current: () => boolean): Promise<SourceLocalInventoryProjection> {
+    if (!sourceCount(total) || !current() || this.closed) throw new SourceFactError("cancelled");
+    const db = await this.open();
+    if (!db) throw new SourceFactError(this.storage.unavailableReason?.() ?? "storage-unavailable");
+    const sequence = await this.transaction(db, [META_STORE], "readonly", "", async (transaction) => {
+      const raw = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_SEQUENCE_KEY));
+      if (raw !== undefined && (!sourceObject(raw) || raw.key !== SOURCE_SEQUENCE_KEY || !sourceCount(raw.value)
+        || Object.keys(raw).length !== 2)) throw new SourceFactError("dependency-invalid");
+      return sourceObject(raw) && sourceCount(raw.value) ? raw.value : 0;
+    });
+    if (!current() || this.closed) throw new SourceFactError("cancelled");
+    const token: SourceLocalInventoryProjection = { ownerVersion: SOURCE_LOCAL_DEPENDENCY_VERSION };
+    this.localInventoryProjections.set(token, { total, next: 0, sequence, activations: this.sourceActivationRevision, current });
+    return token;
+  }
+
+  /** Advance an owned pass only after the exact selected current-version owner was authenticated. */
+  private recordLocalDependencyProjection(token: SourceLocalInventoryProjection | undefined, markdownOrder: number): void {
+    if (!token) return;
+    const pass = this.localInventoryProjections.get(token);
+    if (!pass || !pass.current() || pass.next !== markdownOrder || pass.next >= pass.total || this.closed) {
+      throw new SourceFactError("superseded");
+    }
+    pass.next += 1;
+  }
+
   /** Publish closed-world local lookup readiness only after all resumable count journals have completed. */
-  async completeLocalDependencyInventory(current: () => boolean = () => true): Promise<SourceReason> {
+  async completeLocalDependencyInventory(current: () => boolean = () => true,
+    projection?: SourceLocalInventoryProjection): Promise<SourceReason> {
     try {
       this.localDependencyAvailable(current);
+      const pass = projection ? this.localInventoryProjections.get(projection) : null;
+      if (projection && (!pass || pass.next !== pass.total || !pass.current())) return "dependency-pending";
       const db = await this.open(); if (!db) return this.storage.unavailableReason?.() ?? "storage-unavailable";
       const repaired = await this.repairAllLocalDependencies(db, current);
       if (repaired.reason !== "ready") return repaired.reason;
       await this.transaction(db, [META_STORE, SOURCE_LOCAL_REPAIR_STORE], "readwrite", "", async (transaction) => {
         const raw = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
         const state = raw === undefined ? sourceLocalDependencyState() : validSourceLocalDependencyState(raw) ? raw : null;
-        if (!state || state.pending !== 0) throw new SourceFactError("dependency-invalid");
+        if (!state || state.pending !== 0 || pass && !pass.current()) throw new SourceFactError("dependency-invalid");
+        if (pass) {
+          const sequence = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_SEQUENCE_KEY));
+          const actual = sequence === undefined ? 0 : sourceObject(sequence) && sequence.key === SOURCE_SEQUENCE_KEY
+            && sourceCount(sequence.value) && Object.keys(sequence).length === 2 ? sequence.value : -1;
+          if (actual !== pass.sequence + this.sourceActivationRevision - pass.activations) throw new SourceFactError("superseded");
+        }
         const pending = await requestValue(transaction.objectStore(SOURCE_LOCAL_REPAIR_STORE).count());
         if (pending !== 0) {
           const sequence = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_SEQUENCE_KEY));
@@ -2472,16 +2552,19 @@ export class NeutralSourceRepository {
           if (!validSourceDependencyState(primaryState) || primaryState.dirty !== 0 || !repaired.deferred || !state.complete || state.pending !== 0 || state.revision !== repaired.deferred.revision
             || pending !== repaired.deferred.count || !sourceObject(sequence) || sequence.key !== SOURCE_SEQUENCE_KEY
             || !sourceCount(sequence.value) || Object.keys(sequence).length !== 2 || sequence.value !== repaired.deferred.sequence) throw new SourceFactError("dependency-invalid");
-          return;
+          if (!pass || state.version === SOURCE_LOCAL_STATE_VERSION) return;
         }
-        transaction.objectStore(META_STORE).put({ ...state, revision: state.revision + (state.complete ? 0 : 1), complete: true });
+        const version = pass ? SOURCE_LOCAL_STATE_VERSION : state.version;
+        transaction.objectStore(META_STORE).put({ ...state, version,
+          revision: state.revision + (state.complete && state.version === version ? 0 : 1), complete: true });
       });
       return current() ? "ready" : "cancelled";
     } catch (error) { return errorReason(error, "dependency-invalid"); }
   }
 
   /** Authenticated source-local lookup. Hot keys continue in bounded pages and publish only after a final fence check. */
-  async lookupLocalDependencies(keys: readonly string[], current: () => boolean = () => true): Promise<SourceLocalDependencyLookupResult<Readonly<{
+  async lookupLocalDependencies(keys: readonly string[], current: () => boolean = () => true,
+    requireCurrentProjection = false): Promise<SourceLocalDependencyLookupResult<Readonly<{
     fence: Readonly<{ revision: number; sequence: number }>; sources: readonly SelectedSourceStamp[]; orders: readonly number[];
     markdownOrders: readonly number[];
     work: Readonly<{ keys: number; keyPages: number; pages: number; rows: number; owners: number; yields: number; peakItems: number; peakBytes: number }>;
@@ -2496,7 +2579,8 @@ export class NeutralSourceRepository {
         const meta = transaction.objectStore(META_STORE);
         const rawState = await unknownValue(meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
         const sequenceRecord = await unknownValue(meta.get(SOURCE_SEQUENCE_KEY));
-        if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0) throw new SourceFactError("dependency-pending");
+        if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
+            || requireCurrentProjection && rawState.version !== SOURCE_LOCAL_STATE_VERSION) throw new SourceFactError("dependency-pending");
         if (sequenceRecord !== undefined && (!sourceObject(sequenceRecord) || sequenceRecord.key !== SOURCE_SEQUENCE_KEY
           || !sourceCount(sequenceRecord.value))) throw new SourceFactError("dependency-invalid");
         const sequence = sourceObject(sequenceRecord) && sourceCount(sequenceRecord.value) ? sequenceRecord.value : 0;
@@ -2513,6 +2597,7 @@ export class NeutralSourceRepository {
           const sequence = sequenceRecord === undefined ? 0
             : sourceObject(sequenceRecord) && sequenceRecord.key === SOURCE_SEQUENCE_KEY && sourceCount(sequenceRecord.value) ? sequenceRecord.value : -1;
           if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
+            || requireCurrentProjection && rawState.version !== SOURCE_LOCAL_STATE_VERSION
             || rawState.revision !== fence.revision || sequence !== fence.sequence) throw new SourceFactError("superseded");
           return Promise.all(page.map(async (key) => {
             const rawKey = await unknownValue(transaction.objectStore(SOURCE_LOCAL_KEY_STORE).get(key));
@@ -2548,6 +2633,7 @@ export class NeutralSourceRepository {
               const sequence = sequenceRecord === undefined ? 0
                 : sourceObject(sequenceRecord) && sequenceRecord.key === SOURCE_SEQUENCE_KEY && sourceCount(sequenceRecord.value) ? sequenceRecord.value : -1;
               if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
+            || requireCurrentProjection && rawState.version !== SOURCE_LOCAL_STATE_VERSION
                 || rawState.revision !== fence.revision || sequence !== fence.sequence) throw new SourceFactError("superseded");
               return new Promise<{ next: IDBValidKey | null; done: boolean; entries: Array<{ row: SourceLocalDependencyRow;
                 owner: SourceLocalDependencyOwner | null; head: SourceHead | null }> }>((resolve, reject) => {
@@ -2590,6 +2676,7 @@ export class NeutralSourceRepository {
             const { row, owner, head } = entry;
             if (!owner || !head || owner.state !== "complete" || head.state !== "complete"
               || owner.sourceRevision !== row.sourceRevision || head.sourceRevision !== row.sourceRevision || head.sequence !== owner.sequence) continue;
+            if (requireCurrentProjection && owner.version !== SOURCE_LOCAL_DEPENDENCY_VERSION) throw new SourceFactError("dependency-invalid");
             active += 1;
             const stamp: SelectedSourceStamp = { head, sequence: head.sequence, saved: true };
             const prior = selected.get(row.sourceId);
@@ -2619,7 +2706,7 @@ export class NeutralSourceRepository {
       const ordered = [...selected.values()].sort((a, b) => a.order - b.order || a.stamp.head.sourceId.localeCompare(b.stamp.head.sourceId));
       selected.clear(); counts.clear();
       const sources = ordered.map((entry) => entry.stamp);
-      const fenceReason = await this.validateLocalDependencies(fence, sources, current);
+      const fenceReason = await this.validateLocalDependencies(fence, sources, current, requireCurrentProjection);
       if (fenceReason !== "ready") throw new SourceFactError(fenceReason);
       return { outcome: "ready", value: { fence, sources,
         orders: ordered.map((entry) => entry.order), markdownOrders: ordered.map((entry) => entry.markdownOrder),
@@ -2630,14 +2717,15 @@ export class NeutralSourceRepository {
 
   /** Revalidate a local lookup certificate after compiler/policy awaits without rebuilding anything. */
   async validateLocalDependencies(fence: Readonly<{ revision: number; sequence: number }>, stamps: readonly SelectedSourceStamp[],
-    current: () => boolean = () => true): Promise<SourceReason> {
+    current: () => boolean = () => true, requireCurrentProjection = false): Promise<SourceReason> {
     try {
       this.localDependencyAvailable(current);
       const db = await this.open(); if (!db) return this.storage.unavailableReason?.() ?? "storage-unavailable";
       const same = await this.transaction(db, [META_STORE], "readonly", "", async (transaction) => {
         const state = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
         const seq = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_SEQUENCE_KEY));
-        return validSourceLocalDependencyState(state) && state.complete && state.pending === 0 && state.revision === fence.revision
+        return validSourceLocalDependencyState(state) && state.complete && state.pending === 0
+          && (!requireCurrentProjection || state.version === SOURCE_LOCAL_STATE_VERSION) && state.revision === fence.revision
           && (seq === undefined ? 0 : sourceObject(seq) && sourceCount(seq.value) ? seq.value : -1) === fence.sequence;
       });
       if (!same) return "superseded";

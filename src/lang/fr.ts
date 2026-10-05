@@ -270,6 +270,7 @@ const frenchTranslations = {
   "addRelated.aliasAria": "Alias (facultatif)",
   "addRelated.ontologyPlaceholder": "Ontologie · {field}",
   "addRelated.ontologyAria": "Champ d’ontologie",
+  "relation.savedUpdatePending": "Relation enregistrée ; la mise à jour du graphe est en attente.",
   "relation.preparingRelationship": "Les données de relation sont encore en préparation. Réessayez après l’indexation.",
   "addRelated.showOntologyFields": "Afficher tous les champs d’ontologie",
   "addRelated.createMarkdownLink": "Créer une note Markdown et la lier",
@@ -925,6 +926,7 @@ const frenchTranslations = {
   "vaultStats.ontologyValue": "{total} total · {used} used",
   "find.ariaLabel": "Rechercher dans le Plex",
   "find.placeholder": "Rechercher dans le Plex…",
+  "find.includePath": "Rechercher aussi dans les chemins des fichiers",
   "find.close": "Fermer la recherche",
   "find.matches": { one: "{count} résultat", many: "{count} résultats", other: "{count} résultats" },
 } as const satisfies LocaleTranslationMap;

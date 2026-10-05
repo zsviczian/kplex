@@ -4,6 +4,7 @@
  * stored here. Immutable membership rows are selected only through the source-local owner record,
  * which is activated in the same IndexedDB transaction as the source head.
  */
+import { canonicalTagPaths } from "../core/graph/tagPaths";
 import { SOURCE_DECODE_BUDGET_BYTES, sourceCount, sourceObject, type SourceHead, type StoredSourceFact } from "./SourceFacts";
 
 export const SOURCE_LOCAL_DEPENDENCY_STORE = "sourceLocalDependencies";
@@ -13,12 +14,14 @@ export const SOURCE_LOCAL_REPAIR_STORE = "sourceLocalDependencyRepairs";
 export const SOURCE_LOCAL_LOOKUP_INDEX = "sourceLocalLookup";
 export const SOURCE_LOCAL_REVISION_INDEX = "sourceLocalRevision";
 export const SOURCE_LOCAL_DEPENDENCY_STATE_KEY = "source-local-dependency-state";
-export const SOURCE_LOCAL_DEPENDENCY_VERSION = 2;
+export const SOURCE_LOCAL_DEPENDENCY_VERSION = 3;
+/** State format 2 certifies that the inventory closed the ancestor-aware owner projection. */
+export const SOURCE_LOCAL_STATE_VERSION = 2;
 export const SOURCE_LOCAL_DEPENDENCY_BUDGET = SOURCE_DECODE_BUDGET_BYTES;
 
 export type SourceLocalDependencyState = Readonly<{
   key: typeof SOURCE_LOCAL_DEPENDENCY_STATE_KEY;
-  version: 1;
+  version: 1 | 2;
   revision: number;
   complete: boolean;
   /** Number of selected-owner count journals that must finish before closed-world lookups resume. */
@@ -26,8 +29,8 @@ export type SourceLocalDependencyState = Readonly<{
 }>;
 
 export type SourceLocalDependencyOwner = Readonly<{
-  /** Version 1 is the accepted R1 projection; version 2 adds resolver-neutral lexical tokens. */
-  version: 1 | 2;
+  /** Versions 1/2 retain accepted projections; version 3 adds canonical tag ancestor memberships. */
+  version: 1 | 2 | 3;
   sourceId: string;
   sourceRevision: string;
   state: SourceHead["state"];
@@ -119,12 +122,6 @@ export function sourceLocalResolverPathDependencyKey(path: string): string | nul
   return candidate ? sourceLocalDependencyKey("resolver", `path:${candidate}`) : null;
 }
 
-/** Preserve the structural collector's exact canonical tag path normalization. */
-function tagSemanticPath(rawTag: string): string | null {
-  const canonical = rawTag.replace(/^#/, "").split("/").map((part) => part.trim()).filter(Boolean).join("/");
-  return canonical ? `tag:${canonical}` : null;
-}
-
 /** Every selected Markdown owner contributes its own canonical entity identity. */
 export function sourceLocalStructuralBaseKeys(sourceId: string, _physicalPath: string): readonly string[] {
   return [sourceLocalDependencyKey("node", sourceId)];
@@ -165,8 +162,7 @@ export function* sourceLocalStoredDependencyKeys(sourcePath: string, record: Sto
     return;
   }
   if (record.kind === "tag") {
-    const semanticPath = tagSemanticPath(record.value);
-    if (semanticPath) yield sourceLocalDependencyKey("node", semanticPath);
+    for (const semanticPath of canonicalTagPaths(record.value)) yield sourceLocalDependencyKey("node", semanticPath);
     yield sourceLocalDependencyKey("family", "tag-tree");
     yield sourceLocalDependencyKey("literal", sourcePath);
     return;
@@ -175,24 +171,33 @@ export function* sourceLocalStoredDependencyKeys(sourcePath: string, record: Sto
   // independently by the bounded structural host supplement.
 }
 
-/** Resolver-only projection appended when an accepted R1 owner is lazily upgraded in place. */
-export function* sourceLocalStoredResolverKeys(sourcePath: string, record: StoredSourceFact): IterableIterator<string> {
-  if (record.kind !== "reference-candidate" && record.kind !== "host-literal") return;
-  const resolver = sourceLocalResolverDependencyKey(record.rawTarget, sourcePath);
-  if (resolver) yield resolver;
+/** Append only memberships absent from the authenticated historical owner projection. */
+export function* sourceLocalStoredUpgradeKeys(sourcePath: string, record: StoredSourceFact,
+  version: SourceLocalDependencyOwner["version"]): IterableIterator<string> {
+  if (version === 1 && (record.kind === "reference-candidate" || record.kind === "host-literal")) {
+    const resolver = sourceLocalResolverDependencyKey(record.rawTarget, sourcePath);
+    if (resolver) yield resolver;
+  }
+  if (version < 3 && record.kind === "tag") {
+    let previous: string | null = null;
+    for (const path of canonicalTagPaths(record.value)) {
+      if (previous !== null) yield sourceLocalDependencyKey("node", previous);
+      previous = path;
+    }
+  }
 }
 
 export function sourceLocalDependencyState(revision = 0, complete = false, pending = 0): SourceLocalDependencyState {
-  return { key: SOURCE_LOCAL_DEPENDENCY_STATE_KEY, version: 1, revision, complete, pending };
+  return { key: SOURCE_LOCAL_DEPENDENCY_STATE_KEY, version: SOURCE_LOCAL_STATE_VERSION, revision, complete, pending };
 }
 
 export function validSourceLocalDependencyState(value: unknown): value is SourceLocalDependencyState {
   return sourceObject(value) && Object.keys(value).length === 5 && value.key === SOURCE_LOCAL_DEPENDENCY_STATE_KEY
-    && value.version === 1 && sourceCount(value.revision) && typeof value.complete === "boolean" && sourceCount(value.pending);
+    && (value.version === 1 || value.version === SOURCE_LOCAL_STATE_VERSION) && sourceCount(value.revision) && typeof value.complete === "boolean" && sourceCount(value.pending);
 }
 
 export function validSourceLocalDependencyOwner(value: unknown): value is SourceLocalDependencyOwner {
-  return sourceObject(value) && Object.keys(value).length === 9 && (value.version === 1 || value.version === SOURCE_LOCAL_DEPENDENCY_VERSION)
+  return sourceObject(value) && Object.keys(value).length === 9 && (value.version === 1 || value.version === 2 || value.version === SOURCE_LOCAL_DEPENDENCY_VERSION)
     && typeof value.sourceId === "string" && value.sourceId.length > 0
     && typeof value.sourceRevision === "string" && value.sourceRevision.length > 0
     && (value.state === "complete" || value.state === "tombstone")

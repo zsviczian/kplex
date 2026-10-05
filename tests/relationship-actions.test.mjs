@@ -7,13 +7,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 
-/** Compile a named production arrow callback or class method with explicit injected dependencies. */
+/** Compile a production callback/method; class-field arrows capture the supplied owning instance. */
 function productionFunction(path, name, dependencies) {
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression;
   function visit(node) {
     if (ts.isVariableDeclaration(node) && node.name.getText(source) === name) expression = node.initializer.getText(source);
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name) expression = node.getText(source);
     if (ts.isMethodDeclaration(node) && node.name.getText(source) === name) expression = `async function ${name}${node.getText(source).slice(node.getText(source).indexOf("("))}`;
+    if (ts.isPropertyDeclaration(node) && node.name.getText(source) === name && node.initializer) expression = `function (...args) { return (${node.initializer.getText(source)})(...args); }`;
     ts.forEachChild(node, visit);
   }
   visit(source);
@@ -25,81 +27,118 @@ function productionFunction(path, name, dependencies) {
 /** Minimal Markdown-backed graph page retaining exact endpoint paths and canonical identity. */
 function page(path) { return { path, file: { path, extension: "md" }, neighbours: new Map() }; }
 
+/** Native Escape cancellation keeps the host visible; selection and superseded hide callbacks never steal focus. */
+test("shared menu Escape restores its Plex and releases owning-document listeners", async () => {
+  const listeners=new Map(),doc={addEventListener:(kind,fn)=>listeners.set(kind,fn),removeEventListener:(kind,fn)=>{if(listeners.get(kind)===fn)listeners.delete(kind);}};
+  doc.defaultView=doc;
+  doc.setTimeout=setTimeout;doc.clearTimeout=clearTimeout;
+  const host={view:{containerEl:{isConnected:true},getViewType:()=>"plex"}},other={view:{getViewType:()=>"image"}};
+  const workspace={activeLeaf:host,setActiveLeaf(leaf){this.activeLeaf=leaf;}};
+  const context={app:{workspace},activeKplexMenu:null,activeKplexMenuDocument:null,activeKplexMenuLeaf:null,kplexMenuOutsidePointerDown:()=>{}};
+  for(const name of ["dismissKplexMenu","trackKplexMenu","showKplexMenuAtPosition","kplexMenuEscapeKeyDown"])context[name]=productionFunction("src/main.ts",name,{KPLEX_VIEW_TYPE:"plex",KPLEX_SIDEPANEL_VIEW_TYPE:"sidepanel"}).bind(context);
+  const makeMenu=()=>({hidden:0,onHide(fn){this.callback=fn;},hide(){this.hidden++;workspace.activeLeaf=other;this.callback?.();}});
+  const first=makeMenu();first.showAtPosition=function(){this.callback?.();};await context.showKplexMenuAtPosition(first,{x:0,y:0},doc);
+  assert.equal(context.activeKplexMenu,first,"Show's initial hide must not discard the displayed menu lifetime");
+  let prevented=0,stopped=0;context.kplexMenuEscapeKeyDown({key:"Escape",preventDefault:()=>prevented++,stopImmediatePropagation:()=>stopped++});
+  assert.equal(workspace.activeLeaf,host);assert.equal(first.hidden,1);assert.equal(listeners.size,0);assert.equal(prevented,1);assert.equal(stopped,1);
+  workspace.activeLeaf=host;const second=makeMenu();await context.trackKplexMenu(second,doc);
+  first.callback();assert.equal(context.activeKplexMenu,second,"Old hide callback cannot dispose a replacement menu");
+  second.hide();assert.equal(workspace.activeLeaf,other,"Native action dismissal must not restore the host");await new Promise(done=>setTimeout(done,5));assert.equal(listeners.size,0);assert.equal(context.activeKplexMenu,null);
+  workspace.activeLeaf=host;const third=makeMenu();await context.trackKplexMenu(third,doc);
+  third.hide();context.kplexMenuEscapeKeyDown({key:"Escape",preventDefault:()=>{},stopImmediatePropagation:()=>{}});
+  assert.equal(workspace.activeLeaf,host,"Earlier host hide cannot retire cancellation before our Escape listener");await Promise.resolve();assert.equal(listeners.size,0);
+});
+
 for (const role of ["parent", "child", "left", "right"]) {
-  test(`existing-target ${role} Link prepares authority, persists ontology and releases endpoint demands`, async () => {
-    const staleOrigin = page("Origin.md"); const staleTarget = page("Target.md");
-    const origin = page(staleOrigin.path); const target = page(staleTarget.path);
-    const frontmatter = {}; const edits = []; const events = []; let ready = false;
-    const context = {
-      translator: (key) => key,
-      index: {
-        isSemanticWriteReady: () => ready,
-        acquireSemanticDemand: (path) => { events.push(`acquire:${path}`); return () => events.push(`release:${path}`); },
-        refreshSemanticSettings: async () => { events.push("prepare"); ready = true; },
-        get: (path) => path === origin.path ? origin : target,
-        gateNeighbourPaths: (current) => { assert.equal(current, origin); return new Set(); },
-        isConnected: () => false,
-        applyRelationshipEdit: (...args) => edits.push(args),
-      },
-      managedMetadataWrites: new Map(), pruneManagedMetadataWrites: () => {}, allOntologyFields: () => ["custom ontology"],
+  test(`existing-target ${role} Link prepares the exact pair and awaits saved canonical publication`, async () => {
+    const staleOrigin = page("Origin.md"), staleTarget = page("Target.md"), origin = page(staleOrigin.path), target = page(staleTarget.path);
+    const frontmatter = {}, events = [];
+    const context = { translator: key => key, index: {
+      prepareRelationshipPair: async (...paths) => { events.push(["prepare", ...paths]); return true; },
+      isSemanticWriteReady: () => true, get: path => path === origin.path ? origin : target,
+      gateNeighbourPaths: current => { assert.equal(current, origin); return new Set(); }, isConnected: () => false,
+    }, managedMetadataWrites: new Map(), pruneManagedMetadataWrites: () => {}, allOntologyFields: () => ["custom ontology"],
       referenceForPage: (current, storage) => { assert.equal(current, target); assert.equal(storage, origin.file); return "[[Target]]"; },
-      app: { fileManager: { processFrontMatter: async (file, update) => { assert.equal(file, origin.file); events.push("write"); update(frontmatter); } } },
+      mutateRelationshipMetadata: async (file, fields, update) => { assert.equal(file, origin.file); events.push(["write"]); update(frontmatter); },
     };
-    context.writeRelationship = productionFunction("src/main.ts", "writeRelationship", { normalizeFieldName: (value) => value.toLowerCase().trim() });
+    for (const name of ["prepareRelationshipMutation", "publishSavedRelationship", "writeRelationship"]) context[name] = productionFunction("src/main.ts", name,
+      { normalizeFieldName: value => value.toLowerCase().trim(), SavedRelationshipPendingError: class extends Error {} });
     const commit = productionFunction("src/main.ts", "createRelationToPage", { Notice: class {} });
     await commit.call(context, staleOrigin, role, staleTarget, "custom ontology");
     assert.deepEqual(frontmatter, { "custom ontology": ["[[Target]]"] });
-    assert.deepEqual(edits, [[origin.path, target.path, role, "custom ontology"]]);
-    assert.deepEqual(events, ["acquire:Origin.md", "acquire:Target.md", "prepare", "write", "release:Origin.md", "release:Target.md"]);
+    assert.deepEqual(events, [["prepare", origin.path, target.path], ["write"], ["prepare", origin.path, target.path]]);
   });
 }
 
-test("existing-target Link reports unavailable authority without writing and releases both demands", async () => {
-  const origin = page("Origin.md"); const target = page("Target.md"); const released = [];
-  const context = {
-    translator: (key) => key,
-    index: {
-      isSemanticWriteReady: () => false,
-      acquireSemanticDemand: (path) => () => released.push(path), refreshSemanticSettings: async () => {},
-      get: (path) => path === origin.path ? origin : target,
-    },
+test("existing-target Link refuses unavailable exact pair authority before any write", async () => {
+  const origin = page("Origin.md"), target = page("Target.md");
+  const context = { translator: key => key, index: { prepareRelationshipPair: async () => false },
     writeRelationship: () => assert.fail("An unready pair must not mutate the vault"),
-  };
+    prepareRelationshipMutation: productionFunction("src/main.ts", "prepareRelationshipMutation", {}) };
   const commit = productionFunction("src/main.ts", "createRelationToPage", { Notice: class {} });
   await assert.rejects(commit.call(context, origin, "child", target, "children"), /relation.preparingRelationship/);
-  assert.deepEqual(released, [origin.path, target.path]);
 });
 
-test("gate drop on history offers all four roles against the exact historical endpoint", () => {
-  const origin = page("Origin.md"); const target = page("Target.md"); const menus = []; const actions = [];
-  class Menu {
-    constructor() { this.items = []; }
-    addItem(configure) {
-      const item = { setTitle(value) { this.title = value; return this; }, setIcon() { return this; }, onClick(callback) { this.click = callback; return this; } };
-      configure(item); this.items.push(item); return this;
+/** The actual UI catches keep saved outcomes truthful and never announce an early commit. */
+for (const shell of ["composer", "details"]) {
+  test(`saved pending ${shell} notice preserves its message and leaves the dialog uncommitted`, async () => {
+    class SavedRelationshipPendingError extends Error {}
+    const notices = [], commits = [], error = new SavedRelationshipPendingError("Saved; graph pending");
+    const Notice = class { constructor(message) { notices.push(message); } };
+    if (shell === "composer") {
+      const link = productionFunction("src/ui/NewRelatedNoteModal.ts", "linkExisting", {
+        Notice, SavedRelationshipPendingError, busy: false, selectedTarget: page("Target.md"), origin: page("Origin.md"), role: "child",
+        prepareField: async () => "Children", setBusy: () => {}, onCommitted: () => commits.push("committed"), onClose: () => commits.push("closed"),
+        plugin: { translator: key => key, createRelationToPage: async () => { throw error; } },
+      });
+      await link();
+    } else {
+      const confirm = productionFunction("src/ui/RelationModal.ts", "confirm", { Notice, SavedRelationshipPendingError });
+      await confirm.call({ busy: false, canSave: () => true, updateSaveButton: () => {}, close: () => commits.push("closed"),
+        semanticRole: "child", selectedField: "Children", options: { mode: "relink", fixedTarget: page("Target.md"), origin: page("Origin.md"), onCommitted: () => commits.push("committed") },
+        plugin: { translator: key => key, relinkCentralNeighbour: async () => { throw error; } },
+      });
     }
-  }
-  const ownerDocument = { elementFromPoint: () => ({ closest: () => ({ dataset: { kplexHistoryPath: target.path } }) }) };
-  const viewport = { current: { classList: { remove() {} } } };
-  const connectDrag = { pointerId: 7, originPath: origin.path, gate: "bottom", moved: true };
-  let remainingDrag = connectDrag;
-  const dependencies = {
-    Menu, index: { get: (path) => path === origin.path ? origin : path === target.path ? target : undefined },
-    translate: (key) => key, hostLeaf: {}, clearHoverIntent: () => {},
-    plugin: { showKplexMenuAtPosition: (menu, coordinates, document) => { assert.equal(document, ownerDocument); assert.deepEqual(coordinates, { x: 30, y: 40 }); menus.push(menu); }, openRelationModal: (options) => actions.push(options) },
-  };
-  dependencies.openHistoryRelationshipMenu = productionFunction("src/ui/PlexGraph.tsx", "openHistoryRelationshipMenu", dependencies);
-  const up = productionFunction("src/ui/PlexGraph.tsx", "up", {
-    ...dependencies, areaResizeDrag: { current: null }, finishAreaSettingsDismiss: () => {}, pendingGateLongPress: { current: null },
-    connectDrag, setConnectDrag: (value) => { remainingDrag = value; }, suppressActivateUntil: { current: 0 }, touchPointers: { current: new Map() }, viewport,
+    assert.deepEqual(notices, [error.message]); assert.deepEqual(commits, []);
   });
-  up({ pointerId: 7, pointerType: "mouse", clientX: 30, clientY: 40, currentTarget: { ownerDocument } });
-  assert.equal(remainingDrag, null); assert.equal(menus.length, 1);
-  assert.deepEqual(menus[0].items.map((item) => item.title), ["role.parent", "role.child", "role.friend", "role.challenger"]);
-  assert.equal(actions.length, 0, "Dropping is not an implicit mutation");
-  for (const item of menus[0].items) item.click();
-  assert.deepEqual(actions.map((action) => action.semanticRole), ["parent", "child", "left", "right"]);
-  for (const action of actions) { assert.equal(action.origin, origin); assert.equal(action.fixedTarget, target); assert.equal(action.mode, "create"); }
+}
+
+/** Extract the shared history endpoint/menu callbacks with exact injected native policy owners. */
+function historyFixture() {
+  const origin=page("Origin.md"),target=page("Target.md"),menus=[],actions=[];
+  class Menu {
+    constructor(){this.items=[];}
+    addItem(configure){const item={setTitle(value){this.title=value;return this;},setIcon(){return this;},onClick(callback){this.click=callback;return this;}};configure(item);this.items.push(item);return this;}
+  }
+  const ownerDocument={elementFromPoint:()=>({closest:()=>({dataset:{kplexHistoryPath:target.path}})})};
+  const dependencies={Menu,index:{get:path=>path===origin.path?origin:path===target.path?target:undefined},translate:key=>key,hostLeaf:{},clearHoverIntent:()=>{},
+    plugin:{showKplexMenuAtPosition:(menu,coordinates,document)=>{assert.equal(document,ownerDocument);assert.deepEqual(coordinates,{x:30,y:40});menus.push(menu);},openRelationModal:options=>actions.push(options)}};
+  dependencies.historyRelationshipTarget=productionFunction("src/ui/PlexGraph.tsx","historyRelationshipTarget",dependencies);
+  dependencies.openHistoryRelationshipMenu=productionFunction("src/ui/PlexGraph.tsx","openHistoryRelationshipMenu",dependencies);
+  return {origin,target,menus,actions,ownerDocument,dependencies};
+}
+
+for(const [gate,role] of [["top","parent"],["bottom","child"],["left","left"],["right","right"]]){
+  test(`gate ${gate} drop on history opens the exact ${role} fixed-target composer directly`,()=>{
+    const {origin,target,menus,actions,ownerDocument,dependencies}=historyFixture();
+    const connectDrag={pointerId:7,originPath:origin.path,gate,moved:true};let remainingDrag=connectDrag,cleared=0;
+    const up=productionFunction("src/ui/PlexGraph.tsx","up",{...dependencies,clearHistoryDragHover:()=>cleared++,semanticRoleForGate:productionFunction("src/ui/PlexGraph.tsx","semanticRoleForGate",{}),
+      areaResizeDrag:{current:null},finishAreaSettingsDismiss:()=>{},pendingGateLongPress:{current:null},connectDrag,setConnectDrag:value=>{remainingDrag=value;},suppressActivateUntil:{current:0},touchPointers:{current:new Map()},viewport:{current:{classList:{remove(){}}}}});
+    up({pointerId:7,pointerType:"mouse",clientX:30,clientY:40,currentTarget:{ownerDocument}});
+    assert.equal(remainingDrag,null);assert.equal(cleared,1);assert.equal(menus.length,0,"A physical gate already specifies the role");
+    assert.equal(actions.length,1);assert.equal(actions[0].origin,origin);assert.equal(actions[0].fixedTarget,target);assert.equal(actions[0].semanticRole,role);assert.equal(actions[0].mode,"create");
+  });
+}
+
+test("node-body drop on history retains the four-role chooser against the exact endpoint",()=>{
+  const {origin,target,menus,actions,ownerDocument,dependencies}=historyFixture();
+  assert.equal(dependencies.openHistoryRelationshipMenu(origin,30,40,ownerDocument),true);
+  assert.equal(menus.length,1);assert.deepEqual(menus[0].items.map(item=>item.title),["role.parent","role.child","role.friend","role.challenger"]);
+  assert.equal(actions.length,0,"A body drop still needs explicit role selection");
+  for(const item of menus[0].items)item.click();
+  assert.deepEqual(actions.map(action=>action.semanticRole),["parent","child","left","right"]);
+  for(const action of actions){assert.equal(action.origin,origin);assert.equal(action.fixedTarget,target);assert.equal(action.mode,"create");}
+  target.isFolder=true;assert.equal(dependencies.openHistoryRelationshipMenu(origin,30,40,ownerDocument,"child"),false,"Ineligible history folders cannot select a composer endpoint");
 });
 
 /** Ordinary startup backlog waits for the initial owner's final cache/delta decision. */

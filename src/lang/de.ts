@@ -269,6 +269,7 @@ const germanTranslations = {
   "addRelated.aliasAria": "Alias (optional)",
   "addRelated.ontologyPlaceholder": "Ontologie · {field}",
   "addRelated.ontologyAria": "Ontologiefeld",
+  "relation.savedUpdatePending": "Beziehung gespeichert; die Graphaktualisierung steht noch aus.",
   "relation.preparingRelationship": "Beziehungsdaten werden noch vorbereitet. Versuche es nach Abschluss der Indizierung erneut.",
   "addRelated.showOntologyFields": "Alle Ontologiefelder anzeigen",
   "addRelated.createMarkdownLink": "Markdown-Notiz erstellen und verknüpfen",
@@ -921,6 +922,7 @@ const germanTranslations = {
   "vaultStats.ontologyValue": "{total} total · {used} used",
   "find.ariaLabel": "Im Plex suchen",
   "find.placeholder": "Im Plex suchen…",
+  "find.includePath": "Auch Dateipfade durchsuchen",
   "find.close": "Suche schließen",
   "find.matches": { one: "{count} Treffer", other: "{count} Treffer" },
 } as const satisfies LocaleTranslationMap;

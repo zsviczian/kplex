@@ -268,6 +268,7 @@ const japaneseTranslations = {
   "addRelated.aliasAria": "エイリアス（任意）",
   "addRelated.ontologyPlaceholder": "オントロジー · {field}",
   "addRelated.ontologyAria": "オントロジーフィールド",
+  "relation.savedUpdatePending": "関係を保存しました。グラフの更新はまだ保留中です。",
   "relation.preparingRelationship": "関係データを準備中です。インデックス作成の完了後に再試行してください。",
   "addRelated.showOntologyFields": "すべてのオントロジーフィールドを表示",
   "addRelated.createMarkdownLink": "Markdown ノートを作成してリンク",
@@ -917,6 +918,7 @@ const japaneseTranslations = {
   "vaultStats.ontologyValue": "{total} total · {used} used",
   "find.ariaLabel": "Plex 内を検索",
   "find.placeholder": "Plex 内を検索…",
+  "find.includePath": "ファイルパスも検索",
   "find.close": "検索を閉じる",
   "find.matches": { other: "{count} 件の一致" },
 } as const satisfies LocaleTranslationMap;

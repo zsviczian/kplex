@@ -328,3 +328,52 @@ test("an observed equal-stat body edit invalidates immutable and legacy inputs, 
     assert.deepEqual(f.reads, [source.path]); assert.equal(f.parses.length, 1);
   } finally { f.close(); }
 });
+
+/** A durable-storage or missing-metadata outcome without a newer source event must remain pending after one pass. */
+test("flush does not retry unchanged incomplete source inputs or reopen after close", async () => {
+  const f = hostFixture();
+  try {
+    const pending = f.add("pending.md"); f.metadata.delete(pending.path);
+    const reconcile = f.acquisition.reconcile.bind(f.acquisition);
+    let passes = 0;
+    f.acquisition.reconcile = async () => { passes++; return reconcile(); };
+    assert.equal(await f.acquisition.flush(), false);
+    assert.equal(passes, 1, "No retry without a genuinely newer queued source observation");
+    assert.equal(f.acquisition.inventoryCaptureRevision, null, "The ended pass releases its capture");
+    assert.equal(f.acquisition.hasSemanticDependencies(), false);
+    const checked = f.acquisition.getCounters().checked;
+    f.acquisition.close();
+    assert.equal(await f.acquisition.flush(), false);
+    assert.equal(f.acquisition.getCounters().checked, checked, "Closed acquisition cannot reopen or collect");
+  } finally { f.close(); }
+});
+
+/** Two genuine source interruptions may consume one queued replacement; a third observation stays pending. */
+test("flush joins at most one newer queued pass", async () => {
+  const f = hostFixture();
+  let release;
+  try {
+    const file = f.add("changed.md");
+    const load = f.acquisition.loadBody.bind(f.acquisition);
+    const reconcile = f.acquisition.reconcile.bind(f.acquisition);
+    let passes = 0, loads = 0, reached;
+    const paused = new Promise(resolve => { reached = resolve; });
+    f.acquisition.reconcile = async () => { passes++; return reconcile(); };
+    f.acquisition.loadBody = async (...args) => {
+      const body = await load(...args);
+      loads++;
+      if (loads === 1) await new Promise(resolve => { release = resolve; reached(); });
+      else if (loads === 2) f.app.metadataCache.trigger("changed", file);
+      return body;
+    };
+    const oldPass = f.acquisition.reconcile();
+    await paused;
+    f.app.metadataCache.trigger("changed", file);
+    const flushed = f.acquisition.flush();
+    release(); release = null;
+    assert.equal(await oldPass, false, "The retired pass remains canceled");
+    assert.equal(await flushed, false, "Another interrupted replacement remains pending");
+    assert.equal(passes, 2, "One queued replacement, no unbounded event retry loop");
+    assert.equal(f.acquisition.hasSemanticDependencies(), false);
+  } finally { release?.(); f.close(); }
+});

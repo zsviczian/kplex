@@ -1,6 +1,7 @@
 /**
  * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations; the modal owns focus, suggestions and cleanup, and consumes localized copy.
  */
+import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, type WorkspaceLeaf } from "obsidian";
 import { createElement, useEffect, useMemo, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -108,7 +109,7 @@ function RelatedNoteComposer({
       onCommitted?.();
       onClose();
     } catch (error) {
-      new Notice(plugin.translator("addRelated.relationshipFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : plugin.translator("addRelated.relationshipFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -130,7 +131,7 @@ function RelatedNoteComposer({
       onClose();
       if (editAfterCreate) await plugin.finishNewRelatedNode(page, hostLeaf, true);
     } catch (error) {
-      new Notice(plugin.translator("addRelated.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : plugin.translator("addRelated.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -151,7 +152,7 @@ function RelatedNoteComposer({
       onCommitted?.();
       onClose();
     } catch (error) {
-      new Notice(plugin.translator("addRelated.placeholderFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : plugin.translator("addRelated.placeholderFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -169,7 +170,7 @@ function RelatedNoteComposer({
       onCommitted?.();
       onClose();
     } catch (error) {
-      new Notice(plugin.translator("addRelated.webLinkFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : plugin.translator("addRelated.webLinkFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }

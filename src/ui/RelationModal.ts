@@ -1,6 +1,7 @@
 /**
  * Native Obsidian dialog for adding or moving an ontology relationship. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
+import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, TFile, setIcon, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { GateRole, GateSide, GraphPage, LinkDirection } from "../types";
@@ -149,10 +150,6 @@ export class RelationModal extends Modal {
     this.updateSaveButton();
     let success = false;
     this.options.onCommitStart?.(this.semanticRole);
-    // Moving an existing thought should feel immediate. The graph applies an optimistic overlay
-    // and blocks accidental follow-up clicks while metadata/indexing catches up, so dismiss the
-    // chooser as soon as the relink commit starts instead of leaving a seemingly frozen modal.
-    if (this.options.mode === "relink") this.close();
     try {
       if (this.options.mode === "relink") {
         const target = this.options.fixedTarget;
@@ -191,7 +188,7 @@ export class RelationModal extends Modal {
       this.options.onCommitted?.();
       this.close();
     } catch (error) {
-      new Notice(this.plugin.translator("relation.updateFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : this.plugin.translator("relation.updateFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       this.options.onCommitEnd?.(success);
       this.busy = false;

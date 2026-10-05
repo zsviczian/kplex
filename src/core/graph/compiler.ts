@@ -5,6 +5,7 @@
  * The node projection reuses that policy/materialization owner without retaining or resolving evidence;
  * its distinct result cannot authorize relationship readiness.
  */
+import { canonicalTagParts } from "./tagPaths";
 import { selectStyleTags, tagDisplayName, unwrapNoteType } from "./presentation";
 import {
   ReferencePolicySelector, ReferenceSourcePolicyRead,
@@ -721,8 +722,9 @@ export class NormalizedGraphCompiler {
     return id;
   }
 
+  /** Materialize canonical ancestors incrementally; only segment parts precede ordinary node allocation bounds. */
   private ensureTagPath(rawTag: string, providedLeaf: SourceEntityRef, ownershipRecord: TagTreeOccurrence): CompiledGraphNode | null {
-    const parts = rawTag.replace(/^tag:/, "").replace(/^#/, "").split("/").map((part) => part.trim()).filter(Boolean);
+    const parts = canonicalTagParts(rawTag.replace(/^tag:/, ""));
     let parent: CompiledGraphNode | null = null;
     let leaf: CompiledGraphNode | null = null;
     for (let index = 0; index < parts.length; index += 1) {

@@ -27,6 +27,7 @@ import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurfac
 import { createAdjacentFileLeaf } from "./adapters/obsidian/adjacentFileLeaf";
 import { isEmbeddedMarkdownLeaf } from "./adapters/obsidian/embeddedMarkdownLeaf";
 import { StartupDiagnostics } from "./adapters/obsidian/startupDiagnostics";
+import { writeRelationshipMetadata, SavedRelationshipPendingError } from "./adapters/obsidian/relationshipMetadataWrite";
 import { perfNow } from "./util/perf";
 import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
 
@@ -120,6 +121,8 @@ export default class KplexPlugin extends Plugin {
   private lastStartupProgressNotification = 0;
   private readonly graphLensListeners = new Set<(lenses: KplexSettings["graphLenses"]) => void>();
   private readonly managedMetadataWrites = new Map<string, number>();
+  /** Pending saved relationship observers release on unload, rename/delete or actual convergence. */
+  private readonly relationshipWriteCancels = new Set<() => void>();
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
   private readonly managedCreatedPaths = new Map<string, number>();
   private readonly managedCreatedFiles = new WeakSet<TFile>();
@@ -131,6 +134,23 @@ export default class KplexPlugin extends Plugin {
   private readonly deletedMarkdownFiles = new WeakSet<TFile>();
   private activeKplexMenu: Menu | null = null;
   private activeKplexMenuDocument: Document | null = null;
+  private activeKplexMenuLeaf: WorkspaceLeaf | null = null;
+  /** A native hide can precede this window listener within the same Escape dispatch. */
+  private justClosedKplexMenu: { leaf: WorkspaceLeaf | null; document: Document } | null = null;
+  private kplexMenuReleaseTimer: number | null = null;
+  /** Cancel the owning menu without letting the same Escape move focus to a previous native file tab. */
+  private readonly kplexMenuEscapeKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape" || (!this.activeKplexMenu && !this.justClosedKplexMenu)) return;
+    const leaf = this.activeKplexMenuLeaf ?? this.justClosedKplexMenu?.leaf;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.dismissKplexMenu();
+    if (leaf?.view.containerEl.isConnected && (leaf.view.getViewType() === KPLEX_VIEW_TYPE
+      || leaf.view.getViewType() === KPLEX_SIDEPANEL_VIEW_TYPE)) {
+      this.app.workspace.setActiveLeaf(leaf, { focus: true });
+    }
+  };
+  /** Close a tracked menu on outside input while allowing its own items to receive their click. */
   private readonly kplexMenuOutsidePointerDown = (event: PointerEvent): void => {
     const target = event.target && typeof event.target === "object" && "closest" in event.target
       ? event.target as Element
@@ -464,6 +484,8 @@ export default class KplexPlugin extends Plugin {
   }
 
   onunload(): void {
+    for (const cancel of this.relationshipWriteCancels) cancel();
+    this.relationshipWriteCancels.clear();
     this.startupDiagnostics.dispose();
     this.unloading = true;
     this.dismissKplexMenu();
@@ -3009,29 +3031,71 @@ export default class KplexPlugin extends Plugin {
     if (this.index.setSearchEntryPoints([...new Set(paths)])) this.index.notify();
   }
 
+  /** Release document listeners before hiding the menu, including reentrant native onHide callbacks. */
   dismissKplexMenu(): void {
+    const menu = this.activeKplexMenu;
+    const closedDocument = this.justClosedKplexMenu?.document;
+    if (this.kplexMenuReleaseTimer !== null) closedDocument?.defaultView?.clearTimeout(this.kplexMenuReleaseTimer);
+    this.kplexMenuReleaseTimer = null;
     this.activeKplexMenuDocument?.removeEventListener("pointerdown", this.kplexMenuOutsidePointerDown, true);
+    this.activeKplexMenuDocument?.defaultView?.removeEventListener("keydown", this.kplexMenuEscapeKeyDown, true);
+    closedDocument?.defaultView?.removeEventListener("keydown", this.kplexMenuEscapeKeyDown, true);
+    this.justClosedKplexMenu = null;
     this.activeKplexMenuDocument = null;
-    this.activeKplexMenu?.hide();
     this.activeKplexMenu = null;
+    this.activeKplexMenuLeaf = null;
+    menu?.hide();
   }
 
+  /** Track one owner-document menu; cancellation preserves the current Plex and native hide releases listeners. */
   private trackKplexMenu(menu: Menu, ownerDocument: Document): void {
     this.dismissKplexMenu();
     this.activeKplexMenu = menu;
     this.activeKplexMenuDocument = ownerDocument;
+    this.activeKplexMenuLeaf = this.app.workspace.activeLeaf;
     ownerDocument.addEventListener("pointerdown", this.kplexMenuOutsidePointerDown, true);
+    // Obsidian's document capture scope hides the menu before later document listeners run.
+    // Window capture must own cancellation first, or its Escape continues into native tab focus.
+    ownerDocument.defaultView?.addEventListener("keydown", this.kplexMenuEscapeKeyDown, true);
+    menu.onHide(/** Retain cancellation through this native dispatch, then release the exact menu's listeners. */ () => {
+      if (this.activeKplexMenu !== menu) return;
+      const closed = { leaf: this.activeKplexMenuLeaf, document: ownerDocument };
+      this.justClosedKplexMenu = closed;
+      this.activeKplexMenu = null;
+      this.activeKplexMenuLeaf = null;
+      this.activeKplexMenuDocument = null;
+      ownerDocument.removeEventListener("pointerdown", this.kplexMenuOutsidePointerDown, true);
+      const viewWindow = ownerDocument.defaultView;
+      if (!viewWindow) { this.justClosedKplexMenu = null; return; }
+      // The host's earlier window key listener hides the menu before ours runs. Keep this one
+      // cancellation token until that event unwinds; pointer/Enter actions never restore focus.
+      // Microtasks can run between native DOM listeners. A next-task release is required to
+      // retain cancellation through the complete key dispatch, not merely this callback.
+      this.kplexMenuReleaseTimer = viewWindow.setTimeout(/** Release cancelled/selected menu ownership without touching a replacement menu. */ () => {
+        this.kplexMenuReleaseTimer = null;
+        if (this.justClosedKplexMenu === closed) this.justClosedKplexMenu = null;
+        if (this.activeKplexMenuDocument?.defaultView !== viewWindow) {
+          viewWindow.removeEventListener("keydown", this.kplexMenuEscapeKeyDown, true);
+        }
+      }, 0);
+    });
   }
 
+  /** Present the shared tracked menu in the pointer event's owning document. */
   showKplexMenuAtMouseEvent(menu: Menu, event: MouseEvent): void {
     const ownerDocument = event.view?.document ?? document;
-    this.trackKplexMenu(menu, ownerDocument);
+    this.dismissKplexMenu();
     menu.showAtMouseEvent(event);
+    // Native show first resets its prior visibility. Track only the displayed lifetime so that
+    // that initial hide cannot retire the new menu's Escape/outside listeners.
+    this.trackKplexMenu(menu, ownerDocument);
   }
 
+  /** Present the shared tracked menu at a control's owner-document coordinates. */
   showKplexMenuAtPosition(menu: Menu, position: { x: number; y: number }, ownerDocument: Document): void {
-    this.trackKplexMenu(menu, ownerDocument);
+    this.dismissKplexMenu();
     menu.showAtPosition(position, ownerDocument);
+    this.trackKplexMenu(menu, ownerDocument);
   }
 
   /** Open the native plugin settings tab, or display localized guidance when the host controller is unavailable. */
@@ -3317,19 +3381,49 @@ export default class KplexPlugin extends Plugin {
     });
   }
 
+  /** Own the exact metadata/body observer; pending status is localized and never closes the composer early. */
+  private async mutateRelationshipMetadata(file: TFile, fields: ReadonlySet<string>, mutate: (frontmatter: Record<string, unknown>) => void, targetPath: string): Promise<void> {
+    await writeRelationshipMetadata(this.app, file, fields, mutate, {
+      /** Release this bounded observer independently of modal lifetime. */
+      own: cancel => { this.relationshipWriteCancels.add(cancel); return () => { this.relationshipWriteCancels.delete(cancel); }; },
+      /** The existing wait boundary reports a saved mutation awaiting its graph, not a failed write. */
+      pending: () => { new Notice(this.translator("relation.savedUpdatePending"), 4000); },
+      savedPendingMessage: () => this.translator("relation.savedUpdatePending"),
+      /** Recheck exact pair authority after FileManager's awaited read and before any mutation. */
+      current: () => !this.unloading && this.index.isSemanticWriteReady(file.path, targetPath),
+      preparingMessage: () => this.translator("relation.preparingRelationship"),
+    });
+  }
+
+  /** Prepare only this editable pair and reacquire pages before the first persistence effect. */
+  private async prepareRelationshipMutation(sourcePath: string, targetPath: string): Promise<readonly [GraphPage, GraphPage]> {
+    if (!(await this.index.prepareRelationshipPair(sourcePath, targetPath))) throw new Error(this.translator("relation.preparingRelationship"));
+    const source = this.index.get(sourcePath), target = this.index.get(targetPath);
+    if (!source || !target || !this.index.isSemanticWriteReady(sourcePath, targetPath)) throw new Error(this.translator("relation.preparingRelationship"));
+    return [source, target];
+  }
+
+  /** After saving, only an actual canonical pair publication completes the mutation contract. */
+  private async publishSavedRelationship(sourcePath: string, targetPath: string): Promise<void> {
+    if (!(await this.index.prepareRelationshipPair(sourcePath, targetPath))) throw new SavedRelationshipPendingError(this.translator("relation.savedUpdatePending"));
+  }
+
+  /** Persist a selected ontology move and await all affected metadata/body observations before returning. */
   private async writeRelationship(storageFile: TFile, target: GraphPage, field: string, referenceOverride?: string): Promise<void> {
-    // Mark before processFrontMatter so our own metadataCache.changed event is not interpreted as
-    // an external vault edit that requires a 20k-note rebuild.
-    // Large vaults can deliver metadataCache.changed several seconds after processFrontMatter.
-    // Keep our own write suppressed long enough that it cannot accidentally trigger a full-vault
-    // backlog rebuild after the live semantic pair has already been patched in memory.
+    if (!this.index.isSemanticWriteReady(storageFile.path, target.path)
+      && !(await this.index.prepareRelationshipPair(storageFile.path, target.path, this.index.get(target.path) ? undefined : target))) {
+      throw new Error(this.translator("relation.preparingRelationship"));
+    }
+    // Keep the existing reactive metadata lane suppressed for this managed write. Source acquisition
+    // observes actual Vault/MetadataCache events independently; the caller publishes only after the
+    // exact current cache/body observer and canonical pair preparation have both completed.
     this.pruneManagedMetadataWrites();
     this.managedMetadataWrites.set(storageFile.path, Date.now() + 15000);
     const ontologyFields = new Set(this.allOntologyFields().map(normalizeFieldName));
     const desiredNormalized = normalizeFieldName(field);
     const reference = referenceOverride ?? this.referenceForPage(target, storageFile);
 
-    await this.app.fileManager.processFrontMatter(storageFile, (frontmatter: Record<string, unknown>) => {
+    await this.mutateRelationshipMetadata(storageFile, new Set([...ontologyFields, desiredNormalized]), (frontmatter: Record<string, unknown>) => {
       let desiredKey = field;
       for (const key of Object.keys(frontmatter)) {
         const normalizedKey = normalizeFieldName(key);
@@ -3348,10 +3442,14 @@ export default class KplexPlugin extends Plugin {
       if (this.valueContainsTarget(current, storageFile, target)) return;
       if (Array.isArray(current)) frontmatter[desiredKey] = [...(current as unknown[]), reference];
       else frontmatter[desiredKey] = [current, reference];
-    });
+    }, target.path);
   }
 
   private async addRelationshipOntology(storageFile: TFile, target: GraphPage, field: string): Promise<void> {
+    if (!this.index.isSemanticWriteReady(storageFile.path, target.path)
+      && !(await this.index.prepareRelationshipPair(storageFile.path, target.path, this.index.get(target.path) ? undefined : target))) {
+      throw new Error(this.translator("relation.preparingRelationship"));
+    }
     // Connection details adds an additional ontology; it must not remove the same target from
     // other ontology properties or rewrite Markdown-body evidence.
     this.pruneManagedMetadataWrites();
@@ -3359,7 +3457,7 @@ export default class KplexPlugin extends Plugin {
     const desiredNormalized = normalizeFieldName(field);
     const reference = this.referenceForPage(target, storageFile);
 
-    await this.app.fileManager.processFrontMatter(storageFile, (frontmatter: Record<string, unknown>) => {
+    await this.mutateRelationshipMetadata(storageFile, new Set([desiredNormalized]), (frontmatter: Record<string, unknown>) => {
       let desiredKey = field;
       for (const key of Object.keys(frontmatter)) {
         if (normalizeFieldName(key) === desiredNormalized) {
@@ -3376,21 +3474,25 @@ export default class KplexPlugin extends Plugin {
       if (this.valueContainsTarget(current, storageFile, target)) return;
       if (Array.isArray(current)) frontmatter[desiredKey] = [...(current as unknown[]), reference];
       else frontmatter[desiredKey] = [current, reference];
-    });
+    }, target.path);
   }
 
   private async clearFrontmatterRelationship(storageFile: TFile, target: GraphPage): Promise<void> {
+    if (!this.index.isSemanticWriteReady(storageFile.path, target.path)
+      && !(await this.index.prepareRelationshipPair(storageFile.path, target.path, this.index.get(target.path) ? undefined : target))) {
+      throw new Error(this.translator("relation.preparingRelationship"));
+    }
     this.pruneManagedMetadataWrites();
     this.managedMetadataWrites.set(storageFile.path, Date.now() + 15000);
     const ontologyFields = new Set(this.allOntologyFields().map(normalizeFieldName));
-    await this.app.fileManager.processFrontMatter(storageFile, (frontmatter: Record<string, unknown>) => {
+    await this.mutateRelationshipMetadata(storageFile, ontologyFields, (frontmatter: Record<string, unknown>) => {
       for (const key of Object.keys(frontmatter)) {
         if (!ontologyFields.has(normalizeFieldName(key))) continue;
         const next = this.removeTargetFromValue(frontmatter[key], storageFile, target);
         if (next === undefined) delete frontmatter[key];
         else frontmatter[key] = next;
       }
-    });
+    }, target.path);
   }
 
   /** Create a relationship from a physical gate using the existing semantic-role and endpoint policy; localize user-visible validation. */
@@ -3403,52 +3505,35 @@ export default class KplexPlugin extends Plugin {
     await this.createRelationToPage(origin, semanticRole, selectedPage, selectedField);
   }
 
-  /** Persist an existing-target relationship only under current semantic authority, retaining bounded endpoint demands through the write. */
+  /** Persist an existing-target relationship under exact current pair authority, then await canonical saved publication. */
   async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string): Promise<void> {
     const originPath = origin.path;
     const targetPath = target.path;
-    const releaseDemands: Array<() => void> = [];
-    try {
-      if (!this.index.isSemanticWriteReady(originPath, targetPath)) {
-        releaseDemands.push(this.index.acquireSemanticDemand(originPath), this.index.acquireSemanticDemand(targetPath));
-        await this.index.refreshSemanticSettings();
-        // Preparing a scope can replace page views. Never persist from the modal's retired view.
-        const currentOrigin = this.index.get(originPath);
-        const currentTarget = this.index.get(targetPath);
-        if (!currentOrigin || !currentTarget || !this.index.isSemanticWriteReady(originPath, targetPath)) {
-          throw new Error(this.translator("relation.preparingRelationship"));
-        }
-        origin = currentOrigin;
-        target = currentTarget;
-      }
-      if (origin.path === target.path) return;
-      const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
-      if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
-        new Notice(this.translator("notice.alreadyConnected"), 1800);
-        return;
-      }
+    if (originPath === targetPath) return;
+    [origin, target] = await this.prepareRelationshipMutation(originPath, targetPath);
+    const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
+    if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
+      new Notice(this.translator("notice.alreadyConnected"), 1800);
+      return;
+    }
 
-      // A target connected through another gate remains a valid drag target. Treat that gesture
-      // as a relink so the new YAML relationship becomes authoritative over any stale body link.
-      if (this.index.isConnected(origin, target.path)) {
-        await this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
-        return;
-      }
+    // A target connected through another gate remains a valid drag target. Treat that gesture
+    // as a relink so the new YAML relationship becomes authoritative over any stale body link.
+    if (this.index.isConnected(origin, target.path)) {
+      await this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
+      return;
+    }
 
-      if (origin.file?.extension === "md") {
-        await this.writeRelationship(origin.file, target, selectedField);
-        this.index.applyRelationshipEdit(origin.path, target.path, semanticRole, selectedField);
-      } else if (target.file?.extension === "md") {
-        const inverseRole = this.inverseRelationshipRole(semanticRole);
-        const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-        await this.writeRelationship(target.file, origin, inverseField);
-        this.index.applyRelationshipEdit(target.path, origin.path, inverseRole, inverseField);
-      } else {
-        new Notice(this.translator("notice.dragOriginRequiresMarkdownTarget"), 2800);
-        return;
-      }
-    } finally {
-      for (const release of releaseDemands) release();
+    if (origin.file?.extension === "md") {
+      await this.writeRelationship(origin.file, target, selectedField);
+      await this.publishSavedRelationship(origin.path, target.path);
+    } else if (target.file?.extension === "md") {
+      const inverseField = this.inverseOntologyField(selectedField, semanticRole);
+      await this.writeRelationship(target.file, origin, inverseField);
+      await this.publishSavedRelationship(target.path, origin.path);
+    } else {
+      new Notice(this.translator("notice.dragOriginRequiresMarkdownTarget"), 2800);
+      return;
     }
   }
 
@@ -3460,7 +3545,7 @@ export default class KplexPlugin extends Plugin {
     selectedField: string,
     storagePathOverride: string | null = null,
   ): Promise<void> {
-    if (!this.index.isSemanticWriteReady(center.path, neighbour.path)) return;
+    [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path);
     const centerFile = center.file?.extension === "md" ? center.file : null;
     const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
     if (!centerFile && !neighbourFile) {
@@ -3476,20 +3561,18 @@ export default class KplexPlugin extends Plugin {
 
     if (storagePath === centerFile?.path && centerFile) {
       await this.addRelationshipOntology(centerFile, neighbour, selectedField);
-      this.index.applyAdditionalRelationshipEdit(center.path, neighbour.path, semanticRole, selectedField);
+      await this.publishSavedRelationship(center.path, neighbour.path);
     } else if (storagePath === neighbourFile?.path && neighbourFile) {
-      const inverseRole = this.inverseRelationshipRole(semanticRole);
       const inverseField = this.inverseOntologyField(selectedField, semanticRole);
       await this.addRelationshipOntology(neighbourFile, center, inverseField);
-      this.index.applyAdditionalRelationshipEdit(neighbour.path, center.path, inverseRole, inverseField);
+      await this.publishSavedRelationship(center.path, neighbour.path);
     } else if (centerFile) {
       await this.addRelationshipOntology(centerFile, neighbour, selectedField);
-      this.index.applyAdditionalRelationshipEdit(center.path, neighbour.path, semanticRole, selectedField);
+      await this.publishSavedRelationship(center.path, neighbour.path);
     } else if (neighbourFile) {
-      const inverseRole = this.inverseRelationshipRole(semanticRole);
       const inverseField = this.inverseOntologyField(selectedField, semanticRole);
       await this.addRelationshipOntology(neighbourFile, center, inverseField);
-      this.index.applyAdditionalRelationshipEdit(neighbour.path, center.path, inverseRole, inverseField);
+      await this.publishSavedRelationship(center.path, neighbour.path);
     }
   }
 
@@ -3502,7 +3585,7 @@ export default class KplexPlugin extends Plugin {
     existingDirection: LinkDirection | null = null,
     storagePathOverride: string | null = null,
   ): Promise<void> {
-    if (!this.index.isSemanticWriteReady(center.path, neighbour.path)) return;
+    [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path);
     const centerFile = center.file?.extension === "md" ? center.file : null;
     const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
     if (!centerFile && !neighbourFile) {
@@ -3538,18 +3621,16 @@ export default class KplexPlugin extends Plugin {
     if (cleanup.length) await Promise.all(cleanup);
     if (storagePath === centerFile?.path && centerFile) {
       await this.writeRelationship(centerFile, neighbour, selectedField);
-      this.index.applyRelationshipEdit(center.path, neighbour.path, semanticRole, selectedField);
+      await this.publishSavedRelationship(center.path, neighbour.path);
     } else if (storagePath === neighbourFile?.path && neighbourFile) {
-      const inverseRole = this.inverseRelationshipRole(semanticRole);
       await this.writeRelationship(neighbourFile, center, inverseField);
-      this.index.applyRelationshipEdit(neighbour.path, center.path, inverseRole, inverseField);
+      await this.publishSavedRelationship(center.path, neighbour.path);
     } else if (centerFile) {
       await this.writeRelationship(centerFile, neighbour, selectedField);
-      this.index.applyRelationshipEdit(center.path, neighbour.path, semanticRole, selectedField);
+      await this.publishSavedRelationship(center.path, neighbour.path);
     } else if (neighbourFile) {
-      const inverseRole = this.inverseRelationshipRole(semanticRole);
       await this.writeRelationship(neighbourFile, center, inverseField);
-      this.index.applyRelationshipEdit(neighbour.path, center.path, inverseRole, inverseField);
+      await this.publishSavedRelationship(center.path, neighbour.path);
     }
   }
 
@@ -3845,7 +3926,11 @@ export default class KplexPlugin extends Plugin {
     return extractLinksFromValue(this.app, propertyText, file).some((path) => path === targetPath);
   }
 
+  /** Recheck canonical exact pair evidence before offering destructive provenance-specific unlink. */
   async directFrontmatterUnlinkCandidate(evidenceItems: readonly RelationEvidence[]): Promise<RelationEvidence | null> {
+    const first = evidenceItems[0];
+    if (!first || !(await this.index.prepareRelationshipPair(first.sourcePath, first.targetPath))) return null;
+    evidenceItems = this.index.evidenceBetween(first.sourcePath, first.targetPath);
     const frontmatter = evidenceItems.filter((item) => item.sourceKind === "frontmatter-ontology");
     if (frontmatter.length !== 1) return null;
     const candidate = frontmatter[0];
@@ -3882,14 +3967,22 @@ export default class KplexPlugin extends Plugin {
   async unlinkFrontmatterEvidence(evidence: RelationEvidence): Promise<boolean> {
     if (evidence.sourceKind !== "frontmatter-ontology" || !evidence.fieldName) return false;
     const storage = this.app.vault.getFileByPath(evidence.declaredByPath);
-    const target = this.index.get(evidence.declaredTargetPath);
+    const [, target] = await this.prepareRelationshipMutation(evidence.declaredByPath, evidence.declaredTargetPath);
     if (!storage || storage.extension !== "md" || !target) return false;
+    // Raw payloads contain the whole property. Another target's legitimate edit may change that
+    // payload without changing this exact declaration; owner/target/field/role/direction must match.
+    const currentEvidence = this.index.evidenceBetween(storage.path, target.path).find(
+      /** Reauthorize the semantic declaration, never its attempt-local evidence ID or old payload. */
+      item => item.sourceKind === "frontmatter-ontology" && item.declaredByPath === evidence.declaredByPath
+        && item.declaredTargetPath === evidence.declaredTargetPath && item.declaredRole === evidence.declaredRole
+        && item.direction === evidence.direction && normalizeFieldName(item.fieldName ?? "") === normalizeFieldName(evidence.fieldName!));
+    if (!currentEvidence) return false;
 
     this.pruneManagedMetadataWrites();
     this.managedMetadataWrites.set(storage.path, Date.now() + 15000);
     let changed = false;
     const wanted = normalizeFieldName(evidence.fieldName);
-    await this.app.fileManager.processFrontMatter(storage, (frontmatter: Record<string, unknown>) => {
+    await this.mutateRelationshipMetadata(storage, new Set([wanted]), (frontmatter: Record<string, unknown>) => {
       for (const key of Object.keys(frontmatter)) {
         if (normalizeFieldName(key) !== wanted) continue;
         if (!this.valueContainsTarget(frontmatter[key], storage, target)) continue;
@@ -3899,10 +3992,10 @@ export default class KplexPlugin extends Plugin {
         changed = true;
         break;
       }
-    });
+    }, target.path);
 
     if (!changed) return false;
-    this.index.applyFrontmatterRelationshipRemoval(storage.path, target.path, evidence.fieldName);
+    await this.publishSavedRelationship(storage.path, target.path);
     return true;
   }
 
@@ -4306,12 +4399,10 @@ export default class KplexPlugin extends Plugin {
     return file;
   }
 
-  /** Persist the ontology link for a newly created related file, retaining the optimistic relationship and localized failure path. */
+  /** Bind a newly created file, then complete its relationship through current canonical pair publication. */
   async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = "", rawDisplayName = ""): Promise<GraphPage> {
-    if (!this.index.isSemanticWriteReady(origin.path, origin.path)) throw new Error("Semantic relationship preparation is still pending");
-    // K-Plex already knows the complete minimum fact set for a newly created node. Publish both the
-    // page and relationship before awaiting processFrontMatter/MetadataCache, then let the normal
-    // incremental path reconcile richer metadata in the background.
+    // Retain the existing minimal physical node insertion. Relationship authority belongs to the
+    // exact bound pair; a creation event does not require the origin's entire neighborhood again.
     const alias = rawAlias.trim();
     const displayName = rawDisplayName.trim() ? rawDisplayName : "";
     const displayField = this.configuredDisplayNameField();
@@ -4319,28 +4410,18 @@ export default class KplexPlugin extends Plugin {
     const aliases = normalizedDisplayField === "alias" || normalizedDisplayField === "aliases"
       ? [displayName, alias].filter(Boolean)
       : alias ? [alias] : [];
-    const target = this.index.insertCreatedFile(file, aliases);
+    let target = this.index.insertCreatedFile(file, aliases);
+    [origin, target] = await this.prepareRelationshipMutation(origin.path, target.path);
     if (origin.file?.extension === "md") {
-      this.index.applyRelationshipEdit(origin.path, target.path, semanticRole, selectedField);
-      try {
-        await this.writeRelationship(origin.file, target, selectedField);
-      } catch (error) {
-        this.index.applyFrontmatterRelationshipRemoval(origin.path, target.path, selectedField);
-        throw error;
-      }
-      return target;
+      await this.writeRelationship(origin.file, target, selectedField);
+      await this.publishSavedRelationship(origin.path, target.path);
+      return this.index.get(target.path) ?? target;
     }
     if (target.file?.extension === "md") {
-      const inverseRole = this.inverseRelationshipRole(semanticRole);
       const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-      this.index.applyRelationshipEdit(target.path, origin.path, inverseRole, inverseField);
-      try {
-        await this.writeRelationship(target.file, origin, inverseField);
-      } catch (error) {
-        this.index.applyFrontmatterRelationshipRemoval(target.path, origin.path, inverseField);
-        throw error;
-      }
-      return target;
+      await this.writeRelationship(target.file, origin, inverseField);
+      await this.publishSavedRelationship(origin.path, target.path);
+      return this.index.get(target.path) ?? target;
     }
     throw new Error(this.translator("error.relationshipRequiresMarkdownEndpoint"));
   }
@@ -4353,7 +4434,6 @@ export default class KplexPlugin extends Plugin {
     rawAlias: string,
     selectedField: string,
   ): Promise<GraphPage | null> {
-    if (!this.index.isSemanticWriteReady(origin.path, origin.path)) return null;
     if (origin.file?.extension !== "md") {
       new Notice(this.translator("notice.webLinkMarkdownOnly"), 2800);
       return null;
@@ -4370,10 +4450,13 @@ export default class KplexPlugin extends Plugin {
     };
     const escapedAlias = alias.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
     const reference = alias ? `[${escapedAlias}](${url})` : url;
+    if (!(await this.index.prepareRelationshipPair(origin.path, provisional.path, provisional))) throw new Error(this.translator("relation.preparingRelationship"));
+    const currentOrigin = this.index.get(origin.path);
+    if (currentOrigin?.file !== origin.file) throw new Error(this.translator("relation.preparingRelationship"));
     await this.writeRelationship(origin.file, provisional, selectedField, reference);
     const target = this.index.insertUrlPage(url, alias);
-    this.index.applyRelationshipEdit(origin.path, target.path, semanticRole, selectedField);
-    return target;
+    await this.publishSavedRelationship(origin.path, target.path);
+    return this.index.get(target.path) ?? target;
   }
 
   private placeholderPath(stem: string): string {
@@ -4389,7 +4472,6 @@ export default class KplexPlugin extends Plugin {
     rawName: string,
     selectedField: string,
   ): Promise<GraphPage | null> {
-    if (!this.index.isSemanticWriteReady(origin.path, origin.path)) return null;
     const validation = this.validateRelatedNoteName(rawName);
     if (!validation.valid) {
       new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
@@ -4418,10 +4500,13 @@ export default class KplexPlugin extends Plugin {
       neighbours: new Map(), aliases: [], tags: [], noteType: null, primaryStyleTag: null,
       styleTags: [], maxLabelLength: 0,
     };
+    if (!(await this.index.prepareRelationshipPair(origin.path, provisional.path, provisional))) throw new Error(this.translator("relation.preparingRelationship"));
+    const currentOrigin = this.index.get(origin.path);
+    if (currentOrigin?.file !== origin.file) throw new Error(this.translator("relation.preparingRelationship"));
     await this.writeRelationship(origin.file, provisional, selectedField);
     const target = this.index.insertVirtualPage(path);
-    this.index.applyRelationshipEdit(origin.path, target.path, semanticRole, selectedField);
-    return target;
+    await this.publishSavedRelationship(origin.path, target.path);
+    return this.index.get(target.path) ?? target;
   }
 
   async finishNewRelatedNode(

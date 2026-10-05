@@ -223,9 +223,18 @@ for (const { cancel, retry } of [{ cancel: false, retry: false }, { cancel: true
           index.sourceAcquisition.flush=async function(){
             entered=true;await blocked;
             if(retry&&cancel){f.app.metadataCache.trigger('resolved');this.pauseInventory();return false}
-            const task=flush.call(this);
-            if(retry)f.app.metadataCache.trigger('resolved');
-            const adopted=await task;if(retry)ok(!adopted,'Native resolver wave interrupts the first pass');return adopted;
+            const reconcile=this.reconcile,passes=[];
+            this.reconcile=async function(...args){const result=await reconcile.apply(this,args);passes.push(result);return result;};
+            try{
+              const task=flush.call(this);
+              if(retry)f.app.metadataCache.trigger('resolved');
+              const adopted=await task;
+              if(retry){
+                equal(passes,[false,true],'Native resolver wave cancels its pass; flush joins only the queued current replacement');
+                ok(adopted&&this.hasSemanticDependencies(),'Actual replacement closure grants source authority');
+              }
+              return adopted;
+            }finally{this.reconcile=reconcile;}
           };
           const pages=index.indexedDb.iterateSnapshotPages,evidence=index.indexedDb.iterateSnapshotEvidence;
           index.indexedDb.iterateSnapshotPages=async function(...args){

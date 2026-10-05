@@ -81,6 +81,8 @@ The toolbar search box searches the whole Vault, including orphan attachments, C
 
 Display names are configurable in **Settings → K-Plex → Visual styling → Canvas & labels → Name fields**. Enter a comma-separated precedence list such as `title, aliases, backup_names`. K-Plex uses the first non-empty text/list value and falls back to the file name. The default is `aliases`, which preserves the previous alias-rendering behavior.
 
+For longer titles, open **Settings → K-Plex → Visual styling → Node styling → Node appearance**. Increase **Maximum label length** and **Maximum node width**, and adjust **Maximum central node width** separately. Density still affects the displayed character limit. Enable **Wrap node labels** for two-line labels with consistent regular row heights; **Past nodes** also uses a taller two-line row. Long history titles keep their beginning visible and truncate on the right.
+
 Keyboard shortcuts while K-Plex has focus:
 
 - **Up / Down** — move through search results
@@ -88,11 +90,11 @@ Keyboard shortcuts while K-Plex has focus:
 - **Escape** — close the result list
 - **F4** — focus Vault search
 
-Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the Plex, to **Find in Plex**. This separate field highlights matching nodes and ontology fields in the current Plex and reveals nodes in scrollable areas. Matching a note does not highlight its surrounding links. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find.
+Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the Plex, to **Find in Plex**. This separate field searches displayed node names and ontology labels in the current Plex and reveals matches in scrollable areas. Select its **Include paths** button to also search file paths. Matching a note does not highlight its surrounding links. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find.
 
-K-Plex also keeps a **Past nodes** history for back/forward navigation. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
+K-Plex also keeps a **Past nodes** history for back/forward navigation. Drag a relationship gate onto a history entry to connect using that gate’s relationship type; the entry lights up while you hover. Dragging a node’s body onto history offers a choice of relationship type. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
 
-Select **Editor node** to expand a file or URL inside the central node. Images fit both dimensions without cropping. Webpages use a desktop webview with browser authentication, or an iframe on Obsidian mobile. YouTube and Vimeo links use embedded players; YouTube Shorts use a portrait frame. Expanding a URL loads that website, which receives normal browser requests and may store its own cookies.
+Select **Editor node** to expand a file or URL inside the central node. Images fit both dimensions without cropping. The editor’s **Open menu** button provides the same opening destinations as the node context menu. Maximizing the editor temporarily hides Find and preserves its query. Webpages use a desktop webview with browser authentication, or an iframe on Obsidian mobile. YouTube and Vimeo links use embedded players; YouTube Shorts use a portrait frame. Expanding a URL loads that website, which receives normal browser requests and may store its own cookies.
 
 ## Creating and editing relationships
 
@@ -101,7 +103,7 @@ K-Plex lets you create Parent, Child, Friend and Challenger relationships direct
 The relationship dialog provides:
 
 - fuzzy search for existing notes;
-- fuzzy search for ontology fields;
+- fuzzy search for ontology fields, with a dropdown button to browse the full list even when the field is empty;
 - creation of new Markdown notes;
 - optional Excalidraw note creation when Excalidraw is installed;
 - remembered ontology choices for each relationship type;

@@ -1,6 +1,7 @@
 /**
  * Private clean-host neighborhood relation closure. Complete neutral center incidence is compiled
- * under one captured policy; a second combined center/parent range closes sibling witnesses in
+ * under one captured policy; relation-only reads close every parent, while gate/scene reads close
+ * every policy-visible parent before top-N. A second combined range closes sibling witnesses in
  * original contributor order. Both passes use the canonical cached compiler, never a graph mirror.
  * Only final root/head/journal/host/policy/demand-fenced inputs escape. A separate private gate
  * request also captures visibility policy and proves physical target facets; sorted visible lists,
@@ -8,11 +9,12 @@
  */
 import type { GraphCompilerRuntime, PortableGraphCompilation } from "../core/graph/compiler";
 import type { SourcePatchReadPort } from "../core/graph/patch";
+import { RelationType } from "../core/graph/relations";
 import { classifyRelation } from "../core/graph/resolver";
 import type { SourceEntityRef } from "../core/graph/source";
 import type { CachedPairCapture } from "./CachedRequestedPair";
-import { captureCachedCenterGateSettings, projectCachedCenterGates,
-  type CachedCenterGatePolicy, type CachedCenterGates } from "./CachedCenterGateProjection";
+import { captureCachedCenterGateSettings, projectCachedCenterGates, cachedCenterTargetVisibility,
+  type CachedCenterGatePolicy, type CachedCenterGateSettings, type CachedCenterGates } from "./CachedCenterGateProjection";
 import { CachedSourceSemanticReader, captureCachedSemanticSettings, validateCachedOwners, cachedOwnersCurrent, sameCachedSelections,
   type CachedSemanticPolicy, type CachedSemanticPreparation } from "./CachedSourceSemantics";
 import { type ContributorCertificate, type ContributorDiscoveryResult, type ContributorFailure, type ContributorRequest,
@@ -24,14 +26,18 @@ import { selectedSourceFailure, type NeutralSourceRepository } from "./SourceRep
 /** One exact center; there is deliberately no top-N, displayed-parent list or gate-count option. */
 export type CachedNeighborhoodRequest = Readonly<{ kind: "neighborhood"; center: SourceEntityRef }>;
 /** Both directions of center and parent incidence, not arbitrary edges in the over-cover graph. */
-export type CachedNeighborhoodCertificate = Readonly<{
-  coverage: "complete-neighborhood-relations";
+type CachedRelationCertificate<Coverage extends "complete-neighborhood-relations" | "complete-visible-parent-relations"> = Readonly<{
+  coverage: Coverage;
   center: SourceEntityRef;
   parents: readonly SourceEntityRef[];
   policyRevision: string;
   gateTotals: "not-certified";
   contributors: ContributorCertificate;
 }>;
+/** Relation-only callers retain all parent incidence, independent of presentation visibility. */
+export type CachedNeighborhoodCertificate = CachedRelationCertificate<"complete-neighborhood-relations">;
+/** Gate/scene callers certify the entire center and every policy-visible parent before top-N. */
+export type CachedVisibleParentCertificate = CachedRelationCertificate<"complete-visible-parent-relations">;
 type Failure = ContributorFailure | Exclude<CachedSemanticPreparation, { outcome: "ready" }>;
 type Discovered = Extract<ContributorDiscoveryResult, { outcome: "ready" }>;
 /** Point-in-time private inputs, including all parent/child sibling witnesses and no partial scopes. */
@@ -49,7 +55,7 @@ export type CachedCenterGatePreparation = Failure | Readonly<{
   coverage: "complete-center-gates";
   certificate: Readonly<{
     coverage: "complete-center-gates";
-    relations: CachedNeighborhoodCertificate;
+    relations: CachedVisibleParentCertificate;
     presentationRevision: string;
     visibleLists: "not-certified";
   }>;
@@ -137,26 +143,35 @@ async function containsCover(combined: ContributorCertificate, initial: Contribu
 }
 
 /**
- * Project the entire semantic parent frontier using the canonical classifier. Visibility and
- * maxItemCount must not trim it. Scan even non-parent incidence cooperatively. Null rejects an
+ * Project the canonical semantic parent frontier. Relation-only callers retain every parent;
+ * gate callers retain every proved policy-visible parent, independently of top-N or sorting. Scan even non-parent incidence cooperatively. Null rejects an
  * oversized/cancelled frontier, never a ready prefix; the caller reports the exact lifetime reason.
  */
 async function parentsOf(compilation: PortableGraphCompilation, center: SourceEntityRef,
-  inferAllLinksAsFriends: boolean, runtime: GraphCompilerRuntime): Promise<readonly SourceEntityRef[] | null> {
+  inferAllLinksAsFriends: boolean, runtime: GraphCompilerRuntime,
+  visibility?: Readonly<{ settings: CachedCenterGateSettings; entities: SourcePatchReadPort }>): Promise<
+    Readonly<{ outcome: "ready"; parents: readonly SourceEntityRef[] }>
+    | Readonly<{ outcome: "unproved"; reason: SourceReason }>> {
   const parents: SourceEntityRef[] = [];
   let started = runtime.now(), visited = 0;
   for (const relation of compilation.node(center.id)?.neighbours.values() ?? []) {
-    if (!runtime.isCurrent()) return null;
+    if (!runtime.isCurrent()) return { outcome: "unproved", reason: "cancelled" };
     if ((visited > 0 && visited % SOURCE_MAX_BATCH_RECORDS === 0) || runtime.now() - started >= runtime.sliceBudgetMs) {
       await runtime.yield();
-      if (!runtime.isCurrent()) return null;
+      if (!runtime.isCurrent()) return { outcome: "unproved", reason: "cancelled" };
       started = runtime.now();
     }
     visited += 1;
     if (relation.isHidden || classifyRelation(relation, "parent", inferAllLinksAsFriends) === null) continue;
+    if (visibility) {
+      const proof = cachedCenterTargetVisibility(relation.target, visibility.settings, visibility.entities);
+      if (proof.outcome !== "ready") return proof;
+      if (!proof.visible || !visibility.settings.showInferredNodes
+        && classifyRelation(relation, "parent", inferAllLinksAsFriends) === RelationType.INFERRED) continue;
+    }
     parents.push(copyRef(relation.target));
   }
-  return parents.sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  return { outcome: "ready", parents: parents.sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0) };
 }
 
 /** Compose existing read-only capabilities; no production caller or publication method is added. */
@@ -258,9 +273,11 @@ export class CachedRequestedNeighborhoodReader {
         }
         sourceReplays += prepared.work.length;
         for (const work of prepared.work) familyVisits += work.familyVisits;
-        const parents = await parentsOf(prepared.compilation, center, capturedPolicy.settings.inferAllLinksAsFriends, scopedRuntime);
+        const parentProjection = await parentsOf(prepared.compilation, center, capturedPolicy.settings.inferAllLinksAsFriends, scopedRuntime,
+          visibility ? { settings: visibility, entities: this.entities } : undefined);
         if (!current()) return selectedSourceFailure(reason());
-        if (!parents) return selectedSourceFailure("backpressure");
+        if (parentProjection.outcome !== "ready") return selectedSourceFailure(parentProjection.reason);
+        const parents = parentProjection.parents;
         if (frontier && !(await sameScope({ kind: "neighborhood", endpoints: parents },
           { kind: "neighborhood", endpoints: frontier }, scopedRuntime))) {
           if (!current()) return selectedSourceFailure(reason());
@@ -292,7 +309,7 @@ export class CachedRequestedNeighborhoodReader {
           center, parents, policyRevision: revision, gateTotals: "not-certified", contributors: discovered };
         if (projected && presentationRevision !== undefined) return {
           outcome: "ready", coverage: "complete-center-gates",
-          certificate: { coverage: "complete-center-gates", relations: certificate,
+          certificate: { coverage: "complete-center-gates", relations: { ...certificate, coverage: "complete-visible-parent-relations" },
             presentationRevision, visibleLists: "not-certified" },
           gates: projected.gates, preparation: prepared,
           work: { passes: pass + 1, sourceReplays, familyVisits,

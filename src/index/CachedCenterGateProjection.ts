@@ -75,6 +75,34 @@ function visible(fact: VisibilityFact, settings: CachedCenterGateSettings): bool
   return true;
 }
 
+/** Prove current physical/synthetic facets once and apply the shared pre-top-N visibility policy. */
+export function cachedCenterTargetVisibility(target: CompiledGraphNode, settings: CachedCenterGateSettings,
+  entities: SourcePatchReadPort): Readonly<{ outcome: "ready"; fact: VisibilityFact; visible: boolean }>
+  | Readonly<{ outcome: "unproved"; reason: SourceReason }> {
+    if (!target.semanticPath) { return { outcome: "unproved", reason: "unsupported-scope" }; }
+    const folder = target.kind === "container", tag = target.kind === "tag", url = Boolean(target.url);
+    let hasFile = false, attachment = false;
+    if (target.kind === "document" || target.kind === "attachment") {
+      const fact = entities.entity(target);
+      if (!fact || !fact.file) { return { outcome: "unproved", reason: "missing" }; }
+      if (fact.source.id !== target.id || fact.entity.id !== target.id || fact.entity.state !== "materialized"
+        || fact.entity.kind !== target.kind || fact.entity.semanticPath !== target.semanticPath
+        || fact.entity.physicalPath !== target.physicalPath || fact.file.path !== target.physicalPath
+        || typeof fact.file.extension !== "string" || (fact.file.extension === "md") !== (target.kind === "document")) {
+        return { outcome: "unproved", reason: "stale" };
+      }
+      hasFile = true;
+      attachment = fact.file.extension !== "md";
+    } else if (target.file || (target.kind === "url" && !url)
+      || target.state === "missing" || target.state === "deleted") {
+      // These facets cannot bind to the promised ordinary current GraphIndex page contract.
+      return { outcome: "unproved", reason: "missing" };
+    }
+    const fact = { path: target.semanticPath, virtual: !hasFile && !folder && !tag && !url,
+      attachment, folder, tag, url };
+    return { outcome: "ready", fact, visible: visible(fact, settings) };
+}
+
 /**
  * Project one present center without sorting or truncating. Physical entity absence is unproved,
  * not virtual; an absent compiled center likewise cannot authorize a zero count. Synthetic facets
@@ -89,34 +117,15 @@ export async function projectCachedCenterGates(compilation: PortableGraphCompila
   const facts = new Map<NodeId, VisibilityFact>();
   let entityReads = 0, failure: SourceReason = "missing";
   if (2 * (node.semanticPath?.length ?? 0) > MAX_GATE_PATH_BYTES) return { outcome: "unproved", reason: "backpressure" };
-  /** Read each physical identity at most once; never derive identity, paths or file state from IDs. */
+  /** Reuse the shared proof, caching only identities within this one private gate projection. */
   const factFor = (target: CompiledGraphNode): VisibilityFact | null => {
     const cached = facts.get(target.id);
     if (cached) return cached;
-    if (!target.semanticPath) { failure = "unsupported-scope"; return null; }
-    const folder = target.kind === "container", tag = target.kind === "tag", url = Boolean(target.url);
-    let hasFile = false, attachment = false;
-    if (target.kind === "document" || target.kind === "attachment") {
-      entityReads++;
-      const fact = entities.entity(target);
-      if (!fact || !fact.file) { failure = "missing"; return null; }
-      if (fact.source.id !== target.id || fact.entity.id !== target.id || fact.entity.state !== "materialized"
-        || fact.entity.kind !== target.kind || fact.entity.semanticPath !== target.semanticPath
-        || fact.entity.physicalPath !== target.physicalPath || fact.file.path !== target.physicalPath
-        || typeof fact.file.extension !== "string" || (fact.file.extension === "md") !== (target.kind === "document")) {
-        failure = "stale"; return null;
-      }
-      hasFile = true;
-      attachment = fact.file.extension !== "md";
-    } else if (target.file || (target.kind === "url" && !url)
-      || target.state === "missing" || target.state === "deleted") {
-      // These facets cannot bind to the promised ordinary current GraphIndex page contract.
-      failure = "missing"; return null;
-    }
-    const result = { path: target.semanticPath, virtual: !hasFile && !folder && !tag && !url,
-      attachment, folder, tag, url };
-    facts.set(target.id, result);
-    return result;
+    if (target.kind === "document" || target.kind === "attachment") entityReads++;
+    const proved = cachedCenterTargetVisibility(target, settings, entities);
+    if (proved.outcome !== "ready") { failure = proved.reason; return null; }
+    facts.set(target.id, proved.fact);
+    return proved.fact;
   };
   // An excluded center still exists and owns gates; its own visibility never filters its targets.
   if (!factFor(node)) return { outcome: "unproved", reason: failure };

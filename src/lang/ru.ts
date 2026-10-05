@@ -271,6 +271,7 @@ const russianTranslations = {
   "addRelated.aliasAria": "Псевдоним (необязательно)",
   "addRelated.ontologyPlaceholder": "Онтология · {field}",
   "addRelated.ontologyAria": "Поле онтологии",
+  "relation.savedUpdatePending": "Связь сохранена; обновление графа ещё ожидается.",
   "relation.preparingRelationship": "Данные связей ещё подготавливаются. Повторите попытку после завершения индексации.",
   "addRelated.showOntologyFields": "Показать все поля онтологии",
   "addRelated.createMarkdownLink": "Создать Markdown-заметку и связать её",
@@ -929,6 +930,7 @@ const russianTranslations = {
   "vaultStats.ontologyValue": "{total} total · {used} used",
   "find.ariaLabel": "Поиск в Plex",
   "find.placeholder": "Поиск в Plex…",
+  "find.includePath": "Искать также в путях файлов",
   "find.close": "Закрыть поиск",
   "find.matches": { one: "{count} совпадение", few: "{count} совпадения", many: "{count} совпадений", other: "{count} совпадения" },
 } as const satisfies LocaleTranslationMap;

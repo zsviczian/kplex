@@ -695,7 +695,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
   >
-    <div className="kplex-main-column">
+    <div className={`kplex-main-column${plugin.settings.wrapNodeLabels ? " is-two-line-history" : ""}`}>
       <div className="kplex-top-stack">
         <header className="kplex-topbar">
           <IndexStatusIndicator
@@ -830,7 +830,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
             const item = plugin.index.get(path);
             if (!item) return null;
             const title = plugin.index.titleFor(item);
-            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} title={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => activate(item)}>{title}</button>;
+            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} title={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => activate(item)}><span className="kplex-history-text">{title}</span></button>;
           })}
         </div>
       </footer>

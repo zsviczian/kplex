@@ -396,7 +396,7 @@ const { centerGateSettings, centerGatePolicy, fullCenterIndex, currentNeighborho
   await import("./support/requestedCenterGateFixture.mjs");
 
 /** Assert canonical relation equality as well as each independently computed full GraphIndex gate. */
-function compareGates(result, full, scope, semantic, expected, presentationRevision = "presentation:1") {
+async function compareGates(result, full, scope, semantic, expected, view, fixture, presentationRevision = "presentation:1") {
   assert.equal(result.outcome, "ready", JSON.stringify(result));
   assert.equal(result.coverage, "complete-center-gates");
   assert.equal(result.certificate.visibleLists, "not-certified");
@@ -404,7 +404,37 @@ function compareGates(result, full, scope, semantic, expected, presentationRevis
   assert.equal(result.certificate.presentationRevision, presentationRevision);
   assert.deepEqual(result.gates, expected);
   assert(!("neighborhood" in result) && !("siblings" in result), "No uncertified visible lists escape");
-  assert.deepEqual(neighborhoodView(M, result.preparation.compilation, scope.center, semantic), neighborhoodView(M, full, scope.center, semantic));
+  assert.equal(result.certificate.relations.coverage, "complete-visible-parent-relations");
+  const index = await fullCenterIndex(M, fixture, full, semantic, view);
+  const partial = await fullCenterIndex(M, fixture, result.preparation.compilation, semantic, view);
+  try {
+    // Actual full GraphIndex visibility, before top-N, independently defines this scene's cover.
+    const parents = index.neighbours(index.get(scope.center.semanticPath), "parent").map(item => item.page.path).sort();
+    const certified = result.certificate.relations.parents.map(parent => {
+      const node = result.preparation.compilation.node(parent.id);
+      assert(node, "Every opaque certified ID binds in its own compilation");
+      assert.equal(node.semanticPath, parent.semanticPath);
+      return parent.semanticPath;
+    }).sort();
+    assert.deepEqual(certified, parents);
+    // This is a host scene contract: each real binder maps opaque identities to explicit semantic
+    // paths. Derived tag IDs may differ across compilation inputs; no ID is parsed or restamped.
+    // Compare complete center and selected-parent maps and every genuine declaration, including
+    // hidden decisions and both directions. Relation-only tests retain their exact portable IDs.
+    const stable = value => Array.isArray(value) ? value.map(stable) : value && typeof value === "object"
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, stable(item)])) : value;
+    const evidence = (owner, path, target) => owner.evidenceBetween(path, target).map(({ id, ...item }) => JSON.stringify(stable(item))).sort();
+    const relations = page => [...page.neighbours].map(([path, { target, ...relation }]) => [path, stable(relation)]).sort(([a], [b]) => a.localeCompare(b));
+    for (const path of [scope.center.semanticPath, ...parents]) {
+      const expectedPage = index.get(path), actualPage = partial.get(path);
+      assert(expectedPage && actualPage);
+      assert.deepEqual(relations(actualPage), relations(expectedPage));
+      for (const target of expectedPage.neighbours.keys()) {
+        assert.deepEqual(evidence(partial, path, target), evidence(index, path, target));
+        assert.deepEqual(evidence(partial, target, path), evidence(index, target, path));
+      }
+    }
+  } finally { index.destroy(); partial.destroy(); }
   assert.deepEqual(result.preparation.sources, result.certificate.relations.contributors.sources);
 }
 
@@ -425,7 +455,7 @@ test("private center gates equal the full current GraphIndex across visibility, 
     const check = guard(f);
     for (const [i, view] of views.entries()) {
       const result = await f.makeReader().prepareCenterGates(request(), policy({ settings: semantic }), centerGatePolicy(view), runtime());
-      compareGates(result, full, request(), semantic, expected[i]);
+      await compareGates(result, full, request(), semantic, expected[i], view, f);
       assert(result.work.gateEntityReads > 0);
     }
     check();
@@ -449,7 +479,7 @@ test("gate-only requests retain dormant role/image changes, hidden conflicts, an
     }
     const check = guard(f);
     for (const { semantic, full, scopes } of expected) for (const { scope, gates } of scopes) {
-      compareGates(await f.makeReader().prepareCenterGates(scope, policy({ settings: semantic }), centerGatePolicy(view), runtime()), full, scope, semantic, gates);
+      await compareGates(await f.makeReader().prepareCenterGates(scope, policy({ settings: semantic }), centerGatePolicy(view), runtime()), full, scope, semantic, gates, view, f);
     }
     check();
   } finally { f.close(); }
@@ -464,7 +494,7 @@ test("no-other-child and empty existing center have proved gates; a negative rel
     const expected = structuredClone(index.gateStats(index.get(ghost.semanticPath))); index.destroy();
     const check = guard(f), reader = f.makeReader();
     const result = await reader.prepareCenterGates(scope, policy(), centerGatePolicy(view), runtime());
-    compareGates(result, full, scope, settings, expected);
+    await compareGates(result, full, scope, settings, expected, view, f);
     assert.equal(result.gates.bottom.visibleCount, 0); assert.equal(result.gates.bottom.hasAny, false);
     assert.deepEqual(neighborhoodView(M, result.preparation.compilation, ghost, settings).siblings, []);
     rejected(await reader.prepareCenterGates(empty(), policy(), centerGatePolicy(view), runtime()), "missing");
@@ -558,7 +588,7 @@ test("gate visibility is captured before discovery; S1-S2-S3 presentation tokens
     const p = centerGatePolicy(structuredClone(view)), discover = f.catalog.discovery.discover.bind(f.catalog.discovery);
     let calls = 0;
     f.catalog.discovery.discover = async scope => { if (++calls === 1) { p.settings.excludeFilepaths.length = 0; p.settings.showPageNodes = false; } return discover(scope); };
-    compareGates(await f.makeReader().prepareCenterGates(request(), policy(), p, runtime()), full, request(), settings, expected);
+    await compareGates(await f.makeReader().prepareCenterGates(request(), policy(), p, runtime()), full, request(), settings, expected, view, f);
     let generation = 1;
     const old = centerGatePolicy(view, { isCurrent: () => generation === 1 });
     f.catalog.discovery.discover = async scope => { generation = 3; return discover(scope); };
@@ -566,7 +596,7 @@ test("gate visibility is captured before discovery; S1-S2-S3 presentation tokens
     const obsolete = centerGatePolicy(view, { revision: "presentation:2", isCurrent: () => generation === 2 });
     rejected(await f.makeReader().prepareCenterGates(request(), policy(), obsolete, runtime()), "superseded");
     const latest = centerGatePolicy(view, { revision: "presentation:3", isCurrent: () => generation === 3 });
-    compareGates(await f.makeReader().prepareCenterGates(request(), policy(), latest, runtime()), full, request(), settings, expected, "presentation:3");
+    await compareGates(await f.makeReader().prepareCenterGates(request(), policy(), latest, runtime()), full, request(), settings, expected, view, f, "presentation:3");
   } finally { f.close(); }
 });
 
@@ -593,7 +623,7 @@ test("full GraphIndex demonstrates why partial candidate metadata and degrees ca
         const actual = currentNeighborhoodView(index, "A.md"), incomplete = currentNeighborhoodView(undercovered, "A.md");
         if (nodeSortOrder === "name-asc" || nodeSortOrder === "connections-asc") assert.notDeepEqual(actual.children, incomplete.children);
         assert.equal(actual.gates.bottom.visibleCount, 2, "Top-N=1 must not truncate gate totals");
-        compareGates(await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(view), runtime()), full, request(), settings, actual.gates);
+        await compareGates(await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(view), runtime()), full, request(), settings, actual.gates, view, f);
       } finally { index.destroy(); undercovered.destroy(); }
     }
     // A non-reference scalar title field is host metadata, absent from every SourceEntityFact.
@@ -714,8 +744,8 @@ test("duplicate declarations count once, target filters retain gate fill, and hi
       assert(full.node("A.md").neighbours.get("H.md").isHidden);
       assert.equal(index.gateStats(index.get("A.md")).bottom.visibleCount, 1);
       const check = guard(f);
-      compareGates(await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(view), runtime()), full, request(), settings,
-        structuredClone(index.gateStats(index.get("A.md"))));
+      await compareGates(await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(view), runtime()), full, request(), settings,
+        structuredClone(index.gateStats(index.get("A.md"))), view, f);
       const hiddenTargets = centerGateSettings({ ...view, excludeFilepaths: [""] });
       const result = await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(hiddenTargets), runtime());
       assert.equal(result.outcome, "ready"); assert.deepEqual(result.gates.bottom, { hasAny: true, visibleCount: 0 });
@@ -744,7 +774,7 @@ test("full visible lists use displayed parents and role concatenation, unlike th
         assert.deepEqual(visible.leftFriends.map(n => n.path), ["Zed.md"], "Left role precedes previous role, even if its title sorts later");
         assert.equal(visible.gates.top.visibleCount, 2); assert.equal(visible.gates.bottom.visibleCount, 2); assert.equal(visible.gates.left.visibleCount, 2);
         const result = await f.makeReader().prepareCenterGates(request(), policy(), centerGatePolicy(view), runtime());
-        compareGates(result, full, request(), settings, visible.gates);
+        await compareGates(result, full, request(), settings, visible.gates, view, f);
         assert(result.certificate.relations.parents.some(p => p.id === "P.md"));
         assert(result.certificate.relations.parents.some(p => p.id === "Q.md"));
       } finally { index.destroy(); }

@@ -200,7 +200,7 @@
 .kplex-top-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; }
 .kplex-top-actions .kplex-auto-open { width: 32px; padding: 0; }
 
-.kplex-search-shell { position: relative; flex: 1; max-width: 520px; min-width: 140px; }
+.kplex-search-shell { position: relative; flex: 1; max-width: 520px; min-width: 100px; }
 .kplex-search-icon { position: absolute; left: 10px; top: 5px; color: var(--kplex-muted); font-size: 18px; pointer-events: none; }
 .kplex-view-host .kplex-search {
   width: 100%;
@@ -461,16 +461,40 @@
   align-items: center;
   gap: 9px;
   padding: 0 9px;
-  background: rgba(12,16,22,.99);
-  border-top: 1px solid var(--kplex-line);
+  background: var(--background-secondary);
+  border-top: 1px solid var(--background-modifier-border);
   overflow: hidden;
 }
-.kplex-history-label { flex: 0 0 auto; font-size: 8px; font-weight: 700; letter-spacing: .13em; color: var(--kplex-muted); }
+.kplex-history-label { flex: 0 0 auto; font-size: 8px; font-weight: 700; letter-spacing: .13em; color: var(--text-muted); }
 .kplex-history-list { min-width: 0; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
 .kplex-history-list::-webkit-scrollbar { display: none; }
-.kplex-history-list button { flex: 0 0 auto; width: 180px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; color: rgba(230,238,248,.68); border: 1px solid rgba(255,255,255,.06); border-radius: 6px; background: rgba(255,255,255,.025); padding: 5px 9px; cursor: pointer; font-size: 11px; }
-.kplex-history-list button:hover { color: var(--kplex-text); background: rgba(255,255,255,.06); }
-.kplex-history-list button.is-active { color: #eaf5ff; border-color: rgba(116,182,255,.34); background: rgba(72,143,220,.13); }
+.kplex-history-list button { flex: 0 0 auto; width: 180px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; justify-content: flex-start; color: var(--text-normal); border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-primary); padding: 5px 9px; cursor: pointer; font-size: 11px; }
+/* A shrinking text box keeps overflowing history titles anchored to their first character,
+   even when the host theme centers button contents with flexbox. */
+.kplex-history-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  line-height: 1.15;
+}
+.kplex-main-column.is-two-line-history {
+  grid-template-rows: auto minmax(0, 1fr) 52px;
+}
+.kplex-main-column.is-two-line-history .kplex-history-list button { height: 40px; }
+.kplex-main-column.is-two-line-history .kplex-history-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: break-word;
+  max-height: 2.3em;
+}
+.kplex-history-list button:hover { color: var(--text-normal); background: var(--background-secondary-alt); }
+.kplex-history-list button.is-active { color: var(--text-normal); border-color: var(--interactive-accent); background: var(--background-secondary-alt); }
 .kplex-empty { display: grid; place-items: center; color: var(--text-muted); }
 
 @media (max-width: 900px) {
@@ -649,11 +673,12 @@
   overflow: visible;
 }
 .kplex-search-shell {
-  flex: 1 1 260px;
+  /* Wrap at the usable minimum, after spare margin and search width are consumed. */
+  flex: 1 1 100px;
   max-width: 560px;
 }
 .kplex-top-actions {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   max-width: none;
   margin-left: auto;
@@ -687,6 +712,12 @@
   opacity: .82;
 }
 .kplex-area-frame.is-resizing { opacity: 1; }
+/* Dark host borders disappear against the independently configured Plex canvas. A foreground
+   theme token keeps the idle dashed outline visible without changing active resize accents. */
+.theme-dark .kplex-area-frame:not(.is-active) {
+  border-color: var(--text-muted);
+  opacity: .85;
+}
 .kplex-area-frame.is-settings-mode::after,
 .kplex-area-frame.is-active::after {
   content: "";
@@ -869,7 +900,6 @@
 .kplex-import-status { color: var(--text-muted); font-size: var(--font-ui-small); }
 
 @media (max-width: 900px) {
-  .kplex-top-actions { flex-basis: 100%; justify-content: flex-start; }
   .kplex-ontology-fields > .setting-items > .setting-item {
     grid-template-columns: minmax(0, 1fr);
     row-gap: 8px;
@@ -1594,7 +1624,7 @@
   }
   .kplex-view-host .kplex-search { flex: 1 1 130px; min-width: 100px; }
   .kplex-view-host .kplex-top-actions {
-    flex: 1 1 100%;
+    flex: 0 0 auto;
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
@@ -3280,9 +3310,16 @@ button.kplex-style-manager-row { height: fit-content; }
   width: 170px;
   min-width: 0;
   height: 28px;
-  color: var(--kplex-text);
-  background: var(--kplex-control-bg);
   border: 1px solid var(--kplex-line);
+}
+/* Keep foreground and surface paired when the host applies focused-input styles. */
+.kplex-view-host .kplex-find-input,
+.kplex-view-host .kplex-find-input:focus {
+  color: var(--text-normal);
+  background: var(--background-primary);
+}
+.kplex-view-host .kplex-find-input::placeholder {
+  color: var(--text-muted);
 }
 .kplex-find-count {
   color: var(--kplex-muted);
@@ -3346,4 +3383,15 @@ button.kplex-style-manager-row { height: fit-content; }
   background: var(--color-orange);
   box-shadow: none;
   animation: none;
+}
+
+/* Local Find is retained while a maximized native editor owns the viewport. */
+.kplex-find.is-suspended { display: none; }
+.kplex-find button[aria-pressed="true"] { color: var(--text-accent); border-color: var(--interactive-accent); }
+/* Pointer-captured relationship drags can target the history outside the Plex canvas. */
+.kplex-history-list button.is-relationship-drop-target {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary-alt);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
 }

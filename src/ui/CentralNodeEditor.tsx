@@ -14,7 +14,7 @@ import { ObsidianIcon } from "./ObsidianIcon";
 import { EmbeddedWebPage } from "./EmbeddedWebPage";
 import { urlEmbed } from "./features/urlEmbed";
 
-/** Own the center’s native file leaf or desktop/mobile web guest, plus local view and maximize controls. */
+/** Own the center’s native file leaf or desktop/mobile web guest, plus local view/maximize controls and the caller-owned shared node menu. */
 export function CentralNodeEditor({
   plugin,
   hostLeaf,
@@ -26,6 +26,7 @@ export function CentralNodeEditor({
   onModeChange,
   onMaximizedChange,
   onCollapse,
+  onOpenMenu,
   onNavigate,
   translate,
 }: {
@@ -39,6 +40,7 @@ export function CentralNodeEditor({
   onModeChange: (mode: EmbeddedMarkdownMode) => void;
   onMaximizedChange: (maximized: boolean) => void;
   onCollapse: () => void;
+  onOpenMenu: (button: HTMLButtonElement) => void;
   onNavigate: (file: TFile) => void;
   translate: Translator;
 }) {
@@ -183,6 +185,9 @@ export function CentralNodeEditor({
         aria-label={translate("app.useNormalCentralNode")}
         onClick={onCollapse}
       ><ObsidianIcon name="rectangle-ellipsis" size={12} /></button>
+      <button type="button" aria-label={translate("graph.openMenu")}
+        onClick={/** Use the graph's existing node actions and host destinations in both editor sizes. */ (event) => onOpenMenu(event.currentTarget)}
+      ><ObsidianIcon name="ellipsis-vertical" size={12} /></button>
     </div>
     {status === "loading" && <div className="kplex-central-editor-status" aria-live="polite">{translate("centralEditor.loading")}</div>}
     {status === "error" && <div className="kplex-central-editor-status is-error" role="status">{translate("centralEditor.unavailable")}</div>}

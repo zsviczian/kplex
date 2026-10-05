@@ -1,6 +1,7 @@
 /**
  * Native Obsidian dialog for creating a real note in a physical folder. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
+import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, Setting, type ButtonComponent, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
@@ -55,7 +56,7 @@ export class CreateFolderNoteModal extends Modal {
         await this.plugin.finishNewRelatedNode(page, this.hostLeaf, true);
       }
     } catch (error) {
-      new Notice(this.plugin.translator("note.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : this.plugin.translator("note.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       this.creating = false;
       this.refreshButtons();

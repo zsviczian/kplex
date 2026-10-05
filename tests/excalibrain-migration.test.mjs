@@ -204,3 +204,26 @@ test("explicit normalized link-style keys take precedence over legacy display na
   assert.equal(resolveLinkStyle({ typeDefinition: "inspired-by", relationType: 1 }, settings).strokeColor, "#123456ff");
   assert.equal(resolveLinkStyle({ typeDefinition: "Inspired by", relationType: 1 }, settings).strokeColor, fixture.hierarchyLinkStyles["Inspired by"].strokeColor);
 });
+
+
+/** Exercise issue #70 against production style resolution/layout without changing semantic neighborhoods. */
+test("long labels and fixed two-line rows clear the center and neighboring zones", () => {
+  const page = (name) => ({ path: name + ".md", name, file: { extension: "md" }, aliases: [], tags: [], styleTags: [], neighbours: new Map() });
+  const relation = (page) => ({ page, relationType: 1, typeDefinition: "", linkDirection: 0 });
+  const long = "A long meaningful title about books and connected knowledge ".repeat(3);
+  const neighborhood = { center: page("Center"), parents: [relation(page("Parent " + long)), relation(page("Second parent " + long))], children: [relation(page("Child " + long)), relation(page("Second child " + long))], leftFriends: [relation(page("Friend " + long)), relation(page("Short friend"))], rightFriends: [relation(page("Challenger " + long))], siblings: [relation(page("Sibling " + long))] };
+  const index = { titleFor: p => p.name, neighbourCount: () => 0, gateStats: () => ({}), neighbours: () => [], visibleRelationshipsWithin: () => [] };
+  for (const compactingFactor of [1, 2, 4]) for (const wrapNodeLabels of [false, true]) for (const centerSize of [undefined, {width: 900, height: 600}]) {
+    const settings = { ...defaults, compactingFactor, wrapNodeLabels, graphDepth: 1, baseNodeStyle: {...defaults.baseNodeStyle, maxLabelLength: 120, maxWidth: 800}, centralNodeStyle: {...defaults.centralNodeStyle, maxWidth: 1000} };
+    const scene = buildScene(neighborhood, index, settings, false, centerSize);
+    for (let i = 0; i < scene.nodes.length; i++) for (let j = i + 1; j < scene.nodes.length; j++) {
+      const a = scene.nodes[i], b = scene.nodes[j];
+      assert(Math.abs(a.x-b.x) >= (a.width+b.width)/2 || Math.abs(a.y-b.y) >= (a.height+b.height)/2, `Nodes overlap: ${a.role}/${b.role}, density=${compactingFactor}, wrap=${wrapNodeLabels}`);
+    }
+    const regular = scene.nodes.filter(n => n.role !== "center" && n.role !== "sibling");
+    assert(regular.some(n => n.width > 286), "Long-label controls did not permit wider nodes");
+    assert.equal(new Set(regular.map(n => n.height)).size, 1, "Short and long labels must reserve identical regular-row heights");
+    assert(wrapNodeLabels ? regular[0].height > 26 : regular[0].height === 26, "Two-line mode must reserve a taller fixed row");
+    assert.equal(Math.abs(scene.nodes.find(n => n.role === "left").x), scene.nodes.find(n => n.role === "right").x, "Lateral zones must stay symmetrical");
+  }
+});

@@ -359,8 +359,19 @@ function viewportFor(
   };
 }
 
-/** Build the deterministic Plex layout, optionally reserving an explicit center-node rectangle. */
-/** Arrange one neighborhood, retaining all editable areas while creating scroll viewports only for overflow. */
+/** Keep a lateral strip outside every vertically intersecting node, preserving its existing minimum offset. */
+function lateralOffset(nodes: PositionedNode[], obstacles: PositionedNode[], minimum: number, gap: number): number {
+  let offset = minimum;
+  for (const node of nodes) {
+    for (const obstacle of obstacles) {
+      if (Math.abs(node.y - obstacle.y) >= (node.height + obstacle.height) / 2 + gap) continue;
+      offset = Math.max(offset, Math.abs(obstacle.x) + (obstacle.width + node.width) / 2 + gap);
+    }
+  }
+  return offset;
+}
+
+/** Arrange one neighborhood, retaining editable areas and separating measured node extents around an optional editor center. */
 export function buildScene(
   neighborhood: Neighborhood,
   index: GraphIndex,
@@ -404,7 +415,7 @@ export function buildScene(
   const children = distributeGrid(neighborhood.children, childBaseY, 1, Math.max(1, Math.min(7, Math.round(settings.childColumns))), columnGap, rowGap, index, settings, "child", neighborhood.center.path);
 
   const maxCenterHalfWidth = center.width / 2;
-  const sideX = maxCenterHalfWidth + (205 * compactFactor * legacySpacing);
+  let sideX = maxCenterHalfWidth + (205 * compactFactor * legacySpacing);
   const left = distributeVertical(neighborhood.leftFriends, -sideX, sideGap, index, settings, "left", neighborhood.center.path);
   const right = distributeVertical(neighborhood.rightFriends, sideX, sideGap, index, settings, "right", neighborhood.center.path);
 
@@ -414,7 +425,7 @@ export function buildScene(
   const siblingBase = right.length ? 285 : 205;
   const siblingAfterRight = right.length ? 190 : 120;
   const compactSiblingMultiplier = settings.compactView ? 0.82 : 1;
-  const siblingCenterX = Math.max(
+  let siblingCenterX = Math.max(
     sideX + siblingBase * compactFactor * legacySpacing * compactSiblingMultiplier,
     rightExtent + siblingAfterRight * compactFactor * legacySpacing * compactSiblingMultiplier,
   );
@@ -445,6 +456,21 @@ export function buildScene(
   const siblingBottom = centerSizeOverride ? siblingBandHeight / 2 : sideBottom - siblingLift;
   const siblingTop = centerSizeOverride ? -siblingBandHeight / 2 : siblingBottom - siblingBandHeight;
   fitVerticalStrip(siblings, siblingTop, siblingBottom, index, settings, neighborhood.center.path, centerSizeOverride ? "midline" : "center");
+
+  // Wider labels and taller wrapped rows must clear the center and any grid rows sharing
+  // their vertical band. Measure after fitting the strips so sparse/overflow placement counts.
+  const mainNodes = [center, ...parents, ...children];
+  const needsExpandedClearance = settings.wrapNodeLabels || center.width > 370
+    || [...parents, ...children, ...left, ...right, ...siblings].some((node) => node.width > 286);
+  if (needsExpandedClearance) {
+    // Retain the established compact geometry; expanded labels additionally clear zone padding.
+    const zoneGap = Math.max(48, columnGap);
+    sideX = lateralOffset([...left, ...right], mainNodes, sideX, zoneGap);
+    for (const node of left) node.x = -sideX;
+    for (const node of right) node.x = sideX;
+    siblingCenterX = lateralOffset(siblings, [...mainNodes, ...right], siblingCenterX, zoneGap);
+    for (const node of siblings) node.x = siblingCenterX;
+  }
 
   const zoneViewports: Partial<Record<ScrollZone, ZoneViewport>> = {};
   const parentViewport = viewportFor("parent", parents, settings.parentMaxHeight, "bottom");

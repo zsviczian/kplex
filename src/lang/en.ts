@@ -124,6 +124,7 @@ export const englishCatalog = {
   },
   "find.ariaLabel": { message: "Find in this Plex", context: "Accessible name for local Find and its touch magnifier.", params: [] },
   "find.placeholder": { message: "Find in this Plex…", context: "Find highlights projected nodes and links without a dropdown.", params: [] },
+  "find.includePath": { message: "Include file paths", context: "View-local toggle extending displayed-node Find to file paths; does not change Vault search.", params: [] },
   "find.close": { message: "Close Find", context: "Dismiss local Find and clear its highlights.", params: [] },
   "find.matches": { plural: { one: "{count} match", other: "{count} matches" }, countParam: "count", context: "Number of matching projected Plex nodes.", params: ["count"] },
   "toolbar.navigateBack": {
@@ -1316,6 +1317,11 @@ export const englishCatalog = {
   "addRelated.ontologyAria": {
     message: "Ontology field",
     context: "Add-related-note dialog copy and accessibility labels.",
+    params: [],
+  },
+  "relation.savedUpdatePending": {
+    message: "Relationship saved; the graph update is still pending.",
+    context: "A persisted relationship is awaiting authoritative metadata or canonical graph publication.",
     params: [],
   },
   "relation.preparingRelationship": {
