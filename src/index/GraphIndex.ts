@@ -4,7 +4,13 @@
  * semantics privately. With durable neutral sources, available preview scopes prepare before optional
  * full snapshot hydration. After cache loss, the same compiler restores complete node vocabulary
  * without relationships, independently of display-only controls, and finite changed-owner incidence
- * closes shared synthetic lifetimes.
+ * closes shared synthetic lifetimes. Physical filenames remain searchable during bounded previews;
+ * terminal requested failures retain exact lifetime facts rather than implying active work. Legacy
+ * URL alias cache facets replay from authenticated neutral facts without replacing cached relations.
+ * Optional alias owners join current requested preparations and their existing supersession retries
+ * before changing repository fences; exact failed-demand records prevent repetitive background retries.
+ * Finite requested physical notes capture current canonical alias facets separately from sparse
+ * incidence, under the same byte ceiling, cooperative runtime and final file/cache/source fences.
  * This class decides when partial cold-start or authoritative state may
  * become visible to UI readers.
  */
@@ -14,7 +20,7 @@ import type { CompiledGraphNode, GraphCompilerRuntime, GraphCompilerSettings } f
 import type { NodeId } from "../core/graph/model";
 import type { SourceEntityRef } from "../core/graph/source";
 import type { RelationEvidenceStore } from "../core/graph/evidence";
-import { Platform, TFile, TFolder, normalizePath, type App } from "obsidian";
+import { Platform, TFile, TFolder, normalizePath, type App, type CachedMetadata } from "obsidian";
 import type KplexPlugin from "../main";
 import type { KplexSettings } from "../settings";
 import {
@@ -32,8 +38,9 @@ import {
 import { planRetiredExclusionReconciliation } from "./LegacySnapshotPolicy";
 import { GraphBuilder, type FieldCacheEntry, type PatchFileCommit, type PatchFilePublisher } from "./GraphBuilder";
 import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
-import { extractLinksFromValue } from "./fieldParser";
-import { KplexIndexedDbCache, sanitizeIndexDiagnostics, type IndexedDbSnapshotMeta, type IndexDiagnosticEntry,
+import { extractLinksFromValue, iterateFrontmatterAliasSteps } from "./fieldParser";
+import { MAX_CACHED_SCOPE_RETAINED_BYTES } from "./CachedSourceSemantics";
+import { KplexIndexedDbCache, URL_ALIAS_FACET_VERSION, sanitizeIndexDiagnostics, type IndexedDbSnapshotMeta, type IndexDiagnosticEntry,
   type SnapshotWriteFailureReason } from "./IndexedDbCache";
 import { createGraphState, getGraphPage } from "./GraphState";
 import type { EvidenceRole, EvidenceSourceKind, RelationEvidence } from "./RelationEvidence";
@@ -132,6 +139,11 @@ export type SemanticPreparationDiagnostics = Readonly<{
 }>;
 
 type FileRevision = { mtime: number; size: number };
+/** Current finite physical metadata identities; they grant facets only under the final source/file/cache fence. */
+type SelectedMetadataToken = Readonly<{ file: TFile; cache: CachedMetadata; revision: FileRevision }>;
+/** Alias-only staging shares the existing requested retention ceiling and never claims source acquisition. */
+type PreparedPhysicalAliases = Readonly<{ reason: "ready"; byPath: ReadonlyMap<string, string[]>; retainedBytes: number }>
+  | Readonly<{ reason: "decode-budget" | "superseded" }>;
 
 const captureFileRevision = (file: TFile): FileRevision => ({ mtime: file.stat.mtime, size: file.stat.size });
 const fileRevisionMatches = (file: TFile, revision: FileRevision): boolean =>
@@ -240,6 +252,8 @@ export class GraphIndex {
   private presentationStatuses = new WeakMap<GraphPage, PresentationStatus>();
   private presentationRun = 0;
   private presentationRevision = 0;
+  /** Only canonical facet/search policy changes supersede legacy URL vocabulary preparation. */
+  private aliasVocabularyPresentationRevision = 0;
   private publicationRevision = 0;
   private semanticRevision = 0;
   private semanticPolicyRevision = 1;
@@ -255,6 +269,13 @@ export class GraphIndex {
     policyRevision: number; demandRevision: number; maintenanceRevision: number; coverageSignature: string;
     sourceRevision: number; publicationRevision: number; presentationRevision: number; task: Promise<void>;
   }>>();
+  /** Terminal outcomes are scoped to the exact demand/source lifetime; another center can recover independently. */
+  private semanticPreparationFailures = new Map<string, Readonly<{
+    policyRevision: number; demandRevision: number; sourceRevision: number; maintenanceRevision: number;
+    coverageSignature: string; reason: string;
+  }>>();
+  /** Optional work retries each exact transient failure only once in a stable primary window. */
+  private aliasPriorityFailures = new WeakSet<object>();
   private preparedPageInfo = new WeakMap<GraphPage, PreparedSemanticPageInfo>();
   private semanticPreparationDiagnostics: SemanticPreparationDiagnostics = {
     policyRevision: 1, requested: 0, prepared: 0, published: 0, cancelled: 0, pending: 0,
@@ -268,6 +289,9 @@ export class GraphIndex {
   private checkpointSaving = false;
   private rebuildQueued = false;
   private searchEntries: SearchEntry[] = [];
+  /** Physical search facets cover files outside a bounded startup preview, without semantic relations. */
+  private physicalSearchEntries = new Map<string, SearchEntry>();
+  private physicalSearchMerge: { base: SearchEntry[]; physical: Map<string, SearchEntry>; entries: SearchEntry[] } | null = null;
   private searchEntryByPath = new Map<string, SearchEntry>();
   private searchCandidateCache = new Map<string, SearchEntry[]>();
   private suggestionCatalogCache: SuggestionCatalog | null = null;
@@ -314,6 +338,11 @@ export class GraphIndex {
   /** Complete physical inventory with requested semantics; it is deliberately not a full graph. */
   private sourceBackedStartup = false;
   private sourceNodeVocabularyPublished = false;
+  private urlAliasFacetVersion = URL_ALIAS_FACET_VERSION;
+  private pendingUrlAliasUpgrade = false;
+  private urlAliasUpgradeTask: Promise<void> | null = null;
+  private urlAliasUpgradeFailure: { token: string; reason: string } | null = null;
+  private urlAliasUpgradeProgress: { phase: "repair" | "vocabulary"; processed: number; total: number | null } | null = null;
   private nodeImpactTask: Promise<void> | null = null;
   private previewSnapshotPublished = false;
   private activeSnapshotGeneration: string | null = null;
@@ -328,6 +357,7 @@ export class GraphIndex {
         this.startupSourceAuthorityWaiter?.check();
         this.retryDemandedSemanticScopes();
         this.retrySourceNodeImpacts();
+        this.retryUrlAliasUpgrade();
       },
       /** Completed inventory work advances the existing stall watchdog, never acquisition behavior. */
       () => {
@@ -354,7 +384,8 @@ export class GraphIndex {
     do {
       const page = await this.indexedDb.sources.headPage(after);
       if (this.diagnosticsClosed || !page.available) return false;
-      if (page.heads.some(head => head.state === "complete")) {
+      // Obsolete grammar heads require the same bounded repair owner as other cache misses.
+      if (page.invalid > 0 || page.heads.some(head => head.state === "complete")) {
         this.sourceAcquisition.enableInventory();
         return true;
       }
@@ -450,7 +481,7 @@ export class GraphIndex {
    */
   async adoptStartupSources(): Promise<boolean> {
     if (!this.sourceBackedStartup || this.diagnosticsClosed) return false;
-    if (!this.hasPendingSearchVocabulary() && this.sourceAcquisition.hasSemanticDependencies()
+    if (this.sourceNodeVocabularyPublished && this.sourceAcquisition.hasSemanticDependencies()
       && !this.hasPendingSemanticPreparation()) return true;
     if (!(await this.sourceAcquisition.flush()) || this.diagnosticsClosed) return false;
     await this.refreshSemanticSettings();
@@ -482,6 +513,9 @@ export class GraphIndex {
     // No await after accepting presentation: all live node/search publication is one synchronous step.
     this.sourceAcquisition.resetNodeImpacts();
     this.sourceNodeVocabularyPublished = true;
+    this.pendingUrlAliasUpgrade = !this.sourceAcquisition.hasCurrentUrlAliasAuthority();
+    this.urlAliasFacetVersion = this.pendingUrlAliasUpgrade ? 0 : URL_ALIAS_FACET_VERSION;
+    this.urlAliasUpgradeFailure = null;
     this.acceptPresentation(prepared);
     this.publishRestoredState(next, search, false, false);
     return !this.diagnosticsClosed && run === this.snapshotHydrationRun && source === this.plugin.getIndexSourceRevision()
@@ -491,8 +525,145 @@ export class GraphIndex {
 
   /** Complete source-backed search vocabulary is separate from current requested-view semantics. */
   hasPendingSearchVocabulary(): boolean {
-    return this.sourceBackedStartup && (!this.sourceNodeVocabularyPublished || this.nodeImpactTask !== null
+    return this.pendingUrlAliasUpgrade || this.sourceBackedStartup && (!this.sourceNodeVocabularyPublished || this.nodeImpactTask !== null
       || !this.sourceAcquisition.hasCompleteNodeImpacts() || this.sourceAcquisition.pendingNodeImpactOwners().size > 0);
+  }
+
+  /** A terminal global alias upgrade outcome is distinct from current requested-view semantics. */
+  getSearchVocabularyFailure(): string | null {
+    return this.pendingUrlAliasUpgrade && !this.urlAliasUpgradeTask
+      && this.urlAliasUpgradeFailure?.token === this.urlAliasUpgradeToken() ? this.urlAliasUpgradeFailure.reason : null;
+  }
+
+  /** Aggregate progress belongs only to the existing optional alias task, never cache hydration. */
+  getUrlAliasUpgradeProgress(): Readonly<{ phase: "repair" | "vocabulary"; processed: number; total: number | null }> | null {
+    return this.urlAliasUpgradeTask && this.urlAliasUpgradeProgress ? { ...this.urlAliasUpgradeProgress } : null;
+  }
+
+  /** Fence source/facet/search authority; render-only changes preserve an unchanged failure or replay. */
+  private urlAliasUpgradeToken(): string {
+    return `${this.semanticPolicyRevision}:${this.aliasVocabularyPresentationRevision}:${this.plugin.getIndexSourceRevision()}:${this.sourceAcquisition.getMaintenanceRevision()}:${this.sourceAcquisition.hasSemanticDependencies()}`;
+  }
+
+  /** Prepare legacy URL alias facets and search privately from authenticated neutral node facts. */
+  private async prepareUrlAliasUpgrade(state: ReturnType<typeof createGraphState>, parentCurrent: () => boolean,
+    onProgress?: () => void): Promise<{ aliases: ReadonlyMap<GraphPage, readonly string[]>; aliasesByPath: ReadonlyMap<string, readonly string[]>; search: PreparedSearchIndex } | null> {
+    const token = this.urlAliasUpgradeToken(), publication = this.publicationRevision;
+    const settings = capturePresentationSettings(this.plugin.settings);
+    const presentationPolicy = captureSettingsPolicy(settings);
+    /** Reject stale source/facet/search authority; layout/editor changes do not alter alias vocabulary. */
+    const current = (): boolean => {
+      const effects = classifySettingsChange(presentationPolicy, captureSettingsPolicy(this.plugin.settings));
+      return parentCurrent() && token === this.urlAliasUpgradeToken()
+        && publication === this.publicationRevision && !this.diagnosticsClosed
+        && !effects.presentationFacets && !effects.searchTerms;
+    };
+    if (!this.sourceAcquisition.hasSemanticDependencies()) {
+      this.urlAliasUpgradeFailure = { token, reason: "source-authority-pending" };
+      return null;
+    }
+    try {
+      let lastProgress = performance.now();
+      const repair = await this.sourceAcquisition.prepareUrlAliasVocabulary(current,
+        /** Report only actual completed canonical owner repairs, bounded by the established startup notification cadence. */
+        (processed, total) => {
+          if (!current()) return;
+          this.urlAliasUpgradeProgress = { phase: "repair", processed, total };
+          if (performance.now() - lastProgress >= 250) {
+            lastProgress = performance.now(); this.emitPresentation(); onProgress?.();
+          }
+        }, /** Requested primary scopes own a stable repository window before the next optional CAS. */
+        () => this.prioritizeRequestedSemantics(current));
+      if (repair !== "ready" || !current()) {
+        if (current()) this.urlAliasUpgradeFailure = { token, reason: repair };
+        return null;
+      }
+      this.urlAliasUpgradeProgress = { phase: "vocabulary", processed: 0, total: null };
+      this.emitPresentation();
+      const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
+        this.indexedDb, current, new Map(), this.sourceAcquisition);
+      const nodes = await builder.buildSourceNodeCatalog(onProgress);
+      if (!nodes || !current()) {
+        if (current()) this.urlAliasUpgradeFailure = { token, reason: "url-alias-vocabulary-unavailable" };
+        return null;
+      }
+      const aliasesByPath = new Map<string, readonly string[]>();
+      let catalogProcessed = 0, catalogSlice = performance.now();
+      for (const [path, page] of nodes.pages) {
+        if (page.url) aliasesByPath.set(path, page.aliases);
+        if ((++catalogProcessed & 255) === 0 && performance.now() - catalogSlice >= 7) {
+          onProgress?.();
+          await new Promise<void>(/** Yield while keeping the authenticated alias catalog private. */
+            (resolve) => window.setTimeout(resolve, 0));
+          if (!current()) return null;
+          catalogSlice = performance.now();
+        }
+      }
+      const aliases = new Map<GraphPage, readonly string[]>();
+      let processed = 0, slice = performance.now();
+      for (const [path, page] of state.pages) {
+        if (page.url) {
+          const prepared = nodes.pages.get(path);
+          if (prepared?.url) aliases.set(page, prepared.aliases);
+        }
+        if ((++processed & 255) === 0 && performance.now() - slice >= 7) {
+          onProgress?.();
+          await new Promise<void>(/** Release the host while retaining privately staged facet metadata. */
+            (resolve) => window.setTimeout(resolve, 0));
+          if (!current()) return null;
+          slice = performance.now();
+        }
+      }
+      const search = await this.prepareSearchIndex(state, current, onProgress, settings, null, aliases);
+      if (!search || !current()) return null;
+      return { aliases, aliasesByPath, search };
+    } catch {
+      if (current()) this.urlAliasUpgradeFailure = { token, reason: "url-alias-vocabulary-unavailable" };
+      return null;
+    }
+  }
+
+  /** Source readiness may retry a genuinely newer alias lifetime; the existing acquisition owner drives it. */
+  private retryUrlAliasUpgrade(): void {
+    if (!this.pendingUrlAliasUpgrade || this.urlAliasUpgradeTask || this.snapshotHydrationTask || this.building
+      || this.diagnosticsClosed || !(this.fullSnapshotHydrated || this.sourceBackedStartup && this.sourceNodeVocabularyPublished)
+      || !this.sourceAcquisition.hasSemanticDependencies()
+      || this.urlAliasUpgradeFailure?.token === this.urlAliasUpgradeToken()) return;
+    const state = this.state, publication = this.publicationRevision, token = this.urlAliasUpgradeToken();
+    /** Keep the optional repair attached to the exact borrowed graph instance and publication lifetime. */
+    const current = (): boolean => !this.diagnosticsClosed && !this.building && this.state === state
+      && this.publicationRevision === publication;
+    /** Atomically install the privately prepared search facets without replacing identities or evidence. */
+    this.urlAliasUpgradeProgress = { phase: "repair", processed: 0, total: this.sourceAcquisition.pendingUrlAliasSourceCount() };
+    const task = (async (): Promise<void> => {
+      const prepared = await this.prepareUrlAliasUpgrade(state, current);
+      if (!prepared || !current()) return;
+      // The existing graph identities and all evidence survive this facet-only publication.
+      for (const [page, aliases] of prepared.aliases) page.aliases = [...aliases];
+      // Current requested URL pages also override base search; install the same completed facets there.
+      for (const scope of this.semanticScopes.values()) for (const page of scope.pagesByPath.values()) {
+        const aliases = page.url ? prepared.aliasesByPath.get(page.path) : undefined;
+        if (aliases) page.aliases = [...aliases];
+      }
+      this.pendingUrlAliasUpgrade = false;
+      this.urlAliasFacetVersion = URL_ALIAS_FACET_VERSION;
+      this.urlAliasUpgradeFailure = null;
+      this.titleCache.clear();
+      this.installSearchIndex(prepared.search);
+      this.emitPresentation();
+      this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
+    })();
+    this.urlAliasUpgradeTask = task;
+    this.emitPresentation();
+    void task.finally(/** Publish a terminal incomplete outcome after the task has released its active-work ownership. */ () => {
+      if (this.urlAliasUpgradeTask !== task) return;
+      this.urlAliasUpgradeTask = null;
+      this.urlAliasUpgradeProgress = null;
+      if (!this.diagnosticsClosed) {
+        this.emitPresentation();
+        if (token !== this.urlAliasUpgradeToken()) this.retryUrlAliasUpgrade();
+      }
+    });
   }
 
   /** Retry finite edit/deletion incidence on the existing source-ready signal, without a timer. */
@@ -585,6 +756,81 @@ export class GraphIndex {
       || scope.sourceRevision !== this.plugin.getIndexSourceRevision() || !this.sourceAcquisition.hasSemanticDependencies();
   }
 
+  /** Active work is distinct from demand that already ended with an unavailable or bounded outcome. */
+  hasActiveSemanticPreparation(): boolean { return this.pendingStructuralTasks > 0 || this.semanticPreparationTasks.size > 0; }
+
+  /** Return one current demanded failure reason without exposing paths or trusting historical aggregate counters. */
+  getSemanticPreparationFailure(): string | null {
+    const paths = new Set<string>();
+    for (const [path, count] of this.semanticDemandCounts) if (count > 0) paths.add(path);
+    if (this.plugin.settings.lastActivePath) paths.add(this.plugin.settings.lastActivePath);
+    for (const path of paths) {
+      const reason = this.currentSemanticPreparationFailure(path);
+      if (reason) return reason;
+    }
+    return null;
+  }
+
+  /** Match a failure to the existing source/policy/demand/coverage lifetime before suppressing optional retries. */
+  private currentSemanticPreparationFailure(path: string): string | null {
+    const failure = this.semanticPreparationFailures.get(path);
+    return failure && failure.policyRevision === this.semanticPolicyRevision
+      && failure.demandRevision === (this.semanticDemandRevision.get(path) ?? 0)
+      && failure.sourceRevision === this.plugin.getIndexSourceRevision()
+      && failure.maintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()
+      && failure.coverageSignature === this.semanticCoverageSignature() ? failure.reason : null;
+  }
+
+  /**
+   * Serialize optional alias owners behind current requested primary preparation. Joining existing
+   * promises and their supersession retries gives readers an unchanged repository fence; no source
+   * authority, counts or semantic publications are relabeled. Same-lifetime terminal failures remain
+   * incomplete without a retry for every alias owner. A transient writer conflict gets one fresh
+   * attempt after the current alias owner has finished, before another optional owner may activate.
+   */
+  private async prioritizeRequestedSemantics(current: () => boolean): Promise<void> {
+    /** Navigation may replace visible demand while an earlier requested preparation is awaited. */
+    const paths = (): Set<string> => {
+      const result = new Set<string>();
+      for (const [path, count] of this.semanticDemandCounts) if (count > 0) result.add(path);
+      if (this.plugin.settings.lastActivePath) result.add(this.plugin.settings.lastActivePath);
+      return result;
+    };
+    /** Drain actual owners, including replacement tasks started by their existing finally retry. */
+    const drain = async (): Promise<void> => {
+      while (current() && this.sourceAcquisition.hasSemanticDependencies()) {
+        const tasks: Promise<void>[] = [];
+        for (const path of paths()) {
+          const active = this.semanticPreparationTasks.get(path);
+          if (active) tasks.push(active.task);
+        }
+        if (!tasks.length) return;
+        await Promise.all(tasks);
+      }
+    };
+    await drain();
+    if (!current() || !this.sourceAcquisition.hasSemanticDependencies()) return;
+    const attempts: Promise<void>[] = [];
+    const attemptedPaths: string[] = [];
+    for (const path of paths()) {
+      const reason = this.currentSemanticPreparationFailure(path);
+      // Missing/corrupt/bounded outcomes need a changed authority or demand, not repeated alias work.
+      if (reason && reason !== "dependency-pending" && reason !== "superseded") continue;
+      const failure = this.semanticPreparationFailures.get(path);
+      if (reason && failure && this.aliasPriorityFailures.has(failure)) continue;
+      attemptedPaths.push(path);
+      attempts.push(this.ensureSemanticScope(path));
+    }
+    await Promise.all(attempts);
+    await drain();
+    for (const path of attemptedPaths) {
+      const failure = this.semanticPreparationFailures.get(path);
+      // A failure after the optional writer has stopped is an actual remaining input limitation.
+      // Keep that exact record, not a new authority stamp; ordinary source-ready/user retries work.
+      if (failure && this.currentSemanticPreparationFailure(path)) this.aliasPriorityFailures.add(failure);
+    }
+  }
+
   /** Let the normal per-file coordinator wait for known tree work instead of patching an intermediate path map. */
   hasPendingStructuralMaintenance(): boolean { return this.pendingStructuralTasks > 0; }
 
@@ -674,9 +920,9 @@ export class GraphIndex {
     };
   }
 
-  /** Capture selected title-metadata identities before a follow-up await and recheck before publish. */
-  private captureSelectedMetadata(nodes: Iterable<CompiledGraphNode>): Map<string, Readonly<{ file: TFile; cache: unknown; revision: FileRevision }>> | null {
-    const result = new Map<string, Readonly<{ file: TFile; cache: unknown; revision: FileRevision }>>();
+  /** Capture selected physical metadata identities before a follow-up await and recheck before publish. */
+  private captureSelectedMetadata(nodes: Iterable<CompiledGraphNode>): Map<string, SelectedMetadataToken> | null {
+    const result = new Map<string, SelectedMetadataToken>();
     for (const node of nodes) {
       if (node.kind !== "document" || !node.physicalPath) continue;
       const file = this.app.vault.getFileByPath(node.physicalPath);
@@ -690,12 +936,47 @@ export class GraphIndex {
   }
 
   /** Recheck every selected MetadataCache object and file revision after awaited preparation. */
-  private selectedMetadataCurrent(tokens: ReadonlyMap<string, Readonly<{ file: TFile; cache: unknown; revision: FileRevision }>>): boolean {
+  private selectedMetadataCurrent(tokens: ReadonlyMap<string, SelectedMetadataToken>): boolean {
     for (const [path, token] of tokens) {
       if (this.app.vault.getFileByPath(path) !== token.file || !fileRevisionMatches(token.file, token.revision)
         || this.app.metadataCache.getFileCache(token.file) !== token.cache) return false;
     }
     return true;
+  }
+
+  /**
+   * Stage canonical current frontmatter aliases for finite physical candidates, whose sparse compiler
+   * endpoints may not replay their own metadata. Copies, strings, map slots and traversal cursors are
+   * charged against the same requested-preparation ceiling; dense values yield through its runtime.
+   * No body, relationship incidence, synthetic URL aliases or base-page fallback is consulted.
+   * @throws TypeError for cyclic alias arrays, preserving canonical metadata rejection.
+   */
+  private async prepareSelectedPhysicalAliases(tokens: ReadonlyMap<string, SelectedMetadataToken>, runtime: GraphCompilerRuntime,
+    retainedBytes: number): Promise<PreparedPhysicalAliases> {
+    const byPath = new Map<string, string[]>();
+    let lastYield = runtime.now(), steps = 0;
+    if (retainedBytes > MAX_CACHED_SCOPE_RETAINED_BYTES) return { reason: "decode-budget" };
+    for (const [path, token] of tokens) {
+      if (!runtime.isCurrent()) return { reason: "superseded" };
+      const aliases: string[] = [];
+      retainedBytes += 64 + 2 * path.length;
+      if (retainedBytes > MAX_CACHED_SCOPE_RETAINED_BYTES) return { reason: "decode-budget" };
+      for (const step of iterateFrontmatterAliasSteps(token.cache.frontmatter ?? {})) {
+        if (!runtime.isCurrent()) return { reason: "superseded" };
+        // Account for the possible trimmed copy before advancing the iterator into trim, as well
+        // as each live cursor and its ancestor-set entry. Raw strings themselves remain borrowed.
+        if (step.rawLength !== undefined && retainedBytes + 32 + 2 * step.rawLength + 128 * step.depth > MAX_CACHED_SCOPE_RETAINED_BYTES) return { reason: "decode-budget" };
+        if (step.value !== null) retainedBytes += 32 + 2 * step.value.length;
+        if (retainedBytes + 128 * step.depth > MAX_CACHED_SCOPE_RETAINED_BYTES) return { reason: "decode-budget" };
+        if (step.value !== null) aliases.push(step.value);
+        if (++steps % 32 === 0 && runtime.now() - lastYield >= (runtime.sliceBudgetMs ?? 8)) {
+          await runtime.yield(); lastYield = runtime.now();
+          if (!runtime.isCurrent()) return { reason: "superseded" };
+        }
+      }
+      byPath.set(path, aliases);
+    }
+    return runtime.isCurrent() && this.selectedMetadataCurrent(tokens) ? { reason: "ready", byPath, retainedBytes } : { reason: "superseded" };
   }
 
   /** Bind a finite compiler node to a private GraphPage; no live GraphState is mutated. */
@@ -747,10 +1028,17 @@ export class GraphIndex {
       /** Generation tokens cancel cheaply; close unnotified edits after every scheduled continuation. */
       yield: async (): Promise<void> => { await baseRuntime.yield(); signatureValid = signaturesCurrent(); },
     };
+    /** Retain only a terminal outcome for this exact captured authority/demand lifetime. */
+    const pending = (reason: string): void => {
+      this.noteSemanticPreparation("pending", reason);
+      if (current()) this.semanticPreparationFailures.set(centerPath, {
+        policyRevision, demandRevision, sourceRevision, maintenanceRevision, coverageSignature: gateSignature, reason,
+      });
+    };
     const priorScope = this.semanticScopes.get(centerPath);
     const seed = priorScope?.pagesByPath.get(centerPath) ?? this.state.pages.get(centerPath);
     if (!seed || !current()) {
-      this.noteSemanticPreparation("pending", "missing-center");
+      pending("missing-center");
       return;
     }
     const centerMetadata = this.captureSelectedMetadata([{
@@ -760,13 +1048,13 @@ export class GraphIndex {
       aliases: seed.aliases, tags: seed.tags, noteType: seed.noteType, primaryStyleTag: seed.primaryStyleTag,
       styleTags: seed.styleTags, maxLabelLength: seed.maxLabelLength, neighbours: new Map(),
     }]);
-    if (!centerMetadata) { this.noteSemanticPreparation("pending", "metadata-pending"); return; }
+    if (!centerMetadata) { pending("metadata-pending"); return; }
     const policy = { revision: String(policyRevision), settings, isCurrent: current };
     const gatePolicy = { revision: `${presentationRevision}:${policyRevision}`, settings: gateSettings, isCurrent: current };
     let prepared: Awaited<ReturnType<ObsidianSourceAcquisition["prepareRequestedNeighborhood"]>> | null = await this.sourceAcquisition.prepareRequestedNeighborhood(
       { kind: "neighborhood", center: this.semanticSourceRef(seed) }, policy, presentation, gatePolicy, runtime);
     if (!current() || !signaturesCurrent()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
-    if (prepared.outcome !== "ready") { this.noteSemanticPreparation("pending", prepared.reason); return; }
+    if (prepared.outcome !== "ready") { pending(prepared.reason); return; }
     const compilation = prepared.preparation.compilation;
     const centerId = prepared.certificate.relations.center.id;
     const parentIds = prepared.certificate.relations.parents.map((parent) => parent.id);
@@ -776,9 +1064,9 @@ export class GraphIndex {
     // Retain only the required compilation/gates before constructing a supplemental compilation.
     prepared = null;
     const legacyEvidence = compilation.legacyEvidence();
-    if (!legacyEvidence) { this.noteSemanticPreparation("pending", "unsupported-scope"); return; }
+    if (!legacyEvidence) { pending("unsupported-scope"); return; }
     const center = compilation.node(centerId);
-    if (!center?.semanticPath || center.semanticPath !== centerPath) { this.noteSemanticPreparation("pending", "missing-center"); return; }
+    if (!center?.semanticPath || center.semanticPath !== centerPath) { pending("missing-center"); return; }
     // The private cover proves every semantic parent. Publish complete incidence only for
     // parents the view can render: a hidden root's entire child inventory is not a request to
     // replay every Markdown owner for labels/degrees before an ordinary note can appear.
@@ -794,18 +1082,21 @@ export class GraphIndex {
     const requiredNodes: CompiledGraphNode[] = [];
     for (const id of requiredIds) {
       const node = compilation.node(id);
-      if (!node?.semanticPath) { this.noteSemanticPreparation("pending", "unsupported-scope"); return; }
+      if (!node?.semanticPath) { pending("unsupported-scope"); return; }
       requiredNodes.push(node);
     }
     const metadataTokens = this.captureSelectedMetadata(requiredNodes);
-    if (!metadataTokens) { this.noteSemanticPreparation("pending", "metadata-pending"); return; }
+    if (!metadataTokens) { pending("metadata-pending"); return; }
     for (const [path, token] of centerMetadata) metadataTokens.set(path, token);
 
     // Preserve SI1 sort independence after semantic publication. Complete center/parent incidence is
     // already exact in this compilation; only the remaining finite candidates need the dedicated
     // raw-degree reader. This also avoids asking that reader to rebind structural roots it does not own.
     // Charge the existing compiled state and selected metadata/array/map slots to the same ceiling.
-    const supplementalRuntime = { ...runtime, retainedBytes: compiledBytes + 256 * requiredNodes.length };
+    const physicalAliases = await this.prepareSelectedPhysicalAliases(metadataTokens, runtime, compiledBytes + 256 * requiredNodes.length);
+    if (!current() || !signaturesCurrent() || !this.selectedMetadataCurrent(metadataTokens)) { this.noteSemanticPreparation("cancelled", "metadata-stale"); return; }
+    if (physicalAliases.reason !== "ready") { pending(physicalAliases.reason); return; }
+    const supplementalRuntime = { ...runtime, retainedBytes: physicalAliases.retainedBytes };
     const degrees = new Map<NodeId, number>();
     for (const id of completeIds) {
       const complete = compilation.node(id);
@@ -823,7 +1114,7 @@ export class GraphIndex {
       const degreeResult = await this.sourceAcquisition.prepareRequestedCandidateDegrees(
         { kind: "candidate-degrees", candidates: degreeCandidates }, policy, presentation, supplementalRuntime);
       if (!current() || !signaturesCurrent()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
-      if (degreeResult.outcome !== "ready") { this.noteSemanticPreparation("pending", degreeResult.reason); return; }
+      if (degreeResult.outcome !== "ready") { pending(degreeResult.reason); return; }
       for (const input of degreeResult.inputs) degrees.set(input.id, input.rawDegree);
       this.addSemanticDependencyVisits(degreeResult.work.familyVisits);
     }
@@ -834,7 +1125,7 @@ export class GraphIndex {
       const title = await this.sourceAcquisition.prepareRequestedUrlTitle({ id: node.id, kind: node.kind, state: node.state,
         ...(node.semanticPath ? { semanticPath: node.semanticPath } : {}) }, policy, presentation, supplementalRuntime);
       if (!current() || !signaturesCurrent()) { this.noteSemanticPreparation("cancelled", "superseded"); return; }
-      if (title.outcome !== "ready") { this.noteSemanticPreparation("pending", title.reason); return; }
+      if (title.outcome !== "ready") { pending(title.reason); return; }
       urlNames.set(node.id, title.input.name);
       this.addSemanticDependencyVisits(title.work.familyVisits);
     }
@@ -844,7 +1135,12 @@ export class GraphIndex {
     const pagesByPath = new Map<string, GraphPage>();
     for (const node of requiredNodes) {
       const page = this.preparedPageFromNode(node);
-      if (!page || pagesByPath.has(page.path)) { this.noteSemanticPreparation("pending", "unsupported-scope"); return; }
+      if (!page || pagesByPath.has(page.path)) { pending("unsupported-scope"); return; }
+      if (node.kind === "document" && node.physicalPath) {
+        const aliases = physicalAliases.byPath.get(node.physicalPath);
+        if (!aliases) { pending("metadata-pending"); return; }
+        page.aliases = aliases;
+      }
       if (urlNames.has(node.id)) page.name = urlNames.get(node.id)!;
       pagesById.set(node.id, page);
       pagesByPath.set(page.path, page);
@@ -857,7 +1153,7 @@ export class GraphIndex {
       const sourcePage = pagesById.get(id)!;
       for (const relation of sourceNode.neighbours.values()) {
         const target = pagesById.get(relation.target.id);
-        if (!target) { this.noteSemanticPreparation("pending", "unsupported-scope"); return; }
+        if (!target) { pending("unsupported-scope"); return; }
         const { target: _compiledTarget, ...rest } = relation;
         sourcePage.neighbours.set(target.path, { ...rest, target });
       }
@@ -898,7 +1194,7 @@ export class GraphIndex {
     this.noteSemanticPreparation("prepared", null);
     // No await below this line: the revisioned page/evidence/gate/search overlay becomes visible together.
     this.semanticScopes.set(centerPath, scope);
-    this.plugin.startupDiagnostics?.mark("first-requested-scope-authoritative");
+    this.semanticPreparationFailures.delete(centerPath);
     this.plugin.startupDiagnostics?.mark("first-requested-scope-authoritative");
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
     this.searchCandidateCache.clear();
@@ -936,6 +1232,7 @@ export class GraphIndex {
     const task = this.prepareSemanticScope(centerPath, policyRevision, demandRevision).finally(() => {
       if (this.semanticPreparationTasks.get(centerPath)?.task !== task) return;
       this.semanticPreparationTasks.delete(centerPath);
+      this.emitPresentation();
       // A local graph patch/presentation commit can close after source readiness already fired.
       // Retry that superseded request once against the new fences, while its demand is still live.
       // Unchanged missing/corrupt/pending input never creates a self-scheduling retry loop.
@@ -1035,15 +1332,20 @@ export class GraphIndex {
 
   /**
    * Legacy synchronous display-name facade. It owns only alias/name/title preferences, not selected
-   * type/style facets. Settings controls use refreshPresentationSettings for the full atomic path.
+   * type/style facets. Meaningful title changes advance the pending alias vocabulary lifetime;
+   * settings controls use refreshPresentationSettings for the full atomic path.
    */
   refreshDisplayNames(): void {
-    this.presentationSettings = { ...this.presentationSettings,
+    const settings = { ...this.presentationSettings,
       renderAlias: this.plugin.settings.renderAlias, nameFields: this.plugin.settings.nameFields,
       nodeTitleScript: this.plugin.settings.nodeTitleScript };
+    const effects = classifySettingsChange(captureSettingsPolicy(this.presentationSettings), captureSettingsPolicy(settings));
+    if (effects.presentationFacets || effects.searchTerms) this.aliasVocabularyPresentationRevision += 1;
+    this.presentationSettings = settings;
     this.titleCache.clear();
     this.rebuildSearchIndex();
     this.emitPresentation();
+    if (effects.presentationFacets || effects.searchTerms) this.retryUrlAliasUpgrade();
   }
 
   /** Base and retained bounded publications all need the same SI1 presentation facets. */
@@ -1056,7 +1358,8 @@ export class GraphIndex {
   /**
    * Prepare a settings-only refresh from cached inputs. A lightweight facet/search staging area is
    * published in one synchronous step. No builder, patcher, parser, relationship cache or body read
-   * participates. Supersession, source publication and unload invalidate the complete preparation.
+   * participates in presentation staging. Pending legacy alias upgrades retain their existing owner;
+   * only meaningful facet/search changes supersede that work. Source publication/unload still fence it.
    */
   async refreshPresentationSettings(): Promise<void> {
     const run = ++this.presentationRun;
@@ -1084,6 +1387,7 @@ export class GraphIndex {
       if (facets) applyPreparedPresentation(facets, this.presentationStatuses);
       this.presentationSettings = settings;
       this.presentationRevision += 1;
+      if (effects.presentationFacets || effects.searchTerms) this.aliasVocabularyPresentationRevision += 1;
       if (effects.searchTerms) this.titleCache.clear();
       if (search) this.installSearchIndex(search);
       if (effects.presentationFacets) this.suggestionCatalogCache = null;
@@ -1091,6 +1395,7 @@ export class GraphIndex {
       this.recordIndexDiagnostic("restore", facets?.pending ? "presentation-inputs-pending" : "presentation-settings-adapted",
         { changedKeys: [...keys], modified: facets?.pending ?? 0 });
       this.emitPresentation();
+      if (effects.presentationFacets || effects.searchTerms) this.retryUrlAliasUpgrade();
       return;
     }
   }
@@ -1142,8 +1447,10 @@ export class GraphIndex {
     return null;
   }
 
-  /** Install prepared facets immediately before the associated graph/search publication. */
+  /** Install facets and their narrow search lifetime immediately before graph/search publication. */
   private acceptPresentation(prepared: PreparedPresentationPublication): void {
+    const effects = classifySettingsChange(captureSettingsPolicy(this.presentationSettings), captureSettingsPolicy(prepared.settings));
+    if (effects.presentationFacets || effects.searchTerms) this.aliasVocabularyPresentationRevision += 1;
     applyPreparedPresentation(prepared.facets, this.presentationStatuses);
     this.presentationSettings = prepared.settings;
     this.presentationRevision += 1;
@@ -1465,6 +1772,7 @@ export class GraphIndex {
     this.semanticDemandCounts.clear();
     this.semanticScopes.clear();
     this.semanticPreparationTasks.clear();
+    this.semanticPreparationFailures.clear();
     this.presentationListeners.clear();
     this.generation += 1;
     this.bodyWarmGeneration += 1;
@@ -1481,6 +1789,8 @@ export class GraphIndex {
     // unrelated host reference is collected. Published page objects themselves are not mutated.
     this.state = createGraphState();
     this.searchEntries = [];
+    this.physicalSearchEntries.clear();
+    this.physicalSearchMerge = null;
     this.fieldCache.clear();
     this.nodeVisualCache.clear();
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
@@ -1519,6 +1829,11 @@ export class GraphIndex {
     authoritativeSemantics = true,
   ): void {
     this.state = next;
+    if (authoritativeSemantics || this.sourceNodeVocabularyPublished) {
+      // These publications contain every captured physical endpoint; preview facets can retire.
+      this.physicalSearchEntries.clear();
+      this.physicalSearchMerge = null;
+    }
     this.publicationRevision += 1;
     if (authoritativeSemantics && !this.sourceBackedSemantics) {
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
@@ -1548,6 +1863,7 @@ export class GraphIndex {
     onProgress?: () => void,
     settings?: KplexSettings,
     facets?: PreparedGraphPresentation | null,
+    aliasOverrides?: ReadonlyMap<GraphPage, readonly string[]>,
   ): Promise<PreparedSearchIndex | null> {
     const entries: SearchEntry[] = [];
     const byPath = new Map<string, SearchEntry>();
@@ -1557,7 +1873,7 @@ export class GraphIndex {
 
     for (const page of state.pages.values()) {
       if (!isCurrent()) return null;
-      const entry = this.makeSearchEntry(page, settings, facets?.facets.get(page)?.name);
+      const entry = this.makeSearchEntry(page, settings, facets?.facets.get(page)?.name, aliasOverrides?.get(page));
       entries.push(entry);
       byPath.set(page.path, entry);
       processed += 1;
@@ -1822,6 +2138,9 @@ export class GraphIndex {
     // The earlier page-only publication uses this same `next.pages` map. Evidence hydration does
     // not alter searchable page metadata, so avoid allocating/sorting the 100k+ search index a
     // second time when promoting the fully hydrated state.
+    // Primary source authority is independent of additional URL search labels. Promote the
+    // coherent cached graph now; the existing alias owner repairs/stages optional vocabulary after
+    // hydration releases its task, preserving the old facet marker until authenticated completion.
     this.setSnapshotHydrationPhase(run, "promote");
     if (relationsHydrated) {
       if (classifySettingsChange(captureSettingsPolicy(this.presentationSettings), captureSettingsPolicy(this.plugin.settings)).render) {
@@ -1837,6 +2156,25 @@ export class GraphIndex {
       this.publishRestoredState(next, prepared.search);
     }
     this.fullSnapshotHydrated = !isCheckpoint;
+    if (!isCheckpoint && authoritativeFresh && !this.pendingUrlAliasUpgrade) {
+      // Requested scopes own bounded semantics, not complete global URL-label incidence. The
+      // authenticated complete snapshot certifies those facets for this exact unchanged vault.
+      for (const scope of this.semanticScopes.values()) {
+        if (scope.policyRevision !== this.semanticPolicyRevision
+          || scope.maintenanceRevision !== this.sourceAcquisition.getMaintenanceRevision()
+          || scope.sourceRevision !== this.plugin.getIndexSourceRevision()) continue;
+        for (const page of scope.pagesByPath.values()) {
+          const complete = page.url ? next.pages.get(page.path) : undefined;
+          if (complete?.url === page.url && complete) page.aliases = [...complete.aliases];
+        }
+      }
+    }
+    if (!isCheckpoint) {
+      // Exact physical membership was already compared above. Full search now owns every file.
+      this.physicalSearchEntries.clear();
+      this.physicalSearchMerge = null;
+      this.searchCandidateCache.clear();
+    }
     if (!isCheckpoint) this.sourceAcquisition.enableInventory();
     this.fullSnapshotFresh = authoritativeFresh;
     this.finishSnapshotHydrationDiagnostics(run, "complete");
@@ -1932,6 +2270,7 @@ export class GraphIndex {
       this.plugin.startupDiagnostics?.mark("host-inventory-end");
       this.plugin.startupDiagnostics?.count("hydration", "inventoryFiles", inventory.filesByPath.size);
       this.plugin.startupDiagnostics?.count("hydration", "inventoryFolders", inventory.folderPaths.size);
+      if (!(await this.preparePhysicalSearchCatalog(inventory.filesByPath, isCurrent))) return { restored: false, fresh: false, createdAt };
       this.restoreInventorySourceRevision = this.plugin.getIndexSourceRevision();
       const vaultSignature = inventory.signature;
       // Preserve active/checkpoint freshness preference and corruption fallback after classification.
@@ -1949,6 +2288,9 @@ export class GraphIndex {
           this.recordIndexDiagnostic("restore", "source-backed-policy-baseline", { changedKeys: [...decision.changedKeys] });
         }
         if (decision.reason !== "compatible") this.recordIndexDiagnostic("restore", decision.reason, { changedKeys: [...decision.changedKeys] });
+        this.urlAliasFacetVersion = meta.urlAliasVersion ?? 0;
+        this.pendingUrlAliasUpgrade = this.urlAliasFacetVersion !== URL_ALIAS_FACET_VERSION;
+        this.urlAliasUpgradeFailure = null;
         this.activeSnapshotGeneration = meta.generation;
         const upgradePaths = decision.retiredFilepath ? await planRetiredExclusionReconciliation(
           decision.retiredFilepath, this.plugin.settings, this.app, this.fieldCache, this.indexedDb,
@@ -2016,6 +2358,7 @@ export class GraphIndex {
     void task.then(() => {
       if (this.snapshotHydrationTask !== task) return;
       this.snapshotHydrationTask = null;
+      this.retryUrlAliasUpgrade();
       // Status consumers distinguish cache hydration from later reconciliation/indexing. Publish
       // that phase boundary even when the graph itself did not change at task completion.
       this.emit();
@@ -2516,6 +2859,7 @@ export class GraphIndex {
       createdAt: snapshotCreatedAt,
       vaultSignature,
       settingsSignature,
+      urlAliasVersion: this.urlAliasFacetVersion,
       discoveredFields: [...this.state.discoveredFields.entries()],
       ...(completedPaths ? { completedMarkdownPaths: completedPaths } : {}),
     }, pages, evidence, () => run === this.snapshotPersistGeneration && isCurrent(), checkpoint ? "checkpoint" : "active",
@@ -2760,7 +3104,12 @@ export class GraphIndex {
       this.rebuildSearchIndex();
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.sourceBackedSemantics = false;
+      this.pendingUrlAliasUpgrade = false;
+      this.urlAliasFacetVersion = URL_ALIAS_FACET_VERSION;
+      this.urlAliasUpgradeFailure = null;
       this.sourceBackedStartup = false;
+      this.physicalSearchEntries.clear();
+      this.physicalSearchMerge = null;
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();
@@ -2823,7 +3172,12 @@ export class GraphIndex {
       this.publicationRevision += 1;
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.sourceBackedSemantics = false;
+      this.pendingUrlAliasUpgrade = false;
+      this.urlAliasFacetVersion = URL_ALIAS_FACET_VERSION;
+      this.urlAliasUpgradeFailure = null;
       this.sourceBackedStartup = false;
+      this.physicalSearchEntries.clear();
+      this.physicalSearchMerge = null;
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
       this.semanticScopes.clear();
@@ -2848,9 +3202,9 @@ export class GraphIndex {
   }
 
   /** Build search terms against a proposed policy without mutating pages or live title caches. */
-  private makeSearchEntry(page: GraphPage, settings?: KplexSettings, name = page.name): SearchEntry {
+  private makeSearchEntry(page: GraphPage, settings?: KplexSettings, name = page.name, aliases: readonly string[] = page.aliases): SearchEntry {
     const title = settings ? this.displayNameFromConfiguredFields(page, settings) ?? name : this.titleFor(page);
-    const alternateNames = new Set([name, ...page.aliases]);
+    const alternateNames = new Set([name, ...aliases]);
     alternateNames.delete(title);
     return {
       page,
@@ -2873,6 +3227,7 @@ export class GraphIndex {
 
   /** Update only entries whose source/target page may have changed during a Markdown patch. */
   private patchSearchIndex(paths: Iterable<string>): void {
+    this.physicalSearchMerge = null;
     this.searchCandidateCache.clear();
     const removed = new Set<string>();
     const uniquePaths: Iterable<string> = paths instanceof Set ? paths : new Set(paths);
@@ -3448,12 +3803,15 @@ export class GraphIndex {
     return page;
   }
 
-  /** Insert a URL target immediately after its frontmatter relationship has been written. */
+  /** Insert a URL target after persistence, retaining every explicit alias for immediate Vault search. */
   insertUrlPage(rawUrl: string, alias?: string): GraphPage {
     const url = rawUrl.trim();
     const existing = this.get(url);
     if (existing) {
-      if (alias?.trim() && (existing.name === existing.url || existing.name === existing.path)) existing.name = alias.trim();
+      if (alias?.trim()) {
+        if (existing.name === existing.url || existing.name === existing.path) existing.name = alias.trim();
+        if (!existing.aliases.includes(alias.trim())) existing.aliases = [...existing.aliases, alias.trim()];
+      }
       this.invalidatePatchedPages(new Set([existing.path]));
       this.patchSearchIndex(new Set([existing.path]));
       this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
@@ -3462,7 +3820,7 @@ export class GraphIndex {
     }
     const page: GraphPage = {
       path: url, file: null, name: alias?.trim() || url, url, isFolder: false, isTag: false, mtime: null,
-      neighbours: new Map(), aliases: [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 0,
+      neighbours: new Map(), aliases: alias?.trim() ? [alias.trim()] : [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 0,
     };
     this.state.pages.set(url, page);
     this.state.lowercasePathMap.set(url.toLowerCase(), url);
@@ -3963,9 +4321,10 @@ export class GraphIndex {
     return result;
   }
 
-  /** Select a display name from MetadataCache only, using the prepared or explicitly staged policy. */
+  /** Select configured MetadataCache/staged display fields; URL search aliases never replace the primary label. */
   private displayNameFromConfiguredFields(page: GraphPage, settings = this.presentationSettings): string | null {
-    if (!settings.renderAlias) return null;
+    // URL aliases are search vocabulary; the canonical primary label owns its display name.
+    if (!settings.renderAlias || page.url) return null;
     const fields = settings.nameFields
       .split(",")
       .map((field) => field.trim())
@@ -4032,11 +4391,59 @@ export class GraphIndex {
     return this.relationView(page).neighbourCount;
   }
 
+  /** Capture current physical filenames once from the restore inventory, yielding without reading file contents. */
+  private async preparePhysicalSearchCatalog(files: ReadonlyMap<string, TFile>, current: () => boolean): Promise<boolean> {
+    const next = new Map<string, SearchEntry>();
+    const sourceRevision = this.plugin.getIndexSourceRevision();
+    /** Filenames are valid only for the restore owner and unchanged live source inventory revision. */
+    const inventoryCurrent = (): boolean => current() && sourceRevision === this.plugin.getIndexSourceRevision();
+    let processed = 0, slice = performance.now();
+    for (const [path, file] of files) {
+      if (!inventoryCurrent()) return false;
+      if (this.app.vault.getFileByPath(path) !== file) continue;
+      const page: GraphPage = {
+        path, file, name: file.basename, url: null, isFolder: false, isTag: false, mtime: file.stat.mtime,
+        aliases: [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 0, neighbours: new Map(),
+      };
+      next.set(path, { page, name: file.basename.toLowerCase(), aliases: [], path: path.toLowerCase() });
+      if ((++processed & 255) === 0 && performance.now() - slice >= 7) {
+        await new Promise<void>(/** Cooperatively release the host renderer during filename-only preparation. */ (resolve) => window.setTimeout(resolve, 0));
+        slice = performance.now();
+      }
+    }
+    if (!inventoryCurrent()) return false;
+    this.physicalSearchEntries = next;
+    this.physicalSearchMerge = null;
+    this.searchCandidateCache.clear();
+    this.emitPresentation();
+    return true;
+  }
+
+  /** Reuse one merged search array until graph search or the captured physical inventory changes. */
+  private completePhysicalSearchEntries(): SearchEntry[] {
+    if (!this.physicalSearchEntries.size) return this.searchEntries;
+    const cached = this.physicalSearchMerge;
+    if (cached?.base === this.searchEntries && cached.physical === this.physicalSearchEntries) return cached.entries;
+    const entries = [...this.searchEntries];
+    for (const [path, entry] of this.physicalSearchEntries) if (!this.searchEntryByPath.has(path)) entries.push(entry);
+    this.physicalSearchMerge = { base: this.searchEntries, physical: this.physicalSearchEntries, entries };
+    return entries;
+  }
+
+  /** Resolve a filename-only F4 hit without claiming that its relationship scope has been prepared. */
+  getVaultSearchPage(path: string): GraphPage | undefined {
+    const canonical = this.get(path);
+    if (canonical) return canonical;
+    const page = this.physicalSearchEntries.get(path)?.page;
+    return page?.file && this.app.vault.getFileByPath(path) === page.file ? page : undefined;
+  }
+
   /** Merge current bounded semantic publications into the immutable full search catalog. */
-  private effectiveSearchEntries(): SearchEntry[] {
+  private effectiveSearchEntries(includePhysicalFiles = false): SearchEntry[] {
+    const entries = includePhysicalFiles ? this.completePhysicalSearchEntries() : this.searchEntries;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
-      && this.fullSemanticMaintenanceRevision === maintenanceRevision) return this.searchEntries;
+      && this.fullSemanticMaintenanceRevision === maintenanceRevision) return entries;
     const overrides = new Map<string, GraphPage>();
     const suppressed = new Set<string>();
     // While newer policy or host maintenance is pending, retain the last complete publication for
@@ -4053,7 +4460,7 @@ export class GraphIndex {
       for (const path of scope.suppressedPaths) suppressed.add(path);
     }
     for (const path of currentPages) suppressed.delete(path);
-    if (!overrides.size && !suppressed.size) return this.searchEntries;
+    if (!overrides.size && !suppressed.size) return entries;
     const output: SearchEntry[] = [];
     const emitted = new Set<string>();
     const add = (page: GraphPage): void => {
@@ -4062,7 +4469,7 @@ export class GraphIndex {
       output.push({ page, name: this.titleFor(page).toLowerCase(), aliases: page.aliases.map((alias) => alias.toLowerCase()),
         path: page.path.toLowerCase() });
     };
-    for (const entry of this.searchEntries) {
+    for (const entry of entries) {
       const replacement = overrides.get(entry.page.path);
       if (replacement) add(replacement);
       else if (!suppressed.has(entry.page.path)) { output.push(entry); emitted.add(entry.page.path); }
@@ -4071,15 +4478,15 @@ export class GraphIndex {
     return output;
   }
 
-  /** Rank global catalog matches; Vault-file search includes every file type independently of Plex visibility. */
+  /** Rank the global catalog; Vault search includes all current files and URL aliases regardless of Plex visibility. */
   search(query: string, limit = 40, scope: "visible" | "vault-files" = "visible"): GraphPage[] {
     const q = query.trim().toLowerCase();
     const settings = this.plugin.settings;
     const max = Math.max(1, limit);
-    const searchEntries = this.effectiveSearchEntries();
-    /** File search ignores graph filters but never returns synthetic or deleted file entries. */
+    const searchEntries = this.effectiveSearchEntries(scope === "vault-files");
+    /** Vault search ignores graph filters while excluding folders, tags, unresolved and deleted files. */
     const eligible = (page: GraphPage): boolean => scope === "vault-files"
-      ? Boolean(page.file && this.app.vault.getFileByPath(page.file.path) === page.file)
+      ? Boolean(page.url || page.file && this.app.vault.getFileByPath(page.file.path) === page.file)
       : this.isVisiblePage(page, settings);
 
     if (!q) {
@@ -4105,11 +4512,12 @@ export class GraphIndex {
     // A match for a longer query must also match every prefix of that query. Reuse the longest
     // cached prefix so normal typing progressively searches a much smaller candidate set instead
     // of rescanning 100k+ thoughts on every keypress. Cache textual matches independently from
-    // visibility so toggling graph filters cannot make the cache incorrect.
+    // visibility so toggling graph filters cannot make the cache incorrect. Scope namespaces
+    // remain separate because a startup Vault catalog contains filename-only physical entries.
     let candidates = searchEntries;
     for (let length = q.length - 1; length >= 1; length -= 1) {
       const prefix = q.slice(0, length);
-      const cached = this.searchCandidateCache.get(prefix);
+      const cached = this.searchCandidateCache.get(`${scope}:${prefix}`);
       if (!cached) continue;
       candidates = cached;
       break;
@@ -4130,7 +4538,7 @@ export class GraphIndex {
       if (best.length > max) best.pop();
     }
 
-    this.searchCandidateCache.set(q, textualMatches);
+    this.searchCandidateCache.set(`${scope}:${q}`, textualMatches);
     // Keep a small LRU-ish working set. SearchBox queries are generally a single prefix chain;
     // retaining the most recent dozen prefixes gives fast typing and backspacing without keeping
     // large candidate arrays forever.

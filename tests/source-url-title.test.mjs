@@ -36,7 +36,7 @@ test("v3 resolves the real nested/root label counterexample without changing str
       assert.equal(result.outcome, "ready", JSON.stringify(result));
       assert.equal(result.coverage, "complete-url-title-input");
       assert.equal(result.input.name, "First label"); assert.equal(result.input.name, full.title);
-      assert.deepEqual(full.aliases, []); assert.equal(result.input.url, titleUrl);
+      assert.deepEqual(full.aliases, ["First label", "Second label"]); assert.equal(result.input.url, titleUrl);
       assert.deepEqual(result.work, { sourceReplays: 2, familyVisits: 8 });
       assert(!("compilation" in result)); assert(!("preparation" in result));
     }

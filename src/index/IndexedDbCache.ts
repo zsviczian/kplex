@@ -1,7 +1,7 @@
 /**
  * Vault-local IndexedDB storage for neutral source facts, parsed bodies and graph snapshots.
  * Complete and partial checkpoint metadata point to independent chunk generations only after
- * their writes finish; callers own semantic validity and plugin-lifetime cancellation. Retired
+ * their writes finish; callers own semantic validity, disposable URL-facet versions and plugin-lifetime cancellation. Retired
  * contributor pins may use one cleanup-only existing-database connection after normal-handle
  * failure; cleanup never resets write backoff or acquires source/publication authority.
  */
@@ -11,7 +11,7 @@ import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_
   SOURCE_REVISION_INDEX, SOURCE_FAMILY_INDEX, SOURCE_LOOKUP_INDEX, SOURCE_LEASE_INDEX } from "./SourceRepository";
 import { SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
   SOURCE_LOCAL_REVISION_INDEX, sourceLocalDependencyState } from "./SourceLocalDependencies";
-import { SOURCE_DEPENDENCY_STORE, sourceDependencyState } from "./SourceFacts";
+import { SOURCE_DEPENDENCY_STORE, sourceDependencyState, validSourceFact } from "./SourceFacts";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import type { PersistedEvidenceDeclaration, PersistedPage } from "./IndexSnapshot";
 
@@ -20,13 +20,16 @@ import { SOURCE_IMPACT_STORE, SOURCE_IMPACT_SLOT_INDEX, SOURCE_IMPACT_LEASE_INDE
 import { releaseContributorRootLeaseFresh, type ContributorRootLease } from "./SourceContributorLease";
 
 const DB_VERSION = 9;
-const BODY_CACHE_VERSION = 2;
+const BODY_CACHE_VERSION = 3;
 const META_STORE = "meta";
 const PAGE_STORE = "pages";
 const EVIDENCE_STORE = "evidence";
 const BODY_STORE = "bodies";
 const SNAPSHOT_CHUNK_STORE = "snapshotChunks";
 const GENERATION_INDEX = "generation";
+
+/** Disposable URL alias facets produced by the current compiler; neutral sources and DB schema stay unchanged. */
+export const URL_ALIAS_FACET_VERSION = 2;
 
 export type IndexedDbSnapshotMeta = {
   key: "active" | "checkpoint";
@@ -35,6 +38,8 @@ export type IndexedDbSnapshotMeta = {
   createdAt: number;
   vaultSignature: string;
   settingsSignature: string;
+  /** Missing/zero marks legacy URL aliases requiring node-only replay, not a source migration. */
+  urlAliasVersion?: number;
   discoveredFields: Array<[string, { name: string; count: number }]>;
   /** Present for schema 3 snapshots. Older generations fall back to per-record cursors. */
   pageChunkCount?: number;
@@ -83,6 +88,14 @@ export type SnapshotWriteFailureReason = "storage-unavailable" | "cancelled" | "
 type PageRecord = { generation: string; path: string; value: PersistedPage };
 type EvidenceRecord = { generation: string; key: string; value: PersistedEvidenceDeclaration };
 type BodyRecord = { path: string; mtime: number; parserVersion: number; body: ParsedBodyMetadata };
+
+/** Reject malformed URL alias payloads before a disposable parser-cache hit reaches live collection. */
+function validCachedBody(body: ParsedBodyMetadata | undefined): body is ParsedBodyMetadata {
+  return Boolean(body && Array.isArray(body.inlineFieldOccurrences) && Array.isArray(body.urls)
+    && body.urls.every(/** Reuse the strict neutral URL vocabulary; never coerce stored alias values. */
+      (reference) => validSourceFact({ kind: "body-url", ...reference }, "body-urls")));
+}
+
 type SnapshotChunkRecord = {
   generation: string;
   kind: "pages" | "evidence";
@@ -733,6 +746,7 @@ export class KplexIndexedDbCache {
       const active: IndexedDbSnapshotMeta = {
         key,
         schema: 3,
+        urlAliasVersion: URL_ALIAS_FACET_VERSION,
         generation,
         pageChunkCount,
         evidenceChunkCount,
@@ -840,7 +854,7 @@ export class KplexIndexedDbCache {
       for (let i = 0; i < requests.length; i += 1) {
         const request = requests[i];
         const value = values[i];
-        if (value && value.mtime === request.mtime && value.parserVersion === BODY_CACHE_VERSION && value.body && Array.isArray(value.body.inlineFieldOccurrences)) result.set(request.path, value.body);
+        if (value && value.mtime === request.mtime && value.parserVersion === BODY_CACHE_VERSION && validCachedBody(value.body)) result.set(request.path, value.body);
       }
     } catch {
       return result;
@@ -920,7 +934,7 @@ export class KplexIndexedDbCache {
       const done = transactionDone(tx);
       const value = await requestResult(tx.objectStore(BODY_STORE).get(path)) as BodyRecord | undefined;
       await done;
-      const hit = Boolean(value && value.mtime === mtime && value.parserVersion === BODY_CACHE_VERSION && value.body && Array.isArray(value.body.inlineFieldOccurrences));
+      const hit = Boolean(value && value.mtime === mtime && value.parserVersion === BODY_CACHE_VERSION && validCachedBody(value.body));
       return hit ? value!.body : null;
     } catch {
       return null;

@@ -163,7 +163,13 @@ test("portable full compiler matches the frozen pre-move compatibility graph sem
   const expectedPages = [...baseline.pages]
     .map((page) => ({ ...page, relations: [...page.relations].sort((left, right) => left.targetPath.localeCompare(right.targetPath)) }))
     .sort((left, right) => left.path.localeCompare(right.path));
-  assert.deepEqual(actualPages, expectedPages, "full compiler page/relation output must remain frozen-baseline compatible");
+  // URL aliases are the one deliberate product change: every explicit link label is searchable.
+  // Preserve the frozen oracle for all other page fields, relation flags and provenance.
+  for (const page of expectedPages) if (page.url) {
+    page.aliases = [...new Set(records.filter(record => record.kind === "body-url"
+      && record.target.entity.semanticPath === page.url && record.label && record.label !== page.url).map(record => record.label))];
+  }
+  assert.deepEqual(actualPages, expectedPages, "full compiler remains frozen-baseline compatible except explicitly preserved URL aliases");
 
   const actualDeclarations = stableSort([...compilation.declarations()].map(semanticDeclaration));
   const expectedDeclarations = stableSort(baseline.declarations.map(semanticDeclaration));
@@ -388,9 +394,10 @@ test("URL display names preserve the legacy first meaningful label rule", async 
   const source = { id: core.nodeId("url-source"), kind: "unresolved", state: "unresolved" };
   const url = "https://labels.example/item";
   const target = { id: core.nodeId("url-target"), kind: "url", state: "materialized", semanticPath: url };
-  const records = [url, "Friendly label", "Later label"].map(label => ({ kind: "body-url", source, sourceRevision: rev, target: { entity: target, rawTarget: url, resolvedBy: "url" }, label }));
+  const records = [url, "Friendly label", "Later label", "Friendly label"].map(label => ({ kind: "body-url", source, sourceRevision: rev, target: { entity: target, rawTarget: url, resolvedBy: "url" }, label }));
   const { compilation } = await compileRecords(records);
   assert.equal(compilation.node(target.id).name, "Friendly label");
+  assert.deepEqual(compilation.node(target.id).aliases, ["Friendly label", "Later label"], "Every defined URL label remains searchable, deduplicated");
 });
 
 test("pathless tag membership preserves the producer's exact tag identity", async () => {
@@ -498,4 +505,33 @@ test("node-only compilation rejects incomplete materialization, open reads and c
   current = false;
   assert.equal(await compiler.finishNodes(), null);
   assert.equal(await new core.NormalizedGraphCompiler(settings, runtime()).finishNodes(), null);
+});
+
+/** Alias metadata affects node search facets only; evidence retains one primary provenance record. */
+test("all URL aliases compile without changing primary label, line or relationship multiplicity", async () => {
+  const source = { id: core.nodeId("A"), kind: "document", state: "materialized", semanticPath: "A.md", physicalPath: "A.md" };
+  const target = { id: core.nodeId("URL"), kind: "url", state: "synthetic", semanticPath: "https://help.obsidian.md" };
+  const rev = core.sourceRevision("aliases:1");
+  const entity = { kind: "entity", source, sourceRevision: rev, entity: source, name: "A", url: null };
+  const record = { kind: "body-url", source, sourceRevision: rev, target: { entity: target, rawTarget: target.semanticPath, resolvedBy: "url" }, label: "Second", provenance: { surface: "body", location: { line: 1 } } };
+  const baseline = (await compileRecords([entity, record])).compilation;
+  const complete = (await compileRecords([entity, { ...record, aliases: ["First", "Second", "Third"] }])).compilation;
+  assert.deepEqual([...complete.declarations()], [...baseline.declarations()]);
+  assert.equal(complete.evidenceBetween(source.id, target.id).length, 1);
+  const node = complete.nodes.get(target.id);
+  assert.equal(node.name, "Second"); assert.deepEqual(node.aliases, ["Second", "First", "Third"]);
+});
+
+/** One URL's dense alias vocabulary must yield and reject cancellation before publication. */
+test("dense URL alias accumulation cooperates within one normalized record", async () => {
+  let current = true, yields = 0;
+  const compiler = new core.NormalizedGraphCompiler(settings, runtime({ now: () => 100, sliceBudgetMs: 0,
+    yield: async () => { yields++; current = false; }, isCurrent: () => current }));
+  const b = boundary("dense-aliases"), read = compiler.beginRead(b), rev = core.sourceRevision("dense:1");
+  const source = { id: core.nodeId("A"), kind: "document", state: "materialized", semanticPath: "A.md", physicalPath: "A.md" };
+  const target = { id: core.nodeId("URL"), kind: "url", state: "materialized", semanticPath: "https://help.obsidian.md" };
+  assert.equal(await compiler.acceptBatch(read, { boundary: b, sequence: 0, final: true, records: [
+    { kind: "body-url", source, sourceRevision: rev, target: { entity: target, rawTarget: target.semanticPath, resolvedBy: "url" }, aliases: Array.from({ length: 4096 }, (_, i) => `Alias ${i}`) },
+  ] }), false);
+  assert.equal(yields, 1);
 });

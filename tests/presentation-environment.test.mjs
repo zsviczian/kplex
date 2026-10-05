@@ -420,3 +420,19 @@ test("adjacent file panes split beyond the Plex/Sidecar pair on every side", () 
     }
   } finally { rmSync(compiled.temp, { recursive: true, force: true }); }
 });
+
+const urlEmbedCompiled = compilePureModule("src/ui/features/urlEmbed.ts");
+const { urlEmbed } = urlEmbedCompiled.exports;
+process.on("exit", () => rmSync(urlEmbedCompiled.temp, { recursive: true, force: true }));
+
+test("URL expansion normalizes videos, preserves private Vimeo tokens and rejects executable protocols", () => {
+  const id = "dQw4w9WgXcQ";
+  for (const raw of [`https://youtu.be/${id}`, `https://www.youtube.com/watch?v=${id}`, `https://www.youtube.com/embed/${id}`]) {
+    assert.deepEqual(urlEmbed(raw), { url: `https://www.youtube.com/embed/${id}?playsinline=1`, aspectRatio: 16 / 9 });
+  }
+  assert.deepEqual(urlEmbed(`https://www.youtube.com/shorts/${id}?t=12s`), { url: `https://www.youtube.com/embed/${id}?playsinline=1&start=12`, aspectRatio: 9 / 16 });
+  assert.deepEqual(urlEmbed("https://vimeo.com/123456789/abcdef0123"), { url: "https://player.vimeo.com/video/123456789?h=abcdef0123", aspectRatio: 16 / 9 });
+  assert.deepEqual(urlEmbed("https://help.obsidian.md/"), { url: "https://help.obsidian.md/", aspectRatio: null });
+  assert.deepEqual(urlEmbed(`https://youtube.com.evil.example/watch?v=${id}`), { url: `https://youtube.com.evil.example/watch?v=${id}`, aspectRatio: null });
+  for (const raw of ["javascript:alert(1)", "file:///private/secrets", "data:text/html,test", "invalid"]) assert.equal(urlEmbed(raw), null);
+});

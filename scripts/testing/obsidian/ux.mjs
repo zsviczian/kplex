@@ -17,7 +17,7 @@ const target = validateTarget({ vaultName, vaultPath: process.env.KPLEX_TEST_VAU
 const reportDir = process.env.KPLEX_HOST_REPORT_DIR;
 assert(reportDir, "Set KPLEX_HOST_REPORT_DIR explicitly");
 mkdirSync(reportDir, { recursive: true });
-const report = { status: "running", startedAt: new Date().toISOString(), scenarios: [], target: vaultName, artifacts: {}, limits: ["Desktop Electron functional tests; no physical iPad trackpad or mobile WebView acceptance", "Trusted native pointer input for resize; File Explorer drop tests use the real host payload and DOM handler", "Area settings menu uses Obsidian's public DOM mode; OS-native menu selection is not asserted"] };
+const report = { status: "running", startedAt: new Date().toISOString(), scenarios: [], target: vaultName, artifacts: {}, limits: ["Desktop Electron functional tests; no physical iPad trackpad or mobile WebView acceptance", "Trusted native pointer input for resize and gate/history; File Explorer drops use the real host payload and DOM handler", "Browser guest creation, sizing and teardown are asserted; remote login, video playback and sites blocking mobile iframes require separate acceptance", "Area settings menu uses Obsidian's public DOM mode; OS-native menu selection is not asserted"] };
 const dataPath = join(target.pluginDir, "data.json");
 const originalData = readFileSync(dataPath);
 const enabledPath = join(target.config, "community-plugins.json");
@@ -44,9 +44,10 @@ function evaluate(code) {
 }
 /** Yield the driver between short CLI reads; native work continues independently. */
 const sleep = ms => new Promise(done => setTimeout(done, ms));
-/** Poll asynchronous native work without keeping an individual CLI request pending. */
+/** Poll native work serially; waits report aggregate phases and completed fixture scenarios without changing host state. */
 async function until(code, message, timeout = 180_000) {
   const end = Date.now() + timeout;
+  let nextProgress = Date.now() + 30_000;
   do {
     let value;
     try { value = evaluate(code) } catch (error) {
@@ -57,6 +58,11 @@ async function until(code, message, timeout = 180_000) {
       continue;
     }
     if (value) return value;
+    if ((installed || report.deviceOnly) && Date.now() >= nextProgress) {
+      const progress = evaluate(`JSON.stringify((()=>{const p=app.plugins.plugins["k-plex"];return {status:p.getIndexStatus(),progress:p.getStartupDiagnostics().progress,activeSemanticPreparation:p.index.hasActiveSemanticPreparation(),alias:p.index.getUrlAliasUpgradeProgress(),completedScenarios:window.${controller}?.scenarios?.map(s=>s.id),activeInput:document.activeElement?.className}})())`);
+      console.log("Native readiness progress:", JSON.stringify(progress));
+      nextProgress = Date.now() + 30_000;
+    }
     assert(Date.now() < end, message);
     await sleep(250);
   } while (true);
@@ -82,10 +88,12 @@ const nativeController = `(()=>{
   c.until=async(fn,message,timeout=180000)=>{const end=Date.now()+timeout;while(!fn()){if(Date.now()>end)throw new Error(message);await c.wait(50)}};
   c.root=()=>c.leaf.view.contentEl.querySelector(".kplex-app");
   c.plex=()=>c.root().querySelector(".kplex-plex");
+  // Optional global alias repair is separate from authoritative graph/current-view readiness.
+  c.primaryReady=()=>p.index.isFullSnapshotHydrated()&&!p.index.hasPendingSnapshotHydration()&&!p.index.hasPendingSemanticPreparation()&&!p.index.building;
   c.center=()=>c.root().querySelector(".kplex-role-center")?.dataset.kplexPath||p.settings.lastActivePath;
   c.button=(key)=>Array.from(c.root().querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator(key));
   c.key=(target,key,extra={})=>target.dispatchEvent(new KeyboardEvent("keydown",{key,bubbles:true,cancelable:true,...extra}));
-  c.input=(input,text)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,text);input.dispatchEvent(new Event("input",{bubbles:true}))};
+  c.input=(input,text)=>{input.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,text);input.dispatchEvent(new Event("input",{bubbles:true}))};
   c.go=async(path)=>{p.notifyNavigation(path);await c.until(()=>p.settings.lastActivePath===path,"Center did not navigate to "+path);await c.frames()};
   c.openFind=async()=>{app.workspace.setActiveLeaf(c.leaf,{focus:true});c.root().focus();c.key(c.root(),"f",{metaKey:true});await c.until(()=>c.root().querySelector(".kplex-find-input")===document.activeElement,"Ctrl/Cmd+F focus failed");return document.activeElement};
   c.editor=async(enabled)=>{if(Boolean(p.settings.embedCentralNode)!==enabled){c.button(enabled?"app.useCentralNodeEditor":"app.useNormalCentralNode").click();await c.frames()}
@@ -98,7 +106,7 @@ const nativeController = `(()=>{
   return JSON.stringify(true);
 })()`;
 
-/** Own files through Vault APIs and build their real metadata/source facts before mounting the test view. */
+/** Create owned Vault fixtures and prepare their canonical source facts and bounded graph scopes. */
 const setup = `(()=>{const c=window.${controller};(async()=>{
   c.check(!app.vault.getAbstractFileByPath(c.folder),"Fixture folder already exists");
   await app.vault.createFolder(c.folder);c.owned.push(c.folder);
@@ -110,34 +118,43 @@ const setup = `(()=>{const c=window.${controller};(async()=>{
   }
   c.hub=c.folder+"/Hub.md";c.unrelated=c.folder+"/Unrelated.txt";c.canvas=c.folder+"/Drawing.canvas";
   c.tall=c.folder+"/Tall.png";c.wide=c.folder+"/Wide.png";
+  c.existing=c.folder+"/Existing-target.md";await create("Existing-target.md","# Existing composer target");
+  c.historyTargets={};for(const role of ["parent","child","left","right"]){const name="History-"+role+".md";c.historyTargets[role]=c.folder+"/"+name;await create(name,"# History target "+role)}
   const yaml=Object.entries(groups).map(([role,paths])=>role+":\\n"+paths.map(path=>"  - '[["+path+"]]'").join("\\n")).join("\\n");
   await create("Hub.md","---\\n"+yaml+"\\n---\\n# Hub\\n");
   await create("Unrelated.txt","Unrelated whole-vault file");
   await create("Grandchild.md","# Expanded descendant");
+  await create("URLs.md","[First Help alias](https://help.obsidian.md)\\n[Second Help alias](https://help.obsidian.md)\\n[Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)\\n[Shorts](https://www.youtube.com/shorts/dQw4w9WgXcQ)\\n[Vimeo](https://vimeo.com/76979871)");
   const first=app.vault.getFileByPath(groups.Child[0]);await app.vault.modify(first,"---\\nChild: '[["+c.folder+"/Grandchild.md]]'\\n---\\n");
   await create("Drawing.canvas",JSON.stringify({nodes:[{id:"ux-text",type:"text",x:0,y:0,width:250,height:120,text:"Canvas UX test"}],edges:[]}));
-  for(const [name,width,height]of [["Tall.png",40,240],["Wide.png",320,40]]){
+  for(const [name,width,height]of [["Tall.png",592,1000],["Wide.png",2000,250]]){
     const canvas=createFragment().createEl("canvas");canvas.width=width;canvas.height=height;
     const ctx=canvas.getContext("2d");ctx.fillStyle="#3c78aa";ctx.fillRect(0,0,width,height);
+    for(const [color,x,y]of [["#ff0000",0,0],["#00ff00",width*0.9,0],["#0000ff",0,height*0.9],["#ffff00",width*0.9,height*0.9]]){ctx.fillStyle=color;ctx.fillRect(x,y,width*0.1,height*0.1)}
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
     const file=await app.vault.createBinary(c.folder+"/"+name,await blob.arrayBuffer());c.owned.push(file.path);
   }
   await c.until(()=>[c.hub,...Object.values(groups).flat(),c.folder+"/Grandchild.md"].every(path=>app.metadataCache.getFileCache(app.vault.getFileByPath(path))),"Fixture metadata did not settle");
   await c.wait(1000);
-  // A warm vocabulary can retain authoritative source fingerprints without materializing each
-  // fixture owner's aliases/outgoing relationships. UI acceptance needs a complete fixture,
-  // so use the production full-build seeding path, not semantic-no-op per-file patches.
-  // The coordinator coalesces a request into a build already in flight. First await that
-  // ordinary event work, then explicitly seed after all fixture files have been created.
-  await c.p.rebuildIndex(false,false,"ux-fixture-quiescence");
-  await c.p.rebuildIndex(false,true,"ux-fixture-seed");
-  c.check(c.p.index.isFullSnapshotHydrated(),"Fixture graph seeding was cancelled");
-  await c.until(()=>c.p.getIndexStatus().upToDate,"Fixture indexing did not settle",900000);
-  for(const path of [c.tall,c.wide,c.canvas,c.unrelated])c.p.index.insertCreatedFile(app.vault.getFileByPath(path));
   Object.assign(c.p.settings,{embedCentralNode:false,documentSyncMode:"off",followActiveFile:false,autoOpenCentralDocument:false,
     graphDepth:2,maxItemCount:100,parentMaxHeight:160,childMaxHeight:180,friendMaxHeight:160,parentColumns:1,childColumns:1,
     graphLenses:[],animationSpeed:0,showAttachments:true,attachmentImageDisplay:"thumbnail-label",lastActivePath:c.hub,navigationHistory:[c.hub]});
   c.p.settings.layoutProfiles={...c.p.settings.layoutProfiles,"desktop:leaf":{...c.p.settings.layoutProfiles["desktop:leaf"],parentColumns:1,childColumns:1}};
+  // Seed only the owned fixture while old global aliases remain optional background work.
+  // Requested scopes materialize its current canonical relationships without forcing grammar
+  // repair across the unrelated scale vault; every temporary demand is released in cleanup.
+  await c.p.rebuildIndex(false,false,"ux-fixture-quiescence");
+  const legacyAliasesPending=c.p.index.hasPendingSearchVocabulary();
+  if(legacyAliasesPending){
+    const ownedMarkdown=c.owned.filter(path=>path.endsWith(".md"));
+    await c.p.index.patchMarkdownPaths(ownedMarkdown);
+    c.fixtureDemands=[c.hub,c.folder+"/Child-00.md",c.folder+"/URLs.md"].map(path=>c.p.index.acquireSemanticDemand(path));
+    c.p.notifyNavigation(c.hub);await c.p.index.refreshSemanticSettings();
+  }else await c.p.rebuildIndex(false,true,"ux-fixture-seed");
+  c.check(c.p.index.isFullSnapshotHydrated(),"Fixture graph seeding was cancelled");
+  await c.until(()=>c.primaryReady(),"Fixture primary graph/current-view semantics did not settle",900000);
+  c.fixtureReadiness={mode:legacyAliasesPending?"owned-patch-and-requested-scopes":"full-seed",status:c.p.getIndexStatus(),aliasVocabularyPending:c.p.index.hasPendingSearchVocabulary(),source:c.p.index.getSourceAcquisitionCounters()};
+  for(const path of [c.tall,c.wide,c.canvas,c.unrelated])c.p.index.insertCreatedFile(app.vault.getFileByPath(path));
   c.fixtureAliases=["Parent","Friend","Child"].map(role=>({role,aliases:c.p.index.get(c.folder+"/"+role+"-15.md")?.aliases}));
   c.check(c.fixtureAliases.every(item=>item.aliases.includes("Hidden overflow alias")),"Fixture aliases were not indexed");
   c.check(c.p.index.neighbours(c.p.index.get(c.folder+"/Child-00.md"),"child").some(item=>item.page.path===c.folder+"/Grandchild.md"),"Fixture expanded relationship was not materialized");
@@ -157,16 +174,24 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const vaultInput=document.activeElement;
   p.settings.showAttachments=false;
   for(const term of ["Unrelated.txt","Tall.png","Drawing.canvas"]){
-    c.input(vaultInput,term);await c.until(()=>document.querySelector(".kplex-search-results")?.textContent.includes(term),"Vault search missing "+term);
+    c.input(vaultInput,term);await c.until(()=>root.querySelector(".kplex-search-results")?.textContent.includes(term),"Vault search missing "+term);
     c.check(c.center()===c.hub,"Vault typing changed center");
   }
   p.settings.showAttachments=true;
   c.key(vaultInput,"Enter");await c.until(()=>c.center()===c.canvas,"Vault Enter did not activate the selected Canvas file");
   await c.until(()=>vaultInput.value==="","Vault activation did not clear its query");await c.go(c.hub);
-  record("F4-whole-vault-all-filetypes");
-  let find=await c.openFind();c.check(!document.querySelector(".kplex-search-results"),"Find opened Vault results");
+  // Enter closes/blurs the shared suggester; reopen its focus lifetime before another Vault query.
+  c.key(root,"F4");await c.until(()=>document.activeElement===root.querySelector(".kplex-search"),"F4 did not refocus Vault search after activation");
+  c.check(vaultInput===document.activeElement,"Vault search input changed after Canvas activation");
+  for(const term of ["help.obsidian.md","First Help alias","Second Help alias"]){
+    c.input(vaultInput,term);await c.until(()=>root.querySelector(".kplex-search-results")?.textContent.includes("https://help.obsidian.md"),"Vault URL/alias search missing "+term);
+  }
+  c.key(vaultInput,"Escape");record("F4-whole-vault-files-URL-multiple-aliases");
+  let find=await c.openFind();c.check(!root.querySelector(".kplex-search-results"),"Find opened Vault results");
   c.input(find,"Parent-15");await c.until(()=>root.querySelector(".kplex-role-parent.is-highlighted"),"Projected hit not highlighted");
-  await c.frames();c.check(root.querySelector(".kplex-edge.is-highlighted"),"Find did not highlight the revealed hit's relationship");
+  await c.frames();c.check(!root.querySelector(".kplex-edge.is-highlighted"),"Note matches must not highlight incident relationships");
+  c.input(find,"Parent");await c.until(()=>root.querySelector(".kplex-edge.is-highlighted"),"Matching parent ontology did not highlight its connectors");
+  c.input(find,"Parent-15");await c.frames();
   c.check(!root.querySelector(".kplex-find [role=listbox],.kplex-find [role=option]"),"Find rendered a dropdown");
   const parentScroll=root.querySelector(".kplex-zone-parent .kplex-zone-scroll");
   c.check(parentScroll?.scrollTop>0,"Find did not reveal overflow hit");
@@ -192,6 +217,52 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   tap();await c.frames();c.check(document.querySelector(".kplex-vault-stats"),"Double tap did not open About vault");
   c.statsModalEl=document.querySelector(".kplex-vault-stats").closest(".modal");
   document.querySelector(".kplex-vault-stats").closest(".modal").querySelector(".modal-content button.mod-cta").click();record("about-vault-completed-touch-pair");
+  const wc=require("@electron/remote").getCurrentWindow().webContents;
+  const dragGate=async(to)=>{const gate=root.querySelector('.kplex-role-center [data-kplex-gate="bottom"]'),a=gate.getBoundingClientRect();
+    const x=Math.round(a.x+a.width/2),y=Math.round(a.y+a.height/2);
+    wc.sendInputEvent({type:"mouseMove",x,y});wc.sendInputEvent({type:"mouseDown",x,y,button:"left",clickCount:1});await c.frames();
+    for(let step=1;step<=5;step++){wc.sendInputEvent({type:"mouseMove",x:Math.round(x+(to.x-x)*step/5),y:Math.round(y+(to.y-y)*step/5),modifiers:["leftbuttondown"]});await c.frames()}
+    wc.sendInputEvent({type:"mouseUp",x:Math.round(to.x),y:Math.round(to.y),button:"left",clickCount:1});await c.frames()};
+  const modal=()=>document.querySelector(".kplex-add-related-modal");
+  c.check(!modal(),"An existing relationship dialog is open");c.ownsRelationModal=true;
+  const linkButton=()=>modal()?.querySelector(".kplex-add-related-link-button");
+  // FileManager can write shortest wiki links or Markdown links. Verify MetadataCache resolves
+  // the persisted property to the actual target, rather than requiring an absolute raw string.
+  const linked=async(path,field)=>{await c.until(()=>{
+      const storage=app.vault.getFileByPath(c.hub),cache=app.metadataCache.getFileCache(storage);
+      return cache?.frontmatterLinks?.some(ref=>(ref.key===field||ref.key.startsWith(field+"."))&&app.metadataCache.getFirstLinkpathDest(ref.link,storage.path)?.path===path);
+    },"Relationship not persisted: "+field+" → "+path);
+    await c.until(()=>Boolean(p.index.get(c.hub)?.neighbours.get(path)),"Relationship not published");
+    const evidence=p.index.explainRelationship(c.hub,path);c.check(evidence,"Relationship lacks provenance");return evidence};
+  const bounds=c.plex().getBoundingClientRect();await dragGate({x:bounds.right-50,y:bounds.bottom-120});
+  await c.until(()=>modal(),"Empty gate drag did not open composer");
+  const targetInput=modal().querySelector(".kplex-add-related-note-search input");
+  // Type only after modal autofocus has settled; initial focus resets its typed-results lifetime.
+  await c.until(()=>document.activeElement===targetInput,"Composer note input did not focus");await c.frames();c.input(targetInput,"Existing-target");
+  await c.until(()=>document.querySelector(".kplex-search-results")?.textContent.includes("Existing-target"),"Existing note not suggested");
+  c.key(targetInput,"Enter");await c.frames();c.check(linkButton()&&!linkButton().disabled,"Existing selection did not enable Link");
+  const ontology=modal().querySelector(".kplex-add-related-ontology-search input");
+  c.input(ontology,"");modal().querySelector(".kplex-fuzzy-disclosure").click();await c.frames();
+  c.check(document.querySelector(".kplex-search-results"),"Empty ontology disclosure did not show fields");
+  c.key(ontology,"Enter");await c.frames();const selectedField=ontology.value;c.check(selectedField,"Ontology dropdown did not select a field");
+  linkButton().click();await c.until(()=>!modal(),"Existing-target Link failed to close after commit");
+  await linked(c.existing,selectedField);record("gate-composer-existing-target-Link-and-empty-ontology-disclosure",{field:selectedField});
+  const showPosition=p.showKplexMenuAtPosition;
+  p.showKplexMenuAtPosition=function(menu,position,doc){menu.setUseNativeMenu(false);return showPosition.call(this,menu,position,doc)};
+  try{for(const role of ["parent","child","left","right"]){
+    const path=c.historyTargets[role];await c.go(path);await c.go(c.hub);
+    const button=Array.from(root.querySelectorAll("[data-kplex-history-path]")).find(b=>b.dataset.kplexHistoryPath===path);
+    c.check(button,"History target not rendered");button.scrollIntoView({block:"nearest",inline:"center"});await c.frames();
+    const r=button.getBoundingClientRect();await dragGate({x:r.x+r.width/2,y:r.y+r.height/2});
+    await c.until(()=>document.querySelector(".menu .menu-item"),"Gate-to-history did not open role menu");
+    const labels=["role.parent","role.child","role.friend","role.challenger"].map(k=>p.translator(k));
+    const items=Array.from(document.querySelectorAll(".menu .menu-item"));c.check(labels.every(label=>items.some(i=>i.textContent.includes(label))),"History menu lacks a role");
+    const wanted=p.translator(role==="left"?"role.friend":role==="right"?"role.challenger":"role."+role);
+    items.find(i=>i.textContent.includes(wanted)).click();await c.until(()=>modal(),"History role did not open fixed-target composer");
+    const field=modal().querySelector(".kplex-add-related-ontology-search input").value;linkButton().click();await c.until(()=>!modal(),"History Link did not commit");
+    await linked(path,field);c.check(p.index.neighbours(p.index.get(c.hub),role).some(n=>n.page.path===path),"History relationship has the wrong role: "+role);
+    record("gate-to-history-commit-"+role,{field});
+  }}finally{p.showKplexMenuAtPosition=showPosition}
   // Test a real preceding document so embedded-leaf detach cannot silently follow it back.
   c.previousLeaf=app.workspace.getLeaf(true);await c.previousLeaf.openFile(app.vault.getFileByPath(c.tall));
   await p.setDocumentSyncMode("recent");
@@ -200,8 +271,19 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const imageCheck=()=>{const img=root.querySelector('[data-type="image"] img'),frame=img.closest(".view-content"),r=img.getBoundingClientRect(),f=frame.getBoundingClientRect(),style=getComputedStyle(img);
     c.check(style.objectFit==="contain","Native image does not contain-fit");c.check(r.width<=f.width+1&&r.height<=f.height+1,"Native image exceeds its editor bounds");
     c.check(Math.abs(r.x+r.width/2-f.x-f.width/2)<1&&Math.abs(r.y+r.height/2-f.y-f.height/2)<1,"Native image box is not centered");return {image:[r.width,r.height],frame:[f.width,f.height],objectFit:style.objectFit}};
-  const tall=imageCheck();await c.go(c.wide);await c.until(()=>root.querySelector('[data-type="image"] img')?.complete&&root.querySelector('[data-type="image"] img')?.naturalWidth===320,"Second native image did not load");
-  const wide=imageCheck();const history=JSON.stringify(p.settings.navigationHistory);
+  const paintedImage=async()=>{const img=root.querySelector('[data-type="image"] img'),r=img.getBoundingClientRect();
+    const scale=Math.min(r.width/img.naturalWidth,r.height/img.naturalHeight),w=img.naturalWidth*scale,h=img.naturalHeight*scale;
+    const x=r.x+(r.width-w)/2,y=r.y+(r.height-h)/2;await c.frames();
+    // Use the same explicit NativeImage representation for dimensions and bitmap on Retina displays.
+    const capture=await wc.capturePage({x:Math.round(x),y:Math.round(y),width:Math.round(w),height:Math.round(h)}),size=capture.getSize(1),bitmap=capture.toBitmap({scaleFactor:1});
+    c.check(bitmap.length===size.width*size.height*4,"Native capture bitmap dimensions do not match its selected representation");
+    const pixel=(sx,sy)=>{const i=(Math.round(sy*(size.height-1))*size.width+Math.round(sx*(size.width-1)))*4;return [bitmap[i+2],bitmap[i+1],bitmap[i]]};
+    const pixels=[[.04,.04],[.96,.04],[.04,.96],[.96,.96]].map(([sx,sy])=>pixel(sx,sy));
+    const expected=[[255,0,0],[0,255,0],[0,0,255],[255,255,0]];
+    c.check(pixels.every((sample,i)=>sample.every((value,j)=>Math.abs(value-expected[i][j])<25)),"Image corner content cropped/distorted: "+JSON.stringify(pixels));
+    return {natural:[img.naturalWidth,img.naturalHeight],painted:[w,h],pixels}};
+  const tall={...imageCheck(),paint:await paintedImage()};await c.go(c.wide);await c.until(()=>root.querySelector('[data-type="image"] img')?.complete&&root.querySelector('[data-type="image"] img')?.naturalWidth===2000,"Second native image did not load");
+  const wide={...imageCheck(),paint:await paintedImage()};const history=JSON.stringify(p.settings.navigationHistory);
   await c.click(root.querySelector('[data-type="image"] img'));
   await c.click(c.button("app.useNormalCentralNode"));await c.wait(250);
   c.check(c.center()===c.wide&&JSON.stringify(p.settings.navigationHistory)===history,"Collapsing second image navigated back");
@@ -258,7 +340,19 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const canvasAfter=nativeCanvas.getBoundingClientRect();
   c.check(canvasAfter.width>canvasBefore.width+1&&canvasAfter.height>canvasBefore.height+1,"Native Canvas surface did not resize on Plex zoom before pan");
   record("Canvas-drop-native-view-wheel-resize-before-pan",{before:[before.width,before.height],after:[after.width,after.height],nativeBefore:[canvasBefore.width,canvasBefore.height],nativeAfter:[canvasAfter.width,canvasAfter.height],nativeType:root.querySelector('[data-type="canvas"]').dataset.type});
-  await c.editor(false);await c.go(c.hub);
+  await c.editor(false);
+  for(const [url,ratio]of [["https://help.obsidian.md",null],["https://www.youtube.com/watch?v=dQw4w9WgXcQ",16/9],["https://www.youtube.com/shorts/dQw4w9WgXcQ",9/16],["https://vimeo.com/76979871",16/9]]){
+    await c.go(url);await c.editor(true);await c.until(()=>root.querySelector(".kplex-embedded-web-page webview"),"Desktop URL editor did not mount webview");
+    const frame=root.querySelector(".kplex-embedded-web-frame");
+    await c.until(()=>{try{return frame.getWebContentsId()>0}catch{return false}},"Desktop browser guest did not initialize",30000);
+    const r=frame.getBoundingClientRect();
+    if(ratio)c.check(Math.abs(r.width/r.height-ratio)<.01,"Video ratio is incorrect");
+    c.check(!frame.hasAttribute("nodeintegration")&&!frame.hasAttribute("disablewebsecurity"),"Browser guest gained privileged access");
+    const history=JSON.stringify(p.settings.navigationHistory);await c.editor(false);c.check(!root.querySelector(".kplex-embedded-web-frame"),"Collapsed browser guest leaked");
+    c.check(c.center()===url&&JSON.stringify(p.settings.navigationHistory)===history,"URL collapse changed node history");
+    record("desktop-webview-"+(ratio===9/16?"shorts":url.includes("vimeo")?"vimeo":ratio?"youtube":"page"),{src:frame.getAttribute("src"),ratio:r.width/r.height});
+  }
+  await c.go(c.hub);
   c.popoutLeaf=app.workspace.getLeaf("window");await c.popoutLeaf.setViewState({type:"k-plex-react-view",active:true});
   await app.workspace.revealLeaf(c.popoutLeaf);
   const popoutRoot=()=>c.popoutLeaf.view.contentEl.querySelector(".kplex-app");
@@ -287,8 +381,18 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
 
 /** Clean up even a partially created fixture and flush the original settings before byte restoration. */
 const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(true);c.done=false;c.error=null;(async()=>{
-  c.statsModalEl?.querySelector(".modal-content button.mod-cta")?.click();c.p.dismissKplexMenu();
+  c.statsModalEl?.querySelector(".modal-content button.mod-cta")?.click();
+  if(c.ownsRelationModal){
+    // Obsidian's Modal has no close-button element in this host; use its real Escape lifecycle.
+    const wc=require("@electron/remote").getCurrentWindow().webContents;
+    for(let i=0;i<2&&document.querySelector(".kplex-add-related-modal");i++){
+      wc.sendInputEvent({type:"keyDown",keyCode:"Escape"});wc.sendInputEvent({type:"keyUp",keyCode:"Escape"});await c.wait(50);
+    }
+    c.check(!document.querySelector(".kplex-add-related-modal"),"Owned related-note modal survived cancellation");
+  }
+  c.p.dismissKplexMenu();
   require("@electron/remote").getCurrentWindow().webContents.sendInputEvent({type:"mouseUp",x:0,y:0,button:"left",clickCount:1});
+  for(const release of c.fixtureDemands??[])release();c.fixtureDemands=[];
   c.popoutLeaf?.detach();c.leaf?.detach();c.previousLeaf?.detach();
   const fixture=app.vault.getFolderByPath(c.folder);if(fixture&&c.owned.includes(c.folder))await app.vault.delete(fixture,true);
   c.p.settings=c.settings;await c.p.saveSettings(false,false);
@@ -300,6 +404,9 @@ const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(
 /** Optional mobile-emulation lane; reloads are outside the fixture/controller lifetime. */
 async function deviceMatrix() {
   const baseline=evaluate('JSON.stringify((()=>{const w=require("@electron/remote").getCurrentWindow();return {mobile:app.isMobile,bounds:w.getBounds(),minimum:w.getMinimumSize()}})())');
+  const liveSettings=evaluate('JSON.stringify(app.plugins.plugins["k-plex"].settings)');
+  const webOwner="Kplex-UX-Web-Routing.md";
+  let ownsWebOwner=false;
   const probe=async(width,height,expected)=>{
     cli("dev:errors", "clear");
     evaluate(`(()=>{const w=require("@electron/remote").getCurrentWindow();w.setMinimumSize(200,200);w.setContentSize(${width},${height});return JSON.stringify(true)})()`);
@@ -321,14 +428,37 @@ async function deviceMatrix() {
     })())`,"Emulated magnifier did not focus its Find field");
     assert(geometry.inside&&!geometry.dropdown,JSON.stringify(geometry));
     if(expected!=="desktop")assert(!geometry.searchHint.includes("F4"),"Mobile hint assumes a hardware keyboard");
+    // Mobile emulation reloads the real vault. Complete its existing bounded primary startup
+    // prerequisite before timing a URL element assertion; a rendered Find button is not source
+    // authority. This uses the same 30-minute startup bound as the desktop setup, not the
+    // interaction wait, and leaves optional alias work independent.
+    await until('JSON.stringify((()=>{const i=app.plugins.plugins["k-plex"].index;return i.isFullSnapshotHydrated()&&!i.hasPendingSnapshotHydration()&&!i.building})())',"Emulated primary graph hydration did not complete",1_800_000);
+    // Route a known URL through the actual central editor in every host mode. A guest's
+    // remote response/authentication is separate from proving native element selection.
+    await until('JSON.stringify(Boolean(app.plugins.plugins["k-plex"].index.get("https://help.obsidian.md")))',"Source-backed web routing URL did not restore");
+    evaluate(`(()=>{const p=app.plugins.plugins["k-plex"];p.settings.showURLNodes=true;p.settings.documentSyncMode="off";p.settings.followActiveFile=false;p.notifyNavigation("https://help.obsidian.md");return JSON.stringify(true)})()`);
+    await until('JSON.stringify(window.__kplexUxDevice.leaf.view.contentEl.querySelector(".kplex-role-center")?.dataset.kplexPath==="https://help.obsidian.md")',"Emulated URL center did not activate");
+    evaluate('(()=>{const p=app.plugins.plugins["k-plex"],root=window.__kplexUxDevice.leaf.view.contentEl;if(!p.settings.embedCentralNode)Array.from(root.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("app.useCentralNodeEditor"))?.click();return JSON.stringify(true)})()');
+    const webRouting=await until(`JSON.stringify((()=>{const root=window.__kplexUxDevice.leaf.view.contentEl,frame=root.querySelector(".kplex-embedded-web-frame");if(!frame)return false;const r=frame.getBoundingClientRect();return {tag:frame.tagName.toLowerCase(),src:frame.getAttribute("src"),width:r.width,height:r.height,frames:root.querySelectorAll(".kplex-embedded-web-frame").length}})())`,"Emulated web editor did not mount");
+    assert.equal(webRouting.tag,expected==="desktop"?"webview":"iframe");
+    assert.equal(webRouting.frames,1);assert(webRouting.width>0&&webRouting.height>0,JSON.stringify(webRouting));
+    evaluate('(()=>{const p=app.plugins.plugins["k-plex"],root=window.__kplexUxDevice.leaf.view.contentEl;Array.from(root.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("app.useNormalCentralNode"))?.click();return JSON.stringify(true)})()');
+    await until('JSON.stringify(!window.__kplexUxDevice.leaf.view.contentEl.querySelector(".kplex-embedded-web-frame"))',"Emulated browser survived collapse");
     const errors=cli("dev:errors");
     assert(!errors||/^No errors captured\.?$/i.test(errors),errors);
-    report.scenarios.push({id:`emulated-${expected}-Find-magnifier`,status:"passed",environment,geometry,errors});
+    report.scenarios.push({id:`emulated-${expected}-Find-magnifier-and-web-routing`,status:"passed",environment,geometry,webRouting,errors});
     evaluate('(()=>{window.__kplexUxDevice.leaf.detach();delete window.__kplexUxDevice;return JSON.stringify(true)})()');
   };
   /** Reconnect across Obsidian's intentional mobile-mode reload. */
   const ready=async()=>{const end=Date.now()+180000;while(true){try{if(evaluate('JSON.stringify(Boolean(app.plugins.plugins["k-plex"]?.index))'))return}catch{}assert(Date.now()<end,"Mobile reload did not become available");await sleep(500)}};
   try {
+    assert(!evaluate(`JSON.stringify(Boolean(app.vault.getAbstractFileByPath(${JSON.stringify(webOwner)})))`),"Web routing fixture already exists");
+    evaluate(`(()=>{window.__kplexUxWebSetup={done:false,error:null};app.vault.create(${JSON.stringify(webOwner)},"[Web routing acceptance](https://help.obsidian.md)").then(()=>{window.__kplexUxWebSetup.done=true}).catch(e=>{window.__kplexUxWebSetup.error=e.stack;window.__kplexUxWebSetup.done=true});return JSON.stringify(true)})()`);
+    ownsWebOwner=true;
+    await until('JSON.stringify(window.__kplexUxWebSetup.error?{error:window.__kplexUxWebSetup.error}:window.__kplexUxWebSetup.done)',"Web routing fixture creation failed");
+    await until(`JSON.stringify(Boolean(app.metadataCache.getFileCache(app.vault.getFileByPath(${JSON.stringify(webOwner)}))))`,"Web routing metadata did not settle");
+    evaluate(`(()=>{window.__kplexUxWebSetup.done=false;app.plugins.plugins["k-plex"].index.patchMarkdownPaths([${JSON.stringify(webOwner)}]).then(()=>{window.__kplexUxWebSetup.done=true}).catch(e=>{window.__kplexUxWebSetup.error=e.stack;window.__kplexUxWebSetup.done=true});return JSON.stringify(true)})()`);
+    await until('JSON.stringify(window.__kplexUxWebSetup.error?{error:window.__kplexUxWebSetup.error}:window.__kplexUxWebSetup.done)',"Web routing source preparation failed");
     if(baseline.mobile){cli("eval","code=app.emulateMobile(false)");await ready()}
     await probe(1200,900,"desktop");
     cli("eval","code=app.emulateMobile(true)");await ready();
@@ -336,12 +466,19 @@ async function deviceMatrix() {
     await probe(390,844,"phone");
   } finally {
     try{evaluate('(()=>{window.__kplexUxDevice?.leaf?.detach();delete window.__kplexUxDevice;return JSON.stringify(true)})()')}catch{}
+    if(ownsWebOwner){evaluate(`(()=>{window.__kplexUxWebCleanup={done:false,error:null};const file=app.vault.getFileByPath(${JSON.stringify(webOwner)});(file?app.vault.delete(file):Promise.resolve()).then(()=>{window.__kplexUxWebCleanup.done=true}).catch(e=>{window.__kplexUxWebCleanup.error=e.stack;window.__kplexUxWebCleanup.done=true});return JSON.stringify(true)})()`);await until('JSON.stringify(window.__kplexUxWebCleanup.error?{error:window.__kplexUxWebCleanup.error}:window.__kplexUxWebCleanup.done)',"Web routing fixture cleanup failed")}
+    evaluate('(()=>{delete window.__kplexUxWebSetup;delete window.__kplexUxWebCleanup;return JSON.stringify(true)})()');
     const current=evaluate('JSON.stringify(app.isMobile)');
     if(current!==baseline.mobile){cli("eval",`code=app.emulateMobile(${baseline.mobile})`);await ready()}
     evaluate(`(()=>{const w=require("@electron/remote").getCurrentWindow();w.setMinimumSize(${baseline.minimum[0]},${baseline.minimum[1]});w.setBounds(${JSON.stringify(baseline.bounds)});return JSON.stringify(true)})()`);
+    evaluate(`(()=>{const p=app.plugins.plugins["k-plex"];p.settings=JSON.parse(${JSON.stringify(JSON.stringify(liveSettings))});window.__kplexUxSettingsRestore={done:false,error:null};p.saveSettings(false,false).then(()=>{window.__kplexUxSettingsRestore.done=true}).catch(e=>{window.__kplexUxSettingsRestore.error=e.stack;window.__kplexUxSettingsRestore.done=true});return JSON.stringify(true)})()`);
+    await until('JSON.stringify(window.__kplexUxSettingsRestore.error?{error:window.__kplexUxSettingsRestore.error}:window.__kplexUxSettingsRestore.done)',"Live device settings did not restore");
+    evaluate('(()=>{delete window.__kplexUxSettingsRestore;return JSON.stringify(true)})()');
+    assert.deepEqual(evaluate('JSON.stringify(app.plugins.plugins["k-plex"].settings)'),liveSettings,"Device emulation changed live settings");
     writeFileSync(dataPath,originalData);
+    assert(readFileSync(dataPath).equals(originalData),"Device settings bytes did not restore");
     assert(readFileSync(enabledPath).equals(originalEnabled),"Device emulation changed plugin enablement");
-    report.deviceCleanup={mobile:evaluate('JSON.stringify(app.isMobile)'),restored:true};
+    report.deviceCleanup={mobile:evaluate('JSON.stringify(app.isMobile)'),liveSettingsRestored:true,restored:true};
   }
 }
 
@@ -349,6 +486,10 @@ try {
   assert.equal(resolve(cli("vault", "info=path").replace(/^path\s+/, "")), target.vault);
   hashes();
   report.version = cli("version");
+  if(process.env.KPLEX_UX_DEVICE_ONLY==="true"){
+    assert.equal(process.env.KPLEX_UX_EMULATE_MOBILE,"true","Device-only verification requires the device matrix");
+    report.deviceOnly=true;report.status="passed";
+  }else{
   evaluate(nativeController);installed = true;
   // A forced rebuild still obeys visible-view demand. Mount the owned view before preparing
   // the baseline/fixture rather than asking a hidden plugin to execute UI acceptance work.
@@ -359,8 +500,8 @@ try {
   // deliberately exceeds its budget. Select an existing small note before strict readiness.
   const setupCenter=process.env.KPLEX_UX_SETUP_CENTER||"Welcome.md";
   if(evaluate(`JSON.stringify(Boolean(app.vault.getFileByPath(${JSON.stringify(setupCenter)})))`)){
-    await until(`JSON.stringify(Boolean(app.plugins.plugins["k-plex"].index.get(${JSON.stringify(setupCenter)})))`,"Setup center did not become available",1_800_000);
-    evaluate(`(()=>{app.plugins.plugins["k-plex"].notifyNavigation(${JSON.stringify(setupCenter)});return JSON.stringify(true)})()`);
+    await until(`JSON.stringify(Boolean(app.plugins.plugins["k-plex"].index.getVaultSearchPage(${JSON.stringify(setupCenter)})))`,"Setup center did not become available",1_800_000);
+    evaluate(`(()=>{const p=app.plugins.plugins["k-plex"],page=p.index.getVaultSearchPage(${JSON.stringify(setupCenter)});if(page?.file&&!p.index.get(page.path))p.index.insertCreatedFile(page.file);p.notifyNavigation(${JSON.stringify(setupCenter)});return JSON.stringify(true)})()`);
     report.setupCenter=setupCenter;
   }
   console.log("Waiting for test-vault index readiness");
@@ -368,9 +509,11 @@ try {
   // readiness entry point as opening a view; never manufacture readiness by changing its flags.
   evaluate(`(()=>{const c=window.${controller};c.readinessRecovery={done:false,error:null};
     (async()=>{await c.p.ensureIndexReady("ux-test-setup");
-      if(!c.p.getIndexStatus().upToDate)await c.p.rebuildIndex(false,true,"ux-initial-seed");
+      if(!c.p.index.isFullSnapshotHydrated()&&!c.p.index.hasPendingSnapshotHydration())await c.p.rebuildIndex(false,true,"ux-initial-seed");
+      await c.p.index.refreshSemanticSettings();
       c.readinessRecovery.done=true})().catch(e=>{c.readinessRecovery.error=e.stack;c.readinessRecovery.done=true});return JSON.stringify(true)})()`);
-  await until(`JSON.stringify(window.${controller}.readinessRecovery.error?{error:window.${controller}.readinessRecovery.error}:app.plugins.plugins["k-plex"].getIndexStatus().upToDate)`, "Initial indexing did not settle", 1_800_000);
+  await until(`JSON.stringify(window.${controller}.readinessRecovery.error?{error:window.${controller}.readinessRecovery.error}:window.${controller}.readinessRecovery.done&&window.${controller}.primaryReady())`, "Initial primary graph/current-view semantics did not settle", 1_800_000);
+  report.startupReadiness=evaluate(`JSON.stringify((()=>{const c=window.${controller};return {primaryReady:c.primaryReady(),status:c.p.getIndexStatus(),aliasVocabularyPending:c.p.index.hasPendingSearchVocabulary(),source:c.p.index.getSourceAcquisitionCounters(),semantic:c.p.index.getSemanticPreparationDiagnostics()}})())`);
   console.log("Index ready; creating the owned UX fixture");
   cli("dev:errors", "clear");
   evaluate(setup);
@@ -379,9 +522,11 @@ try {
   evaluate(scenarios);
   await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "UX scenarios timed out", 300_000);
   report.scenarios = evaluate(`JSON.stringify(window.${controller}.scenarios)`);
+  report.fixtureReadiness=evaluate(`JSON.stringify(window.${controller}.fixtureReadiness)`);
   const errors = cli("dev:errors");
   assert(!errors || /^No errors captured\.?$/i.test(errors), errors);
   report.errors = errors;report.status = "passed";
+  }
 } catch (error) {
   report.status = "failed";report.error = error.stack;
   if (installed) try {
@@ -391,6 +536,7 @@ try {
       findOpen:r?.querySelector(".kplex-find button")?.getAttribute("aria-expanded"),
       findValue:r?.querySelector(".kplex-find-input")?.value,matchLabel:r?.querySelector(".kplex-find-count")?.textContent,fixtureAliases:c.fixtureAliases,
       highlightedNodes:r?.querySelectorAll(".kplex-thought.is-highlighted").length,resize:c.lastResize,
+      vaultInput:r?.querySelector(".kplex-search")?.value,vaultResults:r?.querySelector(".kplex-search-results")?.textContent,
       popoutRootConnected:c.popoutRootForFind?.isConnected,
       popoutRootCurrent:c.popoutRootForFind===c.popoutLeaf?.view.contentEl.querySelector(".kplex-app"),
       expandedNodes:r?.querySelectorAll(".kplex-expanded-mini-thought").length,

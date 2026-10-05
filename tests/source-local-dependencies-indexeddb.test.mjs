@@ -6,6 +6,75 @@ import { chromiumHarness } from "./support/browserTypeScript.mjs";
 
 const bundle = await contributorBrowserBundle(["src/index/SourceRepository.ts"]);
 
+/** Optional alias writes prove primary equivalence and preserve every selected authority input before CAS. */
+test("optional alias replacement rejects primary, dependency-count and final selection changes without fallback", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules;
+      for(const mode of ['primary','pending-owner','dependency-digest','same-tuple','superseded']){
+        const f=await fixture('optional-alias-proof-'+mode);
+        try{
+          f.add('A.md','[First](https://help.obsidian.md)');await f.acquire();ok(await f.acquisition.reconcile(),'Seed closed authority');
+          const r=f.repository,db=await f.cache.open(),initial=await r.inspect('A.md'),records=[];
+          equal(await r.visit('A.md','body-urls',rows=>{for(const {aliases,...primary} of rows)records.push(primary);return true;}),'ready','Authenticate old primary URL facts');
+          equal((await r.replace({sourceId:'A.md',physical:initial.head.physical,observation:initial.head.observation,expected:initial.expected,bodyParserVersion:2,
+            families:{...initial.head.families,'body-urls':async emit=>{for(const record of records)if(!await emit(record))return false;return true;}}})).outcome,'activated','Seed authentic legacy primary grammar');
+          ok(await f.acquisition.reconcile(),'Legacy primary authority reused');await f.build();
+          const selected=await r.inspect('A.md');let retainedBefore;
+          if(mode==='pending-owner')await edit(db,['meta'],async tx=>{const meta=tx.objectStore('meta'),state=await value(meta.get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY));meta.put({...state,pending:1});});
+          if(mode==='dependency-digest')await edit(db,[M.SOURCE_LOCAL_OWNER_STORE],async tx=>{const store=tx.objectStore(M.SOURCE_LOCAL_OWNER_STORE),owner=await value(store.get('A.md'));store.put({...owner,digest:'0'.repeat(64)});});
+          const stores=['sourceHeads',M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_KEY_STORE,M.SOURCE_IMPACT_STORE,'meta'];
+          const capture=()=>Promise.all(stores.map(async store=>{const rows=await value(db.transaction(store).objectStore(store).getAll());return store==='meta'?rows.filter(row=>!row.key.startsWith('source-lease:')):rows;}));
+          retainedBefore=await capture();const activate=r.activate;let current=true;
+          const leaseCount=async()=> (await value(db.transaction('meta').objectStore('meta').getAll())).filter(row=>row.key.startsWith('source-lease:')).length;
+          const baselineLeases=await leaseCount();
+          if(mode==='same-tuple')r.activate=async function(...args){
+            await edit(db,['sourceHeads'],async tx=>{const store=tx.objectStore('sourceHeads'),head=await value(store.get('A.md'));store.put({...head,physical:{...head.physical,mtime:head.physical.mtime+1}});});
+            retainedBefore=await capture();return activate.apply(this,args);
+          };
+          if(mode==='superseded')r.activate=async function(...args){current=false;return activate.apply(this,args)};
+          const result=await r.replace({sourceId:'A.md',physical:selected.head.physical,observation:selected.head.observation,expected:selected.expected,
+            bodyParserVersion:3,aliasUpgradeFrom:{head:selected.head,sequence:selected.sequence,saved:true},families:{...selected.head.families,
+              'body-urls':async emit=>{for(const record of records)if(!await emit({...record,...(mode==='primary'?{label:'Changed primary'}:{}),aliases:['First','Second']}))return false;return true;}}},()=>current);
+          ok(result.outcome==='rejected'||result.outcome==='superseded'||mode==='superseded'&&result.outcome==='cancelled','Optional proof fails closed for '+mode);
+          equal(await capture(),retainedBefore,'No selected head/owner/count/journal/state mutation on '+mode);
+          equal(await leaseCount(),baselineLeases,'Optional failure releases both authentication pins for '+mode);
+          equal(r.unsaved.size,0,'No memory mask for '+mode);equal(r.memory.size,0,'No source fallback for '+mode);
+        }finally{f.close();}
+      }
+      return true;
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
+/** A final scalar count fence rejects private markers staged after the bounded closure sweep. */
+test("private reclaim inventory validates every marker and the exact final sequence record", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('optional-alias-private-count');
+      try{
+        f.add('A.md','');f.add('B.md','');await f.acquire();ok(await f.acquisition.reconcile(),'Seed closed owners');await f.build();
+        const r=f.repository,db=await f.cache.open();
+        const stage=async id=>edit(db,[M.SOURCE_LOCAL_REPAIR_STORE,M.SOURCE_LOCAL_DEPENDENCY_STORE],tx=>{
+          const revision='inactive-'+id;tx.objectStore(M.SOURCE_LOCAL_REPAIR_STORE).put({version:1,sourceId:id,fromRevision:revision,fromRecords:1,fromIndex:0,toRevision:revision,toRecords:1,toIndex:0});
+          tx.objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE).put({version:1,sourceId:id,sourceRevision:revision,index:0,key:M.sourceLocalDependencyKey('node',id)});
+        });
+        await stage('A.md');const sweep=r.repairAllLocalDependencies;let added=false;
+        r.repairAllLocalDependencies=async function(...args){const result=await sweep.apply(this,args);if(!added){added=true;await stage('B.md');}return result;};
+        equal(await r.completeLocalDependencyInventory(),'dependency-invalid','Unvalidated concurrent private marker cannot close authority');
+        r.repairAllLocalDependencies=sweep;equal(await r.completeLocalDependencyInventory(),'ready','Fresh sweep authenticates both inactive markers');
+        await edit(db,['meta'],async tx=>{const store=tx.objectStore('meta'),sequence=await value(store.get('source-sequence'));store.put({...sequence,unexpected:true});});
+        equal(await r.completeLocalDependencyInventory(),'dependency-invalid','Malformed same-value sequence cannot authorize private closure');
+        return true;
+      }finally{f.close();}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
 const repairBrowserInitialize = `(() => {
   const M=sourceModules;
   window.r1Input=async(repo,id,prefix,count,duplicates=0)=>{

@@ -1,3 +1,7 @@
+/**
+ * Canonical host-free body grammar shared by synchronous workers and cooperative host parsing.
+ * Versioned parser DTOs retain primary URL provenance while additional labels feed search facets.
+ */
 import { normalizeFieldName } from "../contracts/fieldName";
 
 export { normalizeFieldName };
@@ -17,6 +21,8 @@ export type ExtractedLinkReference = Readonly<{
 export type ExternalUrlReference = {
   url: string;
   label?: string;
+  /** Distinct meaningful labels, independent of the retained primary occurrence/provenance. */
+  aliases?: string[];
   line?: number;
 };
 
@@ -58,6 +64,7 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
   const inlineFieldOccurrences: InlineFieldOccurrence[] = [];
   const urls: ExternalUrlReference[] = [];
   const seenUrls = new Set<string>();
+  const urlAliases = new Map<string, Set<string>>();
 
   const stripFieldFormatting = (raw: string): string => {
     let text = raw.trim().replace(/^[-*+]\s+/, "").trim();
@@ -337,7 +344,12 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
           let labelEnd = closeLabel;
           while (labelStart < labelEnd && isWhitespace(visible[labelStart])) labelStart += 1;
           while (labelEnd > labelStart && isWhitespace(visible[labelEnd - 1])) labelEnd -= 1;
-          aliasByUrl.set(raw, visible.slice(labelStart, labelEnd));
+          const label = visible.slice(labelStart, labelEnd);
+          aliasByUrl.set(raw, label);
+          if (label && label !== raw) {
+            const aliases = urlAliases.get(raw) ?? new Set<string>();
+            aliases.add(label); urlAliases.set(raw, aliases);
+          }
         }
         markdownCursor = closeUrl + 1;
       }
@@ -365,6 +377,11 @@ export function parseBodyMetadataCore(content: string): ParsedBodyMetadata {
     if (!advance()) break;
   }
 
+  // Alias metadata never emits another primary URL or changes its original line/label.
+  for (const reference of urls) {
+    const aliases = urlAliases.get(reference.url);
+    if (aliases && (aliases.size > 1 || !aliases.has(reference.label ?? ""))) reference.aliases = [...aliases];
+  }
   return { inlineFields, inlineFieldOccurrences, urls };
 }
 
@@ -394,6 +411,7 @@ export async function parseBodyMetadataCooperativeCore(
   const inlineFieldOccurrences: InlineFieldOccurrence[] = [];
   const urls: ExternalUrlReference[] = [];
   const seenUrls = new Set<string>();
+  const urlAliases = new Map<string, Set<string>>();
   let deadline = runtime.now() + Math.max(1, budgetMs);
 
   const yieldToHost = async (force = false, phase = "generic"): Promise<void> => {
@@ -758,7 +776,13 @@ export async function parseBodyMetadataCooperativeCore(
         rawEnd = await stripTrailingUrlPunctuation(visible, rawStart, rawEnd);
         if (rawEnd - rawStart > schemeLength) {
           const [labelStart, labelEnd] = await trimBounds(visible, open + 1, closeLabel);
-          aliasByUrl.set(visible.slice(rawStart, rawEnd), visible.slice(labelStart, labelEnd));
+          const raw = visible.slice(rawStart, rawEnd);
+          const label = visible.slice(labelStart, labelEnd);
+          aliasByUrl.set(raw, label);
+          if (label && label !== raw) {
+            const aliases = urlAliases.get(raw) ?? new Set<string>();
+            aliases.add(label); urlAliases.set(raw, aliases);
+          }
         }
         markdownCursor = closeUrl + 1;
         await yieldToHost();
@@ -798,6 +822,15 @@ export async function parseBodyMetadataCooperativeCore(
     await yieldToHost();
   }
 
+  // Preserve primary grammar while assembling every distinct search label cooperatively.
+  for (const reference of urls) {
+    const aliases = urlAliases.get(reference.url);
+    if (aliases && (aliases.size > 1 || !aliases.has(reference.label ?? ""))) {
+      reference.aliases = [];
+      for (const label of aliases) { reference.aliases.push(label); await yieldToHost(); }
+    }
+    await yieldToHost();
+  }
   await yieldToHost(false);
   return { inlineFields, inlineFieldOccurrences, urls };
 }

@@ -7,6 +7,14 @@ export function matchesFindText(query: string, values: readonly string[]): boole
   return Boolean(term) && values.some(/** Each caller-projected facet is independently searchable. */ (value) => value.toLocaleLowerCase().includes(term));
 }
 
+/** Match published ontology definitions only; inferred wiki links and structural labels are not Find targets. */
+export function matchesOntologyFind(query: string, definition?: string): boolean {
+  const structural = new Set(["file-tree", "tag-tree", "url-origin", "inferred", "inferred-link", "sibling", "section"]);
+  const fields = (definition ?? "").replace(/\[\[[\s\S]*?\]\]/g, "").split(",").map(/** Definitions publish comma-separated ontology names. */ (field) => field.trim())
+    .filter(/** Synthetic link destinations describe connected notes rather than ontology fields. */ (field) => field && !structural.has(field.toLowerCase()));
+  return matchesFindText(query, fields);
+}
+
 /** Expose a touch-accessible magnifier and a Find field independent of Vault search. */
 export function PlexFind({ query, onChange, onNext, focusRequest, icon, closeIcon, label, placeholder, closeLabel, matchLabel }: {
   query: string; onChange: (query: string) => void; onNext: (backward: boolean) => void; focusRequest: number;

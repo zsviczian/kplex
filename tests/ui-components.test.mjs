@@ -4,12 +4,13 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { accessSync, constants, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, constants, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
+import ts from "typescript";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -817,6 +818,37 @@ try {
   check(!document.body.querySelector(".kplex-fuzzy-floating-results"), "empty results rendered a list");
   flushSync(() => stateRoot.unmount());
 
+  const disclosureRoot = createRoot(modalHost);
+  let disclosed = 0;
+  let fieldChosen = null;
+  function OntologyField() {
+    const [value, setValue] = useState("");
+    const [browse, setBrowse] = useState(false);
+    return React.createElement(FuzzySuggester, {
+      value, onChange: (next) => { setBrowse(false); setValue(next); },
+      results: browse ? ordered : [], onChoose: (item) => { fieldChosen = item.id; setValue(item.label); },
+      getKey: (item) => item.id, getLabel: (item) => item.label, floating: true, floatingMode: "viewport", openResultsOnFocus: false,
+      disclosure: { label: "Show all ontology fields", icon: React.createElement("span", null, "v"), onOpen: () => { disclosed += 1; setBrowse(true); } },
+    });
+  }
+  flushSync(() => disclosureRoot.render(React.createElement(OntologyField)));
+  modalInput = modalHost.querySelector("input");
+  flushSync(() => modalInput.focus());
+  check(!document.body.querySelector(".kplex-fuzzy-floating-results"), "empty ontology opened without explicit disclosure");
+  const disclosure = modalHost.querySelector(".kplex-fuzzy-disclosure");
+  check(disclosure.type === "button" && disclosure.getAttribute("aria-label") === "Show all ontology fields", "disclosure lacks semantic/accessibility contract");
+  flushSync(() => disclosure.click());
+  list = document.body.querySelector(".kplex-fuzzy-floating-results");
+  check(disclosed === 1 && list?.querySelectorAll("button").length === 3 && modalInput.value === "", "disclosure failed to reveal the complete empty-input list");
+  check(disclosure.getAttribute("aria-expanded") === "true", "disclosure expanded state missing");
+  flushSync(() => key(modalInput, "ArrowDown")); flushSync(() => key(modalInput, "Enter"));
+  check(fieldChosen === "a" && modalInput.value === "Alpha" && !document.body.querySelector(".kplex-fuzzy-floating-results"), "disclosure keyboard choice failed");
+  flushSync(() => modalInput.focus()); flushSync(() => type(modalInput, "")); flushSync(() => disclosure.click());
+  check(document.body.querySelector(".kplex-fuzzy-floating-results")?.querySelectorAll("button").length === 3, "cleared ontology cannot reopen all choices");
+  flushSync(() => key(modalInput, "Escape"));
+  check(!document.body.querySelector(".kplex-fuzzy-floating-results") && document.activeElement === modalInput, "disclosure Escape did not preserve editable input");
+  flushSync(() => disclosureRoot.unmount());
+
   const iframe = document.createElement("iframe"); document.body.append(iframe);
   const frameDocument = iframe.contentDocument; const frameWindow = iframe.contentWindow;
   check(frameDocument && frameWindow, "second document unavailable");
@@ -866,6 +898,54 @@ try {
   result.dataset.status = "failed";
   result.textContent = String(error?.stack ?? error);
 }
+`;
+}
+
+/** Model native pre-focus before passive autofocus, preserving typed/requested focus and Escape semantics. */
+function fuzzyProgrammaticFocusBrowserEntry() {
+  return `
+import React, { useLayoutEffect, useState } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
+const result=document.querySelector("#result");
+const check=(condition,message)=>{if(!condition)throw new Error(message)};
+const host=document.body.appendChild(document.createElement("div"));
+const type=(input,value)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,value);input.dispatchEvent(new Event("input",{bubbles:true}))};
+const key=(input,key)=>input.dispatchEvent(new KeyboardEvent("keydown",{key,bubbles:true,cancelable:true}));
+let preFocusing=false,blockedFocusEvents=0,focusEvents=0,unmounted=false;const choices=[];
+const nativeFocus=(event)=>{if(!host.contains(event.target))return;focusEvents++;if(preFocusing){blockedFocusEvents++;event.stopPropagation();}};
+document.addEventListener("focusin",nativeFocus,true);
+const root=createRoot(host);
+try{
+  function Field({preFocus=false,autoFocus=false,focusRequest=0}){
+    const [value,setValue]=useState("");
+    // Native shells can focus committed DOM before React's passive autofocus effect and consume
+    // that focus event. Repeating focus on the already-active input emits no replacement event.
+    useLayoutEffect(()=>{if(preFocus){preFocusing=true;host.querySelector("input").focus();preFocusing=false;}},[]);
+    return React.createElement(FuzzySuggester,{value,onChange:setValue,results:["Alpha","Beta"],onChoose:item=>choices.push(item),getKey:String,getLabel:String,
+      placeholder:"Search related notes",ariaLabel:"Related notes",openResultsOnFocus:false,floating:true,floatingMode:"viewport",autoFocus,focusRequest});
+  }
+  const render=(id,props)=>flushSync(()=>root.render(React.createElement(Field,{key:id,...props})));
+  const list=()=>document.body.querySelector(".kplex-fuzzy-floating-results");
+  render("pre-focused",{preFocus:true,autoFocus:true});let input=host.querySelector("input");
+  check(document.activeElement===input&&blockedFocusEvents===1&&focusEvents===1,"host did not pre-focus without a fresh React focus event");
+  check(!list()&&input.getAttribute("aria-expanded")==="false","autofocus opened a typing-only list");
+  flushSync(()=>type(input,"Alpha"));check(list()?.querySelectorAll("button").length===2&&input.getAttribute("aria-expanded")==="true","pre-focused autofocus lost typed suggestions");
+  flushSync(()=>key(input,"Escape"));check(!list()&&input.value==="Alpha"&&document.activeElement===input,"Escape lost the retained editable focus/query");
+  const eventsBeforeRequest=focusEvents;render("pre-focused",{preFocus:true,autoFocus:true,focusRequest:1});
+  check(focusEvents===eventsBeforeRequest&&!list(),"same-input request required a fresh focus event or opened before typing");
+  flushSync(()=>type(input,"Beta"));check(list(),"explicit request failed to reopen typed suggestions after Escape");
+  flushSync(()=>key(input,"Enter"));check(choices.length===1&&choices[0]==="Alpha"&&!list()&&document.activeElement!==input,"normal selection did not close/blur its focus lifetime");
+  render("normal-autofocus",{autoFocus:true});input=host.querySelector("input");
+  check(document.activeElement===input&&!list(),"normal autofocus changed typing-only policy");flushSync(()=>type(input,"Alpha"));check(list(),"normal autofocus lost typing");
+  render("normal-request",{});input=host.querySelector("input");check(document.activeElement!==input&&!list(),"an unrequested field acquired focus");
+  render("normal-request",{focusRequest:1});check(document.activeElement===input&&!list(),"normal request did not focus without premature suggestions");
+  flushSync(()=>type(input,"Beta"));check(list(),"normal focus request lost typing");flushSync(()=>key(input,"Escape"));check(!list()&&document.activeElement===input,"normal requested Escape lost focus");
+  flushSync(()=>root.unmount());unmounted=true;check(!list(),"programmatic-focus portal survived unmount");
+  result.dataset.status="passed";result.textContent="Fuzzy programmatic focus behavior passed";
+}catch(error){result.dataset.status="failed";result.textContent=String(error?.stack??error);}
+finally{document.removeEventListener("focusin",nativeFocus,true);if(!unmounted)flushSync(()=>root.unmount());}
 `;
 }
 
@@ -935,6 +1015,80 @@ try {
 `;
 }
 
+/** Exercise the canonical composer selection and disclosure with production React mechanics. */
+function relatedComposerBrowserEntry() {
+  const source = ts.createSourceFile("NewRelatedNoteModal.ts", readFileSync(join(root, "src/ui/NewRelatedNoteModal.ts"), "utf8"), ts.ScriptTarget.Latest, true);
+  const functions = source.statements.filter((statement) => ts.isFunctionDeclaration(statement)
+    && ["RelatedNoteComposer", "isNoteTarget"].includes(statement.name?.text)).map((statement) => statement.getText(source)).join("\n");
+  const production = ts.transpileModule(functions, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
+  return `
+import React, { createElement, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
+const FuzzySearchInput = (props) => createElement(FuzzySuggester, { ...props, icon: null });
+const ObsidianIcon = ({ name }) => createElement("span", null, name);
+const fuzzyFilterStrings = (values, query, limit) => values.filter((value) => !query || value.includes(query)).slice(0, limit);
+const notices = []; class Notice { constructor(message) { notices.push(message); } }
+${production}
+(async () => {
+ const result = document.querySelector("#result");
+ const check = (condition, message) => { if (!condition) throw new Error(message); };
+ const type = (input, value) => {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+ };
+ try {
+  const host = document.createElement("div"); document.body.append(host);
+  const origin = { path: "Origin.md", file: { extension: "md" } }; const target = { path: "Target.md", file: { extension: "md" } };
+  const intents = []; let commits = 0; let closes = 0; let rejectCommit = true;
+  const plugin = {
+   settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown" },
+   translator: (key) => key, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
+   ontologyFieldsForRole: () => ["children", "review", "example"],
+   validateRelatedNoteName: () => ({ valid: true, existing: false, stem: "Target" }),
+   index: { search: () => [target], titleFor: (page) => page.path },
+   rememberRelationshipOntology: async (_role, field) => field,
+   createRelationToPage: async (...args) => { if (rejectCommit) throw new Error("not ready"); intents.push(args); },
+   requestNodeFlair: () => {},
+  };
+  const root = createRoot(host);
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { plugin, origin, initialRole: "child", onCommitted: () => { commits += 1; }, onClose: () => { closes += 1; } })));
+  const input = host.querySelector(".kplex-add-related-note-search input");
+  flushSync(() => input.focus()); flushSync(() => type(input, "Target"));
+  let list = document.body.querySelector(".kplex-fuzzy-floating-results");
+  check(list, "existing-target suggestions did not open");
+  flushSync(() => list.querySelector("button").click());
+  const link = host.querySelector(".kplex-add-related-link-button");
+  check(link && input.value === "Target.md", "existing selection was not retained as explicit Link action");
+  const ontology = host.querySelector(".kplex-add-related-ontology-search input");
+  flushSync(() => ontology.focus()); flushSync(() => type(ontology, ""));
+  flushSync(() => host.querySelector(".kplex-fuzzy-disclosure").click());
+  list = document.body.querySelector(".kplex-fuzzy-floating-results");
+  check(list?.querySelectorAll("button").length === 3, "composer disclosure did not show full empty-input role vocabulary");
+  flushSync(() => list.querySelector('[data-kplex-fuzzy-index="1"]').click());
+  check(ontology.value === "review" && host.querySelector(".kplex-add-related-link-button"), "ontology choice lost the existing-target selection");
+  flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
+  check(commits === 0 && closes === 0 && notices.length === 1, "failed existing-target write falsely committed or closed composer");
+  rejectCommit = false;
+  flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
+  check(intents.length === 1 && intents[0][0] === origin && intents[0][1] === "child" && intents[0][2] === target && intents[0][3] === "review", "existing Link lost ontology, endpoint or role");
+  check(commits === 1 && closes === 1, "successful explicit Link did not commit/close once");
+  // History/menu fixed targets must enter the same composer with an immediately retained Link action.
+  rejectCommit = false; commits = 0; closes = 0; intents.length = 0;
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "fixed-target", plugin, origin, initialRole: "right", fixedTarget: target, onCommitted: () => { commits += 1; }, onClose: () => { closes += 1; } })));
+  check(host.querySelector(".kplex-add-related-note-search input").value === "Target.md", "fixed history target did not initialize the existing selection");
+  flushSync(() => host.querySelector(".kplex-add-related-link-button").click());
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  check(intents.length === 1 && intents[0][1] === "right" && intents[0][2] === target && commits === 1 && closes === 1, "history fixed target did not commit through the shared Link action");
+  flushSync(() => root.unmount());
+  check(!document.body.querySelector(".kplex-fuzzy-floating-results"), "composer list survived unmount");
+  result.dataset.status = "passed"; result.textContent = "Related composer browser behavior passed";
+ } catch (error) { result.dataset.status = "failed"; result.textContent = String(error?.stack ?? error); }
+})();
+`;
+}
+
 function runBrowserDom(entry, successText) {
   const browser = findBrowser();
   assert(browser, "A Chromium-family browser is required for the DOM behavior lane; set KPLEX_TEST_BROWSER to its executable path.");
@@ -997,6 +1151,11 @@ test("FuzzySuggester production browser behavior", () => {
   runBrowserDom(fuzzySuggesterBrowserEntry(), "FuzzySuggester browser behavior passed");
 });
 
+/** Host pre-focus must not leave the shared field's React focus state behind its DOM state. */
+test("FuzzySuggester programmatic focus after native host pre-focus",()=>{
+  runBrowserDom(fuzzyProgrammaticFocusBrowserEntry(),"Fuzzy programmatic focus behavior passed");
+});
+
 test("SearchBox plain read model and revision browser behavior", () => {
   runBrowserDom(graphSearchBrowserEntry(), "Graph search read consumer behavior passed");
 });
@@ -1007,7 +1166,7 @@ function plexFindBrowserEntry() {
 import React from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { PlexFind, matchesFindText } from ${JSON.stringify(join(root, "src/ui/features/PlexFind.tsx"))};
+import { PlexFind, matchesFindText, matchesOntologyFind } from ${JSON.stringify(join(root, "src/ui/features/PlexFind.tsx"))};
 const result=document.querySelector("#result"), container=document.createElement("div");
 document.body.append(container);
 const root=createRoot(container);
@@ -1031,6 +1190,11 @@ try {
   check(matchesFindText(query,["unrelated","An ALIAS MATCH title"]),"case-insensitive alias match missing");
   check(!matchesFindText("  ",["anything"]),"empty query must clear highlights");
   check(!matchesFindText("a.*b",["a random b"]),"Find must use literal text, not regex");
+  check(!matchesOntologyFind("Related Note", "[[Related Note]]"), "Wiki-link destinations must not highlight connectors");
+  check(!matchesOntologyFind("Comma Note", "[[Folder,Comma Note]], supports"), "Commas within a wiki destination must not become ontology fields");
+  check(matchesOntologyFind("parent", "parent"), "Ontology matching must include fields whose labels are normally hidden");
+  check(matchesOntologyFind("supports", "[[Related Note]], supports"), "Defined ontology remains searchable beside inferred links");
+  check(!matchesOntologyFind("tree", "file-tree"), "Physical topology is not an ontology match");
   input.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));
   input.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",shiftKey:true,bubbles:true}));
   check(JSON.stringify(cycles)==="[false,true]","Enter/Shift+Enter must cycle projected matches");
@@ -1095,4 +1259,10 @@ try {
 
 test("ResizableAreaFrame localized keyboard behavior", () => {
   runBrowserDom(areaFrameBrowserEntry(), "Area frame browser behavior passed");
+});
+
+
+/** A real composer must retain existing selection across ontology browsing and failed commits. */
+test("Related composer existing selection and ontology disclosure browser behavior", () => {
+  runBrowserDom(relatedComposerBrowserEntry(), "Related composer browser behavior passed");
 });

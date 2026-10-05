@@ -306,3 +306,40 @@ for (const cancelled of [false, true]) test(`retirement observer retains private
     }
   } finally { release?.(); state.repository.close(); }
 });
+
+/** Durable alias replay is strict and charges all retained labels against the established body bound. */
+test("body URL alias codec retains labels and rejects malformed or oversized complete records", () => {
+  const body = parseBodyMetadata("[First](https://help.obsidian.md) [Second](https://help.obsidian.md)\n[Third](https://help.obsidian.md)");
+  const record = { kind: "body-url", ...body.urls[0] };
+  validate([record], "body-urls");
+  const decoder = new SourceBodyDecoder(); decoder.accept(record);
+  assert.deepEqual(JSON.parse(JSON.stringify(decoder.finish())), body);
+  for (const aliases of ["wrong", [1], [""], [null], new Array(2)]) assert.throws(() => validate([{ ...record, aliases }], "body-urls"), /invalid-frame/);
+  const excessive = { ...record, aliases: ["x".repeat(source.SOURCE_DECODE_BUDGET_BYTES)] };
+  assert.throws(() => new SourceBodyDecoder().accept(excessive), /decode-budget/);
+});
+
+/** Known parser2 primary candidates and retirement markers retain exact bytes; unknown versions fail closed. */
+test("primary source grammar compatibility admits exact parser2 candidates and retirement markers only", async () => {
+  const f = fixture();
+  try {
+    await f.repository.replace(await f.input("grammar", metadata("Field:: [[Alpha]]")));
+    const raw = { ...(await f.repository.inspect("grammar")).head, sequence: 1, bodyParserVersion: 2 };
+    assert.equal(source.sourceHeadReason(raw), "ready");
+    assert.equal(source.decodeSourceHead(raw), raw, "Compatibility never restamps or copies the immutable head");
+    for (const field of ["formatVersion", "compilerVersion", "resolutionVersion", "bodyParserVersion"]) {
+      assert.equal(source.sourceHeadReason({ ...raw, [field]: 99 }), "format-version", field);
+    }
+    assert.equal(source.sourceHeadReason({ ...raw, state: "tombstone" }), "tombstone", "Known retired parser2 marker grants no semantic authority");
+    assert.equal(source.sourceHeadReason({ ...raw, state: "tombstone", bodyParserVersion: 99 }), "format-version");
+    assert.equal(source.sourceHeadReason({ ...raw, sequence: 0 }), "invalid-head");
+    assert.equal(source.sourceHeadReason({ ...raw, observation: { ...raw.observation, environment: "bad" } }), "invalid-head");
+    const urls = raw.families["body-urls"];
+    await f.repository.replace(await f.input("bearing", metadata("[First](https://help.obsidian.md)")));
+    const bearing = { ...(await f.repository.inspect("bearing")).head, sequence: 1, bodyParserVersion: 2 };
+    assert.equal(source.sourceHeadReason(bearing), "ready", "Known primary URL grammar is compatible independently of aliases");
+    for (const families of [{ ...raw.families, "body-urls": { ...urls, digest: "bad" } }, { ...raw.families, "body-urls": undefined }, {}]) {
+      assert.equal(source.sourceHeadReason({ ...raw, families }), "invalid-head");
+    }
+  } finally { f.repository.close(); }
+});

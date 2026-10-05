@@ -11,8 +11,10 @@ import {
   type EmbeddedMarkdownMode,
 } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { ObsidianIcon } from "./ObsidianIcon";
+import { EmbeddedWebPage } from "./EmbeddedWebPage";
+import { urlEmbed } from "./features/urlEmbed";
 
-/** Render one native embedded leaf for the center and expose local view/maximize controls. */
+/** Own the center’s native file leaf or desktop/mobile web guest, plus local view and maximize controls. */
 export function CentralNodeEditor({
   plugin,
   hostLeaf,
@@ -40,6 +42,8 @@ export function CentralNodeEditor({
   onNavigate: (file: TFile) => void;
   translate: Translator;
 }) {
+  const webTarget = page.url ? urlEmbed(page.url) : null;
+  const useWebFrame = Boolean(webTarget);
   const mountRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<EmbeddedMarkdownLeafController | null>(null);
   const fileRef = useRef(page.file);
@@ -53,9 +57,9 @@ export function CentralNodeEditor({
   defaultModeRef.current = defaultMode;
   onNavigateRef.current = onNavigate;
 
-  useLayoutEffect(() => {
+  useLayoutEffect(/** Own a native file leaf only; URL guests have an independent view-scoped lifetime. */ () => {
     const mount = mountRef.current;
-    if (!mount) return;
+    if (!mount || useWebFrame) return;
     let controller: EmbeddedMarkdownLeafController;
     try {
       controller = mountEmbeddedMarkdownLeaf(plugin.app, hostLeaf, mount, (nextFile) => {
@@ -77,10 +81,11 @@ export function CentralNodeEditor({
       controllerRef.current = null;
       controller.dispose();
     };
-  }, [plugin, hostLeaf, activateHostLeafOnInteraction]);
+  }, [plugin, hostLeaf, activateHostLeafOnInteraction, useWebFrame]);
 
-  useEffect(() => {
+  useEffect(/** Route this center to its native file leaf or explicitly opened URL guest without changing history. */ () => {
     const controller = controllerRef.current;
+    if (useWebFrame) { setDocumentView(null); setExcalidrawFile(false); setStatus("ready"); return; }
     if (!controller) return;
     let cancelled = false;
     const initialMode = defaultModeRef.current;
@@ -103,22 +108,22 @@ export function CentralNodeEditor({
       if (!cancelled) setStatus("error");
     });
     return () => { cancelled = true; };
-  }, [page.path, page.file, page.url, plugin]);
+  }, [page.path, page.file, page.url, plugin, useWebFrame]);
 
-  useEffect(() => {
+  useEffect(/** Notify native files when their layout box changes; web guests own their resize observer. */ () => {
     const mount = mountRef.current;
     const controller = controllerRef.current;
     if (!mount || !controller) return;
     type WindowWithResizeObserver = Window & { ResizeObserver: typeof ResizeObserver };
     const viewWindow = (mount.ownerDocument.defaultView ?? window) as WindowWithResizeObserver;
-    const observer = new viewWindow.ResizeObserver(() => controller.resize());
+    const observer = new viewWindow.ResizeObserver(/** Resize the owned native view after a settled editor-box change. */ () => controller.resize());
     observer.observe(mount);
-    const frame = viewWindow.requestAnimationFrame(() => controller.resize());
-    return () => {
+    const frame = viewWindow.requestAnimationFrame(/** Complete the first native layout after React mounts the host. */ () => controller.resize());
+    return /** Retire callbacks before the native host is detached or moved to a URL guest. */ () => {
       observer.disconnect();
       viewWindow.cancelAnimationFrame(frame);
     };
-  }, [plugin, hostLeaf]);
+  }, [plugin, hostLeaf, useWebFrame]);
 
   /** Switch only this embedded leaf between Obsidian source and reading modes. */
   const toggleMode = (): void => {
@@ -155,7 +160,8 @@ export function CentralNodeEditor({
       if (!(event.target as Element).closest(".kplex-central-editor-toolbar")) controllerRef.current?.activate();
     }}
   >
-    <div ref={mountRef} className="kplex-central-editor-leaf-host" />
+    {useWebFrame && webTarget ? <EmbeddedWebPage target={webTarget} label={page.name || page.url || page.path} />
+      : <div ref={mountRef} className="kplex-central-editor-leaf-host" />}
     <div className="kplex-central-editor-toolbar" role="toolbar" aria-label={translate("centralEditor.toolbar")}>
       {excalidrawFile && documentView && <button
         type="button"

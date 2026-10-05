@@ -1433,7 +1433,15 @@ try {
     searches: Object.fromEntries(["note a", "note b", "project", "folder", "https"]
       .map((query) => [query, index.search(query, 12).map((page) => page.path)])),
   };
-  assert.deepEqual(baseline, JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-indexing/graph-baseline.json"), "utf8")));
+  const frozenBaseline = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-indexing/graph-baseline.json"), "utf8"));
+  // Explicit product change: URL link labels now remain aliases. Every other frozen field stays exact.
+  const urlLabels = {
+    "https://source.com/inferred": "Source URL inferred alias",
+    "https://source.com/ontology-full-line": "Source URL full-line ontology alias",
+    "https://source.com/ontology-inline": "Source URL inline ontology alias",
+  };
+  for (const page of frozenBaseline.graph.pages) if (urlLabels[page.path]) page.aliases = [urlLabels[page.path]];
+  assert.deepEqual(baseline, frozenBaseline);
 
   // A new Markdown file may arrive after the last complete snapshot and before the five-minute
   // edit idle write. Warm startup must reuse that snapshot and ingest only the new source.
@@ -2923,7 +2931,7 @@ try {
   assert(!index.search("Picture.jpg", 40).some((page) => page.path === imageFile.path), "Graph search respects attachment visibility");
   assert(index.search("Picture.jpg", 40, "vault-files").some((page) => page.path === imageFile.path), "Vault search includes hidden attachments outside the current Plex");
   assert(index.search("runtimealiaszzz", 40, "vault-files").some((page) => page.path === noteA.path), "Vault search retains Markdown aliases");
-  assert(index.search("", 1000, "vault-files").every((page) => page.file && files.get(page.path) === page.file), "Vault search contains only current real files, not folders, tags or ghosts");
+  assert(index.search("", 1000, "vault-files").every((page) => page.url || page.file && files.get(page.path) === page.file), "Vault search contains current real files and URLs, excluding folders, tags and ghosts");
   settings.showAttachments = originalAttachments;
   settings.attachmentImageDisplay = "thumbnail-label";
   visuals = await index.resolveNodeVisuals([imagePage]);
@@ -3524,6 +3532,7 @@ try {
   };
   nativeCreationCoordinator.index = {
     hasPendingStructuralMaintenance: () => false,
+    hasPendingSnapshotHydration: () => false,
     cancelRebuild: () => {},
     size: 4,
     isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,
@@ -3712,6 +3721,7 @@ try {
   const coordinatorPatchGate = new Promise((resolve) => { releaseCoordinatorPatch = resolve; });
   coordinator.index = {
     hasPendingStructuralMaintenance: () => false,
+    hasPendingSnapshotHydration: () => false,
     size: 1,
     noteBuildDecision: () => {},
     isFullSnapshotHydrated: () => false, hasPhysicalBaseline: () => false, hasSourceBackedStartup: () => false,
@@ -3759,6 +3769,7 @@ try {
   creationCoordinator.app = { vault: { getFileByPath: (path) => path === createdDuringPatch.path ? createdDuringPatch : null } };
   creationCoordinator.index = {
     hasPendingStructuralMaintenance: () => false,
+    hasPendingSnapshotHydration: () => false,
     size: 1,
     noteBuildDecision: () => {},
     isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,

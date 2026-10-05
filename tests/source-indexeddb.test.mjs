@@ -63,7 +63,10 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
           tx.objectStore('evidence').put({generation:'legacy',key:'retained',value:{retained:true}});
           tx.objectStore('snapshotChunks').put({generation:'legacy',kind:'pages',index:0,values:[]});
         });legacy.close();
-        cache=await fresh('upgrade'); equal(await cache.getBody('legacy.md',1),body,'Body-v2 unchanged');
+        cache=await fresh('upgrade'); equal(await cache.getBody('legacy.md',1),null,'Lossy body-v2 ignored after grammar upgrade');
+        await edit(await cache.open(),['bodies'],tx=>tx.objectStore('bodies').put({path:'bad-alias.md',mtime:1,parserVersion:3,body:{...body,urls:[{url:'https://example.com',aliases:[42]}]}}));
+        equal(await cache.getBody('bad-alias.md',1),null,'Malformed current-version aliases are rejected');
+        equal((await cache.getBodies([{path:'bad-alias.md',mtime:1}])).size,0,'Batch body reads use the same strict alias guard');
         const upgraded=await cache.open();const stored=await requestValue(upgraded.transaction('bodies').objectStore('bodies').get('legacy.md'));
         ok(!Object.hasOwn(stored,'size'),'Legacy record must not invent size');
         equal((await cache.readSnapshotMeta()).schema,3,'Schema 3 pointer preserved');equal((await cache.readSnapshotMeta('checkpoint')).schema,2,'Schema 2 pointer preserved');
@@ -288,6 +291,59 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
         equal(await owners(r,'Old'),[],'Old posting remains inactive');equal(await owners(r,'Changed'),['A'],'Current posting restored');
         writer.close();return true;
       })()`), true);
+    });
+
+    /** Legacy primary compatibility authenticates the actual leased URL family even on head-only reads. */
+    await t.test("parser2 primary compatibility validates chunks/postings, releases leases and preserves exact heads", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await fresh('parser2-urlfree'),r=f.sources,db=await f.open();
+        try {
+          await r.replace(await make(r,'urlfree'));await r.replace(await make(r,'urlbearing',{kind:'missing'},'[First](https://help.obsidian.md)'));
+          const current=(await r.inspect('urlfree')).head,legacy={...current,bodyParserVersion:2};
+          const bearing={...(await r.inspect('urlbearing')).head,bodyParserVersion:2};
+          await edit(db,['sourceHeads'],tx=>{tx.objectStore('sourceHeads').put(legacy);tx.objectStore('sourceHeads').put(bearing);});
+          equal((await r.inspect('urlfree',[])).head,legacy,'Head-only reads authenticate but preserve parser2 bytes');
+          equal((await r.inspect('urlbearing',[])).head,bearing,'URL-bearing primary authority preserves exact legacy bytes');
+          ok(await r.readBody('urlbearing',()=>true),'Primary body remains available without claiming current aliases');
+          equal(await r.readBody('urlbearing',()=>true,()=>true,false,false,undefined,true),null,'Current alias grammar requires actual canonical repair');
+          const bearingKey=['urlbearing',bearing.families['body-urls'].revision,'body-urls',0];
+          const bearingChunk=await requestValue(db.transaction('sourceChunks').objectStore('sourceChunks').get(bearingKey));
+          await edit(db,['sourceChunks'],tx=>tx.objectStore('sourceChunks').delete(bearingKey));
+          equal((await r.inspect('urlbearing',[])).reason,'missing-chunk','URL-bearing primary compatibility fails closed on actual missing facts');
+          await edit(db,['sourceChunks'],tx=>tx.objectStore('sourceChunks').put({...bearingChunk,data:'[{}]'}));
+          equal((await r.inspect('urlbearing',[])).reason,'invalid-chunk','URL-bearing compatibility authenticates the primary records');
+          await edit(db,['sourceChunks'],tx=>tx.objectStore('sourceChunks').put(bearingChunk));
+          equal(await r.readBody('urlfree',physical=>physical.mtime===999),null,'Physical match is still mandatory');
+          const stamp=(await r.inspect('urlfree')).head;
+          equal((await r.inspect('urlfree',[],()=>false)).reason,'cancelled','Cancelled compatibility read cannot return authority');
+          const originalYield=r.runtime.yield;let live=true;
+          try {
+            r.runtime.yield=async()=>{live=false;};
+            equal((await r.inspect('urlfree',[],()=>live)).reason,'cancelled','Cancellation during authenticated family yield cannot publish authority');
+          }finally{r.runtime.yield=originalYield;}
+          equal((await requestValue(db.transaction('meta').objectStore('meta').getAll())).filter(row=>row.key.startsWith('source-lease:')).length,0,'Cancelled family authentication releases leases');
+          const urlRevision=legacy.families['body-urls'].revision,key=['urlfree',urlRevision,'body-urls',0];
+          const chunk=await requestValue(db.transaction('sourceChunks').objectStore('sourceChunks').get(key));
+          const posting=await requestValue(db.transaction('sourcePostings').objectStore('sourcePostings').get(key));
+          for(const fault of ['missing-chunk','invalid-chunk','missing-posting','invalid-posting']){
+            await edit(db,['sourceChunks','sourcePostings'],tx=>{
+              tx.objectStore('sourceChunks').put(chunk);tx.objectStore('sourcePostings').put(posting);
+              if(fault==='missing-chunk')tx.objectStore('sourceChunks').delete(key);
+              if(fault==='invalid-chunk')tx.objectStore('sourceChunks').put({...chunk,data:'[{}]'});
+              if(fault==='missing-posting')tx.objectStore('sourcePostings').delete(key);
+              if(fault==='invalid-posting')tx.objectStore('sourcePostings').put({...posting,key:'wrong'});
+            });
+            equal((await r.inspect('urlfree',[])).reason,fault,'Head-only candidate validates actual '+fault);
+            const rows=await requestValue(db.transaction('meta').objectStore('meta').getAll());
+            equal(rows.filter(row=>row.key.startsWith('source-lease:')).length,0,'Terminal failure releases exact reader leases');
+          }
+          await edit(db,['sourceChunks','sourcePostings'],tx=>{tx.objectStore('sourceChunks').put(chunk);tx.objectStore('sourcePostings').put(posting);});
+          equal((await r.inspect('urlfree')).head,legacy,'Healthy immutable head still exact after validation failures');
+          await edit(db,['sourceHeads'],tx=>tx.objectStore('sourceHeads').put({...legacy,sourceRevision:'new-source-revision',sequence:legacy.sequence+1}));
+          equal(await r.selectionReason({head:stamp,sequence:stamp.sequence,saved:true}),'superseded','Old selection cannot survive a newer source tuple');
+          return true;
+        }finally{f.close();}
+      })()`),true);
     });
 
     await t.test("record/byte bounds, explicit empty source, source cancellation and unload", async () => {

@@ -4,7 +4,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
 import { addNativeSubmenu } from "../adapters/obsidian/nativeSubmenu";
-import { isWebViewerAvailable } from "../adapters/obsidian/externalUrl";
+import { urlEmbed } from "./features/urlEmbed";
 import type KplexPlugin from "../main";
 import type { GraphIndex } from "../index/GraphIndex";
 import type { KplexSettings, KplexViewSurface, SidecarMarkdownMode } from "../settings";
@@ -17,7 +17,7 @@ import { ThoughtNode, type ConnectionDragState } from "./ThoughtNode";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { CentralNodeEditor } from "./CentralNodeEditor";
-import { PlexFind, matchesFindText } from "./features/PlexFind";
+import { PlexFind, matchesFindText, matchesOntologyFind } from "./features/PlexFind";
 import { RelationshipExplanationModal } from "./RelationshipExplanationModal";
 import { RenameNoteModal } from "./RenameNoteModal";
 import { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion, type CentralSectionExpansion } from "../index/SectionExpansion";
@@ -700,7 +700,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   const persistentNeighborhood = useMemo(() => index.getNeighborhood(activePath), [index, activePath, renderRevision, semanticRevision]);
   const centralEditorCapable = Boolean(
     supportsCentralEditorFile(persistentNeighborhood?.center)
-    || (persistentNeighborhood?.center.url && isWebViewerAvailable(plugin.app)),
+    || (persistentNeighborhood?.center.url && urlEmbed(persistentNeighborhood.center.url)),
   );
   const centralEditorAvailable = settings.embedCentralNode && centralEditorCapable;
   const centralEditorCanMaximize = surface !== "sidepanel";
@@ -1828,8 +1828,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   }, [sectionExpansion, settings.graphDepth, settings.compactingFactor, settings.maxItemCount, settings.siblingRelativeSize, neighborhood, scene.nodes, visibleNodePaths, renderedNodeMap, expandedScrollTop, index, layoutRevision, predicate, lenses, predicateRevision, predicateEngine]);
 
   const expandedConnectors = useMemo(() => {
-    if (settings.graphDepth !== 2) return [] as Array<{ key: string; d: string; stroke: string; width: number; dash?: string; markerStart?: string; markerEnd?: string }>;
-    const connectors: Array<{ key: string; d: string; stroke: string; width: number; dash?: string; markerStart?: string; markerEnd?: string }> = [];
+    if (settings.graphDepth !== 2) return [] as Array<{ key: string; d: string; stroke: string; width: number; dash?: string; markerStart?: string; markerEnd?: string; definition?: string }>;
+    const connectors: Array<{ key: string; d: string; stroke: string; width: number; dash?: string; markerStart?: string; markerEnd?: string; definition?: string }> = [];
     for (const cluster of expandedClusters) {
       const source = gatePoint(cluster.parent, "bottom");
       for (const child of cluster.children) {
@@ -1850,6 +1850,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         const reverse = child.relation.linkDirection === (settings.inverseArrowDirection ? LinkDirection.TO : LinkDirection.FROM);
         connectors.push({
           key: child.key,
+          definition: child.relation.typeDefinition,
           d: geometry.d,
           stroke: alphaHexToCss(style.strokeColor, "rgba(190,210,235,.52)"),
           width: Math.max(0.65, (style.strokeWidth ?? 1.2) * 0.75),
@@ -2374,6 +2375,36 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     }
   };
 
+  /** Offer the same explicit relationship roles for node-body and gate drops onto history. */
+  const openHistoryRelationshipMenu = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document): boolean => {
+    const historyButton = ownerDocument.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-kplex-history-path]");
+    const historyPath = historyButton?.dataset.kplexHistoryPath;
+    const target = historyPath ? index.get(historyPath) : undefined;
+    if (!target || target.path === origin.path || target.isFolder || target.isTag || origin.isFolder || origin.isTag) return false;
+    const menu = new Menu();
+    const roles: Array<{ role: GateRole; labelKey: PlainTranslationKey; icon: string }> = [
+      { role: "parent", labelKey: "role.parent", icon: "arrow-up" },
+      { role: "child", labelKey: "role.child", icon: "arrow-down" },
+      { role: "left", labelKey: "role.friend", icon: "arrow-left" },
+      { role: "right", labelKey: "role.challenger", icon: "arrow-right" },
+    ];
+    for (const relation of roles) {
+      menu.addItem(/** Preserve the dragged origin and fixed historical endpoint until explicit commit. */ (item) => item
+        .setTitle(translate(relation.labelKey))
+        .setIcon(relation.icon)
+        .onClick(/** Delegate ontology selection and persistence to the canonical relationship modal. */ () => plugin.openRelationModal({
+          hostLeaf,
+          mode: "create",
+          origin,
+          fixedTarget: target,
+          semanticRole: relation.role,
+          onCommitted: /** Clear hover affordances once the selected relationship is persisted. */ () => clearHoverIntent(true),
+        })));
+    }
+    plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, ownerDocument);
+    return true;
+  };
+
   /** Finish resize, drag, pan or touch activation with one owner; movement cannot complete a tap pair. */
   const up = (e: PointerEvent<HTMLDivElement>) => {
     if (areaResizeDrag.current?.pointerId === e.pointerId) {
@@ -2393,6 +2424,16 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         clearHoverIntent(true);
         suppressActivateUntil.current = Date.now() + 180;
         if (drag.moved) plugin.openCreateInFolderModal(origin, hostLeaf);
+        return;
+      }
+      if (origin && drag.moved && openHistoryRelationshipMenu(origin, e.clientX, e.clientY, e.currentTarget.ownerDocument)) {
+        setConnectDrag(null);
+        clearHoverIntent(true);
+        suppressActivateUntil.current = Date.now() + 220;
+        if (e.pointerType === "touch") {
+          touchPointers.current.delete(e.pointerId);
+          if (touchPointers.current.size === 0) viewport.current?.classList.remove("is-touch-gesturing");
+        }
         return;
       }
       const hit = e.currentTarget.ownerDocument.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
@@ -2437,41 +2478,10 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         const draggedNode = renderedNodeMap.get(drag.path);
         const center = neighborhood?.center;
         const currentRole = original ? normalizedRole(original.role) : null;
-        const hit = e.currentTarget.ownerDocument.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
-        const historyButton = hit?.closest<HTMLElement>("[data-kplex-history-path]");
-        const historyPath = historyButton?.dataset.kplexHistoryPath;
-        const historyTarget = historyPath ? index.get(historyPath) : undefined;
-        if (dragDistance >= NODE_RELINK_MIN_DRAG_PX
-          && original
-          && !original.page.isFolder
-          && !original.page.isTag
-          && historyTarget
-          && historyTarget.path !== original.page.path
-          && !historyTarget.isFolder
-          && !historyTarget.isTag) {
-          const menu = new Menu();
-          const roles: Array<{ role: GateRole; labelKey: PlainTranslationKey; icon: string }> = [
-            { role: "parent", labelKey: "role.parent", icon: "arrow-up" },
-            { role: "child", labelKey: "role.child", icon: "arrow-down" },
-            { role: "left", labelKey: "role.friend", icon: "arrow-left" },
-            { role: "right", labelKey: "role.challenger", icon: "arrow-right" },
-          ];
-          for (const relation of roles) {
-            menu.addItem((item) => item
-              .setTitle(translate(relation.labelKey))
-              .setIcon(relation.icon)
-              .onClick(() => plugin.openRelationModal({
-                hostLeaf,
-                mode: "create",
-                origin: original.page,
-                fixedTarget: historyTarget,
-                semanticRole: relation.role,
-                onCommitted: () => clearHoverIntent(true),
-              })));
-          }
+        if (dragDistance >= NODE_RELINK_MIN_DRAG_PX && original
+          && openHistoryRelationshipMenu(original.page, e.clientX, e.clientY, e.currentTarget.ownerDocument)) {
           setNodeDrag(null);
           clearHoverIntent(true);
-          plugin.showKplexMenuAtPosition(menu, { x: e.clientX, y: e.clientY }, e.currentTarget.ownerDocument);
           if (e.pointerType === "touch") {
             touchPointers.current.delete(e.pointerId);
             if (touchPointers.current.size === 0) viewport.current?.classList.remove("is-touch-gesturing");
@@ -3172,7 +3182,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
           connectorStyle={settings.connectorStyle}
           labelBackground={alphaHexToCss(settings.backgroundColor, "#0c3e6a")}
           crossLinkOpacity={Math.max(0, Math.min(1, settings.crossLinkOpacity / 100))}
-          highlighted={!connectDrag && (finding ? (findNodePaths.has(edge.sourcePath) || findNodePaths.has(edge.targetPath) || matchesFindText(findQuery, [relationLabel(edge.typeDefinition) ?? ""])) : interaction.edgeIds.has(edge.id))}
+          highlighted={!connectDrag && (finding ? matchesOntologyFind(findQuery, edge.typeDefinition) : interaction.edgeIds.has(edge.id))}
           dimmed={connectDrag ? connectBlockedEdgeIds.has(edge.id) : !finding && hover !== null && !interaction.edgeIds.has(edge.id)}
           onHover={(event) => { if (!connectDrag && !nodeDrag) scheduleEdgeHover(edge, event); }}
           onMove={(event) => { if (!connectDrag && !nodeDrag) moveEdgeHover(edge, event); }}
@@ -3185,7 +3195,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         />)}
         {expandedConnectors.map((connector) => <path
           key={`expanded-edge:${connector.key}`}
-          className={`kplex-expanded-edge${expandedClusters.some((cluster) => cluster.children.some((child) => child.key === connector.key && findNodePaths.has(child.relation.page.path))) ? " is-find-match" : ""}`}
+          className={`kplex-expanded-edge${matchesOntologyFind(findQuery, connector.definition) ? " is-find-match" : ""}`}
           d={connector.d}
           fill="none"
           stroke={connector.stroke}

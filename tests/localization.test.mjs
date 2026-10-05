@@ -91,7 +91,7 @@ test("English catalog is strict, typed at source, and remains the fallback", () 
   assert.equal(english("command.openGraph"), "Open graph");
   assert.equal(english("toolbar.navigateBack"), "Navigate back");
   assert.equal(english("toolbar.navigateForward"), "Navigate forward");
-  assert.equal(english("search.placeholderWithShortcut", { shortcut: "Command+F" }), "Search Vault files… (Command+F)");
+  assert.equal(english("search.placeholderWithShortcut", { shortcut: "Command+F" }), "Search Vault… (Command+F)");
 
   const futureGerman = localization.createTranslator("de_DE", {
     "de-DE": {
@@ -227,8 +227,8 @@ test("displayed search hint matches a gesture the production handler accepts", (
 
   const copy = searchPresentation.searchFieldCopy(localization.createTranslator("en"), environment({ keyConvention: "macos" }));
   assert.deepEqual(copy, {
-    placeholder: "Search Vault files… (F4)",
-    ariaLabel: "Search Vault files",
+    placeholder: "Search Vault… (F4)",
+    ariaLabel: "Search Vault",
     shortcutHint: "F4",
   });
   assert.equal(accepted({ key: copy.shortcutHint }), true);
@@ -237,7 +237,7 @@ test("displayed search hint matches a gesture the production handler accepts", (
     localization.createTranslator("en"),
     environment({ keyConvention: "ios", keyboard: "unknown", pointer: false, touch: true }),
   );
-  assert.deepEqual(touchCopy, { placeholder: "Search Vault files…", ariaLabel: "Search Vault files", shortcutHint: null });
+  assert.deepEqual(touchCopy, { placeholder: "Search Vault…", ariaLabel: "Search Vault", shortcutHint: null });
 });
 
 
@@ -267,10 +267,10 @@ exports.Fragment = Symbol.for("react.fragment");
       onActivate: () => {},
       focusRequest: 7,
       placeholder: "Search nodes… (F4)",
-      ariaLabel: "Search Vault files",
+      ariaLabel: "Search Vault",
     });
     assert.equal(element.props.placeholder, "Search nodes… (F4)");
-    assert.equal(element.props.ariaLabel, "Search Vault files");
+    assert.equal(element.props.ariaLabel, "Search Vault");
     assert.equal(element.props.focusRequest, 7);
     assert.equal(element.props.floating, true);
   } finally {
@@ -334,8 +334,8 @@ test("representative production consumers use K-Plex command IDs and preserve ex
     "Imported ExcaliBrain settings into K-Plex.",
     "Navigate back",
     "Navigate forward",
-    "Search Vault files…",
-    "Search Vault files",
+    "Search Vault…",
+    "Search Vault",
     "K-Plex indexed {count} nodes.",
   ]) assert(catalog.includes(exact), `catalog lost existing English wording: ${exact}`);
 });

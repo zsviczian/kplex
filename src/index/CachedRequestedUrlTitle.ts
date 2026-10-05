@@ -17,8 +17,8 @@ import { selectedSourceFailure, type NeutralSourceRepository } from "./SourceRep
 
 type Failure = ContributorFailure | Exclude<CachedSemanticPreparation, { outcome: "ready" }>;
 /**
- * Name input only: canonical URL nodes have no bound file or aliases, so the existing GraphIndex
- * title policy falls back to this name under every presentation configuration. This is not a
+ * Name input only: canonical URL nodes have no bound file; search aliases remain independent.
+ * The existing GraphIndex title policy uses this name under every presentation configuration. This is not a
  * general selected-title capability and confers no degree, relation-order or publication authority.
  */
 export type CachedUrlTitlePreparation = Failure | Readonly<{
@@ -109,7 +109,7 @@ export class CachedRequestedUrlTitleReader {
       const node = prepared.compilation.node(entity.id);
       if (!node) return selectedSourceFailure("missing");
       if (node.kind !== "url" || node.state !== "materialized" || node.semanticPath !== entity.semanticPath
-        || node.physicalPath !== undefined || node.file || node.aliases.length) return selectedSourceFailure("unsupported-scope");
+        || node.physicalPath !== undefined || node.file) return selectedSourceFailure("unsupported-scope");
       const hosts = await validateCachedOwners(owners, { ...runtime, isCurrent: current });
       if (hosts !== "ready") return selectedSourceFailure(current() ? hosts : reason());
       const validated = await this.discovery.revalidate(discovered);

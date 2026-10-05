@@ -5,7 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { browserBundle } from "./support/browserTypeScript.mjs";
 
 const bundle = await browserBundle([
-  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts",
+  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts", "src/index/fieldParser.ts",
 ], { obsidian: `exports.Platform={isMobile:false}; exports.TFile=class TFile {
   constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=path.split('/').pop().replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent={path:''};}
 }; exports.TFolder=class TFolder {constructor(){this.path='';this.name='';this.children=[];this.parent=null;}};
@@ -14,6 +14,31 @@ globalThis.window = globalThis;
 new Function("window", bundle)(window);
 const { ObsidianSourceAcquisition, NeutralSourceRepository, parseBodyMetadata } = window.sourceModules;
 const TFile = window.SourceTestFile;
+
+/** Canonical cache merge and cooperative facets share order, duplicates, fallback and ignored-work rules. */
+test("streaming frontmatter aliases match the canonical merge without unrelated metadata traversal", () => {
+  const M=window.sourceModules;
+  const inherited=Object.assign(Object.create({aliases:["Hidden"]}),{alias:[" Kept "]});
+  const nonEnumerable=Object.defineProperty({alias:"Kept"},"aliases",{value:["Hidden"],enumerable:false});
+  for(const [frontmatter,expected]of [
+    [{aliases:[" First ","",3,null,["Second",[" First "]]],alias:"ignored"},["First","Second","First"]],
+    [{alias:" One, Two "},["One, Two"]], [{aliases:[],alias:"ignored"},[]],
+    [{aliases:null,alias:["Fallback"]},["Fallback"]], [inherited,["Kept"]], [nonEnumerable,["Kept"]],
+  ]){
+    assert.deepEqual([...M.iterateFrontmatterAliasSteps(frontmatter)].flatMap(step=>step.value===null?[]:[step.value]),expected);
+    assert.deepEqual(M.mergeFileMetadata({frontmatter},M.parseBodyMetadata("")).aliases,expected);
+  }
+  const selected={aliases:["Facet"]};Object.defineProperty(selected,"unrelated",{enumerable:true,get(){throw Error("Unrelated metadata visited")}});
+  assert.deepEqual([...M.iterateFrontmatterAliasSteps(selected)].flatMap(step=>step.value===null?[]:[step.value]),["Facet"]);
+  let aliases=" Leaf ";for(let i=0;i<10000;i++)aliases=[aliases];
+  const steps=[...M.iterateFrontmatterAliasSteps({aliases})];assert.deepEqual(steps.filter(step=>step.value!==null).map(step=>step.value),["Leaf"]);
+  assert.ok(steps.filter(step=>step.value===null).length>20000,"Both descent and ignored/unwind work remain cooperative");
+  assert.ok(steps.some(step=>step.depth>10000),"Traversal memory can be charged independently of retained labels");
+  const sibling=[" Same "];assert.deepEqual([...M.iterateFrontmatterAliasSteps({aliases:[sibling,sibling]})].filter(step=>step.value!==null).map(step=>step.value),["Same","Same"]);
+  const cyclic=[];cyclic.push(cyclic);
+  assert.throws(()=>[...M.iterateFrontmatterAliasSteps({aliases:cyclic})],/Cyclic frontmatter aliases/);
+  assert.throws(()=>M.mergeFileMetadata({frontmatter:{aliases:cyclic}},M.parseBodyMetadata("")),/Cyclic frontmatter aliases/);
+});
 
 /** Only host events and file IO are fixtures; source codecs, repository and acquisition are production. */
 function hostFixture() {

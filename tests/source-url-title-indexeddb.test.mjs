@@ -38,7 +38,7 @@ const initialize = `(() => {
     try{
       const builder=new M.GraphBuilder(plugin,app,new Map(),index.metadataParser,f.cache,()=>true);
       const state=await builder.build({acquireSources:false});ok(state,'Actual full builder completes');index.state=state;
-      const page=state.pages.get(url);ok(page,'Full URL exists');equal(page.file,null,'Synthetic URL has no live scalar observation');equal(page.aliases,[],'Synthetic URL has no aliases');
+      const page=state.pages.get(url);ok(page,'Full URL exists');equal(page.file,null,'Synthetic URL has no live scalar observation');ok(page.aliases.every(alias=>typeof alias==='string'),'Synthetic URL retains independent search aliases');
       return index.titleFor(page);
     }finally{index.destroy();}
   };

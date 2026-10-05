@@ -108,17 +108,17 @@ export const englishCatalog = {
     params: ["count"],
   },
   "search.ariaLabel": {
-    message: "Search Vault files",
+    message: "Search Vault",
     context: "Accessible name for whole-Vault search, covering all file types.",
     params: [],
   },
   "search.placeholder": {
-    message: "Search Vault files…",
+    message: "Search Vault…",
     context: "Placeholder in the K-Plex node search input when no keyboard shortcut hint is appropriate.",
     params: [],
   },
   "search.placeholderWithShortcut": {
-    message: "Search Vault files… ({shortcut})",
+    message: "Search Vault… ({shortcut})",
     context: "Node-search placeholder. {shortcut} is the complete keyboard shortcut that focuses this field, currently F4.",
     params: ["shortcut"],
   },
@@ -824,6 +824,31 @@ export const englishCatalog = {
     context: "K-Plex index indicator detail while a progressive checkpoint saves the graph.",
     params: [],
   },
+  "index.statusRelationshipLimit": {
+    message: "This note exceeds the relationship-loading limit. Open another note.",
+    context: "Settled requested relationship loading status; no ongoing work is implied.",
+    params: [],
+  },
+  "index.statusRelationshipIncomplete": {
+    message: "Relationship data is incomplete. Open another note or try again after indexing.",
+    context: "Settled requested relationship loading status; no ongoing work is implied.",
+    params: [],
+  },
+  "index.statusSearchIncomplete": {
+    message: "Additional URL aliases are not fully searchable.",
+    context: "Terminal optional URL alias maintenance failure, distinct from relationship preparation.",
+    params: [],
+  },
+  "index.statusUpdatingSearchAliases": {
+    message: "Updating search aliases — {processed} / {total} notes",
+    context: "Active bounded URL alias grammar repair after primary cached graph promotion.",
+    params: ["processed", "total"],
+  },
+  "index.statusUpdatingSearchVocabulary": {
+    message: "Updating search vocabulary",
+    context: "Active private alias vocabulary/search preparation after primary graph promotion.",
+    params: [],
+  },
   "index.statusUpdating": {
     message: "Status: updating index",
     context: "K-Plex index indicator detail shown while an already usable index is being updated.",
@@ -1291,6 +1316,16 @@ export const englishCatalog = {
   "addRelated.ontologyAria": {
     message: "Ontology field",
     context: "Add-related-note dialog copy and accessibility labels.",
+    params: [],
+  },
+  "relation.preparingRelationship": {
+    message: "Relationship data is still being prepared. Try again when indexing finishes.",
+    context: "Validation failure when a relationship cannot obtain current source and ontology authority.",
+    params: [],
+  },
+  "addRelated.showOntologyFields": {
+    message: "Show all ontology fields",
+    context: "Accessible label for the ontology field disclosure in the add-related composer.",
     params: [],
   },
   "addRelated.createMarkdownLink": {
@@ -3448,12 +3483,12 @@ export const englishCatalog = {
     params: [],
   },
   "settings.ui.left.friend.jump.fields": {
-    message: "Left friend / jump fields",
+    message: "Friend fields",
     context: "Declarative K-Plex settings page copy.",
     params: [],
   },
   "settings.ui.right.friend.challenger.fields": {
-    message: "Right friend / challenger fields",
+    message: "Challenger fields",
     context: "Declarative K-Plex settings page copy.",
     params: [],
   },
@@ -3508,12 +3543,12 @@ export const englishCatalog = {
     params: [],
   },
   "settings.ui.left.friend.trigger": {
-    message: "Left friend trigger",
+    message: "Friend trigger",
     context: "Declarative K-Plex settings page copy.",
     params: [],
   },
   "settings.ui.right.friend.trigger": {
-    message: "Right friend trigger",
+    message: "Challenger trigger",
     context: "Declarative K-Plex settings page copy.",
     params: [],
   },

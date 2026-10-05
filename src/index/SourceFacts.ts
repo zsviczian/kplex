@@ -3,6 +3,9 @@
  * boundary borrows the canonical parser's occurrence/reference grammar; it does not classify
  * relationships, resolve paths, retain arbitrary frontmatter, or own IndexedDB/lifecycle effects.
  * Inline inputs and reference explanation payloads share one framed value, not one copy per target.
+ * Known parser2 primary heads require repository family authentication; parser3 alias completeness
+ * is a separate capability. Known parser2 tombstones preserve retirement identity only, while
+ * unknown versions remain invalid and no compatibility path rewrites a persisted head.
  */
 import { normalizeFieldName, type ExtractedLinkReference, type ParsedBodyMetadata, type ParsedFileMetadata } from "../core/parser/metadata";
 import { iteratePropertyValueSteps, iterateReferencePayloadChunks, iterateReferenceScanSteps } from "../core/parser/referenceValues";
@@ -11,7 +14,7 @@ import { MAX_REFERENCE_PAYLOAD_CHARS, type SourceLocation, type SourceTargetRef 
 /** Independent versions: none is a graph snapshot schema or a semantic/settings policy revision. */
 export const SOURCE_FACT_FORMAT_VERSION = 1;
 export const SOURCE_FACT_COMPILER_VERSION = 1;
-export const SOURCE_BODY_PARSER_VERSION = 2;
+export const SOURCE_BODY_PARSER_VERSION = 3;
 export const SOURCE_RESOLUTION_VERSION = 1;
 export const SOURCE_CHUNK_TARGET_BYTES = 256 * 1024;
 export const SOURCE_MAX_RECORD_BYTES = 4 * 1024 * 1024;
@@ -80,7 +83,8 @@ export type StoredReferenceCandidate = Readonly<{
   subpath?: string;
   external: boolean;
 }>;
-export type StoredBodyUrl = Readonly<{ kind: "body-url"; url: string; label?: string; line?: number }>;
+/** One primary URL/provenance record with independently retained search-label metadata. */
+export type StoredBodyUrl = Readonly<{ kind: "body-url"; url: string; label?: string; aliases?: readonly string[]; line?: number }>;
 export type StoredMetadataFact =
   | Readonly<{ kind: "alias" | "tag"; value: string }>
   | Readonly<{ kind: "file-parent"; path: string }>
@@ -155,6 +159,12 @@ export function sourceCount(value: unknown): value is number { return typeof val
 function timestamp(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value) && value >= 0; }
 /** Empty text is allowed only for fields whose contract explicitly permits it. */
 function text(value: unknown): value is string { return typeof value === "string" && value.length > 0; }
+/** Reject malformed/sparse alias arrays; existing record and retained-body byte bounds reject extremes. */
+function validUrlAliases(value: unknown): value is string[] {
+  if (!Array.isArray(value)) return false;
+  for (const alias of value) if (!text(alias)) return false;
+  return true;
+}
 /** Validate optional properties without accepting a present undefined value. */
 function optional(value: Record<string, unknown>, key: string, check: (value: unknown) => boolean): boolean {
   return !Object.prototype.hasOwnProperty.call(value, key) || check(value[key]);
@@ -197,7 +207,15 @@ export function validFamilyManifest(value: unknown): value is SourceFamilyManife
     && text(value.revision) && sourceCount(value.chunks) && value.chunks > 0 && sourceCount(value.records)
     && sourceCount(value.bytes) && sourceCount(value.postings) && digest(value.digest) && digest(value.postingDigest);
 }
-/** Distinguish a complete empty source, a retained tombstone, corruption and explicit format changes. */
+/**
+ * Parser3 adds optional search labels without changing parser2 primary URLs or inline grammar.
+ * Known complete parser2 heads remain semantic candidates, never complete-alias certificates;
+ * repository pins authenticate their actual URL family before any primary-fact reuse.
+ */
+export function legacyPrimaryGrammarCandidate(value: SourceManifest): boolean {
+  return value.bodyParserVersion === 2 && value.state === "complete";
+}
+/** Distinguish complete sources, the exact parser2 primary-grammar candidate, tombstones and format changes. */
 export function sourceHeadReason(value: unknown): SourceReason {
   if (value === undefined || value === null) return "missing";
   if (!sourceObject(value) || !keys(value, ["sourceId", "sourceRevision", "formatVersion", "compilerVersion", "bodyParserVersion", "resolutionVersion",
@@ -205,9 +223,13 @@ export function sourceHeadReason(value: unknown): SourceReason {
     || !validSourcePhysical(value.physical) || !observation(value.observation) || !sourceCount(value.sequence) || value.sequence < 1
     || (value.state !== "complete" && value.state !== "tombstone") || !sourceObject(value.families)) return "invalid-head";
   if (value.formatVersion !== SOURCE_FACT_FORMAT_VERSION || value.compilerVersion !== SOURCE_FACT_COMPILER_VERSION
-    || value.bodyParserVersion !== SOURCE_BODY_PARSER_VERSION || value.resolutionVersion !== SOURCE_RESOLUTION_VERSION) return "format-version";
+    || value.resolutionVersion !== SOURCE_RESOLUTION_VERSION) return "format-version";
   if (!Object.entries(value.families).every(([key, entry]) => sourceFamily(key) && validFamilyManifest(entry))) return "invalid-head";
   if (value.state === "complete" && SOURCE_FAMILIES.some((family) => !Object.prototype.hasOwnProperty.call(value.families, family))) return "invalid-head";
+  // A known retired parser2 marker preserves deletion/CAS identity but grants no semantic facts.
+  const legacyRetirement = value.bodyParserVersion === 2 && value.state === "tombstone";
+  if (value.bodyParserVersion !== SOURCE_BODY_PARSER_VERSION && !legacyRetirement
+    && !legacyPrimaryGrammarCandidate(value as unknown as SourceHead)) return "format-version";
   return value.state === "tombstone" ? "tombstone" : "ready";
 }
 /** Return a typed disk head only after full shape/version validation; never coerce unknown data. */
@@ -253,8 +275,9 @@ export function validSourceFact(value: unknown, family: SourceFamily): value is 
       && text(value.valueId) && sourceCount(value.ordinal) && typeof value.final === "boolean" && text(value.rawTarget)
       && typeof value.external === "boolean" && optional(value, "subpath", text);
   }
-  if (family === "body-urls") return value.kind === "body-url" && keys(value, ["kind", "url"], ["label", "line"])
-    && text(value.url) && optional(value, "label", (label) => typeof label === "string") && optional(value, "line", (line) => sourceCount(line) && line > 0);
+  if (family === "body-urls") return value.kind === "body-url" && keys(value, ["kind", "url"], ["label", "aliases", "line"])
+    && text(value.url) && optional(value, "label", (label) => typeof label === "string")
+    && optional(value, "aliases", validUrlAliases) && optional(value, "line", (line) => sourceCount(line) && line > 0);
   if (family === "metadata") {
     if (value.kind === "alias" || value.kind === "tag") return keys(value, ["kind", "value"]) && typeof value.value === "string";
     if (value.kind === "file-parent") return keys(value, ["kind", "path"]) && typeof value.path === "string";
@@ -384,8 +407,10 @@ export class SourceBodyDecoder {
   accept(record: StoredSourceFact): void {
     if (record.kind === "reference-value" || record.kind === "inline-value") { this.current = record; this.pieces = []; }
     if (record.kind === "body-url") {
+      // All labels count toward the existing retained-body byte bound; none are silently truncated.
       this.reserve(record.url.length * 2 + (record.label?.length ?? 0) * 2 + 64);
-      this.body.urls.push({ url: record.url, ...(record.label === undefined ? {} : { label: record.label }), ...(record.line === undefined ? {} : { line: record.line }) });
+      for (const alias of record.aliases ?? []) this.reserve(alias.length * 2 + 16);
+      this.body.urls.push({ url: record.url, ...(record.label === undefined ? {} : { label: record.label }), ...(record.aliases === undefined ? {} : { aliases: [...record.aliases] }), ...(record.line === undefined ? {} : { line: record.line }) });
     }
     if ((record.kind !== "reference-payload" && record.kind !== "inline-payload") || this.current?.surface !== "inline") return;
     this.reserve(record.text.length * 2);

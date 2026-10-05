@@ -1012,6 +1012,14 @@ export default class KplexPlugin extends Plugin {
     if (this.unloading) return;
     if (this.index.hasPendingStructuralMaintenance()) await this.index.waitForStructuralMaintenance();
     if (this.unloading) return;
+    // Reactive backlog can arrive after a preview but before optional cache hydration finishes.
+    // The initial coordinator owns the final restore/reconciliation decision; rebuilding the
+    // preview here would race that owner and reset a usable cached scene to a cold build.
+    // Its own rebuild call occurs after its hydration await, so this branch cannot self-await.
+    if (!force && !showNotice && this.index.hasPendingSnapshotHydration()) {
+      await this.ensureInitialIndex();
+      if (this.unloading) return;
+    }
     const explicitlyRequested = showNotice;
     if (!this.hasVisibleKplexSurface() && !allowClosed && !explicitlyRequested) {
       return;
@@ -2094,12 +2102,14 @@ export default class KplexPlugin extends Plugin {
   /** Aggregate cache, requested-semantic and global-search readiness without scheduling work. */
   private computeIndexStatusFacts(totalFiles: number | null): {
     upToDate: boolean;
-    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating";
+    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating" | "incomplete";
     indexedFiles: number;
     totalFiles: number | null;
   } {
     const loadingCache = this.index.hasPendingSnapshotHydration();
     const semanticPreparing = this.index.hasPendingSemanticPreparation();
+    const semanticIncomplete = semanticPreparing && !this.index.hasActiveSemanticPreparation?.()
+      || Boolean(this.index.getSearchVocabularyFailure?.());
     const upToDate = this.initialIndexComplete
       && !this.indexDirty
       && this.rebuildTask === null
@@ -2119,6 +2129,8 @@ export default class KplexPlugin extends Plugin {
           ? "saving-cache"
         : !this.initialIndexComplete && this.rebuildTask !== null
           ? "indexing"
+          : semanticIncomplete && this.rebuildTask === null && this.rebuildTimer === null && !this.indexDirty
+            ? "incomplete"
           : !this.initialIndexComplete && this.index.size > 0 && this.index.hasIncrementalRestorePatch()
             ? "checking-cache"
             : !this.initialIndexComplete
@@ -2127,10 +2139,10 @@ export default class KplexPlugin extends Plugin {
     return { upToDate, phase, indexedFiles, totalFiles };
   }
 
-  /** Return current index readiness/progress facts plus localized status copy; this query does not schedule indexing. */
+  /** Report current graph/search readiness and alias-only progress without scheduling work or implying relationship failure. */
   getIndexStatus(): {
     upToDate: boolean;
-    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating";
+    phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating" | "incomplete";
     label: string;
     indexedFiles: number;
     totalFiles: number;
@@ -2141,7 +2153,18 @@ export default class KplexPlugin extends Plugin {
     const totalFiles = this.cachedMarkdownFileCount ??= this.app.vault.getMarkdownFiles().length;
     const facts = this.computeIndexStatusFacts(totalFiles);
     const { phase, indexedFiles } = facts;
-    const label = phase === "ready"
+    const failure = phase === "incomplete" ? this.index.getSemanticPreparationFailure?.() : null;
+    const searchFailure = phase === "incomplete" && !failure ? this.index.getSearchVocabularyFailure?.() : null;
+    const aliasProgress = phase === "updating" ? this.index.getUrlAliasUpgradeProgress?.() : null;
+    const label = searchFailure
+      ? this.translator("index.statusSearchIncomplete")
+      : aliasProgress
+        ? aliasProgress.phase === "repair" && aliasProgress.total !== null
+          ? this.translator("index.statusUpdatingSearchAliases", { processed: aliasProgress.processed, total: aliasProgress.total })
+          : this.translator("index.statusUpdatingSearchVocabulary")
+      : phase === "incomplete"
+      ? this.translator(failure && /budget|limit/.test(failure) ? "index.statusRelationshipLimit" : "index.statusRelationshipIncomplete")
+      : phase === "ready"
       ? this.translator("index.statusReady")
       : phase === "loading-cache"
         ? this.translator("index.statusLoadingCache")
@@ -3026,9 +3049,10 @@ export default class KplexPlugin extends Plugin {
     new Notice(this.translator("notice.openPluginSettings"), 3000);
   }
 
+  /** All creation gestures share the React composer, including preselected gate/history endpoints. */
   openRelationModal(options: RelationModalOptions): void {
-    if (options.mode === "create" && !options.fixedTarget) {
-      new NewRelatedNoteModal(this, options.origin, options.semanticRole, options.onCommitted, options.hostLeaf).open();
+    if (options.mode === "create") {
+      new NewRelatedNoteModal(this, options.origin, options.semanticRole, options.onCommitted, options.hostLeaf, options.fixedTarget).open();
       return;
     }
     new RelationModal(this, options).open();
@@ -3379,34 +3403,52 @@ export default class KplexPlugin extends Plugin {
     await this.createRelationToPage(origin, semanticRole, selectedPage, selectedField);
   }
 
-  /** Create the requested relationship to an existing graph page through the current persistence path with localized feedback. */
+  /** Persist an existing-target relationship only under current semantic authority, retaining bounded endpoint demands through the write. */
   async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string): Promise<void> {
-    if (!this.index.isSemanticWriteReady(origin.path, target.path)) return;
-    if (origin.path === target.path) return;
-    const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
-    if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
-      new Notice(this.translator("notice.alreadyConnected"), 1800);
-      return;
-    }
+    const originPath = origin.path;
+    const targetPath = target.path;
+    const releaseDemands: Array<() => void> = [];
+    try {
+      if (!this.index.isSemanticWriteReady(originPath, targetPath)) {
+        releaseDemands.push(this.index.acquireSemanticDemand(originPath), this.index.acquireSemanticDemand(targetPath));
+        await this.index.refreshSemanticSettings();
+        // Preparing a scope can replace page views. Never persist from the modal's retired view.
+        const currentOrigin = this.index.get(originPath);
+        const currentTarget = this.index.get(targetPath);
+        if (!currentOrigin || !currentTarget || !this.index.isSemanticWriteReady(originPath, targetPath)) {
+          throw new Error(this.translator("relation.preparingRelationship"));
+        }
+        origin = currentOrigin;
+        target = currentTarget;
+      }
+      if (origin.path === target.path) return;
+      const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
+      if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
+        new Notice(this.translator("notice.alreadyConnected"), 1800);
+        return;
+      }
 
-    // A target connected through another gate remains a valid drag target. Treat that gesture
-    // as a relink so the new YAML relationship becomes authoritative over any stale body link.
-    if (this.index.isConnected(origin, target.path)) {
-      await this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
-      return;
-    }
+      // A target connected through another gate remains a valid drag target. Treat that gesture
+      // as a relink so the new YAML relationship becomes authoritative over any stale body link.
+      if (this.index.isConnected(origin, target.path)) {
+        await this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
+        return;
+      }
 
-    if (origin.file?.extension === "md") {
-      await this.writeRelationship(origin.file, target, selectedField);
-      this.index.applyRelationshipEdit(origin.path, target.path, semanticRole, selectedField);
-    } else if (target.file?.extension === "md") {
-      const inverseRole = this.inverseRelationshipRole(semanticRole);
-      const inverseField = this.inverseOntologyField(selectedField, semanticRole);
-      await this.writeRelationship(target.file, origin, inverseField);
-      this.index.applyRelationshipEdit(target.path, origin.path, inverseRole, inverseField);
-    } else {
-      new Notice(this.translator("notice.dragOriginRequiresMarkdownTarget"), 2800);
-      return;
+      if (origin.file?.extension === "md") {
+        await this.writeRelationship(origin.file, target, selectedField);
+        this.index.applyRelationshipEdit(origin.path, target.path, semanticRole, selectedField);
+      } else if (target.file?.extension === "md") {
+        const inverseRole = this.inverseRelationshipRole(semanticRole);
+        const inverseField = this.inverseOntologyField(selectedField, semanticRole);
+        await this.writeRelationship(target.file, origin, inverseField);
+        this.index.applyRelationshipEdit(target.path, origin.path, inverseRole, inverseField);
+      } else {
+        new Notice(this.translator("notice.dragOriginRequiresMarkdownTarget"), 2800);
+        return;
+      }
+    } finally {
+      for (const release of releaseDemands) release();
     }
   }
 

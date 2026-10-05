@@ -61,10 +61,12 @@ function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStat
     };
     const releaseCoordinator = plugin.subscribeIndexStatus(refresh);
     const releaseIndex = plugin.index.subscribe(refresh);
+    const releasePresentation = plugin.index.subscribePresentation(refresh);
     const releaseVisibility = plugin.subscribeKplexVisibility(refresh);
     return () => {
       releaseCoordinator();
       releaseIndex();
+      releasePresentation();
       releaseVisibility();
     };
   }, [plugin, hostLeaf]);
@@ -93,7 +95,7 @@ function IndexStatusIndicator({
   return <button
     ref={indicatorRef}
     type="button"
-    className={`kplex-index-status${status.upToDate ? " is-ready" : " is-updating"}`}
+    className={`kplex-index-status${status.upToDate ? " is-ready" : status.phase === "incomplete" ? " is-incomplete" : " is-updating"}`}
     aria-label={status.label}
     aria-expanded={open}
     aria-haspopup="dialog"
@@ -321,7 +323,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     ?? plugin.index.get("folder:/");
   const hasPage = Boolean(page);
   const graphSearchRead = useMemo(() => createLegacyGraphSearchRead({
-    /** Preserve whole-Vault file search even when attachments or notes are hidden in the Plex. */
+    /** Preserve Vault files and URL aliases independently of the current Plex and graph filters. */
     search: (query, limit) => plugin.index.search(query, limit, "vault-files"),
     titleFor: (target) => plugin.index.titleFor(target),
   }), [plugin.index]);
@@ -736,8 +738,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
             portalSelector=".kplex-app"
             appTopbarSelector=".kplex-topbar"
             revision={renderRevision}
-            onActivate={(id) => {
-              const target = plugin.index.get(id);
+            onActivate={/** Physical search remains usable during partial hydration; materialize only the selected current file. */ (id) => {
+              let target = plugin.index.getVaultSearchPage(id);
+              if (target?.file && !plugin.index.get(id)) target = plugin.index.insertCreatedFile(target.file);
               if (target) activate(target, true);
             }}
             focusRequest={searchFocusRequest}
