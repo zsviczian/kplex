@@ -108,3 +108,71 @@ export function createLegacyGraphSearchRead(source: LegacySearchSource): GraphSe
     },
   };
 }
+
+/** Rank exact, prefix, substring and ordered-subsequence matches using the same weights as global graph search. */
+function scopedSubsequenceScore(text: string, query: string): number | null {
+  if (text === query) return 0;
+  if (text.startsWith(query)) return 20 + Math.min(80, text.length - query.length);
+  const containedAt = text.indexOf(query);
+  if (containedAt >= 0) return 120 + containedAt * 4 + Math.min(120, text.length - query.length);
+
+  let queryIndex = 0;
+  let first = -1;
+  let last = -1;
+  let gapPenalty = 0;
+  let boundaryBonus = 0;
+  for (let index = 0; index < text.length && queryIndex < query.length; index += 1) {
+    if (text[index] !== query[queryIndex]) continue;
+    if (first < 0) first = index;
+    if (last >= 0) gapPenalty += Math.max(0, index - last - 1);
+    if (index === 0 || /[\s_\-/.]/.test(text[index - 1])) boundaryBonus += 8;
+    last = index;
+    queryIndex += 1;
+  }
+  if (queryIndex !== query.length) return null;
+  return 1000 + first * 5 + gapPenalty * 12 + Math.max(0, text.length - query.length) - boundaryBonus;
+}
+
+/** Build a bounded search facade over the pages currently present in one Plex. */
+export function createScopedGraphSearchRead(
+  source: Pick<LegacySearchSource, "titleFor">,
+  pages: readonly GraphPage[],
+): GraphSearchRead {
+  const entries = pages.map((page) => {
+    const label = source.titleFor(page);
+    return {
+      page,
+      label,
+      normalizedLabel: label.toLocaleLowerCase(),
+      aliases: page.aliases.map((alias) => alias.toLocaleLowerCase()),
+      detail: page.path,
+      normalizedPath: page.path.toLocaleLowerCase(),
+    };
+  });
+  return {
+    search(query, limit) {
+      const q = query.trim().toLocaleLowerCase();
+      if (!q) return [];
+      const max = Math.max(1, limit ?? 24);
+      return entries
+        .map((entry) => {
+          let score = scopedSubsequenceScore(entry.normalizedLabel, q);
+          for (const alias of entry.aliases) {
+            const aliasScore = scopedSubsequenceScore(alias, q);
+            if (aliasScore !== null && (score === null || aliasScore + 8 < score)) score = aliasScore + 8;
+          }
+          const pathScore = scopedSubsequenceScore(entry.normalizedPath, q);
+          if (pathScore !== null && (score === null || pathScore + 240 < score)) score = pathScore + 240;
+          return score === null ? null : { entry, score };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+        .sort((a, b) => a.score - b.score || a.entry.label.localeCompare(b.entry.label))
+        .slice(0, max)
+        .map(({ entry }) => ({
+          node: graphNodeViewFromLegacy(entry.page),
+          label: entry.label,
+          detail: entry.detail,
+        }));
+    },
+  };
+}

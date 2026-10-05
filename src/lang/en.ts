@@ -108,20 +108,25 @@ export const englishCatalog = {
     params: ["count"],
   },
   "search.ariaLabel": {
-    message: "Search nodes",
-    context: "Accessible name for the K-Plex node search input.",
+    message: "Search Vault",
+    context: "Accessible name for whole-Vault search, covering all file types.",
     params: [],
   },
   "search.placeholder": {
-    message: "Search nodes…",
+    message: "Search Vault…",
     context: "Placeholder in the K-Plex node search input when no keyboard shortcut hint is appropriate.",
     params: [],
   },
   "search.placeholderWithShortcut": {
-    message: "Search nodes… ({shortcut})",
+    message: "Search Vault… ({shortcut})",
     context: "Node-search placeholder. {shortcut} is the complete keyboard shortcut that focuses this field, currently F4.",
     params: ["shortcut"],
   },
+  "find.ariaLabel": { message: "Find in this Plex", context: "Accessible name for local Find and its touch magnifier.", params: [] },
+  "find.placeholder": { message: "Find in this Plex…", context: "Find highlights projected nodes and links without a dropdown.", params: [] },
+  "find.includePath": { message: "Include file paths", context: "View-local toggle extending displayed-node Find to file paths; does not change Vault search.", params: [] },
+  "find.close": { message: "Close Find", context: "Dismiss local Find and clear its highlights.", params: [] },
+  "find.matches": { plural: { one: "{count} match", other: "{count} matches" }, countParam: "count", context: "Number of matching projected Plex nodes.", params: ["count"] },
   "toolbar.navigateBack": {
     message: "Navigate back",
     context: "Accessible label/tooltip for the top-bar button that navigates backward in K-Plex history.",
@@ -820,6 +825,31 @@ export const englishCatalog = {
     context: "K-Plex index indicator detail while a progressive checkpoint saves the graph.",
     params: [],
   },
+  "index.statusRelationshipLimit": {
+    message: "This note exceeds the relationship-loading limit. Open another note.",
+    context: "Settled requested relationship loading status; no ongoing work is implied.",
+    params: [],
+  },
+  "index.statusRelationshipIncomplete": {
+    message: "Relationship data is incomplete. Open another note or try again after indexing.",
+    context: "Settled requested relationship loading status; no ongoing work is implied.",
+    params: [],
+  },
+  "index.statusSearchIncomplete": {
+    message: "Additional URL aliases are not fully searchable.",
+    context: "Terminal optional URL alias maintenance failure, distinct from relationship preparation.",
+    params: [],
+  },
+  "index.statusUpdatingSearchAliases": {
+    message: "Updating search aliases — {processed} / {total} notes",
+    context: "Active bounded URL alias grammar repair after primary cached graph promotion.",
+    params: ["processed", "total"],
+  },
+  "index.statusUpdatingSearchVocabulary": {
+    message: "Updating search vocabulary",
+    context: "Active private alias vocabulary/search preparation after primary graph promotion.",
+    params: [],
+  },
   "index.statusUpdating": {
     message: "Status: updating index",
     context: "K-Plex index indicator detail shown while an already usable index is being updated.",
@@ -1287,6 +1317,21 @@ export const englishCatalog = {
   "addRelated.ontologyAria": {
     message: "Ontology field",
     context: "Add-related-note dialog copy and accessibility labels.",
+    params: [],
+  },
+  "relation.savedUpdatePending": {
+    message: "Relationship saved; the graph update is still pending.",
+    context: "A persisted relationship is awaiting authoritative metadata or canonical graph publication.",
+    params: [],
+  },
+  "relation.preparingRelationship": {
+    message: "Relationship data is still being prepared. Try again when indexing finishes.",
+    context: "Validation failure when a relationship cannot obtain current source and ontology authority.",
+    params: [],
+  },
+  "addRelated.showOntologyFields": {
+    message: "Show all ontology fields",
+    context: "Accessible label for the ontology field disclosure in the add-related composer.",
     params: [],
   },
   "addRelated.createMarkdownLink": {
@@ -3444,12 +3489,12 @@ export const englishCatalog = {
     params: [],
   },
   "settings.ui.left.friend.jump.fields": {
-    message: "Left friend / jump fields",
+    message: "Friend fields",
     context: "Declarative K-Plex settings page copy.",
     params: [],
   },
   "settings.ui.right.friend.challenger.fields": {
-    message: "Right friend / challenger fields",
+    message: "Challenger fields",
     context: "Declarative K-Plex settings page copy.",
     params: [],
   },
@@ -3504,12 +3549,12 @@ export const englishCatalog = {
     params: [],
   },
   "settings.ui.left.friend.trigger": {
-    message: "Left friend trigger",
+    message: "Friend trigger",
     context: "Declarative K-Plex settings page copy.",
     params: [],
   },
   "settings.ui.right.friend.trigger": {
-    message: "Right friend trigger",
+    message: "Challenger trigger",
     context: "Declarative K-Plex settings page copy.",
     params: [],
   },
@@ -4278,6 +4323,32 @@ export const englishCatalog = {
     params: [],
   },
 
+  "settings.ui.max.label.length": { message: 'Maximum label length', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "settings.ui.max.label.length.help": { message: 'Maximum characters shown before a node title is truncated.', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "settings.ui.maximum.node.width": { message: 'Maximum node width', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "settings.ui.maximum.node.width.help": { message: 'Maximum width of regular Plex nodes in pixels.', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "settings.ui.maximum.central.node.width": { message: 'Maximum central node width', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "settings.ui.maximum.central.node.width.help": { message: 'Maximum width of the compact central node in pixels.', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "settings.ui.wrap.node.labels": { message: 'Wrap node labels', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "settings.ui.wrap.node.labels.help": { message: 'Use a fixed two-line label area for every node so long titles can wrap without changing row alignment.', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "graph.openBrowser": { message: 'Open in browser', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "graph.openWebViewer": { message: 'Open in Web Viewer', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "common.ok": { message: 'OK', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.title": { message: 'About vault', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.indexStatus": { message: 'Indexing status', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.markdownFiles": { message: 'Markdown files', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.notes": { message: 'Notes', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.excalidrawDrawings": { message: 'Excalidraw drawings', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.urls": { message: 'URLs', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.folders": { message: 'Folders', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.tags": { message: 'Tags', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.placeholders": { message: 'Placeholder links', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.attachments": { message: 'Attachments', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.images": { message: 'Images', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.video": { message: 'Video', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.otherAttachments": { message: 'Other attachments', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.ontology": { message: 'Ontology keywords', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
+  "vaultStats.ontologyValue": { message: '{total} total · {used} used', context: "K-Plex node, vault summary, and open-target UI copy.", params: ["total", "used"] },
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

@@ -5,7 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { browserBundle } from "./support/browserTypeScript.mjs";
 
 const bundle = await browserBundle([
-  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts",
+  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts", "src/index/fieldParser.ts",
 ], { obsidian: `exports.Platform={isMobile:false}; exports.TFile=class TFile {
   constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=path.split('/').pop().replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent={path:''};}
 }; exports.TFolder=class TFolder {constructor(){this.path='';this.name='';this.children=[];this.parent=null;}};
@@ -14,6 +14,31 @@ globalThis.window = globalThis;
 new Function("window", bundle)(window);
 const { ObsidianSourceAcquisition, NeutralSourceRepository, parseBodyMetadata } = window.sourceModules;
 const TFile = window.SourceTestFile;
+
+/** Canonical cache merge and cooperative facets share order, duplicates, fallback and ignored-work rules. */
+test("streaming frontmatter aliases match the canonical merge without unrelated metadata traversal", () => {
+  const M=window.sourceModules;
+  const inherited=Object.assign(Object.create({aliases:["Hidden"]}),{alias:[" Kept "]});
+  const nonEnumerable=Object.defineProperty({alias:"Kept"},"aliases",{value:["Hidden"],enumerable:false});
+  for(const [frontmatter,expected]of [
+    [{aliases:[" First ","",3,null,["Second",[" First "]]],alias:"ignored"},["First","Second","First"]],
+    [{alias:" One, Two "},["One, Two"]], [{aliases:[],alias:"ignored"},[]],
+    [{aliases:null,alias:["Fallback"]},["Fallback"]], [inherited,["Kept"]], [nonEnumerable,["Kept"]],
+  ]){
+    assert.deepEqual([...M.iterateFrontmatterAliasSteps(frontmatter)].flatMap(step=>step.value===null?[]:[step.value]),expected);
+    assert.deepEqual(M.mergeFileMetadata({frontmatter},M.parseBodyMetadata("")).aliases,expected);
+  }
+  const selected={aliases:["Facet"]};Object.defineProperty(selected,"unrelated",{enumerable:true,get(){throw Error("Unrelated metadata visited")}});
+  assert.deepEqual([...M.iterateFrontmatterAliasSteps(selected)].flatMap(step=>step.value===null?[]:[step.value]),["Facet"]);
+  let aliases=" Leaf ";for(let i=0;i<10000;i++)aliases=[aliases];
+  const steps=[...M.iterateFrontmatterAliasSteps({aliases})];assert.deepEqual(steps.filter(step=>step.value!==null).map(step=>step.value),["Leaf"]);
+  assert.ok(steps.filter(step=>step.value===null).length>20000,"Both descent and ignored/unwind work remain cooperative");
+  assert.ok(steps.some(step=>step.depth>10000),"Traversal memory can be charged independently of retained labels");
+  const sibling=[" Same "];assert.deepEqual([...M.iterateFrontmatterAliasSteps({aliases:[sibling,sibling]})].filter(step=>step.value!==null).map(step=>step.value),["Same","Same"]);
+  const cyclic=[];cyclic.push(cyclic);
+  assert.throws(()=>[...M.iterateFrontmatterAliasSteps({aliases:cyclic})],/Cyclic frontmatter aliases/);
+  assert.throws(()=>M.mergeFileMetadata({frontmatter:{aliases:cyclic}},M.parseBodyMetadata("")),/Cyclic frontmatter aliases/);
+});
 
 /** Only host events and file IO are fixtures; source codecs, repository and acquisition are production. */
 function hostFixture() {
@@ -302,4 +327,53 @@ test("an observed equal-stat body edit invalidates immutable and legacy inputs, 
     await f.acquisition.reconcile();
     assert.deepEqual(f.reads, [source.path]); assert.equal(f.parses.length, 1);
   } finally { f.close(); }
+});
+
+/** A durable-storage or missing-metadata outcome without a newer source event must remain pending after one pass. */
+test("flush does not retry unchanged incomplete source inputs or reopen after close", async () => {
+  const f = hostFixture();
+  try {
+    const pending = f.add("pending.md"); f.metadata.delete(pending.path);
+    const reconcile = f.acquisition.reconcile.bind(f.acquisition);
+    let passes = 0;
+    f.acquisition.reconcile = async () => { passes++; return reconcile(); };
+    assert.equal(await f.acquisition.flush(), false);
+    assert.equal(passes, 1, "No retry without a genuinely newer queued source observation");
+    assert.equal(f.acquisition.inventoryCaptureRevision, null, "The ended pass releases its capture");
+    assert.equal(f.acquisition.hasSemanticDependencies(), false);
+    const checked = f.acquisition.getCounters().checked;
+    f.acquisition.close();
+    assert.equal(await f.acquisition.flush(), false);
+    assert.equal(f.acquisition.getCounters().checked, checked, "Closed acquisition cannot reopen or collect");
+  } finally { f.close(); }
+});
+
+/** Two genuine source interruptions may consume one queued replacement; a third observation stays pending. */
+test("flush joins at most one newer queued pass", async () => {
+  const f = hostFixture();
+  let release;
+  try {
+    const file = f.add("changed.md");
+    const load = f.acquisition.loadBody.bind(f.acquisition);
+    const reconcile = f.acquisition.reconcile.bind(f.acquisition);
+    let passes = 0, loads = 0, reached;
+    const paused = new Promise(resolve => { reached = resolve; });
+    f.acquisition.reconcile = async () => { passes++; return reconcile(); };
+    f.acquisition.loadBody = async (...args) => {
+      const body = await load(...args);
+      loads++;
+      if (loads === 1) await new Promise(resolve => { release = resolve; reached(); });
+      else if (loads === 2) f.app.metadataCache.trigger("changed", file);
+      return body;
+    };
+    const oldPass = f.acquisition.reconcile();
+    await paused;
+    f.app.metadataCache.trigger("changed", file);
+    const flushed = f.acquisition.flush();
+    release(); release = null;
+    assert.equal(await oldPass, false, "The retired pass remains canceled");
+    assert.equal(await flushed, false, "Another interrupted replacement remains pending");
+    assert.equal(passes, 2, "One queued replacement, no unbounded event retry loop");
+    assert.equal(f.acquisition.hasSemanticDependencies(), false);
+  } finally { release?.(); f.close(); }
 });

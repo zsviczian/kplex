@@ -1,7 +1,10 @@
 /**
  * Reusable React suggestion control independent of Obsidian and graph semantics. Callers supply ranked results, localized labels and actions; the control owns focus, navigation and owner-document portal cleanup.
+ * Programmatic focus establishes component state even when a native host already focused the input
+ * and repeating DOM focus emits no event. Focus alone never enables a typing-only suggestion list.
  */
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -47,6 +50,12 @@ export type FuzzySuggesterProps<T> = {
   focusRequest?: number;
   className?: string;
   highlightMatches?: boolean;
+  /** Explicitly reveal caller-supplied choices, including when the input is empty. */
+  disclosure?: { label: string; icon: ReactNode; onOpen: () => void };
+  /** Keep the input/results open after choosing an item. Useful for repeated in-place find. */
+  closeOnChoose?: boolean;
+  /** Advance to the next result after choosing while the list stays open. */
+  advanceOnChoose?: boolean;
 };
 
 function matchIndices(text: string, rawQuery: string): Set<number> {
@@ -120,10 +129,14 @@ export function FuzzySuggester<T>({
   focusRequest,
   className = "",
   highlightMatches = true,
+  closeOnChoose = true,
+  advanceOnChoose = false,
+  disclosure,
 }: FuzzySuggesterProps<T>) {
   const [focused, setFocused] = useState(false);
   const [editedSinceFocus, setEditedSinceFocus] = useState(false);
   const [resultsDismissed, setResultsDismissed] = useState(false);
+  const [explicitlyOpened, setExplicitlyOpened] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [overlayStyle, setOverlayStyle] = useState<CSSProperties | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -131,7 +144,7 @@ export function FuzzySuggester<T>({
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const visibleResults = focused && !resultsDismissed && (
-    openResultsOnFocus || (editedSinceFocus && value.trim().length > 0)
+    explicitlyOpened || openResultsOnFocus || (editedSinceFocus && value.trim().length > 0)
   ) ? results : [];
   const clampedSelectedIndex = visibleResults.length ? Math.max(0, Math.min(visibleResults.length - 1, selectedIndex)) : 0;
   const ownerDocument = shellRef.current?.ownerDocument ?? null;
@@ -142,12 +155,16 @@ export function FuzzySuggester<T>({
       : portalSelector ? shellRef.current?.closest<HTMLElement>(portalSelector) ?? null : null)
     : null;
 
+  /** Dismiss a suggestion list without discarding the input or selected caller value. */
   const dismissResults = () => {
+    setExplicitlyOpened(false);
     setResultsDismissed(true);
     setSelectedIndex(0);
   };
 
+  /** Release focus and reset list visibility after choosing or an outside pointer. */
   const close = () => {
+    setExplicitlyOpened(false);
     setFocused(false);
     setEditedSinceFocus(false);
     setResultsDismissed(false);
@@ -159,26 +176,39 @@ export function FuzzySuggester<T>({
 
   const choose = (item: T) => {
     onChoose(item);
-    close();
+    if (closeOnChoose) {
+      close();
+      return;
+    }
+    if (advanceOnChoose && visibleResults.length > 0) {
+      setSelectedIndex((current) => (Math.max(0, Math.min(visibleResults.length - 1, current)) + 1) % visibleResults.length);
+    }
   };
 
   useEffect(() => {
     setSelectedIndex(0);
   }, [value]);
 
-  useEffect(() => {
-    if (autoFocus) inputRef.current?.focus();
-  }, [autoFocus]);
-
-  useEffect(() => {
-    if (!focusRequest) return;
+  const focusInput = useCallback(/**
+   * Begin the same editable focus lifetime for autofocus and explicit requests before DOM focus.
+   * A native host may already own focus without delivering React's focus event; retain typing-only
+   * disclosure policy by resetting editing/dismissal rather than assuming a fresh event will do so.
+   */ (): void => {
     const input = inputRef.current;
     if (!input) return;
     setFocused(true);
     setEditedSinceFocus(false);
     setResultsDismissed(false);
     input.focus({ preventScroll: true });
-  }, [focusRequest]);
+  }, []);
+
+  useEffect(/** Autofocus shares explicit focus-state ownership even when the DOM is already active. */ () => {
+    if (autoFocus) focusInput();
+  }, [autoFocus, focusInput]);
+
+  useEffect(/** Reopen a caller-requested focus lifetime without requiring a new native focus event. */ () => {
+    if (focusRequest) focusInput();
+  }, [focusRequest, focusInput]);
 
   useEffect(() => {
     const shell = shellRef.current;
@@ -363,7 +393,8 @@ export function FuzzySuggester<T>({
       className="kplex-search"
       value={value}
       disabled={disabled}
-      onChange={(event: ChangeEvent<HTMLInputElement>) => {
+      onChange={/** Typing exits complete-choice browsing and returns ranking to the caller. */ (event: ChangeEvent<HTMLInputElement>) => {
+        setExplicitlyOpened(false);
         setEditedSinceFocus(true);
         setResultsDismissed(false);
         onChange(event.currentTarget.value);
@@ -380,6 +411,26 @@ export function FuzzySuggester<T>({
       aria-expanded={focused && visibleResults.length > 0}
       autoComplete="off"
     />
+    {disclosure ? <button
+      type="button"
+      className="kplex-fuzzy-disclosure"
+      disabled={disabled}
+      aria-label={disclosure.label}
+      aria-expanded={focused && visibleResults.length > 0}
+      onMouseDown={/** Keep focus in the text field while operating its disclosure. */ (event) => event.preventDefault()}
+      onClick={/** Reveal the caller's complete choice collection without changing its text. */ () => {
+        if (focused && explicitlyOpened && !resultsDismissed) {
+          dismissResults();
+          return;
+        }
+        disclosure.onOpen();
+        inputRef.current?.focus({ preventScroll: true });
+        setFocused(true);
+        setExplicitlyOpened(true);
+        setResultsDismissed(false);
+        setSelectedIndex(0);
+      }}
+    >{disclosure.icon}</button> : null}
     {resultList}
   </div>;
 }

@@ -32,6 +32,7 @@ function compile(relativePath) {
 for (const file of [
   "src/core/graph/model.ts",
   "src/core/graph/source.ts",
+  "src/core/graph/tagPaths.ts",
   "src/adapters/obsidian/structuralSourceCollector.ts",
 ]) compile(file);
 

@@ -278,7 +278,7 @@ When overflow requires a scroll zone, first-level zones expose a funnel/name fil
 - section nodes and outline connectors are visually distinct from semantic graph relations; structural connectors use vertical-spine + horizontal L branches that enter the child at its left-center edge, never the semantic top gate; density 4 should collapse these branches/gaps aggressively rather than merely scaling the ordinary graph spacing
 - Markdown central nodes expose the same lower-left fold square even before section expansion; non-Markdown central nodes do not
 - delayed metadata/index updates may move/add nodes but must preserve graph camera and bounded-list scroll positions; only explicit navigation/initial display may recenter
-- relationship creation uses the shared fuzzy-search component, with both suggesters closed until typing; selecting an existing note leaves ontology editable and commits through a stable-width Link action. New-note actions require a valid globally-unused filename; the last successfully used Markdown/available Excalidraw action supplies the primary shortcut (Markdown fallback, never Placeholder). User-hotkeyable Add parent/child/friend/challenger commands require a running K-Plex view; new files honor `FileManager.getNewFileParent(...)`, and custom ontology values persist as hierarchy fields/defaults. Format visible shortcut text through the environment/catalog seam.
+- relationship creation uses the shared fuzzy-search component, with both suggesters closed until typing or explicit ontology disclosure; the disclosure shows all fields for the selected role even with empty input. Selecting an existing note leaves ontology editable and commits through a stable-width Link action. New-note actions require a valid globally-unused filename; the last successfully used Markdown/available Excalidraw action supplies the primary shortcut (Markdown fallback, never Placeholder). User-hotkeyable Add parent/child/friend/challenger commands require a running K-Plex view; new files honor `FileManager.getNewFileParent(...)`, and custom ontology values persist as hierarchy fields/defaults. Format visible shortcut text through the environment/catalog seam.
 - connector unlinking remains provenance-safe: direct removal is limited to a sole editable frontmatter ontology declaration plus mirrored resolved-link entries inside its YAML block (including lists). A positionless generic cache entry is a mirror only after verifying the block resolves to the same target. Other body/property/inline or competing evidence opens **Connection details**. Its source navigation uses ephemeral line state, prefers the originating view's owned Sidecar, and never recenters the Plex or mutates unrelated leaves; fall back to a Markdown tab.
 - fold/unfold is view state only
 - folded descendants' semantic relations project upward to the visible folded ancestor
@@ -345,6 +345,25 @@ When touching search, verify:
 - typing after a previous completed search remains responsive
 - large paths/titles remain readable
 - fuzzy ordered-subsequence matches work and rank below stronger matches
+
+Vault search uses **F4** and includes every real Vault file type independently of Plex visibility. **Ctrl/Cmd+F** opens the separate current-Plex Find field: no dropdown, literal label/path/alias highlighting, overflow reveal, Enter/Shift+Enter cycling and Escape dismissal without changing the center/history. Check Graph Lens exclusions, area filters, expanded descendants and section projections.
+
+After `npm run verify:obsidian` stages the exact production build, run the native UX regression driver serially:
+
+```bash
+PATH=/Users/zsviczian/.local/share/fnm/node-versions/v22.22.2/installation/bin:$PATH \
+KPLEX_TEST_VAULT_NAME=kplex-test \
+KPLEX_TEST_VAULT_PATH=/Users/zsviczian/Obsidian/kplex-test \
+KPLEX_TEST_CONFIG_DIR=/Users/zsviczian/Obsidian/kplex-test/.obsidian \
+KPLEX_HOST_REPORT_DIR=/private/tmp/kplex-ux-native \
+npm run verify:obsidian:ux
+```
+
+The driver rejects mismatched artifacts and preexisting fixture paths. It creates an owned relationship fixture, tall/wide PNGs and a Canvas, then tests Vault search, projected Find, About vault double-click/double-tap, native image fit and collapse history, thumbnail centering, intermediate captured-pointer area resizing, Canvas explorer-drop routing and wheel zoom before pan. A native popout checks Find focus/highlighting/history in its owning document and compares its Find/zoom styling. The driver removes its fixture/views/controller and restores settings bytes, enablement and window geometry/throttling. Native pointer resizing uses Electron input with the held-button modifier; the area-settings menu uses the public DOM mode, and the explorer-drop lane supplies Obsidian's actual internal payload to the real DOM handler. These are functional desktop checks, not paint/performance measurements or physical touch acceptance. Separately test iPad trackpad zoom, phone/tablet double-tap versus long-press and native Canvas controls on physical devices.
+
+Setup temporarily selects the existing `Welcome.md` (override with `KPLEX_UX_SETUP_CENTER`) and calls the normal view-readiness entry point before waiting for strict index readiness, avoiding the separately documented extreme-hub decode limit. The original center is restored during cleanup. After fixture metadata settles, setup seeds a complete graph through the production rebuild coordinator; it requires all three fixture aliases and the expanded relationship to be materialized. This lane validates UI behavior on a complete graph and does not establish warm-vocabulary publication completeness. Fixture reconciliation may take up to 15 minutes in the 20k-note vault; this is a test setup deadline, not a change to production timing limits. Individual CLI reads have a 30-second hard timeout; polling retries transport timeouts and records them separately from native assertion failures. The style assertion compares Find's rendered dimensions, background and border radius with the zoom controls.
+
+Set `KPLEX_UX_EMULATE_MOBILE=true` to add actual Obsidian mobile emulation at tablet and phone widths after the desktop fixture is cleaned up. This lane records the production adapter's selected device profile, actual viewport dimensions, Find field focus/clipping and keyboard-hint behavior, and restores the original mobile mode and window minimum size. It does not establish physical touch or iPad trackpad acceptance.
 
 ## Relationship editing checklist
 

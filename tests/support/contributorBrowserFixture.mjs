@@ -11,6 +11,7 @@ export async function contributorBrowserBundle(extraEntries = []) {
   ], { obsidian: `exports.Platform={isMobile:false,isIosApp:false}; exports.TFile=class TFile {
     constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=this.name.replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent=null;}
   }; exports.TFolder=class TFolder {constructor(){this.path='';this.name='';this.children=[];this.parent=null;}};
+  exports.normalizePath=path=>path.replaceAll('\\\\','/').replace(/\\/{2,}/g,'/').replace(/^\\/|\\/$/g,'');
   exports.getAllTags=cache=>cache.hostTags??[];window.ContributorFile=exports.TFile;window.ContributorFolder=exports.TFolder;` });
 }
 

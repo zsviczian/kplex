@@ -1,6 +1,7 @@
 /**
  * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations; the modal owns focus, suggestions and cleanup, and consumes localized copy.
  */
+import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, type WorkspaceLeaf } from "obsidian";
 import { createElement, useEffect, useMemo, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -12,6 +13,7 @@ import { enableDraggableDialog } from "./components/DraggableDialog";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { fitMobileModalToViewport } from "./mobileModalViewport";
 
+/** Only physical Markdown targets participate in this existing-note composer. */
 function isNoteTarget(page: GraphPage, originPath: string): boolean {
   if (page.path === originPath || page.isFolder || page.isTag || page.url) return false;
   return page.file?.extension === "md";
@@ -22,6 +24,7 @@ function RelatedNoteComposer({
   plugin,
   origin,
   initialRole,
+  fixedTarget,
   onCommitted,
   onClose,
   hostLeaf,
@@ -29,18 +32,20 @@ function RelatedNoteComposer({
   plugin: KplexPlugin;
   origin: GraphPage;
   initialRole: RelationshipRole;
+  fixedTarget?: GraphPage;
   onCommitted?: () => void;
   onClose: () => void;
   hostLeaf?: WorkspaceLeaf;
 }) {
   const [role, setRole] = useState<RelationshipRole>(initialRole);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(/** Preselect the historical endpoint without requiring a second search. */ () => fixedTarget ? plugin.index.titleFor(fixedTarget) : "");
   const [alias, setAlias] = useState("");
   const [aliasFocused, setAliasFocused] = useState(false);
   const [noteTyped, setNoteTyped] = useState(false);
-  const [selectedTarget, setSelectedTarget] = useState<GraphPage | null>(null);
+  const [selectedTarget, setSelectedTarget] = useState<GraphPage | null>(fixedTarget ?? null);
   const [ontology, setOntology] = useState(() => plugin.defaultOntologyField(initialRole));
   const [ontologyTyped, setOntologyTyped] = useState(false);
+  const [browseOntology, setBrowseOntology] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editAfterCreate, setEditAfterCreate] = useState(() => plugin.settings.editNewNodeAfterCreate);
   const excalidrawAvailable = plugin.isExcalidrawAvailable();
@@ -55,10 +60,13 @@ function RelatedNoteComposer({
   }, [plugin, origin.path, query, noteTyped]);
 
   const ontologyResults = useMemo(
-    () => ontologyTyped && ontology.trim()
-      ? fuzzyFilterStrings(plugin.ontologyFieldsForRole(role), ontology, 18)
-      : [],
-    [plugin, role, ontology, ontologyTyped],
+    /** Explicit disclosure shows every role-appropriate field; typing retains fuzzy ranking. */
+    () => browseOntology
+      ? fuzzyFilterStrings(plugin.ontologyFieldsForRole(role), "", Number.MAX_SAFE_INTEGER)
+      : ontologyTyped && ontology.trim()
+        ? fuzzyFilterStrings(plugin.ontologyFieldsForRole(role), ontology, 18)
+        : [],
+    [plugin, role, ontology, ontologyTyped, browseOntology],
   );
 
   const webUrl = useMemo(() => {
@@ -77,6 +85,7 @@ function RelatedNoteComposer({
     setRole(initialRole);
     setOntology(plugin.defaultOntologyField(initialRole));
     setOntologyTyped(false);
+    setBrowseOntology(false);
   }, [initialRole, plugin]);
 
   const prepareField = async (): Promise<string | null> => {
@@ -96,11 +105,11 @@ function RelatedNoteComposer({
       const field = await prepareField();
       if (!field) return;
       await plugin.createRelationToPage(origin, role, target, field);
-      plugin.requestRelationshipFlair(target.path);
+      plugin.requestNodeFlair(target.path);
       onCommitted?.();
       onClose();
     } catch (error) {
-      new Notice(plugin.translator("addRelated.relationshipFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : plugin.translator("addRelated.relationshipFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -112,17 +121,17 @@ function RelatedNoteComposer({
     try {
       const field = await prepareField();
       if (!field) return;
-      const file = await plugin.createNewRelatedFileForOrigin(origin, nameValidation.stem, kind, alias);
+      const file = await plugin.createNewRelatedFileForOrigin(origin, query, kind, alias);
       if (!file) return;
       setDefaultCreateType(kind);
       void plugin.rememberNewNodeDefaultType(kind);
-      const page = await plugin.linkNewRelatedFile(origin, role, file, field, alias);
-      plugin.requestRelationshipFlair(file.path);
+      const page = await plugin.linkNewRelatedFile(origin, role, file, field, alias, query);
+      plugin.requestNodeFlair(file.path);
       onCommitted?.();
       onClose();
       if (editAfterCreate) await plugin.finishNewRelatedNode(page, hostLeaf, true);
     } catch (error) {
-      new Notice(plugin.translator("addRelated.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : plugin.translator("addRelated.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -139,11 +148,11 @@ function RelatedNoteComposer({
       if (!field) return;
       const page = await plugin.createPlaceholderRelatedPage(origin, role, nameValidation.stem, field);
       if (!page) return;
-      plugin.requestRelationshipFlair(page.path);
+      plugin.requestNodeFlair(page.path);
       onCommitted?.();
       onClose();
     } catch (error) {
-      new Notice(plugin.translator("addRelated.placeholderFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : plugin.translator("addRelated.placeholderFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -157,11 +166,11 @@ function RelatedNoteComposer({
       if (!field) return;
       const page = await plugin.createWebLinkRelatedPage(origin, role, webUrl, alias, field);
       if (!page) return;
-      plugin.requestRelationshipFlair(page.path);
+      plugin.requestNodeFlair(page.path);
       onCommitted?.();
       onClose();
     } catch (error) {
-      new Notice(plugin.translator("addRelated.webLinkFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : plugin.translator("addRelated.webLinkFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       setBusy(false);
     }
@@ -178,7 +187,9 @@ function RelatedNoteComposer({
     setQuery(value);
   };
 
+  /** Editing exits explicit browsing and resumes the normal fuzzy ontology search. */
   const onOntologyChange = (value: string) => {
+    setBrowseOntology(false);
     setOntologyTyped(true);
     setOntology(value);
   };
@@ -233,7 +244,14 @@ function RelatedNoteComposer({
     value: ontology,
     onChange: onOntologyChange,
     results: ontologyResults,
-    onChoose: (field: string) => { setOntology(field); setOntologyTyped(false); },
+    onChoose: /** Retain the chosen field while closing the disclosure's complete list. */ (field: string) => {
+      setOntology(field); setOntologyTyped(false); setBrowseOntology(false);
+    },
+    disclosure: {
+      label: plugin.translator("addRelated.showOntologyFields"),
+      icon: createElement(ObsidianIcon, { name: "chevron-down", size: 16 }),
+      onOpen: /** Browse the complete role vocabulary even after the input is cleared. */ () => setBrowseOntology(true),
+    },
     getKey: (field: string) => field.toLocaleLowerCase(),
     getLabel: (field: string) => field,
     placeholder: plugin.translator("addRelated.ontologyPlaceholder", { field: plugin.defaultOntologyField(role) }),
@@ -403,12 +421,14 @@ export class NewRelatedNoteModal extends Modal {
   private releaseMobileViewport: (() => void) | null = null;
   private releaseDesktopDrag: (() => void) | null = null;
 
+  /** Open the shared composer for a dragged origin, optionally preselecting a historical endpoint. */
   constructor(
     private plugin: KplexPlugin,
     private origin: GraphPage,
     private role: RelationshipRole,
     private onCommitted?: () => void,
     private hostLeaf?: WorkspaceLeaf,
+    private fixedTarget?: GraphPage,
   ) {
     super(plugin.app);
   }
@@ -486,6 +506,7 @@ export class NewRelatedNoteModal extends Modal {
       plugin: this.plugin,
       origin: this.origin,
       initialRole: this.role,
+      fixedTarget: this.fixedTarget,
       onCommitted: this.onCommitted,
       onClose: () => this.close(),
       hostLeaf: this.hostLeaf,

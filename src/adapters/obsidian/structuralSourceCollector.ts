@@ -4,6 +4,7 @@
  * source replay shares these producers without constructing a second structural interpretation.
  */
 import { getAllTags, TFile, TFolder, type MetadataCache, type Vault } from "obsidian";
+import { canonicalTagPaths } from "../../core/graph/tagPaths";
 import { nodeId, type FileFacet, type GraphNodeKind } from "../../core/graph/model";
 import {
   MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH,
@@ -116,15 +117,16 @@ function fileRef(file: TFile): SourceEntityRef {
 
 /** Bind a raw host tag to the canonical legacy identity, including conservative retired edit inputs. */
 export function tagRef(rawTag: string): SourceEntityRef | null {
-  const canonical = rawTag.replace(/^#/, "").split("/").map((part) => part.trim()).filter(Boolean).join("/");
-  if (!canonical) return null;
+  let semanticPath: string | null = null;
+  for (const path of canonicalTagPaths(rawTag)) semanticPath = path;
+  if (!semanticPath) return null;
   return {
     // Bind the legacy host tag to its explicit canonical identity. Preserve raw spelling in
     // occurrence provenance; the portable compiler still owns hierarchy and presentation.
-    id: nodeId(`tag:${canonical}`),
+    id: nodeId(semanticPath),
     kind: "tag",
     state: "materialized",
-    semanticPath: `tag:${canonical}`,
+    semanticPath,
   };
 }
 

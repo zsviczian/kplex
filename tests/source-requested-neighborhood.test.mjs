@@ -35,7 +35,10 @@ const initialize = `(() => {
       equal(result.gates[gate].visibleCount,expected[gate].visibleCount,'Full current GraphIndex '+gate+' count');
     }
     ok(!('neighborhood'in result)&&!('siblings'in result),'No unproved lists');
-    equal(neighborhoodView(M,result.preparation.compilation,scope.center,settings),neighborhoodView(M,full,scope.center,settings),'Full canonical semantic oracle');
+    const parents=result.certificate.relations.parents.map(parent=>parent.id);
+    equal(result.certificate.relations.coverage,'complete-visible-parent-relations','Accurate projected relation certificate');
+    equal(parents.length,expected.top.visibleCount,'Every visible parent certified before top-N');
+    equal(neighborhoodView(M,result.preparation.compilation,scope.center,settings,parents),neighborhoodView(M,full,scope.center,settings,parents),'Full canonical center and certified-parent oracle');
   };
   window.fullNeighborhoodOracle=${fullNeighborhoodOracle.toString()};
   window.neighborhoodView=${neighborhoodView.toString()};

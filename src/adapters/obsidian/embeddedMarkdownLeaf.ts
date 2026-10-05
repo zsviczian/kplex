@@ -1,12 +1,12 @@
 /**
- * Hosts one native Obsidian Markdown leaf inside a plugin-owned DOM element.
+ * Hosts one native Obsidian file or web leaf inside a plugin-owned DOM element.
  *
  * Obsidian does not expose a public "embed a WorkspaceLeaf here" helper. Hover Editor uses the
  * same narrow WorkspaceSplit/WorkspaceLeaf seam: construct an isolated split, give it the owning
  * workspace root/container, insert one leaf, and detach that leaf on teardown. Keep every use of
  * that host-specific seam in this adapter so the React graph only deals with a small controller.
  */
-import { Platform, WorkspaceLeaf, WorkspaceSplit, type App, type TFile, type Workspace } from "obsidian";
+import { FileView, Platform, WorkspaceLeaf, WorkspaceSplit, type App, type TFile, type Workspace } from "obsidian";
 import {
   hasMinimumExcalidrawIntegrationVersion,
   MINIMUM_EXCALIDRAW_INTEGRATION_VERSION,
@@ -24,6 +24,7 @@ export function isEmbeddedMarkdownLeaf(leaf: WorkspaceLeaf | null | undefined): 
 
 export interface EmbeddedMarkdownLeafController {
   open(file: TFile, mode: EmbeddedMarkdownMode): Promise<void>;
+  openUrl(url: string): Promise<void>;
   setMode(mode: EmbeddedMarkdownMode): Promise<void>;
   getDocumentView(): EmbeddedDocumentView | null;
   isExcalidrawFile(): boolean;
@@ -237,6 +238,7 @@ export function mountEmbeddedMarkdownLeaf(
   let disposed = false;
   let currentFile: TFile | null = null;
   let openSequence = 0;
+  let documentViewTransitionDepth = 0;
   let requestedMode: EmbeddedMarkdownMode = "preview";
   type WindowWithMutationObserver = Window & { MutationObserver: typeof MutationObserver; Element: typeof Element };
   const viewWindow = (mountEl.ownerDocument.defaultView ?? window) as WindowWithMutationObserver;
@@ -266,7 +268,7 @@ export function mountEmbeddedMarkdownLeaf(
     return compatible;
   };
   const fileOpenRef = onFileChange ? app.workspace.on("file-open", (file) => {
-    if (disposed || !file) return;
+    if (disposed || !file || documentViewTransitionDepth > 0) return;
     const state = leaf.getViewState();
     const stateFile = (state.state as { file?: unknown } | undefined)?.file;
     if (stateFile !== file.path) return;
@@ -665,7 +667,6 @@ export function mountEmbeddedMarkdownLeaf(
   };
 
   let observedDocumentView = getDocumentView();
-  let documentViewTransitionDepth = 0;
 
   /** Apply K-Plex mode/integration state after an externally initiated representation change. */
   const reconcileObservedDocumentView = async (view: EmbeddedDocumentView): Promise<void> => {
@@ -800,6 +801,15 @@ export function mountEmbeddedMarkdownLeaf(
         documentViewTransitionDepth -= 1;
       }
     },
+    async openUrl(url) {
+      if (disposed) return;
+      const sequence = ++openSequence;
+      currentFile = null;
+      restoreExcalidrawLinkRouting();
+      await leaf.setViewState({ type: "webviewer", state: { url, navigate: true }, active: false }, { focus: false });
+      if (disposed || sequence !== openSequence) return;
+      resize();
+    },
     setMode,
     getDocumentView,
     isExcalidrawFile,
@@ -820,6 +830,9 @@ export function mountEmbeddedMarkdownLeaf(
       restoreNativeFullscreenGeometry();
       if (fileOpenRef) app.workspace.offref(fileOpenRef);
       viewWindow.document.removeEventListener("click", onEmbeddedLinkClick, true);
+      // Detaching an active synthetic leaf lets Obsidian reactivate the preceding document.
+      // Return command ownership to the real Plex host before that teardown can emit navigation.
+      if (app.workspace.getActiveViewOfType(FileView)?.leaf === leaf) app.workspace.setActiveLeaf(hostLeaf, { focus: false });
       try {
         leaf.detach();
       } catch {

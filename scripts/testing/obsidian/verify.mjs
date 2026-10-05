@@ -1,3 +1,8 @@
+/**
+ * Native verification entry point. Runs the complete repository checks, then stages and smokes
+ * the exact build in an explicit disposable vault. CLI deadlines and test-window activation belong
+ * to this driver; no renderer scheduling, cache authority or production settings are modified.
+ */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { release } from "node:os";
@@ -9,14 +14,23 @@ import { runObsidianVerification } from "./runner.mjs";
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const reportDir = process.env.KPLEX_HOST_REPORT_DIR || mkdtempSync(join(tmpdir(), "kplex-obsidian-"));
 
+/** Enforce the existing process deadline even when a disconnected host CLI ignores SIGTERM. */
 function command(file, args, timeout = 30_000) {
-  const result = spawnSync(file, args, { cwd: projectRoot, encoding: "utf8", timeout, maxBuffer: 4 * 1024 * 1024 });
+  const result = spawnSync(file, args, { cwd: projectRoot, encoding: "utf8", timeout, killSignal: "SIGKILL", maxBuffer: 4 * 1024 * 1024 });
   if (result.error) throw new Error(`${file} failed: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`${file} ${args.join(" ")} failed (${result.status}): ${(result.stderr || result.stdout).trim().slice(0, 1000)}`);
   return result.stdout;
 }
 
 const git = (...args) => command("git", args, 10_000).trim();
+/** Restore the desktop test window before enabling the staged build after browser verification. */
+function runNativeCli(vaultName, name, ...args) {
+  const executable = process.env.KPLEX_OBSIDIAN_CLI || "obsidian";
+  if (name === "plugin:enable") {
+    command(executable, [`vault=${vaultName}`, "eval", 'code=(()=>{const remote=require("@electron/remote"),win=remote.getCurrentWindow();remote.app.focus({steal:true});win.restore();win.show();win.focus();return true})()']);
+  }
+  return command(executable, [`vault=${vaultName}`, name, ...args]);
+}
 const report = await runObsidianVerification({
   projectRoot,
   vaultName: process.env.KPLEX_TEST_VAULT_NAME,
@@ -29,7 +43,7 @@ const report = await runObsidianVerification({
     node: process.version,
     os: `${process.platform} ${release()}`,
   },
-  runCli: (vaultName, name, ...args) => command(process.env.KPLEX_OBSIDIAN_CLI || "obsidian", [`vault=${vaultName}`, name, ...args]),
+  runCli: runNativeCli,
   runVerify: () => {
     const result = spawnSync("npm", ["run", "verify"], { cwd: projectRoot, stdio: "inherit", timeout: 1_200_000 });
     if (result.error) throw result.error;

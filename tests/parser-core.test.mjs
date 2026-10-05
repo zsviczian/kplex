@@ -148,3 +148,39 @@ test("serialized worker core has no module closure and exactly matches the froze
     assert.deepEqual(actual, item.expected, item.name);
   }
 });
+
+/** Search aliases supplement, rather than multiply or relocate, the primary body URL occurrence. */
+test("URL aliases retain every label across duplicate lines with synchronous/cooperative/worker parity", async () => {
+  const url = "https://help.obsidian.md";
+  const content = `[First](${url}) [Second](${url})\n[Third](${url}) [First](${url})\n[](${url}) <${url}>\n\`[Code](${url})\`\n<!-- [Hidden](${url}) -->`;
+  const expected = { inlineFields: {}, inlineFieldOccurrences: [], urls: [{ url, label: "Second", line: 1, aliases: ["First", "Second", "Third"] }] };
+  assert.deepEqual(parser.parseBodyMetadataCore(content), expected);
+  assert.deepEqual(await parser.parseBodyMetadataCooperativeCore(content, noTimerRuntime()), expected);
+  const worker = vm.runInNewContext(`(${parser.parseBodyMetadataCore.toString()})`, Object.create(null));
+  assert.deepEqual(JSON.parse(JSON.stringify(worker(content))), expected);
+  assert.deepEqual(parser.parseBodyMetadataCore(`${url}\n[Later](${url})`).urls, [{ url, line: 1, aliases: ["Later"] }]);
+});
+
+/** Parser3 changed URL label metadata only: all frozen URL-free parser2 inputs retain exact grammar. */
+test("URL-free parser2 grammar remains byte-equivalent in synchronous, cooperative and worker parsing", async () => {
+  const legacyCases = oracle.bodyCases.filter(item => item.expected.urls.length === 0);
+  assert(legacyCases.length > 0, "Frozen accepted grammar contains URL-free inputs");
+  const worker = vm.runInNewContext(`(${parser.parseBodyMetadataCore.toString()})`, Object.create(null));
+  for (const item of legacyCases) {
+    const input = bodyInput(item);
+    assert.deepEqual(parser.parseBodyMetadataCore(input), item.expected, item.name);
+    assert.deepEqual(await parser.parseBodyMetadataCooperativeCore(input, noTimerRuntime()), item.expected, item.name);
+    assert.deepEqual(JSON.parse(JSON.stringify(worker(input))), item.expected, item.name);
+  }
+});
+
+/** Optional search aliases do not alter parser2 primary URL, field, line or occurrence grammar. */
+test("parser3 retains frozen parser2 primary grammar including all URL-bearing cases", async () => {
+  const primary = body => ({ ...body, urls: body.urls.map(({ aliases, ...url }) => url) });
+  const runtime = noTimerRuntime();
+  for (const item of oracle.bodyCases) {
+    const input = bodyInput(item);
+    assert.deepEqual(primary(parser.parseBodyMetadataCore(input)), item.expected, item.name);
+    assert.deepEqual(primary(await parser.parseBodyMetadataCooperativeCore(input, runtime)), item.expected, item.name);
+  }
+});

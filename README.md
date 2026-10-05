@@ -77,18 +77,24 @@ K-Plex uses positional animation when navigating: notes that exist in both scene
 
 ### Search, history and pins
 
-The search box finds notes by display name, file name, alias and path using fuzzy matching. Exact and prefix matches rank above looser matches.
+The toolbar search box searches the whole Vault, including orphan attachments, Canvas files and indexed URLs. It matches display names, file names, aliases, paths and URL substrings using fuzzy matching. Exact and prefix matches rank above looser matches.
 
 Display names are configurable in **Settings → K-Plex → Visual styling → Canvas & labels → Name fields**. Enter a comma-separated precedence list such as `title, aliases, backup_names`. K-Plex uses the first non-empty text/list value and falls back to the file name. The default is `aliases`, which preserves the previous alias-rendering behavior.
+
+For longer titles, open **Settings → K-Plex → Visual styling → Node styling → Node appearance**. Increase **Maximum label length** and **Maximum node width**, and adjust **Maximum central node width** separately. Density still affects the displayed character limit. Enable **Wrap node labels** for two-line labels with consistent regular row heights; **Past nodes** also uses a taller two-line row. Long history titles keep their beginning visible and truncate on the right.
 
 Keyboard shortcuts while K-Plex has focus:
 
 - **Up / Down** — move through search results
 - **Enter** — activate the selected result
 - **Escape** — close the result list
-- **F4** or **Ctrl/Cmd+F** — focus search
+- **F4** — focus Vault search
 
-K-Plex also keeps a **Past nodes** history for back/forward navigation. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
+Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the Plex, to **Find in Plex**. This separate field searches displayed node names and ontology labels in the current Plex and reveals matches in scrollable areas. Select its **Include paths** button to also search file paths. Matching a note does not highlight its surrounding links. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find.
+
+K-Plex also keeps a **Past nodes** history for back/forward navigation. Drag a relationship gate onto a history entry to connect using that gate’s relationship type; the entry lights up while you hover. Dragging a node’s body onto history offers a choice of relationship type. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
+
+Select **Editor node** to expand a file or URL inside the central node. Images fit both dimensions without cropping. The editor’s **Open menu** button provides the same opening destinations as the node context menu. Maximizing the editor temporarily hides Find and preserves its query. Webpages use a desktop webview with browser authentication, or an iframe on Obsidian mobile. YouTube and Vimeo links use embedded players; YouTube Shorts use a portrait frame. Expanding a URL loads that website, which receives normal browser requests and may store its own cookies.
 
 ## Creating and editing relationships
 
@@ -97,7 +103,7 @@ K-Plex lets you create Parent, Child, Friend and Challenger relationships direct
 The relationship dialog provides:
 
 - fuzzy search for existing notes;
-- fuzzy search for ontology fields;
+- fuzzy search for ontology fields, with a dropdown button to browse the full list even when the field is empty;
 - creation of new Markdown notes;
 - optional Excalidraw note creation when Excalidraw is installed;
 - remembered ontology choices for each relationship type;
@@ -264,7 +270,7 @@ node-image:: [[image.jpg]]
 - **thumbnail** shows a small image before the normal node label.
 - **node-image** replaces the visible label with a compact image while keeping the node's normal graph footprint and accessible file identity.
 
-Images stay deliberately small so they do not make the Plex expand. On desktop, hover the image for a larger preview. The property names can be changed in **Settings → K-Plex → Visual styling → Node styling**.
+Images stay deliberately small so they do not make the Plex expand. On desktop, hover the image for a larger preview with its original aspect ratio. The property names can be changed in **Settings → K-Plex → Visual styling → Node styling**.
 
 An image referenced only through the thumbnail/node-image fields is treated as presentation metadata, so it is not also shown as an inferred child. If the same image is linked independently through normal content or another ontology, it remains a normal graph node as well.
 

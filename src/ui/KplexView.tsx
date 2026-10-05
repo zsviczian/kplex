@@ -1,7 +1,9 @@
 /**
- * Native Obsidian view shells and React-root lifecycle for K-Plex surfaces. View registration IDs stay stable; display titles use the plugin translator.
+ * Native Obsidian view shells, active-view hotkey scopes and React-root lifecycle for K-Plex
+ * surfaces. React registers/unregisters scoped actions with its owning surface. View registration
+ * IDs stay stable; display titles use the plugin translator.
  */
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, Scope, WorkspaceLeaf } from "obsidian";
 import { createRoot, type Root } from "react-dom/client";
 import type KplexPlugin from "../main";
 import type { KplexViewSurface } from "../settings";
@@ -17,8 +19,11 @@ abstract class BaseKplexView extends ItemView {
   private ready = false;
   private readyResolvers: Array<() => void> = [];
 
-  /** Bind the native leaf and K-Plex owner; React mounts only when Obsidian opens the view. */
-  constructor(leaf: WorkspaceLeaf, protected plugin: KplexPlugin) { super(leaf); }
+  /** Bind the native leaf, inherited hotkey scope and K-Plex owner; React owns surface handlers. */
+  constructor(leaf: WorkspaceLeaf, protected plugin: KplexPlugin) {
+    super(leaf);
+    this.scope = new Scope(this.app.scope);
+  }
 
   /** Return the localized native-view title without changing the view registration ID. */
   getDisplayText(): string { return this.plugin.translator("view.displayName"); }

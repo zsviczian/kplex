@@ -198,6 +198,8 @@ export type BodyUrlOccurrence = SourceRecordBase & Readonly<{
   /** Absent when URL parsing fails: retain the URL node without inventing origin evidence. */
   origin?: SourceTargetRef;
   label?: string;
+  /** Search labels collected without multiplying primary relationship evidence. */
+  aliases?: readonly string[];
 }>;
 
 /** Host Date-property + Daily Notes normalization, retaining original property provenance. */

@@ -46,7 +46,7 @@ assert(startupSeedSource.indexOf("this.settings.lastActivePath") < startupSeedSo
 assert(appSource.includes('translate("index.incompleteBubble")'), "Startup indexing guidance must be localized and anchored from the K-Plex shell");
 assert(appSource.includes("setShowStartupIndexBubble(false)"), "Ready startup must clear bubble state so an ordinary later update cannot reopen it");
 assert(appSource.includes('type="button"') && appSource.includes("aria-expanded={open}"), "The index status marker must be a semantic interactive control for click/touch and keyboard access");
-assert(appSource.includes("onMouseEnter={onHoverStart}") && appSource.includes("onClick={onToggle}"), "Index status details must open from hover and click/touch interaction");
+assert(appSource.includes("onMouseEnter={onHoverStart}") && appSource.includes("onDoubleClick=") && appSource.includes('taps.current.complete("index-status"'), "Index status retains hover hints and opens its summary from double-click/double-tap");
 assert(mainSource.includes('this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })'), "Progressive indexing status must show localized indexed-file progress");
 assert(mainSource.includes("this.index.indexedMarkdownFileCount()"), "Index status progress must come from published Markdown sources rather than graph node count");
 assert(mainSource.includes("this.settings.startupIndexInfoBubbleSeen = true") && mainSource.includes("void this.saveSettings(false, false)"), "Startup indexing guidance must persist its one-time seen state when claimed");
@@ -66,7 +66,7 @@ assert(ghostModalSource.includes('setName(this.translate("common.location"))'), 
 assert(ghostModalSource.includes('setButtonText(this.translate("common.excalidraw"))'), "Ghost materialization must offer localized Excalidraw copy when the integration is available");
 assert(!appSource.includes('void plugin.openSidecar(hostLeaf, page);'), "React mount must not create a sidecar during startup restore; plugin-level restore owns re-association");
 assert(appSource.includes("plugin.isStartupInitializing() && plugin.settings.lastActivePath"), "A restored K-Plex view must keep its persisted center while Obsidian startup tab ordering is unstable");
-assert(appSource.includes('getDraggedMarkdownFile(plugin.app)') && appSource.includes('onDragOver={handlePlexDragOver}') && appSource.includes('onDrop={handlePlexDrop}'), "K-Plex surfaces must accept supported Obsidian File Explorer note drops");
+assert(appSource.includes('getDraggedFile(plugin.app)') && appSource.includes('onDragOver={handlePlexDragOver}') && appSource.includes('onDrop={handlePlexDrop}'), "K-Plex surfaces must accept supported Obsidian File Explorer file drops");
 assert(appSource.includes('pendingFileExplorerDropRef.current = file') && appSource.includes('activatePendingFileExplorerDrop'), "A dropped note that is not indexed yet must activate when partial indexing publishes it");
 assert(appSource.includes("pendingFileExplorerDropRef.current = null;\n    activePathRef.current = target.path"), "An explicit navigation must supersede an older pending File Explorer drop");
 assert(appSource.includes('setTitle(translate("app.showLinkedTab"))'), "The pin/link menu must provide an explicit localized way to reveal the linked document tab");
@@ -348,6 +348,7 @@ for (const file of [
   "src/index/GraphPresentation.ts",
   "src/index/LegacySnapshotPolicy.ts",
   "src/core/graph/compiler.ts",
+  "src/core/graph/tagPaths.ts",
   "src/core/graph/patch.ts",
   "src/core/graph/scoped.ts",
   "src/core/plex/predicate.ts",
@@ -365,6 +366,7 @@ for (const file of [
   "src/adapters/obsidian/hostLinkSourceCollector.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",
+  "src/adapters/obsidian/relationshipMetadataWrite.ts",
   "src/util/perf.ts",
   "src/main.ts",
   "src/index/fieldParser.ts",
@@ -405,6 +407,8 @@ for (const file of [
 ]) compile(file);
 
 compile("src/settings.ts", "src/settingsUnderTest.ts");
+compile("src/core/plex/viewPresentation.ts");
+compile("src/ui/viewProfile.ts", "src/ui/viewProfileUnderTest.ts");
 
 const obsidianModuleDir = join(temp, "node_modules/obsidian");
 mkdirSync(obsidianModuleDir, { recursive: true });
@@ -929,7 +933,8 @@ await GraphIndex.prototype.persistIndexedDbSnapshot.call({
   indexedDb: { writeSnapshot: async () => { partialSnapshotWrites += 1; return true; } },
 }, 7);
 assert.equal(partialSnapshotWrites, 0, "A non-authoritative startup preview must never enter snapshot persistence");
-const { buildScene, buildSectionExpandedScene } = require(join(temp, "src/ui/layout.js"));
+const { buildScene, buildSectionExpandedScene, withAreaHeightOverrides } = require(join(temp, "src/ui/layout.js"));
+const { effectiveViewSettings } = require(join(temp, "src/ui/viewProfileUnderTest.js"));
 const {
   GraphPredicateEngine,
   compileGraphPredicate,
@@ -1154,6 +1159,7 @@ const hierarchy = {
 
 const settings = {
   hierarchy,
+  pinnedNodes: [],
   noteTypeField: "Note type",
   primaryTagField: "Note type",
   tagStyleList: ["#project", "#person"],
@@ -1429,7 +1435,15 @@ try {
     searches: Object.fromEntries(["note a", "note b", "project", "folder", "https"]
       .map((query) => [query, index.search(query, 12).map((page) => page.path)])),
   };
-  assert.deepEqual(baseline, JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-indexing/graph-baseline.json"), "utf8")));
+  const frozenBaseline = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-indexing/graph-baseline.json"), "utf8"));
+  // Explicit product change: URL link labels now remain aliases. Every other frozen field stays exact.
+  const urlLabels = {
+    "https://source.com/inferred": "Source URL inferred alias",
+    "https://source.com/ontology-full-line": "Source URL full-line ontology alias",
+    "https://source.com/ontology-inline": "Source URL inline ontology alias",
+  };
+  for (const page of frozenBaseline.graph.pages) if (urlLabels[page.path]) page.aliases = [urlLabels[page.path]];
+  assert.deepEqual(baseline, frozenBaseline);
 
   // A new Markdown file may arrive after the last complete snapshot and before the five-minute
   // edit idle write. Warm startup must reuse that snapshot and ingest only the new source.
@@ -1981,6 +1995,22 @@ try {
   // only these secondary links.
   assert.equal(EMPTY_PLEX_FILTER.showCrossLinks, true, "Cross-links must be visible by default");
   const sceneA = buildScene(neighborhoodA, index, settings);
+  // Real warm-start presentation facades inherit styles; a spread loses them and crashes on
+  // typed notes such as "project". Live resizing must preserve those inherited dictionaries.
+  const preparedFacade = effectiveViewSettings(index.withPreparedPresentationSettings({ ...settings,
+    layoutProfiles: { "desktop:leaf": { compactingFactor: 2, parentColumns: 2, childColumns: 5 } },
+  }), "leaf", {
+    device: "desktop", keyConvention: "macos", inputModes: { keyboard: true, pointer: true, touch: false },
+    hostActions: { graphTab: true, sidepanel: true, popout: true },
+  });
+  assert.equal(Object.hasOwn(preparedFacade, "noteTypeStyles"), false);
+  const liveAreaSettings = withAreaHeightOverrides(preparedFacade, { parentMaxHeight: 440 });
+  assert.equal(liveAreaSettings.noteTypeStyles, preparedFacade.noteTypeStyles);
+  assert.equal(liveAreaSettings.hierarchyLinkStyles, preparedFacade.hierarchyLinkStyles);
+  assert.equal(liveAreaSettings.parentMaxHeight, 440);
+  assert.equal(preparedFacade.parentMaxHeight, settings.parentMaxHeight, "Resize must not mutate prepared settings");
+  const liveAreaScene = buildScene(neighborhoodA, index, liveAreaSettings);
+  assert.deepEqual(liveAreaScene.nodes.find((node) => node.role === "center")?.style, buildScene(neighborhoodA, index, preparedFacade).nodes.find((node) => node.role === "center")?.style, "Warm-start typed center retains its style through height overrides");
   const crossBC = sceneA.edges.find((edge) => edge.isCrossLink && edge.sourcePath === "Note B.md" && edge.targetPath === "Note C.md");
   assert(crossBC, "Visible parent/child notes must retain their cross-link");
   assert.equal(crossBC.role, "child", "Cross-links must use the resolved ontology role, not the sibling presentation role");
@@ -2898,6 +2928,13 @@ try {
   const imageFile = new TFile("Visuals/Picture.jpg", noteA.stat.mtime + 1000);
   files.set(imageFile.path, imageFile);
   const imagePage = index.insertCreatedFile(imageFile);
+  const originalAttachments = settings.showAttachments;
+  settings.showAttachments = false;
+  assert(!index.search("Picture.jpg", 40).some((page) => page.path === imageFile.path), "Graph search respects attachment visibility");
+  assert(index.search("Picture.jpg", 40, "vault-files").some((page) => page.path === imageFile.path), "Vault search includes hidden attachments outside the current Plex");
+  assert(index.search("runtimealiaszzz", 40, "vault-files").some((page) => page.path === noteA.path), "Vault search retains Markdown aliases");
+  assert(index.search("", 1000, "vault-files").every((page) => page.url || page.file && files.get(page.path) === page.file), "Vault search contains current real files and URLs, excluding folders, tags and ghosts");
+  settings.showAttachments = originalAttachments;
   settings.attachmentImageDisplay = "thumbnail-label";
   visuals = await index.resolveNodeVisuals([imagePage]);
   assert.equal(visuals.get(imagePage.path)?.mode, "thumbnail");
@@ -3497,6 +3534,7 @@ try {
   };
   nativeCreationCoordinator.index = {
     hasPendingStructuralMaintenance: () => false,
+    hasPendingSnapshotHydration: () => false,
     cancelRebuild: () => {},
     size: 4,
     isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,
@@ -3685,6 +3723,7 @@ try {
   const coordinatorPatchGate = new Promise((resolve) => { releaseCoordinatorPatch = resolve; });
   coordinator.index = {
     hasPendingStructuralMaintenance: () => false,
+    hasPendingSnapshotHydration: () => false,
     size: 1,
     noteBuildDecision: () => {},
     isFullSnapshotHydrated: () => false, hasPhysicalBaseline: () => false, hasSourceBackedStartup: () => false,
@@ -3732,6 +3771,7 @@ try {
   creationCoordinator.app = { vault: { getFileByPath: (path) => path === createdDuringPatch.path ? createdDuringPatch : null } };
   creationCoordinator.index = {
     hasPendingStructuralMaintenance: () => false,
+    hasPendingSnapshotHydration: () => false,
     size: 1,
     noteBuildDecision: () => {},
     isFullSnapshotHydrated: () => true, hasPhysicalBaseline: () => true, hasSourceBackedStartup: () => false,

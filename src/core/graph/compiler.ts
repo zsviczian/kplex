@@ -5,6 +5,7 @@
  * The node projection reuses that policy/materialization owner without retaining or resolving evidence;
  * its distinct result cannot authorize relationship readiness.
  */
+import { canonicalTagParts } from "./tagPaths";
 import { selectStyleTags, tagDisplayName, unwrapNoteType } from "./presentation";
 import {
   ReferencePolicySelector, ReferenceSourcePolicyRead,
@@ -302,7 +303,9 @@ export class NormalizedGraphCompiler {
       if (!selected.accepted) return this.reject();
       if (selected.record) {
         if (beforeConsume && !(await beforeConsume(selected.record))) return this.reject();
-        if (!this.runtime.isCurrent() || !this.consumeRecord(selected.record)) return this.reject();
+        if (!this.runtime.isCurrent()) return this.reject();
+        const consumed = this.consumeRecord(selected.record);
+        if (!(typeof consumed === "boolean" ? consumed : await consumed)) return this.reject();
       }
       if (!(await this.checkpoint())) return this.reject();
     }
@@ -394,8 +397,8 @@ export class NormalizedGraphCompiler {
     return true;
   }
 
-  /** Consume only policy-selected operations; unselected raw reference facts cannot enter here. */
-  private consumeRecord(record: SelectedSourceRecord): boolean {
+  /** Consume selected operations only; dense URL alias accumulation cooperates within its record. */
+  private consumeRecord(record: SelectedSourceRecord): boolean | Promise<boolean> {
     switch (record.kind) {
       case "entity": return this.consumeEntity(record);
       case "file-tree": return this.consumeFileTree(record);
@@ -566,12 +569,22 @@ export class NormalizedGraphCompiler {
     return true;
   }
 
-  private consumeBodyUrl(record: BodyUrlOccurrence): boolean {
+  /** Keep the primary display label/declaration while collecting every search label in bounded host slices. */
+  private async consumeBodyUrl(record: BodyUrlOccurrence): Promise<boolean> {
     if (record.target.resolvedBy !== "url") return false;
     const source = this.ensureNode(record.source, this.fallbackName(record.source));
     const target = this.ensureNode(record.target.entity, record.label || record.target.rawTarget, record.target.rawTarget);
     if (!source || !target) return false;
     if (record.label && record.label !== target.url && !this.urlLabels.has(target.id)) this.urlLabels.set(target.id, record.label);
+    if (record.label && record.label !== target.url && !target.aliases.includes(record.label)) target.aliases.push(record.label);
+    const retainedAliases = new Set(target.aliases);
+    let processedAliases = 0;
+    for (const alias of record.aliases ?? []) {
+      if (alias && alias !== target.url && !retainedAliases.has(alias)) {
+        retainedAliases.add(alias); target.aliases.push(alias);
+      }
+      if ((++processedAliases & 127) === 0 && !(await this.checkpoint())) return false;
+    }
     const preferredLabel = this.urlLabels.get(target.id);
     if (preferredLabel) target.name = preferredLabel;
     const line = record.provenance?.location?.line;
@@ -709,8 +722,9 @@ export class NormalizedGraphCompiler {
     return id;
   }
 
+  /** Materialize canonical ancestors incrementally; only segment parts precede ordinary node allocation bounds. */
   private ensureTagPath(rawTag: string, providedLeaf: SourceEntityRef, ownershipRecord: TagTreeOccurrence): CompiledGraphNode | null {
-    const parts = rawTag.replace(/^tag:/, "").replace(/^#/, "").split("/").map((part) => part.trim()).filter(Boolean);
+    const parts = canonicalTagParts(rawTag.replace(/^tag:/, ""));
     let parent: CompiledGraphNode | null = null;
     let leaf: CompiledGraphNode | null = null;
     for (let index = 0; index < parts.length; index += 1) {

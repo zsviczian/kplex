@@ -91,7 +91,7 @@ test("English catalog is strict, typed at source, and remains the fallback", () 
   assert.equal(english("command.openGraph"), "Open graph");
   assert.equal(english("toolbar.navigateBack"), "Navigate back");
   assert.equal(english("toolbar.navigateForward"), "Navigate forward");
-  assert.equal(english("search.placeholderWithShortcut", { shortcut: "Command+F" }), "Search nodes… (Command+F)");
+  assert.equal(english("search.placeholderWithShortcut", { shortcut: "Command+F" }), "Search Vault… (Command+F)");
 
   const futureGerman = localization.createTranslator("de_DE", {
     "de-DE": {
@@ -217,15 +217,18 @@ test("displayed search hint matches a gesture the production handler accepts", (
     altKey: false,
     ...overrides,
   });
-  assert.equal(accepted({ ctrlKey: true }), true);
-  assert.equal(accepted({ metaKey: true }), true);
+  assert.equal(accepted({ ctrlKey: true }), false);
+  assert.equal(accepted({ metaKey: true }), false);
+  assert.equal(shortcut.isPlexFindShortcut({ key: "f", ctrlKey: true, metaKey: false, altKey: false }), true);
+  assert.equal(shortcut.isPlexFindShortcut({ key: "f", ctrlKey: false, metaKey: true, altKey: false }), true);
+  assert.equal(shortcut.isPlexFindShortcut({ key: "F4", ctrlKey: false, metaKey: false, altKey: false }), false);
   assert.equal(accepted({ key: "F4" }), true);
   assert.equal(accepted({ ctrlKey: true, altKey: true }), false);
 
   const copy = searchPresentation.searchFieldCopy(localization.createTranslator("en"), environment({ keyConvention: "macos" }));
   assert.deepEqual(copy, {
-    placeholder: "Search nodes… (F4)",
-    ariaLabel: "Search nodes",
+    placeholder: "Search Vault… (F4)",
+    ariaLabel: "Search Vault",
     shortcutHint: "F4",
   });
   assert.equal(accepted({ key: copy.shortcutHint }), true);
@@ -234,7 +237,7 @@ test("displayed search hint matches a gesture the production handler accepts", (
     localization.createTranslator("en"),
     environment({ keyConvention: "ios", keyboard: "unknown", pointer: false, touch: true }),
   );
-  assert.deepEqual(touchCopy, { placeholder: "Search nodes…", ariaLabel: "Search nodes", shortcutHint: null });
+  assert.deepEqual(touchCopy, { placeholder: "Search Vault…", ariaLabel: "Search Vault", shortcutHint: null });
 });
 
 
@@ -264,10 +267,10 @@ exports.Fragment = Symbol.for("react.fragment");
       onActivate: () => {},
       focusRequest: 7,
       placeholder: "Search nodes… (F4)",
-      ariaLabel: "Search nodes",
+      ariaLabel: "Search Vault",
     });
     assert.equal(element.props.placeholder, "Search nodes… (F4)");
-    assert.equal(element.props.ariaLabel, "Search nodes");
+    assert.equal(element.props.ariaLabel, "Search Vault");
     assert.equal(element.props.focusRequest, 7);
     assert.equal(element.props.floating, true);
   } finally {
@@ -331,8 +334,8 @@ test("representative production consumers use K-Plex command IDs and preserve ex
     "Imported ExcaliBrain settings into K-Plex.",
     "Navigate back",
     "Navigate forward",
-    "Search nodes…",
-    "Search nodes",
+    "Search Vault…",
+    "Search Vault",
     "K-Plex indexed {count} nodes.",
   ]) assert(catalog.includes(exact), `catalog lost existing English wording: ${exact}`);
 });

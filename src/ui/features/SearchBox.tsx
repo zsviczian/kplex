@@ -12,6 +12,8 @@ export function SearchBox({
   focusRequest,
   placeholder,
   ariaLabel,
+  clearOnActivate = true,
+  repeatFind = false,
 }: {
   graph: GraphSearchRead;
   icon?: ReactNode;
@@ -23,6 +25,8 @@ export function SearchBox({
   focusRequest?: number;
   placeholder: string;
   ariaLabel: string;
+  clearOnActivate?: boolean;
+  repeatFind?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const results = useMemo(() => graph.search(query, 24), [graph, query, revision]);
@@ -31,7 +35,7 @@ export function SearchBox({
     value={query}
     onChange={setQuery}
     results={results}
-    onChoose={(hit) => { onActivate(hit.node.id); setQuery(""); }}
+    onChoose={(hit) => { onActivate(hit.node.id); if (clearOnActivate) setQuery(""); }}
     getKey={(hit) => hit.node.id}
     getLabel={(hit) => hit.label}
     getDetail={(hit) => hit.detail}
@@ -42,5 +46,7 @@ export function SearchBox({
     portalSelector={portalSelector}
     appTopbarSelector={appTopbarSelector}
     focusRequest={focusRequest}
+    closeOnChoose={!repeatFind}
+    advanceOnChoose={repeatFind}
   />;
 }

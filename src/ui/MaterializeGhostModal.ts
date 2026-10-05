@@ -1,6 +1,7 @@
 /**
  * Native Obsidian dialog for materializing a placeholder as a real Markdown note. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
+import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, Setting, type App } from "obsidian";
 import { createObsidianTranslator } from "../adapters/obsidian/localization";
 
@@ -35,7 +36,7 @@ export class MaterializeGhostModal extends Modal {
     try {
       if (await this.onCreate(kind, this.selectedFolderPath)) this.close();
     } catch (error) {
-      new Notice(this.translate("note.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+      new Notice(error instanceof SavedRelationshipPendingError ? error.message : this.translate("note.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
     } finally {
       this.creating = false;
     }

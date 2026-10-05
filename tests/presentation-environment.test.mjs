@@ -178,6 +178,11 @@ test("File Explorer drag adapter accepts one current Markdown file and rejects u
 
   app.dragManager.draggable = { type: "file", file: image };
   assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "attachments are not note-navigation drops");
+  assert.equal(fileExplorerDrag.getDraggedFile(app), image, "Plex navigation supports image attachments");
+  const canvas = { path: "Projects/Board.canvas", extension: "canvas" };
+  files.set(canvas.path, canvas);
+  app.dragManager.draggable = { type: "file", file: canvas };
+  assert.equal(fileExplorerDrag.getDraggedFile(app), canvas, "Canvas files are navigation targets");
 
   app.dragManager.draggable = { type: "link", file: note };
   assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "editor/internal link drags are outside the File Explorer scope");
@@ -414,4 +419,20 @@ test("adjacent file panes split beyond the Plex/Sidecar pair on every side", () 
       assert.deepEqual(actual, [anchor, direction, false]);
     }
   } finally { rmSync(compiled.temp, { recursive: true, force: true }); }
+});
+
+const urlEmbedCompiled = compilePureModule("src/ui/features/urlEmbed.ts");
+const { urlEmbed } = urlEmbedCompiled.exports;
+process.on("exit", () => rmSync(urlEmbedCompiled.temp, { recursive: true, force: true }));
+
+test("URL expansion normalizes videos, preserves private Vimeo tokens and rejects executable protocols", () => {
+  const id = "dQw4w9WgXcQ";
+  for (const raw of [`https://youtu.be/${id}`, `https://www.youtube.com/watch?v=${id}`, `https://www.youtube.com/embed/${id}`]) {
+    assert.deepEqual(urlEmbed(raw), { url: `https://www.youtube.com/embed/${id}?playsinline=1`, aspectRatio: 16 / 9 });
+  }
+  assert.deepEqual(urlEmbed(`https://www.youtube.com/shorts/${id}?t=12s`), { url: `https://www.youtube.com/embed/${id}?playsinline=1&start=12`, aspectRatio: 9 / 16 });
+  assert.deepEqual(urlEmbed("https://vimeo.com/123456789/abcdef0123"), { url: "https://player.vimeo.com/video/123456789?h=abcdef0123", aspectRatio: 16 / 9 });
+  assert.deepEqual(urlEmbed("https://help.obsidian.md/"), { url: "https://help.obsidian.md/", aspectRatio: null });
+  assert.deepEqual(urlEmbed(`https://youtube.com.evil.example/watch?v=${id}`), { url: `https://youtube.com.evil.example/watch?v=${id}`, aspectRatio: null });
+  for (const raw of ["javascript:alert(1)", "file:///private/secrets", "data:text/html,test", "invalid"]) assert.equal(urlEmbed(raw), null);
 });

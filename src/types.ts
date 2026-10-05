@@ -33,6 +33,7 @@ export type NodeStyle = {
   fontSize?: number;
   fontFamily?: number;
   maxLabelLength?: number;
+  maxWidth?: number;
   roughness?: number;
   strokeShaprness?: "round" | "sharp";
   strokeWidth?: number;

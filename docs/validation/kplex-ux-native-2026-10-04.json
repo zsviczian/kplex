@@ -1,0 +1,204 @@
+{
+  "status": "passed",
+  "startedAt": "2026-10-04T17:59:47.258Z",
+  "scenarios": [
+    {
+      "id": "Find-magnifier-matches-zoom-style",
+      "status": "passed",
+      "width": "30px",
+      "height": "28px",
+      "background": "rgba(12, 17, 23, 0.78)"
+    },
+    {
+      "id": "F4-whole-vault-all-filetypes",
+      "status": "passed"
+    },
+    {
+      "id": "independent-Plex-Find-overflow-alias-expanded-history",
+      "status": "passed"
+    },
+    {
+      "id": "Plex-Find-projection-excludes",
+      "status": "passed"
+    },
+    {
+      "id": "about-vault-double-click",
+      "status": "passed"
+    },
+    {
+      "id": "about-vault-completed-touch-pair",
+      "status": "passed"
+    },
+    {
+      "id": "native-image-fit-collapse-history-thumbnail",
+      "status": "passed",
+      "tall": {
+        "image": [
+          40,
+          240
+        ],
+        "frame": [
+          536,
+          446
+        ],
+        "objectFit": "contain"
+      },
+      "wide": {
+        "image": [
+          320,
+          40
+        ],
+        "frame": [
+          536,
+          446
+        ],
+        "objectFit": "contain"
+      },
+      "thumbnailCenterError": 0
+    },
+    {
+      "id": "live-captured-resize-parent",
+      "status": "passed",
+      "before": 160,
+      "after": 195,
+      "renderedSamples": [
+        170,
+        180,
+        195
+      ]
+    },
+    {
+      "id": "live-captured-resize-left",
+      "status": "passed",
+      "before": 160,
+      "after": 195,
+      "renderedSamples": [
+        170,
+        180,
+        195
+      ]
+    },
+    {
+      "id": "live-captured-resize-child",
+      "status": "passed",
+      "before": 180,
+      "after": 215,
+      "renderedSamples": [
+        190,
+        200,
+        215
+      ]
+    },
+    {
+      "id": "Canvas-drop-native-view-wheel-resize-before-pan",
+      "status": "passed",
+      "before": [
+        550,
+        460
+      ],
+      "after": [
+        688.7734375,
+        576.0625
+      ],
+      "nativeBefore": [
+        536,
+        446
+      ],
+      "nativeAfter": [
+        674.7734375,
+        562.0625
+      ],
+      "nativeType": "canvas"
+    },
+    {
+      "id": "popout-Find-owning-document-focus-highlight-style-history",
+      "status": "passed",
+      "width": "30px",
+      "height": "28px",
+      "background": "rgba(12, 17, 23, 0.78)"
+    },
+    {
+      "id": "emulated-desktop-Find-magnifier",
+      "status": "passed",
+      "environment": {
+        "device": "desktop",
+        "mobile": false,
+        "size": [
+          1200,
+          875
+        ],
+        "bodyClasses": "theme-dark mod-macos is-frameless is-hidden-frameless obsidian-app show-inline-title is-floating-nav auto-full-screen show-ribbon show-view-header is-focused"
+      },
+      "geometry": {
+        "inside": true,
+        "dropdown": false,
+        "width": 311.1796875,
+        "available": 1132,
+        "searchHint": "Search Vault files… (F4)"
+      },
+      "errors": "No errors captured."
+    },
+    {
+      "id": "emulated-tablet-Find-magnifier",
+      "status": "passed",
+      "environment": {
+        "device": "tablet",
+        "mobile": true,
+        "size": [
+          900,
+          875
+        ],
+        "bodyClasses": "theme-dark mod-macos is-frameless is-hidden-frameless is-focused obsidian-app emulate-mobile is-tablet is-mobile show-inline-title is-floating-nav auto-full-screen show-ribbon show-view-header"
+      },
+      "geometry": {
+        "inside": true,
+        "dropdown": false,
+        "width": 338.5859375,
+        "available": 876,
+        "searchHint": "Search Vault files…"
+      },
+      "errors": "No errors captured."
+    },
+    {
+      "id": "emulated-phone-Find-magnifier",
+      "status": "passed",
+      "environment": {
+        "device": "phone",
+        "mobile": true,
+        "size": [
+          390,
+          844
+        ],
+        "bodyClasses": "theme-dark mod-macos is-frameless is-hidden-frameless is-focused obsidian-app emulate-mobile is-mobile show-inline-title is-floating-nav auto-full-screen show-ribbon show-view-header is-phone"
+      },
+      "geometry": {
+        "inside": true,
+        "dropdown": false,
+        "width": 314.5859375,
+        "available": 366,
+        "searchHint": "Search Vault files…"
+      },
+      "errors": "No errors captured."
+    }
+  ],
+  "target": "kplex-test",
+  "artifacts": {
+    "main.js": "7a1ead5c35648c6c4f90d48d8db06f30f24762c6c0604c82e673be0743cec707",
+    "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+    "styles.css": "5e4f36ac0a71ed466f5c96843e68d2008159016db8b396703afa4b3f6ea81ea9"
+  },
+  "limits": [
+    "Desktop Electron functional tests; no physical iPad trackpad or mobile WebView acceptance",
+    "Trusted native pointer input for resize; File Explorer drop tests use the real host payload and DOM handler",
+    "Area settings menu uses Obsidian's public DOM mode; OS-native menu selection is not asserted"
+  ],
+  "version": "1.14.4 (installer 1.14.0)",
+  "setupCenter": "Welcome.md",
+  "errors": "No errors captured.",
+  "cleanup": "passed",
+  "deviceCleanup": {
+    "mobile": false,
+    "restored": true
+  },
+  "completedAt": "2026-10-04T18:00:54.649Z"
+}

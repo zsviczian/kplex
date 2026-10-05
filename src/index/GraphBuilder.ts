@@ -688,7 +688,11 @@ export class GraphBuilder {
       const page = staged.pages.get(path);
       if (page?.file || page?.isFolder) continue;
       if (node) {
-        if (page) page.name = node.name;
+        if (page) {
+          page.name = node.name;
+          // Remaining contributors own the URL aliases after an edit/deletion; retire removed labels.
+          page.aliases = [...node.aliases];
+        }
         else {
           const restored = this.createPage({ path, name: node.name, file: null, url: node.url,
             isFolder: false, isTag: node.kind === "tag", mtime: node.semanticMtime,
@@ -1103,7 +1107,7 @@ export class GraphBuilder {
         return hot?.mtime !== revision.mtime || this.sourceAcquisition?.needsBodyRead(file);
       });
       const durable = new Map<string, ParsedBodyMetadata>();
-      // Existing body-v2 records are already batched. On a complete settings rebuild, use those
+      // Current grammar body-cache records are already batched. On a complete settings rebuild, use those
       // first, then decode neutral chunks only for actual body-cache misses. Reading and pinning
       // every neutral source before the batch lookup made large-vault rebuilds IDB-bound.
       const legacy = await this.bodyCache.getBodies(misses.filter((file) => !this.sourceAcquisition?.needsBodyRead(file)).map((file) => {
@@ -1113,7 +1117,7 @@ export class GraphBuilder {
       for (const [path, body] of legacy) durable.set(path, body);
       if (this.sourceAcquisition) for (const file of misses) {
         if (durable.has(file.path) || this.sourceAcquisition.needsBodyRead(file)) continue;
-        const body = await this.sourceAcquisition.readBody(file, this.isCurrent);
+        const body = await this.sourceAcquisition.readBody(file, this.isCurrent, true);
         if (!this.isCurrent() || !this.fileRevisionMatches(file, revisions.get(file)!)) return false;
         if (body) durable.set(file.path, body);
       }
@@ -1161,7 +1165,7 @@ export class GraphBuilder {
         // A complete semantic build already validates its own source revision and publication.
         // Its durable source inventory runs independently after publication; awaiting one source
         // activation per file here would put storage latency on every settings rebuild.
-        const acquisition = acquireSources ? await this.sourceAcquisition?.acquire(file, entry.body, this.isCurrent) : undefined;
+        const acquisition = acquireSources ? await this.sourceAcquisition?.acquire(file, entry.body, this.isCurrent, true) : undefined;
         if (acquisition?.current === false || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) return false;
         const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), entry.body);
         const signature = await this.semanticSourceSignatureCooperative(file, entry.body);
@@ -1251,7 +1255,7 @@ export class GraphBuilder {
       if (previousEntry && previousEntry.mtime === revision.mtime && !freshBodyRequired) {
         body = previousEntry.body;
       } else if (!freshBodyRequired && (useDurableCache || this.sourceAcquisition)) {
-        body = await this.sourceAcquisition?.readBody(file, this.isCurrent) ?? null;
+        body = await this.sourceAcquisition?.readBody(file, this.isCurrent, true) ?? null;
         if (!body && useDurableCache) body = await this.bodyCache.getBody(sourcePath, revision.mtime);
         if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
@@ -1282,7 +1286,7 @@ export class GraphBuilder {
       if (!this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
-      const acquisition = await this.sourceAcquisition?.acquire(file, body, this.isCurrent);
+      const acquisition = await this.sourceAcquisition?.acquire(file, body, this.isCurrent, true);
       if (acquisition?.current === false || !this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }

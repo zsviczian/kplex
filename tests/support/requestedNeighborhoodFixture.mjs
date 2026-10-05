@@ -75,8 +75,10 @@ export async function fullNeighborhoodOracle(M, f, settings, runtime) {
  * Only attempt-local evidence IDs/contribution revisions are removed. No target IDs, hidden
  * decisions, roles, locations, multiplicity or ownership are normalized away. Presentation is not
  * certified: this projects unfiltered semantic roles and witnesses, not GraphIndex's visible scene.
+ * An explicit completeParents cover restricts only certified parent incidence/sibling witnesses;
+ * center incidence, roles and declaration provenance remain complete.
  */
-export function neighborhoodView(M, compilation, center, settings) {
+export function neighborhoodView(M, compilation, center, settings, completeParents) {
   /** Sort object keys, not values: browser JSON equality must not compare property insertion order. */
   const stable = value => Array.isArray(value) ? value.map(stable)
     : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
@@ -94,7 +96,7 @@ export function neighborhoodView(M, compilation, center, settings) {
       return relationType === null ? [] : [{ id: edge.target.id, role, relationType, direction: edge.direction }];
     }));
   const direct = roles(center.id);
-  const parents = direct.filter(edge => edge.role === "parent").map(edge => edge.id).sort();
+  const parents = direct.filter(edge => edge.role === "parent" && (completeParents === undefined || completeParents.includes(edge.id))).map(edge => edge.id).sort();
   /** Preserve even hidden/suppressed declarations for a pair without an active visible relation. */
   const incidence = id => {
     const targets = new Set([...(compilation.node(id)?.neighbours.values() ?? [])].map(edge => edge.target.id));

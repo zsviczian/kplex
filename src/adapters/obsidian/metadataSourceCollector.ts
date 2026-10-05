@@ -182,7 +182,7 @@ function metadataValue(value: unknown): SemanticMetadataValue {
 
 /** Canonical body-URL normalization shared by live collection and validated cached replay. */
 export function normalizedBodyUrl(source: SourceEntityRef, revision: SourceRevision,
-  reference: Readonly<{ url: string; label?: string; line?: number }>): BodyUrlOccurrence {
+  reference: Readonly<{ url: string; label?: string; aliases?: readonly string[]; line?: number }>): BodyUrlOccurrence {
   const target: SourceTargetRef = {
     entity: urlRef(reference.url),
     rawTarget: reference.url,
@@ -200,6 +200,7 @@ export function normalizedBodyUrl(source: SourceEntityRef, revision: SourceRevis
     target,
     ...(origin ? { origin } : {}),
     ...(reference.label ? { label: reference.label } : {}),
+    ...(reference.aliases ? { aliases: reference.aliases } : {}),
     provenance: {
       surface: "body",
       rawValue: reference.url,

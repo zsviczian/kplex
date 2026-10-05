@@ -17,7 +17,7 @@ const VIEW_KEYS = [
   "hierarchy.exclusions", "showFolderNodes", "showTagNodes", "showPageNodes", "showAttachments", "showURLNodes",
   "showVirtualNodes", "showInferredNodes", "renderSiblings", "nodeSortOrder", "graphLenses", "excludeFilepaths",
   "backgroundColor", "connectorStyle", "graphDepth", "compactingFactor", "compactView", "maxItemCount",
-  "minLinkLength", "inverseArrowDirection", "showNeighborCount", "siblingRelativeSize", "crossLinkOpacity",
+  "minLinkLength", "inverseArrowDirection", "showNeighborCount", "wrapNodeLabels", "siblingRelativeSize", "crossLinkOpacity",
   "applyPowerFilter", "parentColumns", "childColumns", "friendMaxHeight", "siblingMaxHeight", "parentMaxHeight",
   "childMaxHeight", "animationSpeed", "layoutProfiles", "allowAutozoom", "embedCentralNode", "centerEmbedWidth", "centerEmbedHeight",
 ] as const;

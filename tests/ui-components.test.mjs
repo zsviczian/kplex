@@ -4,12 +4,13 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { accessSync, constants, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, constants, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
+import ts from "typescript";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -817,6 +818,37 @@ try {
   check(!document.body.querySelector(".kplex-fuzzy-floating-results"), "empty results rendered a list");
   flushSync(() => stateRoot.unmount());
 
+  const disclosureRoot = createRoot(modalHost);
+  let disclosed = 0;
+  let fieldChosen = null;
+  function OntologyField() {
+    const [value, setValue] = useState("");
+    const [browse, setBrowse] = useState(false);
+    return React.createElement(FuzzySuggester, {
+      value, onChange: (next) => { setBrowse(false); setValue(next); },
+      results: browse ? ordered : [], onChoose: (item) => { fieldChosen = item.id; setValue(item.label); },
+      getKey: (item) => item.id, getLabel: (item) => item.label, floating: true, floatingMode: "viewport", openResultsOnFocus: false,
+      disclosure: { label: "Show all ontology fields", icon: React.createElement("span", null, "v"), onOpen: () => { disclosed += 1; setBrowse(true); } },
+    });
+  }
+  flushSync(() => disclosureRoot.render(React.createElement(OntologyField)));
+  modalInput = modalHost.querySelector("input");
+  flushSync(() => modalInput.focus());
+  check(!document.body.querySelector(".kplex-fuzzy-floating-results"), "empty ontology opened without explicit disclosure");
+  const disclosure = modalHost.querySelector(".kplex-fuzzy-disclosure");
+  check(disclosure.type === "button" && disclosure.getAttribute("aria-label") === "Show all ontology fields", "disclosure lacks semantic/accessibility contract");
+  flushSync(() => disclosure.click());
+  list = document.body.querySelector(".kplex-fuzzy-floating-results");
+  check(disclosed === 1 && list?.querySelectorAll("button").length === 3 && modalInput.value === "", "disclosure failed to reveal the complete empty-input list");
+  check(disclosure.getAttribute("aria-expanded") === "true", "disclosure expanded state missing");
+  flushSync(() => key(modalInput, "ArrowDown")); flushSync(() => key(modalInput, "Enter"));
+  check(fieldChosen === "a" && modalInput.value === "Alpha" && !document.body.querySelector(".kplex-fuzzy-floating-results"), "disclosure keyboard choice failed");
+  flushSync(() => modalInput.focus()); flushSync(() => type(modalInput, "")); flushSync(() => disclosure.click());
+  check(document.body.querySelector(".kplex-fuzzy-floating-results")?.querySelectorAll("button").length === 3, "cleared ontology cannot reopen all choices");
+  flushSync(() => key(modalInput, "Escape"));
+  check(!document.body.querySelector(".kplex-fuzzy-floating-results") && document.activeElement === modalInput, "disclosure Escape did not preserve editable input");
+  flushSync(() => disclosureRoot.unmount());
+
   const iframe = document.createElement("iframe"); document.body.append(iframe);
   const frameDocument = iframe.contentDocument; const frameWindow = iframe.contentWindow;
   check(frameDocument && frameWindow, "second document unavailable");
@@ -866,6 +898,54 @@ try {
   result.dataset.status = "failed";
   result.textContent = String(error?.stack ?? error);
 }
+`;
+}
+
+/** Model native pre-focus before passive autofocus, preserving typed/requested focus and Escape semantics. */
+function fuzzyProgrammaticFocusBrowserEntry() {
+  return `
+import React, { useLayoutEffect, useState } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
+const result=document.querySelector("#result");
+const check=(condition,message)=>{if(!condition)throw new Error(message)};
+const host=document.body.appendChild(document.createElement("div"));
+const type=(input,value)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,value);input.dispatchEvent(new Event("input",{bubbles:true}))};
+const key=(input,key)=>input.dispatchEvent(new KeyboardEvent("keydown",{key,bubbles:true,cancelable:true}));
+let preFocusing=false,blockedFocusEvents=0,focusEvents=0,unmounted=false;const choices=[];
+const nativeFocus=(event)=>{if(!host.contains(event.target))return;focusEvents++;if(preFocusing){blockedFocusEvents++;event.stopPropagation();}};
+document.addEventListener("focusin",nativeFocus,true);
+const root=createRoot(host);
+try{
+  function Field({preFocus=false,autoFocus=false,focusRequest=0}){
+    const [value,setValue]=useState("");
+    // Native shells can focus committed DOM before React's passive autofocus effect and consume
+    // that focus event. Repeating focus on the already-active input emits no replacement event.
+    useLayoutEffect(()=>{if(preFocus){preFocusing=true;host.querySelector("input").focus();preFocusing=false;}},[]);
+    return React.createElement(FuzzySuggester,{value,onChange:setValue,results:["Alpha","Beta"],onChoose:item=>choices.push(item),getKey:String,getLabel:String,
+      placeholder:"Search related notes",ariaLabel:"Related notes",openResultsOnFocus:false,floating:true,floatingMode:"viewport",autoFocus,focusRequest});
+  }
+  const render=(id,props)=>flushSync(()=>root.render(React.createElement(Field,{key:id,...props})));
+  const list=()=>document.body.querySelector(".kplex-fuzzy-floating-results");
+  render("pre-focused",{preFocus:true,autoFocus:true});let input=host.querySelector("input");
+  check(document.activeElement===input&&blockedFocusEvents===1&&focusEvents===1,"host did not pre-focus without a fresh React focus event");
+  check(!list()&&input.getAttribute("aria-expanded")==="false","autofocus opened a typing-only list");
+  flushSync(()=>type(input,"Alpha"));check(list()?.querySelectorAll("button").length===2&&input.getAttribute("aria-expanded")==="true","pre-focused autofocus lost typed suggestions");
+  flushSync(()=>key(input,"Escape"));check(!list()&&input.value==="Alpha"&&document.activeElement===input,"Escape lost the retained editable focus/query");
+  const eventsBeforeRequest=focusEvents;render("pre-focused",{preFocus:true,autoFocus:true,focusRequest:1});
+  check(focusEvents===eventsBeforeRequest&&!list(),"same-input request required a fresh focus event or opened before typing");
+  flushSync(()=>type(input,"Beta"));check(list(),"explicit request failed to reopen typed suggestions after Escape");
+  flushSync(()=>key(input,"Enter"));check(choices.length===1&&choices[0]==="Alpha"&&!list()&&document.activeElement!==input,"normal selection did not close/blur its focus lifetime");
+  render("normal-autofocus",{autoFocus:true});input=host.querySelector("input");
+  check(document.activeElement===input&&!list(),"normal autofocus changed typing-only policy");flushSync(()=>type(input,"Alpha"));check(list(),"normal autofocus lost typing");
+  render("normal-request",{});input=host.querySelector("input");check(document.activeElement!==input&&!list(),"an unrequested field acquired focus");
+  render("normal-request",{focusRequest:1});check(document.activeElement===input&&!list(),"normal request did not focus without premature suggestions");
+  flushSync(()=>type(input,"Beta"));check(list(),"normal focus request lost typing");flushSync(()=>key(input,"Escape"));check(!list()&&document.activeElement===input,"normal requested Escape lost focus");
+  flushSync(()=>root.unmount());unmounted=true;check(!list(),"programmatic-focus portal survived unmount");
+  result.dataset.status="passed";result.textContent="Fuzzy programmatic focus behavior passed";
+}catch(error){result.dataset.status="failed";result.textContent=String(error?.stack??error);}
+finally{document.removeEventListener("focusin",nativeFocus,true);if(!unmounted)flushSync(()=>root.unmount());}
 `;
 }
 
@@ -935,6 +1015,84 @@ try {
 `;
 }
 
+/** Exercise the canonical composer selection and disclosure with production React mechanics. */
+function relatedComposerBrowserEntry() {
+  const source = ts.createSourceFile("NewRelatedNoteModal.ts", readFileSync(join(root, "src/ui/NewRelatedNoteModal.ts"), "utf8"), ts.ScriptTarget.Latest, true);
+  const functions = source.statements.filter((statement) => ts.isFunctionDeclaration(statement)
+    && ["RelatedNoteComposer", "isNoteTarget"].includes(statement.name?.text)).map((statement) => statement.getText(source)).join("\n");
+  const production = ts.transpileModule(functions, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
+  return `
+import React, { createElement, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
+import { SavedRelationshipPendingError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relationshipMetadataWrite.ts"))};
+const FuzzySearchInput = (props) => createElement(FuzzySuggester, { ...props, icon: null });
+const ObsidianIcon = ({ name }) => createElement("span", null, name);
+const fuzzyFilterStrings = (values, query, limit) => values.filter((value) => !query || value.includes(query)).slice(0, limit);
+const notices = []; class Notice { constructor(message) { notices.push(message); } }
+${production}
+(async () => {
+ const result = document.querySelector("#result");
+ const check = (condition, message) => { if (!condition) throw new Error(message); };
+ const type = (input, value) => {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+ };
+ try {
+  const host = document.createElement("div"); document.body.append(host);
+  const origin = { path: "Origin.md", file: { extension: "md" } }; const target = { path: "Target.md", file: { extension: "md" } };
+  const intents = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
+  const plugin = {
+   settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown" },
+   translator: (key) => key, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
+   ontologyFieldsForRole: () => ["children", "review", "example"],
+   validateRelatedNoteName: () => ({ valid: true, existing: false, stem: "Target" }),
+   index: { search: () => [target], titleFor: (page) => page.path },
+   rememberRelationshipOntology: async (_role, field) => field,
+   createRelationToPage: async (...args) => { if (savedPending) throw new SavedRelationshipPendingError("Saved; graph pending"); if (rejectCommit) throw new Error("not ready"); intents.push(args); },
+   requestNodeFlair: () => {},
+  };
+  const root = createRoot(host);
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { plugin, origin, initialRole: "child", onCommitted: () => { commits += 1; }, onClose: () => { closes += 1; } })));
+  const input = host.querySelector(".kplex-add-related-note-search input");
+  flushSync(() => input.focus()); flushSync(() => type(input, "Target"));
+  let list = document.body.querySelector(".kplex-fuzzy-floating-results");
+  check(list, "existing-target suggestions did not open");
+  flushSync(() => list.querySelector("button").click());
+  const link = host.querySelector(".kplex-add-related-link-button");
+  check(link && input.value === "Target.md", "existing selection was not retained as explicit Link action");
+  const ontology = host.querySelector(".kplex-add-related-ontology-search input");
+  flushSync(() => ontology.focus()); flushSync(() => type(ontology, ""));
+  flushSync(() => host.querySelector(".kplex-fuzzy-disclosure").click());
+  list = document.body.querySelector(".kplex-fuzzy-floating-results");
+  check(list?.querySelectorAll("button").length === 3, "composer disclosure did not show full empty-input role vocabulary");
+  flushSync(() => list.querySelector('[data-kplex-fuzzy-index="1"]').click());
+  check(ontology.value === "review" && host.querySelector(".kplex-add-related-link-button"), "ontology choice lost the existing-target selection");
+  flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
+  check(commits === 0 && closes === 0 && notices.length === 1, "failed existing-target write falsely committed or closed composer");
+  rejectCommit = false; savedPending = true;
+  flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
+  check(commits === 0 && closes === 0 && notices.at(-1) === "Saved; graph pending", "saved-pending outcome was wrapped as an unsaved failure or closed the composer");
+  savedPending = false;
+  flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
+  check(intents.length === 1 && intents[0][0] === origin && intents[0][1] === "child" && intents[0][2] === target && intents[0][3] === "review", "existing Link lost ontology, endpoint or role");
+  check(commits === 1 && closes === 1, "successful explicit Link did not commit/close once");
+  // History/menu fixed targets must enter the same composer with an immediately retained Link action.
+  rejectCommit = false; commits = 0; closes = 0; intents.length = 0;
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "fixed-target", plugin, origin, initialRole: "right", fixedTarget: target, onCommitted: () => { commits += 1; }, onClose: () => { closes += 1; } })));
+  check(host.querySelector(".kplex-add-related-note-search input").value === "Target.md", "fixed history target did not initialize the existing selection");
+  flushSync(() => host.querySelector(".kplex-add-related-link-button").click());
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  check(intents.length === 1 && intents[0][1] === "right" && intents[0][2] === target && commits === 1 && closes === 1, "history fixed target did not commit through the shared Link action");
+  flushSync(() => root.unmount());
+  check(!document.body.querySelector(".kplex-fuzzy-floating-results"), "composer list survived unmount");
+  result.dataset.status = "passed"; result.textContent = "Related composer browser behavior passed";
+ } catch (error) { result.dataset.status = "failed"; result.textContent = String(error?.stack ?? error); }
+})();
+`;
+}
+
 function runBrowserDom(entry, successText) {
   const browser = findBrowser();
   assert(browser, "A Chromium-family browser is required for the DOM behavior lane; set KPLEX_TEST_BROWSER to its executable path.");
@@ -997,8 +1155,208 @@ test("FuzzySuggester production browser behavior", () => {
   runBrowserDom(fuzzySuggesterBrowserEntry(), "FuzzySuggester browser behavior passed");
 });
 
+/** Host pre-focus must not leave the shared field's React focus state behind its DOM state. */
+test("FuzzySuggester programmatic focus after native host pre-focus",()=>{
+  runBrowserDom(fuzzyProgrammaticFocusBrowserEntry(),"Fuzzy programmatic focus behavior passed");
+});
+
 test("SearchBox plain read model and revision browser behavior", () => {
   runBrowserDom(graphSearchBrowserEntry(), "Graph search read consumer behavior passed");
+});
+
+/** Isolate named production UI callbacks/components while retaining their actual DOM/action behavior. */
+function uiDefinitions(path, names) {
+  const source=ts.createSourceFile(path,readFileSync(join(root,path),"utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),definitions=[];
+  /** Visit nested view callbacks without importing its native plugin shell into the browser fixture. */
+  function visit(node){
+    if(ts.isVariableDeclaration(node)&&names.includes(node.name.getText(source)))definitions.push(`const ${node.name.getText(source)} = ${node.initializer.getText(source)};`);
+    if(ts.isFunctionDeclaration(node)&&names.includes(node.name?.text))definitions.push(node.getText(source).replace(/^export /,""));
+    ts.forEachChild(node,visit);
+  }
+  visit(source);
+  assert.equal(definitions.length,names.length,"Each selected production owner must be present");
+  return ts.transpileModule(definitions.join("\n"),{compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.None,jsx:ts.JsxEmit.React}}).outputText;
+}
+
+/** Native-free real DOM checks for history targeting/cancellation and the center's shared menu button. */
+function editorHistoryBrowserEntry(){
+  const history=uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
+  const editor=uiDefinitions("src/ui/CentralNodeEditor.tsx",["CentralNodeEditor"]);
+  return `
+import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
+import {flushSync} from "react-dom";
+import {createRoot} from "react-dom/client";
+const check=(ok,message)=>{if(!ok)throw new Error(message)},result=document.querySelector("#result");
+const ObsidianIcon=({name})=>React.createElement("span",null,name),EmbeddedWebPage=()=>React.createElement("div",null,"Web guest"),urlEmbed=url=>({url});
+${editor}
+try{
+ const button=document.body.appendChild(document.createElement("button"));button.dataset.kplexHistoryPath="Target.md";button.textContent="Target";
+ button.style.cssText="position:absolute;left:100px;top:100px;width:100px;height:40px";
+ const target={path:"Target.md"},origin={path:"Origin.md"},index={get:path=>path===target.path?target:undefined},historyDragHover={current:null};
+ let drag={pointerId:7},connectDrag=drag,nodeDrag=null;
+ const touchDoubleTap={current:{reset(){}}},areaSettingsDismissPointer={current:null},areaResizeDrag={current:null},pendingGateLongPress={current:null},panDrag={current:null};
+ let relocatedRow=null;
+ const touchLongPress={current:null},setNodeDrag=value=>{nodeDrag=value;if(value?.path&&relocatedRow)relocatedRow.remove()};let resizeFinishes=0,areaClears=0;
+ const viewport={current:null},neighborhood={center:origin},renderedNodeMap=new Map(),toWorld=(x,y)=>({x,y});
+ const finishAreaResize=()=>{resizeFinishes++;return true},setAreaHoverIfChanged=()=>areaClears++;
+ const setConnectDrag=value=>{connectDrag=value},clearHoverIntent=()=>{};
+ ${history}
+ const point=button.getBoundingClientRect(),x=point.left+10,y=point.top+10;
+ updateHistoryDragHover(origin,x,y,document);check(button.classList.contains("is-relationship-drop-target"),"eligible historical endpoint not highlighted");
+ updateHistoryDragHover(origin,1,1,document);check(!button.classList.contains("is-relationship-drop-target"),"leaving the endpoint retained hover");
+ target.isTag=true;updateHistoryDragHover(origin,x,y,document);check(!button.classList.contains("is-relationship-drop-target"),"ineligible tag history endpoint highlighted");delete target.isTag;
+ updateHistoryDragHover(target,x,y,document);check(!button.classList.contains("is-relationship-drop-target"),"self history endpoint highlighted");
+ updateHistoryDragHover(origin,x,y,document);cancel({pointerId:7,pointerType:"mouse"});check(connectDrag===null&&!button.classList.contains("is-relationship-drop-target"),"real pointer cancellation retained highlight or drag");
+ const viewportElement=document.body.appendChild(document.createElement("div")),gateElement=viewportElement.appendChild(document.createElement("span"));
+ viewport.current=viewportElement;
+ const captured=[];viewportElement.setPointerCapture=id=>captured.push({owner:viewportElement,id});
+ gateElement.setPointerCapture=id=>captured.push({owner:gateElement,id});
+ const bodyNode={role:"parent",page:origin,x:20,y:30};relocatedRow=gateElement;
+ gateElement.addEventListener("pointerdown",event=>startNodeDrag(bodyNode,event));
+ gateElement.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:6,pointerType:"mouse",button:0,clientX:25,clientY:35}));
+ check(!gateElement.isConnected&&nodeDrag?.path===origin.path,"Fixture did not move the original row into a floating layer");
+ check(captured.length===1&&captured[0].owner===viewportElement&&captured[0].id===6,"Body drag captured its removed overflow row instead of the stable viewport");
+ relocatedRow=null;nodeDrag=null;viewportElement.append(gateElement);
+ viewportElement.addEventListener("lostpointercapture",lostPointerCapture);
+ connectDrag={pointerId:7};updateHistoryDragHover(origin,x,y,document);
+ gateElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:9,pointerType:"mouse"}));
+ check(connectDrag!==null&&button.classList.contains("is-relationship-drop-target"),"another child capture cancelled this relationship drag");
+ gateElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:7,pointerType:"mouse"}));
+ check(connectDrag===null&&!button.classList.contains("is-relationship-drop-target"),"gate-owned capture loss retained history hover or connector drag");
+ nodeDrag={pointerId:8};updateHistoryDragHover(origin,x,y,document);
+ gateElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:8,pointerType:"mouse"}));
+ check(nodeDrag===null&&!button.classList.contains("is-relationship-drop-target"),"node-owned capture loss retained history hover or node drag");
+ check(resizeFinishes===0,"child-owned captures completed viewport area resize");
+ viewportElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:10,pointerType:"mouse"}));
+ check(resizeFinishes===1&&areaClears===1,"viewport-owned resize lost its capture completion");
+ const container=document.body.appendChild(document.createElement("div")),root=createRoot(container),opened=[],page={path:"https://example.com",url:"https://example.com",name:"Example"};
+ const props={plugin:{},hostLeaf:{},page,defaultMode:"preview",allowMaximize:true,activateHostLeafOnInteraction:false,onModeChange(){},onMaximizedChange(){},onCollapse(){},onNavigate(){},translate:key=>key,onOpenMenu:button=>opened.push(button)};
+ for(const maximized of [false,true]){
+  flushSync(()=>root.render(React.createElement(CentralNodeEditor,{...props,maximized})));
+  const menu=container.querySelector('[aria-label="graph.openMenu"]');check(menu instanceof HTMLButtonElement&&menu.type==="button","editor menu button missing or nonsemantic");
+  check(menu.textContent==="ellipsis-vertical"&&!menu.hasAttribute("title"),"shared menu icon/accessibility changed");
+  check(menu.parentElement.querySelector("button:last-child")===menu,"shared menu must be the final button in both editor sizes");
+  flushSync(()=>menu.click());check(opened[opened.length-1]===menu&&menu.ownerDocument===document,"editor menu did not retain actual owning button/document");
+ }
+ check(opened.length===2,"normal and maximized editor must delegate once each");flushSync(()=>root.unmount());clearHistoryDragHover();
+ result.dataset.status="passed";result.textContent="Editor menu and history target browser behavior passed";
+}catch(error){result.dataset.status="failed";result.textContent=error.stack;}
+`;
+}
+
+test("Editor shared menu and history target eligibility, leave and cancellation",()=>{
+ runBrowserDom(editorHistoryBrowserEntry(),"Editor menu and history target browser behavior passed");
+});
+
+/** Check focused Find, history states and dark hover outlines against representative host theme tokens. */
+function themedHistoryBrowserEntry() {
+ return `
+const result=document.querySelector("#result"),check=(ok,message)=>{if(!ok)throw new Error(message)};
+const style=document.body.appendChild(document.createElement("style"));style.textContent=${JSON.stringify(readFileSync(join(root,"styles.css"),"utf8"))};
+const hostStyle=document.body.appendChild(document.createElement("style"));hostStyle.textContent='input[type="text"]:focus { background: var(--background-primary); }';
+const host=document.body.appendChild(document.createElement("div"));host.className="kplex-view-host";
+const app=host.appendChild(document.createElement("div"));app.className="kplex-app";
+app.innerHTML='<div class="kplex-history-bar"><span class="kplex-history-label">Past nodes</span><div class="kplex-history-list"><button>History note</button></div></div><div class="kplex-area-frame"></div>';
+const button=app.querySelector("button"),bar=app.querySelector(".kplex-history-bar"),frame=app.querySelector(".kplex-area-frame");
+const find=app.appendChild(document.createElement("input"));find.type="text";find.className="kplex-find-input";find.value="Readable query";find.placeholder="Find in Plex";
+const rgb=value=>value.match(/[\\d.]+/g).slice(0,3).map(Number);
+const luminance=color=>rgb(color).map(v=>{v/=255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)}).reduce((v,c,i)=>v+c*[.2126,.7152,.0722][i],0);
+const contrast=(a,b)=>{a=luminance(a);b=luminance(b);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)};
+try{
+ for(const dark of [false,true]){
+  document.body.className=dark?"theme-dark":"theme-light";
+  const tokens=dark?{primary:"#1e1e1e",secondary:"#262626",alt:"#303030",text:"#dadada",muted:"#b3b3b3",border:"#404040"}:{primary:"#ffffff",secondary:"#f6f6f6",alt:"#eeeeee",text:"#222222",muted:"#666666",border:"#dddddd"};
+  for(const [name,value] of Object.entries({"background-primary":tokens.primary,"background-secondary":tokens.secondary,"background-secondary-alt":tokens.alt,"text-normal":tokens.text,"text-muted":tokens.muted,"background-modifier-border":tokens.border,"background-modifier-border-hover":tokens.border,"interactive-accent":"#7c5cff"}))document.body.style.setProperty("--"+name,value);
+  for(const focused of [false,true]){focused?find.focus():find.blur();check((document.activeElement===find)===focused,"Find focus fixture did not activate");const s=getComputedStyle(find);check(contrast(s.color,s.backgroundColor)>=4.5,"Find text lost contrast: "+document.body.className+"/focused="+focused);check(contrast(getComputedStyle(find,"::placeholder").color,s.backgroundColor)>=4.5,"Find placeholder lost contrast: "+document.body.className)}
+  check(getComputedStyle(bar).backgroundColor===(dark?"rgb(38, 38, 38)":"rgb(246, 246, 246)"),"History bar did not follow the host theme");
+  for(const state of ["","is-active","is-relationship-drop-target"]){button.className=state;const s=getComputedStyle(button);check(contrast(s.color,s.backgroundColor)>=4.5,"History text lost contrast: "+document.body.className+"/"+state)}
+  if(dark){const s=getComputedStyle(frame),alpha=Number(s.opacity),canvas=[15,55,90],line=rgb(s.borderColor).map((v,i)=>Math.round(v*alpha+canvas[i]*(1-alpha)));check(contrast("rgb("+line.join(",")+")","rgb("+canvas.join(",")+")")>=3,"Dark area outline disappeared against the Plex canvas")}
+ }
+ result.dataset.status="passed";result.textContent="History and area theme contrast passed";
+}catch(error){result.dataset.status="failed";result.textContent=error.stack}
+`;
+}
+
+test("Focused Find, history text and area hover outlines remain readable in light and dark themes",()=>{
+ runBrowserDom(themedHistoryBrowserEntry(),"History and area theme contrast passed");
+});
+
+/** Exercise the independent Find field with real React input/focus/keyboard events. */
+function plexFindBrowserEntry() {
+  return `
+import React from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { PlexFind, matchesFindText, matchesFindNode, matchesOntologyFind } from ${JSON.stringify(join(root, "src/ui/features/PlexFind.tsx"))};
+const style=document.body.appendChild(document.createElement("style"));style.textContent=${JSON.stringify(readFileSync(join(root,"styles.css"),"utf8"))};
+const result=document.querySelector("#result"), container=document.createElement("div");
+document.body.append(container);
+const root=createRoot(container);
+const check=(ok,message)=>{if(!ok)throw new Error(message)};
+${uiDefinitions("src/ui/PlexGraph.tsx",["GENERIC_RELATION_LABELS","relationLabel"])}
+let query="", focusRequest=0, cycles=[], includePath=false, visible=true;
+const render=()=>flushSync(()=>root.render(React.createElement(PlexFind,{
+  query,focusRequest,includePath,visible,pathIcon:"Paths",pathLabel:"Include paths",onIncludePathChange:value=>{includePath=value;render()},icon:"Find",closeIcon:"Close",label:"Find in Plex",placeholder:"Find in Plex…",
+  closeLabel:"Close Find",matchLabel:"2 matches",
+  onChange:value=>{query=value;render()},onNext:backward=>cycles.push(backward)
+})));
+try {
+  render();
+  check(!container.querySelector("input"),"Find should initially show only its magnifier");
+  flushSync(()=>container.querySelector("button").click());
+  let input=container.querySelector("input");
+  check(document.activeElement===input,"magnifier must focus its independent input");
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"Alias Match");
+  flushSync(()=>input.dispatchEvent(new Event("input",{bubbles:true})));
+  check(query==="Alias Match","Find must keep its controlled query");
+  check(!container.querySelector('[role="listbox"], [role="option"], .kplex-search-results'),"Find must never render a dropdown");
+  check(matchesFindText(query,["unrelated","An ALIAS MATCH title"]),"case-insensitive alias match missing");
+  check(!matchesFindText("  ",["anything"]),"empty query must clear highlights");
+  check(!matchesFindText("a.*b",["a random b"]),"Find must use literal text, not regex");
+  check(!matchesOntologyFind("Related Note", "[[Related Note]]"), "Wiki-link destinations must not highlight connectors");
+  check(!matchesOntologyFind("Comma Note", "[[Folder,Comma Note]], supports"), "Commas within a wiki destination must not become ontology fields");
+  check(!matchesOntologyFind("al", relationLabel("challenger") ?? undefined), "A generic role hidden by actual rendering must not light its connector");
+  check(matchesOntologyFind("custom", relationLabel("Custom relation")), "Actual custom ontology text remains searchable");
+  check(!matchesOntologyFind("parent", undefined), "An omitted rendered label must not light a connector");
+  check(matchesOntologyFind("supports", "[[Related Note]], supports"), "Defined ontology remains searchable beside inferred links");
+  check(!matchesFindNode("al","Note B","Synthetic-Scale/NoteB.md",false), "Only the displayed label is searched by default");
+  check(matchesFindNode("al","Note B","Synthetic-Scale/NoteB.md",true), "Extended mode must include the path");
+  flushSync(()=>container.querySelector('[aria-label="Include paths"]').click());
+  check(includePath && container.querySelector('[aria-label="Include paths"]').getAttribute("aria-pressed")==="true", "path toggle lacks view-local pressed state");
+  visible=false;render();
+  check(container.querySelector(".kplex-find").inert && container.querySelector(".kplex-find").getAttribute("aria-hidden")==="true", "maximized editor must suspend Find focus and controls");
+  check(getComputedStyle(container.querySelector(".kplex-find")).display==="none", "production CSS must hide Find over maximized editor controls");
+  check(query==="Alias Match" && input.value===query && includePath, "suspension must retain the query and path mode");
+  visible=true;render();check(container.querySelector("input")===input && document.activeElement===input, "returning must retain the Find session and focus");
+  check(!matchesOntologyFind("tree", "file-tree"), "Physical topology is not an ontology match");
+  input.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));
+  input.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",shiftKey:true,bubbles:true}));
+  check(JSON.stringify(cycles)==="[false,true]","Enter/Shift+Enter must cycle projected matches");
+  focusRequest++;render();
+  check(input.selectionStart===0 && input.selectionEnd===query.length,"repeat shortcut must select current term");
+  flushSync(()=>input.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+  check(query==="" && !container.querySelector("input"),"Escape must clear and close Find");
+  check(document.activeElement===container.querySelector("button"),"dismissal must restore magnifier focus");
+  focusRequest++;render();
+  // Shortcut disclosure schedules a local React state update; inspect after its commit/effect.
+  let focusAttempts=0;
+  const inspectFocus=()=>{
+    try {
+      if(document.activeElement!==container.querySelector("input") && focusAttempts++<50) {
+        setTimeout(inspectFocus,10);return;
+      }
+      check(document.activeElement===container.querySelector("input"),"shortcut must reopen Find");
+      root.unmount();
+      result.dataset.status="passed";result.textContent="Plex Find independent field behavior passed";
+    } catch(error) {result.dataset.status="failed";result.textContent=error.stack;}
+  };
+  setTimeout(inspectFocus,10);
+} catch(error) {result.dataset.status="failed";result.textContent=error.stack;}
+`;
+}
+
+test("Plex Find independent field focus, literal matching, cycling and dismissal", () => {
+  runBrowserDom(plexFindBrowserEntry(), "Plex Find independent field behavior passed");
 });
 
 /** Exercise the real portable area-height control without an Obsidian runtime. */
@@ -1035,4 +1393,45 @@ try {
 
 test("ResizableAreaFrame localized keyboard behavior", () => {
   runBrowserDom(areaFrameBrowserEntry(), "Area frame browser behavior passed");
+});
+
+
+/** A real composer must retain existing selection across ontology browsing and failed commits. */
+test("Related composer existing selection and ontology disclosure browser behavior", () => {
+  runBrowserDom(relatedComposerBrowserEntry(), "Related composer browser behavior passed");
+});
+
+
+/** Verify toolbar wrapping uses its own available space and consumes margin before search width. */
+function responsiveToolbarBrowserEntry() {
+ return `
+const result=document.querySelector("#result"),check=(ok,message)=>{if(!ok)throw new Error(message)};
+const style=document.body.appendChild(document.createElement("style"));style.textContent=${JSON.stringify(readFileSync(join(root,"styles.css"),"utf8"))};
+const host=document.body.appendChild(document.createElement("div"));host.className="kplex-view-host";
+const app=host.appendChild(document.createElement("div"));app.className="kplex-app";
+const bar=app.appendChild(document.createElement("header"));bar.className="kplex-topbar";bar.style.boxSizing="border-box";
+bar.innerHTML='<button class="kplex-index-status"></button><div class="kplex-brand">Brain<strong>K-Plex</strong></div><button class="kplex-icon-button">Back</button><button class="kplex-icon-button">Next</button><div class="kplex-search-shell"><input class="kplex-search" placeholder="Search Vault"></div><button class="kplex-icon-button">Filter</button><div class="kplex-top-actions is-compact"><button class="kplex-icon-button">Sync</button><button class="kplex-icon-button">Title</button><span class="kplex-toolbar-divider"></span><button class="kplex-icon-button">Sort</button><button class="kplex-icon-button">Links</button><button class="kplex-icon-button">Settings</button></div>';
+const search=bar.querySelector(".kplex-search-shell"),actions=bar.querySelector(".kplex-top-actions"),filter=actions.previousElementSibling;
+const measure=width=>{bar.style.width=width+"px";const s=search.getBoundingClientRect(),a=actions.getBoundingClientRect(),f=filter.getBoundingClientRect();return {width:s.width,gap:a.left-f.right-parseFloat(getComputedStyle(bar).gap),sameRow:Math.abs(a.top-s.top)<5}};
+try{
+ const wide=measure(1500),middle=measure(1100),tight=measure(700),minimum=measure(570),narrow=measure(300);
+ check(wide.sameRow&&middle.sameRow&&tight.sameRow&&minimum.sameRow,"Toolbar wrapped before consuming available search width");
+ check(Math.abs(wide.width-middle.width)<1&&middle.gap<wide.gap,"Spare margin must disappear before reducing search width");
+ check(tight.gap<1&&tight.width<middle.width&&minimum.width>=100,"Search shrinks only after spare margin reaches zero");
+ check(!narrow.sameRow,"Toolbar must still wrap when controls cannot fit");
+ const hostButtons=document.body.appendChild(document.createElement("style"));hostButtons.textContent="button {display:inline-flex;justify-content:center;height:28px}";
+ const column=app.appendChild(document.createElement("div"));column.className="kplex-main-column";column.innerHTML='<div></div><div></div><footer class="kplex-history-bar"><div class="kplex-history-list"><button><span class="kplex-history-text">A meaningful history title that is much longer than the history button and must stay visible at its beginning</span></button><button><span class="kplex-history-text">Short</span></button></div></footer>';column.style.width="500px";column.style.height="200px";
+ const history=column.querySelector("button"),historyText=history.firstElementChild,first=document.createRange();first.setStart(historyText.firstChild,0);first.setEnd(historyText.firstChild,1);
+ check(first.getBoundingClientRect().left>=history.getBoundingClientRect().left+8&&historyText.scrollWidth>historyText.clientWidth,"Overflowing history title lost its left edge");
+ const compactHeight=column.querySelector("footer").getBoundingClientRect().height;column.classList.add("is-two-line-history");
+ const hs=getComputedStyle(historyText);check(hs.whiteSpace==="normal"&&hs.webkitLineClamp==="2"&&historyText.getBoundingClientRect().height>parseFloat(hs.lineHeight)*1.5,"History long title did not use two lines");
+ check(column.querySelector("footer").getBoundingClientRect().height>compactHeight&&history.getBoundingClientRect().height===column.querySelectorAll("button")[1].getBoundingClientRect().height,"Wrapped history must reserve an aligned taller row");
+ const label=app.appendChild(document.createElement("span"));label.className="kplex-thought-label is-two-line";label.style.width="160px";label.style.fontSize="18px";label.innerHTML='<span class="kplex-thought-text">A meaningful long title that must occupy two lines in the label area</span>';
+ const text=label.firstElementChild,s=getComputedStyle(text);check(s.whiteSpace==="normal"&&s.webkitLineClamp==="2"&&text.getBoundingClientRect().height>parseFloat(s.lineHeight)*1.5,"Long title did not wrap into the fixed two-line label area");
+ result.dataset.status="passed";result.textContent="Toolbar shrink and two-line label browser behavior passed";
+}catch(error){result.dataset.status="failed";result.textContent=error.stack}
+`;
+}
+test("Toolbar consumes spare space and search width before wrapping; labels use two lines",()=>{
+ runBrowserDom(responsiveToolbarBrowserEntry(),"Toolbar shrink and two-line label browser behavior passed");
 });
