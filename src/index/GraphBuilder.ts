@@ -4,7 +4,10 @@
  * publish a structure/link baseline and then reuse the same atomic per-file patch boundary to add
  * Markdown semantics progressively without exposing half-committed source state. Node-only recovery
  * streams current durable source facts through the same compiler without retaining relationships.
+ * Compiler and collector CPU slices dispatch host event tasks, then retain the existing caller-owned
+ * cancellation and optional foreground-priority checkpoints before continuing private preparation.
  */
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { Platform, TFile, type App } from "obsidian";
 import type KplexPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Relation } from "../types";
@@ -727,17 +730,18 @@ export class GraphBuilder {
   private createFullCompiler(projection: "graph" | "nodes" = "graph"): NormalizedGraphCompiler {
     return new NormalizedGraphCompiler(this.fullCompilerSettings(), {
       now: perfNow,
-      yield: async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); },
+      yield: async () => { await yieldToHostTask(); },
       isCurrent: this.isCurrent,
       sliceBudgetMs: Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13,
       resolverBatchSize: Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
     }, projection);
   }
 
+  /** Give per-file compiler work the same event-task continuation, slice budgets and lifetime as full builds. */
   private patchCompilerRuntime() {
     return {
       now: perfNow,
-      yield: async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); },
+      yield: async () => { await yieldToHostTask(); },
       isCurrent: this.isCurrent,
       sliceBudgetMs: Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13,
       resolverBatchSize: Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
@@ -865,7 +869,7 @@ export class GraphBuilder {
     if (!this.isCurrent()) return false;
     const budgetMs = Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13;
     if (!force && perfNow() - this.sliceStartedAt < budgetMs) return true;
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await yieldToHostTask();
     await this.backgroundCheckpoint?.();
     this.sliceStartedAt = perfNow();
     return this.isCurrent();

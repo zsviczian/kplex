@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { browserBundle, chromiumHarness } from "./support/browserTypeScript.mjs";
 
-const bundle = await browserBundle(["src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/core/parser/metadata.ts", "src/index/CachedSourceSemantics.ts"], {
+const bundle = await browserBundle(["src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/core/parser/metadata.ts", "src/index/CachedSourceSemantics.ts", "src/adapters/obsidian/yieldToHostTask.ts"], {
   obsidian: "exports.Platform={isMobile:false,isIosApp:false};",
 });
 
@@ -476,4 +476,109 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
       })()`), true);
     });
   } finally { await browser.cleanup(); }
+});
+
+/** Completed-work observation is tested against actual dense immutable families and real IDB. */
+test("real Chromium: completed source work is observable without masking waits or changing authority", { timeout: 90000 }, async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    assert.equal(await browser.evaluate(`(async()=>{
+      let events=0,throwObserver=false,clock=0,lastWork=0,maxGap=0;
+      const observed=new sourceModules.KplexIndexedDbCache('completed-source-work',undefined,()=>{
+        events++;maxGap=Math.max(maxGap,clock-lastWork);lastWork=clock;
+        if(throwObserver)throw new Error('Observer failure');
+      });
+      const r=observed.sources;
+      try {
+        ok(await observed.open(),'Real production database');
+        const originalYield=r.runtime.yield;
+        r.runtime.yield=async()=>{clock+=20000;await originalYield();};
+        await r.runtime.yield();equal(events,0,'A bare continuation has no completed work');
+        const text=Array.from({length:600},(_,i)=>'Field'+i+':: [[Target'+i+']]').join(String.fromCharCode(10));
+        const input=await make(r,'Dense',{kind:'missing'},text);
+        throwObserver=true;
+        equal((await r.replace(input)).outcome,'activated','Observer exceptions do not affect activation');
+        ok(events>5,'Dense production/staging/count pages report work');
+        throwObserver=false;events=0;clock=0;lastWork=0;maxGap=0;
+        const body=await r.readBody('Dense',()=>true);
+        const parsed=sourceModules.parseBodyMetadata(text);
+        const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)
+          ?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
+        ok(canonical(body)===canonical(parsed),'Dense authenticated body preserves all fields/provenance/URLs');
+        ok(clock>90000,'One owner crosses the existing inactivity duration in the cooperative clock');
+        ok(events>5,'Validated posting/chunk pages report progress within that same owner');
+        ok(maxGap<90000,'Actual dense work advances before the inactivity limit');
+        equal(await r.ensureLocalDependencies('Dense',0,0), 'ready','Observation leaves dependency authority unchanged');
+        equal(await r.completeLocalDependencyInventory(), 'ready','Inventory closes normally');
+
+        // Pause before the first source chunk request, outside a transaction. Pin/head reads are
+        // real IDB, and neither those waits nor bare continuations manufacture completed work.
+        const transact=r.transaction.bind(r);let entered,release;
+        const reached=new Promise(resolve=>entered=resolve),held=new Promise(resolve=>release=resolve);
+        let block=true;
+        r.transaction=async(...args)=>{
+          if(block&&args[1].includes('sourceChunks')&&args[2]==='readonly'){block=false;entered();await held;}
+          return transact(...args);
+        };
+        events=0;const pending=r.readBody('Dense',()=>true);await reached;
+        const frozenEvents=events;await r.runtime.yield();await r.runtime.yield();
+        equal(events,frozenEvents,'Frozen I/O and continuations do not extend inactivity');
+        release();equal(await pending,body,'Released real IDB read stays coherent');
+        ok(events>frozenEvents,'Only completed resumed work reports progress');
+        r.transaction=transact;
+
+        // A late old read cannot keep a new restore alive after its storage owner closes.
+        let enteredClosed,releaseClosed;block=true;
+        const reachedClosed=new Promise(resolve=>enteredClosed=resolve),heldClosed=new Promise(resolve=>releaseClosed=resolve);
+        r.transaction=async(...args)=>{
+          if(block&&args[1].includes('sourceChunks')&&args[2]==='readonly'){block=false;enteredClosed();await heldClosed;}
+          return transact(...args);
+        };
+        const late=r.readBody('Dense',()=>true);await reachedClosed;observed.close();
+        const terminalEvents=events;releaseClosed();equal(await late,null,'Closed read is rejected');
+        await r.runtime.yield();equal(events,terminalEvents,'Close suppresses late completed-work observation');
+        return true;
+      }finally{observed.close();}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
+/** Native browser message tasks must settle even when zero-delay timer callbacks are withheld. */
+test("real Chromium: host task continuation survives withheld timers and closes native ports", { timeout: 90000 }, async () => {
+  const browser=await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(`(async()=>{
+      const NativeChannel=window.MessageChannel;let timerCalls=0,closed=0,settled=false;
+      const owner={setTimeout(){timerCalls++;},MessageChannel:class {
+        constructor(){const channel=new NativeChannel();
+          for(const port of [channel.port1,channel.port2]){const close=port.close.bind(port);port.close=()=>{closed++;close();};}
+          return channel;
+        }
+      }};
+      const pending=sourceModules.yieldToHostTask(owner).then(()=>{settled=true;});
+      await Promise.resolve();if(settled)throw new Error('Continuation did not release an event task');
+      await pending;if(timerCalls!==0||closed!==2)throw new Error('Native ports/timers were not preserved');
+      const cache=new sourceModules.KplexIndexedDbCache('native-task-cancel'),r=cache.sources;
+      try {
+        const body=sourceModules.parseBodyMetadata('Field:: [[Target]]');
+        const input={sourceId:'Owner',physical:{identity:'owner',path:'Owner.md',mtime:1,size:20},
+          observation:{epoch:'task-test',revision:0,environment:await r.observationDigest('host')},expected:{kind:'missing'},
+          families:{values:async emit=>{for(const fact of sourceModules.sourceValueSteps({...body,frontmatter:{},aliases:[],tags:[]}))if(!await emit(fact))return false;return true;},
+            'body-urls':async()=>true,metadata:async()=>true,resolution:async()=>true}};
+        if((await r.replace(input)).outcome!=='activated')throw new Error('Cancellation source did not activate');
+        let cancellationCloses=0;
+        const cancellingOwner={setTimeout(){throw new Error('Cancellation used a timer');},MessageChannel:class {
+          constructor(){const channel=new NativeChannel(),post=channel.port2.postMessage.bind(channel.port2);
+            for(const port of [channel.port1,channel.port2]){const close=port.close.bind(port);port.close=()=>{cancellationCloses++;close();};}
+            channel.port2.postMessage=value=>{post(value);cache.close();};return channel;
+          }
+        }};
+        r.runtime.yield=()=>sourceModules.yieldToHostTask(cancellingOwner);
+        if(await r.readBody('Owner',()=>true)!==null)throw new Error('Queued task bypassed closed source lifetime');
+        if(cancellationCloses!==2)throw new Error('Cancelled native task retained ports');
+      }finally{cache.close();}
+      return true;
+    })()`),true);
+  }finally{await browser.cleanup();}
 });

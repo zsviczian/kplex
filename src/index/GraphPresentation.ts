@@ -3,7 +3,10 @@
  * selected MetadataCache fields and mtime-valid parsed-body records are read. Preparation is
  * private, batched and cancellable; optional background checkpoints run before cache batches; the repository publishes all facets and policy without awaits.
  * Missing inputs remain explicitly pending and never cause Markdown acquisition or graph work.
+ * Facet batches release CPU slices through host event tasks while keeping captured metadata,
+ * settings and cancellation fences independent of dispatch.
  */
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import type { App, TFile } from "obsidian";
 import type { KplexSettings } from "../settings";
 import type { GraphPage } from "../types";
@@ -137,7 +140,7 @@ export async function prepareGraphPresentation(
     batch = [];
     onProgress?.();
     if (Date.now() - started >= 8) {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
       started = Date.now();
     }
     return isCurrent();

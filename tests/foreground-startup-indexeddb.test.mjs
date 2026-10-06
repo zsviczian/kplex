@@ -100,6 +100,84 @@ for (const mutation of [false, true]) {
   });
 }
 
+/** Unrelated known observations preserve complete warm counts without granting evidence authority. */
+test("warm numeric gates survive unrelated metadata revisions while affected targets retire", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(initialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,{f,settings}=await startupSeed('foreground-unrelated-counts');let index,releaseEvidence,releaseSources,releaseDemand;
+      try{
+        let sourceRevision=0,entered;const reached=new Promise(resolve=>entered=resolve);
+        const sourceGate=new Promise(resolve=>releaseSources=resolve),evidenceGate=new Promise(resolve=>releaseEvidence=resolve);
+        index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>sourceRevision},f.app);index.scheduleOrphanCleanup=()=>{};
+        const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);
+        index.sourceAcquisition.reconcile=async(...args)=>{await sourceGate;return reconcile(...args)};
+        const evidence=index.indexedDb.iterateSnapshotEvidence.bind(index.indexedDb);
+        index.indexedDb.iterateSnapshotEvidence=async(...args)=>{entered();await evidenceGate;return evidence(...args)};
+        const restore=index.restorePersistedSnapshot(['A.md']);await deadline(reached,'warm numeric graph');
+        const original=index.get('A.md'),expected=index.gateStats(original);
+        equal(expected.bottom.visibleCount,1,'Warm graph includes body-only child outside host preview');
+        f.metadata.get('C.md').frontmatter.Type='Changed type';sourceRevision++;
+        f.app.metadataCache.trigger('changed',f.files.get('C.md'));
+        index.refreshVisibleHostMetadataPreviews('C.md',0);
+        releaseDemand=index.acquireSemanticDemand('A.md');await deadline(index.publishHostMetadataPreview('A.md'),'unaffected navigation');
+        ok(index.get('A.md')===original,'Unrelated known event preserves richer complete incidence');
+        equal(index.gateStats(index.get('A.md')),expected,'All four warm gates retain their numeric proof');
+        equal(index.hostPreviewScopes.has('A.md'),false,'Partial host preview cannot shadow unaffected warm counts');
+        equal(index.isSemanticWriteReady('A.md','B.md'),false,'Counts do not certify provenance or editing');
+        f.metadata.get('C.md').frontmatter.Parent='[[A]]';f.app.metadataCache.resolvedLinks['C.md']={'A.md':1};sourceRevision++;
+        f.app.metadataCache.trigger('changed',f.files.get('C.md'));
+        ok(index.refreshVisibleHostMetadataPreviews('C.md',1),'New incoming target selects affected visible center');
+        await deadline(index.publishHostMetadataPreview('A.md'),'affected-target replacement');
+        ok(index.hostPreviewScopes.has('A.md'),'Affected target cannot reuse its old warm count proof');
+        ok(index.getNeighborhood('A.md').children.some(item=>item.page.path==='C.md'),'New host relationship is visible before source inventory');
+        equal(index.gateStats(index.get('A.md')).bottom.complete,false,'Unproved body-inclusive total stays partial');
+        equal(f.reads.length,0,'No foreground body reads');equal(f.parses.length,0,'No foreground parsing');
+        releaseEvidence();await deadline(restore,'fenced warm completion');return true;
+      }finally{releaseDemand?.();index?.destroy();releaseEvidence?.();releaseSources?.();f.close()}
+    })()`),true);
+  }finally{await browser.cleanup()}
+});
+
+/** Unbounded host/source changes cannot renew an unrelated cached count certificate. */
+for (const mode of ["unknown-revision", "physical-edit", "same-mtime-size-edit", "oversized-metadata", "alias-resolution", "date-property"]) {
+  test(`warm count retention rejects ${mode}`, async () => {
+    const browser = await chromiumHarness(bundle);
+    try {
+      assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+      assert.equal(await browser.evaluate(initialize), true);
+      assert.equal(await browser.evaluate(`(async()=>{
+        const mode=${JSON.stringify(mode)},M=sourceModules,{f,settings}=await startupSeed('foreground-count-fence-'+mode);
+        let index,releaseEvidence,releaseSources;
+        try{
+          let sourceRevision=0,entered;const reached=new Promise(resolve=>entered=resolve);
+          const sourceGate=new Promise(resolve=>releaseSources=resolve),evidenceGate=new Promise(resolve=>releaseEvidence=resolve);
+          index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>sourceRevision},f.app);index.scheduleOrphanCleanup=()=>{};
+          const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);
+          index.sourceAcquisition.reconcile=async(...args)=>{await sourceGate;return reconcile(...args)};
+          const evidence=index.indexedDb.iterateSnapshotEvidence.bind(index.indexedDb);
+          index.indexedDb.iterateSnapshotEvidence=async(...args)=>{entered();await evidenceGate;return evidence(...args)};
+          const restore=index.restorePersistedSnapshot(['A.md']);await deadline(reached,'warm fenced counts');
+          if(mode==='unknown-revision')sourceRevision=2;
+          if(mode==='physical-edit')f.files.get('C.md').stat.mtime++;
+          if(mode==='same-mtime-size-edit')f.files.get('C.md').stat.size++;
+          if(mode==='oversized-metadata')f.metadata.get('C.md').frontmatter.Large='x'.repeat(20000);
+          if(mode==='alias-resolution')f.metadata.get('C.md').frontmatter.aliases=['New alias'];
+          if(mode==='date-property'){f.metadata.get('C.md').frontmatter.Date='2026-01-01';f.app.metadataTypeManager={getAssignedWidget:name=>name==='Date'?'date':'text'}};
+          index.refreshVisibleHostMetadataPreviews('C.md',0);
+          await deadline(index.publishHostMetadataPreview('A.md'),'safe unrelated fallback');
+          ok(index.hostPreviewScopes.has('A.md'),'Unknown impact cannot preserve old warm incidence');
+          equal(index.gateStats(index.get('A.md')).bottom.complete,false,'No invented numeric certainty');
+          equal(index.isSemanticWriteReady('A.md','B.md'),false,'No stronger editing authority');
+          releaseEvidence();await deadline(restore,'fenced completion');return true;
+        }finally{index?.destroy();releaseEvidence?.();releaseSources?.();f.close()}
+      })()`),true);
+    }finally{await browser.cleanup()}
+  });
+}
+
 /** A selected host observation expires snapshot presentation even when managed writes retain the main dirty revision. */
 test("warm visible metadata refresh replaces cached incidence without a main source revision change", async () => {
   const browser = await chromiumHarness(bundle);

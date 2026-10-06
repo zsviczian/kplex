@@ -1,4 +1,4 @@
-/** Host preview contracts exercise the actual bundled collectors/compiler with host-owned metadata doubles. */
+/** Host preview contracts exercise bundled canonical collectors/compiler with native membership and metadata doubles. */
 import assert from "node:assert/strict";
 import { buildSync } from "esbuild";
 import { createRequire } from "node:module";
@@ -12,7 +12,7 @@ process.once("exit", () => rmSync(directory, { recursive: true, force: true }));
 const obsidianDirectory = join(directory, "node_modules", "obsidian");
 mkdirSync(obsidianDirectory, { recursive: true });
 writeFileSync(join(obsidianDirectory, "index.js"), `
-class TFolder { constructor(path) { this.path = path; this.name = path.split('/').pop() || ''; this.children = []; } }
+class TFolder { constructor(path, parent = null) { this.path = path; this.name = path.split('/').pop() || ''; this.children = []; this.parent = parent; parent?.children.push(this); } }
 class TFile { constructor(path, parent) { this.path = path; this.name = path.split('/').pop(); this.extension = this.name.split('.').pop(); this.basename = this.name.slice(0, -(this.extension.length + 1)); this.parent = parent; this.stat = { mtime: 1, ctime: 1, size: 1 }; parent.children.push(this); } }
 function getAllTags(cache) { return [...(cache.tags ?? []).map(t => t.tag), ...(cache.frontmatter?.tags ?? [])]; }
 module.exports = { TFile, TFolder, getAllTags, Platform: { isMobile: false, isIosApp: false }, normalizePath: value => value };
@@ -32,7 +32,7 @@ const settings = { hierarchy: { hidden: ["Hidden"], parents: ["Parent"], childre
 
 /** Create a host whose body/durable APIs fail if the preview accidentally acquires them. */
 function fixture(options = {}) {
-  const folder = new TFolder("Notes");
+  const root = new TFolder("/"), folder = new TFolder("Notes", root);
   const names = ["Center", "Parent", "Child", "Left", "Right", "Previous", "Next", "Hidden", "Ordinary", "Backlink"];
   const files = new Map(names.map(name => { const file = new TFile(`Notes/${name}.md`, folder); return [file.path, file]; }));
   const cache = new Map([...files.keys()].map(path => [path, { frontmatter: {}, tags: [] }]));
@@ -40,11 +40,227 @@ function fixture(options = {}) {
   const resolvedLinks = { [centerPath]: Object.fromEntries(names.slice(1, -1).map(name => [`Notes/${name}.md`, 1])), "Notes/Backlink.md": { [centerPath]: 1 } };
   cache.get(centerPath).frontmatter = Object.fromEntries(["Parent", "Child", "Left", "Right", "Previous", "Next", "Hidden"].map(name => [name, `[[${name}]]`]));
   cache.get(centerPath).tags = [{ tag: "#project/nested" }];
-  const app = { vault: { getFileByPath: path => files.get(path) ?? null, read: () => { throw new Error("body reads forbidden"); }, cachedRead: () => { throw new Error("body reads forbidden"); } }, metadataCache: { resolvedLinks, unresolvedLinks: {}, getFileCache: file => cache.get(file.path) ?? null, getFirstLinkpathDest: path => files.get(path) ?? files.get(`Notes/${path}.md`) ?? null } };
+  const app = { vault: { getRoot: () => root, getFolderByPath: path => path === folder.path ? folder : path === root.path ? root : null,
+    getFileByPath: path => files.get(path) ?? null, read: () => { throw new Error("body reads forbidden"); }, cachedRead: () => { throw new Error("body reads forbidden"); } }, metadataCache: { resolvedLinks, unresolvedLinks: {}, getFileCache: file => cache.get(file.path) ?? null, getFirstLinkpathDest: path => files.get(path) ?? files.get(`Notes/${path}`) ?? files.get(`Notes/${path}.md`) ?? null } };
   let yields = 0;
   const preview = new HostMetadataPreview(app, () => options.settings ?? settings, { now: () => 0, yield: async () => { yields++; await options.onYield?.(); }, isCurrent: () => options.isCurrent?.() ?? true, sliceBudgetMs: 7, resolverBatchSize: 96 });
   return { preview, app, files, cache, centerPath, yields: () => yields };
 }
+
+/** Native direct membership is available even when all metadata/backlink/body catalogs are blocked. */
+function folderFixture(options = {}) {
+  const root = new TFolder("/"), folder = new TFolder("Notes", root);
+  const files = new Map(), folders = new Map([["/", root], ["Notes", folder]]);
+  let liveSettings = { ...settings, excludeFilepaths: [], showVirtualNodes: true, showAttachments: true,
+    showFolderNodes: true, showTagNodes: true, showPageNodes: true, showURLNodes: true,
+    showInferredNodes: true, maxItemCount: 10, ...options.settings };
+  const app = { vault: { getRoot: () => root, getFolderByPath: path => folders.get(path) ?? null,
+    getFileByPath: path => files.get(path) ?? null, getFiles() { throw new Error("global inventory forbidden"); },
+    getMarkdownFiles() { throw new Error("global inventory forbidden"); },
+    read() { throw new Error("body reads forbidden"); }, cachedRead() { throw new Error("body reads forbidden"); } },
+    get metadataCache() { if (options.hostMetadata) return options.hostMetadata;
+      throw new Error("folder membership does not need metadata or backlink catalogs"); } };
+  let yields = 0, workClock = 0;
+  const preview = new HostMetadataPreview(app, () => liveSettings, { now: () => options.now?.() ?? ++workClock,
+    yield: async () => { yields++; await options.onYield?.(); }, isCurrent: () => options.isCurrent?.() ?? true,
+    sliceBudgetMs: 7, resolverBatchSize: 96 });
+  /** Add one exact native local child; the collector must never descend through child children. */
+  const addFolder = (path, parent = folder) => { const child = new TFolder(path, parent); folders.set(path, child); return child; };
+  /** Add an ordinary note or attachment without making its body or metadata available. */
+  const addFile = (path, parent = folder) => { const child = new TFile(path, parent); files.set(path, child); return child; };
+  return { root, folder, files, folders, app, preview, addFolder, addFile, yields: () => yields,
+    settings: () => liveSettings, setSettings: value => { liveSettings = value; } };
+}
+
+test("root and nested native folder previews expose direct canonical membership without metadata or recursive traversal", async () => {
+  for (const policy of [{}, { inverseInfer: true }, { inferAllLinksAsFriends: true }]) {
+    const f = folderFixture({ settings: policy });
+    const child = f.addFolder("Notes/Nested");
+    f.addFile("Notes/Note.md"); f.addFile("Notes/Image.png");
+    Object.defineProperty(child, "children", { get() { throw new Error("recursive folder traversal forbidden"); } });
+    try {
+      const result = await f.preview.build("folder:Notes");
+      assert(result); assert.equal(result.incomplete, true);
+      const center = result.state.pages.get("folder:Notes");
+      assert.equal(center.neighbours.get("folder:/").isParent, true);
+      for (const path of ["folder:Notes/Nested", "Notes/Note.md", "Notes/Image.png"]) {
+        assert.equal(classifyRelation(center.neighbours.get(path), "child", !!policy.inferAllLinksAsFriends), 1);
+      }
+      assert.deepEqual(result.structuralGates.get("folder:Notes"), {
+        top: { hasAny: true, visibleCount: 1 }, bottom: { hasAny: true, visibleCount: 3 } });
+      assert.equal(result.structuralGates.get("folder:Notes").left, undefined, "direct membership does not certify unrelated incidence");
+      const root = await f.preview.build("folder:/");
+      assert(root); assert.deepEqual([...root.visiblePaths], ["folder:/", "folder:Notes"]);
+      assert.deepEqual(root.structuralGates.get("folder:/"), {
+        top: { hasAny: false, visibleCount: 0 }, bottom: { hasAny: true, visibleCount: 1 } });
+      assert.equal(f.preview.initialized, false, "folder navigation must not initialize the global backlink map");
+    } finally { f.preview.dispose(); }
+  }
+});
+
+test("empty folder membership proves zeros without claiming complete semantic incidence", async () => {
+  const f = folderFixture();
+  try {
+    const result = await f.preview.build("folder:Notes");
+    assert(result); assert.equal(result.incomplete, true);
+    assert.deepEqual(result.structuralGates.get("folder:Notes"), {
+      top: { hasAny: true, visibleCount: 1 }, bottom: { hasAny: false, visibleCount: 0 } });
+    assert.equal(result.state.pages.size, 2);
+    assert.equal(await f.preview.build("folder:Missing"), null);
+    assert.equal(await f.preview.folderGates("Notes/NotAFolder.md"), null);
+  } finally { f.preview.dispose(); }
+});
+
+test("unrelated host metadata during folder chunks cannot cancel native membership counts", async () => {
+  let f, observations = 0;
+  f = folderFixture({ hostMetadata: { resolvedLinks: {} }, onYield: () => {
+    observations++; f.preview.refreshSource("Unrelated.md");
+  } });
+  for (let index = 0; index < 130; index++) f.addFile(`Notes/Note-${index}.md`);
+  try {
+    const result = await f.preview.build("folder:Notes");
+    assert(result); assert(observations > 0, "actual host observations overlap cooperative counting");
+    assert.equal(result.structuralGates.get("folder:Notes").bottom.visibleCount, 130);
+  } finally { f.preview.dispose(); }
+});
+
+test("dense local folder counts are exact before top-N while only finite visible endpoints survive", async () => {
+  const f = folderFixture({ settings: { maxItemCount: 3, showAttachments: false,
+    excludeFilepaths: ["Notes/Excluded", "folder:Notes/Hidden"] } });
+  for (let index = 0; index < 513; index++) f.addFile(`Notes/Note-${index}.md`);
+  f.addFile("Notes/Image.png"); f.addFile("Notes/Excluded.md");
+  const hidden = f.addFolder("Notes/Hidden"), nested = f.addFolder("Notes/Visible");
+  Object.defineProperty(hidden, "children", { get() { throw new Error("hidden descendants forbidden"); } });
+  Object.defineProperty(nested, "children", { get() { throw new Error("visible descendants forbidden"); } });
+  try {
+    const result = await f.preview.build("folder:Notes");
+    assert(result); assert.equal(result.state.pages.size, 5, "three visible children plus center and parent");
+    assert.equal(result.structuralGates.get("folder:Notes").bottom.visibleCount, 514);
+    assert.equal(result.structuralGates.get("folder:Notes").bottom.hasAny, true);
+    assert(f.yields() > 0, "dense canonical counting cooperates with the injected work-time budget");
+    const originalBind = f.preview.bind.bind(f.preview);
+    f.preview.bind = compiled => {
+      assert.equal(compiled.nodes.size, 2, "count-only endpoint reads retain center/parent, never their child graph");
+      return originalBind(compiled);
+    };
+    const gates = await f.preview.folderGates("folder:Notes");
+    assert.deepEqual(gates, result.structuralGates.get("folder:Notes"), "count-only endpoint reads use the same canonical visibility policy");
+  } finally { f.preview.dispose(); }
+});
+
+test("physical root spelling and the configured maximum cover retain canonical folder identity", async () => {
+  const f = folderFixture({ settings: { maxItemCount: 10_000 } });
+  f.root.path = "";
+  for (let index = 0; index < 350; index++) f.addFile(`Notes/Note-${index}.md`);
+  try {
+    const root = await f.preview.build("folder:/");
+    assert(root); assert.equal(root.state.pages.get("folder:/").name, "/");
+    const nested = await f.preview.build("folder:Notes");
+    assert(nested); assert.equal(nested.state.pages.size, 302, "only the supported 300-child maximum cover survives");
+    assert.equal(nested.structuralGates.get("folder:Notes").bottom.visibleCount, 350, "count proof is independent of graph cover cap");
+  } finally { f.preview.dispose(); }
+});
+
+test("folder counts use canonical visibility while structural fill survives hidden types", async () => {
+  const f = folderFixture({ settings: { showFolderNodes: false, showPageNodes: false, showAttachments: false } });
+  f.addFolder("Notes/Nested"); f.addFile("Notes/Note.md"); f.addFile("Notes/Image.png");
+  try {
+    const result = await f.preview.build("folder:Notes");
+    assert(result); assert.equal(result.state.pages.size, 2);
+    assert.deepEqual(result.structuralGates.get("folder:Notes"), {
+      top: { hasAny: true, visibleCount: 0 }, bottom: { hasAny: true, visibleCount: 0 } });
+  } finally { f.preview.dispose(); }
+});
+
+test("membership, exact native identity, policy and lifecycle changes reject private folder results across yields", async () => {
+  const mutations = {
+    insertion: f => f.addFile("Notes/Late.md"),
+    deletion: f => { f.files.delete("Notes/Note-0.md"); f.folder.children.shift(); },
+    replacement: f => {
+      const old = f.folder.children[0], fresh = new TFile(old.path, f.folder);
+      f.folder.children.pop(); f.folder.children[0] = fresh; f.files.set(old.path, fresh);
+    },
+    reorder: f => { [f.folder.children[0], f.folder.children[1]] = [f.folder.children[1], f.folder.children[0]]; },
+    rename: f => { const child = f.folder.children[0]; f.files.delete(child.path); child.path = "Notes/Renamed.md"; f.files.set(child.path, child); },
+    dirtyFile: f => { f.folder.children[0].stat.mtime++; },
+    folderRename: f => { f.folder.path = "Moved"; },
+    folderReplacement: f => { f.folders.set("Notes", new TFolder("Notes", f.root)); },
+    folderDeletion: f => { f.folders.delete("Notes"); },
+    parentReplacement: f => { f.app.vault.getRoot = () => new TFolder("/"); },
+    visibility: f => f.setSettings({ ...f.settings(), showAttachments: false }),
+    prefixMutation: f => { f.settings().excludeFilepaths.push("Notes/"); },
+    semantic: f => f.setSettings({ ...f.settings(), inverseInfer: true }),
+    cover: f => f.setSettings({ ...f.settings(), maxItemCount: 20 }),
+    unload: f => f.preview.dispose(),
+  };
+  for (const [name, mutation] of Object.entries(mutations)) {
+    let mutated = false, f;
+    f = folderFixture({ onYield: () => { if (!mutated) { mutated = true; mutation(f); } } });
+    for (let index = 0; index < 130; index++) f.addFile(`Notes/Note-${index}.md`);
+    try {
+      assert.equal(await f.preview.build("folder:Notes"), null, `${name} cannot publish mixed native membership`);
+      assert(mutated, `${name} exercises an awaited boundary`);
+    } finally { f.preview.dispose(); }
+  }
+  let current = true;
+  const f = folderFixture({ isCurrent: () => current, onYield: () => { current = false; } });
+  f.addFile("Notes/Note.md");
+  try { assert.equal(await f.preview.build("folder:Notes"), null, "request cancellation retires pending folder compilation"); }
+  finally { f.preview.dispose(); }
+});
+
+test("folder counts never certify duplicate or stale native membership identities", async () => {
+  for (const corrupt of [
+    f => f.folder.children.push(f.folder.children[0]),
+    f => { f.addFile("Notes/Note.md"); },
+    f => { f.files.delete("Notes/Note.md"); },
+    f => { f.folder.children[0].parent = f.root; },
+  ]) {
+    const f = folderFixture(); f.addFile("Notes/Note.md"); corrupt(f);
+    try { assert.equal(await f.preview.build("folder:Notes"), null); }
+    finally { f.preview.dispose(); }
+  }
+});
+
+test("bounded metadata impacts include fresh ontology, cache links, unresolved destinations and tag ancestors", () => {
+  const f = fixture({ settings: { ...settings, hierarchy: { ...settings.hierarchy, leftFriends: ["Left Friend"] } } });
+  const parent = f.files.get(f.centerPath).parent;
+  for (const path of ["Notes/Fresh.md", "Notes/FromCache.md", "Notes/Image.png"]) f.files.set(path, new TFile(path, parent));
+  const cache = f.cache.get(f.centerPath);
+  cache.frontmatter = { PARENT: "[[Fresh]]", "Left Friend": ["[[Missing#Heading|Alias]]", "https://example.com/new"],
+    ignored: "[[NotOntology]]" };
+  cache.tags = [{ tag: "#project/new/child" }];
+  cache.links = [{ link: "FromCache#Heading" }];
+  cache.embeds = [{ link: "Image.png" }];
+  cache.frontmatterLinks = [{ link: "PropertyTarget#Heading" }];
+  try {
+    const targets = f.preview.metadataImpactTargets(f.centerPath);
+    assert(targets);
+    for (const path of ["Notes/Fresh.md", "Notes/FromCache.md", "Notes/Image.png", "Missing", "PropertyTarget",
+      "https://example.com/new", "tag:project", "tag:project/new", "tag:project/new/child", "Notes/Ordinary.md"]) {
+      assert(targets.has(path), `new impact includes ${path}`);
+    }
+    assert.equal(targets.has("NotOntology"), false, "unconfigured frontmatter does not become ontology");
+    assert.equal(f.preview.initialized, false, "impact lookup does not scan or mutate reverse links");
+    assert.equal(f.preview.outgoing.size, 0);
+  } finally { f.preview.dispose(); }
+});
+
+test("absent, cyclic, dense or oversized metadata impacts conservatively reject the whole observation", () => {
+  const corruptions = [
+    f => f.cache.delete(f.centerPath),
+    f => { f.cache.get(f.centerPath).frontmatter.Parent = "x".repeat(100_000); },
+    f => { const array = []; array.push(array); f.cache.get(f.centerPath).frontmatter.Parent = array; },
+    f => { f.cache.get(f.centerPath).links = Array.from({ length: 257 }, (_, index) => ({ link: `Link${index}` })); },
+    f => { f.cache.get(f.centerPath).tags = [{ tag: "#" + Array.from({ length: 300 }, () => "x").join("/") }]; },
+    f => { f.app.metadataCache.resolvedLinks[f.centerPath] = Object.fromEntries(Array.from({ length: 257 }, (_, index) => [`Dense${index}`, 1])); },
+  ];
+  for (const corrupt of corruptions) {
+    const f = fixture(); corrupt(f);
+    try { assert.equal(f.preview.metadataImpactTargets(f.centerPath), null); }
+    finally { f.preview.dispose(); }
+  }
+});
 
 test("host first-order preview preserves canonical ontology roles, hidden, backlinks, folder and nested tags", async () => {
   const f = fixture();
@@ -188,6 +404,52 @@ test("ordinary link directions obey canonical inverse and friend inference polic
 });
 
 
+/** The production folder route bypasses the backlink lane and publishes only structural numbers. */
+test("GraphIndex folder navigation and neighboring folder gates remain numeric with durable work blocked", async () => {
+  const f = fixture(), previousWindow = globalThis.window;
+  const attachment = new TFile("Notes/Image.png", f.app.vault.getFolderByPath("Notes"));
+  f.files.set(attachment.path, attachment);
+  globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
+  Object.assign(f.app.vault, { getName: () => "folder-preview-index", getFiles() { throw Error("inventory forbidden"); } });
+  f.app.saveLocalStorage = () => {};
+  const indexSettings = { ...settings, pinnedNodes: [], lastActivePath: "folder:Notes", excludeFilepaths: [],
+    nameFields: "aliases", renderAlias: true, nodeTitleScript: "", nodeSortOrder: "name", showInferredNodes: true,
+    showVirtualNodes: true, showAttachments: true, showFolderNodes: true, showTagNodes: true, showPageNodes: true,
+    showURLNodes: true, maxItemCount: 3, renderSiblings: false, thumbnailProperty: "thumbnail", nodeImageProperty: "node-image" };
+  const index = new GraphIndex({ app: f.app, settings: indexSettings, getIndexSourceRevision: () => 0 }, f.app);
+  index.indexedDb.open = () => { throw Error("DB forbidden"); };
+  index.sourceAcquisition.flush = () => { throw Error("broad source flush forbidden"); };
+  index.hostPreview.initializeBacklinks = () => { throw Error("global backlink lane forbidden for folder"); };
+  try {
+    const build = index.hostPreview.build.bind(index.hostPreview);
+    for (const [field, value] of [["showPageNodes", false], ["inverseInfer", true]]) {
+      const original = indexSettings[field];
+      index.hostPreview.build = async path => { const result = await build(path); indexSettings[field] = value; return result; };
+      await index.publishHostMetadataPreview("folder:Notes");
+      assert.equal(index.hostPreviewScopes.has("folder:Notes"), false, "a policy edit after adapter return cannot stamp old counts with new policy");
+      indexSettings[field] = original;
+    }
+    index.hostPreview.build = build;
+    await index.publishHostMetadataPreview("folder:Notes");
+    const page = index.get("folder:Notes"), scope = index.hostPreviewScopes.get(page.path);
+    assert(page?.isFolder); assert.equal(index.getNeighborhood(page.path).children.length, 3, "finite cover respects top-N");
+    assert.deepEqual(index.gateStats(page).bottom, { visibleCount: f.files.size, hasAny: true, complete: true });
+    assert.equal(index.gateStats(page).top.visibleCount, 1);
+    assert.equal(index.gateStats(page).left.complete, false, "structural proof grants no unrelated gate authority");
+    await index.prepareVisibleFolderGates(scope.pages.values(), () => index.hostPreviewScopes.get(page.path) === scope);
+    const parent = index.get("folder:/");
+    assert.equal(index.gateStats(parent).bottom.complete, true);
+    assert.equal(index.gateStats(parent).bottom.visibleCount, 1, "parent total comes from its own direct membership");
+    assert.equal(index.isSemanticWriteReady(page.path, "Notes/Center.md"), false);
+    indexSettings.showPageNodes = false;
+    assert.equal(index.gateStats(page).bottom.complete, false, "visibility change retires count proof");
+    await index.publishHostMetadataPreview(page.path);
+    assert.equal(index.gateStats(index.get(page.path)).bottom.visibleCount, 1, "only attachment survives canonical visibility");
+    index.invalidateHostStructure();
+    assert.equal(index.gateStats(index.get(page.path)).bottom.complete, false, "tree event retires old proof immediately");
+  } finally { index.destroy(); f.preview.dispose(); globalThis.window = previousWindow; }
+});
+
 /** Exercise production search/read/publication while every durable-startup authority remains unavailable. */
 test("GraphIndex host availability renders direct relations over a physical baseline with DB and sources blocked", async () => {
   const f = fixture();
@@ -223,6 +485,18 @@ test("GraphIndex host availability renders direct relations over a physical base
     assert.equal(index.gateStats(index.get(f.centerPath)).top.complete, false, "host preview counts are explicitly partial");
     assert.equal(index.getSemanticRevision(), semanticRevision, "temporary host availability cannot claim evidence authority");
     assert(presentations >= 2, "host Find and host graph publish render notifications");
+    const hostScope = index.hostPreviewScopes.get(f.centerPath);
+    await index.prepareVisibleFolderGates(hostScope.pages.values(), () => index.hostPreviewScopes.get(f.centerPath) === hostScope);
+    assert.equal(index.gateStats(index.get("folder:Notes")).bottom.visibleCount, f.files.size);
+    const createdMember = new TFile("Notes/Created-member.md", f.app.vault.getFolderByPath("Notes"));
+    f.files.set(createdMember.path, createdMember);
+    index.invalidateHostStructure();
+    const end = Date.now() + 1000;
+    while (index.gateStats(index.get("folder:Notes")).bottom.complete !== true && Date.now() < end) {
+      await new Promise(resolve => setTimeout(resolve, 1));
+    }
+    assert.equal(index.gateStats(index.get("folder:Notes")).bottom.complete, true, "topology recounts folder neighbors of a Markdown center");
+    assert.equal(index.gateStats(index.get("folder:Notes")).bottom.visibleCount, f.files.size, "new native child appears in the parent's complete total");
     // Canonical publication must retire the temporary owner and prevent later ordinary navigation
     // from replacing richer body/URL semantics with the incomplete MetadataCache approximation.
     const scope = index.hostPreviewScopes.get(f.centerPath);

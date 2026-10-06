@@ -355,6 +355,7 @@ for (const file of [
   "src/core/plex/predicateParser.ts",
   "src/core/plex/lens.ts",
   "src/adapters/obsidian/startupDiagnostics.ts",
+  "src/adapters/obsidian/yieldToHostTask.ts",
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/adjacentFileLeaf.ts",
   "src/adapters/obsidian/excalidrawIntegrationVersion.ts",
@@ -786,6 +787,7 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   const statusMembershipCoordinator = new KplexPlugin();
   const handlers = new Map();
   let markdownEnumerations = 0;
+  let structuralInvalidations = 0;
   statusMembershipCoordinator.app = {
     vault: {
       on: (name, callback) => { handlers.set(`vault:${name}`, callback); return {}; },
@@ -795,6 +797,7 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
     metadataCache: { on: (name, callback) => { handlers.set(`metadata:${name}`, callback); return {}; } },
   };
   statusMembershipCoordinator.index = {
+    invalidateHostStructure: () => { structuralInvalidations += 1; },
     size: 10,
     hasPendingSnapshotHydration: () => false,
     hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
@@ -843,6 +846,7 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   renameHandler(renamedFromMarkdown, "Counted-Renamed.md");
   assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 10, "Markdown to non-Markdown rename decrements the known denominator");
   assert.equal(markdownEnumerations, 0, "Rename-from-Markdown status publication must not enumerate Markdown");
+  assert.equal(structuralInvalidations, 5, "Every native membership notification retires folder count proof, including repeated delete notifications");
 }
 assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
@@ -1225,10 +1229,16 @@ const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnosti
 {
   const searchIndex = new GraphIndex(plugin, app);
   const performanceDescriptor = Object.getOwnPropertyDescriptor(globalThis, "performance");
-  const originalTimeout = window.setTimeout;
+  const OriginalChannel = window.MessageChannel;
   let ticks = 0, yields = 0, current = true;
   Object.defineProperty(globalThis, "performance", { configurable: true, value: { now: () => ticks += 20 } });
-  window.setTimeout = (callback) => { yields++; current = false; callback(); return 0; };
+  // Cancel on the actual host event task, before its continuation resumes preparation.
+  window.MessageChannel = class extends OriginalChannel {
+    constructor() {
+      super();
+      this.port1.addEventListener("message", () => { yields++; current = false; }, { once: true });
+    }
+  };
   try {
     const pages = new Map(Array.from({ length: 1024 }, (_, i) => [String(i), { path: String(i) }]));
     searchIndex.makeSearchEntry = page => ({ page, name: page.path, aliases: [], path: page.path });
@@ -1237,7 +1247,7 @@ const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnosti
     assert.equal(searchIndex.searchEntries.length, 0, "Cancelled search publishes no prefix");
   } finally {
     Object.defineProperty(globalThis, "performance", performanceDescriptor);
-    window.setTimeout = originalTimeout;
+    window.MessageChannel = OriginalChannel;
     searchIndex.destroy();
   }
 }
@@ -2701,6 +2711,9 @@ try {
         await advanceWatchdog(60000);
         stalled.sourceAcquisition.inventoryProgress();
         assert.equal(stalled.getSnapshotHydrationDiagnostics().lastProgressAt, Date.now(), "Completed source work advances the watchdog");
+        await advanceWatchdog(60000);
+        stalled.indexedDb.sources.completedWork();
+        assert.equal(stalled.getSnapshotHydrationDiagnostics().lastProgressAt, Date.now(), "Completed dense-source chunks advance the watchdog before the file finishes");
       }
       await advanceWatchdog(89999);
       assert.equal(stalled.hasPendingSnapshotHydration(), true, "Watchdog must honor the inactivity window");
@@ -2737,6 +2750,7 @@ try {
       const rebuiltState = stalled.state;
       const terminal = stalled.getSnapshotHydrationDiagnostics();
       release(); await settle();
+      stalled.indexedDb.sources.completedWork();
       assert.equal(stalled.state, rebuiltState, "Released old work must not publish over the rebuilt graph");
       assert.deepEqual(stalled.getSnapshotHydrationDiagnostics(), terminal, "Late work must not rewrite terminal diagnostics");
     }
@@ -3544,6 +3558,7 @@ try {
     },
   };
   nativeCreationCoordinator.index = {
+    invalidateHostStructure: () => {},
     refreshVisibleHostMetadataPreviews: () => false,
     acknowledgeHostPresentation: () => {},
     hasPendingStructuralMaintenance: () => false,
@@ -3843,7 +3858,7 @@ try {
       on: (name, callback) => { renameHandlers.set(`metadata:${name}`, callback); return {}; },
     },
   };
-  renameCoordinator.index = { refreshVisibleHostMetadataPreviews: () => false, renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
+  renameCoordinator.index = { invalidateHostStructure: () => {}, refreshVisibleHostMetadataPreviews: () => false, renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
   renameCoordinator.settings = {
     ...settings,
     primaryTagField: "Note type",

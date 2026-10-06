@@ -599,17 +599,20 @@ export default class KplexPlugin extends Plugin {
       if (file?.extension === "md") this.preRestoreMarkdownPaths.set(file.path, this.indexDirtyRevision);
     };
     const created = this.app.vault.on("create", (item) => {
+      this.index.invalidateHostStructure();
       mark(item instanceof TFile && item.extension === "md" ? "vault:create-markdown" : "vault:create",
         item instanceof TFile ? item : undefined);
       if (item instanceof TFile) this.index.updateHostFileAvailability(item.path, item);
       else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(item.path, item);
     });
     const deleted = this.app.vault.on("delete", (item) => {
+      this.index.invalidateHostStructure();
       mark("vault:delete", item instanceof TFile ? item : undefined);
       if (item instanceof TFile) this.index.updateHostFileAvailability(item.path);
       else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(item.path);
     });
     const renamed = this.app.vault.on("rename", (item, oldPath) => {
+      this.index.invalidateHostStructure();
       mark("vault:rename", item instanceof TFile ? item : undefined);
       if (item instanceof TFile) this.index.updateHostFileAvailability(oldPath, item);
       else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(oldPath, item);
@@ -619,8 +622,9 @@ export default class KplexPlugin extends Plugin {
     });
     const metadata = this.app.metadataCache.on("changed", (file) => {
       if (this.app.vault.getFileByPath(file.path) !== file) return;
+      const previousSourceRevision = this.indexDirtyRevision;
       mark("metadata:changed", file);
-      if (this.index.refreshVisibleHostMetadataPreviews(file.path)) this.scheduleVisibleMetadataRefresh(file.path);
+      if (this.index.refreshVisibleHostMetadataPreviews(file.path, previousSourceRevision)) this.scheduleVisibleMetadataRefresh(file.path);
     });
     let released = false;
     const release = (): void => {
@@ -679,6 +683,7 @@ export default class KplexPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("create",
       /** Update the known progress denominator before publishing a newly created Markdown source. */
       (created) => {
+        this.index.invalidateHostStructure();
         this.pruneManagedMetadataWrites();
         if (created instanceof TFile && created.extension === "md") {
           this.deletedMarkdownFiles.delete(created);
@@ -717,6 +722,7 @@ export default class KplexPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("delete",
       /** Remove deleted Markdown sources from both semantic progress and its cached denominator. */
       (deleted) => {
+        this.index.invalidateHostStructure();
         if (deleted instanceof TFile && deleted.extension === "md") {
           this.countDeletedMarkdownFile(deleted);
           // Deleting Markdown changes materialization, not the identity of the graph endpoint. Keep
@@ -753,6 +759,7 @@ export default class KplexPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("rename",
       /** Preserve path-owned state and refresh totals when a rename changes Markdown membership. */
       (renamed, oldPath) => {
+        this.index.invalidateHostStructure();
         if (!(renamed instanceof TFile)) {
           if (renamed instanceof TFolder && this.initialIndexComplete && this.index?.hasPhysicalBaseline()) {
             this.index.cancelRebuild();
@@ -789,9 +796,10 @@ export default class KplexPlugin extends Plugin {
       if (this.app.vault.getFileByPath(file.path) === file) this.index.refreshVisibleHostMetadataPreviews(file.path);
     }));
     this.registerEvent(this.app.metadataCache.on("changed", (file) => {
+      const previousSourceRevision = this.indexDirtyRevision;
       /** Capture preview freshness after this event's source revision has been advanced. */
       const refreshVisible = (): void => {
-        if (this.index.refreshVisibleHostMetadataPreviews(file.path)) this.scheduleVisibleMetadataRefresh(file.path);
+        if (this.index.refreshVisibleHostMetadataPreviews(file.path, previousSourceRevision)) this.scheduleVisibleMetadataRefresh(file.path);
       };
       this.pruneManagedMetadataWrites();
       // MetadataCache can emit one final `changed` notification for a TFile that Vault has already

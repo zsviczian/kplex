@@ -33,6 +33,7 @@ for (const file of [
   "src/adapters/obsidian/ontologySourceCollector.ts",
   "src/core/graph/source.ts",
   "src/index/fieldParser.ts",
+  "src/adapters/obsidian/yieldToHostTask.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",
 ]) compile(file);
 

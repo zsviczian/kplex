@@ -5,8 +5,13 @@
  * contributor pins may use one cleanup-only existing-database connection after normal-handle
  * failure; cleanup never resets write backoff or acquires source/publication authority. Attributed
  * source cancellation/domain rollback AbortErrors preserve the healthy shared connection; genuine
- * storage faults still close the handle and enter the existing bounded recovery backoff.
+ * storage faults still close the handle and enter the existing bounded recovery backoff. A caller
+ * may observe completed neutral-source work without receiving identities/content or acquiring
+ * source readiness; the repository owns observer isolation and closed-lifetime fencing.
+ * Snapshot decoding and mobile write batches release CPU slices through host event tasks; connection
+ * opening, delayed body writes and failure recovery retain their actual timed waits.
  */
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
 import { Platform } from "obsidian";
 import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE,
@@ -219,12 +224,12 @@ export class KplexIndexedDbCache {
   private openEpoch = 0;
   private newerDatabase = false;
 
-  /** Share one recoverable connection owner without coupling source progress to graph snapshots. */
-  constructor(private vaultName: string, private readonly backgroundCheckpoint?: () => Promise<void>) {
+  /** Share one connection owner; forward optional source-work observation without changing storage scheduling. */
+  constructor(private vaultName: string, private readonly backgroundCheckpoint?: () => Promise<void>, completedWork?: () => void) {
     this.sources = new NeutralSourceRepository({ open: () => this.open(), failed: (db) => this.storageFailed(db),
       unavailableReason: () => this.newerDatabase ? "newer-database" : "storage-unavailable",
       /** Cleanup borrows no normal writer authority and accepts only an ended reader's lease. */
-      releaseContributorLease: lease => this.releaseContributorLease(lease) });
+      releaseContributorLease: lease => this.releaseContributorLease(lease) }, undefined, completedWork);
   }
 
   /**
@@ -575,7 +580,7 @@ export class KplexIndexedDbCache {
             if (processed % 128 === 0 && !isCurrent()) { onFailure?.("cancelled"); return false; }
           }
           if (performance.now() - sliceStartedAt >= (Platform.isMobile ? 6 : 8)) {
-            await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+            await yieldToHostTask();
             await this.backgroundCheckpoint?.();
             sliceStartedAt = performance.now();
             if (!isCurrent()) { onFailure?.("cancelled"); return false; }
@@ -668,7 +673,7 @@ export class KplexIndexedDbCache {
       // IndexedDB completion is asynchronous, but serialization/structured cloning happens on the
       // caller thread. Give input/paint a real task boundary after every bounded write wave on all
       // platforms; desktop gets larger waves above, so this does not become a per-record yield.
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
     };
     const cancelAndCleanup = async (): Promise<boolean> => {
       // Do not launch a large delete transaction in the same moment the user resumes editing.
@@ -929,7 +934,7 @@ export class KplexIndexedDbCache {
         }
         const ok = await this.putBodies(records);
         if (!ok) break;
-        if (Platform.isMobile) await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+        if (Platform.isMobile) await yieldToHostTask();
       }
     } finally {
       this.bodyWriteInFlight = false;

@@ -44,11 +44,13 @@ try {
  await until(()=>!document.hidden&&document.hasFocus()&&w.isFocused(),'Foreground required',5000);
  await until(()=>!p.index.building&&!p.index.hasPendingSnapshotHydration(),'Initial small-vault settle',90000);
  await app.vault.createFolder(c.folder);c.owned.push(c.folder);
+ await app.vault.createFolder(c.folder+'/Nested');c.owned.push(c.folder+'/Nested');
  const create=async(name,content)=>{const f=await app.vault.create(c.folder+'/'+name,content);c.owned.push(f.path);return f};
  c.a=await create('A.md','---\\nParent: '+JSON.stringify('[['+c.folder+'/B]]')+'\\n---\\n# A\\n');c.b=await create('B.md','# B');c.d=await create('C.md','# C');
- await until(()=>[c.a,c.b,c.d].every(f=>app.metadataCache.getFileCache(f)),'Fixture MetadataCache');
+ await create('Nested/Leaf1.md','# Leaf1');await create('Nested/Leaf2.md','# Leaf2');
+ await until(()=>c.owned.filter(path=>path.endsWith('.md')).every(path=>app.metadataCache.getFileCache(app.vault.getFileByPath(path))),'Fixture MetadataCache');
  await until(()=>app.metadataCache.getFirstLinkpathDest(c.folder+'/B',c.a.path)===c.b&&app.metadataCache.resolvedLinks[c.a.path]?.[c.b.path]>0,'Fixture exact Parent resolver closure');
- Object.assign(p.settings,{documentSyncMode:'off',followActiveFile:false,autoOpenCentralDocument:false,embedCentralNode:false,lastActivePath:c.a.path,renderSiblings:false});
+ Object.assign(p.settings,{documentSyncMode:'off',followActiveFile:false,autoOpenCentralDocument:false,embedCentralNode:false,lastActivePath:c.a.path,renderSiblings:false,showFolderNodes:true,showPageNodes:true,showAttachments:true,showNeighborCount:true,maxItemCount:100,excludeFilepaths:[]});
  p.settings.hierarchy={...p.settings.hierarchy,parents:['Parent'],leftFriends:['Friend']};p.index.invalidateSemanticPolicy();
  for(const f of [c.a,c.b,c.d])p.index.insertCreatedFile(f);
  await p.index.publishHostMetadataPreview(c.a.path);await p.activateView();p.notifyNavigation(c.a.path);
@@ -59,6 +61,7 @@ try {
  s.backgroundCheckpoint=async()=>{if(c.held){c.holdReached=true;await gate}await c.originalCheckpoint?.()};
  c.background=s.reconcile();await until(()=>c.holdReached,'Background checkpoint entered');check(Boolean(s.inventory),'Actual background inventory retained');
  c.originalFlush=s.flush;let flushCalls=0;s.flush=function(...args){flushCalls++;return c.originalFlush.apply(this,args)};
+ await timed('folder-tree-and-numeric-gates-during-inventory',async()=>{const path='folder:'+c.folder;p.notifyNavigation(path);await p.index.publishHostMetadataPreview(path);await until(()=>[...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Folder center while inventory held');const neighborhood=p.index.getNeighborhood(path);check(neighborhood.children.length===4,'Direct folder tree before source closure');await until(()=>p.index.gateStats(p.index.get('folder:'+c.folder+'/Nested'))?.bottom.complete===true,'Neighbor folder count-only preparation');check(p.index.gateStats(p.index.get(path)).bottom.visibleCount===4,'Exact center structural count');check(p.index.gateStats(p.index.get('folder:'+c.folder+'/Nested')).bottom.visibleCount===2,'Exact neighboring folder child count');await until(()=>{const center=[...document.querySelectorAll('.kplex-role-center')].find(el=>el.dataset.kplexPath===path);return center?.querySelector('.gate-wrap-bottom .kplex-gate-count')?.textContent==='4'},'Rendered folder child number');check(!p.index.isSemanticWriteReady(path,c.a.path),'Native membership does not authorize linking')});
  await timed('navigate-during-inventory',async()=>{p.notifyNavigation(c.d.path);await p.index.publishHostMetadataPreview(c.d.path);await until(()=>[...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===c.d.path),'Navigation while inventory held')});
  await timed('create-link-during-inventory',async()=>{await p.createRelationToPage(p.index.get(c.a.path),'left',p.index.get(c.d.path),'Friend');check((await app.vault.read(c.a)).includes('Friend:'),'Actual persisted link');check(p.index.evidenceBetween(c.a.path,c.d.path).some(e=>e.sourceKind==='frontmatter-ontology'),'Canonical saved pair evidence')});
  await timed('remove-link-during-inventory',async()=>{const evidence=p.index.evidenceBetween(c.a.path,c.d.path).find(e=>e.sourceKind==='frontmatter-ontology');check(await p.unlinkFrontmatterEvidence(evidence),'Actual remove completed');check(!(await app.vault.read(c.a)).includes('Friend:'),'Actual persisted removal')});

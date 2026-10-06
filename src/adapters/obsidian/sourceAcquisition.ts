@@ -22,7 +22,10 @@
  * certifies both positive and negative declarations before global incidence inventory is ready.
  * Candidate count-only gate proofs share their existing degree compilation and final observation
  * fences without promoting incomplete neighborhood incidence into editing authority.
+ * Inventory and Date-resolution CPU slices release host event tasks; actual debounce, retry, poll
+ * and external-work waits remain timed and never certify source readiness.
  */
+import { yieldToHostTask } from "./yieldToHostTask";
 import { canonicalTagPaths } from "../../core/graph/tagPaths";
 import type { StartupDiagnostics } from "./startupDiagnostics";
 import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidian";
@@ -86,13 +89,13 @@ const DEFERRED_RESOLUTION_RETRY_MAX_MS = 30000;
 function producer(steps: () => Iterable<StoredSourceFact | null>): SourceFamilyProducer {
   return async (emit) => { for (const fact of steps()) if (!(await emit(fact))) return false; return true; };
 }
-/** Yield inventory CPU slices by elapsed time, avoiding one clamped browser timer per cached owner. */
+/** Release consumed inventory CPU slices through event tasks under the existing platform-specific budget. */
 function inventoryCheckpoint(): () => Promise<void> {
   const budget = Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13;
   let lastYield = window.performance.now();
   return async () => {
     if (window.performance.now() - lastYield < budget) return;
-    await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+    await yieldToHostTask();
     lastYield = window.performance.now();
   };
 }
@@ -424,7 +427,7 @@ export class ObsidianSourceAcquisition {
         }
         this.pendingKnownFiles.add(file);
         if (++marked % SOURCE_MAX_BATCH_RECORDS === 0) {
-          await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+          await yieldToHostTask();
           if (!current()) return "cancelled";
         }
       }
@@ -612,7 +615,7 @@ export class ObsidianSourceAcquisition {
       }
       if (page.next === null) break;
       after = page.next;
-      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
     }
     if (changedPaths.size) {
       this.maintenanceRevision += 1; this.localDependenciesReady = false;
@@ -755,7 +758,7 @@ export class ObsidianSourceAcquisition {
             else this.pendingKnownFiles.add(file);
           }
         }
-        await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+        await yieldToHostTask();
       }
       if (!complete || retryPendingMetadata) break;
       if (this.localInventoryCompletionPending) {
@@ -801,7 +804,7 @@ export class ObsidianSourceAcquisition {
         const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
         complete &&= local === "ready";
       }
-      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
     }
     return current() && complete;
   }
@@ -1382,7 +1385,7 @@ export class ObsidianSourceAcquisition {
       }
       // Reuse the single accepted Date grammar/host compatibility seam. No Date classifier is duplicated.
       const date = new ObsidianMetadataSourceCollector(this.metadataHost, { isCurrent: current,
-        sourceRevision: () => this.hostRevision, checkpoint: async () => { await new Promise<void>(resolve => window.setTimeout(resolve, 0)); return current(); } },
+        sourceRevision: () => this.hostRevision, checkpoint: async () => { await yieldToHostTask(); return current(); } },
       file, metadata, { noteTypeField: "", primaryTagField: "" }, "relations");
       return date.collectBatches(async (batch) => {
         for (const record of batch.records) if (record.kind === "date-property") {

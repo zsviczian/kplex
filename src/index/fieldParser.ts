@@ -3,7 +3,10 @@
  * by core/parser; this boundary normalizes cached frontmatter aliases/tags without choosing graph
  * policy or treating host metadata as acquired Markdown. Alias traversal supports synchronous merge
  * and cooperative finite requested facets through one canonical normalization implementation.
+ * Cooperative parsing releases host event tasks before optional background-priority checkpoints;
+ * parser grammar and the caller-owned cancellation predicate remain in the portable owner.
  */
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import type { App, CachedMetadata, TFile } from "obsidian";
 import {
   extractLinkReferencesFromValue,
@@ -71,7 +74,7 @@ export function parseBodyMetadataCooperative(
   return parseBodyMetadataCooperativeCore(content, {
     now: () => Date.now(),
     yield: async () => {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
       await afterYield?.();
     },
     shouldContinue,

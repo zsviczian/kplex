@@ -128,7 +128,7 @@ for (const replace of [false, true]) {
         try{
           f.text=f.texts;f.add('Hub.md',['Parents:: [[Parent]]','Friends:: [[Friend]]','Children:: [[Child]]'].join(String.fromCharCode(10)));
           const expected=${replace} ? {Parent:['Hidden overflow alias'],Friend:['Replacement alias'],Child:[]} : {Parent:['Hidden overflow alias'],Friend:['Hidden overflow alias'],Child:['Hidden overflow alias']};
-          for(const name of ['Parent','Friend','Child'])f.add(name+'.md','',{aliases:expected[name]});
+          for(const name of ['Parent','Friend','Child'])f.add(name+'.md',name==='Friend'?'Children:: [[Orphan.png]]':'',{aliases:expected[name]});
           f.add('Orphan.png','');f.app.vault.getName=()=> 'sparse-aliases-'+${replace};
           f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
           await f.acquire();ok(await f.acquisition.reconcile(),'Current canonical sources seeded');
@@ -152,6 +152,8 @@ for (const replace of [false, true]) {
             equal(index.get(name+'.md').aliases,expected[name],name+' current published view');
           }
           equal(index.titleFor(index.get('Friend.md')),expected.Friend[0],'Sparse current alias drives presentation');
+          equal(index.neighbours(index.get('Friend.md'),'child').map(item=>item.page.path),['Orphan.png'],
+            'Complete warm incidence survives sparse metadata publication without replacing current aliases');
           const neighborhood=index.getNeighborhood('Hub.md');
           equal(neighborhood.parents.map(n=>n.page.path),['Parent.md'],'Parent role preserved');equal(neighborhood.leftFriends.map(n=>n.page.path),['Friend.md'],'Friend role preserved');equal(neighborhood.children.map(n=>n.page.path),['Child.md'],'Child role preserved');
           if(${replace}){

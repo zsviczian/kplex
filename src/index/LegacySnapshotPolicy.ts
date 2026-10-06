@@ -3,7 +3,10 @@
  * and identify sources requiring ordinary semantic reconciliation from current host metadata and
  * valid cached bodies. Unknown inputs conservatively dirty that source, never imply no references.
  * This upgrade-only path is distinct from presentation refresh and acquires no Markdown text.
+ * Retired-policy reconciliation releases completed host metadata batches through event tasks
+ * before rechecking captured file identity and the caller-owned source lifetime.
  */
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { normalizePath, type App, type TFile } from "obsidian";
 import type { KplexSettings } from "../settings";
 import { HIERARCHY_ROLES } from "../core/graph/settingsPolicy";
@@ -76,7 +79,7 @@ export async function planRetiredExclusionReconciliation(
         if (!ok) return null;
       }
     }
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await yieldToHostTask();
   }
   return current() && captured.every(({ file, path, mtime, size }) => file.path === path &&
     file.stat.mtime === mtime && file.stat.size === size && app.vault.getFileByPath(path) === file) ? affected : null;

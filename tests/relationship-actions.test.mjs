@@ -368,12 +368,13 @@ test("optional alias progress and failure use distinct status copy while relatio
 test("pre-restore file events update temporary availability while preserving backlog revision fences", async () => {
   class TFile { constructor(path) { this.path = path; this.extension = "md"; } }
   class TFolder { constructor(path) { this.path = path; } }
-  const vaultEvents = new Map(), metadataEvents = new Map(), updates = [], cleanup = [];
+  const vaultEvents = new Map(), metadataEvents = new Map(), updates = [], cleanup = [], topology = [];
   const context = { preRestoreListenerCleanup: null, preRestoreChanged: false, indexDirtyRevision: 0,
     preRestoreReasons: new Map(), preRestoreMarkdownPaths: new Map(),
     app: { vault: { on: (kind, callback) => { vaultEvents.set(kind, callback); return kind; }, offref: kind => vaultEvents.delete(kind) },
       metadataCache: { on: (kind, callback) => { metadataEvents.set(kind, callback); return kind; }, offref: kind => metadataEvents.delete(kind) } },
-    index: { updateHostFileAvailability: (...args) => updates.push([context.indexDirtyRevision, ...args]),
+    index: { invalidateHostStructure: () => topology.push(context.indexDirtyRevision),
+      updateHostFileAvailability: (...args) => updates.push([context.indexDirtyRevision, ...args]),
       updateHostFolderAvailability: async (...args) => updates.push([context.indexDirtyRevision, ...args]) }, register: callback => cleanup.push(callback) };
   const install = productionFunction("src/main.ts", "installPreRestoreChangeFence", { TFile, TFolder });
   await install.call(context);
@@ -389,6 +390,7 @@ test("pre-restore file events update temporary availability while preserving bac
   vaultEvents.get("create")(folder); folder.path = "MovedFolder"; vaultEvents.get("rename")(folder, "NewFolder");
   vaultEvents.get("delete")(folder);
   assert.deepEqual(updates.slice(3), [[4, "NewFolder", folder], [5, "NewFolder", folder], [6, "MovedFolder"]]);
+  assert.deepEqual(topology, [0, 1, 2, 3, 4, 5], "Each pre-restore topology observation closes native count proof before deferred refresh");
   cleanup[0](); assert.equal(vaultEvents.size, 0); assert.equal(metadataEvents.size, 0);
 });
 
@@ -403,15 +405,15 @@ test("visible metadata preview captures the event's new source revision", async 
     renameMetadataSuppressions: new Map(), dirtyMarkdownPaths: new Set(),
     scheduleRebuild: () => { context.indexDirtyRevision++; },
     scheduleVisibleMetadataRefresh: path => visible.push(path),
-    index: { refreshVisibleHostMetadataPreviews: path => { captures.push([path, context.indexDirtyRevision]); return true; } },
+    index: { refreshVisibleHostMetadataPreviews: (path, prior) => { captures.push([path, context.indexDirtyRevision, prior]); return true; } },
   };
   await productionFunction("src/main.ts", "registerReactiveIndexListeners", {}).call(context);
   handlers.get("changed")(file);
-  assert.deepEqual(captures, [[file.path, 1]], "the preview must not capture the revision invalidated later in the same callback");
+  assert.deepEqual(captures, [[file.path, 1, 0]], "the preview captures the new revision and exact previous known-event revision");
   assert.deepEqual(visible, [file.path]);
   context.managedMetadataWrites.set(file.path, Date.now() + 10000);
   handlers.get("changed")(file);
-  assert.deepEqual(captures[1], [file.path, 1], "managed writes refresh presentation without scheduling a duplicate dirty batch");
+  assert.deepEqual(captures[1], [file.path, 1, 1], "managed writes refresh presentation without scheduling a duplicate dirty batch");
 });
 
 /** React portal capture runs before the native header drag helper, so its host must retain focus. */
