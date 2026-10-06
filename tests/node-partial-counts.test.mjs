@@ -66,3 +66,28 @@ test("omitted coverage preserves exact complete gate numbers, ratios and empty t
   assert.match(empty, /no relationships/);
   assert.doesNotMatch(empty, /kplex-gate-count|Additional relationships may be available/);
 });
+
+
+test("local numeric coverage retains zero/nonzero counts with a separate localized availability explanation", () => {
+  const zero = renderGate({ complete: false, coverage: "local" });
+  assert.match(zero, />0<\/span>/);
+  assert.doesNotMatch(zero, /…|≥/);
+  assert.ok(zero.includes(translate("node.gateLocalCount")));
+  assert.match(renderGate({ visibleCount: 100, shownCount: 3, complete: false, coverage: "local" }), />3\/100<\/span>/);
+});
+
+
+test("a genuine unavailable host input shows an explicit count failure rather than a numerical guarantee", () => {
+  const html = renderGate({ visibleCount: 100, complete: false, coverage: "local", countUnavailable: true });
+  assert.match(html, />…<\/span>/);
+  assert.ok(html.includes(translate("node.gateHostUnavailable")));
+  assert.doesNotMatch(html, />100<\/span>/);
+});
+
+test("cached coverage displays saved numbers and ratios with a distinct current-validation tooltip", () => {
+  const html = renderGate({ visibleCount: 4, shownCount: 2, hasAny: true, complete: false, coverage: "cached" });
+  assert.match(html, />2\/4<\/span>/);
+  assert.ok(html.includes(translate("node.gateCachedCount")));
+  assert.doesNotMatch(html, /…|≥|Additional relationships may be available/);
+  assert.match(renderGate({ complete: false, coverage: "cached" }), />0<\/span>/);
+});

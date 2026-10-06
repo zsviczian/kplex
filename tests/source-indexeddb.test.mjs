@@ -37,6 +37,87 @@ const initialize = `(() => {
   return true;
 })()`;
 
+/** Maintenance uses production cursors and database deletion; no IndexedDB data model is mocked. */
+test("cache maintenance streams logical size, cancels cleanly and permanently closes after vault-local purge", { timeout: 60000 }, async t => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    await t.test("size scans stores sequentially without getAll or origin-wide estimates", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('maintenance-size'),db=await owner.open();
+        const before=await owner.estimateStoredBytes();ok(before!==null,'Initial logical estimate available');
+        const cycle={label:'known payload '.repeat(1000)};cycle.self=cycle;
+        await edit(db,['meta','bodies'],tx=>{
+          tx.objectStore('meta').put({key:'measurement',value:cycle,map:new Map([['map-key',42]]),set:new Set(['set-item']),binary:new Uint8Array(4096),blob:new Blob(['blob payload'])});
+          tx.objectStore('bodies').put({path:'size-only.md',payload:'body '.repeat(1000)});
+        });
+        const getAll=IDBObjectStore.prototype.getAll,openCursor=IDBObjectStore.prototype.openCursor;
+        const transaction=IDBDatabase.prototype.transaction;let active=0,maxActive=0,cursors=0,wrongMode=false;
+        IDBObjectStore.prototype.getAll=function(){throw new Error('getAll is forbidden for size maintenance');};
+        IDBObjectStore.prototype.openCursor=function(...args){cursors++;return openCursor.apply(this,args);};
+        IDBDatabase.prototype.transaction=function(...args){
+          const tx=transaction.apply(this,args);active++;maxActive=Math.max(active,maxActive);
+          if(args[1]!=='readonly')wrongMode=true;
+          tx.addEventListener('complete',()=>active--);tx.addEventListener('abort',()=>active--);return tx;
+        };
+        const storage=navigator.storage.estimate;navigator.storage.estimate=()=>{throw new Error('Origin size must not be read');};
+        try{
+          const after=await owner.estimateStoredBytes();ok(after>=before+cycle.label.length*2+10000+4096,'Strings and binary increase logical size');
+          equal(cursors,db.objectStoreNames.length,'Exactly one cursor per store');equal(maxActive,1,'Only one store scan active');equal(wrongMode,false,'All scans readonly');
+          equal(await owner.estimateStoredBytes(),after,'Cycle-safe estimate is repeatable');return true;
+        }finally{IDBObjectStore.prototype.getAll=getAll;IDBObjectStore.prototype.openCursor=openCursor;IDBDatabase.prototype.transaction=transaction;navigator.storage.estimate=storage;owner.close();}
+      })()`),true);
+    });
+    await t.test("close cancels an active cursor and oversized depth returns unavailable", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('maintenance-cancel'),cursor=IDBObjectStore.prototype.openCursor;
+        IDBObjectStore.prototype.openCursor=function(...args){const request=cursor.apply(this,args);request.addEventListener('success',()=>owner.close(),{once:true});return request;};
+        try{equal(await owner.estimateStoredBytes(),null,'Closed scan has no partial subtotal');equal(owner.maintenanceReads.size,0,'No retained transactions');}
+        finally{IDBObjectStore.prototype.openCursor=cursor;owner.close();}
+        const deep=await fresh('maintenance-depth'),db=await deep.open();let value={leaf:'value'};for(let i=0;i<300;i++)value={child:value};
+        await edit(db,['meta'],tx=>tx.objectStore('meta').put({key:'deep',value}));
+        try{equal(await deep.estimateStoredBytes(),null,'Unbounded record is not reported as a complete estimate');equal(deep.maintenanceReads.size,0,'Failed scan releases ownership');return true;}finally{deep.close();}
+      })()`),true);
+    });
+    await t.test("purge deletes only the selected database, discards queued writes and never reopens", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('maintenance-purge'),other=await fresh('maintenance-unrelated');
+        const body=sourceModules.parseBodyMetadata('A real body [URL](https://example.com/cache-maintenance)');
+        ok(await owner.putBody('cached.md',1,body),'Populate selected database');ok(await other.putBody('retained.md',1,body),'Populate unrelated database');
+        owner.queueBodyWrite('queued.md',2,body);ok(owner.bodyWriteTimer!==null,'Queued timer exists');
+        const first=owner.purgeAndClose();equal(owner.purgeAndClose()===first,true,'Concurrent purge shares one request');
+        ok(await first,'Actual deleteDatabase success');equal(owner.closed,true,'Owner permanently closed');equal(owner.sources.closed,true,'Repository lifetime closed');
+        equal(owner.bodyWriteTimer,null,'Queued timer cancelled');equal(owner.queuedBodyWrites.size,0,'Queued bodies discarded');
+        const names=(await indexedDB.databases()).map(db=>db.name);ok(!names.includes(databaseName('maintenance-purge')),'Selected database removed');ok(names.includes(databaseName('maintenance-unrelated')),'Unrelated database retained');
+        const open=indexedDB.open;let opens=0;indexedDB.open=function(...args){opens++;return open.apply(this,args);};
+        try{
+          equal(await owner.getBody('cached.md',1),null,'No old body remains available');equal(await owner.putBody('later.md',3,body),false,'Writes stay closed');
+          equal(await owner.estimateStoredBytes(),null,'Estimates stay closed');owner.queueBodyWrite('later.md',3,body);
+          equal(await owner.releaseContributorLease({key:'ended-reader',impactSlot:0}),false,'Retired cleanup cannot reopen after purge');
+          equal(opens,0,'Neither regular operations nor retired cleanup reopen');ok(await other.getBody('retained.md',1),'Unrelated payload unchanged');return true;
+        }finally{indexedDB.open=open;owner.close();other.close();}
+      })()`),true);
+    });
+    await t.test("blocked and storage failures report false but retain the closed lifetime", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const blocked=await fresh('maintenance-blocked'),hold=await rawOpen(databaseName('maintenance-blocked'),9);
+        try{equal(await blocked.purgeAndClose(),false,'External handle produces blocked failure');equal(blocked.closed,true,'Failed purge cannot resume writes');equal(await blocked.open(),null,'Failed purge cannot reopen');}
+        finally{hold.close();blocked.close();}
+        const failed=await fresh('maintenance-error'),remove=indexedDB.deleteDatabase;indexedDB.deleteDatabase=()=>{throw new Error('Injected storage failure');};
+        try{equal(await failed.purgeAndClose(),false,'Delete exception reported');equal(failed.closed,true,'Error retains closed lifetime');equal(await failed.open(),null,'Error cannot reopen');return true;}
+        finally{indexedDB.deleteDatabase=remove;failed.close();}
+      })()`),true);
+    });
+    await t.test("purge fences an opening connection before it can adopt or recreate storage", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=new sourceModules.KplexIndexedDbCache('maintenance-opening'),opening=owner.bodyStoreReady();
+        ok(await owner.purgeAndClose(),'Deletion also succeeds before a pending open settles');equal(await opening,false,'Late opening work cannot become usable');
+        equal(await owner.open(),null,'No same-session reopen');ok(!(await indexedDB.databases()).some(db=>db.name===databaseName('maintenance-opening')),'Pending open cannot recreate purged database');return true;
+      })()`),true);
+    });
+  } finally { await browser.cleanup(); }
+});
+
 // One profile is intentionally retained through a NEW Chromium process, then removed in finally.
 test("real Chromium: version migration, atomic source heads, repair, failure recovery and process restart", { timeout: 180000 }, async t => {
   const browser = await chromiumHarness(bundle);

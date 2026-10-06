@@ -10,6 +10,8 @@
  * source readiness; the repository owns observer isolation and closed-lifetime fencing.
  * Snapshot decoding and mobile write batches release CPU slices through host event tasks; connection
  * opening, delayed body writes and failure recovery retain their actual timed waits.
+ * Settings-only maintenance estimates logical payloads through sequential cursors. Purging ends
+ * this owner's lifetime before deleting this vault's database; no same-session reopen is allowed.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
@@ -209,6 +211,54 @@ function safeDbName(vaultName: string): string {
   return `k-plex-index-v1-${encoded || "vault"}`;
 }
 
+/** Iterate container members without allocating another array proportional to a dense record. */
+function* storedValueParts(value: object): Generator<unknown> {
+  if (value instanceof Map) {
+    for (const [key, item] of value) { yield key; yield item; }
+  } else if (value instanceof Set) {
+    yield* value.values();
+  } else {
+    for (const key in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+      yield key;
+      yield (value as Record<string, unknown>)[key];
+    }
+  }
+}
+
+/**
+ * Approximate one cloned record with bounded, cycle-safe iterative traversal. Binary payloads
+ * use their byte length; strings use UTF-16 length. A pathological record returns null rather
+ * than blocking the settings page indefinitely or reporting an incomplete total as accurate.
+ */
+function estimatedStoredValueBytes(value: unknown): number | null {
+  const stack: Array<Iterator<unknown>> = [[value][Symbol.iterator]()];
+  const seen = new WeakSet<object>();
+  let bytes = 0;
+  let remaining = 1_000_000;
+  while (stack.length) {
+    if (--remaining < 0 || stack.length > 256) return null;
+    const next = stack[stack.length - 1].next();
+    if (next.done) { stack.pop(); continue; }
+    const item: unknown = next.value;
+    if (typeof item === "string") bytes += item.length * 2;
+    else if (typeof item === "number") bytes += 8;
+    else if (typeof item === "boolean" || item === null || item === undefined) bytes += 4;
+    else if (typeof item === "bigint") bytes += item.toString().length * 2 + 8;
+    else if (typeof item === "object") {
+      if (seen.has(item)) { bytes += 8; continue; }
+      seen.add(item);
+      if (item instanceof ArrayBuffer || ArrayBuffer.isView(item)) bytes += item.byteLength + 24;
+      else if (item instanceof Blob) bytes += item.size + item.type.length * 2 + 24;
+      else if (item instanceof Date) bytes += 8;
+      else if (item instanceof RegExp) bytes += (item.source.length + item.flags.length) * 2 + 24;
+      else { bytes += 32; stack.push(storedValueParts(item)); }
+    } else return null;
+    if (!Number.isSafeInteger(bytes)) return null;
+  }
+  return bytes;
+}
+
 /** Durable K-Plex cache backed by IndexedDB. */
 export class KplexIndexedDbCache {
   private dbPromise: Promise<IDBDatabase | null> | null = null;
@@ -223,6 +273,8 @@ export class KplexIndexedDbCache {
   private connection: IDBDatabase | null = null;
   private openEpoch = 0;
   private newerDatabase = false;
+  private maintenanceReads = new Set<IDBTransaction>();
+  private purgePromise: Promise<boolean> | null = null;
 
   /** Share one connection owner; forward optional source-work observation without changing storage scheduling. */
   constructor(private vaultName: string, private readonly backgroundCheckpoint?: () => Promise<void>, completedWork?: () => void) {
@@ -237,7 +289,7 @@ export class KplexIndexedDbCache {
    * handle cannot create/upgrade a database, clear backoff, or make this cache available for writes.
    */
   private releaseContributorLease(lease: ContributorRootLease): Promise<boolean> {
-    if (typeof indexedDB === "undefined") return Promise.resolve(false);
+    if (this.purgePromise || typeof indexedDB === "undefined") return Promise.resolve(false);
     return releaseContributorRootLeaseFresh(indexedDB, safeDbName(this.vaultName), DB_VERSION, lease, {
       /** Use the storage owner's window, matching the normal connection lifetime. */
       schedule: (callback, delay) => window.setTimeout(callback, delay),
@@ -411,6 +463,10 @@ export class KplexIndexedDbCache {
     this.closed = true;
     this.openEpoch += 1;
     this.sources.close();
+    for (const transaction of this.maintenanceReads) {
+      try { transaction.abort(); } catch { /* A completed estimate already released its cursor. */ }
+    }
+    this.maintenanceReads.clear();
     this.connection = null;
     if (this.bodyWriteTimer !== null) window.clearTimeout(this.bodyWriteTimer);
     this.bodyWriteTimer = null;
@@ -420,6 +476,95 @@ export class KplexIndexedDbCache {
     void pending?.then((db) => {
       try { db?.close(); } catch { /* shutdown only */ }
     });
+  }
+
+  /**
+   * Settings-only, best-effort logical payload size for this database. One readonly cursor per
+   * store avoids retaining all source records or counting unrelated origin storage. Closing the
+   * owner cancels an in-flight estimate; unavailable, failed or oversized records return null.
+   */
+  async estimateStoredBytes(): Promise<number | null> {
+    const db = await this.open();
+    if (!db || this.closed) return null;
+    let bytes = 0;
+    try {
+      for (const name of Array.from(db.objectStoreNames)) {
+        if (this.closed) return null;
+        const measured = await this.estimateStoreBytes(db, name);
+        if (measured === null || this.closed) return null;
+        bytes += measured;
+        if (!Number.isSafeInteger(bytes)) return null;
+      }
+      return bytes;
+    } catch { return null; }
+  }
+
+  /** Own a single streaming transaction and acknowledge a subtotal only after it commits. */
+  private estimateStoreBytes(db: IDBDatabase, name: string): Promise<number | null> {
+    return new Promise<number | null>(/** Cursor values stay private to the storage owner. */ resolve => {
+      let transaction: IDBTransaction | undefined;
+      let bytes = 0;
+      let complete = false;
+      let settled = false;
+      /** Clear maintenance ownership exactly once on every terminal transaction/request event. */
+      const finish = (result: number | null): void => {
+        if (settled) return;
+        settled = true;
+        if (transaction) this.maintenanceReads.delete(transaction);
+        resolve(result);
+      };
+      /** Stop the current cursor on cancellation or a malformed/unbounded record. */
+      const fail = (): void => {
+        try { transaction?.abort(); } catch { /* Already terminal or never opened. */ }
+        finish(null);
+      };
+      try {
+        transaction = this.openTransaction(db, name, "readonly");
+        this.maintenanceReads.add(transaction);
+        transaction.oncomplete = /** In-flight requests alone never certify a complete scan. */ () => finish(complete && !this.closed ? bytes : null);
+        transaction.onabort = /** Closing the cache cancels settings maintenance. */ () => finish(null);
+        transaction.onerror = fail;
+        const request = transaction.objectStore(name).openCursor();
+        request.onerror = fail;
+        request.onsuccess = /** Process only this cursor record before requesting the next host task. */ () => {
+          if (settled || this.closed) { fail(); return; }
+          const cursor = request.result;
+          if (!cursor) { complete = true; return; }
+          try {
+            const measured = estimatedStoredValueBytes([cursor.key, cursor.value]);
+            if (measured === null || !Number.isSafeInteger(bytes + measured)) { fail(); return; }
+            bytes += measured;
+            cursor.continue();
+          } catch { fail(); }
+        };
+      } catch { fail(); }
+    });
+  }
+
+  /**
+   * End this cache/repository lifetime, discard queued body writes and delete only this vault's
+   * K-Plex database. Blocked/error results are false; a failed purge still requires restart because
+   * this owner remains closed. Concurrent calls share the same deletion request.
+   */
+  purgeAndClose(): Promise<boolean> {
+    if (this.purgePromise) return this.purgePromise;
+    const pending = this.dbPromise;
+    // Assign the promise before close retires source readers: their cleanup cannot reopen a
+    // database which is being deleted. The microtask also lets close install its late-open fence.
+    this.purgePromise = Promise.resolve().then(/** Wait for any pending normal handle to close before deletion. */ async () => {
+      try { await pending; } catch { /* A failed open must not prevent deleting a disposable cache. */ }
+      if (typeof indexedDB === "undefined") return false;
+      return new Promise<boolean>(/** Only success acknowledges deletion; blocked is a terminal UI failure. */ resolve => {
+        try {
+          const request = indexedDB.deleteDatabase(safeDbName(this.vaultName));
+          request.onsuccess = /** Notes and unrelated database names are never involved. */ () => resolve(true);
+          request.onerror = /** Storage failure leaves this instance closed. */ () => resolve(false);
+          request.onblocked = /** Another connection must be released through restart. */ () => resolve(false);
+        } catch { resolve(false); }
+      });
+    });
+    this.close();
+    return this.purgePromise;
   }
 
   /** Read an activated complete generation or a separately activated partial checkpoint. */

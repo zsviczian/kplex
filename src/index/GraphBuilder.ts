@@ -4,6 +4,8 @@
  * publish a structure/link baseline and then reuse the same atomic per-file patch boundary to add
  * Markdown semantics progressively without exposing half-committed source state. Node-only recovery
  * streams current durable source facts through the same compiler without retaining relationships.
+ * On-demand owners reuse this patch boundary and durable body records; independent background URL
+ * vocabulary uses the canonical node compiler without compiling unrelated document relationships.
  * Compiler and collector CPU slices dispatch host event tasks, then retain the existing caller-owned
  * cancellation and optional foreground-priority checkpoints before continuing private preparation.
  */
@@ -26,11 +28,12 @@ import { NormalizedGraphCompiler, type CompiledGraphNode, type CompiledRelationE
 import { graphCompilerSettingsFromLegacy } from "../adapters/obsidian/graphContracts";
 import { NormalizedSourcePatchPreparer, type PreparedSourcePatch, type SourcePatchReadPort } from "../core/graph/patch";
 import { nodeId, type NodeId } from "../core/graph/model";
-import { ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "../adapters/obsidian/structuralSourceCollector";
+import { entityFactForFile, ObsidianStructuralPatchSourceCollector, ObsidianStructuralSourceCollector } from "../adapters/obsidian/structuralSourceCollector";
 import { ObsidianHostLinkSourceCollector, readHostLinkSignatureEntries } from "../adapters/obsidian/hostLinkSourceCollector";
 import { ObsidianReferenceSourceCollector } from "../adapters/obsidian/ontologySourceCollector";
 import {
   createObsidianMetadataSourceHost,
+  normalizedBodyUrl,
   ObsidianMetadataSourceCollector,
   type ObsidianMetadataSourceHost,
   type ObsidianMetadataSourceSettings,
@@ -40,6 +43,8 @@ import {
   beginSourceRead,
   sourceReadCanPublish,
   sourceRevision,
+  sourceGeneration,
+  sourceSnapshotRevision,
   type NormalizedSourceBatch,
   type SourceEntityFact,
   type SourceEntityRef,
@@ -618,6 +623,36 @@ export class GraphBuilder {
     return this.buildStructuralProjection("graph");
   }
 
+  /** Compile URL vocabulary with the shared label/origin owner and discard all incidence.
+   * A background body scan must never materialize document relationships or ontology fields. */
+  async buildBodyUrlVocabulary(file: TFile, body: ParsedBodyMetadata): Promise<readonly GraphPage[] | null> {
+    if (!body.urls.length) return [];
+    const revision = this.captureFileRevision(file);
+    const current = (): boolean => this.isCurrent() && this.fileRevisionMatches(file, revision);
+    const compiler = new NormalizedGraphCompiler(this.fullCompilerSettings(), {
+      ...this.patchCompilerRuntime(), isCurrent: current,
+    }, "nodes");
+    const source = entityFactForFile(file);
+    if (!(await compiler.seedEntityFact(source))) return null;
+    const boundary = { generation: sourceGeneration(`url-vocabulary:${revision.path}:${revision.mtime}`),
+      snapshotRevision: sourceSnapshotRevision(`url-vocabulary:${revision.path}:${revision.mtime}`) };
+    const read = compiler.beginRead(boundary);
+    for (let start = 0, sequence = 0; start < body.urls.length; start += 256, sequence++) {
+      if (!current()) return null;
+      const records = body.urls.slice(start, start + 256).map(reference => normalizedBodyUrl(source.entity, source.sourceRevision, reference));
+      if (!(await compiler.acceptBatch(read, { boundary, sequence, final: start + 256 >= body.urls.length, records }))) return null;
+    }
+    if (!compiler.completeRead(read, boundary)) return null;
+    const nodes = await compiler.finishNodes();
+    if (!nodes || !current()) return null;
+    const pages: GraphPage[] = [];
+    for (const node of nodes.nodes.values()) if (node.kind === "url" && node.semanticPath && node.url) {
+      pages.push(this.createPage({ path: node.semanticPath, name: node.name, url: node.url, aliases: [...node.aliases] }));
+      if ((pages.length & 127) === 0 && !(await this.yieldToHost())) return null;
+    }
+    return current() ? pages : null;
+  }
+
   /** Recover structural vocabulary with canonical materialization and no retained relationships. */
   async buildStructuralNodeBaseline(): Promise<GraphState | null> {
     return this.buildStructuralProjection("nodes");
@@ -741,7 +776,8 @@ export class GraphBuilder {
   private patchCompilerRuntime() {
     return {
       now: perfNow,
-      yield: async () => { await yieldToHostTask(); },
+      /** Resume through the caller's existing priority/policy checkpoint after a compiler slice. */
+      yield: async () => { await this.yieldToHost(true); },
       isCurrent: this.isCurrent,
       sliceBudgetMs: Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13,
       resolverBatchSize: Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
@@ -1210,6 +1246,8 @@ export class GraphBuilder {
       sourceNodeBaseline?: boolean;
       /** Full cold-start ingestion counts every discovered field exactly once per source. */
       discoveryMode?: "patch" | "rebuild";
+      /** Reinterpret unchanged neutral source facts after a demanded semantic policy change. */
+      forceRecompile?: boolean;
     } = {},
   ): Promise<PatchMarkdownResult> {
     const touchedPagePaths = new Set<string>();
@@ -1308,7 +1346,7 @@ export class GraphBuilder {
       // A progressive rebuild starts from a structural-only baseline. A body cache entry left by a
       // cancelled earlier attempt is useful for parsing, but its semantic fingerprint must never
       // suppress applying that source to the fresh baseline. Runtime patches do have prior semantics.
-      const previousSignature = discoveryMode === "rebuild"
+      const previousSignature = discoveryMode === "rebuild" || options.forceRecompile
         ? undefined
         : this.semanticFingerprints.get(sourcePath) ?? previousEntry?.semanticSignature;
       if (!(await this.compactPublishedPatchLayers(state)) || !this.fileRevisionMatches(file, revision)) {

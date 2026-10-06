@@ -3,7 +3,8 @@
  * managers. Foreign imports cannot change plugin workflow preferences; own persisted K-Plex keys
  * remain stable. Per-surface density preserves the legacy vertical key and migrates horizontal
  * density from the same saved value. All saves cross the plugin settings-impact classifier; the
- * injected translator owns display copy.
+ * injected translator owns display copy. Indexing strategy takes effect after restart; persistent
+ * cache estimates run only when their settings row is rendered, never during plugin startup.
  */
 import {
   AbstractInputSuggest,
@@ -21,6 +22,7 @@ import { sanitizeGraphLensDefinitions, type GraphLensDefinition } from "./lens/G
 import { collectionWindow } from "./ui/components/collectionWindow";
 import { createObsidianTranslator } from "./adapters/obsidian/localization";
 import type { Translator, PlainTranslationKey } from "./lang";
+import { PurgeIndexCacheModal } from "./ui/PurgeIndexCacheModal";
 
 export const DEFAULT_LINK_STYLE: LinkStyle = {
   strokeColor: "#696969ff",
@@ -81,6 +83,8 @@ export type SidecarMarkdownMode = "preview" | "source";
 export type AttachmentImageDisplay = "label" | "thumbnail-label" | "image";
 export type NewNodeType = "markdown" | "excalidraw";
 export type DocumentSyncMode = "off" | "recent" | "pinned";
+export type IndexingMode = "eager" | "on-demand";
+export type UrlIndexingMode = "on-demand" | "background";
 export type NodeSortOrder = "name-asc" | "name-desc" | "modified-desc" | "modified-asc" | "created-desc" | "created-asc" | "connections-desc" | "connections-asc";
 
 function sanitizeNodeSortOrder(value: unknown): NodeSortOrder {
@@ -127,6 +131,10 @@ export interface KplexSettings {
   horizontalCompactingFactor: number;
   minLinkLength: number;
   indexUpdateInterval: number;
+  /** Acquisition policy applied at the next plugin startup, not a semantic graph setting. */
+  indexingMode: IndexingMode;
+  /** Optional independent URL vocabulary scan, applied at the next plugin startup. */
+  urlIndexingMode: UrlIndexingMode;
   hierarchy: Hierarchy;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
@@ -259,6 +267,8 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   horizontalCompactingFactor: 2,
   minLinkLength: 18,
   indexUpdateInterval: 60000,
+  indexingMode: "eager",
+  urlIndexingMode: "on-demand",
   hierarchy: DEFAULT_HIERARCHY_DEFINITION,
   inferAllLinksAsFriends: false,
   inverseInfer: false,
@@ -505,6 +515,8 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...old,
+    indexingMode: old.indexingMode === "on-demand" ? "on-demand" : "eager",
+    urlIndexingMode: old.urlIndexingMode === "background" ? "background" : "on-demand",
     hierarchy,
     baseNodeStyle: { ...DEFAULT_NODE_STYLE, ...(old.baseNodeStyle ?? {}) },
     baseLinkStyle: { ...DEFAULT_LINK_STYLE, ...(old.baseLinkStyle ?? {}) },
@@ -1664,6 +1676,14 @@ export class KplexSettingTab extends PluginSettingTab {
     new LegacySettingsImportModal(this.app, this.kplexPlugin, () => this.update()).open();
   }
 
+  /** Format the logical cache payload estimate without implying exact IndexedDB disk usage. */
+  private formatIndexCacheSize(bytes: number | null, translate: Translator): string {
+    if (bytes === null) return translate("indexing.cacheUnavailable");
+    const units = ["B", "KB", "MB", "GB"];
+    const unit = bytes <= 0 ? 0 : Math.min(3, Math.floor(Math.log(bytes) / Math.log(1024)));
+    return `${(bytes / 1024 ** unit).toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+  }
+
   /** Build native declarative settings and subpages with localized copy while keeping keys, defaults and control behavior stable. */
   getSettingDefinitions(): SettingDefinitionItem<DeclarativeSettingKey>[] {
     const translate = createObsidianTranslator();
@@ -1949,6 +1969,66 @@ export class KplexSettingTab extends PluginSettingTab {
       },
       {
         type: "page",
+        name: translate("indexing.pageTitle"),
+        desc: translate("indexing.pageHelp"),
+        items: [
+          {
+            type: "group",
+            heading: translate("indexing.strategy"),
+            items: [
+              {
+                name: translate("indexing.mode"),
+                desc: translate("indexing.modeHelp"),
+                control: { type: "dropdown", key: "indexingMode", defaultValue: "eager", options: {
+                  eager: translate("indexing.eager"), "on-demand": translate("indexing.onDemand"),
+                } },
+              },
+              {
+                name: translate("indexing.urls"),
+                desc: translate("indexing.urlsHelp"),
+                control: { type: "dropdown", key: "urlIndexingMode", defaultValue: "on-demand", options: {
+                  "on-demand": translate("indexing.onDemand"), background: translate("indexing.background"),
+                } },
+              },
+            ],
+          },
+          {
+            type: "group",
+            heading: translate("indexing.cache"),
+            items: [{
+              name: translate("indexing.purgeAction"),
+              // Native declarative rows render only when their page opens: never scan storage
+              // while constructing definitions or rendering the root settings list.
+              render: /** Estimate only the displayed cache row and ignore completion after it is removed. */ setting => {
+                let active = true;
+                let purged = false;
+                setting.setDesc(translate("indexing.cacheHelp", { size: translate("indexing.cacheCalculating") }));
+                setting.addButton(/** Open explicit confirmation; the index owner alone cancels work and deletes its database. */ button => {
+                  button.setButtonText(translate("indexing.purgeButton")).setDestructive()
+                    .onClick(/** A confirmed purge updates only a still-mounted settings row. */ () => {
+                      new PurgeIndexCacheModal(this.app,
+                        () => this.kplexPlugin.index.purgePersistentIndexCache(),
+                        /** A successful purge supersedes any estimate that was already in flight. */ () => {
+                          purged = true;
+                          if (active) setting.setDesc(translate("indexing.cacheHelp", { size: this.formatIndexCacheSize(0, translate) }));
+                        }).open();
+                    });
+                });
+                void this.kplexPlugin.index.estimatePersistentIndexBytes().then(
+                  /** Reflect successful estimates only in the exact row that requested them. */ bytes => {
+                    if (active && !purged) setting.setDesc(translate("indexing.cacheHelp", { size: this.formatIndexCacheSize(bytes, translate) }));
+                  },
+                  /** Storage failure is an unavailable estimate, not a zero-byte cache. */ () => {
+                    if (active && !purged) setting.setDesc(translate("indexing.cacheHelp", { size: translate("indexing.cacheUnavailable") }));
+                  });
+                return /** Fence asynchronous estimates when Obsidian tears down this row. */ () => { active = false; };
+              },
+            }],
+          },
+        ],
+      },
+      {
+        type: "page",
         name: translate("settings.ui.compatibility"),
         desc: translate("settings.ui.migration.and.legacy.excalibrain.interoperability"),
         items: [
@@ -1990,6 +2070,13 @@ export class KplexSettingTab extends PluginSettingTab {
 
   /** Apply every declarative control through the plugin's shared settings-impact classifier. */
   async setControlValue(key: string, value: unknown): Promise<void> {
+    if (key === "indexingMode" || key === "urlIndexingMode") {
+      if (key === "indexingMode") this.kplexPlugin.settings.indexingMode = value === "on-demand" ? "on-demand" : "eager";
+      else this.kplexPlugin.settings.urlIndexingMode = value === "background" ? "background" : "on-demand";
+      // Strategy changes apply at restart and must not trigger live semantic reconstruction.
+      await this.kplexPlugin.saveSettings(false, false);
+      return;
+    }
     const hierarchyKey = HIERARCHY_KEY_MAP[key];
     if (hierarchyKey) {
       this.kplexPlugin.settings.hierarchy[hierarchyKey] = fromCsv(String(value));

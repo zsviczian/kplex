@@ -16,19 +16,32 @@ const fixture = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-m
 const temp = mkdtempSync(join(tmpdir(), "kplex-migration-"));
 process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
 await build({
-  stdin: { contents: 'export * from "./src/settings"; export * from "./src/index/style"; export * from "./src/ui/layout";', resolveDir: root },
+  stdin: { contents: 'export * from "./src/settings"; export * from "./src/index/style"; export * from "./src/ui/layout"; export * from "./src/ui/PurgeIndexCacheModal";', resolveDir: root },
   outfile: join(temp, "migration.mjs"), bundle: true, platform: "node", format: "esm",
   plugins: [{ name: "obsidian-boundary-double", setup(builder) {
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "double" }));
     builder.onLoad({ filter: /.*/, namespace: "double" }, () => ({ contents: `
-      export class App {} export class Modal {} export class Notice {}
+      export class App {}
+      export class Modal {
+        constructor(app) { this.app = app; this.titleEl = { setText(text) { this.text = text; } }; this.contentEl = { buttons: [], createEl() {}, empty() {} }; }
+        open() { this.onOpen?.(); }
+        close() { this.closed = true; this.onClose?.(); }
+      }
+      export class Notice {}
+      export class Setting {
+        constructor(container) { this.container = container; }
+        addButton(cb) {
+          const button = { setButtonText(text) { this.text = text; return this; }, setDestructive() { return this; }, setDisabled(value) { this.disabled = value; return this; }, onClick(cb) { this.activate = cb; return this; } };
+          this.container.buttons.push(button); cb(button); return this;
+        }
+      }
       export class AbstractInputSuggest {}
       export class PluginSettingTab { constructor(app) { this.app = app; this.containerEl = { addClass() {} }; } }
       export const getIcon = () => null; export const getIconIds = () => []; export const getLanguage = () => "en";
     `, loader: "js" }));
   } }],
 });
-const { migrateAndMergeSettings, importExcaliBrainGraphSettings, KplexSettingTab, resolveNodeStyle, resolveLinkStyle, buildScene } = await import(pathToFileURL(join(temp, "migration.mjs")));
+const { migrateAndMergeSettings, importExcaliBrainGraphSettings, KplexSettingTab, resolveNodeStyle, resolveLinkStyle, buildScene, PurgeIndexCacheModal } = await import(pathToFileURL(join(temp, "migration.mjs")));
 const defaults = migrateAndMergeSettings(undefined);
 const migrated = importExcaliBrainGraphSettings(fixture);
 
@@ -44,6 +57,94 @@ test("real ExcaliBrain fixture imports complete ontology and graph styles withou
 test("transient ExcaliBrain drawing paths are discarded from imported and saved settings", () => {
   assert.equal(Object.hasOwn(migrated, "excalibrainFilepath"), false);
   assert.equal(Object.hasOwn(migrateAndMergeSettings({ excalibrainFilepath: "Custom transient drawing.md" }), "excalibrainFilepath"), false);
+});
+
+test("indexing acquisition settings default conservatively, validate saved values and stay local on import", () => {
+  assert.equal(defaults.indexingMode, "eager");
+  assert.equal(defaults.urlIndexingMode, "on-demand");
+  const invalid = migrateAndMergeSettings({ indexingMode: "invalid", urlIndexingMode: "invalid" });
+  assert.equal(invalid.indexingMode, "eager");
+  assert.equal(invalid.urlIndexingMode, "on-demand");
+  const local = migrateAndMergeSettings({ indexingMode: "on-demand", urlIndexingMode: "background" });
+  const imported = importExcaliBrainGraphSettings({ ...fixture, indexingMode: "eager", urlIndexingMode: "on-demand" }, local);
+  assert.equal(imported.indexingMode, "on-demand");
+  assert.equal(imported.urlIndexingMode, "background");
+  assert.deepEqual(migrateAndMergeSettings(JSON.parse(JSON.stringify(local))), local);
+});
+
+test("indexing settings persist without rebuilding and cache estimation is lazy and fenced to the displayed row", async () => {
+  let estimates = 0;
+  let completeEstimate;
+  const saves = [];
+  const plugin = {
+    settings: structuredClone(defaults),
+    saveSettings: async (...args) => { saves.push(args); },
+    index: {
+      unassignedOntologyFields: () => [], allPages: () => [],
+      estimatePersistentIndexBytes: () => {
+        estimates += 1;
+        return new Promise(resolve => { completeEstimate = resolve; });
+      },
+    },
+  };
+  const tab = new KplexSettingTab({}, plugin);
+  const definitions = tab.getSettingDefinitions();
+  const indexingPage = definitions.find(item => item.name === "Indexing config");
+  assert(indexingPage);
+  assert(definitions.indexOf(indexingPage) < definitions.findIndex(item => item.name === "Compatibility"));
+  assert.equal(estimates, 0, "constructing settings definitions must not read every cache store");
+  const flatten = items => items.flatMap(item => [item, ...flatten(item.items ?? [])]);
+  const row = flatten(indexingPage.items).find(item => item.name === "Purge index cache");
+  let description;
+  const button = { setButtonText() { return this; }, setDestructive() { return this; }, onClick() { return this; } };
+  const setting = { setDesc(value) { description = value; return this; }, addButton(cb) { cb(button); return this; } };
+  const cleanup = row.render(setting);
+  assert.equal(estimates, 1);
+  completeEstimate(1024);
+  await Promise.resolve();
+  assert(description.includes("1.0 KB"));
+  const detachedCleanup = row.render(setting);
+  assert.equal(estimates, 2);
+  detachedCleanup();
+  const detachedDescription = description;
+  completeEstimate(4096);
+  await Promise.resolve();
+  assert.equal(description, detachedDescription, "a detached row must ignore late estimates");
+  cleanup();
+  await tab.setControlValue("indexingMode", "on-demand");
+  await tab.setControlValue("urlIndexingMode", "background");
+  assert.equal(plugin.settings.indexingMode, "on-demand");
+  assert.equal(plugin.settings.urlIndexingMode, "background");
+  assert.deepEqual(saves, [[false, false], [false, false]], "restart-only settings must not schedule live rebuilds");
+});
+
+test("purge confirmation requires activation, coalesces repeated clicks and never acknowledges failed deletion", async () => {
+  let calls = 0;
+  let purged = 0;
+  let finish;
+  const cancel = new PurgeIndexCacheModal({}, async () => { calls += 1; return true; }, () => { purged += 1; });
+  cancel.open();
+  cancel.contentEl.buttons.find(button => button.text === "Cancel").activate();
+  assert.equal(calls, 0);
+  assert.equal(purged, 0);
+
+  const confirm = new PurgeIndexCacheModal({}, () => { calls += 1; return new Promise(resolve => { finish = resolve; }); }, () => { purged += 1; });
+  confirm.open();
+  const button = confirm.contentEl.buttons.find(button => button.text === "Purge cache");
+  button.activate(); button.activate();
+  assert.equal(calls, 1);
+  assert.equal(button.disabled, true);
+  finish(false);
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(purged, 0);
+  assert.notEqual(confirm.closed, true);
+  assert.equal(button.disabled, false);
+  button.activate();
+  finish(true);
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(calls, 2);
+  assert.equal(purged, 1);
+  assert.equal(confirm.closed, true);
 });
 
 test("manual graph import preserves local UI, navigation, editor, command and scheduling preferences", () => {

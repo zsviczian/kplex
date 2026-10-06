@@ -433,7 +433,7 @@ export default class KplexPlugin extends Plugin {
         // hidden WebView was responsible for a restart loop on iPad. The per-file IndexedDB body
         // checkpoints still let an interrupted first scan resume instead of starting at file zero.
         const noteCount = this.app.vault.getMarkdownFiles().length;
-        const largeIosExpensiveRebuild = Platform.isIosApp && !restored.fresh && !this.index.hasPendingSnapshotHydration() &&
+        const largeIosExpensiveRebuild = !this.index.isOnDemandMode() && Platform.isIosApp && !restored.fresh && !this.index.hasPendingSnapshotHydration() &&
           (!restored.restored || !this.index.hasIncrementalRestorePatch()) && noteCount > 5000;
         if (!largeIosExpensiveRebuild) void this.ensureInitialIndex();
       })();
@@ -980,6 +980,20 @@ export default class KplexPlugin extends Plugin {
         return;
       }
 
+      if (this.index.isOnDemandMode()) {
+        const ready = await this.index.initializeOnDemandBaseline(this.startupGraphSeedPaths());
+        if (this.unloading) return;
+        this.initialIndexComplete = ready;
+        if (ready) {
+          this.indexDirty = false;
+          this.indexBacklogReasons.clear();
+          this.dirtyMarkdownPaths.clear();
+          void this.index.startBackgroundUrlIndex();
+        }
+        this.notifyIndexStatus();
+        return;
+      }
+
       // A preview neighborhood can already be on screen while the complete persisted graph is
       // still hydrating. Keep the UI usable, but do not declare the authoritative index ready
       // (or allow persistence/reconciliation against the preview) until that background restore
@@ -1168,6 +1182,17 @@ export default class KplexPlugin extends Plugin {
         item !== "metadata:changed" && item !== "coalesced-backlog" && item !== "interval" &&
         item !== "vault:create-markdown" && item !== "startup:post-initial-backlog",
       );
+      if (this.index.isOnDemandMode()) {
+        const ready = await this.index.refreshOnDemandGraph(this.startupGraphSeedPaths(), structuralDirty || force);
+        if (this.unloading) return;
+        if (ready && this.indexDirtyRevision === startRevision) {
+          this.indexDirty = false;
+          this.indexBacklogReasons.clear();
+          this.dirtyMarkdownPaths.clear();
+        }
+        await this.refreshBookmarkedEntryPoints();
+        return;
+      }
       if (!force && !showNotice && this.index.size > 0 && !structuralDirty && this.dirtyMarkdownPaths.size === 0) {
         this.indexDirty = false;
         this.indexBacklogReasons.clear();
@@ -2218,18 +2243,19 @@ export default class KplexPlugin extends Plugin {
     const loadingCache = this.index.hasPendingSnapshotHydration();
     const semanticPreparing = this.index.hasPendingSemanticPreparation();
     const semanticIncomplete = semanticPreparing && !this.index.hasActiveSemanticPreparation?.()
-      || Boolean(this.index.getSearchVocabularyFailure?.());
+      || Boolean(this.index.getSearchVocabularyFailure?.()) || Boolean(this.index.hasUnavailableLocalCounts?.());
     const upToDate = this.initialIndexComplete
       && !this.indexDirty
       && this.rebuildTask === null
       && this.rebuildTimer === null
       && !loadingCache
       && !semanticPreparing
+      && !semanticIncomplete
       && !this.index.hasPendingSearchVocabulary();
     if (upToDate) this.startupDiagnostics?.finish();
     const indexedFiles = totalFiles === null
       ? this.index.indexedMarkdownFileCount()
-      : upToDate ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
+      : upToDate && !this.index.isOnDemandMode() ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
     const phase = upToDate
       ? "ready"
       : loadingCache
@@ -2265,7 +2291,9 @@ export default class KplexPlugin extends Plugin {
     const failure = phase === "incomplete" ? this.index.getSemanticPreparationFailure?.() : null;
     const searchFailure = phase === "incomplete" && !failure ? this.index.getSearchVocabularyFailure?.() : null;
     const aliasProgress = phase === "updating" ? this.index.getUrlAliasUpgradeProgress?.() : null;
-    const label = searchFailure
+    const label = this.index.isOnDemandMode() && ["ready", "preparing", "updating", "indexing", "incomplete"].includes(phase)
+      ? this.translator(phase === "ready" ? "indexing.localReady" : phase === "incomplete" ? "indexing.localUnavailable" : "indexing.localPreparing")
+      : searchFailure
       ? this.translator("index.statusSearchIncomplete")
       : aliasProgress
         ? aliasProgress.phase === "repair" && aliasProgress.total !== null

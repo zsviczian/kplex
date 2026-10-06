@@ -212,7 +212,10 @@ export function ThoughtNode({
           : stat.hasAny || stat.complete === false
             ? translate("node.gateVisible", { gate: gateLabel, count: stat.visibleCount })
             : translate("node.gateEmpty", { gate: gateLabel });
-      const gateTitle = stat.complete === false ? `${gateHint} · ${translate("node.gatePartial")}` : gateHint;
+      const gateTitle = stat.countUnavailable ? `${gateLabel} · ${translate("node.gateHostUnavailable")}`
+        : stat.coverage === "cached" ? `${gateHint} · ${translate("node.gateCachedCount")}`
+        : stat.coverage === "local" ? `${gateHint} · ${translate("node.gateLocalCount")}`
+        : stat.complete === false ? `${gateHint} · ${translate("node.gatePartial")}` : gateHint;
       return <span key={gate} className={`kplex-gate-wrap gate-wrap-${gate}${stat.hasAny ? "" : " is-empty"}`}>
         <span
           className={`kplex-gate gate-${gate}${stat.hasAny ? " has-connections" : " is-empty"}${highlightedGates.has(gate) ? " is-highlighted" : ""}${gateDisabled ? " is-link-disabled" : ""}`}
@@ -225,7 +228,7 @@ export function ThoughtNode({
           data-tooltip-position="top"
         />
         {settings.showNeighborCount && (stat.visibleCount > 0 || stat.complete === false) && <span className="kplex-gate-count">{
-          stat.complete === false
+          stat.countUnavailable ? "…" : stat.complete === false && stat.coverage !== "local" && stat.coverage !== "cached"
             ? stat.visibleCount === 0 ? "…" : stat.shownCount === undefined ? `≥${stat.visibleCount}` : `${stat.shownCount}/≥${stat.visibleCount}`
             : stat.shownCount === undefined ? stat.visibleCount : `${stat.shownCount}/${stat.visibleCount}`
         }</span>}

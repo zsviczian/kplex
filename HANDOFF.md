@@ -16,12 +16,10 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Current return — W6 desktop accepted/inactive
+# Inactive — reopened V2 desktop regression accepted
 
-Branch indexing-fixes, base2a450b9; changes uncommitted, no publicationauthority, C15–C26 paused. Completed W6 corrects measured hidden zero-timer continuation starvation using disposable owning-window MessageChannel tasks at32 existing CPU boundaries. Real delay timers, source/semantic proof, slice budgets, priority ownership and lifetime fences remain. Read the durable [validation](docs/validation/warm-task-continuations-2026-10-06.md) and [evidence](docs/validation/warm-task-continuations-2026-10-06.json).
+Main independently reviewed the returned diff against AGENTS/CONTRIBUTING/architecture, including canonical ownership, opaque identities, current/cached/write authority, physical/policy/publication fences, bounded scope retention, mutable policy checkpoints, TSDoc/localization, settings compatibility and cleanup. No source/schema/C15–C26 expansion.
 
-Main independently reviewed documentation/ownership, corrected three explicit test-transpile dependencies and actual-message cancellation targeting. Failed harness attempts and a51.3ms sample against unchanged50ms guard are retained; strict rerun and finalfullrun passed. Final verify:obsidian7/67/241/17/322/305, settings24, actualtypes/scanner/build/exactsmallsmoke passes onNode22.22.2, no skips. All272 frozeninputs match.
+Final exact main.js `65bceafc178d368b51210a8783ae2f3786d83643096f432ffdcfc4723c73d08e`; all280 frozen inputs unchanged. RequiredNode22.22.2 full verification7/67/248/17/322/341 passes, no failures/skips/cancellations, fixture24/types/scanner/build/exact native smoke. Actual saved-Eager vault reload/cached named navigation and temporary On-demand current local named sequence pass. Reference notes/configuration/enablement unchanged, original saved Eager restored, only main.js deployed; both final instances ready and all temporary probes/wrappers/controllers removed.
 
-Main0ad6a47c is installed/loaded in the explicitly authorized reference vault. Actualnativeports close; whilehidden withoriginalthrottling, foldermembership/counts26/5 precede authority and then source/graphready plus20numericlabels converge withzero bodyreads/parses/repairs/fullbuilds. Final noactivework/controllers/wrappers, windowvisible/unminimized/documentvisible, note/file revisions/settings/center/CSS/manifest unchanged. Only main.js copied; no notes modified, no personalfixtures/faultinjection/throttling override.
-
-Highestvalue remainingmanualcheck: physicalAndroid/iOS warm/background/resume for nativeWebView lifecycle; popout not separately exercised. EarlierW5 foregrounddriverfocus failures remain documented, not a W6 pass. No automatic follow-on/refactor/publication work.
+Durable results, failed checks/corrections, target misses and cache/current/process/mobile limitations are recorded in Refactor plan.md and docs/validation/on-demand-indexing-v2-2026-10-06.{md,json}; design in INDEXING_OPTIMIZATION_V2.md. Persistent On-demand process-start and physical device timing remain unmeasured. V2 is checkpointed before the new URL-indexing assignment; prior checkpointe97696f already committed under explicit authorization. No automatic refactor resume or new assignment.

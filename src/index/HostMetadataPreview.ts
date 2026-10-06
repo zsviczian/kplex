@@ -1,15 +1,20 @@
 /**
- * Bounded, disposable first-order previews from Obsidian's already-loaded metadata. This host
+ * Disposable first-order host projections from Obsidian's already-loaded metadata. Eager previews
+ * retain strict source/fanout caps; on-demand count covers stream all selected direct host contributors
+ * within decode/record/byte guards and reuse acquired bodies without body reads. A missing/guarded
+ * current input is explicit, while caller cancellation retires the private cover silently. This host
  * composition reuses normalized collectors and the canonical compiler; it acquires neither body
  * text nor durable sources and never certifies semantic/evidence authority. The index owns event
  * delivery and replacement with canonical scopes. Folder previews use only native direct membership,
  * certifying structural gate counts separately from incomplete semantic incidence. Dense membership
  * is compiled in disposable chunks; only a finite visible cover survives. A lifecycle-local reverse
- * link map avoids a whole-vault backlink scan on each note navigation.
+ * resolved/unresolved link maps avoid a whole-vault backlink scan on each navigation. A known
+ * virtual endpoint needs no physical metadata; its incoming owners still prove local numeric gates.
  */
 import { getAllTags, TFile, TFolder, type App } from "obsidian";
 import { NormalizedGraphCompiler, type GraphCompilerRuntime, type GraphCompilerSettings, type PortableGraphCompilation } from "../core/graph/compiler";
-import { sourceGeneration, sourceRevision, sourceSnapshotRevision, type NormalizedSourceBatch, type NormalizedSourceRecord, type SourceEntityFact, type SourceEntityRef } from "../core/graph/source";
+import { estimateReferenceRecordBytes, sourceGeneration, sourceRevision, sourceSnapshotRevision, type NormalizedSourceBatch, type NormalizedSourceRecord, type SourceEntityFact, type SourceEntityRef } from "../core/graph/source";
+import { nodeId } from "../core/graph/model";
 import { canonicalTagPaths } from "../core/graph/tagPaths";
 import { graphCompilerSettingsFromLegacy } from "../adapters/obsidian/graphContracts";
 import { ObsidianHostLinkSourceCollector } from "../adapters/obsidian/hostLinkSourceCollector";
@@ -19,7 +24,7 @@ import { entityFactForFile, entityFactForFolder, structuralFileTreeOccurrence, s
 import type { KplexSettings } from "../settings";
 import type { GraphPage } from "../types";
 import { createGraphState, type GraphState } from "./GraphState";
-import { extractLinksFromValue, iterateFrontmatterAliasSteps, mergeFileMetadata, normalizeFieldName } from "./fieldParser";
+import { extractLinksFromValue, iterateFrontmatterAliasSteps, mergeFileMetadata, normalizeFieldName, type ParsedBodyMetadata } from "./fieldParser";
 import { cachedCenterTargetVisibility, captureCachedCenterGateSettings, projectCachedCenterGates,
   type CachedCenterGates } from "./CachedCenterGateProjection";
 
@@ -28,6 +33,9 @@ const MAX_PREVIEW_TARGETS = 256;
 const MAX_PREVIEW_RECORDS = 8192;
 const MAX_PREVIEW_METADATA_BYTES = 8 * 1024;
 const MAX_PREVIEW_TOTAL_METADATA_BYTES = 16 * 1024;
+/** On-demand covers stream one bounded host owner at a time instead of sharing the tiny paint-preview budget. */
+const MAX_LOCAL_HOST_METADATA_BYTES = 2 * 1024 * 1024;
+const MAX_LOCAL_HOST_RECORD_BYTES = 32 * 1024 * 1024;
 const MAX_FOLDER_PREVIEW_COVER = 300;
 const FOLDER_COUNT_CHUNK_SIZE = 64;
 
@@ -97,6 +105,8 @@ function tagPrefixesWithinBudget(tags: readonly string[]): boolean {
 export class HostMetadataPreview {
   private readonly outgoing = new Map<string, Set<string>>();
   private readonly incoming = new Map<string, Set<string>>();
+  private readonly unresolvedOutgoing = new Map<string, Set<string>>();
+  private readonly unresolvedIncoming = new Map<string, Set<string>>();
   private initialized = false;
   private initialization: Promise<void> | null = null;
   private revision = 0;
@@ -120,39 +130,75 @@ export class HostMetadataPreview {
     return this.initialization;
   }
 
+  /** Select current direct Markdown owners, center first, without body reads or recursive expansion.
+   * The owner cap bounds semantic acquisition only; callers count the complete native baseline. */
+  async candidateMarkdownPaths(centerPath: string, limit = 64): Promise<readonly string[]> {
+    await this.initializeBacklinks();
+    if (this.disposed || !this.runtime.isCurrent()) return [];
+    const paths: string[] = [];
+    const seen = new Set<string>();
+    const cap = Math.min(64, Math.max(1, Math.floor(limit)));
+    /** Admit exact live Markdown files in priority order, never synthetic or attachment owners. */
+    const add = (path: string): void => {
+      if (seen.has(path) || paths.length >= cap) return;
+      const file = this.app.vault.getFileByPath(path);
+      if (!file || file.extension !== "md") return;
+      seen.add(path);
+      paths.push(path);
+    };
+    add(centerPath);
+    for (const path of this.metadataImpactTargets(centerPath) ?? []) add(path);
+    for (const path of this.outgoing.get(centerPath) ?? []) add(path);
+    for (const path of this.incoming.get(centerPath) ?? []) add(path);
+    for (const path of this.unresolvedIncoming.get(centerPath) ?? []) add(path);
+    return paths;
+  }
+
   /** Scan loaded aggregate host facts once; subsequent navigation performs indexed lookups only. */
   private async scanBacklinks(): Promise<void> {
     let processed = 0;
     let startedAt = this.runtime.now();
-    for (const source in this.app.metadataCache.resolvedLinks) {
-      if (this.disposed || !this.runtime.isCurrent()) return;
-      const targets = new Set<string>();
-      for (const target in this.app.metadataCache.resolvedLinks[source]) {
-        if (this.app.metadataCache.resolvedLinks[source]?.[target] > 0) targets.add(target);
+    for (const unresolved of [false, true]) {
+      const links = unresolved ? this.app.metadataCache.unresolvedLinks : this.app.metadataCache.resolvedLinks;
+      const outgoing = unresolved ? this.unresolvedOutgoing : this.outgoing;
+      for (const source in links) {
+        if (this.disposed || !this.runtime.isCurrent()) return;
+        const targets = new Set<string>();
+        for (const target in links[source]) {
+          if (links[source]?.[target] > 0) targets.add(target);
+          if ((++processed & 255) === 0 && this.runtime.now() - startedAt >= this.runtime.sliceBudgetMs) {
+            await this.runtime.yield();
+            startedAt = this.runtime.now();
+          }
+          if (this.disposed || !this.runtime.isCurrent()) return;
+        }
+        // A resolve event during an awaited slice owns the newer source contribution.
+        if (!outgoing.has(source)) this.replaceSource(source, targets, unresolved);
         if ((++processed & 255) === 0 && this.runtime.now() - startedAt >= this.runtime.sliceBudgetMs) {
           await this.runtime.yield();
           startedAt = this.runtime.now();
         }
-        if (this.disposed || !this.runtime.isCurrent()) return;
-      }
-      // A resolve event during an awaited slice owns the newer source contribution.
-      if (!this.outgoing.has(source)) this.replaceSource(source, targets);
-      if ((++processed & 255) === 0 && this.runtime.now() - startedAt >= this.runtime.sliceBudgetMs) {
-        await this.runtime.yield();
-        startedAt = this.runtime.now();
       }
     }
     this.initialized = true;
-    for (const [source, targets] of this.outgoing) if (!targets.size) this.outgoing.delete(source);
+    for (const outgoing of [this.outgoing, this.unresolvedOutgoing]) {
+      for (const [source, targets] of outgoing) if (!targets.size) outgoing.delete(source);
+    }
   }
+
+  /** Fence private host covers against resolve notifications independently of plugin source revisions. */
+  observationRevision(): number { return this.revision; }
 
   /** Apply a post-resolve delta and return old/new targets so newly added backlinks refresh visible centers. */
   refreshSource(path: string): ReadonlySet<string> {
     if (this.disposed) return new Set();
     this.revision += 1;
     const targets = new Set(Object.keys(this.app.metadataCache.resolvedLinks[path] ?? {}));
-    const affected = new Set([...(this.outgoing.get(path) ?? []), ...targets]);
+    const unresolved = new Set(Object.keys(this.app.metadataCache.unresolvedLinks?.[path] ?? {}).filter(target => this.app.metadataCache.unresolvedLinks?.[path][target] > 0));
+    const affected = new Set([...(this.outgoing.get(path) ?? []), ...targets,
+      ...(this.unresolvedOutgoing.get(path) ?? []), ...unresolved]);
     this.replaceSource(path, targets);
+    this.replaceSource(path, unresolved, true);
     return affected;
   }
 
@@ -160,8 +206,9 @@ export class HostMetadataPreview {
   removeSource(path: string): ReadonlySet<string> {
     if (this.disposed) return new Set();
     this.revision += 1;
-    const affected = new Set(this.outgoing.get(path) ?? []);
+    const affected = new Set([...(this.outgoing.get(path) ?? []), ...(this.unresolvedOutgoing.get(path) ?? [])]);
     this.replaceSource(path, new Set());
+    this.replaceSource(path, new Set(), true);
     return affected;
   }
 
@@ -242,18 +289,20 @@ export class HostMetadataPreview {
   }
 
   /** Replace exactly one source's backlinks, retiring empty target buckets to avoid lifetime leaks. */
-  private replaceSource(source: string, targets: Set<string>): void {
-    for (const target of this.outgoing.get(source) ?? []) {
-      const owners = this.incoming.get(target);
+  private replaceSource(source: string, targets: Set<string>, unresolved = false): void {
+    const outgoing = unresolved ? this.unresolvedOutgoing : this.outgoing;
+    const incoming = unresolved ? this.unresolvedIncoming : this.incoming;
+    for (const target of outgoing.get(source) ?? []) {
+      const owners = incoming.get(target);
       owners?.delete(source);
-      if (!owners?.size) this.incoming.delete(target);
+      if (!owners?.size) incoming.delete(target);
     }
-    if (targets.size || !this.initialized) this.outgoing.set(source, targets);
-    else this.outgoing.delete(source);
+    if (targets.size || !this.initialized) outgoing.set(source, targets);
+    else outgoing.delete(source);
     for (const target of targets) {
-      const owners = this.incoming.get(target) ?? new Set<string>();
+      const owners = incoming.get(target) ?? new Set<string>();
       owners.add(source);
-      this.incoming.set(target, owners);
+      incoming.set(target, owners);
     }
   }
 
@@ -263,6 +312,8 @@ export class HostMetadataPreview {
     this.revision += 1;
     this.outgoing.clear();
     this.incoming.clear();
+    this.unresolvedOutgoing.clear();
+    this.unresolvedIncoming.clear();
   }
 
   /**
@@ -271,7 +322,19 @@ export class HostMetadataPreview {
    * Folder centers take the separate direct-native-membership path before backlink initialization.
    * No source flush, DB access or Markdown body acquisition occurs on either path.
    */
-  async build(centerPath: string): Promise<HostMetadataPreviewResult | null> {
+  async build(centerPath: string, options: Readonly<{
+    /** Remove only owner/fanout preview caps for a local host cover; byte/record limits stay enforced. */
+    completeHostCover?: boolean;
+    /** Revision-valid already acquired bodies enrich host facts without additional reads. */
+    bodyForPath?: (path: string) => ParsedBodyMetadata | undefined;
+    additionalPaths?: Iterable<string>;
+    /** Exact canonical identity for known URL/tag/unresolved endpoints, without guessing from paths. */
+    entityForPath?: (path: string) => SourceEntityFact | undefined;
+    isCurrent?: () => boolean;
+    checkpoint?: () => Promise<void>;
+    /** A current guard failure is distinct from cancellation and ordinary optional global work. */
+    onUnavailable?: () => void;
+  }> = {}): Promise<HostMetadataPreviewResult | null> {
     if (this.disposed || !this.runtime.isCurrent()) return null;
     // Folder identity is interpreted only at this host boundary. No backlink catalog or note
     // metadata is needed to expose the native direct tree during blocked durable startup.
@@ -282,24 +345,36 @@ export class HostMetadataPreview {
     }
     await this.initializeBacklinks();
     const center = this.app.vault.getFileByPath(centerPath);
-    if (!(center instanceof TFile)) return null;
+    if (!(center instanceof TFile) && !options.completeHostCover) return null;
     const revision = this.revision;
     const captured = new Map<TFile, Readonly<{ path: string; mtime: number; size: number }>>();
     /** Capture physical identity once so any awaited work cannot publish stale host files. */
     const capture = (file: TFile): void => {
       if (!captured.has(file)) captured.set(file, { path: file.path, mtime: file.stat.mtime, size: file.stat.size });
     };
-    capture(center);
+    if (center instanceof TFile) capture(center);
     /** Finality checks include exact file identity, not only mtime, at every cooperative boundary. */
     const current = (): boolean => !this.disposed && this.revision === revision && this.runtime.isCurrent()
+      && options.isCurrent?.() !== false
+      && (center instanceof TFile || this.app.vault.getFileByPath(centerPath) === null)
       && [...captured].every(([file, stat]) => file.path === stat.path && file.stat.mtime === stat.mtime
         && file.stat.size === stat.size && this.app.vault.getFileByPath(stat.path) === file);
     const settings = this.settings();
     const compilerSettings = graphCompilerSettingsFromLegacy(settings);
     const metadataSettings = { noteTypeField: settings.noteTypeField, primaryTagField: settings.primaryTagField };
     const compiler = new NormalizedGraphCompiler(compilerSettings, { ...this.runtime, isCurrent: current });
+    // A known unresolved endpoint has no physical metadata to fetch. Its current host/body
+    // contributors still prove local numeric gates, including zero, without global absence authority.
+    if (!(center instanceof TFile)) {
+      const entity: SourceEntityRef = { id: nodeId(centerPath), kind: "unresolved", state: "unresolved", semanticPath: centerPath };
+      const known = options.entityForPath?.(centerPath);
+      if (known && known.entity.semanticPath !== centerPath) return null;
+      if (!(await compiler.seedEntityFact(known ?? { kind: "entity", source: entity, entity,
+        sourceRevision: sourceRevision(`host-preview-virtual:${revision}`), name: centerPath, url: null }))) return null;
+    }
     const seeded = new Set<string>();
     let records = 0;
+    let recordBytes = 0;
     let metadataTotal = 0;
     /** Seed only exact host materializations selected by the shared semantic policy. */
     const seed = async (ref: SourceEntityRef): Promise<boolean> => {
@@ -316,7 +391,11 @@ export class HostMetadataPreview {
       /** Seed selected endpoints before the compiler validates required physical facts. */
       const accept = async (batch: NormalizedSourceBatch): Promise<boolean> => {
         records += batch.records.length;
-        if (records > MAX_PREVIEW_RECORDS) return false;
+        if (options.completeHostCover) for (const record of batch.records) recordBytes += estimateReferenceRecordBytes(record);
+        if (records > MAX_PREVIEW_RECORDS || recordBytes > MAX_LOCAL_HOST_RECORD_BYTES) {
+          options.onUnavailable?.();
+          return false;
+        }
         return compiler.acceptBatch(read, batch, async (record) => {
           if (!(await seed(record.source))) return false;
           return !("target" in record) || await seed(record.target.entity);
@@ -333,17 +412,34 @@ export class HostMetadataPreview {
     const collectorRuntime = {
       isCurrent: current, sourceRevision: () => this.revision,
       /** Preserve caller-owned cooperative scheduling and both sides of the revision fence. */
-      checkpoint: async (): Promise<boolean> => { await this.runtime.yield(); return current(); },
+      checkpoint: async (): Promise<boolean> => { await options.checkpoint?.(); await this.runtime.yield(); return current(); },
     };
-    const sources = new Set([center.path]);
-    for (const path of this.incoming.get(center.path) ?? []) {
-      if (sources.size >= MAX_PREVIEW_SOURCES) break;
+    const sources = new Set([centerPath]);
+    for (const path of this.incoming.get(centerPath) ?? []) {
+      if (!options.completeHostCover && sources.size >= MAX_PREVIEW_SOURCES) break;
       sources.add(path);
+      if (sources.size > MAX_PREVIEW_RECORDS) { options.onUnavailable?.(); return null; }
+    }
+    if (options.completeHostCover) for (const path of this.unresolvedIncoming.get(centerPath) ?? []) {
+      sources.add(path);
+      if (sources.size > MAX_PREVIEW_RECORDS) { options.onUnavailable?.(); return null; }
     }
     // Direct neighbours also contribute frontmatter overrides for the center pair.
-    for (const path in this.app.metadataCache.resolvedLinks[center.path] ?? {}) {
-      if (sources.size >= MAX_PREVIEW_SOURCES) break;
+    for (const path in this.app.metadataCache.resolvedLinks[centerPath] ?? {}) {
+      if (!options.completeHostCover && sources.size >= MAX_PREVIEW_SOURCES) break;
       sources.add(path);
+      if (sources.size > MAX_PREVIEW_RECORDS) { options.onUnavailable?.(); return null; }
+    }
+    if (options.completeHostCover) {
+      for (const path of this.metadataImpactTargets(centerPath) ?? []) if (this.app.vault.getFileByPath(path)) sources.add(path);
+      for (const path of options.additionalPaths ?? []) {
+        if (this.app.vault.getFileByPath(path)) sources.add(path);
+        else {
+          const known = options.entityForPath?.(path);
+          if (known && known.entity.semanticPath === path && !(await compiler.seedEntityFact(known))) return null;
+        }
+        if (sources.size > MAX_PREVIEW_RECORDS) { options.onUnavailable?.(); return null; }
+      }
     }
     for (const path of sources) {
       const file = this.app.vault.getFileByPath(path);
@@ -351,20 +447,32 @@ export class HostMetadataPreview {
       capture(file);
       if (!(await compiler.seedEntityFact(entityFactForFile(file)))) return null;
       const cache = this.app.metadataCache.getFileCache(file);
-      const estimated = metadataBytes(cache?.frontmatter ?? {}, MAX_PREVIEW_METADATA_BYTES);
+      if (options.completeHostCover && file.extension === "md" && !cache) {
+        options.onUnavailable?.();
+        return null;
+      }
+      const metadataBudget = options.completeHostCover ? MAX_LOCAL_HOST_METADATA_BYTES : MAX_PREVIEW_METADATA_BYTES;
+      const estimated = metadataBytes(cache?.frontmatter ?? {}, metadataBudget);
       const inlineTags = cache?.tags ?? [];
       const tagBytes = estimated === null || inlineTags.length > MAX_PREVIEW_TARGETS ? null
-        : metadataBytes(inlineTags.map(tag => tag.tag), MAX_PREVIEW_METADATA_BYTES - estimated);
+        : metadataBytes(inlineTags.map(tag => tag.tag), metadataBudget - estimated);
       const tags = estimated !== null && tagBytes !== null && cache ? getAllTags(cache) ?? [] : [];
       const metadataAllowed = estimated !== null && tagBytes !== null
-        && metadataTotal + estimated + tagBytes <= MAX_PREVIEW_TOTAL_METADATA_BYTES && tagPrefixesWithinBudget(tags);
+        && (options.completeHostCover || metadataTotal + estimated + tagBytes <= MAX_PREVIEW_TOTAL_METADATA_BYTES)
+        && tagPrefixesWithinBudget(tags);
+      if (options.completeHostCover && !metadataAllowed) {
+        options.onUnavailable?.();
+        return null;
+      }
       if (metadataAllowed) {
         metadataTotal += estimated + tagBytes;
-        const metadata = mergeFileMetadata(cache, { inlineFields: {}, inlineFieldOccurrences: [], urls: [] });
+        const metadata = mergeFileMetadata(cache, options.bodyForPath?.(path) ?? { inlineFields: {}, inlineFieldOccurrences: [], urls: [] });
         const host = metadataHost;
         if (!(await consume(new ObsidianMetadataSourceCollector(host, collectorRuntime, file, metadata, metadataSettings, "metadata")))) return null;
         if (!(await consume(new ObsidianReferenceSourceCollector({ metadataCache: this.app.metadataCache,
           resolvedLinkCount: host.resolvedLinkCount }, collectorRuntime, file, metadata)))) return null;
+        if (options.completeHostCover && !(await consume(new ObsidianMetadataSourceCollector(host, collectorRuntime,
+          file, metadata, metadataSettings, "relations")))) return null;
       }
       // If metadata exceeded the bound, omit its aggregate links as well: unknown explicit
       // overrides must not be misrepresented as inferred relationships.
@@ -373,18 +481,27 @@ export class HostMetadataPreview {
       let inspectedTargets = 0;
       for (const target in metadataAllowed ? this.app.metadataCache.resolvedLinks[path] ?? {} : {}) {
         // Irrelevant entries consume work too; a dense owner must not synchronously scan its fanout.
-        if (++inspectedTargets > MAX_PREVIEW_TARGETS) break;
-        if (path === center.path && !sources.has(target) && this.app.vault.getFileByPath(target)?.extension === "md") continue;
-        if (path !== center.path && target !== center.path) continue;
+        if (++inspectedTargets > MAX_PREVIEW_TARGETS && !options.completeHostCover) break;
+        if (path === centerPath && !sources.has(target) && this.app.vault.getFileByPath(target)?.extension === "md") continue;
+        if (path !== centerPath && target !== centerPath) continue;
         resolved[target] = this.app.metadataCache.resolvedLinks[path][target];
       }
-      if (path === center.path && metadataAllowed) for (const target in this.app.metadataCache.unresolvedLinks[path] ?? {}) {
-        if (++inspectedTargets > MAX_PREVIEW_TARGETS) break;
-        unresolved[target] = this.app.metadataCache.unresolvedLinks[path][target];
+      if (metadataAllowed) for (const target in this.app.metadataCache.unresolvedLinks?.[path] ?? {}) {
+        if (++inspectedTargets > MAX_PREVIEW_TARGETS && !options.completeHostCover) break;
+        if (path !== centerPath && (!options.completeHostCover || target !== centerPath)) continue;
+        unresolved[target] = this.app.metadataCache.unresolvedLinks?.[path][target];
       }
       if (!(await consume(new ObsidianHostLinkSourceCollector({ vault: this.app.vault,
         metadataCache: { resolvedLinks: { [path]: resolved }, unresolvedLinks: { [path]: unresolved } } }, collectorRuntime, path)))) return null;
-      if (path === center.path) {
+      if (options.completeHostCover && options.entityForPath?.(centerPath)?.entity.kind === "tag" && metadataAllowed) {
+        const facts = structuralTagMembershipFacts(file, this.app.metadataCache);
+        records += facts.length;
+        if (records > MAX_PREVIEW_RECORDS) { options.onUnavailable?.(); return null; }
+        const boundary = { generation: sourceGeneration(`host-preview-tag:${revision}:${path}`), snapshotRevision: sourceSnapshotRevision(`host-preview-tag:${revision}:${path}`) };
+        const read = compiler.beginRead(boundary);
+        if (!(await compiler.acceptBatch(read, { boundary, sequence: 0, final: true, records: facts })) || !compiler.completeRead(read, boundary)) return null;
+      }
+      if (path === centerPath) {
         const structural = [entityFactForFile(file)];
         const folder = file.parent;
         const boundary = { generation: sourceGeneration(`host-preview:${revision}`), snapshotRevision: sourceSnapshotRevision(`host-preview:${revision}`) };
@@ -399,7 +516,7 @@ export class HostMetadataPreview {
         const tagFacts = metadataAllowed ? structuralTagMembershipFacts(file, this.app.metadataCache) : [];
         const allFacts = [...facts, ...relationFacts, ...tagFacts];
         records += allFacts.length;
-        if (records > MAX_PREVIEW_RECORDS) return null;
+        if (records > MAX_PREVIEW_RECORDS) { options.onUnavailable?.(); return null; }
         for (let start = 0, sequence = 0; start < allFacts.length; start += 256, sequence += 1) {
           if (!(await compiler.acceptBatch(read, { boundary, sequence, final: start + 256 >= allFacts.length, records: allFacts.slice(start, start + 256) }))) return null;
         }

@@ -443,7 +443,16 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
       try { assert.deepEqual(currentNeighborhoodView(index, "B.md"), currentNeighborhoodView(navigationOracle, "B.md"), "navigation scope"); }
       finally { navigationOracle.destroy(); releaseSecond(); }
 
-      // A released navigation demand cannot resurrect its scope after a newer center finishes.
+      // A released current scope is now deliberately retained for reuse. A real host observation
+      // retires that proof before this test holds a new preparation and cancels its demand lifetime.
+      index.refreshVisibleHostMetadataPreviews("B.md");
+      assert.equal(index.semanticScopes.has("B.md"), false, "Host observation retires retained B before fresh preparation");
+      // Settle the independent visible A repair before holding B; otherwise its optional preview
+      // can remain queued until the later source-invalidation assertion changes A's policy.
+      await index.workScheduler.checkpoint(4);
+      await index.refreshSemanticSettings();
+      assert.equal(index.semanticScopes.has("B.md"), false, "Released B still requires fresh canonical preparation");
+      // A released in-flight navigation demand cannot resurrect its scope after a newer center finishes.
       const navigationPrepare = f.acquisition.prepareRequestedNeighborhood.bind(f.acquisition);
       let unblockNavigation, enteredNavigation;
       const navigationEntered = new Promise(resolve => { enteredNavigation = resolve; });

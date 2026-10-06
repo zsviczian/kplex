@@ -248,6 +248,7 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
     indexBacklogReasons: new Set(["startup:stale-snapshot"]), dirtyMarkdownPaths: new Set(), metadataStabilized: true,
     rebuildTask: null, rebuildTimer: null,
     index: {
+      isOnDemandMode: () => false,
       size: 3, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
       waitForSnapshotHydration: async () => { events.push("wait"); await closed; hydrating = false; return { restored: true, fresh: false }; },
       hasSourceBackedStartup: () => false, isFullSnapshotHydrated: () => !hydrating, hasIncrementalRestorePatch: () => true,
@@ -280,6 +281,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       indexBacklogReasons: new Set(["startup:no-snapshot"]), dirtyMarkdownPaths: new Set(), metadataStabilized: false,
       metadataStabilityPromise: null, rebuildTask: null, rebuildTimer: null,
       index: {
+        isOnDemandMode: () => false,
         size: 0, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
         hasSourceBackedStartup: () => sourceBacked, isFullSnapshotHydrated: () => hydrated,
         hasPhysicalBaseline: () => hydrated || sourceBacked, hasRestoredCheckpoint: () => false,
@@ -332,6 +334,7 @@ test("settled semantic failure exposes incomplete status while real active work 
   const context = {
     initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
     index: {
+      isOnDemandMode: () => false,
       hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => true,
       hasActiveSemanticPreparation: () => active, hasPendingSearchVocabulary: () => false,
       isCheckpointSaving: () => false, indexedMarkdownFileCount: () => 2,
@@ -349,7 +352,7 @@ test("optional alias progress and failure use distinct status copy while relatio
   const context={
     cachedMarkdownFileCount:5,
     computeIndexStatusFacts:()=>({upToDate:false,phase,indexedFiles:5,totalFiles:5}),
-    index:{getSemanticPreparationFailure:()=>relationshipFailure,getSearchVocabularyFailure:()=>searchFailure,
+    index:{isOnDemandMode:()=>false,getSemanticPreparationFailure:()=>relationshipFailure,getSearchVocabularyFailure:()=>searchFailure,
       getUrlAliasUpgradeProgress:()=>progress,getSnapshotHydrationDiagnostics:()=>null},
     translator:(key,params)=>JSON.stringify({key,params}),
   };
@@ -363,6 +366,32 @@ test("optional alias progress and failure use distinct status copy while relatio
   assert.equal(JSON.parse((await status.call(context)).label).key,"index.statusSearchIncomplete");
   relationshipFailure="decode-budget";
   assert.equal(JSON.parse((await status.call(context)).label).key,"index.statusRelationshipLimit");
+});
+
+/** Local readiness reports acquired owners and exposes unavailable inputs without global certification. */
+test("on-demand status distinguishes local readiness from complete-vault indexing", async () => {
+  let unavailable = false;
+  const context = {
+    initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
+    cachedMarkdownFileCount: 100, translator: key => key,
+    index: {
+      isOnDemandMode: () => true, hasPendingSnapshotHydration: () => false,
+      hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
+      hasUnavailableLocalCounts: () => unavailable, indexedMarkdownFileCount: () => 2,
+      isCheckpointSaving: () => false, getSnapshotHydrationDiagnostics: () => null,
+    },
+  };
+  const compute = productionFunction("src/main.ts", "computeIndexStatusFacts", {});
+  const status = productionFunction("src/main.ts", "getIndexStatus", {});
+  let facts = await compute.call(context, 100);
+  context.computeIndexStatusFacts = () => facts;
+  assert.deepEqual(facts, { upToDate: true, phase: "ready", indexedFiles: 2, totalFiles: 100 });
+  assert.equal((await status.call(context)).label, "indexing.localReady");
+  unavailable = true;
+  facts = await compute.call(context, 100);
+  assert.equal(facts.upToDate, false);
+  assert.equal(facts.phase, "incomplete");
+  assert.equal((await status.call(context)).label, "indexing.localUnavailable");
 });
 
 test("pre-restore file events update temporary availability while preserving backlog revision fences", async () => {

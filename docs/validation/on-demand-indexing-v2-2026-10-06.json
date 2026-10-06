@@ -1,0 +1,798 @@
+{
+  "status": "desktop-regression-validation-passed",
+  "base": "e97696f325a8ebbcb83ce293730b76b0b1e072a9",
+  "v2Uncommitted": true,
+  "node": "22.22.2",
+  "host": "Obsidian1.14.4 installer1.14.0 macOS",
+  "fullVerification": {
+    "counts": {
+      "architecture": 7,
+      "core": 67,
+      "node": 248,
+      "ui": 17,
+      "portableSources": 322,
+      "realBrowserIndexedDb": 341
+    },
+    "skips": 0,
+    "failures": 0,
+    "cancellations": 0,
+    "sourceInputs": 280,
+    "sourceInputsUnchanged": true,
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "65bceafc178d368b51210a8783ae2f3786d83643096f432ffdcfc4723c73d08e",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "0d75bb3b4dd6a863319116b54b3d1b9f31d21d03ee8c8d24963aa0e344ebf01c"
+      },
+      "pluginVersion": "0.0.5",
+      "stagedHashes": {
+        "main.js": "65bceafc178d368b51210a8783ae2f3786d83643096f432ffdcfc4723c73d08e",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "0d75bb3b4dd6a863319116b54b3d1b9f31d21d03ee8c8d24963aa0e344ebf01c"
+      }
+    },
+    "nativeSmoke": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 199
+      }
+    ]
+  },
+  "small": {
+    "runs": [
+      {
+        "urlMode": "on-demand",
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 64,
+          "totalFiles": 91,
+          "label": "Local graph ready"
+        },
+        "stages": {
+          "baselineMs": 31,
+          "numericalCenterMs": 65,
+          "centerPatchedMs": 573,
+          "localSettledMs": 3624,
+          "countCoverSettledMs": 3624
+        },
+        "reads": 64,
+        "source": {
+          "checked": 64,
+          "reusedBodies": 0,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 64,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "sourceReady": false,
+        "inventory": false,
+        "inventoryEnabled": false,
+        "owners": 64,
+        "countTasks": 0,
+        "hidden": false,
+        "focus": true,
+        "snapshotFull": false,
+        "partial": true,
+        "priority": {
+          "active": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "waiting": 0,
+          "pauses": 2
+        },
+        "renderedGateLabels": 308,
+        "allRenderedGatesNumerical": true,
+        "firstFourRenderedGateLabels": [
+          "2",
+          "72",
+          "1",
+          "1"
+        ]
+      },
+      {
+        "urlMode": "background",
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 64,
+          "totalFiles": 91,
+          "label": "Local graph ready"
+        },
+        "stages": {
+          "baselineMs": 28,
+          "numericalCenterMs": 55,
+          "centerPatchedMs": 338,
+          "localSettledMs": 2614,
+          "countCoverSettledMs": 2614
+        },
+        "reads": 0,
+        "source": {
+          "checked": 64,
+          "reusedBodies": 64,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 0,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "sourceReady": false,
+        "inventory": false,
+        "inventoryEnabled": false,
+        "owners": 64,
+        "countTasks": 0,
+        "hidden": false,
+        "focus": true,
+        "snapshotFull": false,
+        "partial": true,
+        "priority": {
+          "active": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "waiting": 0,
+          "pauses": 4
+        },
+        "renderedGateLabels": 308,
+        "allRenderedGatesNumerical": true,
+        "firstFourRenderedGateLabels": [
+          "2",
+          "72",
+          "1",
+          "1"
+        ]
+      }
+    ],
+    "centerOracle": {
+      "top": 2,
+      "bottom": 72,
+      "left": 1,
+      "right": 1
+    },
+    "revisit": {
+      "initialReads": 64,
+      "afterB": 65,
+      "afterA": 65
+    },
+    "folder": {
+      "done": true,
+      "gates": {
+        "top": 1,
+        "bottom": 78,
+        "left": 0,
+        "right": 0
+      },
+      "expected": 78,
+      "reads": 65,
+      "source": {
+        "checked": 65,
+        "reusedBodies": 0,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 65,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "inventoryEnabled": false,
+      "inventory": false
+    },
+    "relationshipWrites": {
+      "done": true,
+      "source": {
+        "checked": 76,
+        "reusedBodies": 9,
+        "legacyBodies": 0,
+        "vaultReads": 2,
+        "parses": 2,
+        "repaired": 67,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "inventoryEnabled": false,
+      "inventory": false,
+      "sourceReady": false,
+      "left": 1,
+      "unlinked": true
+    },
+    "urlBackground": {
+      "done": true,
+      "urlPresent": true,
+      "incidence": 0,
+      "source": {
+        "checked": 64,
+        "reusedBodies": 64,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "inventoryEnabled": false,
+      "inventory": false,
+      "sourceReady": false,
+      "scanCompleted": true,
+      "scanOK": true,
+      "total": 91,
+      "priority": {
+        "active": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "waiting": 0,
+        "pauses": 4
+      }
+    },
+    "settingsPage": {
+      "done": true,
+      "desc": "Approximate K-Plex IndexedDB cache size: 20.3 MB. Clears cached graphs, parsed note bodies, source facts, web links and dependency data. Restart Obsidian after purging.",
+      "selects": [
+        "on-demand",
+        "background"
+      ],
+      "button": true,
+      "cancelled": true,
+      "purge": {
+        "done": true,
+        "success": true,
+        "displayedZero": true,
+        "purged": true
+      }
+    },
+    "cleanup": {
+      "filesUnchanged": true,
+      "ownedRemaining": 0,
+      "loadRestored": true,
+      "saveFenced": true,
+      "readRestored": true,
+      "savedSettingsUnchanged": true,
+      "enabledListUnchanged": true
+    }
+  },
+  "excludedAttempts": {
+    "full1": "Seven obsolete eager/status doubles corrected; relationship/status37 passed.",
+    "full2": "327/328 browser tests; existing exact-pair unrelated-change fence failed once. Isolated case, full43-case editing file, final329-browser suite passed unchanged production pair path.",
+    "small1": "Acquisition checked includes demanded owner work; probe corrected to inspect actual inventory enabled/running/global readiness.",
+    "small2": "Obsidian duplicate dropdown markup; probe selected stable enum-option controls.",
+    "small3": "Settings are in another owning document; modal selector corrected.",
+    "reference1": "CLI reload reordered enabled list; unique exact original bytes reconstructed and hash-verified restored. Native instance reloads used thereafter.",
+    "referenceAdditionalWarmRuns": "Two focus-lost runs excluded from latency comparison; notes/settings/enablement cleanup passed."
+  },
+  "limits": [
+    "Single accepted ordinary-center reference timing; not a universal five-second guarantee, app cold-launch timing, actual paint or physical-mobile result.",
+    "Local counts cover current host metadata and indexed notes; unseen cold body-only incoming declarations remain unknown.",
+    "64 selected Markdown bodies; local metadata/normalized-record guards remain explicit.",
+    "Reference saved eager mode was restored. Selecting On demand and restarting enables V2 persistently.",
+    "Optional one-session URL scan may require restart after ontology policy cancellation.",
+    "Actual saved-Eager vault reload uses explicitly cached counts until current scope certification; early neighboring previews remain partial.",
+    "Final On-demand timing is one foreground warm/durable-cache session after host readiness; persistent On-demand application-process restart and physical-device timing are not demonstrated."
+  ],
+  "finalRuntimeAudit": {
+    "referenceNotes": 11815,
+    "smallOriginalNotes": 13,
+    "bothPluginInstancesLoaded": true,
+    "bothSavedModesRestored": "eager",
+    "controllersAndLoadSaveReadWrappersAbsent": true,
+    "referenceArtifactAndConfigurationHashesMatchDeployment": true,
+    "temporaryPrefixAbsentFromSourceAndBundle": true
+  },
+  "productionAcceptance": "desktop-reload-navigation-and-local-counts-passed",
+  "subsequentUserFailure": {
+    "ordinaryMode": "eager",
+    "exactInstalledBuild": true,
+    "symptoms": [
+      "missing startup relations and counts",
+      "node vocabulary pending over ten minutes",
+      "complete cached counts lost on navigation"
+    ],
+    "priorReferenceProbeLimit": "temporary On-demand session at one center after host readiness; no application restart or production A\u2192B\u2192A sequence"
+  },
+  "previousScopedVerification": {
+    "counts": {
+      "architecture": 7,
+      "core": 67,
+      "node": 247,
+      "ui": 17,
+      "portableSources": 322,
+      "realBrowserIndexedDb": 329
+    },
+    "skips": 0,
+    "sourceInputs": 280,
+    "sourceInputsUnchanged": true,
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "0b906182bbc5bf1df7c862ea76ef50b3c9f897ea98c0471a0803e7c480410183",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "0d75bb3b4dd6a863319116b54b3d1b9f31d21d03ee8c8d24963aa0e344ebf01c"
+      },
+      "pluginVersion": "0.0.5",
+      "stagedHashes": {
+        "main.js": "0b906182bbc5bf1df7c862ea76ef50b3c9f897ea98c0471a0803e7c480410183",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "0d75bb3b4dd6a863319116b54b3d1b9f31d21d03ee8c8d24963aa0e344ebf01c"
+      }
+    },
+    "nativeSmoke": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 54
+      }
+    ]
+  },
+  "reopenedRegression": {
+    "causes": [
+      "trusted cache cancelled by startup metadata/source waves",
+      "released canonical scope deleted on navigation",
+      "full mutable settings projected per normalized record",
+      "unresolved endpoints treated as missing physical metadata"
+    ],
+    "actualVaultReload": {
+      "mode": "eager",
+      "wholeReloadMsToFirstNumericCenter": 21716,
+      "wholeReloadMsToAllNumericRenderedGates": 33966,
+      "wholeReloadMsToCompleteHydration": 38509,
+      "hostNotifications": 11049,
+      "cachedCoverage": true,
+      "earlyNeighborPreviewPartial": true,
+      "coldFallbackObserved": false,
+      "configurationPreserved": true,
+      "notesPreserved": true,
+      "timingLimit": "whole CLI vault reload; initial hidden/unfocused samples, later foreground; not a five-second current-readiness or full application process restart claim"
+    },
+    "eagerNavigation": {
+      "status": "passed",
+      "runs": [
+        {
+          "name": "IIB - StoryOS Cohort 1",
+          "gates": [
+            3,
+            4,
+            1,
+            0
+          ],
+          "coverage": [
+            "cached",
+            "cached",
+            "cached",
+            "cached"
+          ],
+          "expectedDirect": 8,
+          "renderedNodes": 9,
+          "missingRendered": 0,
+          "allNumeric": true
+        },
+        {
+          "name": "IIB - StoryOS",
+          "gates": [
+            1,
+            11,
+            0,
+            0
+          ],
+          "coverage": [
+            "current",
+            "current",
+            "current",
+            "current"
+          ],
+          "expectedDirect": 12,
+          "renderedNodes": 13,
+          "missingRendered": 0,
+          "allNumeric": true
+        },
+        {
+          "name": "IIB - StoryOS Cohort 1",
+          "gates": [
+            3,
+            4,
+            1,
+            0
+          ],
+          "coverage": [
+            "cached",
+            "cached",
+            "cached",
+            "cached"
+          ],
+          "expectedDirect": 8,
+          "renderedNodes": 9,
+          "missingRendered": 0,
+          "allNumeric": true
+        },
+        {
+          "name": "IIB - Finite and Infinite Games",
+          "gates": [
+            8,
+            16,
+            10,
+            1
+          ],
+          "coverage": [
+            "cached",
+            "cached",
+            "cached",
+            "cached"
+          ],
+          "expectedDirect": 35,
+          "renderedNodes": 36,
+          "missingRendered": 0,
+          "allNumeric": true
+        },
+        {
+          "name": "IIB - StoryOS Cohort 1",
+          "gates": [
+            3,
+            4,
+            1,
+            0
+          ],
+          "coverage": [
+            "cached",
+            "cached",
+            "cached",
+            "cached"
+          ],
+          "expectedDirect": 8,
+          "renderedNodes": 9,
+          "missingRendered": 0,
+          "allNumeric": true
+        }
+      ],
+      "timingLimit": "cached presentation checks; transient canonical preparation/incomplete states were observed, not current-scope readiness measurements",
+      "notesPreserved": true,
+      "configurationPreserved": true
+    },
+    "onDemandReference": {
+      "status": "passed",
+      "timingOrigin": "temporary runtime On-demand plugin reload after host metadata/layout readiness; saved Eager unchanged",
+      "initialLocalClosureMs": 3760,
+      "firstNumericalCenterMs": 3350,
+      "expectedDirect": 12,
+      "renderedNodes": 13,
+      "missingRendered": 0,
+      "allRenderedLabelsNumeric": true,
+      "indexedOwners": 4,
+      "globalInventory": false,
+      "globalDependencyAuthority": false,
+      "wrappedBodyReads": 0,
+      "navigation": [
+        {
+          "name": "IIB - StoryOS Cohort 1",
+          "elapsedMs": 557,
+          "gates": {
+            "top": 3,
+            "bottom": 4,
+            "left": 1,
+            "right": 0
+          },
+          "expectedDirect": 8,
+          "renderedNodes": 9,
+          "missingRendered": 0,
+          "numericLabels": 36,
+          "unknownLabels": 0,
+          "indexedOwners": 7,
+          "wrappedBodyReads": 0,
+          "globalInventory": false
+        },
+        {
+          "name": "IIB - StoryOS",
+          "elapsedMs": 566,
+          "gates": {
+            "top": 1,
+            "bottom": 11,
+            "left": 0,
+            "right": 0
+          },
+          "expectedDirect": 12,
+          "renderedNodes": 13,
+          "missingRendered": 0,
+          "numericLabels": 52,
+          "unknownLabels": 0,
+          "indexedOwners": 7,
+          "wrappedBodyReads": 0,
+          "globalInventory": false
+        },
+        {
+          "name": "IIB - StoryOS Cohort 1",
+          "elapsedMs": 555,
+          "gates": {
+            "top": 3,
+            "bottom": 4,
+            "left": 1,
+            "right": 0
+          },
+          "expectedDirect": 8,
+          "renderedNodes": 9,
+          "missingRendered": 0,
+          "numericLabels": 36,
+          "unknownLabels": 0,
+          "indexedOwners": 7,
+          "wrappedBodyReads": 0,
+          "globalInventory": false
+        },
+        {
+          "name": "IIB - Finite and Infinite Games",
+          "elapsedMs": 2665,
+          "gates": {
+            "top": 8,
+            "bottom": 16,
+            "left": 10,
+            "right": 1
+          },
+          "expectedDirect": 35,
+          "renderedNodes": 36,
+          "missingRendered": 0,
+          "numericLabels": 144,
+          "unknownLabels": 0,
+          "indexedOwners": 31,
+          "wrappedBodyReads": 0,
+          "globalInventory": false
+        },
+        {
+          "name": "IIB - StoryOS Cohort 1",
+          "elapsedMs": 554,
+          "gates": {
+            "top": 3,
+            "bottom": 4,
+            "left": 1,
+            "right": 0
+          },
+          "expectedDirect": 8,
+          "renderedNodes": 9,
+          "missingRendered": 0,
+          "numericLabels": 36,
+          "unknownLabels": 0,
+          "indexedOwners": 31,
+          "wrappedBodyReads": 0,
+          "globalInventory": false
+        }
+      ],
+      "cleanup": {
+        "filesUnchanged": true,
+        "ownedRemaining": 0,
+        "loadRestored": true,
+        "saveFenced": true,
+        "readRestored": true,
+        "savedSettingsUnchanged": true,
+        "enabledListUnchanged": true
+      }
+    },
+    "finalAudit": {
+      "artifactsEqual": true,
+      "referenceSavedMode": "eager",
+      "referenceReady": true,
+      "smallReady": true,
+      "referenceNotes": 11815,
+      "smallNotes": 13,
+      "temporaryGlobals": [],
+      "loadSaveReadWrappersAbsent": true,
+      "pendingSemanticWork": false,
+      "sourceInputsUnchanged": true
+    },
+    "failedAttempts": [
+      "Full1 timer50.8ms; isolated52.4ms; unchanged limit50ms.",
+      "Diagnostic original70.6ms under reference rebuild; clean native-paused35.46ms vs cleanup-only counterfactual31.29ms.",
+      "Full2 timer56.7ms during reference warm reload; final isolated passed unchanged guard.",
+      "Full3 portable314pass/8cancelled: retained B bypassed held-hook fixture. Explicit host retirement/settled A repair preserved all original assertions; focused15passed.",
+      "Earlier On-demand target miss5.595s retained; corrected earlier sequence passed three centers then found four virtual-node ellipses at Finite. Final sequence passes."
+    ]
+  },
+  "previousScopedReference": {
+    "run": {
+      "urlMode": "on-demand",
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 3,
+        "totalFiles": 11815,
+        "label": "Local graph ready"
+      },
+      "stages": {
+        "baselineMs": 3132,
+        "numericalCenterMs": 3132,
+        "centerPatchedMs": 3335,
+        "localSettledMs": 3695,
+        "countCoverSettledMs": 3695
+      },
+      "reads": 1,
+      "source": {
+        "checked": 3,
+        "reusedBodies": 3,
+        "legacyBodies": 0,
+        "vaultReads": 0,
+        "parses": 0,
+        "repaired": 0,
+        "resolutionRefreshes": 0,
+        "pendingMetadata": 0,
+        "failures": 0
+      },
+      "sourceReady": false,
+      "inventory": false,
+      "inventoryEnabled": false,
+      "owners": 3,
+      "countTasks": 0,
+      "hidden": false,
+      "focus": true,
+      "snapshotFull": false,
+      "partial": true,
+      "priority": {
+        "active": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "waiting": 0,
+        "pauses": 1
+      },
+      "renderedGateLabels": 24,
+      "allRenderedGatesNumerical": true,
+      "firstFourRenderedGateLabels": [
+        "2",
+        "3",
+        "0",
+        "0"
+      ]
+    },
+    "cleanup": {
+      "filesUnchanged": true,
+      "ownedRemaining": 0,
+      "loadRestored": true,
+      "saveFenced": true,
+      "readRestored": true,
+      "savedSettingsUnchanged": true,
+      "enabledListUnchanged": true
+    },
+    "notes": 11815,
+    "timingOrigin": "Plugin loadData completion after host layout/metadata already ready",
+    "fiveSecondTargetMetForMeasuredCenter": true,
+    "acceptedComparableRuns": 1
+  },
+  "reference": {
+    "status": "passed",
+    "timingOrigin": "temporary runtime On-demand plugin reload after host metadata/layout readiness; saved Eager unchanged",
+    "initialLocalClosureMs": 3760,
+    "firstNumericalCenterMs": 3350,
+    "expectedDirect": 12,
+    "renderedNodes": 13,
+    "missingRendered": 0,
+    "allRenderedLabelsNumeric": true,
+    "indexedOwners": 4,
+    "globalInventory": false,
+    "globalDependencyAuthority": false,
+    "wrappedBodyReads": 0,
+    "navigation": [
+      {
+        "name": "IIB - StoryOS Cohort 1",
+        "elapsedMs": 557,
+        "gates": {
+          "top": 3,
+          "bottom": 4,
+          "left": 1,
+          "right": 0
+        },
+        "expectedDirect": 8,
+        "renderedNodes": 9,
+        "missingRendered": 0,
+        "numericLabels": 36,
+        "unknownLabels": 0,
+        "indexedOwners": 7,
+        "wrappedBodyReads": 0,
+        "globalInventory": false
+      },
+      {
+        "name": "IIB - StoryOS",
+        "elapsedMs": 566,
+        "gates": {
+          "top": 1,
+          "bottom": 11,
+          "left": 0,
+          "right": 0
+        },
+        "expectedDirect": 12,
+        "renderedNodes": 13,
+        "missingRendered": 0,
+        "numericLabels": 52,
+        "unknownLabels": 0,
+        "indexedOwners": 7,
+        "wrappedBodyReads": 0,
+        "globalInventory": false
+      },
+      {
+        "name": "IIB - StoryOS Cohort 1",
+        "elapsedMs": 555,
+        "gates": {
+          "top": 3,
+          "bottom": 4,
+          "left": 1,
+          "right": 0
+        },
+        "expectedDirect": 8,
+        "renderedNodes": 9,
+        "missingRendered": 0,
+        "numericLabels": 36,
+        "unknownLabels": 0,
+        "indexedOwners": 7,
+        "wrappedBodyReads": 0,
+        "globalInventory": false
+      },
+      {
+        "name": "IIB - Finite and Infinite Games",
+        "elapsedMs": 2665,
+        "gates": {
+          "top": 8,
+          "bottom": 16,
+          "left": 10,
+          "right": 1
+        },
+        "expectedDirect": 35,
+        "renderedNodes": 36,
+        "missingRendered": 0,
+        "numericLabels": 144,
+        "unknownLabels": 0,
+        "indexedOwners": 31,
+        "wrappedBodyReads": 0,
+        "globalInventory": false
+      },
+      {
+        "name": "IIB - StoryOS Cohort 1",
+        "elapsedMs": 554,
+        "gates": {
+          "top": 3,
+          "bottom": 4,
+          "left": 1,
+          "right": 0
+        },
+        "expectedDirect": 8,
+        "renderedNodes": 9,
+        "missingRendered": 0,
+        "numericLabels": 36,
+        "unknownLabels": 0,
+        "indexedOwners": 31,
+        "wrappedBodyReads": 0,
+        "globalInventory": false
+      }
+    ],
+    "cleanup": {
+      "filesUnchanged": true,
+      "ownedRemaining": 0,
+      "loadRestored": true,
+      "saveFenced": true,
+      "readRestored": true,
+      "savedSettingsUnchanged": true,
+      "enabledListUnchanged": true
+    }
+  }
+}

@@ -31,6 +31,51 @@ The measured ~62-second warm-start source-authority pass is intentionally **not 
 
 ---
 
+## 1.1 Maintainer requirement: early local graph and accurate counts
+
+Added 2026-10-06 after checkpoint `e97696f`. The production vault currently takes many minutes, sometimes 30 minutes, to reach full readiness. That delay is unacceptable for navigation. In On-demand mode, the target is a useful local Plex, including numerical gate counts, within **a few seconds of Obsidian layout/metadata readiness**. Use **5 seconds as the initial measured target** for an ordinary production-vault center and subsequent navigation; record actual measurements and any miss rather than declaring the target achieved from a small fixture or eventual full readiness.
+
+A complete broader semantic index is optional. Local readiness must not depend on `hasSemanticDependencies()`, global source certification, global vocabulary/evidence hydration, unrelated owner reconciliation, or completion of an optional URL scan.
+
+### Count meaning and coverage
+
+- Derive gate counts from the same canonical relationship classifier, visibility policy, and published local graph used to draw the Plex. Count distinct related nodes before viewport, column, fold, or item-limit truncation. Preserve existing shown/total presentation where appropriate.
+- Obsidian's resolved/unresolved links, backlinks, frontmatter ontology and direct folder/tag membership supply early host-known relationships. Selected current body/source facts enrich those relationships through the existing canonical patch owner. Do not introduce a second classifier or use the displayed node array as the total.
+- Publish the ready center and available numerical gate counts as soon as their local inputs close. Independent neighbor enrichment, optional siblings, URL titles, and unrelated source validation must not withhold already prepared counts.
+- Count coverage and write authority are separate. Local graph readiness never grants global negative-evidence authority; edits continue through exact pair preparation. A current complete warm graph can provide complete semantic totals without immediate global source certification.
+- A cold or stale graph cannot know body-only incoming declarations from never-indexed unrelated notes using Obsidian metadata alone. Report the coverage honestly: numerical totals are exact for the current host-supported/indexed local graph, while missing body-only coverage is indicated separately. Do not silently label these totals globally certified, invent zeros, or replace available numbers with `…` merely because global certification is disabled.
+- Dense hubs exceeding the bounded owner selection remain explicitly partial; the 64-owner cap must not truncate the host graph's available numerical totals. Missing metadata, invalid revisions or genuinely unavailable inputs remain distinct from ordinary optional background work.
+- Folder top/bottom counts use complete direct native membership, including members outside the rendered cover. All four gates use the same numerical presentation rules; unsupported semantic side incidence must not be fabricated.
+
+### Execution lanes and invalidation
+
+1. Physical search and a host preview publish first.
+2. Reuse a compatible fresh full graph when cheaply available; otherwise publish the structural/host baseline without reading every Markdown body.
+3. Canonicalize center-first bounded owners at foreground priority, reusing revision-valid durable bodies/source facts. Replace the preview with the current local graph and count coverage; do not route this through globally gated `ensureSemanticScope()`.
+4. Persist exact acquired owners, never the partial graph as a complete snapshot.
+5. Optionally run URL discovery as a separate early **background** activity once the local graph is usable. Populate URL vocabulary from valid body-cache hits first, then read misses cooperatively. It must not compile unrelated semantic relationships or delay local readiness. URL owner incidence is added by its on-demand semantic patch; URL titles are enrichment.
+6. Metadata/file changes retire the affected local coverage and recanonicalize visible demand. Changing ontology policy invalidates demanded owner policy tokens. Navigation cancellation, unload, purge and stale physical revisions prevent late publication.
+
+### Required evidence
+
+Capture layout/metadata-ready → preview → local canonical publication → numerical gate counts independently from fully certified readiness. Test while global source inventory is disabled or held unfinished. Compare counts against canonical graph results for a controlled complete fixture, including incoming ontology, reciprocal overrides, hidden/inferred relations, attachments, URLs, direct folder members and neighbors. Verify bounded candidate selection does not turn available host totals into rendered-item totals. Include a warm revisit and restart proving durable reuse, plus one strategically selected large/reference-vault run. Reference-vault notes remain strictly untouched; only previously authorized plugin deployment/reload is permitted.
+
+### V2 task list and estimated allocation
+
+- [x] Commit the preceding warm-start fixes and validation records (`e97696f`).
+- [x] Add the early local graph/count requirement and coverage design here.
+- [x] Settings controls, migration and cache maintenance — focused settings50/50 and storage25/25 pass; final exact-build/native acceptance passed.
+- [x] Mode-aware startup/inventory policy — implementation complete; focused eager regressions and final full verification pass.
+- [x] Foreground owner canonicalization, local counts, revision fences and partial persistence guard —18 focused real-IndexedDB cases and controlled native count/editing/revisit checks pass, including released-view count cancellation.
+- [x] Independent URL scan — focused no-incidence/foreground-preemption and exact native URL acceptance pass.
+- [x] Final desktop production regression acceptance — corrected exact build passes full341-browser verification, actual saved-Eager vault reload/cached navigation and current local On-demand named navigation. Distinct timing/authority limits remain explicit. See the [validation record](validation/on-demand-indexing-v2-2026-10-06.md).
+
+Initial implementation/validation estimate: **2½–4 hours**. The four-hour scope cap remains. Progress reports must name completed results, next work and revised ETA; unmet requirements remain explicit.
+
+**Earlier scoped desktop evidence; production acceptance reopened:** controlled small-vault local count closure3.624s, warm restart2.614s, and accepted ordinary-center reference-vault closure3.695s with all24 rendered gate labels numerical and global inventory disabled. This is one accepted reference timing sample after host metadata/layout readiness, not full application cold-launch, actual paint, physical-mobile acceptance or a universal five-second guarantee. Notes/settings/enablement were restored exactly; failed harness/cleanup and excluded focus-lost attempts are retained in the validation record. V2 remains uncommitted.
+
+---
+
 ## 2. Scope boundary: what this patch must NOT do
 
 Keep the implementation inside the four-hour budget.
@@ -316,7 +361,8 @@ Do not regress current eager behavior.
 layout ready
  -> physical Find
  -> host preview
- -> restore fresh full graph snapshot
+ -> restore a finite first-hop cover from the fresh full graph snapshot
+ -> publish the body-free host baseline, retaining current cached incidence
  -> graph usable
  -> DO NOT enable global source inventory
  -> optional URL scan only if configured
@@ -324,6 +370,10 @@ layout ready
 ```
 
 A fresh complete graph snapshot may remain useful without immediately certifying every durable source.
+
+**Implemented bounded restore decision:** the existing full restore path waits for source certification and hydrates all pages/evidence, which conflicts with the early local-readiness requirement. V2 reads the compatible active catalog and only a targeted first-hop snapshot cover. It does not hydrate global source/evidence stores, declare `fullSnapshotHydrated`, or acquire write authority. Current cached pair incidence enriches the host cover and survives unchanged selected-owner recompilation, including known body-only incoming relationships outside the 64-owner limit. Host metadata/resolve observations, physical changes, topology resets and ontology changes retire cached proof. Semantic-only endpoints beyond the finite retained cover still require discovery on demand; this is read acceleration, not a complete live graph.
+
+**Count input bounds:** complete local host covers borrow one metadata owner at a time through the existing collectors/compiler. Eager preview limits remain unchanged. The local path supports up to 2 MiB of estimated metadata per owner with a 2,048-value traversal guard, 8,192 normalized records, and 32 MiB of estimated normalized-record payload. Missing Markdown cache entries or genuine decode/seed/collector/guard failures expose unavailable count coverage; they never silently omit metadata and label the remaining total accurate. Attachments do not require Markdown metadata. Native folder totals retain their independent chunked membership path.
 
 ### 5.3 On-demand mode, no usable/fresh full snapshot
 
@@ -572,7 +622,7 @@ Why:
 - a partial graph written as an active complete snapshot would be trusted as complete on the next restart;
 - adding coverage metadata/schema is explicitly out of scope for this four-hour assignment.
 
-If On-demand mode started from a **fresh complete snapshot**, normal incremental snapshot persistence may continue because the graph began complete and exact file patches preserve completeness.
+The implemented finite first-hop restore in section5.2 also remains partial. It reads acceleration from a complete snapshot without hydrating that complete graph; consequently it does **not** resume complete snapshot persistence. Durable per-owner body/source persistence continues in both restore and cold-baseline paths. A future genuinely complete live restore could permit normal incremental snapshot persistence, but V2 does not perform that restore.
 
 ---
 
@@ -1151,10 +1201,11 @@ A recreated GraphIndex/IndexedDB test is preferable if it fits: first session in
 
 With a complete compatible snapshot and On-demand mode:
 
-- restore graph;
-- do not enable global inventory;
+- restore a finite first-hop cover without whole-graph/source hydration;
+- retain current cached incidence through unchanged selected-owner patches;
+- do not enable global inventory or full-snapshot persistence;
 - no full rebuild;
-- graph remains navigable.
+- the local graph remains navigable.
 
 ### E. Stale snapshot falls back to structural/on-demand state
 
@@ -1300,23 +1351,27 @@ during On-demand startup/navigation.
 
 The four-hour assignment is complete when all of the following are true:
 
-- [ ] New top-level **Indexing config** settings page exists.
-- [ ] `indexingMode = eager | on-demand` is persisted; default remains eager.
-- [ ] `urlIndexingMode = on-demand | background` is persisted.
-- [ ] On-demand startup does not enable global source inventory.
-- [ ] On-demand cold/no-snapshot startup publishes a structural baseline instead of indexing every Markdown file.
-- [ ] Visible navigation canonicalizes only center + bounded host-metadata candidates.
-- [ ] On-demand canonicalization reuses the durable body cache.
-- [ ] Relationship edits retain the exact pair preparation path.
-- [ ] Each demanded owner persists parsed/source data for later reuse.
-- [ ] Partial On-demand semantic state is not persisted as a complete graph snapshot.
-- [ ] URL background scan is independent of semantic/global source indexing.
-- [ ] URL On-demand mode performs no hidden all-vault body scan.
-- [ ] Index cache page displays an approximate K-Plex IndexedDB size.
-- [ ] Purge action deletes K-Plex IndexedDB after confirmation and requires restart.
-- [ ] Eager mode existing behavior remains intact.
-- [ ] Focused automated tests pass.
-- [ ] `HANDOFF.md` contains actual results and remaining native limitations.
+- [x] New top-level **Indexing config** settings page exists.
+- [x] `indexingMode = eager | on-demand` is persisted; default remains eager.
+- [x] `urlIndexingMode = on-demand | background` is persisted.
+- [x] On-demand startup does not enable global source inventory.
+- [x] On-demand cold/no-snapshot startup publishes a structural baseline instead of indexing every Markdown file.
+- [x] Visible navigation canonicalizes only center + bounded host-metadata candidates.
+- [x] On-demand canonicalization reuses the durable body cache.
+- [x] Relationship edits retain the exact pair preparation path.
+- [x] Each demanded owner persists parsed/source data for later reuse.
+- [x] Partial On-demand semantic state is not persisted as a complete graph snapshot.
+- [x] URL background scan is independent of semantic/global source indexing.
+- [x] URL On-demand mode performs no hidden all-vault body scan.
+- [x] Index cache page displays an approximate K-Plex IndexedDB size.
+- [x] Purge action deletes K-Plex IndexedDB after confirmation and requires restart.
+- [x] Eager mode existing behavior remains intact.
+- [x] Focused automated tests pass.
+- [x] `HANDOFF.md` contains actual results and remaining native limitations.
+
+- [x] Initial5-second local graph/count target demonstrated for the measured ordinary production-vault center, with explicit local coverage and measurement limits.
+
+Desktop implementation acceptance is complete; physical-device and broader-center sampling remain the manual checks in the linked validation record.
 
 ---
 
@@ -1340,7 +1395,7 @@ The intended steady-state model is:
                  |                           |
         fresh full snapshot             no fresh snapshot
                  |                           |
-          publish cached graph         structural baseline
+         finite cached cover          structural baseline
                  |                           |
                  +-------------+-------------+
                                |
@@ -1379,3 +1434,36 @@ The key architectural shift is simple:
 > **K-Plex should pay semantic indexing cost when the user asks a semantic question, not merely because the plugin was enabled.**
 
 Obsidian already owns a strong physical/metadata baseline. K-Plex should layer canonical ontology semantics over that baseline progressively, persist what it learns, and avoid proving global source closure unless a feature genuinely requires global closure.
+
+
+### Acceptance reopened — production startup and navigation regression
+
+The maintainer's subsequent ordinary Obsidian restart and Cohort → StoryOS → Cohort navigation fail: neighbors are missing and gates regress from numerical counts to ellipses/lower bounds. The earlier 3.695-second reference observation was one temporary runtime **On demand** sample after metadata/layout readiness, not a full application restart or this navigation sequence. It must not be treated as complete production acceptance. The reference vault's saved and active mode is **Eager**, and the installed main.js matches the verified build exactly.
+
+A passive capture shows all 11,815 source owners validated/reused, semantic dependency authority ready, zero reads/parses/repairs/pending metadata/failures, but snapshot hydration still in node vocabulary. No active priority tasks or waiters are reported. Renderer hidden/unfocused excludes a comparable timing claim. This establishes separate pending vocabulary and navigation/coverage questions, not their final cause.
+
+- [x] Diagnose and fix ordinary Eager warm startup and complete cached incidence loss on navigation.
+- [x] Verify Finite and Infinite Games and Cohort → StoryOS → Cohort against exact final artifacts, preserving reference notes and saved preferences.
+- [x] Distinguish actual vault reload, ready-host plugin reload and temporary-mode evidence; measured On-demand local closure3.760s/navigation2.665s or less meets the target for this foreground warm session. Persistent On-demand process restart/physical devices remain unmeasured.
+
+The reopened desktop regression passes final exact verification and native saved-Eager/current-local On-demand scenarios. Prior failures remain in the validation record. C15–C26 remain paused; V2 remains uncommitted.
+
+#### Confirmed failure paths and corrective design
+
+The native **vault reload** reproduction differs from a plugin reload after metadata is ready. During startup, thousands of host metadata notifications and then a source-resolution revision change cancel the physically unchanged schema-3 snapshot before its full navigable publication. The coordinator falls back to broad startup work. A ready-host plugin reload does not reproduce that wave and therefore cannot establish application-startup acceptance.
+
+Three further paths explain the reported symptoms: releasing the final visible demand deleted its complete semantic scope; optional node-vocabulary compilation repeatedly serialized the complete settings policy inside per-record currentness checks; and count preparation treated a virtual/unresolved endpoint's intentional lack of a `TFile` as unavailable metadata. These must be fixed in their existing owners.
+
+- Retain recently released canonical scopes under an eight-entry, 32 MiB desktop / 8 MiB mobile allowance. Active scopes are outside this allowance. Reuse requires current source, maintenance, policy and coverage proof; stale presentation never authorizes writes.
+- Cache the mutable presentation-policy comparison within an existing cooperative slice. Check it after task yields and immediately before publication. Source, generation, publication, maintenance and lifetime tokens remain cheap per-record checks.
+- Compile unresolved incoming host contributions through the canonical collectors/compiler. Preserve actual virtual, URL and tag identity using caller-supplied entity facts. Missing metadata for a real Markdown file remains unavailable.
+- Decode a trusted physically unchanged complete cache through resolver startup waves. Keep exact physical identity/stat/membership, lifecycle, semantic-policy and publication fences. A wave retires current semantic authority, not readable cached incidence. Show numeric cached totals with an explicit cached-count tooltip; current complete scopes/exact pairs replace them. An incomplete host preview cannot erase the coherent cached graph.
+- Preserve an already decoded complete cached vocabulary rather than replacing its incidence with a node-only catalog. Finite first-hop previews may show cached numerical counts only where the complete saved neighbor list is present; truncated neighbor covers remain partial.
+
+The five-second **current local count** target applies to On demand after host layout/metadata readiness. Eager startup must retain useful cached relations/counts without waiting for broad source validation. Cached presentation is an acceleration, never proof of current global absence or permission to edit. Final acceptance must include the maintainer's saved Eager mode with an actual vault reload and the named A → B → A sequence, plus On-demand Finite and Infinite Games including its unresolved neighbor.
+
+#### Final desktop regression evidence
+
+Final main.js `65bceafc…` passes requiredNode22.22.2 verification (7/67/248/17/322/341 tests by lane, no failures/skips/cancellations) and exact native smoke; all280 frozen inputs match. The actual saved-Eager vault reload survives11,049 host observations without the former cold fallback; all displayed gates are numeric by33.966s from the whole reload trigger, with early finite neighboring previews still partial. This is cached presentation, not a five-second current Eager claim.
+
+Temporary On-demand session after host readiness reaches local closure3.760s (four durable owners, zero wrapped reads, no global inventory); Cohort/StoryOS revisits554–566ms, Finite and Infinite Games2.665s with35 direct nodes/144 numerical gate labels. Saved-Eager cached and On-demand current sequences both render every expected direct node. Notes/configuration/enablement are unchanged; only authorized main.js deployed. Both final instances are ready, no temporary wrappers/globals/pending semantic work remain. [Final regression validation](validation/on-demand-indexing-v2-2026-10-06.md) preserves target misses, failed checks, cached authority limits and unmeasured persistent-process/mobile paths.
