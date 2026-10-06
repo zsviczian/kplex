@@ -934,6 +934,28 @@ const russianTranslations = {
   "find.includePath": "Искать также в путях файлов",
   "find.close": "Закрыть поиск",
   "find.matches": { one: "{count} совпадение", few: "{count} совпадения", many: "{count} совпадений", other: "{count} совпадения" },
+
+  "find.applyFilter": "Фильтровать подходящие заметки",
+  "filter.panelTitle": "Фильтры и линзы",
+  "filter.closePanel": "Закрыть фильтры и линзы",
+  "graph.horizontalDensity": "Плотность по горизонтали",
+  "graph.verticalDensity": "Плотность по вертикали",
+  "graph.horizontalDensityShort": "Горизонталь",
+  "graph.verticalDensityShort": "Вертикаль",
+  "graph.horizontalDensityValue": "Плотность по горизонтали {value}",
+  "graph.verticalDensityValue": "Плотность по вертикали {value}",
+  "settings.ui.horizontal.density.help": "Большие значения сближают столбцы и сокращают подписи.",
+  "settings.ui.vertical.density.help": "Большие значения уменьшают расстояние между строками.",
+  "graph.parentColumns": "Столбцы родителей",
+  "graph.childColumns": "Столбцы детей",
+  "graph.parentColumnsShort": "Родители",
+  "graph.childColumnsShort": "Дети",
+  "graph.configureLayout": "Настроить расположение Plex",
+  "graph.baseFontSize": "Базовый размер шрифта",
+  "graph.baseFontSizeShort": "Шрифт",
+  "graph.maximumNodeWidthShort": "Ширина узла",
+  "settings.ui.base.font.size": "Базовый размер шрифта",
+  "settings.ui.base.font.size.help": "Базовый размер подписей в пикселях. Роли и пользовательские стили сохраняют относительные размеры.",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

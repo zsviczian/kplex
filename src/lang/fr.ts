@@ -930,6 +930,28 @@ const frenchTranslations = {
   "find.includePath": "Rechercher aussi dans les chemins des fichiers",
   "find.close": "Fermer la recherche",
   "find.matches": { one: "{count} résultat", many: "{count} résultats", other: "{count} résultats" },
+
+  "find.applyFilter": "Filtrer les notes correspondantes",
+  "filter.panelTitle": "Filtres et lentilles",
+  "filter.closePanel": "Fermer les filtres et lentilles",
+  "graph.horizontalDensity": "Densité horizontale",
+  "graph.verticalDensity": "Densité verticale",
+  "graph.horizontalDensityShort": "Horizontale",
+  "graph.verticalDensityShort": "Verticale",
+  "graph.horizontalDensityValue": "Densité horizontale {value}",
+  "graph.verticalDensityValue": "Densité verticale {value}",
+  "settings.ui.horizontal.density.help": "Les valeurs élevées rapprochent les colonnes et raccourcissent les libellés.",
+  "settings.ui.vertical.density.help": "Les valeurs élevées réduisent l’espace entre les lignes.",
+  "graph.parentColumns": "Colonnes des parents",
+  "graph.childColumns": "Colonnes des enfants",
+  "graph.parentColumnsShort": "Parents",
+  "graph.childColumnsShort": "Enfants",
+  "graph.configureLayout": "Configurer la disposition du Plex",
+  "graph.baseFontSize": "Taille de police de base",
+  "graph.baseFontSizeShort": "Police",
+  "graph.maximumNodeWidthShort": "Largeur des nœuds",
+  "settings.ui.base.font.size": "Taille de police de base",
+  "settings.ui.base.font.size.help": "Taille de base des libellés en pixels. Les rôles et styles personnalisés conservent leurs tailles relatives.",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

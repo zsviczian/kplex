@@ -1,5 +1,5 @@
 /**
- * Owner-document drag mechanics for desktop dialog shells. This portable UI helper owns only
+ * Owner-document drag mechanics for dialog and floating-panel shells. This portable UI helper owns only
  * pointer/viewport geometry and cleanup; native Obsidian modal lifecycle, focus and content stay
  * with the host shell that opts into it.
  */
@@ -8,6 +8,8 @@ export interface DraggableDialogOptions {
   modalEl: HTMLElement;
   handleEl: HTMLElement;
   viewportMargin?: number;
+  /** Let a React shell own matching inline coordinates while native shells retain CSS positioning. */
+  onPositionChange?: (position: Readonly<{ left: number; top: number }>) => void;
 }
 
 type DragState = Readonly<{
@@ -67,15 +69,19 @@ function viewportBounds(view: Window): ViewportBounds {
  * Attach draggable positioning to a dialog using only its owning document/window.
  *
  * Pointer moves are intercepted during an active drag so the Plex behind the modal cannot pan or
- * react to the same gesture. Resizing or moving the visual viewport reclamps an already-dragged
+ * react to the same gesture. Capture loss or owning-window blur releases that interception even
+ * when the pointer-up stream is interrupted. Resizing or moving the viewport reclamps a dragged
  * dialog, and cleanup restores native centered positioning for the next open.
  *
+ * @remarks A shell supplying `onPositionChange` owns matching inline positioning and discards its
+ * retained coordinates when the dialog closes; the default native-modal path needs no callback.
  * @returns An idempotent cleanup function for modal close/unload.
  */
 export function enableDraggableDialog({
   modalEl,
   handleEl,
   viewportMargin = DEFAULT_VIEWPORT_MARGIN,
+  onPositionChange,
 }: DraggableDialogOptions): () => void {
   const ownerDocument = modalEl.ownerDocument;
   const ownerWindow = ownerDocument.defaultView;
@@ -97,6 +103,7 @@ export function enableDraggableDialog({
     modalEl.style.setProperty("--kplex-dialog-top", `${clampedTop}px`);
     modalEl.classList.add("is-positioned");
     positioned = true;
+    onPositionChange?.({ left: clampedLeft, top: clampedTop });
   };
 
   /** Re-clamp a dragged dialog after viewport/window geometry changes. */
@@ -150,6 +157,14 @@ export function enableDraggableDialog({
     finishDrag();
   }
 
+  /** Retire only the captured active pointer; late loss from another gesture cannot cancel this one. */
+  const onLostPointerCapture = (event: PointerEvent): void => {
+    if (dragState?.pointerId === event.pointerId) finishDrag();
+  };
+
+  /** Window deactivation may deliver no pointer-up in this document, so release its interception. */
+  const onWindowBlur = (): void => { finishDrag(); };
+
   /** Start a primary-button drag unless the user targeted an interactive control in the header. */
   const onPointerDown = (event: PointerEvent): void => {
     if (disposed || dragState || event.button !== 0 || isInteractiveTarget(event.target, handleEl)) return;
@@ -179,6 +194,8 @@ export function enableDraggableDialog({
     disposed = true;
     finishDrag();
     handleEl.removeEventListener("pointerdown", onPointerDown);
+    handleEl.removeEventListener("lostpointercapture", onLostPointerCapture);
+    ownerWindow.removeEventListener("blur", onWindowBlur);
     ownerWindow.removeEventListener("resize", clampCurrentPosition);
     ownerWindow.removeEventListener("pagehide", cleanup);
     visualViewport?.removeEventListener("resize", clampCurrentPosition);
@@ -192,6 +209,8 @@ export function enableDraggableDialog({
   modalEl.classList.add("kplex-draggable-dialog");
   handleEl.classList.add("kplex-draggable-dialog-handle");
   handleEl.addEventListener("pointerdown", onPointerDown);
+  handleEl.addEventListener("lostpointercapture", onLostPointerCapture);
+  ownerWindow.addEventListener("blur", onWindowBlur);
   ownerWindow.addEventListener("resize", clampCurrentPosition);
   ownerWindow.addEventListener("pagehide", cleanup);
   visualViewport?.addEventListener("resize", clampCurrentPosition);

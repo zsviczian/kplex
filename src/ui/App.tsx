@@ -161,6 +161,27 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
   const [renderRevision, forceRender] = useState(0);
   const [plexFilter, setPlexFilter] = useState<PlexFilterState>(EMPTY_PLEX_FILTER);
   const [filterLayoutMode, setFilterLayoutMode] = useState<GraphFilterLayoutMode>("keep");
+  const [findFilterOwner, setFindFilterOwner] = useState<{
+    query: string; previousFilter: PlexFilterState; previousLayout: GraphFilterLayoutMode;
+  } | null>(null);
+  /** Apply a temporary Find filter while retaining the prior quick filter and layout exactly once. */
+  const applyFindFilter = (query: string): void => {
+    setFindFilterOwner((owner) => owner ? { ...owner, query } : {
+      query, previousFilter: plexFilter, previousLayout: filterLayoutMode,
+    });
+    setPlexFilter((current) => ({ ...current, field: "node.label", operator: "contains", value: query }));
+    setFilterLayoutMode("reflow");
+  };
+  /** Restore the Find-owned filter without overwriting a later manual edit in Filters and lenses. */
+  const clearFindFilter = (): void => {
+    if (!findFilterOwner) return;
+    if (plexFilter.field === "node.label" && plexFilter.operator === "contains"
+      && plexFilter.value === findFilterOwner.query && filterLayoutMode === "reflow") {
+      setPlexFilter(findFilterOwner.previousFilter);
+      setFilterLayoutMode(findFilterOwner.previousLayout);
+    }
+    setFindFilterOwner(null);
+  };
   const plexFilterPredicate = useMemo(() => compilePlexFilter(plexFilter), [plexFilter]);
   const [graphLenses, setGraphLensesState] = useState<GraphLensDefinition[]>(() => plugin.settings.graphLenses);
   const compiledGraphLenses = useMemo(() => compileGraphLensDefinitions(graphLenses), [graphLenses]);
@@ -583,11 +604,12 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     else activateSearch();
   };
 
-  /** Keep ordinary pointer focus behavior separate from File Explorer drag/drop handling. */
+  /** Focus bare Plex space while preserving controls and portaled filter-header drag focus. */
   const handlePlexPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     plugin.dismissKplexMenu();
     const target = event.target as Element | null;
-    if (target?.closest(".kplex-central-editor-content, input, textarea, select, button, a, [contenteditable='true'], [role='button']")) return;
+    // React portal capture still reaches this shell before the header's native drag listener.
+    if (target?.closest(".kplex-central-editor-content, .kplex-filter-panel, input, textarea, select, button, a, [contenteditable='true'], [role='button']")) return;
     rootRef.current?.focus({ preventScroll: true });
   };
 
@@ -752,11 +774,15 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
             center={page}
             revision={renderRevision}
             value={plexFilter}
-            onChange={setPlexFilter}
+            onChange={/** Manual quick-filter edits retire Find ownership rather than being undone by its button. */ (next) => {
+              setFindFilterOwner(null); setPlexFilter(next);
+            }}
             lenses={graphLenses}
             onLensesChange={updateGraphLenses}
             layoutMode={filterLayoutMode}
-            onLayoutModeChange={setFilterLayoutMode}
+            onLayoutModeChange={/** An explicit layout choice belongs to the filter panel. */ (mode) => {
+              setFindFilterOwner(null); setFilterLayoutMode(mode);
+            }}
             showSiblings={plugin.settings.renderSiblings}
             onShowSiblingsChange={(show) => void setSiblingVisibility(show)}
             visibility={{
@@ -796,7 +822,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
           {pinnedPages.map((pinned) => {
             const title = plugin.index.titleFor(pinned);
             return <div key={pinned.path} className={`kplex-pinned-chip${pinned.path === page.path ? " is-active" : ""}`}>
-              <button className="kplex-pinned-open" title={`${title}\n${pinned.path}`} onClick={() => activate(pinned)}><ObsidianIcon name="pin" size={12} /><span>{title}</span></button>
+              <button className="kplex-pinned-open" data-kplex-pinned-path={pinned.path} title={`${title}\n${pinned.path}`} onClick={() => activate(pinned)}><ObsidianIcon name="pin" size={12} /><span>{title}</span></button>
               <button className="kplex-pinned-remove" aria-label={translate("app.unpinNode", { title })} onClick={() => void unpin(pinned.path)}><ObsidianIcon name="x" size={11} /></button>
             </div>;
           })}
@@ -810,12 +836,13 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
           <div className="kplex-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="kplex-zone-label zone-child">{translate("app.zoneChildren")}</div>
           <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
-          semanticRevision={plugin.index.getSemanticRevision()} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode} />
+          semanticRevision={plugin.index.getSemanticRevision()} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
+          onApplyFindFilter={applyFindFilter} appliedFindFilterQuery={findFilterOwner?.query ?? null} onClearFindFilter={clearFindFilter} />
         </section>
       </main>
 
       {sidecarAvailable && <div className={`kplex-sidecar-controls is-${sidecarEdgePosition}${sidecarOpen ? " is-open" : " is-closed"}`} aria-label={translate("app.sidecarControls")}>
-        <button className="kplex-sidecar-primary" aria-label={sidecarOpen ? translate("app.closeSidecar") : translate("app.openSidecarAt", { position: physicalPositionLabel(sidecarEdgePosition, translate) })} onClick={() => void plugin.toggleSidecar(hostLeaf, page)}><ObsidianIcon name={sidecarOpen ? closeSidecarIcon : openSidecarIcon} size={16} /></button>
+        <button type="button" className="kplex-sidecar-primary" aria-pressed={sidecarOpen} aria-label={sidecarOpen ? translate("app.closeSidecar") : translate("app.openSidecarAt", { position: physicalPositionLabel(sidecarEdgePosition, translate) })} onClick={() => void plugin.toggleSidecar(hostLeaf, page)}><ObsidianIcon name={sidecarOpen ? closeSidecarIcon : openSidecarIcon} size={16} /></button>
         {sidecarOpen && <>
           <button aria-label={translate("app.foldForSidecar")} onClick={() => void plugin.collapsePlexForSidecar(hostLeaf)}><ObsidianIcon name={foldPlexIcon} size={15} /></button>
           <button aria-label={translate("app.moveSidecar")} onClick={showSidecarMoveMenu}><ObsidianIcon name="move" size={15} /></button>

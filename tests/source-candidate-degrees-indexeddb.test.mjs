@@ -28,12 +28,13 @@ const initialize = `(() => {
     // read port must include the root folder as well as files; a file-only port is incomplete.
     f.entities=new Map();ok(await f.discovery.host.collect(async fact=>{if(fact.kind==='entity')f.entities.set(fact.entity.id,fact);return true;}),'Current structural entity inventory');
     return f;};
-  window.degreeFull=async(f,candidates,settings=degreeSettings)=>{
+  window.degreeFull=async(f,candidates,settings=degreeSettings,visibility=centerGateSettings(),withGates=false)=>{
     for(const file of f.app.vault.getMarkdownFiles())await f.cache.putBody(file.path,file.stat.mtime,M.parseBodyMetadata(f.texts.get(file.path)));
-    const app={...f.app,vault:{...f.app.vault,getName:()=> 'degree-fresh-full'}},plugin={app,settings:{...settings,...centerGateSettings()},getIndexSourceRevision:()=>f.acquisition.hostRevision};
+    const app={...f.app,vault:{...f.app.vault,getName:()=> 'degree-fresh-full'}},plugin={app,settings:{...settings,...visibility},getIndexSourceRevision:()=>f.acquisition.hostRevision};
     const index=new M.GraphIndex(plugin,app);
     try{const builder=new M.GraphBuilder(plugin,app,new Map(),index.metadataParser,f.cache,()=>true),state=await builder.build({acquireSources:false});ok(state,'Fresh full build completes');index.state=state;
-      return candidates.map(candidate=>{const page=state.pages.get(candidate.semanticPath);ok(page,'Full candidate exists');return {id:candidate.id,rawDegree:page.neighbours.size};});
+      return candidates.map(candidate=>{const page=state.pages.get(candidate.semanticPath);ok(page,'Full candidate exists');const gates=withGates?index.gateStats(page):null;
+        return {id:candidate.id,rawDegree:page.neighbours.size,...(gates?{gates:Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{hasAny:gates[side].hasAny,visibleCount:gates[side].visibleCount}]))}:{})};});
     }finally{index.destroy();}
   };
   window.degreeReader=(f,d=f.discovery,repository=f.repository)=>new M.CachedRequestedCandidateDegreeReader(repository,d,
@@ -84,6 +85,35 @@ test("real IndexedDB finite raw-degree parity, read-only reopen and terminal fen
         })()`), true);
       });
     }
+
+    await t.test("optional directional totals match full visibility without another replay or acquisition", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await degreeSeed('degree-directional-counts');try{
+          const candidates=[ref('Candidate.md'),ref('Peer.md'),ref('Outside.md')];
+          const visibility=[centerGateSettings(),centerGateSettings({showInferredNodes:false,showVirtualNodes:false}),centerGateSettings({excludeFilepaths:['Peer.md'],showFolderNodes:false,showTagNodes:false})];
+          const expected=[];for(const settings of visibility)expected.push(await degreeFull(f,candidates,degreeSettings,settings,true));
+          const check=degreeGuard(f),before=await degreeSnapshot(f);
+          for(let n=0;n<visibility.length;n++){
+            const gatePolicy={revision:'gates:'+n,settings:visibility[n],isCurrent:()=>true};
+            const result=await degreeReader(f).prepare(degreeRequest(...candidates),degreePolicy(),runtime(),gatePolicy);
+            equal(result.outcome,'ready','Directional count proof');equal(result.inputs,expected[n],'Full gate/degree parity');
+            equal(result.certificate.gatePolicyRevision,gatePolicy.revision,'Separate captured visibility proof');
+            equal(result.work.familyVisits,result.work.sourceReplays*4,'No second semantic replay for counts');
+          }
+          check();equal(await degreeSnapshot(f),before,'Gate counting writes no source/body records');return true;
+        }finally{f.close();}
+      })()`),true);
+    });
+    await t.test("final awaited visibility-token mutation discards directional counts and degree prefix", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const f=await degreeSeed('degree-gate-finality');try{
+          const d=f.discovery,gatePolicy={revision:'gates:1',settings:centerGateSettings(),isCurrent:()=>true};let mutated=false;
+          const wrapped={discover:scope=>d.discover(scope),isHostCurrent:()=>d.isHostCurrent(),revalidate:async certificate=>{const result=await d.revalidate(certificate);gatePolicy.revision='gates:2';mutated=true;return result;}};
+          degreeRejected(await degreeReader(f,wrapped).prepare(degreeRequest(ref('Candidate.md')),degreePolicy(),runtime(),gatePolicy),'superseded');
+          ok(mutated,'Actual final awaited fence changed');equal(f.repository.readers.size,0,'No reader leases');return true;
+        }finally{f.close();}
+      })()`),true);
+    });
 
     for (const fault of ["missing-page", "page-checksum", "source-chunk"]) {
       await t.test(`${fault} is not a degree or an authenticated negative`, async () => {

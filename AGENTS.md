@@ -268,7 +268,14 @@ Current target defaults:
 - density: **2**, configurable up to **4**
 - max nodes per zone: **100**, configurable up to **300**
 
-Parent columns must not exceed 2. Children may be configured up to 7 columns.
+Parent columns support 1–3; the default remains 2. Children may be configured up to 7 columns.
+Horizontal density and the measured parent-area width position friends/challengers and siblings;
+child columns, child width and vertical density must never move their horizontal anchors. At
+horizontal density 3, adjacent parent/lateral area edges touch. At 4, those areas may overlap by up
+to 5% of the parent-area width, capped when necessary to keep thought/expanded-child bodies clear.
+Lower horizontal densities retain a positive gap. With challengers present, siblings remain outside
+that strip and follow the same adjacent-area spacing policy. Empty parent bands retain the normal
+center-based lateral baseline.
 
 Friends/challengers and siblings may extend upward into otherwise unused parent-area space. They should not be artificially clipped by the parent's vertical boundary.
 

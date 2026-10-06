@@ -41,7 +41,9 @@ test("direct center, inverse parent edge and mutation readiness publish before b
         const direct=index.semanticScopes.get('A.md');
         ok(direct.completePaths.has('A.md')&&!direct.completePaths.has('P.md'),'No false parent completeness');
         equal(index.getNeighborhood('A.md').siblings,[],'Deferred siblings are not represented as a complete set');
-        equal(index.gateStats(index.get('P.md')).bottom.complete,false,'Deferred parent gate count is partial');
+        equal(index.gateStats(index.get('P.md')).bottom.complete,true,'Deferred parent has separate complete count proof');
+        equal(index.gateStats(index.get('P.md')).bottom.visibleCount,2,'Count includes sibling outside the induced view');
+        ok(!index.isSemanticWriteReady('P.md','S.md'),'Count-only proof grants no sibling-pair editing authority');
         for(let n=0;!entered&&n<100;n++)await new Promise(done=>setTimeout(done,10));
         ok(entered,'Optional count admission starts after direct publication');
         // A higher-priority action pauses optional work after its host await, without blocking it.
@@ -119,7 +121,14 @@ test("partial induced pages retain current policy and unknown structural degrees
             equal(sorted.slice(known.length).map(item=>index.titleFor(item.page)),unknown.map(item=>index.titleFor(item.page)).sort(),'Unknown degrees use stable names for '+order);
           }
           equal(index.gateStats(index.get('A.md')).top.complete,undefined,'Exact center keeps existing complete count shape');
-          equal(index.gateStats(parent).top.complete,false,'Partial gate count is marked as a lower bound');
+          for(const gate of ['top','bottom','left','right']){
+            const actual=index.gateStats(parent)[gate],expectedGate=oracle.gateStats(oracle.get('P.md'))[gate];
+            equal(actual.complete,true,'Partial incidence has complete '+gate+' count-only proof');
+            equal(actual.visibleCount,expectedGate.visibleCount,'Count parity for '+gate);
+            equal(actual.hasAny,expectedGate.hasAny,'Gate fill parity for '+gate);
+          }
+          index.plugin.settings.showInferredNodes=false;index.relationViewCache=new WeakMap();
+          equal(index.gateStats(parent).top.complete,false,'Visibility change retires an old count-only proof');
           equal(f.reads,[],'No body reads');equal(f.parses,[],'No parsing');return true;
         } finally {oracle.destroy();}
       } finally {release?.();index?.destroy();f.close();}

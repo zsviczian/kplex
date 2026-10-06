@@ -10,6 +10,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Script } from "node:vm";
 import { validateTarget } from "./runner.mjs";
+import { gateCountScenarios, layoutEnhancementScenarios } from "./uxLayoutEnhancements.mjs";
+import { relationshipEnhancementScenarios } from "./uxRelationshipEnhancements.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const vaultName = process.env.KPLEX_TEST_VAULT_NAME;
@@ -23,7 +25,10 @@ const originalData = readFileSync(dataPath);
 const enabledPath = join(target.config, "community-plugins.json");
 const originalEnabled = readFileSync(enabledPath);
 const controller = "__kplexUxRegression";
-const folder = "Kplex-UX-Regression";
+// A retry must not reuse a retired mutation overlay's endpoint identity. Each owned fixture
+// has fresh paths; normal Vault cleanup remains responsible for removing its notes afterward.
+const folder = "Kplex-UX-Regression-" + Date.now();
+report.fixtureFolder = folder;
 let installed = false;
 
 /** Keep CLI arguments outside a shell, reject zero-exit eval errors and parse the CLI prefix. */
@@ -41,6 +46,16 @@ function evaluate(code) {
   const value = JSON.parse(raw);
   if (value?.error) throw new Error(value.error);
   return value;
+}
+/** Retry a read-only state probe after a lost CLI response; never repeat a mutation or accept host errors. */
+async function readState(code) {
+  for (let attempt=0;attempt<3;attempt++) {
+    try { return evaluate(code) } catch (error) {
+      if (error.code!=="ETIMEDOUT"||attempt===2) throw error;
+      report.cliTimeouts=(report.cliTimeouts||0)+1;
+      await sleep(250);
+    }
+  }
 }
 /** Yield the driver between short CLI reads; native work continues independently. */
 const sleep = ms => new Promise(done => setTimeout(done, ms));
@@ -90,6 +105,11 @@ const nativeController = `(()=>{
   const c=window.${controller}={p,settings:JSON.parse(JSON.stringify(p.settings)),owned:[],leaf:null,done:false,error:null,
     bounds:win.getBounds(),throttling:win.webContents.getBackgroundThrottling(),folder:${JSON.stringify(folder)},
     denseTarget:${JSON.stringify(process.env.KPLEX_UX_DENSE_TARGET || null)},scenarios:[],notices:[]};
+  // Track actual persistence promises so native view teardown cannot race original-byte restoration.
+  c.settingsWrites=new Set();c.settingsWriteErrors=[];
+  const originalSaveData=p.saveData;
+  p.saveData=function(...args){const promise=originalSaveData.apply(this,args);c.settingsWrites.add(promise);promise.then(()=>c.settingsWrites.delete(promise),error=>{c.settingsWrites.delete(promise);c.settingsWriteErrors.push(String(error))});return promise};
+  c.restoreSettingsWrites=()=>{p.saveData=originalSaveData};
   // Passive bounded pair observations preserve each original call and its Promise identity.
   c.pairTrace=[];
   const index=p.index,source=index.sourceAcquisition,originalPair=index.prepareRelationshipPair,originalSourcePair=source.prepareRequestedPair;
@@ -137,7 +157,7 @@ const setup = `(()=>{const c=window.${controller};(async()=>{
   c.check(!app.vault.getAbstractFileByPath(c.folder),"Fixture folder already exists");
   await app.vault.createFolder(c.folder);c.owned.push(c.folder);
   const create=async(name,text)=>{const file=await app.vault.create(c.folder+"/"+name,text);c.owned.push(file.path);return file};
-  const groups={Parent:[],Friend:[],Child:[]};
+  const groups={Parent:[],Friend:[],Challenger:[],Child:[]};
   for(const role of Object.keys(groups))for(let i=0;i<16;i++){
     const name=role+"-"+String(i).padStart(2,"0")+".md";groups[role].push(c.folder+"/"+name);
     await create(name,i===15?"---\\naliases: [Hidden overflow alias]\\n---\\n":"# "+name);
@@ -194,7 +214,7 @@ const setup = `(()=>{const c=window.${controller};(async()=>{
   c.check(c.p.index.sourceAcquisition.hasSemanticDependencies(),"Fixture lacks source dependency authority");
   c.fixtureReadiness={mode:legacyAliasesPending?"owned-patch-and-requested-scopes":"full-seed",status:c.p.getIndexStatus(),aliasVocabularyPending:c.p.index.hasPendingSearchVocabulary(),source:c.p.index.getSourceAcquisitionCounters()};
   for(const path of [c.tall,c.wide,c.canvas,c.unrelated])c.p.index.insertCreatedFile(app.vault.getFileByPath(path));
-  c.fixtureAliases=["Parent","Friend","Child"].map(role=>({role,aliases:c.p.index.get(c.folder+"/"+role+"-15.md")?.aliases}));
+  c.fixtureAliases=["Parent","Friend","Challenger","Child"].map(role=>({role,aliases:c.p.index.get(c.folder+"/"+role+"-15.md")?.aliases}));
   c.check(c.fixtureAliases.every(item=>item.aliases.includes("Hidden overflow alias")),"Fixture aliases were not indexed");
   c.check(c.p.index.titleFor(c.p.index.get(c.folder+"/Parent-15.md")).includes("Parent-15"),"Find fixture must select file labels while retaining unused aliases");
   c.check(c.p.index.neighbours(c.p.index.get(c.folder+"/Child-00.md"),"child").some(item=>item.page.path===c.folder+"/Grandchild.md"),"Fixture expanded relationship was not materialized");
@@ -212,10 +232,43 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
     const [wide,middle,tight,minimum,narrow]=toolbarWidths;c.check(wide.sameRow&&middle.sameRow&&tight.sameRow&&minimum.sameRow,"Toolbar wrapped before consuming search width");c.check(Math.abs(wide.width-middle.width)<1&&middle.gap<wide.gap,"Toolbar margin must shrink before search width");c.check(tight.gap<1&&tight.width<middle.width&&minimum.width>=100,"Toolbar search did not shrink after margin disappeared");c.check(!narrow.sameRow,"Toolbar did not wrap below its usable minimum");
   }finally{oldWidth?toolbar.style.setProperty("width",oldWidth,oldPriority):toolbar.style.removeProperty("width");await c.frames()}
   record("toolbar-margin-search-shrink-before-wrap",{widths:toolbarWidths});
-  const findStyle=getComputedStyle(root.querySelector(".kplex-find button")),zoomStyle=getComputedStyle(root.querySelector(".kplex-zoom-controls button"));
-  for(const property of ["width","height","backgroundColor","borderRadius"])c.check(findStyle[property]===zoomStyle[property],"Find control differs from zoom controls: "+property);
+  const controlProperties=["width","height","backgroundColor","borderRadius","color","borderTopWidth","borderTopColor","padding","boxShadow"];
+  const controlStyle=element=>{const style=getComputedStyle(element);return Object.fromEntries(controlProperties.map(property=>[property,style[property]]))};
+  const assertControlStyle=async elements=>{require("@electron/remote").getCurrentWindow().webContents.sendInputEvent({type:"mouseMove",x:0,y:0});await c.frames();const expected=controlStyle(root.querySelector(".kplex-zoom-controls button"));for(const element of elements){c.check(element,"Expected Plex control is missing");c.check(JSON.stringify(controlStyle(element))===JSON.stringify(expected),"Plex control differs from zoom: "+element.getAttribute("aria-label")+JSON.stringify({actual:controlStyle(element),expected}))}};
+  const sharedSelectors=[".kplex-find button",".kplex-layout-toggle",".kplex-zoom-controls button",".kplex-sidecar-primary",...["parent","child","left","right"].map(role=>".kplex-zone-"+role+" .kplex-zone-filter-button")];
+  await assertControlStyle(sharedSelectors.map(selector=>root.querySelector(selector)));
   c.check(getComputedStyle(root.querySelector(".kplex-find")).backgroundColor==="rgba(0, 0, 0, 0)","Find wrapper has an opaque surface");
-  record("Find-magnifier-matches-zoom-style",{width:findStyle.width,height:findStyle.height,background:findStyle.backgroundColor});
+  const styleWc=require("@electron/remote").getCurrentWindow().webContents,hoverStyles=[];
+  for(const selector of sharedSelectors){
+    const element=root.querySelector(selector),rect=element.getBoundingClientRect();
+    styleWc.sendInputEvent({type:"mouseMove",x:Math.round(rect.left+rect.width/2),y:Math.round(rect.top+rect.height/2)});await c.frames();
+    c.check(element.matches(":hover"),"Button hover input did not reach "+selector);
+    const style=getComputedStyle(element);hoverStyles.push({color:style.color,background:style.backgroundColor,border:style.border});
+  }
+  styleWc.sendInputEvent({type:"mouseMove",x:0,y:0});await c.frames();
+  c.check(hoverStyles.every(style=>JSON.stringify(style)===JSON.stringify(hoverStyles[0])),"Plex controls have inconsistent hover styles");
+  record("all-area-filters-sidecar-Find-configuration-match-zoom-style",{normal:controlStyle(root.querySelector(".kplex-find button")),hoverStyles});
+  const overflowEvidence=[];
+  // Probe narrow panel CSS without changing saved dimensions or the scene's node geometry.
+  for(const zone of ["parent","child","left","right"]){
+    const panel=root.querySelector(".kplex-zone-"+zone),trigger=panel.querySelector(".kplex-zone-filter-button");
+    const oldPanelWidth=panel.style.getPropertyValue("width"),oldPanelPriority=panel.style.getPropertyPriority("width");
+    panel.style.setProperty("width","100px");
+    try {
+      trigger.click();await c.frames();
+      const field=panel.querySelector(".kplex-zone-filter-input"),r=field.getBoundingClientRect(),bounds=panel.getBoundingClientRect(),plex=c.plex().getBoundingClientRect();
+      c.check(getComputedStyle(panel).overflow==="visible"&&getComputedStyle(panel.querySelector(".kplex-zone-scroll")).overflowX==="hidden","Area controls or node list have the wrong clipping policy: "+zone);
+      c.check(r.left<bounds.left,"Narrow native fixture must exercise an overflowing filter: "+zone);
+      const buttonBounds=trigger.getBoundingClientRect();
+      c.check(r.bottom<bounds.top&&buttonBounds.bottom<bounds.top,"Area filter overlaps its node region: "+zone);
+      c.check(Math.abs(buttonBounds.right-bounds.right)<0.5,"Area filter is not right-aligned with its scroll region: "+zone);
+      const x=Math.max(r.left+5,plex.left+5),y=r.top+r.height/2;
+      c.check(document.elementFromPoint(x,y)===field,"Overflowing area input is clipped or covered: "+zone+JSON.stringify({point:[x,y],field:r.toJSON(),panel:bounds.toJSON(),hit:document.elementFromPoint(x,y)?.className,stack:document.elementsFromPoint(x,y).slice(0,5).map(el=>el.className)}));
+      overflowEvidence.push({zone,fieldWidth:r.width,overflow:bounds.left-r.left,point:[x,y],clearance:bounds.top-Math.max(r.bottom,buttonBounds.bottom),rightEdgeOffset:buttonBounds.right-bounds.right});
+      trigger.click();await c.frames();c.check(!panel.querySelector(".kplex-zone-filter-input"),"Area filter failed to close: "+zone);
+    } finally {oldPanelWidth?panel.style.setProperty("width",oldPanelWidth,oldPanelPriority):panel.style.removeProperty("width");await c.frames()}
+  }
+  record("area-filter-overflow-with-node-scroll-clipping",{areas:overflowEvidence});
   c.key(root,"F4");await c.until(()=>document.activeElement===root.querySelector(".kplex-search"),"F4 did not focus Vault search");
   const vaultInput=document.activeElement;
   p.settings.showAttachments=false;
@@ -233,7 +286,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
     c.input(vaultInput,term);await c.until(()=>root.querySelector(".kplex-search-results")?.textContent.includes("https://help.obsidian.md"),"Vault URL/alias search missing "+term);
   }
   c.key(vaultInput,"Escape");record("F4-whole-vault-files-URL-multiple-aliases");
-  let find=await c.openFind();c.check(!root.querySelector(".kplex-search-results"),"Find opened Vault results");
+  let find=await c.openFind();c.check(!root.querySelector(".kplex-find button[aria-expanded]"),"Expanded Find must hide its magnifier");c.check(!root.querySelector(".kplex-search-results"),"Find opened Vault results");
   const originalTheme={light:document.body.classList.contains("theme-light"),dark:document.body.classList.contains("theme-dark")},findTheme=[];
   const luminance=color=>color.match(/[\\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)}).reduce((v,c,i)=>v+c*[.2126,.7152,.0722][i],0);
   try{for(const dark of [false,true]){
@@ -260,7 +313,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const pathToggle=c.button("find.includePath");c.check(pathToggle,"Extended path toggle missing");pathToggle.click();await c.frames();
   c.check(pathToggle.getAttribute("aria-pressed")==="true"&&root.querySelectorAll(".kplex-thought.is-highlighted").length>3,"Extended path search did not include projected paths");
   c.check(!root.querySelector(".kplex-edge.is-highlighted"),"Path mode matched incidental connectors");pathToggle.click();await c.frames();
-  c.input(find,"-15");await c.until(()=>root.querySelectorAll(".kplex-thought.is-highlighted").length===3,"Displayed labels should cover three projected regions",5000);
+  c.input(find,"-15");await c.until(()=>root.querySelectorAll(".kplex-thought.is-highlighted").length===4,"Displayed labels should cover four projected regions",5000);
   c.key(find,"Enter");await c.frames();c.key(find,"Enter",{shiftKey:true});await c.frames();
   c.check(c.center()===centerBefore&&JSON.stringify(p.settings.navigationHistory)===historyBefore,"Find changed navigation history");
   c.input(find,"Unrelated.txt");await c.frames();c.check(root.querySelectorAll(".kplex-thought.is-highlighted").length===0,"Find searched an off-Plex file");
@@ -270,6 +323,68 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   await p.setGraphLenses([{id:"ux-exclude",name:"UX exclude",enabled:true,scope:"node",mode:"exclude",expression:'node.path.equals("'+c.folder+'/Parent-15.md")'}]);
   find=await c.openFind();c.input(find,"Parent-15");await c.frames();c.check(root.querySelectorAll(".kplex-thought.is-highlighted").length===0,"Find included a lens-excluded node");
   c.key(find,"Escape");await p.setGraphLenses([]);record("Plex-Find-projection-excludes");
+  // Exercise the actual portaled Filter shell with trusted pointer input. Its form state stays
+  // caller-owned; moving the header must not pan the Plex, change semantics or steal field focus.
+  const filterTrigger=c.button("filter.trigger"),filterWc=require("@electron/remote").getCurrentWindow().webContents;
+  c.check(filterTrigger,"Filter trigger missing");await c.click(filterTrigger);
+  await c.until(()=>document.querySelector(".kplex-filter-portal .kplex-filter-panel-header"),"Draggable Filter header did not render");
+  let filterPanel=document.querySelector(".kplex-filter-portal");
+  const filterHeader=filterPanel.querySelector(".kplex-filter-panel-header"),filterField=filterPanel.querySelector(".kplex-quick-lens-row input"),filterBefore=filterPanel.getBoundingClientRect();
+  c.check(filterPanel.ownerDocument===root.ownerDocument&&filterHeader.classList.contains("kplex-draggable-dialog-handle"),"Filter drag uses the wrong document or shared handle");
+  filterField.focus();const filterValueBefore=filterField.value,filterSemantic=p.index.getSemanticRevision(),filterHistory=JSON.stringify(p.settings.navigationHistory),filterCamera=root.querySelector(".kplex-camera").style.transform;
+  const dragHandle=filterHeader.querySelector("span"),handleBounds=dragHandle.getBoundingClientRect();
+  const fx=Math.round(handleBounds.left+Math.min(30,handleBounds.width/2)),fy=Math.round(handleBounds.top+handleBounds.height/2);
+  const fdx=filterBefore.left>90?-70:70,fdy=Math.max(8,Math.min(filterBefore.top+25,innerHeight-filterBefore.height-8))-filterBefore.top;
+  c.check(dragHandle.contains(document.elementFromPoint(fx,fy)),"Filter drag header is covered");
+  let filterPointerTrusted=false;
+  const observeFilterPointer=event=>{filterPointerTrusted=event.isTrusted};
+  filterHeader.addEventListener("pointerdown",observeFilterPointer,{once:true});
+  try{
+    filterWc.sendInputEvent({type:"mouseMove",x:fx,y:fy});filterWc.sendInputEvent({type:"mouseDown",x:fx,y:fy,button:"left",clickCount:1});await c.frames();
+    for(let step=1;step<=5;step++){filterWc.sendInputEvent({type:"mouseMove",x:Math.round(fx+fdx*step/5),y:Math.round(fy+fdy*step/5),modifiers:["leftbuttondown"]});await c.frames()}
+  }finally{
+    filterWc.sendInputEvent({type:"mouseUp",x:Math.round(fx+fdx),y:Math.round(fy+fdy),button:"left",clickCount:1});filterHeader.removeEventListener("pointerdown",observeFilterPointer);await c.frames();
+  }
+  const filterMoved=filterPanel.getBoundingClientRect();
+  c.check(filterPointerTrusted&&filterPanel.classList.contains("is-positioned")&&Math.abs(filterMoved.left-filterBefore.left)>30,"Trusted Filter header drag did not move its panel");
+  c.check(filterMoved.left>=7&&filterMoved.right<=innerWidth-7&&filterMoved.top>=7&&filterMoved.bottom<=innerHeight-7,"Dragged Filter panel escaped its viewport");
+  c.check(document.activeElement===filterField&&filterField.value===filterValueBefore&&root.querySelector(".kplex-camera").style.transform===filterCamera,"Dragging Filter changed form value, focus or Plex camera: "+JSON.stringify({focusClass:document.activeElement?.className,valueBefore:filterValueBefore,valueAfter:filterField.value,cameraBefore:filterCamera,cameraAfter:root.querySelector(".kplex-camera").style.transform}));
+  filterPanel.dispatchEvent(new Event("scroll"));await c.frames();
+  c.check(Math.abs(filterPanel.getBoundingClientRect().left-filterMoved.left)<1&&Math.abs(filterPanel.getBoundingClientRect().top-filterMoved.top)<1,"Filter scroll snapped its panel back to the anchor");
+  filterWc.sendInputEvent({type:"keyDown",keyCode:"Escape"});filterWc.sendInputEvent({type:"keyUp",keyCode:"Escape"});
+  await c.until(()=>!document.querySelector(".kplex-filter-portal"),"Escape did not dismiss Filter");
+  c.check(document.activeElement===filterTrigger&&!filterPanel.classList.contains("kplex-draggable-dialog")&&!filterPanel.style.getPropertyValue("--kplex-dialog-left"),"Filter dismissal failed focus or drag cleanup");
+  await c.click(filterTrigger);await c.until(()=>document.querySelector(".kplex-filter-portal"),"Filter did not reopen");filterPanel=document.querySelector(".kplex-filter-portal");
+  const filterReopened=filterPanel.getBoundingClientRect();
+  c.check(!filterPanel.classList.contains("is-positioned")&&Math.abs(filterReopened.left-filterBefore.left)<1&&Math.abs(filterReopened.top-filterBefore.top)<1,"Reopened Filter retained stale dragged coordinates");
+  await c.click(filterPanel.querySelector('button[aria-label="'+p.translator("filter.closePanel")+'"]'));
+  c.check(!document.querySelector(".kplex-filter-portal")&&document.activeElement===filterTrigger,"Filter close button did not dismiss and restore its trigger");
+  c.check(p.index.getSemanticRevision()===filterSemantic&&JSON.stringify(p.settings.navigationHistory)===filterHistory,"Filter drag changed graph semantics or navigation");
+  record("Filter-panel-trusted-drag-scroll-dismiss-reopen-cleanup",{trusted:filterPointerTrusted,before:{left:filterBefore.left,top:filterBefore.top},dragged:{left:filterMoved.left,top:filterMoved.top},reopened:{left:filterReopened.left,top:filterReopened.top}});
+  // Read production filter controls rather than private React state, proving contains/reflow and
+  // center retention through the actual Find action. Restore local filtering before later gestures.
+  find=await c.openFind();const findFilter=c.button("find.applyFilter");
+  c.check(findFilter?.disabled&&!findFilter.hasAttribute("title"),"Find filter action must be disabled for empty input without a native tooltip");
+  c.input(find,"Parent-15");await c.frames();
+  const findFilterCenter=c.center(),findFilterHistory=JSON.stringify(p.settings.navigationHistory),findFilterSemantic=p.index.getSemanticRevision(),findParentsBefore=Array.from(root.querySelectorAll(".kplex-role-parent")).map(node=>node.dataset.kplexPath).sort();
+  await c.click(findFilter);
+  await c.until(()=>root.querySelectorAll(".kplex-role-parent").length===1&&root.querySelectorAll(".kplex-thought:not(.kplex-role-center)").length===1&&!root.querySelector(".kplex-expanded-mini-thought"),"Find contains filter did not reflow the matching neighborhood");
+  c.check(root.querySelector(".kplex-role-parent")?.dataset.kplexPath===c.folder+"/Parent-15.md"&&c.center()===findFilterCenter,"Find filtering failed to retain exact match and center");
+  c.check(find.value==="Parent-15"&&JSON.stringify(p.settings.navigationHistory)===findFilterHistory,"Applying Find filter changed its query or navigation");
+  await c.click(filterTrigger);filterPanel=document.querySelector(".kplex-filter-portal");
+  const quickRow=filterPanel.querySelector(".kplex-quick-lens-row"),quickSelections=Array.from(quickRow.querySelectorAll("select")),reflow=filterPanel.querySelector('input[aria-label="'+p.translator("filter.reflowAria")+'"]');
+  c.check(quickSelections[0]?.value==="node.label"&&quickSelections[1]?.value==="contains"&&quickRow.querySelector("input")?.value==="Parent-15"&&reflow?.checked,"Find action did not use the existing contains/reflow controls");
+  c.check(p.index.getSemanticRevision()===findFilterSemantic,"Find filtering rebuilt graph semantics");
+  filterPanel.querySelector('button[aria-label="'+p.translator("filter.closePanel")+'"]').click();await c.frames();
+  c.check(findFilter.getAttribute("aria-pressed")==="true","Find filter did not expose its active state");
+  await c.click(findFilter);await c.frames();
+  c.check(findFilter.getAttribute("aria-pressed")==="false"&&find.value==="Parent-15","Find second press did not turn filtering off and retain its query");
+  await c.click(findFilter);await c.frames();c.input(find,"Parent-14");await c.click(findFilter);
+  await c.until(()=>root.querySelectorAll(".kplex-role-parent").length===1&&root.querySelector(".kplex-role-parent").dataset.kplexPath===c.folder+"/Parent-14.md","Changed Find term did not replace its active filter");
+  c.input(find,"");await c.frames();c.check(!findFilter.disabled,"Blank Find query trapped the active filter");await c.click(findFilter);await c.frames();
+  c.check(findFilter.getAttribute("aria-pressed")==="false","Blank-query press failed to turn filtering off");
+  c.key(find,"Escape");await c.until(()=>JSON.stringify(Array.from(root.querySelectorAll(".kplex-role-parent")).map(node=>node.dataset.kplexPath).sort())===JSON.stringify(findParentsBefore),"Clearing Find filter did not restore the exact neighborhood");
+  record("Plex-Find-apply-existing-label-contains-reflow-center-retained",{field:"node.label",operator:"contains",value:"Parent-15",layout:"reflow",semanticUnchanged:true});
   const indicator=root.querySelector(".kplex-index-status");indicator.click();await c.frames();
   c.check(!document.querySelector(".kplex-vault-stats"),"Single click opened About vault");
   indicator.dispatchEvent(new MouseEvent("dblclick",{bubbles:true}));await c.frames();
@@ -283,7 +398,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   document.querySelector(".kplex-vault-stats").closest(".modal").querySelector(".modal-content button.mod-cta").click();record("about-vault-completed-touch-pair");
   c.button("graph.fitGraph").click();await c.frames();
   const gateWindow=require("@electron/remote").getCurrentWindow(),wc=gateWindow.webContents;
-  const dragGate=async(to,side="bottom",hoverTarget=null)=>{app.workspace.setActiveLeaf(c.leaf,{focus:true});gateWindow.show();gateWindow.focus();await c.frames();const gate=root.querySelector('.kplex-role-center [data-kplex-gate="'+side+'"]'),a=gate.getBoundingClientRect();
+  const dragGate=async(to,side="bottom",hoverTarget=null,expectedPreview=null)=>{app.workspace.setActiveLeaf(c.leaf,{focus:true});gateWindow.show();gateWindow.focus();await c.frames();const gate=root.querySelector('.kplex-role-center [data-kplex-gate="'+side+'"]'),a=gate.getBoundingClientRect();
     const x=Math.round(a.x+a.width/2),y=Math.round(a.y+a.height/2);
     const originHit=document.elementFromPoint(x,y);c.lastGate={side,origin:[x,y],originClass:originHit?.getAttribute("class"),destination:to};
     c.check(originHit?.closest("[data-kplex-gate]")===gate,"Trusted gate drag must start on its visible gate: "+JSON.stringify(c.lastGate));
@@ -295,8 +410,10 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
     try{
       wc.sendInputEvent({type:"mouseMove",x,y});wc.sendInputEvent({type:"mouseDown",x,y,button:"left",clickCount:1});await c.frames();
       for(let step=1;step<=5;step++){wc.sendInputEvent({type:"mouseMove",x:Math.round(x+(to.x-x)*step/5),y:Math.round(y+(to.y-y)*step/5),modifiers:["leftbuttondown"]});await c.frames()}
-      if(hoverTarget)c.check(hoverTarget.classList.contains("is-relationship-drop-target"),"History target did not light during drag");
+      if(expectedPreview){c.check(root.querySelector(".kplex-area-"+expectedPreview+".is-relationship-drop-area"),"Gate action area did not highlight");record("trusted-gate-area-preview",{role:expectedPreview})}
+      if(hoverTarget){const hit=document.elementFromPoint(Math.round(to.x),Math.round(to.y));c.lastGate.hover={expectedPath:hoverTarget.dataset.kplexHistoryPath,connected:hoverTarget.isConnected,hitClass:hit?.getAttribute("class"),hitPath:hit?.closest("[data-kplex-history-path]")?.dataset.kplexHistoryPath,gateBlocked:Array.from(p.index.gateNeighbourPaths(p.index.get(c.center()),side)),connector:root.querySelector(".kplex-drag-connector")?.getAttribute("d")};c.check(hoverTarget.classList.contains("is-relationship-drop-target"),"History target did not light during drag: "+JSON.stringify(c.lastGate.hover))}
       wc.sendInputEvent({type:"mouseUp",x:Math.round(to.x),y:Math.round(to.y),button:"left",clickCount:1});await c.frames();
+      c.check(!root.querySelector(".is-relationship-drop-area"),"Gate release retained area feedback");
       c.check(c.dragEvents.some(event=>event.type==="pointerdown"&&event.gate===side&&event.trusted),"Trusted gate pointerdown was not delivered");
       c.check(c.dragEvents.some(event=>event.type==="pointerup"&&event.trusted),"Trusted gate release was not delivered");
       if(hoverTarget)c.check(!hoverTarget.classList.contains("is-relationship-drop-target"),"History hover did not clear on release");
@@ -313,7 +430,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
     },"Relationship not persisted: "+field+" → "+path);
     await c.until(()=>Boolean(p.index.get(c.hub)?.neighbours.get(path)),"Relationship not published");
     const evidence=p.index.explainRelationship(c.hub,path);c.check(evidence,"Relationship lacks provenance");return evidence};
-  const bounds=c.plex().getBoundingClientRect();await dragGate({x:bounds.right-50,y:bounds.bottom-120});
+  const bounds=c.plex().getBoundingClientRect();await dragGate({x:bounds.right-50,y:bounds.bottom-120},"bottom",null,"child");
   await c.until(()=>modal(),"Empty gate drag did not open composer");
   const targetInput=modal().querySelector(".kplex-add-related-note-search input");
   // Type only after modal autofocus has settled; initial focus resets its typed-results lifetime.
@@ -440,6 +557,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
     c.check(maximized?getComputedStyle(findSurface).display==="none":getComputedStyle(findSurface).display!=="none","Find visibility did not follow editor maximization");
     c.check(findSurface.querySelector("input").value===editorFindState.query,"Maximization lost Find query");
     const openButton=root.querySelector('.kplex-central-editor-toolbar button[aria-label="'+p.translator("graph.openMenu")+'"]');
+    await assertControlStyle(Array.from(root.querySelectorAll(".kplex-central-editor-toolbar button")));
     c.menuFocus=[{phase:"before",type:app.workspace.activeLeaf?.view.getViewType(),host:app.workspace.activeLeaf===c.leaf}];
     c.check(openButton?.querySelector("svg.lucide-ellipsis-vertical"),"Editor ellipsis menu icon missing");
     c.check(openButton.parentElement.querySelector("button:last-child")===openButton,"Editor menu must be the last button in both sizes");await c.click(openButton);
@@ -557,6 +675,9 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   for(const key of ["settings.ui.max.label.length","settings.ui.wrap.node.labels","settings.ui.maximum.node.width","settings.ui.maximum.central.node.width"]){const row=Array.from(app.setting.getCurrentPageEl().querySelectorAll(".setting-item")).find(el=>el.querySelector(".setting-item-name")?.textContent===p.translator(key));c.check(row?.querySelector("input,.checkbox-container"),"Label control missing from rendered settings: "+key)}
   app.setting.close();c.ownsSettings=false;
   p.settings.graphDepth=1;p.settings.layoutProfiles={...p.settings.layoutProfiles,"desktop:leaf":{...p.settings.layoutProfiles["desktop:leaf"],parentColumns:2,childColumns:2}};
+  // The two-line sample needs a fixed font: a saved 8px base can fit this title on one line.
+  // The driver's original settings snapshot restores the caller's typography after the fixture.
+  await tab.setControlValue("baseFontSize",12.4);
   await tab.setControlValue("baseNodeStyle.maxLabelLength",120);await tab.setControlValue("baseNodeStyle.maxWidth",800);await tab.setControlValue("centralNodeStyle.maxWidth",1000);
   await c.go(c.labelCenter);
   const labelEvidence=[];
@@ -578,6 +699,23 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
     labelEvidence.push({wrap,regularHeight:regular[0].height,widths:rects.map(n=>n.width),historyHeight});
   }
   record("label-controls-wide-nodes-fixed-two-line-height-no-overlap",{settingsPath:["Visual styling","Node styling","Node appearance"],modes:labelEvidence});
+  ${layoutEnhancementScenarios}
+  ${relationshipEnhancementScenarios}
+  ${gateCountScenarios}
+  // Siblings share the same toolbar but need their own overflowing production fixture.
+  await tab.setControlValue("renderSiblings",true);await tab.setControlValue("siblingMaxHeight",72);
+  await c.go(c.folder+"/Child-00.md");
+  await c.until(()=>root.querySelector(".kplex-zone-sibling .kplex-zone-filter-button"),"Sibling filter fixture did not render");
+  const siblingPanel=root.querySelector(".kplex-zone-sibling"),siblingFilter=siblingPanel.querySelector(".kplex-zone-filter-button");
+  siblingFilter.click();await c.frames();
+  const siblingField=siblingPanel.querySelector(".kplex-zone-filter-input"),siblingBounds=siblingPanel.getBoundingClientRect(),siblingButtonBounds=siblingFilter.getBoundingClientRect(),siblingFieldBounds=siblingField.getBoundingClientRect();
+  c.check(siblingFieldBounds.bottom<siblingBounds.top&&siblingButtonBounds.bottom<siblingBounds.top,"Sibling filter overlaps its node region");
+  c.check(Math.abs(siblingButtonBounds.right-siblingBounds.right)<0.5,"Sibling filter is not right-aligned with its scroll region");
+  const siblingPoint=[siblingFieldBounds.left+siblingFieldBounds.width/2,siblingFieldBounds.top+siblingFieldBounds.height/2];
+  c.check(document.elementFromPoint(...siblingPoint)===siblingField,"Sibling filter field is clipped or covered");
+  siblingFilter.click();await c.frames();
+  c.check(!siblingPanel.querySelector(".kplex-zone-filter-input")&&siblingFilter.getBoundingClientRect().bottom<siblingPanel.getBoundingClientRect().top,"Closed sibling filter overlaps its node region");
+  record("sibling-filter-above-node-region-open-closed",{clearance:siblingBounds.top-Math.max(siblingFieldBounds.bottom,siblingButtonBounds.bottom),point:siblingPoint,rightEdgeOffset:siblingButtonBounds.right-siblingBounds.right});
   c.done=true;
 })().catch(e=>{c.error=e.stack;c.done=true});return JSON.stringify(true)})()`;
 
@@ -598,7 +736,11 @@ const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(
   for(const release of c.fixtureDemands??[])release();c.fixtureDemands=[];
   c.popoutLeaf?.detach();c.leaf?.detach();c.previousLeaf?.detach();
   const fixture=app.vault.getFolderByPath(c.folder);if(fixture&&c.owned.includes(c.folder))await app.vault.delete(fixture,true);
+  await c.until(()=>c.settingsWrites.size===0,"Retiring fixture still has active settings writes");await c.frames();
   c.p.settings=c.settings;await c.p.saveSettings(false,false);
+  await c.until(()=>c.settingsWrites.size===0,"Original settings still have active writes");await c.frames();
+  c.check(c.settingsWriteErrors.length===0,"Fixture settings write failed: "+JSON.stringify(c.settingsWriteErrors));
+  c.restoreSettingsWrites();
   if(c.settings.lastActivePath&&c.p.index.get(c.settings.lastActivePath))c.p.notifyNavigation(c.settings.lastActivePath);
   const win=require("@electron/remote").getCurrentWindow();win.setBounds(c.bounds);win.webContents.setBackgroundThrottling(c.throttling);
   c.done=true;
@@ -607,6 +749,7 @@ const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(
 /** Optional mobile-emulation lane; reloads are outside the fixture/controller lifetime. */
 async function deviceMatrix() {
   const baseline=evaluate('JSON.stringify((()=>{const w=require("@electron/remote").getCurrentWindow();return {mobile:app.isMobile,bounds:w.getBounds(),minimum:w.getMinimumSize()}})())');
+  report.deviceBaseline=baseline;
   const liveSettings=evaluate('JSON.stringify(app.plugins.plugins["k-plex"].settings)');
   const webOwner="Kplex-UX-Web-Routing.md";
   let ownsWebOwner=false;
@@ -627,10 +770,38 @@ async function deviceMatrix() {
     evaluate('(()=>{window.__kplexUxDevice.leaf.view.contentEl.querySelector(".kplex-find button").click();return JSON.stringify(true)})()');
     const geometry=await until(`JSON.stringify((()=>{const root=window.__kplexUxDevice.leaf.view.contentEl,input=root.querySelector(".kplex-find-input");if(document.activeElement!==input)return false;
       const find=root.querySelector(".kplex-find").getBoundingClientRect(),plex=root.querySelector(".kplex-plex").getBoundingClientRect();
-      return {inside:find.left>=plex.left-1&&find.right<=plex.right+1&&find.top>=plex.top-1,dropdown:Boolean(root.querySelector(".kplex-find [role=listbox]")),width:find.width,available:plex.width,searchHint:root.querySelector(".kplex-search").placeholder}
+      return {inside:find.left>=plex.left-1&&find.right<=plex.right+1&&find.top>=plex.top-1,magnifier:Boolean(root.querySelector(".kplex-find button[aria-expanded]")),dropdown:Boolean(root.querySelector(".kplex-find [role=listbox]")),width:find.width,available:plex.width,searchHint:root.querySelector(".kplex-search").placeholder}
     })())`,"Emulated magnifier did not focus its Find field");
-    assert(geometry.inside&&!geometry.dropdown,JSON.stringify(geometry));
+    assert(geometry.inside&&!geometry.dropdown&&!geometry.magnifier,JSON.stringify(geometry));
     if(expected!=="desktop")assert(!geometry.searchHint.includes("F4"),"Mobile hint assumes a hardware keyboard");
+    // Probe responsive availability without mutating density/columns: their behavior is exercised
+    // separately. Every actual range and the new Find action must remain reachable in this surface.
+    const hiddenLayout=evaluate('JSON.stringify((()=>{const root=window.__kplexUxDevice.leaf.view.contentEl,t=root.querySelector(".kplex-layout-toggle");return {toggle:Boolean(t),expanded:t?.getAttribute("aria-expanded"),ranges:root.querySelectorAll(".kplex-layout-controls input[type=range]").length}})())');
+    assert(hiddenLayout.toggle&&hiddenLayout.expanded==="false"&&hiddenLayout.ranges===0,JSON.stringify(hiddenLayout));
+    evaluate('(()=>{window.__kplexUxDevice.leaf.view.contentEl.querySelector(".kplex-layout-toggle").click();return JSON.stringify(true)})()');
+    await until('JSON.stringify(window.__kplexUxDevice.leaf.view.contentEl.querySelectorAll(".kplex-layout-controls input[type=range]").length===6)',"Emulated configuration did not mount sliders");
+    const layoutControls=evaluate(`JSON.stringify((()=>{const p=app.plugins.plugins["k-plex"],root=window.__kplexUxDevice.leaf.view.contentEl,plex=root.querySelector(".kplex-plex").getBoundingClientRect();
+      const keys=["graph.horizontalDensity","graph.verticalDensity","graph.parentColumns","graph.childColumns","graph.baseFontSize","settings.ui.maximum.node.width"];
+      const controls=keys.map(key=>{const input=Array.from(root.querySelectorAll('.kplex-layout-controls input[type="range"]')).find(el=>el.getAttribute("aria-label")===p.translator(key));if(!input)return {key,missing:true};const r=input.getBoundingClientRect(),label=input.closest("label").getBoundingClientRect();return {key,min:input.min,max:input.max,step:input.step,value:input.value,width:r.width,height:r.height,inside:r.width>0&&r.height>0&&label.left>=plex.left-1&&label.right<=plex.right+1&&label.top>=plex.top-1&&label.bottom<=plex.bottom+1}});
+      const filter=Array.from(root.querySelectorAll(".kplex-find button")).find(el=>el.getAttribute("aria-label")===p.translator("find.applyFilter")),r=filter?.getBoundingClientRect();
+      const wrap=root.querySelector(".kplex-wrap-label-control"),wr=wrap?.getBoundingClientRect();
+      const pair=root.querySelector(".kplex-typography-controls .kplex-density-axes"),rails=pair?.querySelectorAll(".kplex-density-control"),first=rails?.[0],second=rails?.[1],fr=first?.getBoundingClientRect(),sr=second?.getBoundingClientRect(),pr=pair?.getBoundingClientRect();
+      const caption=wrap?.querySelector(".kplex-wrap-label-caption"),heading=first?.querySelector(".kplex-density-heading"),cs=caption&&getComputedStyle(caption),hs=heading&&getComputedStyle(heading),ws=wrap&&getComputedStyle(wrap),rs=first&&getComputedStyle(first);
+      const typography={stacked:Boolean(fr&&sr&&Math.abs(fr.left-sr.left)<1&&Math.abs(fr.width-sr.width)<1&&sr.top>fr.bottom),twoRowTile:Boolean(wr&&pr&&Math.abs(wr.top-pr.top)<1&&Math.abs(wr.bottom-pr.bottom)<1),narrowTile:Boolean(wr&&fr&&wr.width<fr.width),wrappedCaption:Boolean(cs&&caption.getBoundingClientRect().height>parseFloat(cs.lineHeight)*1.5),matchingText:Boolean(cs&&hs&&["fontSize","letterSpacing","textTransform","color"].every(key=>cs[key]===hs[key])),matchingTile:Boolean(ws&&rs&&["backgroundColor","borderRadius","borderTopColor","borderTopWidth","boxShadow"].every(key=>ws[key]===rs[key])),tileWidth:wr?.width,tileHeight:wr?.height,pairHeight:pr?.height,fontSize:cs?.fontSize};
+      return {typography,wrapInside:Boolean(wr&&wr.left>=plex.left-1&&wr.right<=plex.right+1&&wr.top>=plex.top-1&&wr.bottom<=plex.bottom+1),controls,rangeCount:root.querySelectorAll('.kplex-layout-controls input[type="range"]').length,findFilter:filter?{disabled:filter.disabled,noTitle:!filter.hasAttribute("title"),besidePath:filter.previousElementSibling?.getAttribute("aria-label")===p.translator("find.includePath"),inside:r.width>0&&r.height>0&&r.left>=plex.left-1&&r.right<=plex.right+1&&r.top>=plex.top-1&&r.bottom<=plex.bottom+1}:null}
+    })())`);
+    assert.equal(layoutControls.rangeCount,6,JSON.stringify(layoutControls));
+    assert(layoutControls.wrapInside&&layoutControls.controls.every(control=>control.inside),JSON.stringify(layoutControls));
+    assert(["stacked","twoRowTile","narrowTile","wrappedCaption","matchingText","matchingTile"].every(key=>layoutControls.typography[key]),JSON.stringify(layoutControls.typography));
+    assert.deepEqual(layoutControls.controls.slice(2,4).map(({min,max,step})=>[min,max,step]),[["1","3","1"],["1","7","1"]],"Rendered parent/child column caps differ from their supported 3/7 widths");
+    assert(layoutControls.findFilter?.disabled&&layoutControls.findFilter.noTitle&&layoutControls.findFilter.besidePath&&layoutControls.findFilter.inside,JSON.stringify(layoutControls));
+    evaluate('(()=>{const p=app.plugins.plugins["k-plex"],root=window.__kplexUxDevice.leaf.view.contentEl;window.__kplexUxDevice.filterTrigger=Array.from(root.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("filter.trigger"));if(!window.__kplexUxDevice.filterTrigger)throw new Error("Emulated Filter trigger missing");window.__kplexUxDevice.filterTrigger.click();return JSON.stringify(true)})()');
+    const filterPanelGeometry=await until(`JSON.stringify((()=>{const p=app.plugins.plugins["k-plex"],panel=document.querySelector(".kplex-filter-portal"),header=panel?.querySelector(".kplex-filter-panel-header");if(!header)return false;const r=panel.getBoundingClientRect(),close=Array.from(header.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("filter.closePanel")),cr=close?.getBoundingClientRect();return {ownerMatches:panel.ownerDocument===window.__kplexUxDevice.filterTrigger.ownerDocument,sharedDrag:header.classList.contains("kplex-draggable-dialog-handle"),title:header.querySelector("span")?.textContent,expectedTitle:p.translator("filter.panelTitle"),width:r.width,height:r.height,left:r.left,top:r.top,inside:r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth+1&&r.top>=0&&r.bottom<=innerHeight+1,closeReachable:Boolean(cr&&cr.width>0&&cr.height>0&&cr.left>=0&&cr.right<=innerWidth+1&&cr.top>=0&&cr.bottom<=innerHeight+1)}})())`,"Emulated draggable Filter panel did not render");
+    assert(filterPanelGeometry.ownerMatches&&filterPanelGeometry.sharedDrag&&filterPanelGeometry.inside&&filterPanelGeometry.closeReachable,JSON.stringify(filterPanelGeometry));
+    assert.equal(filterPanelGeometry.title,filterPanelGeometry.expectedTitle);
+    evaluate('(()=>{const p=app.plugins.plugins["k-plex"],panel=document.querySelector(".kplex-filter-portal");Array.from(panel.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("filter.closePanel")).click();return JSON.stringify(true)})()');
+    await until('JSON.stringify(!document.querySelector(".kplex-filter-portal")&&document.activeElement===window.__kplexUxDevice.filterTrigger)',"Emulated Filter close failed dismissal/focus cleanup");
+    report.scenarios.push({id:`emulated-${expected}-new-controls-and-filter-panel-fit`,status:"passed",environment,layoutControls,filterPanelGeometry,interaction:"DOM activation/geometry in desktop emulation; no physical touch assertion"});
     // A validated source-backed startup is authoritative without a complete graph acceleration
     // snapshot. Require settled source/current-view authority, not the optional full-graph flag.
     await until('JSON.stringify((()=>{const p=app.plugins.plugins["k-plex"],i=p.index;return (i.isFullSnapshotHydrated()||i.hasSourceBackedStartup()&&p.getIndexStatus().upToDate&&i.sourceAcquisition.hasSemanticDependencies())&&!i.hasPendingSnapshotHydration()&&!i.hasPendingSemanticPreparation()&&!i.building})())',"Emulated primary source/graph authority did not complete",1_800_000);
@@ -669,7 +840,7 @@ async function deviceMatrix() {
     try{evaluate('(()=>{window.__kplexUxDevice?.leaf?.detach();delete window.__kplexUxDevice;return JSON.stringify(true)})()')}catch{}
     if(ownsWebOwner){evaluate(`(()=>{window.__kplexUxWebCleanup={done:false,error:null};const file=app.vault.getFileByPath(${JSON.stringify(webOwner)});(file?app.vault.delete(file):Promise.resolve()).then(()=>{window.__kplexUxWebCleanup.done=true}).catch(e=>{window.__kplexUxWebCleanup.error=e.stack;window.__kplexUxWebCleanup.done=true});return JSON.stringify(true)})()`);await until('JSON.stringify(window.__kplexUxWebCleanup.error?{error:window.__kplexUxWebCleanup.error}:window.__kplexUxWebCleanup.done)',"Web routing fixture cleanup failed")}
     evaluate('(()=>{delete window.__kplexUxWebSetup;delete window.__kplexUxWebCleanup;return JSON.stringify(true)})()');
-    const current=evaluate('JSON.stringify(app.isMobile)');
+    const current=await readState('JSON.stringify(app.isMobile)');
     if(current!==baseline.mobile){cli("eval",`code=app.emulateMobile(${baseline.mobile})`);await ready()}
     evaluate(`(()=>{const w=require("@electron/remote").getCurrentWindow();w.setMinimumSize(${baseline.minimum[0]},${baseline.minimum[1]});w.setBounds(${JSON.stringify(baseline.bounds)});return JSON.stringify(true)})()`);
     evaluate(`(()=>{const p=app.plugins.plugins["k-plex"];p.settings=JSON.parse(${JSON.stringify(JSON.stringify(liveSettings))});window.__kplexUxSettingsRestore={done:false,error:null};p.saveSettings(false,false).then(()=>{window.__kplexUxSettingsRestore.done=true}).catch(e=>{window.__kplexUxSettingsRestore.error=e.stack;window.__kplexUxSettingsRestore.done=true});return JSON.stringify(true)})()`);
@@ -766,14 +937,14 @@ try {
       evaluate(cleanup);
       await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "UX cleanup timed out");
     }
-    evaluate(`(()=>{window.${controller}?.restorePairTrace?.();delete window.${controller};return JSON.stringify(true)})()`);
+    evaluate(`(()=>{window.${controller}?.restorePairTrace?.();window.${controller}?.restoreSettingsWrites?.();delete window.${controller};return JSON.stringify(true)})()`);
     writeFileSync(dataPath,originalData);
     assert(readFileSync(dataPath).equals(originalData),"Original settings bytes were not restored");
     assert(readFileSync(enabledPath).equals(originalEnabled),"Community plugin enablement changed");
     report.cleanup="passed";
   } catch(error) {report.cleanup=error.stack;report.status="failed"}
   // Wrapper lifetime is independent of fixture cleanup and its native async failures.
-  if(installed)try{evaluate(`(()=>{window.${controller}?.restorePairTrace?.();return JSON.stringify(true)})()`)}catch(error){report.traceCleanupError=error.message;report.status="failed"}
+  if(installed)try{evaluate(`(()=>{window.${controller}?.restorePairTrace?.();window.${controller}?.restoreSettingsWrites?.();return JSON.stringify(true)})()`)}catch(error){report.traceCleanupError=error.message;report.status="failed"}
   if(report.status==="passed"&&process.env.KPLEX_UX_EMULATE_MOBILE==="true")try{await deviceMatrix()}catch(error){report.deviceError=error.stack;report.status="failed"}
   try {hashes()} catch(error) {report.artifactError=error.message;report.status="failed"}
   report.completedAt = new Date().toISOString();

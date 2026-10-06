@@ -104,19 +104,20 @@ for (const shell of ["composer", "details"]) {
   });
 }
 
-/** Extract the shared history endpoint/menu callbacks with exact injected native policy owners. */
-function historyFixture() {
-  const origin=page("Origin.md"),target=page("Target.md"),menus=[],actions=[];
+/** Extract shared chip eligibility/menu callbacks with canonical gate membership supplied by the index port. */
+function historyFixture(targetKind="history") {
+  const origin=page("Origin.md"),target=page("Target.md"),menus=[],actions=[],blocked=new Map();
   class Menu {
     constructor(){this.items=[];}
     addItem(configure){const item={setTitle(value){this.title=value;return this;},setIcon(){return this;},onClick(callback){this.click=callback;return this;}};configure(item);this.items.push(item);return this;}
   }
-  const ownerDocument={elementFromPoint:()=>({closest:()=>({dataset:{kplexHistoryPath:target.path}})})};
-  const dependencies={Menu,index:{get:path=>path===origin.path?origin:path===target.path?target:undefined},translate:key=>key,hostLeaf:{},clearHoverIntent:()=>{},
+  const ownerDocument={elementFromPoint:()=>({closest:()=>({dataset:targetKind==="pinned"?{kplexPinnedPath:target.path}:{kplexHistoryPath:target.path}})})};
+  const dependencies={Menu,index:{get:path=>path===origin.path?origin:path===target.path?target:undefined,gateNeighbourPaths:(current,gate)=>{assert.equal(current,origin);return blocked.get(gate)??new Set();}},translate:key=>key,hostLeaf:{},clearHoverIntent:()=>{},
     plugin:{showKplexMenuAtPosition:(menu,coordinates,document)=>{assert.equal(document,ownerDocument);assert.deepEqual(coordinates,{x:30,y:40});menus.push(menu);},openRelationModal:options=>actions.push(options)}};
+  dependencies.relationshipDropRoles=productionFunction("src/ui/PlexGraph.tsx","relationshipDropRoles",dependencies);
   dependencies.historyRelationshipTarget=productionFunction("src/ui/PlexGraph.tsx","historyRelationshipTarget",dependencies);
   dependencies.openHistoryRelationshipMenu=productionFunction("src/ui/PlexGraph.tsx","openHistoryRelationshipMenu",dependencies);
-  return {origin,target,menus,actions,ownerDocument,dependencies};
+  return {origin,target,menus,actions,ownerDocument,dependencies,blocked};
 }
 
 for(const [gate,role] of [["top","parent"],["bottom","child"],["left","left"],["right","right"]]){
@@ -141,6 +142,101 @@ test("node-body drop on history retains the four-role chooser against the exact 
   for(const action of actions){assert.equal(action.origin,origin);assert.equal(action.fixedTarget,target);assert.equal(action.mode,"create");}
   target.isFolder=true;assert.equal(dependencies.openHistoryRelationshipMenu(origin,30,40,ownerDocument,"child"),false,"Ineligible history folders cannot select a composer endpoint");
 });
+
+for(const [gate,role] of [["top","parent"],["bottom","child"],["left","left"],["right","right"]]){
+  test(`gate ${gate} drop on pinned chip retains exact ${role} fixed-target routing`,()=>{
+    const {origin,target,menus,actions,ownerDocument,dependencies}=historyFixture("pinned");
+    const connectDrag={pointerId:7,originPath:origin.path,gate,moved:true};let remainingDrag=connectDrag;
+    const up=productionFunction("src/ui/PlexGraph.tsx","up",{...dependencies,clearHistoryDragHover:()=>{},semanticRoleForGate:productionFunction("src/ui/PlexGraph.tsx","semanticRoleForGate",{}),
+      areaResizeDrag:{current:null},finishAreaSettingsDismiss:()=>{},pendingGateLongPress:{current:null},connectDrag,setConnectDrag:value=>{remainingDrag=value;},suppressActivateUntil:{current:0}});
+    up({pointerId:7,pointerType:"mouse",clientX:30,clientY:40,currentTarget:{ownerDocument}});
+    assert.equal(remainingDrag,null);assert.equal(menus.length,0);assert.equal(actions.length,1);
+    assert.equal(actions[0].origin,origin);assert.equal(actions[0].fixedTarget,target);assert.equal(actions[0].semanticRole,role);assert.equal(actions[0].mode,"create");
+  });
+}
+
+test("pinned chooser omits canonical duplicate roles and rejects unwritable or self endpoints",()=>{
+  const {origin,target,menus,actions,ownerDocument,dependencies,blocked}=historyFixture("pinned");
+  blocked.set("top",new Set([target.path]));
+  assert.equal(dependencies.openHistoryRelationshipMenu(origin,30,40,ownerDocument,"parent"),false);
+  assert.equal(actions.length,0);assert.equal(menus.length,0);
+  assert.equal(dependencies.openHistoryRelationshipMenu(origin,30,40,ownerDocument),true);
+  assert.deepEqual(menus[0].items.map(item=>item.title),["role.child","role.friend","role.challenger"]);
+  menus[0].items[0].click();assert.equal(actions[0].fixedTarget,target);assert.equal(actions[0].semanticRole,"child");
+  assert.equal(dependencies.openHistoryRelationshipMenu(target,30,40,ownerDocument),false);
+  for(const flag of ["isFolder","isTag"]){target[flag]=true;assert.equal(dependencies.openHistoryRelationshipMenu(origin,30,40,ownerDocument),false);delete target[flag];}
+  target.file.extension="png";assert.equal(dependencies.openHistoryRelationshipMenu(origin,30,40,ownerDocument,"child"),true,"Markdown origin can link an attachment target");
+  origin.file.extension="png";assert.equal(dependencies.openHistoryRelationshipMenu(origin,30,40,ownerDocument),false,"Two non-Markdown endpoints cannot persist a property");
+});
+
+/** Capture transfers retain the active viewport gesture when an older child emits loss for the same pointer. */
+test("retired child capture cannot cancel a viewport-owned node drag",()=>{
+  let cancelled=0,cleared=0,resized=0;
+  const nodeDrag={pointerId:7,path:"Dragged.md"},viewport={hasPointerCapture:id=>id===7};
+  const lost=productionFunction("src/ui/PlexGraph.tsx","lostPointerCapture",{
+    connectDrag:null,nodeDrag,cancel:()=>cancelled++,clearHistoryDragHover:()=>cleared++,finishAreaResize:()=>{resized++;return false},setAreaHoverIfChanged:()=>{},
+  });
+  lost({pointerId:7,target:{},currentTarget:viewport});
+  assert.equal(cancelled,0,"The current capture owner still receives motion; stale child loss cannot retire it");
+  assert.equal(cleared,0);assert.equal(resized,0);
+  viewport.hasPointerCapture=()=>false;lost({pointerId:7,target:viewport,currentTarget:viewport});
+  assert.equal(cancelled,1,"Actual viewport capture loss must terminate the matching node drag");
+});
+
+test("actual originating gate capture loss cancels its connector while unrelated pointers preserve it",()=>{
+  let cancelled=0;const viewport={hasPointerCapture:()=>false};
+  const lost=productionFunction("src/ui/PlexGraph.tsx","lostPointerCapture",{
+    connectDrag:{pointerId:7},nodeDrag:null,cancel:()=>cancelled++,clearHistoryDragHover:()=>{},finishAreaResize:()=>false,setAreaHoverIfChanged:()=>{},
+  });
+  lost({pointerId:8,target:{},currentTarget:viewport});assert.equal(cancelled,0);
+  lost({pointerId:7,target:{},currentTarget:viewport});assert.equal(cancelled,1);
+});
+
+/** Existing drag ownership wins over area hover/resize across both relationship bands and controls. */
+for(const kind of ["node","connector"]){
+  test(`active ${kind} drag continues through parent and child areas without yielding to resize or hover`,()=>{
+    const origin=page("Dragged.md");
+    const ownerDocument={elementFromPoint:()=>({closest:()=>null})};
+    const viewport={current:{getBoundingClientRect:()=>({left:20,top:30})}},camera={current:{x:10,y:15,scale:2}};
+    const original=kind==="node"?{path:origin.path,pointerId:7,offsetX:5,offsetY:7,startClientX:40,startClientY:50,x:0,y:0,moved:false}
+      :{originPath:origin.path,gate:"left",pointerId:7,startClientX:40,startClientY:50,current:{x:0,y:0},moved:false};
+    let current=original;
+    const pendingAreaHeight={current:null},areaResizeFrame={current:null},areaResizeDrag={current:null},historyDragHover={current:null};
+    const dependencies={viewport,camera,areaResizeDrag,pendingAreaHeight,areaResizeFrame,historyDragHover,
+      index:{get:()=>origin,gateNeighbourPaths:()=>assert.fail("Ordinary area motion must not scan chip roles")},
+      connectDrag:kind==="connector"?original:null,nodeDrag:kind==="node"?original:null,
+      updateAreaSettingsDismiss:()=>{},touchLongPress:{current:null},cancelTouchLongPress:()=>assert.fail("Mouse movement cannot cancel a touch hold"),
+      setConnectDrag:update=>{current=typeof update==="function"?update(current):update},setNodeDrag:update=>{current=typeof update==="function"?update(current):update},
+      areaSettingsMode:true,areaHoverAt:()=>assert.fail("Active drag must not transfer to area hover"),setAreaHoverIfChanged:()=>assert.fail("Active drag must not resize/hover an area"),
+    };
+    for(const name of ["toWorld","semanticRoleForGate","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover"])
+      dependencies[name]=productionFunction("src/ui/PlexGraph.tsx",name,dependencies);
+    const move=productionFunction("src/ui/PlexGraph.tsx","move",dependencies);
+    const points=[[100,100],[150,10],[200,-120],[250,250],[300,500],[350,100]];
+    for(const [clientX,clientY]of points){
+      move({pointerId:7,pointerType:"mouse",clientX,clientY,currentTarget:{ownerDocument},target:{closest:()=>({className:"kplex-zone-scroll"})}});
+      const world={x:(clientX-30)/2,y:(clientY-45)/2};
+      if(kind==="node"){assert.equal(current.x,world.x-5);assert.equal(current.y,world.y-7)}else assert.deepEqual(current.current,world);
+      assert.equal(current.moved,true);assert.equal(pendingAreaHeight.current,null);assert.equal(areaResizeFrame.current,null);
+    }
+    const last=current;move({pointerId:8,pointerType:"mouse",clientX:500,clientY:500,currentTarget:{ownerDocument}});
+    assert.equal(current,last,"A different pointer cannot update or retire the owning drag");
+  });
+}
+
+for(const rejection of ["self","duplicate","folder"]){
+  test(`rejected pinned ${rejection} gate release does not fall through to an unfixed composer`,()=>{
+    const {origin,target,actions,menus,ownerDocument,dependencies,blocked}=historyFixture("pinned");
+    if(rejection==="self")target.path=origin.path;
+    if(rejection==="duplicate")blocked.set("top",new Set([target.path]));
+    if(rejection==="folder")target.isFolder=true;
+    const connectDrag={pointerId:7,originPath:origin.path,gate:"top",moved:true};let remainingDrag=connectDrag;
+    const up=productionFunction("src/ui/PlexGraph.tsx","up",{...dependencies,clearHistoryDragHover:()=>{},semanticRoleForGate:productionFunction("src/ui/PlexGraph.tsx","semanticRoleForGate",{}),
+      areaResizeDrag:{current:null},finishAreaSettingsDismiss:()=>{},pendingGateLongPress:{current:null},connectDrag,setConnectDrag:value=>{remainingDrag=value;},suppressActivateUntil:{current:0}});
+    up({pointerId:7,pointerType:"mouse",clientX:30,clientY:40,currentTarget:{ownerDocument}});
+    assert.equal(remainingDrag,null);assert.equal(actions.length,0);assert.equal(menus.length,0);
+  });
+}
 
 /** Ordinary startup backlog waits for the initial owner's final cache/delta decision. */
 test("reactive startup backlog cannot rebuild a partial cache preview before hydration settles", async () => {
@@ -316,4 +412,17 @@ test("visible metadata preview captures the event's new source revision", async 
   context.managedMetadataWrites.set(file.path, Date.now() + 10000);
   handlers.get("changed")(file);
   assert.deepEqual(captures[1], [file.path, 1], "managed writes refresh presentation without scheduling a duplicate dirty batch");
+});
+
+/** React portal capture runs before the native header drag helper, so its host must retain focus. */
+test("portaled filter heading preserves form focus while bare Plex space focuses the shell", () => {
+  let focused = 0, dismissed = 0;
+  const down = productionFunction("src/ui/App.tsx", "handlePlexPointerDown", {
+    plugin: { dismissKplexMenu: () => dismissed++ }, rootRef: { current: { focus: () => focused++ } },
+  });
+  down({ target: { closest: selector => selector.includes(".kplex-filter-panel") ? {} : null } });
+  assert.equal(focused, 0, "Portal capture must not steal the filter input's focus before dragging");
+  down({ target: { closest: () => null } });
+  assert.equal(focused, 1, "Bare Plex focus policy remains available");
+  assert.equal(dismissed, 2);
 });

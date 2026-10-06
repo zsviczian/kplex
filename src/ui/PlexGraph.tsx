@@ -1,19 +1,23 @@
 /**
- * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. Find uses rendered facets with an explicit local path mode; history drag hover shares endpoint eligibility with gate-role/body-role routing.
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
 import { addNativeSubmenu } from "../adapters/obsidian/nativeSubmenu";
+import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
 import { urlEmbed } from "./features/urlEmbed";
 import type KplexPlugin from "../main";
 import type { GraphIndex } from "../index/GraphIndex";
-import type { KplexSettings, KplexViewSurface, SidecarMarkdownMode } from "../settings";
+import type { KplexLayoutProfile, KplexSettings, KplexViewSurface, SidecarMarkdownMode } from "../settings";
 import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle, NodeVisual, PositionedEdge, PositionedNode, Role, ScrollZone } from "../types";
 import { LinkDirection, RelationType } from "../types";
 import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle } from "../index/style";
-import { buildScene, buildSectionExpandedScene, effectiveLabelLimit, expandedChildReserve, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
+import { buildScene, buildSectionExpandedScene, effectiveLabelLimit, expandedChildReserve, expandedNodeWidth, expandedMiniLayout, horizontalDensity, layoutColumns, spacingPolicy, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
+import { LayoutSlider } from "./components/LayoutSlider";
+import { ElementMotion } from "./components/ElementMotion";
 import { ResizableAreaFrame } from "./components/ResizableAreaFrame";
 import { ThoughtNode, type ConnectionDragState } from "./ThoughtNode";
+import { DropAreaPreview } from "./components/DropAreaPreview";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { CentralNodeEditor } from "./CentralNodeEditor";
@@ -104,9 +108,6 @@ function supportsCentralEditorFile(page: GraphPage | undefined): boolean {
 }
 
 const NODE_RELINK_HYSTERESIS_PX = 48;
-const COLUMN_PRESETS: ReadonlyArray<readonly [number, number]> = [
-  [1, 1], [1, 2], [1, 3], [2, 3], [2, 4], [2, 5], [2, 6], [2, 7],
-];
 const GENERIC_RELATION_LABELS = new Set([
   "parent", "parents", "child", "children", "friend", "friends", "challenger", "jump", "jumps",
   "previous", "prev", "next", "before", "after", "west", "east", "north", "south", "up", "down",
@@ -495,6 +496,7 @@ function filterNeighborhoodForLenses(
   };
 }
 
+/** Repack zone-local matches with the current axis/column policy and full expanded-child footprint. */
 function buildZoneDisplayLayout(
   zone: ScrollZone,
   panel: ZoneViewport,
@@ -520,22 +522,22 @@ function buildZoneDisplayLayout(
   const topPadding = 42;
   const bottomPadding = 16;
   if (zone === "parent" || zone === "child") {
-    const columns = zone === "parent"
-      ? Math.max(1, Math.min(2, Math.round(settings.parentColumns)))
-      : Math.max(1, Math.min(7, Math.round(settings.childColumns)));
-    const columnGap = 26;
-    const rowGap = 20;
+    const columns = layoutColumns(settings, zone);
+    const { horizontal, vertical, spacing } = spacingPolicy(settings);
+    const columnGap = 26 * horizontal / 0.675 * spacing;
+    const rowGap = 20 * vertical / 0.675 * spacing;
     let y = topPadding;
 
     for (let start = 0; start < filtered.length; start += columns) {
       const row = filtered.slice(start, start + columns);
       const rowHeight = row.length ? Math.max(...row.map((node) => node.height)) : 0;
-      const rowWidth = row.reduce((sum, node) => sum + node.width, 0) + columnGap * Math.max(0, row.length - 1);
+      const widths = row.map((node) => expandedNodeWidth(node, index, settings, centerPath));
+      const rowWidth = widths.reduce((sum, width) => sum + width, 0) + columnGap * Math.max(0, row.length - 1);
       let x = Math.max(8, (panel.width - rowWidth) / 2);
-      for (const node of row) {
-        localPositions.set(node.page.path, { x: x + node.width / 2, y: y + rowHeight / 2 });
-        x += node.width + columnGap;
-      }
+      row.forEach(/** Center each pill within its full descendant footprint. */ (node, column) => {
+        localPositions.set(node.page.path, { x: x + widths[column] / 2, y: y + rowHeight / 2 });
+        x += widths[column] + columnGap;
+      });
       const rowReserve = Math.max(0, ...row.map((node) => expandedChildReserve(node.page, index, settings, centerPath)));
       y += rowHeight + rowReserve + rowGap;
     }
@@ -543,11 +545,12 @@ function buildZoneDisplayLayout(
     return { nodes: filtered, localPositions, contentHeight, count: filtered.length, filtering };
   }
 
-  const gap = 20;
+  const { vertical, spacing } = spacingPolicy(settings);
+  const gap = 20 * vertical / 0.675 * spacing;
   const occupiedHeight = filtered.reduce((sum, node, nodeIndex) => (
     sum
     + node.height
-    + expandedChildReserve(node.page, index, settings, centerPath)
+    + expandedChildReserve(node.page, index, settings, centerPath, node.role === "sibling" ? siblingScale(settings) : 1)
     + (nodeIndex > 0 ? gap : 0)
   ), 0);
   const availableHeight = Math.max(0, panel.height - topPadding - bottomPadding);
@@ -561,7 +564,7 @@ function buildZoneDisplayLayout(
   }
   for (const node of filtered) {
     localPositions.set(node.page.path, { x: node.x - panel.left, y: y + node.height / 2 });
-    y += node.height + expandedChildReserve(node.page, index, settings, centerPath) + gap;
+    y += node.height + expandedChildReserve(node.page, index, settings, centerPath, node.role === "sibling" ? siblingScale(settings) : 1) + gap;
   }
   const contentHeight = Math.max(panel.height, Math.max(topPadding + bottomPadding, y - (filtered.length ? gap : 0) + bottomPadding));
   return { nodes: filtered, localPositions, contentHeight, count: filtered.length, filtering };
@@ -666,7 +669,7 @@ function Edge({
 }
 
 /** Compose the deterministic Plex scene and interaction handlers, using localized UI copy without rebuilding semantic state for presentation changes. */
-export function PlexGraph({ plugin, index, settings: viewSettings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, semanticRevision, findFocusRequest, areaSettingsMode, onAreaSettingsModeChange, onActivate, onOpen, onCentralNodeEditorChange, onCentralNodeModeChange }: {
+export function PlexGraph({ plugin, index, settings: viewSettings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, semanticRevision, findFocusRequest, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onOpen, onCentralNodeEditorChange, onCentralNodeModeChange }: {
   plugin: KplexPlugin;
   index: GraphIndex;
   settings: KplexSettings;
@@ -683,6 +686,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   findFocusRequest: number;
   areaSettingsMode: boolean;
   onAreaSettingsModeChange: (enabled: boolean) => void;
+  onApplyFindFilter: (query: string) => void;
+  appliedFindFilterQuery: string | null;
+  onClearFindFilter: () => void;
   onActivate: (page: GraphPage) => void;
   onOpen: (page: GraphPage) => void;
   onCentralNodeEditorChange: (enabled: boolean) => void;
@@ -692,8 +698,16 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   const [findQuery, setFindQuery] = useState("");
   const [findIncludePath, setFindIncludePath] = useState(false);
   const [findCursor, setFindCursor] = useState(0);
+  const [layoutControlsOpen, setLayoutControlsOpen] = useState(false);
+  const [layoutOverrides, setLayoutOverrides] = useState<Partial<KplexLayoutProfile>>({});
+  const layoutDraft = useRef<KplexLayoutProfile | null>(null);
+  const [typographyOverrides, setTypographyOverrides] = useState<Partial<Pick<KplexSettings, "baseFontSize" | "baseNodeStyle" | "wrapNodeLabels">>>({});
+  const typographyDraft = useRef<typeof typographyOverrides | null>(null);
+  const typographySave = useRef<{ id: number; window: Window } | null>(null);
   const [areaHeightOverrides, setAreaHeightOverrides] = useState<Partial<Record<AreaHeightKey, number>>>({});
-  const settings = useMemo(() => withAreaHeightOverrides(viewSettings, areaHeightOverrides), [viewSettings, areaHeightOverrides]);
+  // App receives fresh prepared facades during unrelated renders. Explicit drafts survive those
+  // publications; mutating one temporary facade would discard slow slider changes mid-gesture.
+  const settings = useMemo(() => Object.assign(withAreaHeightOverrides(viewSettings, areaHeightOverrides), layoutOverrides, typographyOverrides), [viewSettings, areaHeightOverrides, layoutOverrides, typographyOverrides]);
   const predicateEngine = useMemo(() => new GraphPredicateEngine(plugin.app), [plugin]);
   useEffect(() => index.acquireSemanticDemand(activePath), [index, activePath]);
   // getNeighborhood() performs relationship classification/filtering. Keep it stable during local
@@ -751,6 +765,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   const [expandedSectionIds, setExpandedSectionIds] = useState<Set<string>>(new Set());
   const sectionFoldCenter = useRef<string | null>(null);
   const [sceneTransitioning, setSceneTransitioning] = useState(false);
+  const [sceneMotion] = useState(() => new ElementMotion());
+  const suppressLayoutMotionUntil = useRef(0);
   const previousNodeRects = useRef<Map<string, { left: number; top: number; width: number; height: number }>>(new Map());
   const [layoutRevision, setLayoutRevision] = useState(0);
   const [optimisticRelink, setOptimisticRelink] = useState<{ targetPath: string; role: GateRole } | null>(null);
@@ -878,6 +894,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   const [connectDrag, setConnectDrag] = useState<ConnectDrag | null>(null);
   const [nodeDrag, setNodeDrag] = useState<NodeDrag | null>(null);
   const [areaHover, setAreaHover] = useState<AreaHoverState>(null);
+  const [externalDropZone, setExternalDropZone] = useState<GateRole | "center" | null>(null);
   const [resizingArea, setResizingArea] = useState<ScrollZone | null>(null);
   const areaResizeDrag = useRef<AreaResizeDrag | null>(null);
   const areaResizeFrame = useRef<{ owner: Window; id: number } | null>(null);
@@ -1173,7 +1190,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   const sceneLayoutKey = [
     activePath,
     centralEditorSize ? `central-editor:${centralEditorSize.width}:${centralEditorSize.height}` : "central-editor:-",
-    scene.nodes.map((node) => `${node.role}:${node.page.path}`).join("|"),
+    scene.nodes.map((node) => `${node.role}:${node.page.path}:${node.x}:${node.y}:${node.width}:${node.height}`).join("|"),
     ...ZONES.map((zone) => {
       const panel = scene.zoneViewports[zone];
       return panel ? `${zone}:${panel.left}:${panel.top}:${panel.width}:${panel.height}:${panel.contentTop}:${panel.contentHeight}` : `${zone}:-`;
@@ -1183,6 +1200,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   useLayoutEffect(() => {
     const root = viewport.current;
     if (!root) return;
+    // Measure actual target layout, never a retained or still-running transform from the prior
+    // scene. Live configuration and relationship gestures own coordinates directly.
+    sceneMotion.cancelAll();
 
     // Recenter only for initial display, explicit navigation, or an explicit central-editor mode
     // toggle. Index/metadata updates often add or move thoughts after an autosave or Sync event;
@@ -1213,8 +1233,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     });
 
     const speed = Math.max(0, Math.min(2, settings.animationSpeed));
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    if (speed > 0 && !reduceMotion && !areaResizeDrag.current) {
+    const reduceMotion = root.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    if (speed > 0 && !reduceMotion && !areaResizeDrag.current && !nodeDrag && !connectDrag && Date.now() >= suppressLayoutMotionUntil.current) {
       // At 1x, shared thoughts migrate for ~520ms so their old→new position is legible without
       // making navigation feel delayed. The newly selected center moves more briskly (~300ms),
       // while genuinely new thoughts enter over ~390ms. The slider is a speed multiplier.
@@ -1227,26 +1247,27 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         if (!current) return;
         const previous = previousNodeRects.current.get(path);
         if (previous) {
-          const dx = previous.left - current.left;
-          const dy = previous.top - current.top;
+          // Bounding rectangles are screen pixels; transforms live inside the scaled camera.
+          const dx = (previous.left - current.left) / camera.current.scale;
+          const dy = (previous.top - current.top) / camera.current.scale;
           const sx = current.width > 0 ? previous.width / current.width : 1;
           const sy = current.height > 0 ? previous.height / current.height : 1;
           if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5 || Math.abs(sx - 1) > 0.02 || Math.abs(sy - 1) > 0.02) {
             const isCenter = element.classList.contains("kplex-role-center");
-            element.animate([
-              { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.90 },
-              { transform: "translate(0, 0) scale(1, 1)", opacity: 1 },
-            ], { duration: isCenter ? Math.max(150, Math.round(duration * 0.58)) : duration, easing, fill: "both" });
+            sceneMotion.play(element, [
+              { transformOrigin: "0 0", transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.90 },
+              { transformOrigin: "0 0", transform: "translate(0, 0) scale(1, 1)", opacity: 1 },
+            ], { duration: isCenter ? Math.max(150, Math.round(duration * 0.58)) : duration, easing });
           }
           return;
         }
 
         const role = Array.from(element.classList).find((value) => value.startsWith("kplex-role-"))?.replace("kplex-role-", "") ?? "child";
         const offset = role === "parent" ? [0, 22] : role === "child" ? [0, -22] : role === "left" || role === "previous" ? [22, 0] : role === "right" || role === "next" ? [-22, 0] : [0, 14];
-        element.animate([
+        sceneMotion.play(element, [
           { transform: `translate(${offset[0]}px, ${offset[1]}px) scale(.92)`, opacity: 0 },
           { transform: "translate(0, 0) scale(1)", opacity: 1 },
-        ], { duration: Math.max(160, Math.round(duration * 0.75)), easing, fill: "both" });
+        ], { duration: Math.max(160, Math.round(duration * 0.75)), easing });
       });
     }
     previousNodeRects.current = nextRects;
@@ -1254,7 +1275,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     centralEditorSizeKeyRef.current = editorSizeKey;
     preserveCameraOnNextLayout.current = false;
     syncCentralEditorOverlay();
-  }, [sceneLayoutKey, settings.animationSpeed]);
+  }, [sceneLayoutKey, settings.animationSpeed, nodeDrag?.path, connectDrag?.originPath, sceneMotion]);
 
   const fit = () => {
     const el = viewport.current;
@@ -1559,22 +1580,35 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
 
   useEffect(() => () => {
     if (layoutSaveTimer.current !== null) window.clearTimeout(layoutSaveTimer.current);
+    layoutDraft.current = null;
+    // Only an unstarted debounce needs flushing. A save already awaiting view refresh has written
+    // its settings and must not start a second persistence operation while this view retires.
+    if (typographySave.current) {
+      typographySave.current.window.clearTimeout(typographySave.current.id);
+      void plugin.saveSettings(false);
+    }
+    typographySave.current = null;
+    typographyDraft.current = null;
+    sceneMotion.cancelAll();
     if (hoverIntentTimer.current !== null) window.clearTimeout(hoverIntentTimer.current);
     if (edgeTooltipTimer.current !== null) window.clearTimeout(edgeTooltipTimer.current);
     if (sceneTransitionTimer.current !== null) window.clearTimeout(sceneTransitionTimer.current);
     if (cameraFrame.current !== null) (cameraFrameWindow.current ?? window).cancelAnimationFrame(cameraFrame.current);
     cameraFrameWindow.current = null;
     viewport.current?.classList.remove("is-touch-gesturing", "is-pinch-gesturing");
-  }, []);
+  }, [sceneMotion]);
 
+  /** Debounce the current surface's axis and column values without requesting semantic work. */
   const scheduleLayoutSave = () => {
     if (layoutSaveTimer.current !== null) window.clearTimeout(layoutSaveTimer.current);
     layoutSaveTimer.current = window.setTimeout(() => {
       layoutSaveTimer.current = null;
-      void plugin.updateLayoutProfile(surface, {
-        compactingFactor: settings.compactingFactor,
-        parentColumns: settings.parentColumns,
-        childColumns: settings.childColumns,
+      const draft = layoutDraft.current;
+      if (!draft) return;
+      void plugin.updateLayoutProfile(surface, draft).then(/** Retire only the saved draft; a newer input must remain visible. */ () => {
+        if (layoutDraft.current !== draft) return;
+        layoutDraft.current = null;
+        setLayoutOverrides({});
       });
     }, 180);
   };
@@ -1751,6 +1785,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
 
     for (const baseNode of scene.nodes) {
       if (baseNode.role === "center" || !visibleNodePaths.has(baseNode.page.path)) continue;
+      if (nodeDrag?.path === baseNode.page.path) continue;
       const parent = renderedNodeMap.get(baseNode.page.path);
       if (!parent) continue;
 
@@ -1778,19 +1813,21 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       if (!relations.length) continue;
 
       const miniScale = parent.role === "sibling" ? siblingScale(settings) : 1;
-      const width = Math.max(220, Math.min(330, parent.width * 1.7));
-      const columns = Math.min(3, relations.length);
-      const cellWidth = width / Math.max(1, columns);
-      const rowHeight = 28;
-      const visibleRows = 2;
-      const rows = Math.ceil(relations.length / 3);
-      const contentHeight = Math.max(rowHeight, rows * rowHeight);
-      const viewportHeight = Math.min(contentHeight, visibleRows * rowHeight);
+      const metrics = expandedMiniLayout(settings, parent.width, relations.length, miniScale);
+      const { width, columns, rowHeight, contentHeight, columnGap, topGap } = metrics;
+      const top = parent.y + parent.height / 2 + topGap;
+      const zone = zoneForRole(baseNode.role);
+      const bounds = zone ? scene.zoneViewports[zone] ?? scene.zoneAreas[zone] : undefined;
+      // Child boxes are rendered above the camera as siblings of scrollers. Clip their actual
+      // viewport to their owning band's bottom so they cannot leak into the child region.
+      const viewportHeight = bounds ? Math.min(metrics.viewportHeight, bounds.top + bounds.height - top) : metrics.viewportHeight;
+      if (viewportHeight <= 0) continue;
+      const cellWidth = width / columns;
       const scrollTop = Math.max(0, Math.min(expandedScrollTop[parent.page.path] ?? 0, Math.max(0, contentHeight - viewportHeight)));
 
       const children: ExpandedMiniThought[] = relations.map((relation, indexValue) => {
-        const col = indexValue % 3;
-        const row = Math.floor(indexValue / 3);
+        const col = indexValue % columns;
+        const row = Math.floor(indexValue / columns);
         const baseStyle = resolveNodeStyle(relation.page, relation, "child", settings);
         const label = index.titleFor(relation.page);
         const lensStyle = graphLensNodeStyle(predicateEngine, index, lenses, {
@@ -1802,23 +1839,23 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         const style = { ...baseStyle, ...lensStyle };
         const maxChars = Math.min(22, effectiveLabelLimit(settings, style.maxLabelLength ?? 30));
         const shownChars = Math.min(label.length, maxChars);
-        const nodeWidth = Math.max(64, Math.min(cellWidth - 8, 34 + shownChars * 3.8));
+        const nodeWidth = Math.max(64 * miniScale, Math.min(cellWidth - columnGap, (34 + shownChars * 3.8) * miniScale));
         return {
           key: `${parent.page.path}::${relation.page.path}::${indexValue}`,
           relation,
           label,
           style,
-          localX: (col + 0.5) * (width / 3),
+          localX: (col + 0.5) * cellWidth,
           localY: row * rowHeight + rowHeight / 2,
-          width: nodeWidth * miniScale,
-          height: 16 * miniScale,
+          width: nodeWidth,
+          height: 16 * miniScale * (settings.baseFontSize ?? 12.4) / 12.4,
         };
       });
 
       clusters.push({
         parent,
         left: parent.x - width / 2,
-        top: parent.y + parent.height / 2 + 14,
+        top,
         width,
         viewportHeight,
         contentHeight,
@@ -1828,7 +1865,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     }
 
     return clusters;
-  }, [sectionExpansion, settings.graphDepth, settings.compactingFactor, settings.maxItemCount, settings.siblingRelativeSize, neighborhood, scene.nodes, visibleNodePaths, renderedNodeMap, expandedScrollTop, index, layoutRevision, predicate, lenses, predicateRevision, predicateEngine]);
+  }, [sectionExpansion, settings.graphDepth, settings.compactingFactor, settings.horizontalCompactingFactor, settings.compactView, settings.minLinkLength, settings.childColumns, settings.maxItemCount, settings.siblingRelativeSize, neighborhood, scene.nodes, visibleNodePaths, renderedNodeMap, expandedScrollTop, index, layoutRevision, predicate, lenses, predicateRevision, predicateEngine]);
 
   const expandedConnectors = useMemo(() => {
     if (settings.graphDepth !== 2) return [] as Array<{ key: string; d: string; stroke: string; width: number; dash?: string; markerStart?: string; markerEnd?: string; definition?: string }>;
@@ -2288,7 +2325,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     updateAreaSettingsDismiss(e);
     if (connectDrag) {
       if (e.pointerId !== connectDrag.pointerId) return;
-      updateHistoryDragHover(index.get(connectDrag.originPath), e.clientX, e.clientY, e.currentTarget.ownerDocument);
+      updateHistoryDragHover(index.get(connectDrag.originPath), e.clientX, e.clientY, e.currentTarget.ownerDocument, semanticRoleForGate(connectDrag.gate));
       setConnectDrag((current) => current ? {
         ...current,
         current: toWorld(e.clientX, e.clientY),
@@ -2384,16 +2421,29 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     }
   };
 
-  /** Resolve one eligible historical endpoint for both hover and commit routing. */
-  const historyRelationshipTarget = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document): { button: HTMLElement; target: GraphPage } | null => {
-    const button = ownerDocument.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-kplex-history-path]");
-    const path = button?.dataset.kplexHistoryPath;
-    const target = path ? index.get(path) : undefined;
-    return button && target && target.path !== origin.path && !target.isFolder && !target.isTag && !origin.isFolder && !origin.isTag
-      ? { button, target } : null;
+  /** Reuse canonical gate membership and the composer's writable-endpoint requirement for all fixed targets. */
+  const relationshipDropRoles = (origin: GraphPage, target: GraphPage, semanticRole?: GateRole): GateRole[] => {
+    if (target.path === origin.path || target.isFolder || target.isTag || origin.isFolder || origin.isTag
+      || (origin.file?.extension !== "md" && target.file?.extension !== "md")) return [];
+    const gates: Array<{ role: GateRole; gate: GateSide }> = [
+      { role: "parent", gate: "top" }, { role: "child", gate: "bottom" },
+      { role: "left", gate: "left" }, { role: "right", gate: "right" },
+    ];
+    return gates.filter(({ role }) => !semanticRole || role === semanticRole)
+      .filter(({ gate }) => !index.gateNeighbourPaths(origin, gate).has(target.path)).map(({ role }) => role);
   };
 
-  /** Retire the view-owned historical drag affordance on leave, release, cancellation or unload. */
+  /** Resolve history and pinned open buttons through one owner-document hit test and eligibility check. */
+  const historyRelationshipTarget = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: GateRole): { button: HTMLElement; target: GraphPage } | null => {
+    const button = ownerDocument.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-kplex-history-path], [data-kplex-pinned-path]");
+    const path = button?.dataset.kplexHistoryPath ?? button?.dataset.kplexPinnedPath;
+    const target = path ? index.get(path) : undefined;
+    if (!button || !target) return null;
+    const roles = relationshipDropRoles(origin, target, semanticRole);
+    return (semanticRole ? roles.includes(semanticRole) : roles.length > 0) ? { button, target } : null;
+  };
+
+  /** Retire the view-owned history/pinned drag affordance on leave, release, cancellation or unload. */
   const clearHistoryDragHover = (): void => {
     historyDragHover.current?.classList.remove("is-relationship-drop-target");
     historyDragHover.current = null;
@@ -2404,17 +2454,17 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   }, [connectDrag?.originPath, nodeDrag?.path]);
 
   /** Highlight only the same eligible endpoint that an eventual drop can select. */
-  const updateHistoryDragHover = (origin: GraphPage | undefined, clientX: number, clientY: number, ownerDocument: Document): void => {
-    const next = origin ? historyRelationshipTarget(origin, clientX, clientY, ownerDocument)?.button ?? null : null;
+  const updateHistoryDragHover = (origin: GraphPage | undefined, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: GateRole): void => {
+    const next = origin ? historyRelationshipTarget(origin, clientX, clientY, ownerDocument, semanticRole)?.button ?? null : null;
     if (next === historyDragHover.current) return;
     clearHistoryDragHover();
     next?.classList.add("is-relationship-drop-target");
     historyDragHover.current = next;
   };
 
-  /** A gate states its role directly; node-body history drops ask for one of the four roles. */
+  /** A gate states its role directly; body drops on history or pinned chips offer the remaining eligible roles. */
   const openHistoryRelationshipMenu = (origin: GraphPage, clientX: number, clientY: number, ownerDocument: Document, semanticRole?: GateRole): boolean => {
-    const hit = historyRelationshipTarget(origin, clientX, clientY, ownerDocument);
+    const hit = historyRelationshipTarget(origin, clientX, clientY, ownerDocument, semanticRole);
     if (!hit) return false;
     const { target } = hit;
     if (semanticRole) {
@@ -2429,7 +2479,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       { role: "left", labelKey: "role.friend", icon: "arrow-left" },
       { role: "right", labelKey: "role.challenger", icon: "arrow-right" },
     ];
-    for (const relation of roles) {
+    const eligibleRoles = relationshipDropRoles(origin, target);
+    for (const relation of roles.filter(({ role }) => eligibleRoles.includes(role))) {
       menu.addItem(/** Preserve the dragged origin and fixed historical endpoint until explicit commit. */ (item) => item
         .setTitle(translate(relation.labelKey))
         .setIcon(relation.icon)
@@ -2446,9 +2497,90 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     return true;
   };
 
+  /** Resolve actual center and rendered semantic areas, including their nodes; controls and out-of-area nodes remain blocked. */
+  const externalFileDropTarget = (clientX: number, clientY: number, target: Element | null): "center" | "blocked" | GateRole | null => {
+    if (!target) return null;
+    if (isAreaControlTarget(target) || target.closest(".kplex-find")) return "blocked";
+    const center = target.closest<HTMLElement>(".kplex-role-center[data-kplex-path]");
+    if ((center && center.dataset.kplexPath === neighborhood?.center.path) || target.closest(".kplex-central-editor-overlay")) return "center";
+    // The viewport is a neutral geometry probe: area meaning does not change when its content
+    // happens to cover the dropped pixel. The real hit still owns center/control exclusions.
+    const area = areaHoverAt(clientX, clientY, viewport.current, 0);
+    if (area) return normalizedRole(area.zone) ?? "blocked";
+    return !isEmptyAreaTarget(target) || target.closest("[data-kplex-path]") ? "blocked" : null;
+  };
+
+  /** Accept the host's current single-file payload without overriding the App's background/unindexed navigation fallback. */
+  const dragExternalFileOver = (event: DragEvent<HTMLDivElement>): void => {
+    const file = getDraggedFile(plugin.app);
+    if (!file) { setExternalDropZone(null); return; }
+    const hit = externalFileDropTarget(event.clientX, event.clientY, event.currentTarget.ownerDocument.elementFromPoint(event.clientX, event.clientY));
+    // Empty canvas uses App's navigation fallback; preview that same action at the center.
+    if (!hit) { setExternalDropZone("center"); return; }
+    const origin = neighborhood?.center;
+    const target = index.get(file.path);
+    const eligible = hit === "center" || (hit !== "blocked" && origin && target && relationshipDropRoles(origin, target, hit).includes(hit));
+    setExternalDropZone(hit !== "blocked" && eligible ? hit : null);
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = eligible ? "copy" : "none";
+  };
+
+  /** Keep child-to-child dragleave events from blinking the preview; leaving the canvas retires it. */
+  const leaveExternalFile = (event: DragEvent<HTMLDivElement>): void => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX >= bounds.right || event.clientY < bounds.top || event.clientY >= bounds.bottom) setExternalDropZone(null);
+  };
+
+  useEffect(/** Retire external previews when a drag ends outside this canvas, loses its window or navigates away. */ () => {
+    setExternalDropZone(null);
+    const element = viewport.current;
+    const ownerDocument = element?.ownerDocument;
+    const ownerWindow = ownerDocument?.defaultView;
+    if (!element || !ownerDocument || !ownerWindow) return;
+    /** An outside dragover clears this view only; it never consumes the host's drag delivery. */
+    const outside = (event: DocumentEventMap["dragover"]): void => {
+      if (!element.contains(event.target as Node | null)) setExternalDropZone(null);
+    };
+    /** Clear feedback on completion/cancellation without handling the drop itself. */
+    const finish = (): void => setExternalDropZone(null);
+    ownerDocument.addEventListener("dragover", outside, true);
+    ownerDocument.addEventListener("dragend", finish, true);
+    ownerDocument.addEventListener("drop", finish, true);
+    ownerWindow.addEventListener("blur", finish);
+    return /** Release only this viewport's feedback listeners on navigation or unmount. */ () => {
+      ownerDocument.removeEventListener("dragover", outside, true);
+      ownerDocument.removeEventListener("dragend", finish, true);
+      ownerDocument.removeEventListener("drop", finish, true);
+      ownerWindow.removeEventListener("blur", finish);
+    };
+  }, [activePath]);
+
+  /** Navigate actual center drops or open the shared composer with the center origin and fixed dropped endpoint. */
+  const dropExternalFile = (event: DragEvent<HTMLDivElement>): void => {
+    setExternalDropZone(null);
+    const file = getDraggedFile(plugin.app);
+    if (!file) return;
+    const hit = externalFileDropTarget(event.clientX, event.clientY, event.currentTarget.ownerDocument.elementFromPoint(event.clientX, event.clientY));
+    if (!hit) return;
+    const target = index.get(file.path);
+    if (hit === "center" && !target) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (hit === "center") { if (target) onActivate(target); return; }
+    const origin = neighborhood?.center;
+    if (hit === "blocked" || !origin || !target || !relationshipDropRoles(origin, target, hit).includes(hit)) return;
+    plugin.openRelationModal({ hostLeaf, mode: "create", origin, fixedTarget: target, semanticRole: hit,
+      onCommitted: /** Let canonical publication drive the scene after persistence. */ () => clearHoverIntent(true) });
+  };
+
   /** Finish resize, drag, pan or touch activation with one owner; movement cannot complete a tap pair. */
   const up = (e: PointerEvent<HTMLDivElement>) => {
     clearHistoryDragHover();
+    // A rejected history/pinned endpoint remains an explicit target, rather than empty canvas
+    // that could open an unfixed composer or relink the dragged node to a different area.
+    const relationshipChip = e.currentTarget.ownerDocument.elementFromPoint(e.clientX, e.clientY)
+      ?.closest("[data-kplex-history-path], [data-kplex-pinned-path]");
     if (areaResizeDrag.current?.pointerId === e.pointerId) {
       const ownerDocument = e.currentTarget.ownerDocument;
       const hitTarget = ownerDocument.elementFromPoint(e.clientX, e.clientY);
@@ -2468,7 +2600,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         if (drag.moved) plugin.openCreateInFolderModal(origin, hostLeaf);
         return;
       }
-      if (origin && drag.moved && openHistoryRelationshipMenu(origin, e.clientX, e.clientY, e.currentTarget.ownerDocument, semanticRoleForGate(drag.gate))) {
+      if (origin && drag.moved && (openHistoryRelationshipMenu(origin, e.clientX, e.clientY, e.currentTarget.ownerDocument, semanticRoleForGate(drag.gate)) || relationshipChip)) {
         setConnectDrag(null);
         clearHoverIntent(true);
         suppressActivateUntil.current = Date.now() + 220;
@@ -2521,7 +2653,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         const center = neighborhood?.center;
         const currentRole = original ? normalizedRole(original.role) : null;
         if (dragDistance >= NODE_RELINK_MIN_DRAG_PX && original
-          && openHistoryRelationshipMenu(original.page, e.clientX, e.clientY, e.currentTarget.ownerDocument)) {
+          && (openHistoryRelationshipMenu(original.page, e.clientX, e.clientY, e.currentTarget.ownerDocument) || relationshipChip)) {
           setNodeDrag(null);
           clearHoverIntent(true);
           if (e.pointerType === "touch") {
@@ -2655,9 +2787,12 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     if (panDrag.current?.pointerId === e.pointerId) panDrag.current = null;
   };
 
-  /** Retire lost child-owned relationship captures while keeping area resize capture viewport-owned. */
+  /** Retire actual relationship capture loss; stale child loss cannot cancel a newer viewport-owned drag. */
   const lostPointerCapture = (event: PointerEvent<HTMLDivElement>): void => {
     if (connectDrag?.pointerId === event.pointerId || nodeDrag?.pointerId === event.pointerId) {
+      // A touch/overflow row can surrender its implicit capture after the stable viewport has
+      // claimed this same pointer. Its bubbling loss event does not end the viewport's gesture.
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) return;
       cancel(event);
       return;
     }
@@ -3068,7 +3203,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         <span className={`kplex-zone-filter-control${flairFilterZone === zone ? " is-new-flair" : ""}`}>
           <span className="kplex-zone-count" aria-label={translate("graph.zoneCount", { count: layout.count, zone: zoneTitle(zone, translate).toLowerCase() })}>{layout.count}</span>
           <button
+            type="button"
             className={`kplex-zone-filter-button${zoneFilterOpen[zone] ? " is-on" : ""}`}
+            aria-pressed={Boolean(zoneFilterOpen[zone])}
             aria-label={translate("graph.filterZone", { zone: zoneTitle(zone, translate) })}
             onPointerDown={(event: PointerEvent<HTMLButtonElement>) => event.stopPropagation()}
             onClick={(event: MouseEvent<HTMLButtonElement>) => {
@@ -3082,7 +3219,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
                 setZoneScrollTop((current) => ({ ...current, [zone]: 0 }));
               }
             }}
-          ><ObsidianIcon name="filter" size={13} /></button>
+          ><ObsidianIcon name="filter" size={15} /></button>
         </span>
       </div>
       <div
@@ -3135,7 +3272,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
                 background: alphaHexToCss(child.style.backgroundColor, "rgba(0,0,0,.42)"),
                 color: alphaHexToCss(child.style.textColor, "white"),
                 borderColor: alphaHexToCss(child.style.borderColor, "rgba(255,255,255,.18)"),
-                fontSize: cluster.parent.role === "sibling" ? 8 * siblingScale(settings) : 8,
+                fontSize: 8 * (cluster.parent.role === "sibling" ? siblingScale(settings) : 1) * (settings.baseFontSize ?? 12.4) / 12.4,
               }}
               title={translate("graph.relatedNotePath", { label: child.label, path: child.relation.page.path })}
               onClick={(event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); activateNode(child.relation.page); }}
@@ -3156,16 +3293,79 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     </div>;
   };
 
-  const columnPresetIndex = COLUMN_PRESETS.reduce((best, pair, indexValue) => {
-    const bestPair = COLUMN_PRESETS[best];
-    const score = Math.abs(pair[0] - settings.parentColumns) + Math.abs(pair[1] - settings.childColumns);
-    const bestScore = Math.abs(bestPair[0] - settings.parentColumns) + Math.abs(bestPair[1] - settings.childColumns);
-    return score < bestScore ? indexValue : best;
-  }, 0);
-  const compactPercent = ((settings.compactingFactor - 0.75) / (4 - 0.75)) * 100;
-  const columnsPercent = COLUMN_PRESETS.length <= 1 ? 0 : (columnPresetIndex / (COLUMN_PRESETS.length - 1)) * 100;
+  /** Update only the current surface profile while retaining the user's camera. */
+  const changeLayoutValue = (key: "compactingFactor" | "horizontalCompactingFactor" | "parentColumns" | "childColumns", value: number) => {
+    const draft = { compactingFactor: settings.compactingFactor, horizontalCompactingFactor: horizontalDensity(settings),
+      parentColumns: settings.parentColumns, childColumns: settings.childColumns, ...layoutDraft.current, [key]: value };
+    layoutDraft.current = draft;
+    setLayoutOverrides(draft);
+    suppressLayoutMotionUntil.current = Date.now() + 800;
+    suppressAutoFitUntil.current = Date.now() + 1200;
+    sceneMotion.cancelAll();
+    preserveCameraOnNextLayout.current = true;
+    setLayoutRevision((revision) => revision + 1);
+    scheduleLayoutSave();
+  };
+  /** Keep label controls responsive during publication and save their global appearance settings after input settles. */
+  const changeTypography = (patch: Partial<Pick<KplexSettings, "baseFontSize" | "baseNodeStyle" | "wrapNodeLabels">>): void => {
+    const draft = { ...typographyDraft.current, ...patch };
+    typographyDraft.current = draft;
+    Object.assign(plugin.settings, patch);
+    setTypographyOverrides(draft);
+    suppressLayoutMotionUntil.current = Date.now() + 800;
+    suppressAutoFitUntil.current = Date.now() + 1200;
+    sceneMotion.cancelAll();
+    preserveCameraOnNextLayout.current = true;
+    setLayoutRevision((revision) => revision + 1);
+    if (typographySave.current) typographySave.current.window.clearTimeout(typographySave.current.id);
+    const ownerWindow = viewport.current?.ownerDocument.defaultView ?? window;
+    const id = ownerWindow.setTimeout(/** Save the latest labels without retiring a newer interleaved font/width/wrap draft. */ () => {
+      typographySave.current = null;
+      void plugin.saveSettings(false).then(/** Inherit the saved global settings only after this exact draft commits. */ () => {
+        if (typographyDraft.current !== draft) return;
+        typographyDraft.current = null;
+        setTypographyOverrides({});
+      });
+    }, 180);
+    typographySave.current = { id, window: ownerWindow };
+  };
+
+  /** Preview the existing navigation/gate/relink action; chips and native controls keep their own feedback. */
+  const relationshipDropArea = (): GateRole | "center" | null => {
+    if (externalDropZone) return externalDropZone;
+    const element = viewport.current;
+    if (!element || (!nodeDrag?.moved && !connectDrag?.moved)) return null;
+    const point = nodeDrag ? { x: nodeDrag.x + nodeDrag.offsetX, y: nodeDrag.y + nodeDrag.offsetY } : connectDrag?.current;
+    if (!point) return null;
+    const bounds = element.getBoundingClientRect();
+    const clientX = bounds.left + camera.current.x + point.x * camera.current.scale;
+    const clientY = bounds.top + camera.current.y + point.y * camera.current.scale;
+    const hit = element.ownerDocument.elementFromPoint(clientX, clientY);
+    if (!hit || !element.contains(hit) || isAreaControlTarget(hit) || hit.closest("[data-kplex-history-path], [data-kplex-pinned-path]")) return null;
+    if (nodeDrag) {
+      if (Math.hypot(clientX - nodeDrag.startClientX, clientY - nodeDrag.startClientY) < NODE_RELINK_MIN_DRAG_PX) return null;
+      const original = scene.nodes.find((node) => node.page.path === nodeDrag.path);
+      const currentRole = original ? normalizedRole(original.role) : null;
+      if (!currentRole) return null;
+      const nextRole = semanticRoleForPosition(nodeDrag, currentRole, NODE_RELINK_HYSTERESIS_PX / Math.max(0.3, camera.current.scale));
+      return nextRole !== currentRole ? nextRole : null;
+    }
+    const origin = connectDrag ? index.get(connectDrag.originPath) : undefined;
+    if (!connectDrag || !origin || origin.isFolder || origin.isTag) return null;
+    const target = hit.closest<HTMLElement>("[data-kplex-path]");
+    const page = target?.dataset.kplexPath ? index.get(target.dataset.kplexPath) : undefined;
+    if (page?.isFolder || page?.isTag) return null;
+    const gate = hit.closest<HTMLElement>("[data-kplex-gate]")?.dataset.kplexGate as GateSide | undefined;
+    return gate ? plugin.inverseGateRole(semanticRoleForGate(gate)) : semanticRoleForGate(connectDrag.gate);
+  };
+  const dropAreaZone = relationshipDropArea();
   const visibleAreaZone = resizingArea ?? areaHover?.zone ?? null;
   const visibleArea = visibleAreaZone ? scene.zoneAreas[visibleAreaZone] : undefined;
+  const previewCenter = centralEditorPage && centralEditorNode ? centralEditorNode : scene.nodes.find((node) => node.role === "center");
+  const previewArea = dropAreaZone === "center" && previewCenter
+    ? { left: previewCenter.x - previewCenter.width / 2, top: previewCenter.y - previewCenter.height / 2, width: previewCenter.width, height: previewCenter.height }
+    : dropAreaZone && dropAreaZone !== "center" ? scene.zoneAreas[dropAreaZone] : undefined;
+  const centerPreviewPadding = dropAreaZone === "center" ? 4 : 0;
 
   return <div
     ref={viewport}
@@ -3176,6 +3376,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       "--kplex-motion-ms": settings.animationSpeed <= 0 ? "0ms" : `${Math.max(140, Math.round(520 / Math.max(.25, settings.animationSpeed)))}ms`,
     } as CSSProperties}
     onPointerDownCapture={captureAreaResize}
+    onDragOver={dragExternalFileOver}
+    onDragLeave={leaveExternalFile}
+    onDrop={dropExternalFile}
     onPointerDown={down}
     onPointerMove={move}
     onPointerUp={up}
@@ -3190,6 +3393,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     <PlexFind query={findQuery} focusRequest={findFocusRequest} visible={!centralEditorMaximized}
       includePath={findIncludePath} onIncludePathChange={/** A new vocabulary starts its own reveal cycle. */ (includePath) => { setFindIncludePath(includePath); setFindCursor(0); }}
       pathIcon={<ObsidianIcon name="folder-kanban" size={15} />} pathLabel={translate("find.includePath")}
+      onApplyFilter={onApplyFindFilter} filterIcon={<ObsidianIcon name="list-filter" size={15} />} filterLabel={translate("find.applyFilter")}
+      appliedFilterQuery={appliedFindFilterQuery} onClearFilter={onClearFindFilter}
       onChange={/** Start a fresh cycle for each edited term. */ (query) => { setFindQuery(query); setFindCursor(0); }}
       onNext={/** Cycle in either direction without global navigation. */ (backward) => setFindCursor((cursor) => cursor + (backward ? -1 : 1))}
       icon={<ObsidianIcon name="search" size={15} />} closeIcon={<ObsidianIcon name="x" size={14} />}
@@ -3282,6 +3487,15 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       </div>
     </div>
 
+    {dropAreaZone && previewArea && viewport.current && <DropAreaPreview
+      className={dropAreaZone === "center" ? "kplex-center-drop-preview is-navigation-drop-target" : `kplex-area-${dropAreaZone} is-relationship-drop-area`}
+      left={camera.current.x + previewArea.left * camera.current.scale - centerPreviewPadding}
+      top={camera.current.y + previewArea.top * camera.current.scale - centerPreviewPadding}
+      width={previewArea.width * camera.current.scale + centerPreviewPadding * 2}
+      height={previewArea.height * camera.current.scale + centerPreviewPadding * 2}
+      viewportWidth={viewport.current.clientWidth} viewportHeight={viewport.current.clientHeight}
+    />}
+
     {centralEditorPage && centralEditorNode && <div
       ref={centralEditorOverlayElement}
       className={`kplex-central-editor-overlay${centralEditorMaximized ? " is-maximized" : ""}`}
@@ -3324,48 +3538,48 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     >{edgeHoverTooltip.text}</div>}
 
     <div className="kplex-layout-controls" onPointerDown={(event: PointerEvent<HTMLDivElement>) => event.stopPropagation()}>
-      <label className="kplex-density-control" title={translate("graph.compactnessValue", { value: settings.compactingFactor.toFixed(2) })}>
-        <span className="kplex-density-heading"><ObsidianIcon name="minimize-2" size={11} /><span>{translate("graph.density")}</span><output>{settings.compactingFactor.toFixed(2)}</output></span>
-        <span className="kplex-density-rail">
-          <span className="kplex-density-fill" style={{ width: `${compactPercent}%` }} />
-          <input
-            type="range"
-            min="0.75"
-            max="4"
-            step="0.05"
-            value={settings.compactingFactor}
-            aria-label={translate("graph.compactness")}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => {
-              settings.compactingFactor = Number(event.currentTarget.value);
-              preserveCameraOnNextLayout.current = true;
-              setLayoutRevision((value) => value + 1);
-              scheduleLayoutSave();
-            }}
-          />
-        </span>
-      </label>
-      <label className="kplex-density-control" title={translate("graph.columnCounts", { parent: COLUMN_PRESETS[columnPresetIndex][0], child: COLUMN_PRESETS[columnPresetIndex][1] })}>
-        <span className="kplex-density-heading"><ObsidianIcon name="columns-3" size={11} /><span>{translate("graph.columns")}</span><output>{COLUMN_PRESETS[columnPresetIndex][0]}/{COLUMN_PRESETS[columnPresetIndex][1]}</output></span>
-        <span className="kplex-density-rail is-stepped">
-          <span className="kplex-density-fill" style={{ width: `${columnsPercent}%` }} />
-          <input
-            type="range"
-            min="0"
-            max={String(COLUMN_PRESETS.length - 1)}
-            step="1"
-            value={columnPresetIndex}
-            aria-label={translate("graph.parentChildColumns")}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => {
-              const preset = COLUMN_PRESETS[Math.max(0, Math.min(COLUMN_PRESETS.length - 1, Number(event.currentTarget.value)))] ?? COLUMN_PRESETS[0];
-              settings.parentColumns = preset[0];
-              settings.childColumns = preset[1];
-              preserveCameraOnNextLayout.current = true;
-              setLayoutRevision((value) => value + 1);
-              scheduleLayoutSave();
-            }}
-          />
-        </span>
-      </label>
+      <button type="button" className="kplex-icon-button kplex-layout-toggle" aria-label={translate("graph.configureLayout")}
+        aria-expanded={layoutControlsOpen} aria-pressed={layoutControlsOpen}
+        onClick={/** Keep configuration local to this view; hidden sliders are unmounted. */ () => setLayoutControlsOpen((open) => !open)}>
+        <ObsidianIcon name="sliders-horizontal" size={16} />
+      </button>
+      {layoutControlsOpen && <>
+      <div className="kplex-density-axes">
+        <LayoutSlider label={translate("graph.horizontalDensity")} caption={translate("graph.horizontalDensityShort")}
+          hint={translate("settings.ui.horizontal.density.help")} icon={<ObsidianIcon name="move-horizontal" size={11} />}
+          value={horizontalDensity(settings)} displayValue={horizontalDensity(settings).toFixed(2)} min={0.75} max={4} step={0.05}
+          onChange={/** Persist the horizontal axis without modifying row spacing. */ (value) => changeLayoutValue("horizontalCompactingFactor", value)} />
+        <LayoutSlider label={translate("graph.verticalDensity")} caption={translate("graph.verticalDensityShort")}
+          hint={translate("settings.ui.vertical.density.help")} icon={<ObsidianIcon name="move-vertical" size={11} />}
+          value={settings.compactingFactor} displayValue={settings.compactingFactor.toFixed(2)} min={0.75} max={4} step={0.05}
+          onChange={/** Persist row density without modifying labels or horizontal spacing. */ (value) => changeLayoutValue("compactingFactor", value)} />
+      </div>
+      <div className="kplex-density-axes">
+        <LayoutSlider label={translate("graph.parentColumns")} caption={translate("graph.parentColumnsShort")}
+          icon={<ObsidianIcon name="columns-2" size={11} />} value={layoutColumns(settings, "parent")} displayValue={String(layoutColumns(settings, "parent"))}
+          min={1} max={3} step={1} onChange={/** Persist the exact parent grid width. */ (value) => changeLayoutValue("parentColumns", value)} />
+        <LayoutSlider label={translate("graph.childColumns")} caption={translate("graph.childColumnsShort")}
+          icon={<ObsidianIcon name="columns-3" size={11} />} value={layoutColumns(settings, "child")} displayValue={String(layoutColumns(settings, "child"))}
+          min={1} max={7} step={1} onChange={/** Persist the exact child grid width. */ (value) => changeLayoutValue("childColumns", value)} />
+      </div>
+      <div className="kplex-typography-controls">
+        <div className="kplex-density-axes">
+        <LayoutSlider label={translate("graph.baseFontSize")} caption={translate("graph.baseFontSizeShort")}
+          hint={translate("settings.ui.base.font.size.help")} icon={<ObsidianIcon name="type" size={11} />}
+          value={settings.baseFontSize} displayValue={settings.baseFontSize.toFixed(1)} min={8} max={28} step={0.2}
+          onChange={/** Scale label typography globally while keeping style proportions. */ (value) => changeTypography({ baseFontSize: value })} />
+        <LayoutSlider label={translate("settings.ui.maximum.node.width")} caption={translate("graph.maximumNodeWidthShort")}
+          hint={translate("settings.ui.maximum.node.width.help")} icon={<ObsidianIcon name="between-horizontal-start" size={11} />}
+          value={settings.baseNodeStyle.maxWidth ?? 286} displayValue={String(settings.baseNodeStyle.maxWidth ?? 286)} min={160} max={800} step={10}
+          onChange={/** Reuse the existing regular-node maximum without changing explicit style overrides. */ (value) => changeTypography({ baseNodeStyle: { ...plugin.settings.baseNodeStyle, maxWidth: value } })} />
+        </div>
+        <label className="kplex-density-control kplex-wrap-label-control">
+          <input type="checkbox" checked={settings.wrapNodeLabels} aria-label={translate("settings.ui.wrap.node.labels")}
+            onChange={/** Share the plugin's existing fixed two-line label setting. */ (event) => changeTypography({ wrapNodeLabels: event.currentTarget.checked })} />
+          <span className="kplex-wrap-label-caption">{translate("settings.ui.wrap.node.labels")}</span>
+        </label>
+      </div>
+      </>}
     </div>
 
     <div className="kplex-zoom-controls">

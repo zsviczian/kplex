@@ -1,9 +1,11 @@
 /**
  * Private SI4 raw-degree input for a finite exact candidate set. One complete neutral incidence
  * union is replayed through the canonical compiler; only its candidates' raw neighbour-map sizes
- * escape. Path-injective binding is checked, not emulated. Discovery owns root/journal coverage,
+ * escape, optionally with separately certified visibility-aware gate totals from the same compilation.
+ * Path-injective binding is checked, not emulated. Discovery owns root/journal coverage,
  * capture owns physical/source observations, and all of them plus policy/demand survive the final
- * await. No classifier, sorting, title selection, storage write, publication or production caller.
+ * await. Gate projection delegates to the shared canonical owner; no sorting, title selection,
+ * storage write or publication belongs here. The Obsidian adapter supplies production lifetimes.
  */
 import type { GraphCompilerRuntime, GraphCompilerSettings } from "../core/graph/compiler";
 import type { NodeId } from "../core/graph/model";
@@ -17,6 +19,8 @@ import { type ContributorCertificate, type ContributorFailure,
 import { SOURCE_MAX_BATCH_RECORDS, SourceFactError, type SourceReason } from "./SourceFacts";
 import { cachedSourceMatches, type CachedSourceRequest } from "./SourceReplay";
 import { selectedSourceFailure, type NeutralSourceRepository } from "./SourceRepository";
+import { captureCachedCenterGateSettings, projectCachedCenterGates, type CachedCenterGatePolicy,
+  type CachedCenterGates } from "./CachedCenterGateProjection";
 
 /** Aggregate request limits supplement, never replace, discovery and canonical replay budgets. */
 const MAX_IDENTITY_BYTES = 1024 * 1024;
@@ -34,11 +38,13 @@ export type CachedCandidateDegreePreparation = ContributorFailure
   | Readonly<{
     outcome: "ready";
     coverage: "complete-candidate-raw-degrees";
-    inputs: readonly Readonly<{ id: NodeId; rawDegree: number }>[];
+    inputs: readonly Readonly<{ id: NodeId; rawDegree: number; gates?: CachedCenterGates }>[];
     certificate: Readonly<{
       coverage: "complete-candidate-raw-degrees";
       candidates: readonly SourceEntityRef[];
       policyRevision: string;
+      /** Present only when optional gate totals share this captured visibility lifetime. */
+      gatePolicyRevision?: string;
       contributors: ContributorCertificate;
     }>;
     work: Readonly<{ sourceReplays: number; familyVisits: number; nodes: number;
@@ -81,15 +87,21 @@ export class CachedRequestedCandidateDegreeReader {
    * Authenticate the complete union once and compile it once under a captured policy. Every
    * candidate must exist canonically, including zero-degree candidates; absence is never zero.
    * Overflow, an open ticket (even unrelated/known), or any changed input discards all counts.
+   * Optional gate totals reuse the existing canonical projection and final fences. An unproved gate
+   * projection omits those totals rather than inventing zeros or rejecting otherwise valid degrees.
    * A ready result is point-in-time private input, not permission for later graph publication.
    */
   async prepare(request: CachedCandidateDegreeRequest, policy: CachedSemanticPolicy,
-    runtime: GraphCompilerRuntime): Promise<CachedCandidateDegreePreparation> {
+    runtime: GraphCompilerRuntime, gatePolicy?: CachedCenterGatePolicy): Promise<CachedCandidateDegreePreparation> {
     const revision = policy.revision;
+    const gateRevision = gatePolicy?.revision;
+    const gateSettings = gatePolicy ? captureCachedCenterGateSettings(gatePolicy.settings) : null;
+    if (gatePolicy && !gateSettings) return selectedSourceFailure("backpressure");
     const owners: CachedSourceRequest[] = [];
     /** Capture callbacks depend only on parent demand/policy, never recursively on captured hosts. */
     const parentReason = (): SourceReason => !runtime.isCurrent() ? "cancelled"
-      : !policy.isCurrent() || policy.revision !== revision ? "superseded" : "ready";
+      : !policy.isCurrent() || policy.revision !== revision
+        || gatePolicy && (!gatePolicy.isCurrent() || gatePolicy.revision !== gateRevision) ? "superseded" : "ready";
     /** Keep per-record cancellation constant-time; final validation closes all captured hosts. */
     const reason = (): SourceReason => parentReason() !== "ready" ? parentReason()
       : this.discovery.isGenerationCurrent?.() === false ? "stale" : "ready";
@@ -195,7 +207,7 @@ export class CachedRequestedCandidateDegreeReader {
         }
         paths.add(path);
       }
-      const inputs: Array<{ id: NodeId; rawDegree: number }> = [];
+      const inputs: Array<{ id: NodeId; rawDegree: number; gates?: CachedCenterGates }> = [];
       let candidateRelations = 0, visitedCandidates = 0;
       for (const candidate of candidates) {
         if (visitedCandidates > 0 && visitedCandidates % SOURCE_MAX_BATCH_RECORDS === 0) {
@@ -206,7 +218,14 @@ export class CachedRequestedCandidateDegreeReader {
         if (!node) return selectedSourceFailure("missing");
         if (!sameEntity(node, candidate)) return selectedSourceFailure("unsupported-scope");
         candidateRelations += node.neighbours.size;
-        inputs.push({ id: candidate.id, rawDegree: node.neighbours.size });
+        const input: typeof inputs[number] = { id: candidate.id, rawDegree: node.neighbours.size };
+        if (gateSettings) {
+          const projected = await projectCachedCenterGates(compilation, candidate,
+            capturedPolicy.settings.inferAllLinksAsFriends, gateSettings, entities, { ...runtime, isCurrent: current });
+          if (!current()) return selectedSourceFailure(reason());
+          if (projected.outcome === "ready") input.gates = projected.gates;
+        }
+        inputs.push(input);
       }
       const hosts = await validateCachedOwners(owners, { ...runtime, isCurrent: current });
       if (hosts !== "ready") return selectedSourceFailure(current() ? hosts : reason());
@@ -219,7 +238,8 @@ export class CachedRequestedCandidateDegreeReader {
       if (!this.discovery.isHostCurrent()) return selectedSourceFailure("host-catalog-stale");
       if (!current()) return selectedSourceFailure(reason());
       return { outcome: "ready", coverage: "complete-candidate-raw-degrees", inputs,
-        certificate: { coverage: "complete-candidate-raw-degrees", candidates, policyRevision: revision, contributors: discovered },
+        certificate: { coverage: "complete-candidate-raw-degrees", candidates, policyRevision: revision,
+          ...(gatePolicy ? { gatePolicyRevision: gateRevision } : {}), contributors: discovered },
         work: { sourceReplays: owners.length, familyVisits: prepared.work.reduce(/** Actual canonical family visits. */
           (total, work) => total + work.familyVisits, 0), nodes: compilation.nodes.size, candidateRelations, entityReads, peakRetainedBytes: prepared.memory?.peakBytes ?? 0 } };
     } catch (error) {

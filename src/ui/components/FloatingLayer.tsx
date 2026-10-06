@@ -1,5 +1,10 @@
+/**
+ * Portable anchored layers with owner-document dismissal, geometry and optional shared header drag.
+ * Consumers own content, focus policy and inside roots; close/unload releases all geometry listeners.
+ */
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { enableDraggableDialog } from "./DraggableDialog";
 
 export type FloatingLayerDismissReason = "outside-pointer" | "escape";
 
@@ -15,6 +20,8 @@ export interface FloatingLayerProps {
   open: boolean;
   anchorRef: RefObject<HTMLElement | null>;
   panelRef: RefObject<HTMLElement | null>;
+  /** Opt into shared pointer dragging; manual coordinates remain local to one open lifetime. */
+  dragHandleRef?: RefObject<HTMLElement | null>;
   insideRoots: () => readonly (Node | null | undefined)[];
   onDismiss: (reason: FloatingLayerDismissReason) => void;
   portalTarget: (ownerDocument: Document) => Element | null;
@@ -22,10 +29,11 @@ export interface FloatingLayerProps {
   children: (style: CSSProperties) => ReactNode;
 }
 
+/** Treat explicitly registered portal roots and their composed descendants as inside the layer. */
 function isInsideEvent(event: PointerEvent, roots: readonly (Node | null | undefined)[]): boolean {
   const target = event.target as Node | null;
   const path = event.composedPath();
-  return roots.some((root) => {
+  return roots.some(/** Ignore detached optional roots while respecting shadow/portal event paths. */ (root) => {
     if (!root) return false;
     if (path.includes(root)) return true;
     return target ? root.contains(target) : false;
@@ -42,6 +50,7 @@ export function FloatingLayer({
   open,
   anchorRef,
   panelRef,
+  dragHandleRef,
   insideRoots,
   onDismiss,
   portalTarget,
@@ -56,7 +65,7 @@ export function FloatingLayer({
   const ownerDocument = anchor?.ownerDocument ?? null;
   const target = open && ownerDocument ? portalTarget(ownerDocument) : null;
 
-  useLayoutEffect(() => {
+  useLayoutEffect(/** Bind geometry and dismissal to the anchor's current document for this open lifetime. */ () => {
     if (!open) return;
     const activeAnchor = anchorRef.current;
     if (!activeAnchor) return;
@@ -65,6 +74,8 @@ export function FloatingLayer({
     if (!view) return;
 
     let cleaned = false;
+    let draggedPosition: Readonly<{ left: number; top: number }> | null = null;
+    /** Keep anchored sizing while preserving explicitly dragged coordinates across scroll/resize. */
     const updatePosition = () => {
       if (cleaned) return;
       const liveAnchor = anchorRef.current;
@@ -75,8 +86,8 @@ export function FloatingLayer({
         positioning.preferredWidth,
         Math.max(positioning.minimumWidth, view.innerWidth - margin * 2),
       );
-      const left = Math.max(margin, Math.min(rect.left, view.innerWidth - desiredWidth - margin));
-      const top = rect.bottom + positioning.anchorGap;
+      const left = draggedPosition?.left ?? Math.max(margin, Math.min(rect.left, view.innerWidth - desiredWidth - margin));
+      const top = draggedPosition?.top ?? rect.bottom + positioning.anchorGap;
       setStyle({
         position: "fixed",
         left,
@@ -86,10 +97,12 @@ export function FloatingLayer({
       });
     };
 
+    /** Dismiss outside gestures without intercepting controls or registered nested portals. */
     const onPointerDown = (event: PointerEvent) => {
       if (isInsideEvent(event, current.current.insideRoots())) return;
       current.current.onDismiss("outside-pointer");
     };
+    /** Escape restores the still-connected trigger in its owning document. */
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -109,9 +122,18 @@ export function FloatingLayer({
     doc.addEventListener("pointerdown", onPointerDown, true);
     doc.addEventListener("keydown", onKeyDown, true);
 
+    const panel = panelRef.current, handle = dragHandleRef?.current;
+    const releaseDrag = panel && handle ? enableDraggableDialog({
+      modalEl: panel, handleEl: handle, viewportMargin: positioning.viewportMargin,
+      /** React owns inline left/top so subsequent renders cannot overwrite the shared drag helper. */
+      onPositionChange: (position) => { draggedPosition = position; updatePosition(); },
+    }) : undefined;
+
+    /** Idempotently retire drag, observers and owner-document listeners on close or page teardown. */
     const cleanup = () => {
       if (cleaned) return;
       cleaned = true;
+      releaseDrag?.();
       resizeObserver?.disconnect();
       view.removeEventListener("resize", updatePosition);
       doc.removeEventListener("scroll", updatePosition, true);
@@ -127,6 +149,7 @@ export function FloatingLayer({
     open,
     anchorRef,
     panelRef,
+    dragHandleRef,
     ownerDocument,
     positioning.anchorGap,
     positioning.minimumMaxHeight,

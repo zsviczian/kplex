@@ -1073,3 +1073,8 @@ This summary describes the ordinary whole-note index. The optional expanded-cent
 52. the restored Note A → Note B relationship remains Parent — DEFINED after fast neighbour hydration.
 53. patching a single changed Markdown file through the runtime incremental path preserves the expected relationship semantics without rebuilding the vault.
 54. one original relationship declaration is stored once in memory while both directional perspectives remain queryable; K-Plex must not retain duplicate forward/reverse evidence objects merely for convenience.
+
+
+### 2026-10-06 explicit layout expectation
+
+The scene baseline updates only the horizontal positions of friends, challengers and siblings for the maintainer-requested parent-area-driven density policy. Parent/child/center coordinates and every semantic page, declaration, neighborhood, edge, style and search result remain unchanged. The default H2 side anchors are now ±392.775 and the sibling anchor 665.775; dedicated density tests separately verify H3 touching, H4 overlap, parent1–3 and child-independent horizontal placement.
