@@ -922,6 +922,28 @@ const japaneseTranslations = {
   "find.includePath": "ファイルパスも検索",
   "find.close": "検索を閉じる",
   "find.matches": { other: "{count} 件の一致" },
+
+  "find.applyFilter": "一致するノートを絞り込む",
+  "filter.panelTitle": "フィルターとレンズ",
+  "filter.closePanel": "フィルターとレンズを閉じる",
+  "graph.horizontalDensity": "横方向の密度",
+  "graph.verticalDensity": "縦方向の密度",
+  "graph.horizontalDensityShort": "横方向",
+  "graph.verticalDensityShort": "縦方向",
+  "graph.horizontalDensityValue": "横方向の密度 {value}",
+  "graph.verticalDensityValue": "縦方向の密度 {value}",
+  "settings.ui.horizontal.density.help": "値を大きくすると列の間隔が狭まり、ラベルが短くなります。",
+  "settings.ui.vertical.density.help": "値を大きくすると行の間隔が狭まります。",
+  "graph.parentColumns": "親の列数",
+  "graph.childColumns": "子の列数",
+  "graph.parentColumnsShort": "親",
+  "graph.childColumnsShort": "子",
+  "graph.configureLayout": "Plex のレイアウトを設定",
+  "graph.baseFontSize": "基本フォントサイズ",
+  "graph.baseFontSizeShort": "文字サイズ",
+  "graph.maximumNodeWidthShort": "ノード幅",
+  "settings.ui.base.font.size": "基本フォントサイズ",
+  "settings.ui.base.font.size.help": "ラベルの基本サイズ（ピクセル）。役割やカスタムスタイルの相対的なサイズは維持されます。",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

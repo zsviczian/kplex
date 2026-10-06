@@ -1,5 +1,6 @@
 /**
- * Host-bound Plex filter and Graph Lens editor. Shared predicates own matching; this surface localizes choices, validation DTOs and display-only fallback names.
+ * Host-bound Plex filter and Graph Lens editor. Shared predicates own matching; this surface localizes
+ * choices and validation. FloatingLayer owns portaling, dismissal and header drag in the owning document.
  */
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { GraphIndex } from "../index/GraphIndex";
@@ -131,15 +132,17 @@ const FILTER_PANEL_POSITIONING: FloatingLayerPositioning = {
   minimumMaxHeight: 180,
 };
 
+/** Portal to the trigger's document so the filter floats above adjacent native panes and pop-outs. */
 function ownerDocumentBody(doc: Document): HTMLElement {
   return doc.body;
 }
 
+/** Retain the document's tooltip stacking class until its final filter panel closes. */
 function registerOpenFilterPanel(doc: Document): () => void {
   const count = (openFilterPanels.get(doc) ?? 0) + 1;
   openFilterPanels.set(doc, count);
   doc.body.classList.add("kplex-filter-panel-open");
-  return () => {
+  return /** Remove stacking only after every panel in this owning document has closed. */ () => {
     const next = Math.max(0, (openFilterPanels.get(doc) ?? 1) - 1);
     if (next > 0) {
       openFilterPanels.set(doc, next);
@@ -312,6 +315,7 @@ export function PlexFilter({
   const folderListId = `kplex-filter-folders-${idPrefix}`;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const dragHandleRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<LensDraft | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
@@ -356,7 +360,7 @@ export function PlexFilter({
   const active = isPlexFilterActive(value) || !value.showCrossLinks || showSiblings || activeLensCount > 0;
   const ownerDocument = triggerRef.current?.ownerDocument ?? null;
 
-  useEffect(() => {
+  useEffect(/** Release the open-panel tooltip class on close and owner-document migration. */ () => {
     if (!open || !ownerDocument) return;
     return registerOpenFilterPanel(ownerDocument);
   }, [open, ownerDocument]);
@@ -516,6 +520,7 @@ export function PlexFilter({
     />;
   };
 
+  /** Render caller-owned filter content with a dedicated drag header that excludes its close control. */
   const panel = (panelStyle: CSSProperties) => <div
     ref={panelRef}
     className="kplex-filter-panel kplex-filter-portal"
@@ -523,6 +528,13 @@ export function PlexFilter({
     style={panelStyle}
     onPointerDown={(event) => event.stopPropagation()}
   >
+    <div ref={dragHandleRef} className="kplex-filter-panel-header">
+      <span>{translate("filter.panelTitle")}</span>
+      <button type="button" className="kplex-icon-button" aria-label={translate("filter.closePanel")}
+        onClick={/** Closing the panel restores its toolbar trigger without changing any filters. */ () => {
+          setOpen(false); triggerRef.current?.focus({ preventScroll: true });
+        }}><ObsidianIcon name="x" size={16} /></button>
+    </div>
     <datalist id={tagListId}>{suggestions.tags.map((tag) => <option key={tag} value={tag} />)}</datalist>
     <datalist id={relationshipListId}>{suggestions.relationshipDefinitions.map((definition) => <option key={definition} value={definition} />)}</datalist>
     <datalist id={propertyListId}>{suggestions.properties.map((property) => <option key={property} value={property} />)}</datalist>
@@ -751,6 +763,7 @@ export function PlexFilter({
       open={open}
       anchorRef={triggerRef}
       panelRef={panelRef}
+      dragHandleRef={dragHandleRef}
       insideRoots={() => [triggerRef.current, panelRef.current]}
       onDismiss={() => setOpen(false)}
       portalTarget={ownerDocumentBody}

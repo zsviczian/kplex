@@ -926,6 +926,28 @@ const dutchTranslations = {
   "find.includePath": "Ook bestandspaden doorzoeken",
   "find.close": "Zoeken sluiten",
   "find.matches": { one: "{count} overeenkomst", other: "{count} overeenkomsten" },
+
+  "find.applyFilter": "Overeenkomende notities filteren",
+  "filter.panelTitle": "Filters en lenzen",
+  "filter.closePanel": "Filters en lenzen sluiten",
+  "graph.horizontalDensity": "Horizontale dichtheid",
+  "graph.verticalDensity": "Verticale dichtheid",
+  "graph.horizontalDensityShort": "Horizontaal",
+  "graph.verticalDensityShort": "Verticaal",
+  "graph.horizontalDensityValue": "Horizontale dichtheid {value}",
+  "graph.verticalDensityValue": "Verticale dichtheid {value}",
+  "settings.ui.horizontal.density.help": "Hogere waarden brengen kolommen dichter bij elkaar en verkorten labels.",
+  "settings.ui.vertical.density.help": "Hogere waarden verkleinen de afstand tussen rijen.",
+  "graph.parentColumns": "Bovenliggende kolommen",
+  "graph.childColumns": "Onderliggende kolommen",
+  "graph.parentColumnsShort": "Bovenliggend",
+  "graph.childColumnsShort": "Onderliggend",
+  "graph.configureLayout": "Plex-indeling instellen",
+  "graph.baseFontSize": "Basislettergrootte",
+  "graph.baseFontSizeShort": "Lettergrootte",
+  "graph.maximumNodeWidthShort": "Knooppuntbreedte",
+  "settings.ui.base.font.size": "Basislettergrootte",
+  "settings.ui.base.font.size.help": "Basisgrootte van labels in pixels. Rollen en aangepaste stijlen behouden hun relatieve grootte.",
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

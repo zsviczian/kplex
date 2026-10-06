@@ -12,7 +12,8 @@
  * Exact canonical editable pairs compose over coherent scopes under their own semantic policy;
  * source invalidation closes their authority without erasing saved presentation. Complete matching
  * publications retire their bounded evidence/negative replacements. Partial induced pages retain
- * their compiling policy and report incomplete gate counts; connection sorting defers unknown
+ * their compiling policy and retain separately certified gate counts from the raw-degree pass;
+ * incomplete counts stay explicit while connection sorting defers unknown
  * total degrees rather than treating induced incidence as a complete total.
  * Finite requested physical notes capture current canonical alias facets separately from sparse
  * incidence, under the same byte ceiling, cooperative runtime and final file/cache/source fences.
@@ -114,6 +115,12 @@ type PreparedSemanticPageInfo = Readonly<{
   settings: GraphCompilerSettings;
   completeRelations: boolean;
   rawDegree?: number;
+  /** Count-only proof does not certify complete incidence or relationship editing authority. */
+  gates?: GateStats;
+  /** Visibility snapshot used by the count-only proof, independent of incidence completeness. */
+  gateCoverageSignature?: string;
+  /** Pair-overlay version at atomic count publication; later overlays cannot reuse old totals. */
+  gatePairRevision?: number;
 }>;
 
 type PreparedSemanticScope = Readonly<{
@@ -1279,6 +1286,7 @@ export class GraphIndex {
     if (physicalAliases.reason !== "ready") { pending(physicalAliases.reason); return; }
     const supplementalRuntime = { ...runtime, retainedBytes: physicalAliases.retainedBytes };
     const degrees = new Map<NodeId, number>();
+    const candidateGates = new Map<NodeId, GateStats>();
     for (const id of completeIds) {
       const complete = compilation.node(id);
       if (complete) degrees.set(id, complete.neighbours.size);
@@ -1293,10 +1301,13 @@ export class GraphIndex {
     }));
     if (degreeCandidates.length) {
       const degreeResult = await this.sourceAcquisition.prepareRequestedCandidateDegrees(
-        { kind: "candidate-degrees", candidates: degreeCandidates }, policy, presentation, supplementalRuntime);
+        { kind: "candidate-degrees", candidates: degreeCandidates }, policy, presentation, supplementalRuntime, gatePolicy);
       if (!current() || !signaturesCurrent()) { if (!optional) this.noteSemanticPreparation("cancelled", "superseded"); return; }
       if (degreeResult.outcome !== "ready") { pending(degreeResult.reason); return; }
-      for (const input of degreeResult.inputs) degrees.set(input.id, input.rawDegree);
+      for (const input of degreeResult.inputs) {
+        degrees.set(input.id, input.rawDegree);
+        if (input.gates) candidateGates.set(input.id, input.gates);
+      }
       this.addSemanticDependencyVisits(degreeResult.work.familyVisits);
     }
 
@@ -1326,7 +1337,8 @@ export class GraphIndex {
       pagesById.set(node.id, page);
       pagesByPath.set(page.path, page);
       this.preparedPageInfo.set(page, { entityId: node.id, policyRevision, settings,
-        completeRelations: completeIds.has(node.id), ...(degrees.has(node.id) ? { rawDegree: degrees.get(node.id)! } : {}) });
+        completeRelations: completeIds.has(node.id), ...(degrees.has(node.id) ? { rawDegree: degrees.get(node.id)! } : {}),
+        ...(candidateGates.has(node.id) ? { gates: candidateGates.get(node.id)!, gateCoverageSignature: gateSignature } : {}) });
       this.presentationStatuses.set(page, { noteType: "ready", styleTags: "ready" });
     }
     for (const id of requiredIds) {
@@ -1381,6 +1393,10 @@ export class GraphIndex {
     if (optional) this.siblingEnrichmentScopes.set(scope, presentationRevision);
     this.hostPreviewScopes.delete(centerPath);
     this.retireRelationshipPairs(scope);
+    for (const page of pagesByPath.values()) {
+      const info = this.preparedPageInfo.get(page);
+      if (info?.gates) this.preparedPageInfo.set(page, { ...info, gatePairRevision: this.relationshipPairRevision });
+    }
     this.semanticPreparationFailures.delete(centerPath);
     this.plugin.startupDiagnostics?.mark("first-requested-scope-authoritative");
     this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
@@ -4867,6 +4883,23 @@ export class GraphIndex {
     gateStats.bottom.visibleCount = visibleGatePaths.bottom.size;
     gateStats.left.visibleCount = visibleGatePaths.left.size;
     gateStats.right.visibleCount = visibleGatePaths.right.size;
+
+    // A partial induced page can still have complete count-only proof. Keep its role lists and
+    // editing authority partial; only replace gate presentation. A later pair overlay retires old
+    // totals until normal source refresh certifies counts against that overlay's source lifetime.
+    const countInfo = this.preparedPageInfo.get(source);
+    const countProof = countInfo?.policyRevision === this.semanticPolicyRevision
+      && countInfo.gateCoverageSignature === this.semanticCoverageSignature() ? countInfo.gates : undefined;
+    let hasPairOverlay = false;
+    for (const pair of this.relationshipPairs.values()) if (pair.paths.includes(source.path)
+      && (countInfo?.gatePairRevision !== this.relationshipPairRevision || pair.policyRevision !== countInfo.policyRevision)) {
+      hasPairOverlay = true; break;
+    }
+    if (countProof && !hasPairOverlay) {
+      for (const gate of ["top", "bottom", "left", "right"] as const) {
+        Object.assign(gateStats[gate], countProof[gate], { complete: true });
+      }
+    }
 
     const result: CachedRelationView = { signature, roles, gateStats, neighbourCount: uniqueVisible.size };
     this.relationViewCache.set(source, result);

@@ -922,6 +922,28 @@ const traditionalChineseTranslations = {
   "find.includePath": "也搜尋檔案路徑",
   "find.close": "關閉搜尋",
   "find.matches": { other: "{count} 個符合項目" },
+
+  "find.applyFilter": "篩選符合的筆記",
+  "filter.panelTitle": "篩選器與透鏡",
+  "filter.closePanel": "關閉篩選器與透鏡",
+  "graph.horizontalDensity": "水平密度",
+  "graph.verticalDensity": "垂直密度",
+  "graph.horizontalDensityShort": "水平",
+  "graph.verticalDensityShort": "垂直",
+  "graph.horizontalDensityValue": "水平密度 {value}",
+  "graph.verticalDensityValue": "垂直密度 {value}",
+  "settings.ui.horizontal.density.help": "較高的值會縮短欄間距與標籤。",
+  "settings.ui.vertical.density.help": "較高的值會縮短列間距。",
+  "graph.parentColumns": "父節點欄數",
+  "graph.childColumns": "子節點欄數",
+  "graph.parentColumnsShort": "父節點",
+  "graph.childColumnsShort": "子節點",
+  "graph.configureLayout": "設定 Plex 版面",
+  "graph.baseFontSize": "基礎字型大小",
+  "graph.baseFontSizeShort": "字型大小",
+  "graph.maximumNodeWidthShort": "節點寬度",
+  "settings.ui.base.font.size": "基礎字型大小",
+  "settings.ui.base.font.size.help": "標籤的基礎大小（像素）。角色與自訂樣式保留相對大小。",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

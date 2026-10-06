@@ -20,6 +20,8 @@
  * Background-only owner/page checkpoints defer to the caller's foreground lane without retiring
  * inventory progress. Editable pair requests acquire only their exact document owners; full replay
  * certifies both positive and negative declarations before global incidence inventory is ready.
+ * Candidate count-only gate proofs share their existing degree compilation and final observation
+ * fences without promoting incomplete neighborhood incidence into editing authority.
  */
 import { canonicalTagPaths } from "../../core/graph/tagPaths";
 import type { StartupDiagnostics } from "./startupDiagnostics";
@@ -1234,14 +1236,15 @@ export class ObsidianSourceAcquisition {
     return result;
   }
 
-  /** Prepare exact raw degrees only when the active sort key needs them. */
+  /** Prepare exact degrees and optional gate totals from one authenticated candidate compilation. */
   async prepareRequestedCandidateDegrees(request: CachedCandidateDegreeRequest, policy: CachedSemanticPolicy,
-    presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<CachedCandidateDegreePreparation> {
+    presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime,
+    gatePolicy?: CachedCenterGatePolicy): Promise<CachedCandidateDegreePreparation> {
     const discovery = this.localContributorDiscovery(runtime);
     if (!discovery) return selectedSourceFailure("dependency-pending");
     const capture = (sourceId: string, scoped: GraphCompilerRuntime) => this.captureForReplay(sourceId, presentation, scoped);
     const result = await new CachedRequestedCandidateDegreeReader(this.repository, discovery, capture, this.cachedEntityReadPort(runtime))
-      .prepare(request, policy, runtime);
+      .prepare(request, policy, runtime, gatePolicy);
     if (runtime.isCurrent()) this.requestReplayRepair(result);
     return result;
   }

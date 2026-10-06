@@ -1,13 +1,13 @@
 /**
- * Plex node and gate presentation with localized accessibility and interaction hints. Partial gate
- * incidence displays lower bounds and never claims an empty complete relationship set. Physical gate
+ * Plex node and gate presentation with localized accessibility and interaction hints. Uncertified
+ * counts display lower bounds; count completeness never grants relationship editing coverage. Physical gate
  * labels are layout copy; semantic roles, coverage and drag effects belong to callers.
  */
 import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
 import { alphaHexToCss } from "../index/style";
 import type { KplexSettings } from "../settings";
-import { effectiveLabelLimit, gateDiameter } from "./layout";
+import { effectiveLabelLimit, nodeLabelFontSize, gateDiameter } from "./layout";
 import { ObsidianIcon } from "./ObsidianIcon";
 import type { Translator } from "../lang";
 import { physicalPositionLabel } from "./features/positionPresentation";
@@ -102,7 +102,7 @@ export function ThoughtNode({
     borderWidth: isSection ? undefined : `${style.strokeWidth ?? 1}px`,
     borderStyle: isSection ? undefined : strokeStyle,
     borderRadius: isSection ? undefined : (style.strokeShaprness === "sharp" ? 5 : node.role === "center" ? 18 : 12),
-    fontSize: `${node.role === "center" ? Math.max(13, Math.min(24, (style.fontSize ?? 18) * 0.72)) : Math.max(10, Math.min(16, (style.fontSize ?? 18) * 0.62))}px`,
+    fontSize: `${nodeLabelFontSize(style.fontSize ?? 18, node.role === "center", settings.baseFontSize)}px`,
     "--kplex-gate-size": `${gateSize}px`,
     "--kplex-gate-stroke": alphaHexToCss(style.gateStrokeColor, "rgba(226,239,255,.84)"),
     "--kplex-gate-fill": alphaHexToCss(style.gateBackgroundColor, "rgba(226,239,255,.84)"),

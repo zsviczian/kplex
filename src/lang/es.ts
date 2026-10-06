@@ -930,6 +930,28 @@ const spanishTranslations = {
   "find.includePath": "Buscar también en rutas de archivos",
   "find.close": "Cerrar búsqueda",
   "find.matches": { one: "{count} coincidencia", many: "{count} coincidencias", other: "{count} coincidencias" },
+
+  "find.applyFilter": "Filtrar notas coincidentes",
+  "filter.panelTitle": "Filtros y lentes",
+  "filter.closePanel": "Cerrar filtros y lentes",
+  "graph.horizontalDensity": "Densidad horizontal",
+  "graph.verticalDensity": "Densidad vertical",
+  "graph.horizontalDensityShort": "Horizontal",
+  "graph.verticalDensityShort": "Vertical",
+  "graph.horizontalDensityValue": "Densidad horizontal {value}",
+  "graph.verticalDensityValue": "Densidad vertical {value}",
+  "settings.ui.horizontal.density.help": "Los valores altos acercan las columnas y acortan las etiquetas.",
+  "settings.ui.vertical.density.help": "Los valores altos reducen el espacio entre filas.",
+  "graph.parentColumns": "Columnas de padres",
+  "graph.childColumns": "Columnas de hijos",
+  "graph.parentColumnsShort": "Padres",
+  "graph.childColumnsShort": "Hijos",
+  "graph.configureLayout": "Configurar disposición de Plex",
+  "graph.baseFontSize": "Tamaño de fuente base",
+  "graph.baseFontSizeShort": "Fuente",
+  "graph.maximumNodeWidthShort": "Ancho del nodo",
+  "settings.ui.base.font.size": "Tamaño de fuente base",
+  "settings.ui.base.font.size.help": "Tamaño base de las etiquetas en píxeles. Los roles y estilos personalizados conservan sus tamaños relativos.",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

@@ -1,8 +1,9 @@
 /**
  * Obsidian settings persistence, bounded legacy graph import, declarative controls and style/ontology
  * managers. Foreign imports cannot change plugin workflow preferences; own persisted K-Plex keys
- * remain stable. All saves cross the plugin settings-impact classifier; the injected translator
- * owns display copy.
+ * remain stable. Per-surface density preserves the legacy vertical key and migrates horizontal
+ * density from the same saved value. All saves cross the plugin settings-impact classifier; the
+ * injected translator owns display copy.
  */
 import {
   AbstractInputSuggest,
@@ -98,26 +99,32 @@ function sanitizeNodeSortOrder(value: unknown): NodeSortOrder {
   }
 }
 export type KplexLayoutProfile = {
+  /** Retained vertical density key, also the fallback for pre-axis profiles. */
   compactingFactor: number;
+  /** Horizontal density is optional only at the persisted legacy/profile boundary. */
+  horizontalCompactingFactor?: number;
   parentColumns: number;
   childColumns: number;
 };
 
 export const DEFAULT_LAYOUT_PROFILES: Record<string, KplexLayoutProfile> = {
-  "desktop:leaf": { compactingFactor: 2, parentColumns: 2, childColumns: 5 },
-  "desktop:popout": { compactingFactor: 2, parentColumns: 2, childColumns: 5 },
-  "desktop:sidepanel": { compactingFactor: 2.65, parentColumns: 1, childColumns: 2 },
-  "tablet:leaf": { compactingFactor: 2.25, parentColumns: 2, childColumns: 4 },
-  "tablet:popout": { compactingFactor: 2.25, parentColumns: 2, childColumns: 4 },
-  "tablet:sidepanel": { compactingFactor: 2.7, parentColumns: 1, childColumns: 2 },
-  "mobile:leaf": { compactingFactor: 2.55, parentColumns: 1, childColumns: 2 },
-  "mobile:popout": { compactingFactor: 2.55, parentColumns: 1, childColumns: 2 },
-  "mobile:sidepanel": { compactingFactor: 2.85, parentColumns: 1, childColumns: 2 },
+  "desktop:leaf": { compactingFactor: 2, horizontalCompactingFactor: 2, parentColumns: 2, childColumns: 5 },
+  "desktop:popout": { compactingFactor: 2, horizontalCompactingFactor: 2, parentColumns: 2, childColumns: 5 },
+  "desktop:sidepanel": { compactingFactor: 2.65, horizontalCompactingFactor: 2.65, parentColumns: 1, childColumns: 2 },
+  "tablet:leaf": { compactingFactor: 2.25, horizontalCompactingFactor: 2.25, parentColumns: 2, childColumns: 4 },
+  "tablet:popout": { compactingFactor: 2.25, horizontalCompactingFactor: 2.25, parentColumns: 2, childColumns: 4 },
+  "tablet:sidepanel": { compactingFactor: 2.7, horizontalCompactingFactor: 2.7, parentColumns: 1, childColumns: 2 },
+  "mobile:leaf": { compactingFactor: 2.55, horizontalCompactingFactor: 2.55, parentColumns: 1, childColumns: 2 },
+  "mobile:popout": { compactingFactor: 2.55, horizontalCompactingFactor: 2.55, parentColumns: 1, childColumns: 2 },
+  "mobile:sidepanel": { compactingFactor: 2.85, horizontalCompactingFactor: 2.85, parentColumns: 1, childColumns: 2 },
 };
 
 export interface KplexSettings {
   compactView: boolean;
+  /** Vertical density keeps its historical persisted key. */
   compactingFactor: number;
+  /** Horizontal spacing and label truncation vary independently from vertical density. */
+  horizontalCompactingFactor: number;
   minLinkLength: number;
   indexUpdateInterval: number;
   hierarchy: Hierarchy;
@@ -142,6 +149,8 @@ export interface KplexSettings {
   showNeighborCount: boolean;
   /** Give every Plex thought a fixed two-line label area so long titles can wrap without breaking row alignment. */
   wrapNodeLabels: boolean;
+  /** Base regular-node label size in pixels; role and explicit style proportions are preserved. */
+  baseFontSize: number;
   showFullTagName: boolean;
   maxItemCount: number;
   renderSiblings: boolean;
@@ -247,6 +256,7 @@ export interface KplexSettings {
 export const DEFAULT_SETTINGS: KplexSettings = {
   compactView: false,
   compactingFactor: 2,
+  horizontalCompactingFactor: 2,
   minLinkLength: 18,
   indexUpdateInterval: 60000,
   hierarchy: DEFAULT_HIERARCHY_DEFINITION,
@@ -269,6 +279,7 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   showPageNodes: true,
   showNeighborCount: true,
   wrapNodeLabels: false,
+  baseFontSize: 12.4,
   showFullTagName: false,
   maxItemCount: 100,
   renderSiblings: false,
@@ -406,6 +417,7 @@ export function importExcaliBrainGraphSettings(raw: unknown, current?: KplexSett
   return migrateAndMergeSettings({
     ...current,
     ...imported,
+    horizontalCompactingFactor: imported.compactingFactor ?? current?.horizontalCompactingFactor,
     hierarchy: {
       ...current?.hierarchy,
       ...hierarchy,
@@ -463,13 +475,17 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
+  /** Missing horizontal density inherits legacy density; parent columns retain the supported one-to-three-column range. */
   const sanitizeProfile = (candidate: Partial<KplexLayoutProfile> | undefined, fallback: KplexLayoutProfile): KplexLayoutProfile => ({
     compactingFactor: Math.max(0.75, Math.min(4, finite(candidate?.compactingFactor, fallback.compactingFactor))),
+    horizontalCompactingFactor: Math.max(0.75, Math.min(4, finite(candidate?.horizontalCompactingFactor,
+      finite(candidate?.compactingFactor, fallback.horizontalCompactingFactor ?? fallback.compactingFactor)))),
     parentColumns: Math.max(1, Math.min(3, Math.round(finite(candidate?.parentColumns, fallback.parentColumns)))),
     childColumns: Math.max(1, Math.min(7, Math.round(finite(candidate?.childColumns, fallback.childColumns)))),
   });
   const legacyProfile = sanitizeProfile({
     compactingFactor: old.compactingFactor,
+    horizontalCompactingFactor: old.horizontalCompactingFactor,
     parentColumns: old.parentColumns,
     childColumns: old.childColumns,
   }, DEFAULT_LAYOUT_PROFILES["desktop:leaf"]);
@@ -517,6 +533,9 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     childColumns: legacyProfile.childColumns,
     maxItemCount: Math.max(10, Math.min(300, Number(old.maxItemCount ?? DEFAULT_SETTINGS.maxItemCount))),
     compactingFactor: legacyProfile.compactingFactor,
+    horizontalCompactingFactor: legacyProfile.horizontalCompactingFactor ?? legacyProfile.compactingFactor,
+    baseFontSize: Math.max(8, Math.min(28, finite(old.baseFontSize, DEFAULT_SETTINGS.baseFontSize))),
+    minLinkLength: finite(old.minLinkLength, DEFAULT_SETTINGS.minLinkLength),
     friendMaxHeight: Math.max(120, Math.min(900, Number(old.friendMaxHeight ?? old.siblingMaxHeight ?? DEFAULT_SETTINGS.friendMaxHeight))),
     siblingMaxHeight: Math.max(120, Math.min(900, Number(old.siblingMaxHeight ?? DEFAULT_SETTINGS.siblingMaxHeight))),
     siblingRelativeSize: Math.max(30, Math.min(85, finite(old.siblingRelativeSize, DEFAULT_SETTINGS.siblingRelativeSize))),
@@ -1842,6 +1861,7 @@ export class KplexSettingTab extends PluginSettingTab {
                 type: "group",
                 heading: translate("settings.ui.node.appearance"),
                 items: [
+                  { name: translate("settings.ui.base.font.size"), desc: translate("settings.ui.base.font.size.help"), control: { type: "slider", key: "baseFontSize", min: 8, max: 28, step: 0.2 } },
                   { name: translate("settings.ui.max.label.length"), desc: translate("settings.ui.max.label.length.help"), control: { type: "slider", key: "baseNodeStyle.maxLabelLength", min: 8, max: 120, step: 1 } },
                   { name: translate("settings.ui.wrap.node.labels"), desc: translate("settings.ui.wrap.node.labels.help"), control: { type: "toggle", key: "wrapNodeLabels" } },
                   { name: translate("settings.ui.maximum.node.width"), desc: translate("settings.ui.maximum.node.width.help"), control: { type: "slider", key: "baseNodeStyle.maxWidth", min: 160, max: 800, step: 10 } },
@@ -2038,6 +2058,11 @@ export class KplexSettingTab extends PluginSettingTab {
     }
     if (key === "baseNodeStyle.maxLabelLength") {
       this.kplexPlugin.settings.baseNodeStyle.maxLabelLength = Math.max(8, Math.min(120, Math.round(Number(value) || 30)));
+      await this.kplexPlugin.saveSettings(false);
+      return;
+    }
+    if (key === "baseFontSize") {
+      this.kplexPlugin.settings.baseFontSize = Math.max(8, Math.min(28, Number(value) || DEFAULT_SETTINGS.baseFontSize));
       await this.kplexPlugin.saveSettings(false);
       return;
     }

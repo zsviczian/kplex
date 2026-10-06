@@ -1,6 +1,7 @@
 /**
  * Adapts K-Plex host environment facts to portable layout-profile selection. Effective settings
  * inherit live base values and are weakly cached by settings/profile identity without semantic reindexing.
+ * Pre-axis profiles use their own retained shared density for horizontal spacing.
  */
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
 import { layoutProfileKey as portableLayoutProfileKey, selectLayoutProfile } from "../core/plex/viewPresentation";
@@ -40,7 +41,9 @@ export function effectiveViewSettings(
   // Layout profiles override only a small subset of settings. Inherit the rest from the live base
   // settings object instead of spreading it on every React render: base-setting mutations remain
   // immediately visible while the effective object's identity changes only when the profile does.
-  const value = Object.assign(Object.create(settings) as KplexSettings, profile);
+  const value = Object.assign(Object.create(settings) as KplexSettings, profile, {
+    horizontalCompactingFactor: profile.horizontalCompactingFactor ?? profile.compactingFactor,
+  });
   bySurface.set(key, { profile, value });
   return value;
 }

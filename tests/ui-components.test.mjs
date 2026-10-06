@@ -585,6 +585,26 @@ try {
   ].join("|");
   check(afterControlPointer === beforeControlPointer, "interactive title control moved the dialog");
 
+  // Interrupted streams must stop swallowing the Plex's later pointer moves, even when no up
+  // reaches the owning document. A late capture loss from a different pointer is not cancellation.
+  for (const interruption of ["lostpointercapture", "blur"]) {
+    dispatchPointer(window, titleText, "pointerdown", { pointerId: 12, clientX: 200, clientY: 150 });
+    dispatchPointer(window, background, "pointermove", { pointerId: 12, clientX: 220, clientY: 170 });
+    check(modal.classList.contains("is-dragging"), "interrupted-stream fixture did not begin its drag");
+    dispatchPointer(window, title, "lostpointercapture", { pointerId: 99 });
+    check(modal.classList.contains("is-dragging"), "capture loss from an unrelated pointer retired the active drag");
+    const interruptedPosition = modal.style.getPropertyValue("--kplex-dialog-left") + "|" + modal.style.getPropertyValue("--kplex-dialog-top");
+    interruption === "blur" ? window.dispatchEvent(new Event("blur")) : dispatchPointer(window, title, "lostpointercapture", { pointerId: 12 });
+    check(!modal.classList.contains("is-dragging") && !title.classList.contains("is-dragging"), interruption + " did not terminate active drag state");
+    const movesBefore = backgroundMoves;
+    dispatchPointer(window, background, "pointermove", { pointerId: 12, clientX: 350, clientY: 220 });
+    check(backgroundMoves === movesBefore + 1, interruption + " retained capture-phase interception of later graph movement");
+    check(modal.style.getPropertyValue("--kplex-dialog-left") + "|" + modal.style.getPropertyValue("--kplex-dialog-top") === interruptedPosition, interruption + " allowed a retired stream to move its dialog");
+    // The native host can still deliver a late end after interruption; it remains harmless.
+    dispatchPointer(window, background, "pointerup", { pointerId: 12 });
+    dispatchPointer(window, title, "lostpointercapture", { pointerId: 12 });
+  }
+
   release();
   release();
   check(!modal.classList.contains("kplex-draggable-dialog"), "close cleanup left draggable modal classes behind");
@@ -622,8 +642,9 @@ try {
   const framePinned = frameModal.style.getPropertyValue("--kplex-dialog-left") + "|" + frameModal.style.getPropertyValue("--kplex-dialog-top");
   dispatchPointer(window, background, "pointermove", { pointerId: 11, clientX: 400, clientY: 300 });
   check(frameModal.style.getPropertyValue("--kplex-dialog-left") + "|" + frameModal.style.getPropertyValue("--kplex-dialog-top") === framePinned, "parent-window pointer moved a pop-out dialog");
+  window.dispatchEvent(new Event("blur"));
   dispatchPointer(frameWindow, frameBackground, "pointermove", { pointerId: 11, clientX: 400, clientY: 300 });
-  check(frameModal.style.getPropertyValue("--kplex-dialog-left") === "370px", "pop-out drag did not use its owning document coordinates");
+  check(frameModal.style.getPropertyValue("--kplex-dialog-left") === "370px", "pop-out drag lost ownership to parent-window blur or used the wrong document coordinates");
   check(frameModal.style.getPropertyValue("--kplex-dialog-top") === "242px", "pop-out drag did not clamp against its owning window");
   dispatchPointer(frameWindow, frameBackground, "pointerup", { pointerId: 11, clientX: 400, clientY: 300 });
   frameWindow.dispatchEvent(new frameWindow.Event("pagehide"));
@@ -640,6 +661,77 @@ try {
 `;
 }
 
+
+/** Exercise shared floating-layer drag without duplicating the native helper or host filter content. */
+function draggableFloatingLayerBrowserEntry() {
+  return `
+import React,{useRef,useState} from "react";
+import {flushSync} from "react-dom";
+import {createRoot} from "react-dom/client";
+import {FloatingLayer} from ${JSON.stringify(join(root,"src/ui/components/FloatingLayer.tsx"))};
+const result=document.querySelector("#result");
+const check=(ok,message)=>{if(!ok)throw new Error(message)};
+const pointer=(view,target,type,x,y)=>flushSync(()=>target.dispatchEvent(new view.PointerEvent(type,{bubbles:true,cancelable:true,pointerId:7,button:0,clientX:x,clientY:y,pointerType:"touch"})));
+const positioning={preferredWidth:280,minimumWidth:180,viewportMargin:8,anchorGap:6,minimumMaxHeight:120};
+try {
+ for(const framed of [false,true]) {
+  const iframe=framed?document.body.appendChild(document.createElement("iframe")):null;
+  const doc=iframe?.contentDocument??document,view=doc.defaultView;
+  Object.defineProperty(view,"innerWidth",{configurable:true,value:800});
+  Object.defineProperty(view,"innerHeight",{configurable:true,value:600});
+  if(view.visualViewport) {
+   for(const [key,value] of Object.entries({width:800,height:600,offsetLeft:0,offsetTop:0}))Object.defineProperty(view.visualViewport,key,{configurable:true,value});
+  }
+  const container=doc.body.appendChild(doc.createElement("div")),outside=doc.body.appendChild(doc.createElement("button"));
+  const style=doc.head.appendChild(doc.createElement("style"));style.textContent=".drag-test-panel {height:150px;box-sizing:border-box}.drag-test-header {height:30px;touch-action:none}";
+  let anchorLeft=100,dismissals=[],renders=0;
+  function Consumer(){
+   const [open,setOpen]=useState(false),anchorRef=useRef(null),panelRef=useRef(null),dragHandleRef=useRef(null);
+   return React.createElement(React.Fragment,null,
+    React.createElement("button",{ref:anchorRef,"data-trigger":true,onClick:()=>setOpen(!open)},"Filters"),
+    React.createElement(FloatingLayer,{open,anchorRef,panelRef,dragHandleRef,insideRoots:()=>[anchorRef.current,panelRef.current],onDismiss:reason=>{dismissals.push(reason);setOpen(false)},portalTarget:d=>d.body,positioning},
+     panelStyle=>React.createElement("div",{ref:panelRef,className:"drag-test-panel",style:panelStyle},
+      React.createElement("div",{ref:dragHandleRef,className:"drag-test-header"},React.createElement("span",null,"Filters and lenses"),React.createElement("button",{"data-header-control":true},"Control")),React.createElement("input",{defaultValue:"preserved"}))))
+  }
+  const root=createRoot(container),render=()=>flushSync(()=>root.render(React.createElement(Consumer,{revision:++renders})));
+  render();const trigger=container.querySelector("[data-trigger]");
+  trigger.getBoundingClientRect=()=>({left:anchorLeft,right:anchorLeft+30,top:20,bottom:50,width:30,height:30});
+  flushSync(()=>trigger.click());let panel=doc.querySelector(".drag-test-panel"),header=panel.querySelector("span");
+  check(panel.ownerDocument===doc&&panel.classList.contains("kplex-draggable-dialog"),"floating panel must bind shared drag to its own document");
+  panel.querySelector("input").focus();
+  pointer(view,header,"pointerdown",110,60);
+  if(framed)pointer(window,document.body,"pointermove",180,100);
+  check(!panel.classList.contains("is-positioned"),"parent document cannot move a framed floating panel");
+  pointer(view,outside,"pointermove",180,100);pointer(view,outside,"pointerup",180,100);
+  check(panel.style.left==="170px"&&panel.style.top==="96px","dragged React inline coordinates must match the shared helper");
+  check(doc.activeElement===panel.querySelector("input")&&panel.querySelector("input").value==="preserved","drag must preserve focus and form state");
+  anchorLeft=340;flushSync(()=>doc.dispatchEvent(new view.Event("scroll")));render();
+  check(panel.style.left==="170px"&&panel.style.top==="96px","scroll and caller rerender must not snap a dragged panel back to its anchor");
+  pointer(view,panel.querySelector("[data-header-control]"),"pointerdown",200,100);pointer(view,outside,"pointermove",400,200);
+  check(panel.style.left==="170px","interactive header controls must not drag the panel");
+  Object.defineProperty(view,"innerWidth",{configurable:true,value:450});
+  if(view.visualViewport)Object.defineProperty(view.visualViewport,"width",{configurable:true,value:450});
+  flushSync(()=>view.dispatchEvent(new view.Event("resize")));
+  check(panel.style.left==="162px","resize must reclamp dragged coordinates in the owning viewport");
+  flushSync(()=>doc.dispatchEvent(new view.KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+  check(!doc.querySelector(".drag-test-panel")&&doc.activeElement===trigger&&dismissals.at(-1)==="escape","Escape must close and restore owning-document trigger focus");
+  check(!panel.classList.contains("kplex-draggable-dialog")&&!panel.style.getPropertyValue("--kplex-dialog-left"),"closed floating panel must release shared drag state");
+  flushSync(()=>trigger.click());panel=doc.querySelector(".drag-test-panel");
+  check(panel.style.left==="162px"&&panel.style.top==="56px"&&!panel.classList.contains("is-positioned"),"reopening must reset to its current anchored geometry");
+  pointer(view,outside,"pointerdown",0,0);
+  check(!doc.querySelector(".drag-test-panel")&&dismissals.at(-1)==="outside-pointer","outside pointer dismissal must still work after dragging");
+  flushSync(()=>trigger.click());panel=doc.querySelector(".drag-test-panel");header=panel.querySelector("span");
+  pointer(view,header,"pointerdown",170,60);pointer(view,outside,"pointermove",220,100);
+  flushSync(()=>view.dispatchEvent(new view.Event("pagehide")));
+  check(!panel.classList.contains("kplex-draggable-dialog")&&!panel.classList.contains("is-dragging"),"page teardown must cancel active floating drag");
+  const before=panel.style.left;pointer(view,outside,"pointermove",350,200);
+  check(panel.style.left===before,"retired owning-document drag listeners cannot move the panel");
+  root.unmount();container.remove();outside.remove();style.remove();iframe?.remove();
+ }
+ result.dataset.status="passed";result.textContent="Draggable floating layer behavior passed";
+}catch(error){result.dataset.status="failed";result.textContent=error.stack}
+`;
+}
 
 function fuzzySuggesterBrowserEntry() {
   return `
@@ -1150,6 +1242,10 @@ test("DraggableDialog owner-document browser behavior", () => {
   runBrowserDom(draggableDialogBrowserEntry(), "DraggableDialog browser behavior passed");
 });
 
+test("Draggable floating layer retains placement and owns cleanup in main and framed documents",()=>{
+ runBrowserDom(draggableFloatingLayerBrowserEntry(),"Draggable floating layer behavior passed");
+});
+
 
 test("FuzzySuggester production browser behavior", () => {
   runBrowserDom(fuzzySuggesterBrowserEntry(), "FuzzySuggester browser behavior passed");
@@ -1180,7 +1276,7 @@ function uiDefinitions(path, names) {
 
 /** Native-free real DOM checks for history targeting/cancellation and the center's shared menu button. */
 function editorHistoryBrowserEntry(){
-  const history=uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
+  const history=uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
   const editor=uiDefinitions("src/ui/CentralNodeEditor.tsx",["CentralNodeEditor"]);
   return `
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
@@ -1192,7 +1288,7 @@ ${editor}
 try{
  const button=document.body.appendChild(document.createElement("button"));button.dataset.kplexHistoryPath="Target.md";button.textContent="Target";
  button.style.cssText="position:absolute;left:100px;top:100px;width:100px;height:40px";
- const target={path:"Target.md"},origin={path:"Origin.md"},index={get:path=>path===target.path?target:undefined},historyDragHover={current:null};
+ const target={path:"Target.md",file:{extension:"md"}},origin={path:"Origin.md",file:{extension:"md"}},index={get:path=>path===target.path?target:undefined,gateNeighbourPaths:()=>new Set()},historyDragHover={current:null};
  let drag={pointerId:7},connectDrag=drag,nodeDrag=null;
  const touchDoubleTap={current:{reset(){}}},areaSettingsDismissPointer={current:null},areaResizeDrag={current:null},pendingGateLongPress={current:null},panDrag={current:null};
  let relocatedRow=null;
@@ -1209,7 +1305,7 @@ try{
  updateHistoryDragHover(origin,x,y,document);cancel({pointerId:7,pointerType:"mouse"});check(connectDrag===null&&!button.classList.contains("is-relationship-drop-target"),"real pointer cancellation retained highlight or drag");
  const viewportElement=document.body.appendChild(document.createElement("div")),gateElement=viewportElement.appendChild(document.createElement("span"));
  viewport.current=viewportElement;
- const captured=[];viewportElement.setPointerCapture=id=>captured.push({owner:viewportElement,id});
+ let capturedPointer=null;const captured=[];viewportElement.setPointerCapture=id=>{capturedPointer=id;captured.push({owner:viewportElement,id})};viewportElement.hasPointerCapture=id=>id===capturedPointer;
  gateElement.setPointerCapture=id=>captured.push({owner:gateElement,id});
  const bodyNode={role:"parent",page:origin,x:20,y:30};relocatedRow=gateElement;
  gateElement.addEventListener("pointerdown",event=>startNodeDrag(bodyNode,event));
@@ -1223,9 +1319,16 @@ try{
  check(connectDrag!==null&&button.classList.contains("is-relationship-drop-target"),"another child capture cancelled this relationship drag");
  gateElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:7,pointerType:"mouse"}));
  check(connectDrag===null&&!button.classList.contains("is-relationship-drop-target"),"gate-owned capture loss retained history hover or connector drag");
- nodeDrag={pointerId:8};updateHistoryDragHover(origin,x,y,document);
+ nodeDrag={pointerId:8};capturedPointer=8;updateHistoryDragHover(origin,x,y,document);
  gateElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:8,pointerType:"mouse"}));
- check(nodeDrag===null&&!button.classList.contains("is-relationship-drop-target"),"node-owned capture loss retained history hover or node drag");
+ check(nodeDrag!==null&&button.classList.contains("is-relationship-drop-target"),"retired child loss cancelled a newer viewport-owned node drag");
+ capturedPointer=null;viewportElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:8,pointerType:"mouse"}));
+ check(nodeDrag===null&&!button.classList.contains("is-relationship-drop-target"),"actual viewport capture loss retained history hover or node drag");
+ delete button.dataset.kplexHistoryPath;button.dataset.kplexPinnedPath=target.path;
+ connectDrag={pointerId:7};updateHistoryDragHover(origin,x,y,document,"parent");cancel({pointerId:7,pointerType:"mouse"});
+ check(connectDrag===null&&!button.classList.contains("is-relationship-drop-target"),"pinned pointer cancellation retained drag highlight");
+ nodeDrag={pointerId:8};updateHistoryDragHover(origin,x,y,document);viewportElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:8,pointerType:"mouse"}));
+ check(nodeDrag===null&&!button.classList.contains("is-relationship-drop-target"),"pinned node capture loss retained drag highlight");
  check(resizeFinishes===0,"child-owned captures completed viewport area resize");
  viewportElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:10,pointerType:"mouse"}));
  check(resizeFinishes===1&&areaClears===1,"viewport-owned resize lost its capture completion");
@@ -1243,6 +1346,156 @@ try{
 }catch(error){result.dataset.status="failed";result.textContent=error.stack;}
 `;
 }
+
+/** Exercise production fixed-target routing with real DOM hit tests and the actual host file-drag adapter. */
+function externalAndPinnedDropBrowserEntry() {
+  const callbacks = uiDefinitions("src/ui/PlexGraph.tsx", ["normalizedRole", "semanticRoleForGate", "toWorld", "isAreaControlTarget", "isEmptyAreaTarget", "areaHoverAt",
+    "relationshipDropRoles", "historyRelationshipTarget", "clearHistoryDragHover", "updateHistoryDragHover", "openHistoryRelationshipMenu",
+    "externalFileDropTarget", "dragExternalFileOver", "leaveExternalFile", "dropExternalFile", "semanticRoleForPosition", "relationshipDropArea", "up"]);
+  return `
+import {getDraggedFile} from ${JSON.stringify(join(root,"src/adapters/obsidian/fileExplorerDrag.ts"))};
+const check=(ok,message)=>{if(!ok)throw new Error(message)},result=document.querySelector("#result");
+try {
+ const origin={path:"Origin.md",file:{extension:"md"}},target={path:"Dropped.md",file:{extension:"md"}};
+ const pages=new Map([[origin.path,origin],[target.path,target]]),filePaths=new Set([origin.path,target.path]),blocked=new Map();
+ const index={get:path=>pages.get(path),gateNeighbourPaths:(page,gate)=>blocked.get(gate)||new Set()};
+ const calls=[],navigated=[],hostLeaf={id:"owning-leaf"};let shown=null;
+ const plugin={app:{dragManager:{draggable:{type:"file",file:{path:target.path}}},vault:{getFileByPath:path=>filePaths.has(path)?{path}:null}},
+  openRelationModal:options=>calls.push(options),showKplexMenuAtPosition:(menu,point,doc)=>{shown={menu,point,doc}}};
+ const translate=key=>key,clearHoverIntent=()=>{},onActivate=page=>navigated.push(page);
+ class Menu {items=[];addItem(build){const item={setTitle(value){this.title=value;return this},setIcon(){return this},onClick(value){this.run=value;return this}};build(item);this.items.push(item)}}
+ const surface=document.body.appendChild(document.createElement("div"));surface.style.cssText="position:absolute;left:0;top:0;width:900px;height:650px";
+ const viewport={current:surface},camera={current:{x:0,y:0,scale:1}},neighborhood={center:origin},historyDragHover={current:null};
+ let connectDrag=null,nodeDrag=null,externalDropZone=null;const setExternalDropZone=value=>{externalDropZone=value};const areaResizeDrag={current:null},pendingGateLongPress={current:null},touchLongPress={current:null},suppressActivateUntil={current:0};
+ const finishAreaSettingsDismiss=()=>{},setConnectDrag=value=>{connectDrag=value},setNodeDrag=value=>{nodeDrag=value},renderedNodeMap=new Map();
+ const scene={zoneAreas:{parent:{left:300,top:60,width:110,height:100,resizeEdge:"top"},child:{left:450,top:60,width:110,height:100,resizeEdge:"bottom"},left:{left:300,top:230,width:110,height:100,resizeEdge:"top"},right:{left:450,top:230,width:110,height:100,resizeEdge:"top"}}};
+ const ZONES=["parent","child","left","right","sibling"],AREA_RESIZE_EDGE_PX=10;
+ ${callbacks}
+ const center=surface.appendChild(document.createElement("div"));center.className="kplex-thought kplex-role-center";center.dataset.kplexPath=origin.path;center.style.cssText="position:absolute;left:60px;top:60px;width:100px;height:100px";
+ const other=surface.appendChild(document.createElement("div"));other.className="kplex-thought";other.dataset.kplexPath="Other.md";other.style.cssText="position:absolute;left:320px;top:100px;width:40px;height:30px";
+ const control=surface.appendChild(document.createElement("button"));control.style.cssText="position:absolute;left:460px;top:100px;width:40px;height:30px";
+ const editor=surface.appendChild(document.createElement("div"));editor.className="kplex-central-editor-overlay";editor.style.cssText="position:absolute;left:60px;top:200px;width:100px;height:100px";
+ const event=(x,y)=>({clientX:x,clientY:y,currentTarget:surface,prevented:false,stopped:false,dataTransfer:{dropEffect:"move"},preventDefault(){this.prevented=true},stopPropagation(){this.stopped=true}});
+ let e=event(90,90);dropExternalFile(e);check(e.stopped&&navigated[0]===target&&calls.length===0,"actual center did not navigate the resolved dropped file");
+ e=event(90,240);dropExternalFile(e);check(navigated.length===2,"center editor overlay did not navigate");
+ for(const [role,area] of Object.entries(scene.zoneAreas)) {
+  const x=area.left+10,y=area.top+10; e=event(x,y);dragExternalFileOver(e);check(e.dataTransfer.dropEffect==="copy"&&e.stopped&&externalDropZone===role,"eligible area did not accept/highlight drag: "+role);
+  leaveExternalFile(event(x+1,y+1));check(externalDropZone===role,"child-to-child leave blinked preview");
+  dropExternalFile(e);check(externalDropZone===null,"drop retained area preview");const call=calls.at(-1);check(call.origin===origin&&call.fixedTarget===target&&call.semanticRole===role&&call.hostLeaf===hostLeaf,"rendered semantic area role lost: "+role);
+ }
+ dragExternalFileOver(event(310,70));leaveExternalFile(event(901,70));check(externalDropZone===null,"outside leave retained preview");
+ dragExternalFileOver(event(310,70));dragExternalFileOver(event(90,90));check(externalDropZone==="center"&&relationshipDropArea()==="center","center navigation did not preview its target");
+ dragExternalFileOver(event(650,350));check(externalDropZone==="center","background navigation fallback did not preview the center");
+ externalDropZone=null;
+ e=event(330,110);dropExternalFile(e);check(calls.at(-1).origin===origin&&calls.at(-1).fixedTarget===target&&calls.at(-1).semanticRole==="parent","area node body changed center-origin drop meaning");
+ const count=calls.length,nav=navigated.length;
+ e=event(470,110);dropExternalFile(e);check(e.stopped&&calls.length===count&&navigated.length===nav,"area control triggered a drop");
+ other.style.setProperty("left","600px");other.style.setProperty("top","230px");e=event(610,240);dropExternalFile(e);check(e.stopped&&calls.length===count&&navigated.length===nav,"out-of-area unrelated node triggered a drop");
+ e=event(650,350);dropExternalFile(e);check(!e.stopped&&!e.prevented,"background navigation fallback was consumed");
+ e=event(10000,10000);dropExternalFile(e);check(!e.stopped&&!e.prevented,"outside navigation fallback was consumed");
+ blocked.set("top",new Set([target.path]));e=event(310,70);dragExternalFileOver(e);check(e.dataTransfer.dropEffect==="none"&&externalDropZone===null,"duplicate area role accepted/highlighted");dropExternalFile(e);check(calls.length===count,"duplicate area role opened composer");blocked.clear();
+ const pinned=document.body.appendChild(document.createElement("button"));pinned.dataset.kplexPinnedPath=target.path;pinned.style.cssText="position:absolute;left:20px;top:350px;width:100px;height:35px";
+ const label=pinned.appendChild(document.createElement("span"));label.textContent="Pinned note";
+ for(const role of ["parent","child","left","right"]) {updateHistoryDragHover(origin,40,365,document,role);check(pinned.classList.contains("is-relationship-drop-target"),"pinned role highlight missing");check(openHistoryRelationshipMenu(origin,40,365,document,role),"pinned fixed gate role rejected");check(calls.at(-1).semanticRole===role&&calls.at(-1).fixedTarget===target,"pinned fixed target/role lost");}
+ blocked.set("left",new Set([target.path]));updateHistoryDragHover(origin,40,365,document,"left");check(!pinned.classList.contains("is-relationship-drop-target"),"blocked pinned gate retained highlight");
+ check(openHistoryRelationshipMenu(origin,40,365,document),"pinned body chooser rejected");check(shown.doc===document&&shown.menu.items.length===3&&!shown.menu.items.some(item=>item.title==="role.friend"),"body chooser did not filter canonical duplicate role");shown.menu.items[0].run();check(calls.at(-1).fixedTarget===target,"body chooser lost fixed endpoint");
+ target.file={extension:"png"};check(relationshipDropRoles(origin,target).length===3,"Markdown origin cannot link attachment endpoint");origin.file={extension:"png"};check(relationshipDropRoles(origin,target).length===0,"two non-Markdown endpoints incorrectly writable");origin.file={extension:"md"};target.file={extension:"md"};
+ for(const flag of ["isFolder","isTag"]) {target[flag]=true;check(!historyRelationshipTarget(origin,40,365,document),"structural pinned endpoint accepted");delete target[flag];}
+ check(!historyRelationshipTarget(target,40,365,document),"pinned self endpoint accepted");
+ const rejectCount=calls.length;target.isFolder=true;connectDrag={pointerId:21,originPath:origin.path,gate:"top",moved:true};up({...event(40,365),pointerId:21,pointerType:"mouse"});
+ check(connectDrag===null&&calls.length===rejectCount,"rejected pinned gate fell through into empty composer");delete target.isFolder;
+ scene.nodes=[{page:target,role:"parent"}];nodeDrag={pointerId:22,path:target.path,startClientX:0,startClientY:0,moved:true};
+ const touchDoubleTap={current:{reset(){}}},NODE_RELINK_MIN_DRAG_PX=36,NODE_RELINK_HYSTERESIS_PX=48;up({...event(40,365),pointerId:22,pointerType:"mouse"});
+ check(nodeDrag===null&&calls.length===rejectCount,"rejected pinned body fell through into spatial relink");
+ updateHistoryDragHover(origin,40,365,document);updateHistoryDragHover(origin,800,600,document);check(!pinned.classList.contains("is-relationship-drop-target"),"leaving pinned endpoint retained highlight");
+ const frame=document.body.appendChild(document.createElement("iframe"));frame.style.cssText="position:absolute;left:650px;top:20px;width:200px;height:100px";
+ const doc=frame.contentDocument,foreign=doc.body.appendChild(doc.createElement("button"));foreign.dataset.kplexPinnedPath=target.path;foreign.textContent="Other document";
+ const rect=foreign.getBoundingClientRect();check(openHistoryRelationshipMenu(origin,rect.left+2,rect.top+2,doc),"owning document pinned hit rejected");check(shown.doc===doc,"chooser escaped owning document");updateHistoryDragHover(origin,rect.left+2,rect.top+2,doc);clearHistoryDragHover();check(!foreign.classList.contains("is-relationship-drop-target"),"owning document highlight leaked");
+ // Preview uses the production relink hysteresis and exact fixed/inverse gate semantics.
+ scene.nodes=[{page:target,role:"left"}];camera.current={x:450,y:200,scale:1};
+ nodeDrag={path:target.path,x:0,y:-100,offsetX:0,offsetY:0,startClientX:100,startClientY:300,moved:true};
+ check(relationshipDropArea()==="parent","body parent action did not preview its area");
+ nodeDrag.y=100;check(relationshipDropArea()==="child","body child action did not preview its area");
+ nodeDrag.x=-250;nodeDrag.y=0;check(relationshipDropArea()===null,"unchanged body role highlighted");
+ nodeDrag.x=0;nodeDrag.y=-100;nodeDrag.startClientX=450;nodeDrag.startClientY=100;check(relationshipDropArea()===null,"sub-threshold body drag highlighted");
+ nodeDrag=null;camera.current={x:0,y:0,scale:1};
+ plugin.inverseGateRole=role=>({parent:"child",child:"parent",left:"right",right:"left"}[role]);
+ connectDrag={originPath:origin.path,gate:"top",current:{x:700,y:300},moved:true};
+ check(relationshipDropArea()==="parent","fixed gate action changed with pointer quadrant");
+ connectDrag.current={x:470,y:110};check(relationshipDropArea()===null,"control retained gate preview");
+ connectDrag.current={x:40,y:365};check(relationshipDropArea()===null,"pinned target retained area preview");
+ connectDrag.current={x:1000,y:700};check(relationshipDropArea()===null,"outside pointer retained gate preview");
+ other.style.setProperty("left","320px");other.style.setProperty("top","100px");other.dataset.kplexPath=target.path;other.dataset.kplexGate="left";
+ connectDrag.current={x:330,y:110};check(relationshipDropArea()==="right","hovered gate inverse role missing");
+ target.isFolder=true;check(relationshipDropArea()===null,"structural endpoint highlighted");delete target.isFolder;
+ connectDrag=null;check(relationshipDropArea()===null,"cancel retained area preview");
+ pages.delete(target.path);e=event(90,90);dragExternalFileOver(e);check(externalDropZone==="center","unindexed center did not preview queued navigation");e=event(90,90);dropExternalFile(e);check(!e.stopped,"unindexed center drop lost App readiness fallback");
+ result.dataset.status="passed";result.textContent="External and pinned drop behavior passed";
+}catch(error){result.dataset.status="failed";result.textContent=String(error.stack||error)}
+`;
+}
+
+test("External file areas and pinned relationship targets use shared production routing",()=>{
+  const app=readFileSync(join(root,"src/ui/App.tsx"),"utf8");
+  assert.match(app, /className="kplex-pinned-open" data-kplex-pinned-path=\{pinned.path\}/);
+  runBrowserDom(externalAndPinnedDropBrowserEntry(),"External and pinned drop behavior passed");
+});
+
+/** Exercise the production glow and shared CSS across covered/clipped areas and both host themes. */
+function dropPreviewAndControlsBrowserEntry() {
+  return `
+import React from "react";
+import {flushSync} from "react-dom";
+import {createRoot} from "react-dom/client";
+import {DropAreaPreview} from ${JSON.stringify(join(root,"src/ui/components/DropAreaPreview.tsx"))};
+const check=(ok,message)=>{if(!ok)throw new Error(message)},result=document.querySelector("#result");
+const css=document.head.appendChild(document.createElement("style"));css.textContent=${JSON.stringify(readFileSync(join(root,"styles.css"),"utf8"))};
+try {
+ const host=document.body.appendChild(document.createElement("div"));host.className="kplex-view-host";
+ const app=host.appendChild(document.createElement("div"));app.className="kplex-app";
+ app.style.cssText="position:absolute;left:0;top:0;width:420px;height:350px";
+ app.innerHTML='<div class="kplex-find"><button id="find">F</button></div><div class="kplex-zoom-controls"><button id="zoom">Z</button></div><button id="config" class="kplex-layout-toggle">C</button><button id="filter" class="kplex-zone-filter-button">A</button><div class="kplex-sidecar-controls"><button id="sidecar">S</button></div><div class="kplex-central-editor-toolbar"><button id="editor">E</button></div>';
+ const detached=document.body.appendChild(document.createElement("button"));detached.id="unfold";detached.className="kplex-sidecar-unfold-plex";
+ const properties=["width","height","padding","color","backgroundColor","borderTopWidth","borderTopColor","borderRadius","boxShadow"];
+ for(const dark of [false,true]) {
+  document.body.className=dark?"theme-dark":"theme-light";document.body.style.setProperty("--interactive-accent","#7c5cff");document.body.style.setProperty("--text-accent","#7c5cff");
+  const expected=getComputedStyle(app.querySelector("#zoom"));
+  for(const id of ["find","config","filter","sidecar","editor","unfold"]) {
+   const button=document.querySelector("#"+id),style=getComputedStyle(button);
+   for(const property of properties)check(style[property]===expected[property],"Control style differs: "+id+"/"+property+"/dark="+dark);
+  }
+  const filter=app.querySelector("#filter");filter.classList.add("is-on");check(getComputedStyle(filter).borderTopColor==="rgb(124, 92, 255)","Active filter lost shared accent");filter.classList.remove("is-on");
+ }
+ const viewport=app.appendChild(document.createElement("div"));viewport.className="kplex-plex";
+ viewport.innerHTML='<div class="kplex-camera" style="transform:translate(0px,0px)"><div class="kplex-nodes"><div class="kplex-zone-panel" style="left:0;top:50px;width:420px;height:250px;background:black"><button id="drop-underlay" style="position:absolute;left:350px;top:30px;width:70px;height:120px">Drop target</button></div></div></div>';
+ const overflowZone=viewport.appendChild(document.createElement("div"));overflowZone.className="kplex-zone-panel";overflowZone.style.cssText="left:180px;top:230px;width:100px;height:80px";
+ overflowZone.innerHTML='<div class="kplex-zone-scroll"><div class="kplex-zone-content">Clipped rows</div></div><div class="kplex-zone-tools"><input class="kplex-zone-filter-input"><span class="kplex-zone-filter-control"><button class="kplex-zone-filter-button">F</button></span></div>';
+ const field=overflowZone.querySelector("input"),fr=field.getBoundingClientRect(),zr=overflowZone.getBoundingClientRect();
+ check(fr.left<zr.left&&fr.width===150&&getComputedStyle(overflowZone).overflow==="visible","Filter must overflow its narrow panel at its full width: "+JSON.stringify({left:fr.left,panel:zr.left,width:fr.width,overflow:getComputedStyle(overflowZone).overflow}));
+ check(getComputedStyle(overflowZone.querySelector(".kplex-zone-scroll")).overflowX==="hidden","Overflowing controls must preserve node clipping");
+ check(fr.bottom<zr.top&&overflowZone.querySelector("button").getBoundingClientRect().bottom<zr.top,"Open area controls must stay above the node clip");
+ check(Math.abs(overflowZone.querySelector("button").getBoundingClientRect().right-zr.right)<0.5,"Area filter must align with the scroll area's right edge");
+ check(document.elementFromPoint(fr.left+6,fr.top+fr.height/2)===field,"Overflowing input is clipped or cannot receive input");
+ overflowZone.remove();
+ const mount=viewport.appendChild(document.createElement("div")),react=createRoot(mount);
+ for(const left of [350,900]) {
+  flushSync(()=>react.render(<DropAreaPreview left={left} top={60} width={180} height={160} viewportWidth={420} viewportHeight={350} className="kplex-area-right is-relationship-drop-area" />));
+  const glow=viewport.querySelector(".kplex-drop-area-preview"),r=glow.getBoundingClientRect(),v=viewport.getBoundingClientRect(),s=getComputedStyle(glow);
+  check(r.left>=v.left&&r.right<=v.right&&r.top>=v.top&&r.bottom<=v.bottom&&r.width>=16,"Clipped/offscreen Challenger cue disappeared");
+  check(s.pointerEvents==="none"&&Number(s.zIndex)>16&&s.borderTopWidth==="2px"&&getComputedStyle(glow,"::before").opacity==="0.08","Glow is hidden behind panels or opaque");
+  check(document.elementFromPoint(410,120)?.id==="drop-underlay","Glow intercepted underlying drop delivery");
+ }
+ flushSync(()=>react.render(<DropAreaPreview left={160} top={100} width={100} height={50} viewportWidth={420} viewportHeight={350} className="kplex-center-drop-preview is-navigation-drop-target" />));
+ check(Number(getComputedStyle(viewport.querySelector(".kplex-center-drop-preview")).zIndex)>26,"Center preview is covered by the embedded editor");
+ flushSync(()=>react.unmount());check(!viewport.querySelector(".kplex-drop-area-preview"),"Unmount retained feedback");
+ result.dataset.status="passed";result.textContent="Drop preview and shared controls passed";
+}catch(error){result.dataset.status="failed";result.textContent=String(error.stack||error)}
+`;
+}
+
+test("Drop glow remains visible above panels and controls share theme/state styling",()=>{
+  runBrowserDom(dropPreviewAndControlsBrowserEntry(),"Drop preview and shared controls passed");
+});
 
 test("Editor shared menu and history target eligibility, leave and cancellation",()=>{
  runBrowserDom(editorHistoryBrowserEntry(),"Editor menu and history target browser behavior passed");
@@ -1294,10 +1547,13 @@ document.body.append(container);
 const root=createRoot(container);
 const check=(ok,message)=>{if(!ok)throw new Error(message)};
 ${uiDefinitions("src/ui/PlexGraph.tsx",["GENERIC_RELATION_LABELS","relationLabel"])}
-let query="", focusRequest=0, cycles=[], includePath=false, visible=true;
+let query="", focusRequest=0, cycles=[], includePath=false, visible=true, appliedFilters=[], exposeFilter=true, appliedFilterQuery=null, filterClears=0;
 const render=()=>flushSync(()=>root.render(React.createElement(PlexFind,{
   query,focusRequest,includePath,visible,pathIcon:"Paths",pathLabel:"Include paths",onIncludePathChange:value=>{includePath=value;render()},icon:"Find",closeIcon:"Close",label:"Find in Plex",placeholder:"Find in Plex…",
   closeLabel:"Close Find",matchLabel:"2 matches",
+  ...(exposeFilter ? { filterIcon:"Filter",filterLabel:"Filter matching notes",appliedFilterQuery,
+    onApplyFilter:value=>{appliedFilters.push(value);appliedFilterQuery=value;render()},
+    onClearFilter:()=>{filterClears++;appliedFilterQuery=null;render()} } : {}),
   onChange:value=>{query=value;render()},onNext:backward=>cycles.push(backward)
 })));
 try {
@@ -1306,9 +1562,38 @@ try {
   flushSync(()=>container.querySelector("button").click());
   let input=container.querySelector("input");
   check(document.activeElement===input,"magnifier must focus its independent input");
+  check(!container.querySelector("button[aria-expanded]"),"Expanded Find must remove its redundant magnifier");
+  let filter=container.querySelector('[aria-label="Filter matching notes"]');
+  check(filter?.disabled && filter.type==="button" && !filter.hasAttribute("title")&&filter.getAttribute("aria-pressed")==="false","optional filter action must be accessible, non-submitting and disabled for empty text");
+  check(filter.previousElementSibling.getAttribute("aria-label")==="Include paths","filter action must sit beside the include-path button");
+  filter.click();check(appliedFilters.length===0,"empty Find cannot apply a filter");
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"Alias Match");
   flushSync(()=>input.dispatchEvent(new Event("input",{bubbles:true})));
   check(query==="Alias Match","Find must keep its controlled query");
+  flushSync(()=>filter.click());
+  check(JSON.stringify(appliedFilters)==='["Alias Match"]' && query==="Alias Match" && !includePath,"applying a filter must retain the independent Find query/path mode");
+  check(filter.getAttribute("aria-pressed")==="true","caller-owned active filter must expose pressed state");
+  flushSync(()=>filter.click());
+  check(filterClears===1&&appliedFilterQuery===null&&filter.getAttribute("aria-pressed")==="false"&&appliedFilters.length===1,"same-query second click must clear the retained filter rather than reapply it");
+  check(query==="Alias Match"&&!includePath,"filter toggle-off must preserve Find query and path mode");
+  flushSync(()=>filter.click());
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"  Replacement  ");
+  flushSync(()=>input.dispatchEvent(new Event("input",{bubbles:true})));
+  flushSync(()=>filter.click());
+  check(appliedFilterQuery==="Replacement"&&appliedFilters.at(-1)==="Replacement"&&filterClears===1&&filter.getAttribute("aria-pressed")==="true","a changed query must replace the active term without clearing it first");
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"  ");
+  flushSync(()=>input.dispatchEvent(new Event("input",{bubbles:true})));
+  check(!filter.disabled&&filter.getAttribute("aria-pressed")==="true","blank Find must retain an available off switch for its active filter");
+  flushSync(()=>filter.click());
+  check(filterClears===2&&appliedFilterQuery===null&&filter.disabled&&query==="  ","blank-query click must clear the owned filter and preserve the Find term");
+  appliedFilterQuery="External retained term";render();
+  check(filter.getAttribute("aria-pressed")==="true","pressed state must follow current caller ownership, not stale local button state");
+  appliedFilterQuery=null;render();
+  check(filter.getAttribute("aria-pressed")==="false"&&filter.disabled,"external quick-filter edits can retire Find ownership");
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"Alias Match");
+  flushSync(()=>input.dispatchEvent(new Event("input",{bubbles:true})));
+  exposeFilter=false;render();check(!container.querySelector('[aria-label="Filter matching notes"]'),"consumers without a filter action must preserve their existing controls");
+  exposeFilter=true;render();
   check(!container.querySelector('[role="listbox"], [role="option"], .kplex-search-results'),"Find must never render a dropdown");
   check(matchesFindText(query,["unrelated","An ALIAS MATCH title"]),"case-insensitive alias match missing");
   check(!matchesFindText("  ",["anything"]),"empty query must clear highlights");

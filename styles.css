@@ -1,3 +1,12 @@
+/* Canvas, toolbar and detached Sidecar controls share one palette and interaction contract. */
+.kplex-app,
+.kplex-sidecar-unfold-plex {
+  --kplex-text: #e9f1fb;
+  --kplex-control-bg: rgba(12,17,23,.78);
+  --kplex-control-hover: rgba(255,255,255,.11);
+  --kplex-control-border: rgba(255,255,255,.09);
+}
+
 .kplex-view-host,
 .kplex-view-host > div,
 .kplex-app {
@@ -13,15 +22,13 @@
   --kplex-panel-2: rgba(25, 31, 40, 0.96);
   --kplex-line: rgba(255, 255, 255, 0.10);
   --kplex-muted: rgba(222, 231, 243, 0.56);
-  --kplex-text: #e9f1fb;
   --kplex-accent: #74b6ff;
-  --kplex-control-bg: rgba(12,17,23,.78);
   /* Host-owned values for migrated action controls. Keep the current dark Plex palette until
      the broader shell is themed; the component itself remains independent of Obsidian CSS. */
   --kplex-action-fg: var(--kplex-text);
-  --kplex-action-bg: rgba(255, 255, 255, .055);
-  --kplex-action-bg-hover: rgba(255, 255, 255, .11);
-  --kplex-action-border: rgba(255, 255, 255, .09);
+  --kplex-action-bg: var(--kplex-control-bg);
+  --kplex-action-bg-hover: var(--kplex-control-hover);
+  --kplex-action-border: var(--kplex-control-border);
   --kplex-action-focus: var(--interactive-accent);
   --kplex-action-disabled-opacity: .28;
   color: var(--kplex-text);
@@ -169,21 +176,35 @@
 .kplex-topbar button,
 .kplex-content-actions button,
 .kplex-find button,
+button.kplex-layout-toggle,
+button.kplex-zone-filter-button,
+.kplex-sidecar-controls button,
+button.kplex-sidecar-unfold-plex,
+.kplex-central-editor-toolbar button,
 .kplex-zoom-controls button {
   color: var(--kplex-text);
-  background: rgba(255,255,255,.055);
-  border: 1px solid rgba(255,255,255,.09);
+  background: var(--kplex-control-bg);
+  border: 1px solid var(--kplex-control-border);
   border-radius: 7px;
   height: 28px;
   padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
   cursor: pointer;
 }
 
 .kplex-topbar button:hover,
 .kplex-content-actions button:hover,
 .kplex-find button:hover,
-.kplex-zoom-controls button:hover { background: rgba(255,255,255,.11); }
-.kplex-topbar button.is-on { color: #dcecff; border-color: rgba(116,182,255,.48); background: rgba(67,132,205,.18); }
+button.kplex-layout-toggle:hover,
+button.kplex-zone-filter-button:hover,
+.kplex-sidecar-controls button:hover,
+button.kplex-sidecar-unfold-plex:hover,
+.kplex-central-editor-toolbar button:hover,
+.kplex-zoom-controls button:hover { background: var(--kplex-control-hover); }
+
 .kplex-topbar button:disabled { opacity: .28; cursor: default; }
 .kplex-topbar .kplex-action-button {
   color: var(--kplex-action-fg);
@@ -423,7 +444,12 @@
 
 .kplex-zoom-controls { position: absolute; z-index: 20; right: 12px; bottom: 12px; display: flex; gap: 5px; }
 .kplex-zoom-controls button,
-.kplex-find button { width: 30px; padding: 0; background: var(--kplex-control-bg); }
+button.kplex-layout-toggle,
+button.kplex-zone-filter-button,
+.kplex-sidecar-controls button,
+button.kplex-sidecar-unfold-plex,
+.kplex-central-editor-toolbar button,
+.kplex-find button { width: 30px; padding: 0; }
 
 .kplex-content-pane {
   width: var(--kplex-content-width);
@@ -752,10 +778,12 @@
 .kplex-zone-panel {
   position: absolute;
   z-index: 16;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 10px;
   background: linear-gradient(90deg, rgba(5,18,30,.025), rgba(5,18,30,.10));
 }
+/* An overflowing focused field must remain interactive above adjacent areas' node clips. */
+.kplex-zone-panel:focus-within { z-index: 17; }
 .kplex-zone-scroll {
   position: absolute;
   inset: 0;
@@ -777,8 +805,9 @@
 .kplex-zone-tools {
   position: absolute;
   z-index: 34;
-  top: 4px;
-  right: 9px;
+  /* Anchor the whole control row above the clip, including taller touch buttons and open fields. */
+  bottom: calc(100% + 6px);
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -786,29 +815,11 @@
   pointer-events: none;
 }
 .kplex-zone-tools > * { pointer-events: auto; }
-.kplex-zone-filter-button {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: rgba(222,236,251,.70);
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 6px;
-  background: rgba(10,20,30,.82);
-  box-shadow: 0 2px 8px rgba(0,0,0,.28);
-  cursor: pointer;
-}
-.kplex-zone-filter-button:hover,
-.kplex-zone-filter-button.is-on {
-  color: #eef7ff;
-  border-color: rgba(116,182,255,.46);
-  background: rgba(47,107,168,.72);
-}
 .kplex-view-host .kplex-zone-filter-input {
+  box-sizing: border-box;
   width: 150px;
-  height: 24px;
+  flex: 0 0 150px;
+  height: 28px;
   padding: 0 7px;
   font-size: 10px;
   color: var(--text-normal);
@@ -926,9 +937,6 @@
   font-weight: 600;
 }
 
-.kplex-zone-tools {
-  top: 12px;
-}
 .kplex-zone-filter-control {
   position: relative;
   display: inline-flex;
@@ -1233,6 +1241,9 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
+}
+.kplex-density-heading,
+.kplex-wrap-label-caption {
   font-size: 7px;
   line-height: 1;
   letter-spacing: .055em;
@@ -1618,7 +1629,12 @@
   .kplex-view-host .kplex-brand strong { display: none; }
   /* The index dot already has an enlarged invisible hit target; keep its visible size. */
   .kplex-view-host .kplex-topbar button:where(:not(.kplex-index-status)),
-  .kplex-view-host .kplex-icon-button:where(:not(.kplex-index-status)) {
+  .kplex-view-host .kplex-icon-button:where(:not(.kplex-index-status)),
+  .kplex-view-host .kplex-zoom-controls button,
+  .kplex-view-host button.kplex-zone-filter-button,
+  .kplex-sidecar-controls button,
+  .kplex-central-editor-toolbar button,
+  button.kplex-sidecar-unfold-plex {
     min-width: 30px;
     min-height: 30px;
   }
@@ -1857,29 +1873,13 @@
   position: absolute;
   z-index: 82;
   display: flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s);
-  background: var(--background-secondary-alt);
-  box-shadow: var(--shadow-s);
+  gap: 5px;
+  padding: 0;
 }
 .kplex-sidecar-controls.is-right { right: 4px; top: 50%; transform: translateY(-50%); flex-direction: column; }
 .kplex-sidecar-controls.is-left { left: 4px; top: 50%; transform: translateY(-50%); flex-direction: column; }
 .kplex-sidecar-controls.is-above { top: 4px; left: 50%; transform: translateX(-50%); }
 .kplex-sidecar-controls.is-below { bottom: 4px; left: 50%; transform: translateX(-50%); }
-.kplex-sidecar-controls button {
-  width: 25px;
-  height: 25px;
-  padding: 4px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-}
-.kplex-sidecar-controls button:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
-
 .kplex-top-actions.is-compact { flex-wrap: nowrap; }
 .kplex-app.is-sidecar-condensed .kplex-brand strong { display: none; }
 .kplex-section-root-port {
@@ -2071,8 +2071,8 @@
   overflow-y: auto;
 }
 
-/* Desktop-only draggable modal geometry. The host shell adds these classes only when Obsidian's
-   presentation environment reports desktop, leaving phone/tablet modal policy untouched. */
+/* Shared draggable shell geometry. Native modals opt in on desktop; floating filter panels
+   use the same owner-document mechanics across desktop, tablet and phone surfaces. */
 .kplex-draggable-dialog.is-positioned {
   position: fixed;
   left: var(--kplex-dialog-left);
@@ -2107,24 +2107,6 @@
 .kplex-sidecar-unfold-plex {
   position: absolute;
   z-index: 1000;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  padding: 0;
-  color: var(--text-muted);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--background-primary) 92%, transparent);
-  box-shadow: 0 4px 14px rgba(0,0,0,.24);
-  cursor: pointer;
-}
-.kplex-sidecar-unfold-plex:hover {
-  color: var(--text-normal);
-  border-color: var(--interactive-accent);
-  background: var(--background-modifier-hover);
 }
 .kplex-sidecar-unfold-plex.is-left { left: 5px; top: 50%; transform: translateY(-50%); }
 .kplex-sidecar-unfold-plex.is-right { right: 5px; top: 50%; transform: translateY(-50%); }
@@ -2691,9 +2673,7 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
 }
 
 /* The companion control remains on the remembered side even when the native sidecar is closed. */
-.kplex-sidecar-controls.is-closed { padding: 2px; border-color: color-mix(in srgb, var(--interactive-accent) 35%, var(--background-modifier-border)); }
-.kplex-sidecar-controls .kplex-sidecar-primary { color: var(--text-accent); }
-.kplex-sidecar-controls.is-open .kplex-sidecar-primary { color: var(--text-normal); }
+
 
 /* Searchable managers keep large style/ontology collections compact and native-looking. */
 .modal.kplex-style-manager-modal {
@@ -3200,7 +3180,7 @@ button.kplex-style-manager-row { height: fit-content; }
 .kplex-central-editor-toolbar {
   position: absolute;
   z-index: 32;
-  top: -28px;
+  top: -34px;
   right: 1px;
   display: flex;
   gap: 2px;
@@ -3209,27 +3189,6 @@ button.kplex-style-manager-row { height: fit-content; }
   border-radius: 6px;
   background: var(--kplex-panel);
   box-shadow: 0 3px 10px rgba(0, 0, 0, .28);
-}
-.kplex-central-editor-toolbar button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  border-radius: 5px;
-  color: var(--kplex-muted);
-  background: transparent;
-}
-.kplex-central-editor-toolbar button:hover,
-.kplex-central-editor-toolbar button:focus-visible {
-  color: var(--kplex-text);
-  background: rgba(255, 255, 255, .10);
-}
-.kplex-central-editor-toolbar button:focus-visible {
-  outline: 1px solid var(--kplex-accent);
-  outline-offset: -1px;
 }
 .kplex-central-editor-status {
   position: absolute;
@@ -3387,11 +3346,63 @@ button.kplex-style-manager-row { height: fit-content; }
 
 /* Local Find is retained while a maximized native editor owns the viewport. */
 .kplex-find.is-suspended { display: none; }
-.kplex-find button[aria-pressed="true"] { color: var(--text-accent); border-color: var(--interactive-accent); }
+
 /* Pointer-captured relationship drags can target the history outside the Plex canvas. */
-.kplex-history-list button.is-relationship-drop-target {
+.kplex-history-list button.is-relationship-drop-target,
+.kplex-pinned-open.is-relationship-drop-target {
   color: var(--text-normal);
   border-color: var(--interactive-accent);
   background: var(--background-secondary-alt);
   box-shadow: 0 0 0 1px var(--interactive-accent);
 }
+
+/* A paired density stack preserves the previous two-card footprint on narrow Plex surfaces. */
+.kplex-density-axes { display: grid; gap: 4px; }
+.kplex-layout-controls { flex-wrap: wrap; }
+.kplex-layout-controls { align-items: flex-end; }
+/* Toggles retain one common active state instead of changing their surface palette. */
+.kplex-topbar button.is-on,
+.kplex-find button[aria-pressed="true"],
+button.kplex-layout-toggle[aria-pressed="true"],
+button.kplex-zone-filter-button.is-on,
+.kplex-sidecar-controls button[aria-pressed="true"] { color: var(--text-accent); border-color: var(--interactive-accent); }
+
+.kplex-topbar button:focus-visible,
+.kplex-find button:focus-visible,
+button.kplex-layout-toggle:focus-visible,
+button.kplex-zone-filter-button:focus-visible,
+.kplex-sidecar-controls button:focus-visible,
+button.kplex-sidecar-unfold-plex:focus-visible,
+.kplex-central-editor-toolbar button:focus-visible,
+.kplex-zoom-controls button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+.kplex-filter-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kplex-filter-panel-header > span { font-size: var(--font-ui-medium); font-weight: var(--font-semibold); }
+.kplex-filter-panel-header > button { flex: 0 0 auto; }
+
+/* Feedback is painted outside camera/zone stacking contexts, above graph panels and below controls. */
+.kplex-drop-area-preview {
+  position: absolute;
+  z-index: 19;
+  box-sizing: border-box;
+  pointer-events: none;
+  border: 2px solid var(--interactive-accent);
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+.kplex-drop-area-preview::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--interactive-accent);
+  opacity: .08;
+  pointer-events: none;
+}
+.kplex-center-drop-preview { z-index: 27; border-radius: 18px; }
+
+/* Keep typography paired like density/columns; the shared control tile spans both rows. */
+.kplex-typography-controls { min-width: 0; max-width: 100%; display: flex; align-items: stretch; gap: 8px; }
+.kplex-wrap-label-control { width: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.kplex-wrap-label-caption { display: block; width: 100%; line-height: 1.4; text-align: center; white-space: normal; overflow-wrap: anywhere; }
+.kplex-wrap-label-control input { margin: 0; }

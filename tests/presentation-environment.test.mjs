@@ -335,10 +335,10 @@ test("phone maps explicitly to persisted mobile layout profiles and keeps every 
       "desktop:popout": { compactingFactor: 2, parentColumns: 2, childColumns: 5 },
     },
   };
-  assert.deepEqual(presentation.selectLayoutProfile(settings, "sidepanel", phone), settings.layoutProfiles["mobile:sidepanel"]);
-  assert.deepEqual(presentation.selectLayoutProfile(settings, "leaf", tablet), settings.layoutProfiles["tablet:leaf"]);
-  assert.deepEqual(presentation.selectLayoutProfile(settings, "popout", desktop), settings.layoutProfiles["desktop:popout"]);
-  assert.deepEqual(presentation.selectLayoutProfile(settings, "leaf", desktop), { compactingFactor: 9, parentColumns: 9, childColumns: 9 });
+  assert.deepEqual(presentation.selectLayoutProfile(settings, "sidepanel", phone), { ...settings.layoutProfiles["mobile:sidepanel"], horizontalCompactingFactor: 2.85 });
+  assert.deepEqual(presentation.selectLayoutProfile(settings, "leaf", tablet), { ...settings.layoutProfiles["tablet:leaf"], horizontalCompactingFactor: 2.25 });
+  assert.deepEqual(presentation.selectLayoutProfile(settings, "popout", desktop), { ...settings.layoutProfiles["desktop:popout"], horizontalCompactingFactor: 2 });
+  assert.deepEqual(presentation.selectLayoutProfile(settings, "leaf", desktop), { compactingFactor: 9, horizontalCompactingFactor: 9, parentColumns: 9, childColumns: 9 });
 });
 
 test("persisted layout keys and node-open leaf modes remain stable with canonical K-Plex command IDs", () => {

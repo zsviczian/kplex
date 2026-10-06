@@ -926,6 +926,28 @@ const germanTranslations = {
   "find.includePath": "Auch Dateipfade durchsuchen",
   "find.close": "Suche schließen",
   "find.matches": { one: "{count} Treffer", other: "{count} Treffer" },
+
+  "find.applyFilter": "Passende Notizen filtern",
+  "filter.panelTitle": "Filter und Linsen",
+  "filter.closePanel": "Filter und Linsen schließen",
+  "graph.horizontalDensity": "Horizontale Dichte",
+  "graph.verticalDensity": "Vertikale Dichte",
+  "graph.horizontalDensityShort": "Horizontal",
+  "graph.verticalDensityShort": "Vertikal",
+  "graph.horizontalDensityValue": "Horizontale Dichte {value}",
+  "graph.verticalDensityValue": "Vertikale Dichte {value}",
+  "settings.ui.horizontal.density.help": "Höhere Werte rücken Spalten näher zusammen und kürzen Beschriftungen.",
+  "settings.ui.vertical.density.help": "Höhere Werte verringern den Abstand zwischen Zeilen.",
+  "graph.parentColumns": "Übergeordnete Spalten",
+  "graph.childColumns": "Untergeordnete Spalten",
+  "graph.parentColumnsShort": "Übergeordnet",
+  "graph.childColumnsShort": "Untergeordnet",
+  "graph.configureLayout": "Plex-Layout einstellen",
+  "graph.baseFontSize": "Grundschriftgröße",
+  "graph.baseFontSizeShort": "Schriftgröße",
+  "graph.maximumNodeWidthShort": "Knotenbreite",
+  "settings.ui.base.font.size": "Grundschriftgröße",
+  "settings.ui.base.font.size.help": "Basisgröße der Beschriftung in Pixeln. Rollen und eigene Stile behalten ihre relativen Größen.",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

@@ -81,7 +81,7 @@ The toolbar search box searches the whole Vault, including orphan attachments, C
 
 Display names are configurable in **Settings → K-Plex → Visual styling → Canvas & labels → Name fields**. Enter a comma-separated precedence list such as `title, aliases, backup_names`. K-Plex uses the first non-empty text/list value and falls back to the file name. The default is `aliases`, which preserves the previous alias-rendering behavior.
 
-For longer titles, open **Settings → K-Plex → Visual styling → Node styling → Node appearance**. Increase **Maximum label length** and **Maximum node width**, and adjust **Maximum central node width** separately. Density still affects the displayed character limit. Enable **Wrap node labels** for two-line labels with consistent regular row heights; **Past nodes** also uses a taller two-line row. Long history titles keep their beginning visible and truncate on the right.
+For longer titles, open **Settings → K-Plex → Visual styling → Node styling → Node appearance**. Increase **Maximum label length** and **Maximum node width**, and adjust **Maximum central node width** separately. Horizontal density affects the displayed character limit. Enable **Wrap node labels** for two-line labels with consistent regular row heights; **Past nodes** also uses a taller two-line row. Long history titles keep their beginning visible and truncate on the right.
 
 Keyboard shortcuts while K-Plex has focus:
 
@@ -90,9 +90,9 @@ Keyboard shortcuts while K-Plex has focus:
 - **Escape** — close the result list
 - **F4** — focus Vault search
 
-Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the Plex, to **Find in Plex**. This separate field searches displayed node names and ontology labels in the current Plex and reveals matches in scrollable areas. Select its **Include paths** button to also search file paths. Matching a note does not highlight its surrounding links. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find.
+Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the Plex, to **Find in Plex**. This separate field searches displayed node names and ontology labels in the current Plex and reveals matches in scrollable areas. Select its **Include paths** button to also search file paths. Matching a note does not highlight its surrounding links. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find. Select **Filter matching notes**, beside **Include paths**, to keep nodes whose labels contain the Find text and reflow the layout around the center. The center remains visible. Select the button again to turn it off and restore the previous Quick Filter and layout. Changing the Find text and selecting the button replaces the temporary filter. Manual edits in **Filters and lenses** take ownership of that filter.
 
-K-Plex also keeps a **Past nodes** history for back/forward navigation. Drag a relationship gate onto a history entry to connect using that gate’s relationship type; the entry lights up while you hover. Dragging a node’s body onto history offers a choice of relationship type. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
+K-Plex also keeps a **Past nodes** history for back/forward navigation. Drag a relationship gate onto a history entry or pinned note to connect using that gate’s relationship type; the entry lights up while you hover. Dragging a node’s body onto history or a pinned note offers a choice of relationship type. Pins are separate from history and are useful for keeping a small number of important nodes available as stable shortcuts.
 
 Select **Editor node** to expand a file or URL inside the central node. Images fit both dimensions without cropping. The editor’s **Open menu** button provides the same opening destinations as the node context menu. Maximizing the editor temporarily hides Find and preserves its query. Webpages use a desktop webview with browser authentication, or an iframe on Obsidian mobile. YouTube and Vimeo links use embedded players; YouTube Shorts use a portrait frame. Expanding a URL loads that website, which receives normal browser requests and may store its own cookies.
 
@@ -115,6 +115,8 @@ The relationship dialog provides:
 Newly created notes and their relationships appear in the Plex immediately instead of waiting for Obsidian's background indexing cycle. Placeholder nodes are stored as name-only unresolved links until they are materialized. If **Open for editing** is enabled, the new note becomes the center and opens in the companion Sidecar in Obsidian's normal Markdown editor, ready for writing.
 
 When folder nodes are visible, drag outward from a folder's **Child gate** to create a new Markdown note (or Excalidraw drawing when available) directly in that folder. The folder location itself supplies the file-tree relationship, so K-Plex does not create a separate note-to-note link. Ctrl/Cmd+Enter uses the same remembered Markdown/Excalidraw default as the normal create-child workflow, and folder creation never offers a placeholder because an unresolved placeholder has no physical folder yet. Dropping a regular note gate onto a folder remains available as a secondary file-only shortcut.
+
+Drag a file from Obsidian onto the central node to navigate to it. Drop it into a Parent, Friend, Challenger or Child area to open the linking dialog with that relationship type. The area for a valid relationship drop lights up while you drag.
 
 You can also drag an existing related node to another relationship area to reclassify it. K-Plex updates the graph immediately while the underlying note change is written. When K-Plex needs to create a new YAML/document property for a relationship, it adds that property at the bottom of the property list.
 
@@ -141,7 +143,7 @@ K-Plex offers two levels of filtering.
 
 ### Quick Filter
 
-Use the funnel button for fast, temporary filtering by:
+Use the funnel button for fast, temporary filtering. Drag the **Filters and lenses** heading to move the panel; closing and reopening it returns it beside the funnel. Filter by:
 
 - keyword;
 - tag;
@@ -249,12 +251,14 @@ You can configure:
 - parent and child column counts;
 - separate height limits for the main relationship regions;
 - maximum nodes per zone;
-- density/compactness;
+- horizontal and vertical density independently;
 - straight or curved connectors;
 - arrowheads and relationship labels;
 - animation speed;
 - visibility of attachments, folders, tags, URLs, unresolved links, inferred relationships and other node types;
 - Note type styling.
+
+Select **Configure Plex layout** in the bottom-left to show or hide the layout controls. They start hidden. The controls show **Horizontal** and **Vertical** density, plus exact **Parents** and **Children** column counts. **Font size** scales node labels while preserving role and custom-style proportions. **Node width** sets the maximum regular-node width, and **Wrap node labels** enables two-line labels. These typography controls share the global settings under **Visual styling → Node styling → Node appearance**. Higher density packs that axis more closely; horizontal density also shortens labels. Parent rows allow up to three columns and child rows up to seven. Friends, challengers, and siblings follow the parent area’s width: horizontal density 3 brings adjacent areas together, while 4 permits a small overlap of their margins. Changing child columns does not move these side areas horizontally. Expanded descendants follow narrower child-column settings, with a maximum of three columns and two visible rows. **Compact view** tightens spacing without changing node padding, and **Minimum link length** adjusts the spacing target in **Settings → K-Plex → Plex behavior**.
 
 Desktop, tablet, mobile, sidepanel and pop-out views can keep different density/column profiles, so a compact mobile layout does not have to change your desktop arrangement.
 

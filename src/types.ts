@@ -119,7 +119,7 @@ export type Neighborhood = {
 export type GateStat = {
   /** Available connections after visibility/inferred filters, before a local Plex filter/lens. */
   visibleCount: number;
-  /** False when available incidence is partial and counts are lower bounds; omitted means complete. */
+  /** False for uncertified lower-bound counts; omitted/true means exact counts, not complete incidence or editing authority. */
   complete?: boolean;
   /** Connections surviving the currently active Quick Filter / Graph Lenses. Undefined when no global filter is active. */
   shownCount?: number;

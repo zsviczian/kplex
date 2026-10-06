@@ -125,6 +125,9 @@ export const englishCatalog = {
   "find.ariaLabel": { message: "Find in this Plex", context: "Accessible name for local Find and its touch magnifier.", params: [] },
   "find.placeholder": { message: "Find in this Plex…", context: "Find highlights projected nodes and links without a dropdown.", params: [] },
   "find.includePath": { message: "Include file paths", context: "View-local toggle extending displayed-node Find to file paths; does not change Vault search.", params: [] },
+  "find.applyFilter": { message: "Filter matching notes", context: "Apply the local Find term as the existing label-contains quick filter with reflow, retaining the center.", params: [] },
+  "filter.panelTitle": { message: "Filters and lenses", context: "Draggable filter-panel heading.", params: [] },
+  "filter.closePanel": { message: "Close filters and lenses", context: "Accessible name for closing the draggable filter panel.", params: [] },
   "find.close": { message: "Close Find", context: "Dismiss local Find and clear its highlights.", params: [] },
   "find.matches": { plural: { one: "{count} match", other: "{count} matches" }, countParam: "count", context: "Number of matching projected Plex nodes.", params: ["count"] },
   "toolbar.navigateBack": {
@@ -2599,6 +2602,14 @@ export const englishCatalog = {
     context: "Plex graph controls, menus, relationship evidence, and accessibility copy.",
     params: [],
   },
+  "graph.horizontalDensity": { message: "Horizontal density", context: "Independent density controls sharing the current surface layout profile.", params: [] },
+  "graph.verticalDensity": { message: "Vertical density", context: "Independent density controls sharing the current surface layout profile.", params: [] },
+  "graph.horizontalDensityShort": { message: "Horizontal", context: "Independent density controls sharing the current surface layout profile.", params: [] },
+  "graph.verticalDensityShort": { message: "Vertical", context: "Independent density controls sharing the current surface layout profile.", params: [] },
+  "graph.horizontalDensityValue": { message: "Horizontal density {value}", context: "Independent density controls sharing the current surface layout profile.", params: ["value"] },
+  "graph.verticalDensityValue": { message: "Vertical density {value}", context: "Independent density controls sharing the current surface layout profile.", params: ["value"] },
+  "settings.ui.horizontal.density.help": { message: "Higher values pack columns more closely and shorten labels.", context: "Independent density controls sharing the current surface layout profile.", params: [] },
+  "settings.ui.vertical.density.help": { message: "Higher values reduce spacing between rows.", context: "Independent density controls sharing the current surface layout profile.", params: [] },
   "graph.density": {
     message: "Density",
     context: "Plex graph controls, menus, relationship evidence, and accessibility copy.",
@@ -2609,6 +2620,15 @@ export const englishCatalog = {
     context: "Plex graph controls, menus, relationship evidence, and accessibility copy.",
     params: [],
   },
+  "graph.parentColumns": { message: "Parent columns", context: "Exact parent-column count in the current layout profile.", params: [] },
+  "graph.baseFontSize": { message: "Base font size", context: "Plex typography slider accessible name.", params: [] },
+  "graph.baseFontSizeShort": { message: "Font size", context: "Compact Plex typography caption.", params: [] },
+  "graph.maximumNodeWidthShort": { message: "Node width", context: "Compact regular-node maximum width caption.", params: [] },
+  "settings.ui.base.font.size": { message: "Base font size", context: "Node appearance setting title.", params: [] },
+  "settings.ui.base.font.size.help": { message: "Base label size in pixels. Role and custom styles keep their relative sizes.", context: "Node typography setting help.", params: [] },
+  "graph.childColumns": { message: "Child columns", context: "Exact child-column count in the current layout profile.", params: [] },
+  "graph.parentColumnsShort": { message: "Parents", context: "Compact parent-column rail caption.", params: [] },
+  "graph.childColumnsShort": { message: "Children", context: "Compact child-column rail caption.", params: [] },
   "graph.columns": {
     message: "Columns",
     context: "Plex graph controls, menus, relationship evidence, and accessibility copy.",
@@ -4354,6 +4374,7 @@ export const englishCatalog = {
   "vaultStats.otherAttachments": { message: 'Other attachments', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
   "vaultStats.ontology": { message: 'Ontology keywords', context: "K-Plex node, vault summary, and open-target UI copy.", params: [] },
   "vaultStats.ontologyValue": { message: '{total} total · {used} used', context: "K-Plex node, vault summary, and open-target UI copy.", params: ["total", "used"] },
+  "graph.configureLayout": { message: "Configure Plex layout", context: "Bottom-left toggle that mounts or unmounts the four density/column sliders.", params: [] },
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;
