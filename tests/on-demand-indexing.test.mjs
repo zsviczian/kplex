@@ -574,7 +574,7 @@ test('URL cache writer rechecks owner fence after delayed open and cannot resurr
 
 test('canonical URL identity survives independent progressive discovery in Eager and On demand', async()=>scenario(`(async()=>{
   for(const mode of ['eager','on-demand']){
-    const o=await onDemandFixture('v2-url-public-identity-'+mode,{indexingMode:mode});const{f,index}=o;let unblock;
+    const o=await onDemandFixture('v2-url-public-identity-'+mode,{indexingMode:mode});const{f,index}=o;let unblock,release;
     try{
       const a=f.add('A.md','[Original](https://Obsidian.md/slug)');f.add('B.md','https://obsidian.md/slug');f.add('C.md','https://obsidian.md/slug');
       await index.initializeOnDemandBaseline();await index.patchMarkdownPaths(['A.md'],{useDurableCache:true});
@@ -583,6 +583,9 @@ test('canonical URL identity survives independent progressive discovery in Eager
       let entered;const held=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r),read=f.app.vault.cachedRead;
       f.app.vault.cachedRead=async file=>{if(file.path==='B.md'){entered();await hold;}return read(file);};
       const scan=index.startBackgroundUrlIndex();await held;await index.urlOwnerTasks.get('C.md');await index.urlPublicationLane;
+      // Background discovery is now displayed in stable batches. Explicit navigation exposes
+      // the freshest available batch while retaining the original canonical identity assertions.
+      release=index.acquireSemanticDemand(path);
       ok(index.get(path)===canonical,'Discovery never replaces public identity');
       ok(index.semanticRelationSource(index.get(path)).page.neighbours.has('C.md'),'Public semantic URL incidence updates progressively');
       ok(index.getNeighborhood(path).parents.some(x=>x.page.path==='C.md'),'Semantic projection also progresses');
@@ -594,7 +597,7 @@ test('canonical URL identity survives independent progressive discovery in Eager
       f.texts.set('A.md','');a.stat.mtime++;await index.refreshUrlOwner('A.md');
       ok(!index.semanticRelationSource(index.get(path)).page.neighbours.has('A.md'),'URL semantic incidence drops a stale owner');
       ok(!index.getNeighborhood('A.md').children.some(x=>x.page.path===path),'Note projection drops stale cached incidence');
-    }finally{unblock?.();o.close();}
+    }finally{unblock?.();release?.();o.close();}
   }
   return true;
 })()`));
@@ -724,4 +727,341 @@ test('partial Eager hands over to genuine ready source scopes and retires late l
     equal(f.reads.length,reads,'Ready neighbor gate query performs no native body reads');
     ok(!index.hasPendingSemanticPreparation(),'No stale local pending owner remains');return true;
   }finally{unblock?.();release?.();o.close();}
+})()`));
+
+
+test('displayed URL projection batches 300 owners and survives unrelated renders until controlled flush', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-url-300',{maxItemCount:300});const{f,index}=o;let release,unblockFirst,unblockLast;
+  const timeout=window.setTimeout,clear=window.clearTimeout;let flush=null,flushId=987654;
+  window.setTimeout=(callback,delay,...args)=>delay===5000?(flush=()=>callback(...args),flushId):timeout(callback,delay,...args);
+  window.clearTimeout=id=>id===flushId?(flush=null):clear(id);
+  try{
+    for(let n=0;n<300;n++)f.add('Owner'+n+'.md','https://stable.example');
+    await index.initializeOnDemandBaseline();let first,last;
+    const firstReached=new Promise(r=>first=r),firstHeld=new Promise(r=>unblockFirst=r);
+    const lastReached=new Promise(r=>last=r),lastHeld=new Promise(r=>unblockLast=r);
+    const publish=index.publishUrlOwner.bind(index);let processed=0;
+    index.publishUrlOwner=async(...args)=>{await publish(...args);processed++;if(processed===1){first();await firstHeld;}if(processed===299){last();await lastHeld;}};
+    release=index.acquireSemanticDemand('https://stable.example');await firstReached;
+    equal(index.getNeighborhood('https://stable.example').parents.length,1,'First useful requested URL result publishes promptly');
+    unblockFirst();await lastReached;
+    equal(index.urlState.pages.get('https://stable.example').neighbours.size,299,'Working acquisition progresses internally');
+    index.notifyPresentation();index.relationViewCache=new WeakMap();
+    equal(index.getNeighborhood('https://stable.example').parents.length,1,'Unrelated render and cache miss cannot leak intermediate URL owners');
+    ok(flush,'A five-second maximum window is scheduled');flush();
+    equal(index.getNeighborhood('https://stable.example').parents.length,299,'Controlled window exposes one coherent batch');
+    unblockLast();ok(await index.urlBackgroundTask,'Discovery completes');
+    equal(index.gateStats(index.get('https://stable.example')).top.visibleCount,300,'Completion flushes the final owner immediately');
+    equal(index.evidenceBetween('Owner299.md','https://stable.example').length,1,'Final provenance retained');
+    ok(index.getUrlPublicationDiagnostics().flushes<=4,'Hundreds of owners produce only bounded visible flushes');
+    equal(index.getUrlPublicationDiagnostics().pendingPaths,0,'Final batch drained');return true;
+  }finally{window.setTimeout=timeout;window.clearTimeout=clear;unblockFirst?.();unblockLast?.();release?.();o.close();}
+})()`));
+
+test('Eager retains coherent local incidence while durable handover publication is held', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-eager-handover',{indexingMode:'eager'});const{f,index}=o;let release,unblock;
+  try{
+    delete index.sourceAcquisition.enableInventory;index.plugin.startupDiagnostics.processed=()=>{};
+    f.add('A.md','Child:: [[B]]');f.add('B.md','');f.app.metadataCache.resolvedLinks={'A.md':{'B.md':1}};
+    await index.initializeOnDemandBaseline();release=index.acquireSemanticDemand('A.md');await settleDemand(index);
+    equal(index.getNeighborhood('A.md').children.map(x=>x.page.path),['B.md'],'Coherent local graph already visible');
+    let entered;const reached=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r),prepare=index.prepareSemanticScope.bind(index);
+    index.prepareSemanticScope=async(...args)=>{entered();await hold;return prepare(...args);};
+    await f.acquire();const reconcile=index.sourceAcquisition.reconcile();await reached;
+    ok(index.sourceAcquisition.hasSemanticDependencies(),'Real durable source authority closes before its paused P4 tail');
+    const catalog=await new sourceModules.GraphBuilder(index.plugin,f.app,index.fieldCache,index.metadataParser,index.indexedDb,()=>true,new Map(),index.sourceAcquisition).buildSourceNodeCatalog();
+    ok(catalog,'Real source-backed node vocabulary prepared');index.publishRestoredState(catalog,null,false,false);
+    ok(!index.usesLocalForeground(),'Acquisition strategy transfers to durable owner');
+    for(let n=0;n<3;n++){index.notifyPresentation();equal(index.getNeighborhood('A.md').children.map(x=>x.page.path),['B.md'],'Held replacement cannot erase the coherent local predecessor');}
+    ok(index.getLocalHandoverDiagnostics().retainedScopes>0,'Read-only predecessor retained while preparing');
+    f.metadata.set('A.md',{...f.metadata.get('A.md')});index.refreshVisibleHostMetadataPreviews('A.md');
+    equal(index.getNeighborhood('A.md').children.map(x=>x.page.path),['B.md'],'Identity-only resolve wave retains physically-current predecessor');
+    unblock();await index.ensureSemanticScope('A.md');await reconcile;
+    equal(index.getNeighborhood('A.md').children.map(x=>x.page.path),['B.md'],'Certified replacement switches atomically without navigation');
+    equal(index.getLocalHandoverDiagnostics().retainedScopes,0,'Successful center switch retires its fallback');return true;
+  }finally{unblock?.();release?.();o.close();}
+})()`));
+
+
+test('URL foreground replacement flushes pending growth and unload cancels its timer', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-url-foreground');const{f,index}=o;let callback=null;
+  const timeout=window.setTimeout,clear=window.clearTimeout;let cleared=0,events=0;
+  window.setTimeout=(work,delay,...args)=>delay===5000?(callback=()=>work(...args),987655):timeout(work,delay,...args);
+  window.clearTimeout=id=>id===987655?(cleared++):clear(id);
+  try{
+    const a=f.add('A.md','https://old.example'),b=f.add('B.md','https://batch.example');
+    const body=sourceModules.parseBodyMetadata;
+    await index.publishUrlOwner(a,body(f.texts.get(a.path)),0,undefined,true);
+    ok(index.getUrlPublicationDiagnostics().timerPending,'Background batch timer admitted');
+    await index.refreshUrlOwner('B.md',false);
+    equal(index.getNeighborhood('https://batch.example').parents.map(x=>x.page.path),['B.md'],'Explicit current-source update flushes immediately');
+    equal(index.getUrlPublicationDiagnostics().pendingPaths,0,'Foreground drains accumulated background growth');
+    f.texts.set('A.md','https://new.example');a.stat.mtime++;await index.refreshUrlOwner('A.md');
+    ok(!index.get('https://old.example'),'Foreground removal retires unsupported old URL immediately');
+    equal(index.getNeighborhood('https://new.example').parents.map(x=>x.page.path),['A.md'],'Foreground new URL visible without window wait');
+    const c=f.add('C.md','https://late.example');await index.publishUrlOwner(c,body(f.texts.get(c.path)),0,undefined,true);
+    ok(index.getUrlPublicationDiagnostics().timerPending,'Another background window pending');
+    index.subscribePresentation(()=>events++);index.destroy();const before=events;callback?.();
+    equal(events,before,'Retired timer cannot publish after unload');ok(cleared>=2,'Flush and unload explicitly cancel timers');
+    equal(index.getUrlPublicationDiagnostics().pendingPaths,0,'Unload releases touched owner/page sets');return true;
+  }finally{window.setTimeout=timeout;window.clearTimeout=clear;o.close();}
+})()`));
+
+test('failed durable handover retains local read proof but a newer edit retires it immediately', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-eager-failure',{indexingMode:'eager'});const{f,index}=o;let release;
+  try{
+    delete index.sourceAcquisition.enableInventory;index.plugin.startupDiagnostics.processed=()=>{};
+    const a=f.add('A.md','Child:: [[B]]');f.add('B.md','');f.app.metadataCache.resolvedLinks={'A.md':{'B.md':1}};
+    await index.initializeOnDemandBaseline();release=index.acquireSemanticDemand('A.md');await settleDemand(index);
+    const prepare=index.sourceAcquisition.prepareRequestedNeighborhood.bind(index.sourceAcquisition);
+    index.sourceAcquisition.prepareRequestedNeighborhood=async()=>({outcome:'pending',reason:'dependency-pending'});
+    await f.acquire();ok(await index.sourceAcquisition.reconcile(),'Genuine source authority ready');
+    index.retryDemandedSemanticScopes();await index.ensureSemanticScope('A.md');
+    equal(index.getNeighborhood('A.md').children.map(x=>x.page.path),['B.md'],'Missing replacement proof retains coherent read-only incidence');
+    ok(index.getLocalHandoverDiagnostics().failures>0,'Unsuccessful handover recorded without forgetting fallback');
+    index.sourceAcquisition.prepareRequestedNeighborhood=prepare;
+    f.texts.set('A.md','');a.stat.mtime++;a.stat.size=0;f.app.metadataCache.resolvedLinks={'A.md':{}};o.bump();
+    equal((await index.patchMarkdownPaths(['A.md'])).outcome,'patched','Current physical edit commits through normal source publisher');
+    ok(!index.getNeighborhood('A.md').children.some(x=>x.page.path==='B.md'),'Newer source removal is not masked by retained predecessor');
+    equal(index.getLocalHandoverDiagnostics().retainedScopes,0,'Edited predecessor certificate retired');return true;
+  }finally{release?.();o.close();}
+})()`));
+
+
+test('foreground URL repair owns P2 after P1 release while held P3 keeps P4 paused', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-url-priorities');const{f,index}=o;let unblock,releaseP1,releaseP4;
+  try{
+    const a=f.add('A.md','https://old.example');f.add('B.md','https://inventory.example');await index.initializeOnDemandBaseline();
+    let entered;const reached=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r),read=f.app.vault.cachedRead;
+    f.app.vault.cachedRead=async file=>{if(file.path==='B.md'){entered();await hold;}return read(file);};
+    const inventory=index.startBackgroundUrlIndex();await reached;await index.urlOwnerTasks.get('A.md');
+    releaseP4=index.workScheduler.begin(4);let broad=false;const broadCheckpoint=index.workScheduler.checkpoint(4).then(()=>broad=true);
+    releaseP1=index.workScheduler.begin(1);f.texts.set('A.md','https://current.example');a.stat.mtime++;let completed=false;
+    let stagedPriority=null;const stage=index.prepareUrlAliasOwners.bind(index);
+    index.prepareUrlAliasOwners=async(...args)=>{if(args[0]==='A.md'){stagedPriority=args[3];equal(index.getWorkPriorityDiagnostics().active[2],1,'Foreground stage owns P2 only after joining predecessor');}return stage(...args);};
+    const edit=index.refreshUrlOwner('A.md').then(()=>completed=true);await new Promise(r=>setTimeout(r,0));
+    ok(!completed,'Current-node P1 legitimately pauses visible-source P2');ok(!broad,'P3 inventory keeps full P4 paused');
+    releaseP1();releaseP1=null;await edit;equal(stagedPriority,2,'Current owner compilation uses P2');
+    equal(index.getNeighborhood('https://current.example').parents.map(x=>x.page.path),['A.md'],'Foreground current incidence flushed without batch delay');
+    ok(!broad,'P4 remains paused while independent P3 native read is held');unblock();await inventory;await broadCheckpoint;
+    ok(broad,'P4 resumes after P3 completion');return true;
+  }finally{unblock?.();releaseP1?.();releaseP4?.();o.close();}
+})()`));
+
+
+test('an admitted stale URL read cancels before parsing and retries the current owner at P2', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-url-cancelled-inventory');const{f,index}=o;let unblock;
+  try{
+    const a=f.add('A.md','https://old.example');await index.initializeOnDemandBaseline();
+    let entered;const reached=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r),read=f.app.vault.cachedRead;
+    let first=true;f.app.vault.cachedRead=async file=>{const text=await read(file);if(first){first=false;entered();await hold;}return text;};
+    const inventory=index.startBackgroundUrlIndex();await reached;
+    f.texts.set('A.md','https://current.example');a.stat.mtime++;a.stat.size=f.texts.get('A.md').length;
+    const edit=index.refreshUrlOwner('A.md');unblock();await edit;await inventory;
+    while(index.urlOwnerTasks.size)await Promise.all([...index.urlOwnerTasks.values()]);
+    ok(!o.parses.includes('https://old.example'),'Retired native read never enters parser or compiler');
+    equal(index.getNeighborhood('https://current.example').parents.map(x=>x.page.path),['A.md'],'Current replacement publishes urgently');
+    ok(!index.get('https://old.example'),'Cancelled owner cannot leak an obsolete URL');
+    equal(index.getUrlIndexProgress().complete,true,'Retry closes actual current owner coverage');
+    equal(index.foregroundUrlOwners.size,0,'Settled owner releases foreground admission');return true;
+  }finally{unblock?.();o.close();}
+})()`));
+
+
+test('partial source-backed Eager certifies only native folder top and bottom count proofs', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-eager-structural-counts',{indexingMode:'eager',showFolderNodes:true});const{f}=o;
+  let index=o.index,release,unblock;
+  try{
+    const root=f.app.vault.getRoot(),parent=new ContributorFolder(),nested=new ContributorFolder();
+    parent.path='Parent';parent.name='Parent';parent.parent=root;nested.path='Parent/Nested';nested.name='Nested';nested.parent=parent;
+    const a=f.add('Parent/A.md',''),b=f.add('Parent/Nested/B.md',''),c=f.add('Parent/Nested/C.md','');a.parent=parent;b.parent=nested;c.parent=nested;
+    nested.children=[b,c];parent.children=[a,nested];root.children=[parent];
+    const folders=new Map([['Parent',parent],['Parent/Nested',nested]]);
+    f.app.vault.getRoot=()=>root;f.app.vault.getFolderByPath=path=>path==='/'||path===''?root:folders.get(path)??null;
+    f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??folders.get(path)??(path==='/'||path===''?root:null);
+    await f.acquire();ok(await f.acquisition.reconcile(),'Real durable neutral inventory prepared');
+    delete index.sourceAcquisition.enableInventory;o.index.plugin.startupDiagnostics.processed=()=>{};
+    ok(await index.rebuild(),'Real complete old-policy graph prepared');
+    index.cancelPendingPersistence();ok(await index.persistIndexedDbSnapshot(index.snapshotPersistGeneration),'Real optional graph persisted');
+    const settings={...o.settings,hierarchy:{...o.settings.hierarchy,rightFriends:['NewPolicy']},lastActivePath:'folder:Parent'};
+    index.destroy();index=new sourceModules.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0,startupDiagnostics:{mark:()=>{},count:()=>{},phase:()=>{},processed:()=>{}}},f.app);
+    index.scheduleOrphanCleanup=()=>{};
+    const hold=new Promise(r=>unblock=r);let entered;const reached=new Promise(r=>entered=r),checkpoint=index.sourceAcquisition.backgroundCheckpoint;
+    index.sourceAcquisition.backgroundCheckpoint=async()=>{entered();await hold;await checkpoint?.();};
+    release=index.acquireSemanticDemand('folder:Parent');
+    const restore=await index.restorePersistedSnapshot(['folder:Parent']);ok(restore.restored,'Changed-policy native baseline restored');
+    await reached;await settleDemand(index);
+    ok(index.sourceBackedSemantics,'Actual restored old-policy cache retains source-backed strategy');
+    ok(index.usesLocalForeground()&&!index.sourceAcquisition.hasSemanticDependencies(),'Local Eager remains usable during actual held inventory');
+    const page=index.get('folder:Parent/Nested'),reads=f.reads.length;
+    index.gateStats(page);while(index.onDemandGateTasks.size)await Promise.all([...index.onDemandGateTasks.values()]);
+    const gates=index.gateStats(page);equal(gates.top.visibleCount,1,'Exact native parent total');equal(gates.bottom.visibleCount,2,'Exact native child total');
+    equal(gates.top.complete,true,'Current native parent proof is numerical');equal(gates.bottom.complete,true,'Current native child proof is numerical');
+    equal(gates.left.complete,false,'Count-only membership never certifies semantic friend totals');equal(gates.right.complete,false,'Count-only membership never certifies semantic challenger totals');
+    equal(f.reads.length,reads,'Count-only preparation never acquires Markdown bodies');
+    ok(!index.isSemanticWriteReady(page.path,b.path),'Native structural count cover cannot authorize linking');
+    settings.showPageNodes=false;index.gateStats(page);
+    while(index.onDemandGateTasks.size)await Promise.all([...index.onDemandGateTasks.values()]);
+    const hidden=index.gateStats(page);equal(hidden.bottom.visibleCount,0,'Visibility change retires the former child-count certificate');
+    equal(hidden.bottom.complete,true,'Replacement native cover certifies the new visibility policy');
+    equal(hidden.left.complete,false,'Visibility refresh still cannot certify semantic totals');
+    equal(f.reads.length,reads,'Visibility-specific structural repair remains body-free');
+    return true;
+  }finally{unblock?.();release?.();index.destroy();f.close();}
+})()`));
+
+
+for (const progressive of [false, true]) for(const lateEvent of [false,true]) test('complete Eager publication outranks an earlier sparse host preview ('+ (progressive ? 'progressive' : 'atomic') + (lateEvent ? ', late host event' : '') +')', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-full-preview-'+${JSON.stringify(progressive)}+'-'+${JSON.stringify(lateEvent)},{indexingMode:'eager'});const{f,index}=o;let restoreBuild;
+  try{
+    delete index.sourceAcquisition.enableInventory;
+    f.add('A.md','Child:: [[C]]',{Child:'[[B]]'});f.add('B.md','');f.add('C.md','');
+    o.bump();await index.publishHostMetadataPreview('A.md');
+    ok(index.hostPreviewScopes.has('A.md'),'A real sparse host preview is published before full work');
+    ok(index.hostPreviewSettings.has(index.get('A.md')),'Reader initially selects the preview');
+    if(${JSON.stringify(lateEvent)}){
+      const method=${JSON.stringify(progressive)}?'patchMarkdownFiles':'build',proto=sourceModules.GraphBuilder.prototype;
+      const build=proto[method];let changed=false;
+      /** Deliver one host observation after source preparation but before presentation capture. */
+      proto[method]=async function(...args){const result=await build.apply(this,args);if(!changed){changed=true;o.bump();}return result;};
+      /** Restore the production builder even when a lifetime assertion fails. */
+      restoreBuild=()=>{proto[method]=build;};
+    }
+    const built=${JSON.stringify(progressive)} ? await index.rebuildProgressively(['A.md']) : await index.rebuild();
+    ok(built,'Real complete graph publishes');
+    equal(index.hasCurrentCanonicalCenter('A.md'),!${JSON.stringify(lateEvent)},'Build certifies only its captured source epoch');
+    if(${JSON.stringify(lateEvent)})ok(index.hostPreviewSettings.has(index.get('A.md')),'Newer host observation is not prematurely replaced');
+    let acknowledged=false;const stop=index.subscribePresentation(()=>{acknowledged=index.get('A.md')===index.state.pages.get('A.md');});
+    index.acknowledgeHostPresentation();stop();
+    if(${JSON.stringify(lateEvent)})ok(acknowledged,'Drained current host observation publishes the reader switch');
+    ok(index.hasCurrentCanonicalCenter('A.md'),'Complete source/settings observation is current');
+    ok(index.get('A.md')===index.state.pages.get('A.md'),'Current complete page outranks the old sparse preview');
+    equal(index.getNeighborhood('A.md').children.map(x=>x.page.path).sort(),['B.md','C.md'],'Body-only relation survives without navigation workaround');
+    for(const gate of Object.values(index.gateStats(index.get('A.md'))))ok(gate.complete!==false,'Full-ready gates are numerical');
+    const reads=f.reads.length;await index.publishHostMetadataPreview('A.md');
+    ok(index.get('A.md')===index.state.pages.get('A.md'),'Later preview request cannot downgrade complete page');
+    equal(f.reads.length,reads,'Navigation selection acquires no note body');return true;
+  }finally{restoreBuild?.();o.close();}
+})()`));
+
+
+test('progressive full coverage retires partial relation views on retained page identities', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-progressive-count-coverage',{indexingMode:'eager'});const{f,index}=o;let stop;
+  try{
+    delete index.sourceAcquisition.enableInventory;f.add('A.md','Child:: [[B]]');f.add('B.md','');
+    await index.initializeOnDemandBaseline(['A.md']);let partial=0;
+    stop=index.subscribe(()=>{const page=index.get('A.md');if(page&&index.gateStats(page).bottom.complete===false)partial++;});
+    ok(await index.rebuildProgressively(['A.md']),'Real progressive compiler completes');stop();stop=null;
+    ok(partial>0,'Partial coverage was actually cached before completion');
+    ok(index.gateStats(index.get('A.md')).bottom.complete!==false,'Final coverage invalidates cached partial proof');
+    equal(index.gateStats(index.get('A.md')).bottom.visibleCount,1,'Exact final child count');return true;
+  }finally{stop?.();o.close();}
+})()`));
+
+
+for (const missNumber of [1,2]) test('background body miss '+missNumber+' reuses queued foreground input at native admission', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('stable-body-miss-preemption-'+${missNumber},{indexingMode:'eager'});const{f,index}=o;let unblockMiss,unblockForeground,unblockWrites,background,foreground;
+  try{
+    const a=f.add('A.md','');f.add('B.md','');await f.acquire();f.acquisition.close();
+    a.stat.mtime++;f.texts.set('A.md','Child:: [[B]]');await index.initializeOnDemandBaseline(['A.md']);
+    const source=index.sourceAcquisition,cache=index.indexedDb,read=cache.getBodies.bind(cache);let first=true,missReached,misses=0;
+    const put=cache.putBodies.bind(cache),writesHold=new Promise(r=>unblockWrites=r);
+    /** Keep the actual foreground write-behind optional while native source acquisition can finish. */
+    cache.putBodies=async records=>{await writesHold;return put(records);};
+    const missed=new Promise(r=>missReached=r),missHold=new Promise(r=>unblockMiss=r);
+    /** Hold the final already-resolved P4 cache miss without changing its selected value. */
+    cache.getBodies=async(...args)=>{const value=await read(...args);if(first&&args[0].some(r=>r.path===a.path&&r.mtime===a.stat.mtime)&&++misses===${missNumber}){first=false;ok(!value.has(a.path),'Actual old parsed body misses');missReached();await missHold;}return value;};
+    background=index.workScheduler.run(4,()=>source.loadBody(a,()=>true,false,true));await missed;
+    let foregroundReady;const prepared=new Promise(r=>foregroundReady=r),foregroundHold=new Promise(r=>unblockForeground=r);
+    foreground=index.withForegroundPriority(async()=>{equal((await index.patchMarkdownPaths(['A.md'])).outcome,'patched','Actual foreground body/source publication completes');foregroundReady();await foregroundHold;},2);
+    await prepared;equal(f.reads,['A.md'],'Foreground reads once');
+    unblockMiss();const until=Date.now()+3000;while(index.workScheduler.diagnostics().waiting===0&&Date.now()<until)await new Promise(r=>window.setTimeout(r,5));
+    ok(index.workScheduler.diagnostics().waiting>0,'Background continuation actually yields to retained foreground owner');
+    equal(f.reads,['A.md'],'No second native read while P2 owns the source');
+    unblockForeground();await foreground;const body=await background;ok(body,'Current foreground-acquired body reused');
+    equal(body.inlineFields,index.fieldCache.get('A.md').body.inlineFields,'Exact current parsed values preserved');
+    equal(f.reads,['A.md'],'No second native read after foreground release');
+    equal(index.getSourceAcquisitionCounters().vaultReads,0,'Background native miss avoided');
+    equal(index.getSourceAcquisitionCounters().parses,0,'Background reparsing avoided');
+    equal(index.workScheduler.diagnostics().active,[0,0,0,0,0],'Both priority owners drain');return true;
+  }finally{unblockMiss?.();unblockForeground?.();unblockWrites?.();await Promise.allSettled([foreground,background].filter(Boolean));o.close();}
+})()`));
+
+test('high-degree URL read composition is reused across roles and gates while inventory remains active',async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('url-projection-reuse',{indexingMode:'eager',maxItemCount:300});const{f,index}=o;
+  try{
+    for(let n=0;n<240;n++)f.add('Owner'+n+'.md','[Site](https://example.com/shared)');
+    ok(await index.initializeOnDemandBaseline(),'Local host baseline');
+    ok(await index.startBackgroundUrlIndex(),'Independent URL scan');
+    index.urlDiscoveryRunning=true; // Full/source indexing is intentionally not a prerequisite.
+    const q=index.get('https://example.com/shared'),original=index.semanticEvidence.bind(index);let resolutions=0;
+    index.semanticEvidence=(...args)=>{resolutions++;return original(...args);};
+    const first=index.getNeighborhood(q.path),cold=resolutions;
+    equal(first.parents.filter(n=>n.page.file).length,240,'All URL referrers');ok(cold>0,'Initial composition resolves canonical evidence');
+    const composed=index.semanticRelationSource(q).page;
+    for(let n=0;n<20;n++){
+      equal(index.getNeighborhood(q.path).parents.filter(n=>n.page.file).length,240,'Repeated neighborhood stays complete');
+      equal(index.gateStats(q).top.visibleCount,241,'Repeated gates remain numeric');
+      equal(index.semanticRelationSource(q).page,composed,'Read projection identity stable');
+    }
+    equal(resolutions,cold,'Roles and gate reads never repeat evidence composition');
+    q.name='Current label';equal(index.semanticRelationSource(q).page.name,'Current label','Presentation facets stay live');
+    return true;
+  }finally{o.close();}
+})()`));
+
+test('URL projection reuse retires on unnotified physical/cache changes and coherent publication',async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('url-projection-fences');const{f,index}=o;
+  try{
+    const file=f.add('Owner.md','[Site](https://example.com)');
+    ok(await index.initializeOnDemandBaseline(),'Baseline');ok(await index.startBackgroundUrlIndex(),'URL index');
+    const q=index.get('https://example.com');
+    equal(index.gateStats(q).top.visibleCount,1,'Current referrer');
+    const prior=index.semanticRelationSource(q).page;
+    file.stat.mtime++;equal(index.gateStats(q).top.visibleCount,0,'Unnotified physical edit retires old URL evidence');
+    file.stat.mtime--;equal(index.gateStats(q).top.visibleCount,1,'Exact original physical observation restores read projection');
+    const cache=f.app.metadataCache.getFileCache(file),getCache=f.app.metadataCache.getFileCache;
+    f.app.metadataCache.getFileCache=target=>target===file?{...cache}:getCache(target);
+    equal(index.gateStats(q).top.visibleCount,0,'Unnotified metadata identity change retires evidence');
+    f.app.metadataCache.getFileCache=getCache;
+    equal(index.gateStats(q).top.visibleCount,1,'Original metadata is current again');
+    index.relationViewCache=new WeakMap();
+    ok(index.semanticRelationSource(q).page!==prior,'Canonical publication lifetime replaces composition');
+    return true;
+  }finally{o.close();}
+})()`));
+
+test('the real per-file publisher retires affected URL overlays without a broad publication',async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('url-projection-file-commit',{indexingMode:'eager'});const{f,index}=o;
+  try{
+    f.add('A.md','https://example.com/shared');const b=f.add('B.md','Friend:: [[A]]');
+    ok(await index.initializeOnDemandBaseline(),'Baseline');ok(await index.startBackgroundUrlIndex(),'URL inventory only');
+    const a=index.get('A.md'),prior=index.semanticRelationSource(a).page;
+    ok(!prior.neighbours.has('B.md'),'URL inventory does not compile unrelated inline ontology');
+    const builder=new sourceModules.GraphBuilder(index.plugin,f.app,index.fieldCache,index.metadataParser,
+      index.indexedDb,()=>true,index.semanticFingerprints);
+    const flushes=index.urlPresentationFlushes;
+    const result=await builder.patchMarkdownFiles(index.state,[b],{publishFileCommit:index.publishIncrementalFile});
+    ok(result.ok,'Real prepared file commit');equal(index.urlPresentationFlushes,flushes,'No URL publication masks per-path invalidation');
+    ok(index.state.pages.get('A.md').neighbours.has('B.md'),'Canonical incoming edge committed');
+    const selected=index.semanticRelationSource(index.get('A.md')).page;
+    ok(selected!==prior&&selected.neighbours.has('B.md'),'Affected composed reader immediately exposes new incoming edge');
+    return true;
+  }finally{o.close();}
+})()`));
+
+test('URL parent sorting follows live display-name fields without repeating evidence composition',async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('url-projection-title-sort',{renderAlias:true,nameFields:'aliases'});const{f,index}=o;
+  try{
+    f.add('A.md','https://example.com',{Rank:'Zulu'});f.add('B.md','https://example.com',{Rank:'Alpha'});
+    ok(await index.initializeOnDemandBaseline(),'Baseline');ok(await index.startBackgroundUrlIndex(),'URL inventory');
+    const q=index.get('https://example.com'),original=index.semanticEvidence.bind(index);let resolutions=0;
+    index.semanticEvidence=(...args)=>{resolutions++;return original(...args);};
+    equal(index.neighbours(q,'parent').map(n=>n.page.path),['A.md','B.md'],'Original filename sorting');
+    const count=resolutions;
+    index.plugin.settings.nameFields='Rank';await index.refreshPresentationSettings();
+    equal(index.neighbours(q,'parent').map(n=>n.page.path),['B.md','A.md'],'Live display-field sorting');
+    equal(resolutions,count,'Sort-only change reuses URL evidence projection');
+    return true;
+  }finally{o.close();}
 })()`));

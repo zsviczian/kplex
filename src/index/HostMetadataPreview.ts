@@ -10,6 +10,8 @@
  * is compiled in disposable chunks; only a finite visible cover survives. A lifecycle-local reverse
  * resolved/unresolved link maps avoid a whole-vault backlink scan on each navigation. A known
  * virtual endpoint needs no physical metadata; its incoming owners still prove local numeric gates.
+ * Operation checkpoints carry the caller's P1/P2 priority through compiler and folder chunks,
+ * separately from the shared host observation lifecycle.
  */
 import { getAllTags, TFile, TFolder, type App } from "obsidian";
 import { NormalizedGraphCompiler, type GraphCompilerRuntime, type GraphCompilerSettings, type PortableGraphCompilation } from "../core/graph/compiler";
@@ -341,7 +343,7 @@ export class HostMetadataPreview {
     if (centerPath.startsWith("folder:")) {
       const folder = centerPath === "folder:/" ? this.app.vault.getRoot()
         : this.app.vault.getFolderByPath(centerPath.slice("folder:".length));
-      return folder instanceof TFolder ? this.buildFolder(folder, centerPath) : null;
+      return folder instanceof TFolder ? this.buildFolder(folder, centerPath, true, options.checkpoint) : null;
     }
     await this.initializeBacklinks();
     const center = this.app.vault.getFileByPath(centerPath);
@@ -362,7 +364,9 @@ export class HostMetadataPreview {
     const settings = this.settings();
     const compilerSettings = graphCompilerSettingsFromLegacy(settings);
     const metadataSettings = { noteTypeField: settings.noteTypeField, primaryTagField: settings.primaryTagField };
-    const compiler = new NormalizedGraphCompiler(compilerSettings, { ...this.runtime, isCurrent: current });
+    const compiler = new NormalizedGraphCompiler(compilerSettings, { ...this.runtime, isCurrent: current,
+      /** Each caller retains its lane while the shared host observation runtime owns lifecycle. */
+      yield: async () => { await this.runtime.yield(); await options.checkpoint?.(); } });
     // A known unresolved endpoint has no physical metadata to fetch. Its current host/body
     // contributors still prove local numeric gates, including zero, without global absence authority.
     if (!(center instanceof TFile)) {
@@ -536,13 +540,14 @@ export class HostMetadataPreview {
    * Prove one physical folder's parent/child totals without retaining its rendered child graph.
    * This endpoint-local observation may supplement a partial canonical folder page; it cannot
    * authorize note incidence or editing. The caller still owns policy/source publication fences.
+   * Its operation checkpoint follows the caller's priority, separately from shared host lifecycle.
    */
-  async folderGates(centerPath: string): Promise<Partial<CachedCenterGates> | null> {
+  async folderGates(centerPath: string, checkpoint?: () => Promise<void>): Promise<Partial<CachedCenterGates> | null> {
     if (this.disposed || !this.runtime.isCurrent() || !centerPath.startsWith("folder:")) return null;
     const folder = centerPath === "folder:/" ? this.app.vault.getRoot()
       : this.app.vault.getFolderByPath(centerPath.slice("folder:".length));
     if (!(folder instanceof TFolder)) return null;
-    const result = await this.buildFolder(folder, centerPath, false);
+    const result = await this.buildFolder(folder, centerPath, false, checkpoint);
     return !this.disposed && this.runtime.isCurrent() ? result?.structuralGates?.get(centerPath) ?? null : null;
   }
 
@@ -552,8 +557,10 @@ export class HostMetadataPreview {
    * The retained graph contains at most the configured visible child limit plus center and parent.
    * A lightweight identity/facet capture, independent of the graph cover, fences the final membership
    * observation; structural gate proofs never imply complete Markdown/body incidence or write safety.
+   * The optional caller checkpoint is carried through every compiler/chunk continuation.
    */
-  private async buildFolder(folder: TFolder, centerPath: string, includeCover = true): Promise<HostMetadataPreviewResult | null> {
+  private async buildFolder(folder: TFolder, centerPath: string, includeCover = true,
+    checkpoint?: () => Promise<void>): Promise<HostMetadataPreviewResult | null> {
     const revision = this.revision;
     const settings = this.settings();
     const compilerSettings = graphCompilerSettingsFromLegacy(settings);
@@ -593,7 +600,9 @@ export class HostMetadataPreview {
       && currentFolder(folderPath) === folder && folder.children === children && children.length === childCount
       && (!parent || (parent.path === parentPath && parent.name === parentName && currentFolder(parent.path) === parent))
       && currentPolicySignature() === policySignature;
-    const runtime = { ...this.runtime, isCurrent: current };
+    const runtime = { ...this.runtime, isCurrent: current,
+      /** A visible P2 folder count can pause behind P1 without making P1 borrow a P2 checkpoint. */
+      yield: async () => { await this.runtime.yield(); await checkpoint?.(); } };
     const folderRevision = sourceRevision(`host-preview-folder:${revision}:${folderPath}`);
     const centerFact = entityFactForFolder(folder, folderRevision);
     const retained: NormalizedSourceRecord[] = [centerFact];
@@ -664,7 +673,7 @@ export class HostMetadataPreview {
       // Chunk size bounds private graph memory. Host task yielding separately follows the injected
       // time budget, so a cheap small folder does not incur a timer for every normalized frame.
       if (this.runtime.now() - sliceStarted >= this.runtime.sliceBudgetMs) {
-        await this.runtime.yield();
+        await runtime.yield();
         sliceStarted = this.runtime.now();
       }
     }

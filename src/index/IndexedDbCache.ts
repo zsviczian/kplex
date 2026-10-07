@@ -10,8 +10,12 @@
  * source readiness; the repository owns observer isolation and closed-lifetime fencing.
  * Snapshot decoding and mobile write batches release CPU slices through host event tasks; connection
  * opening, delayed body writes and failure recovery retain their actual timed waits.
+ * Valid queued parsed bodies are optional cache hits before and during persistence; they grant no
+ * durability or neutral-source authority. A successful flush retires only its exact queued records.
  * Settings-only maintenance estimates logical payloads through sequential cursors. Purging ends
  * this owner's lifetime before deleting this vault's database; no same-session reopen is allowed.
+ * Broad maintenance uses its injected P4 checkpoint; URL-owner restoration supplies a P3 override,
+ * while foreground point reads never borrow the lower-priority maintenance checkpoint.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
@@ -309,7 +313,7 @@ export class KplexIndexedDbCache {
   private dbPromise: Promise<IDBDatabase | null> | null = null;
   private openFailureCount = 0;
   private openRetryAfter = 0;
-  private queuedBodyWrites = new Map<string, { path: string; mtime: number; body: ParsedBodyMetadata }>();
+  private queuedBodyWrites = new Map<string, BodyRecord>();
   private bodyWriteTimer: number | null = null;
   private bodyWriteInFlight = false;
 
@@ -321,7 +325,8 @@ export class KplexIndexedDbCache {
   private maintenanceReads = new Set<IDBTransaction>();
   private purgePromise: Promise<boolean> | null = null;
 
-  /** Share one connection owner; forward optional source-work observation without changing storage scheduling. */
+  /** Share one connection owner. The injected checkpoint belongs to broad cache maintenance (P4);
+   * caller-specific URL restore overrides it with P3 and foreground point reads never borrow it. */
   constructor(private vaultName: string, private readonly backgroundCheckpoint?: () => Promise<void>, completedWork?: () => void) {
     this.sources = new NeutralSourceRepository({ open: () => this.open(), failed: (db) => this.storageFailed(db),
       unavailableReason: () => this.newerDatabase ? "newer-database" : "storage-unavailable",
@@ -1053,26 +1058,47 @@ export class KplexIndexedDbCache {
     }
   }
 
+  /** Read optional parser-cache data, including matching current queued writes; callers own native validity. */
   async getBodies(requests: ReadonlyArray<{ path: string; mtime: number }>): Promise<Map<string, ParsedBodyMetadata>> {
     const result = new Map<string, ParsedBodyMetadata>();
-    if (!requests.length) return result;
+    if (this.closed || !requests.length) return result;
+    const missing = requests.filter(({ path, mtime }) => {
+      const body = this.getQueuedBody(path, mtime);
+      if (!body) return true;
+      result.set(path, body);
+      return false;
+    });
+    if (!missing.length) return result;
     const db = await this.open();
-    if (!db) return result;
-    try {
-      const tx = this.openTransaction(db, BODY_STORE, "readonly");
-      const done = transactionDone(tx);
-      const store = tx.objectStore(BODY_STORE);
-      const values = await Promise.all(requests.map(({ path }) => requestResult(store.get(path)) as Promise<BodyRecord | undefined>));
-      await done;
-      for (let i = 0; i < requests.length; i += 1) {
-        const request = requests[i];
-        const value = values[i];
-        if (value && value.mtime === request.mtime && value.parserVersion === BODY_CACHE_VERSION && validCachedBody(value.body)) result.set(request.path, value.body);
-      }
-    } catch {
-      return result;
+    if (db && !this.closed) {
+      try {
+        const tx = this.openTransaction(db, BODY_STORE, "readonly");
+        const done = transactionDone(tx);
+        const store = tx.objectStore(BODY_STORE);
+        const values = await Promise.all(missing.map(({ path }) => requestResult(store.get(path)) as Promise<BodyRecord | undefined>));
+        await done;
+        for (let i = 0; i < missing.length; i += 1) {
+          const request = missing[i];
+          const value = values[i];
+          if (value && value.mtime === request.mtime && value.parserVersion === BODY_CACHE_VERSION && validCachedBody(value.body)) result.set(request.path, value.body);
+        }
+      } catch { /* Queued parser data remains reusable when optional persistence is unavailable. */ }
+    }
+    if (this.closed) return new Map();
+    // A producer can replace or enqueue a record while the readonly transaction is pending.
+    for (const { path, mtime } of requests) {
+      const body = this.getQueuedBody(path, mtime);
+      if (body) result.set(path, body);
     }
     return result;
+  }
+
+  /** Peek completed write-behind data synchronously at a caller's native-I/O admission boundary.
+   * The same parser/path/mtime guards apply; this optional hit grants no durability/source authority. */
+  getQueuedBody(path: string, mtime: number): ParsedBodyMetadata | null {
+    const record = this.closed ? undefined : this.queuedBodyWrites.get(path);
+    return record && record.path === path && record.mtime === mtime && record.parserVersion === BODY_CACHE_VERSION
+      && validCachedBody(record.body) ? record.body : null;
   }
 
   async bodyStoreReady(): Promise<boolean> {
@@ -1100,11 +1126,12 @@ export class KplexIndexedDbCache {
   /**
    * Coalescing write-behind for live edits. Runtime graph publication must never wait for an
    * IndexedDB write: on Chromium/WebKit, unrelated snapshot maintenance can hold storage work for
-   * seconds. Only the latest mtime for a path is retained while a flush is pending.
+   * seconds. The latest queued record for a path remains an optional read hit until its transaction
+   * completes, including during failed flush/retry; queuing does not attest durable source facts.
    */
   queueBodyWrite(path: string, mtime: number, body: ParsedBodyMetadata): void {
     if (this.closed) return;
-    this.queuedBodyWrites.set(path, { path, mtime, body });
+    this.queuedBodyWrites.set(path, { path, mtime, parserVersion: BODY_CACHE_VERSION, body });
     if (this.bodyWriteTimer !== null || this.bodyWriteInFlight) return;
     this.bodyWriteTimer = window.setTimeout(() => {
       this.bodyWriteTimer = null;
@@ -1112,20 +1139,23 @@ export class KplexIndexedDbCache {
     }, Platform.isMobile ? 1200 : 700);
   }
 
+  /** Flush bounded batches without hiding in-flight hits or deleting a newer replacement for a path. */
   private async flushQueuedBodyWrites(): Promise<void> {
     if (this.closed || this.bodyWriteInFlight || !this.queuedBodyWrites.size) return;
     this.bodyWriteInFlight = true;
     try {
       const limit = Platform.isIosApp ? 16 : Platform.isMobile ? 32 : 64;
       while (!this.closed && this.queuedBodyWrites.size) {
-        const records: Array<{ path: string; mtime: number; body: ParsedBodyMetadata }> = [];
-        for (const [path, record] of this.queuedBodyWrites) {
+        const records: BodyRecord[] = [];
+        for (const record of this.queuedBodyWrites.values()) {
           records.push(record);
-          this.queuedBodyWrites.delete(path);
           if (records.length >= limit) break;
         }
         const ok = await this.putBodies(records);
         if (!ok) break;
+        for (const record of records) {
+          if (this.queuedBodyWrites.get(record.path) === record) this.queuedBodyWrites.delete(record.path);
+        }
         if (Platform.isMobile) await yieldToHostTask();
       }
     } finally {
@@ -1139,21 +1169,26 @@ export class KplexIndexedDbCache {
     }
   }
 
-  /** Read count/byte-bounded URL-owner pages; consumer work always begins after its transaction completes. */
-  async readUrlOwners(consume: (records: readonly UrlOwnerRecord[]) => Promise<void>, isCurrent: () => boolean): Promise<boolean> {
+  /** Read count/byte-bounded URL-owner pages; consumer work begins after its transaction completes.
+   * The operation checkpoint must match its owning lane: a P3 URL restore cannot borrow the
+   * shared P4 maintenance checkpoint, which would wait for its own active P3 owner forever. */
+  async readUrlOwners(consume: (records: readonly UrlOwnerRecord[]) => Promise<void>, isCurrent: () => boolean,
+    operationCheckpoint: (() => Promise<void>) | undefined = this.backgroundCheckpoint): Promise<boolean> {
     const db = await this.open();
     if (!db || !isCurrent()) return false;
     let after: IDBValidKey | undefined;
     const countLimit = Platform.isMobile ? 32 : 64, byteLimit = (Platform.isMobile ? 512 : 2048) * 1024;
     try {
       while (isCurrent()) {
+        await operationCheckpoint?.();
+        if (!isCurrent()) return false;
         const page = await this.readUrlOwnerPage(db, after, countLimit, byteLimit, isCurrent);
         if (!isCurrent()) return false;
         if (page.values.length) await consume(page.values.filter(validUrlOwner));
         if (page.exhausted) return true;
         if (page.lastKey === undefined) return false;
         after = page.lastKey;
-        await this.backgroundCheckpoint?.();
+        await operationCheckpoint?.();
       }
     } catch { return false; }
     return false;
@@ -1206,18 +1241,22 @@ export class KplexIndexedDbCache {
     } catch { /* disposable cache cleanup only */ }
   }
 
+  /** Reuse a completed parsed body before optional persistence, without acquiring source authority. */
   async getBody(path: string, mtime: number): Promise<ParsedBodyMetadata | null> {
+    const queued = this.getQueuedBody(path, mtime);
+    if (queued) return queued;
     const db = await this.open();
-    if (!db) return null;
+    if (!db || this.closed) return this.getQueuedBody(path, mtime);
     try {
       const tx = this.openTransaction(db, BODY_STORE, "readonly");
       const done = transactionDone(tx);
       const value = await requestResult(tx.objectStore(BODY_STORE).get(path)) as BodyRecord | undefined;
       await done;
+      if (this.closed) return null;
       const hit = Boolean(value && value.mtime === mtime && value.parserVersion === BODY_CACHE_VERSION && validCachedBody(value.body));
-      return hit ? value!.body : null;
+      return this.getQueuedBody(path, mtime) ?? (hit ? value!.body : null);
     } catch {
-      return null;
+      return this.getQueuedBody(path, mtime);
     }
   }
 

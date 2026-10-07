@@ -2465,3 +2465,90 @@ Initial estimate2½–4hours, started14:37UTC; four-hour ceiling retained. Main 
 The maintainer reported missing URL relations and perpetual local preparation. Checkpointed previous verified V2 as `9ba04cf`, then reproduced the URL failure in the read-only reference vault at the exact prior artifact. Saved On demand/background showed mixed-case URL absent, lowercase URL center with zero relations, no active scan/preparation, and a persistent preparation label. Notes/configuration remained unchanged. [V2 amendment](docs/INDEXING_OPTIMIZATION_V2.md#2026-10-06-amendment-url-connections-and-eager-foreground-behavior) records always-on separate URL discovery/cache, case normalization/root hierarchy, Eager foreground parity and changed defaults. Implementation/native acceptance pending. C15–C26 remain paused.
 
 - **URL correction validation, native acceptance pending:** exact final Node22 `verify:obsidian` passes 7/69/253/17/327/368, actual production fixtures/types/scanner/build and exact small-vault smoke. Frozen 276 inputs remain unchanged; main `5044bdf7…` is staged only in the disposable small vault. A deterministic cached native fan-out race is fixed in the existing source acquisition owner, retaining exact fences/two attempts; full relationship browser file44/44 and full aggregate pass. Native URL create/edit/rename/delete/shared hierarchy, numerical gates and 15-owner warm URL cache with zero URL body reads pass; fixture/settings/enablement cleanup passes. Initial early-publication assertion failure is retained and resolved by waiting for current owner closure. Focus=false excludes latency claims. Eager foreground rejects the focus prerequisite; Electron confirms the desktop is locked. Unlock requested; Eager foreground, backed-up SI5 recovery and production URL deployment/navigation/reload/cache-size checks remain pending. Reference artifact/notes unchanged, new correction uncommitted, no C15–C26. [Current validation](docs/validation/url-indexing-and-foreground-2026-10-06.md).
+
+
+### 2026-10-07 — Priority and stable publication correction opened
+
+Committed the prior URL/foreground round as `1527b6e` at the maintainer’s request. The new [priority/stability handoff](docs/INDEXING_PRIORITY_AND_STABLE_PUBLICATION_HANDOFF.md) is the scoped requirement: named P0–P4 ownership, batched URL display publication, coherent local-to-durable Eager handover, and automatic visible presentation repair. C15–C26 remain paused. Native read-only observation found 25 of 27 visible Excalidraw Card children had blank graph styling despite available native `excalidraw` tags; the sparse targets were falsely marked ready. Implementation and native acceptance remain in progress; focused checks are limited evidence, not full completion. Notes may not be modified; only K-Plex main.js/styles.css deployment and indexing settings are authorized in the reference vault.
+
+- **Priority/stability validation follow-up:** gate nine passes complete real verification (392 browser
+  cases), scanner/build/exact small-vault smoke. Native SI5 recovery, held-inventory foreground,
+  300-owner batching/handover/warm cache and URL mutation checks pass at that artifact. Reference
+  styling repairs all 27 Cards without editor gestures, but native navigation exposes sparse host
+  previews overriding full-ready pages. Current full-read source certification/selection and
+  progressive count-cache retirement now pass five controlled real-browser regressions; original
+  selector and missing-cache-reset failures were reproduced. Gate ten and exact native acceptance
+  remain pending. Reference notes/preferences/enablement are unchanged; only JS/CSS deployed.
+  Desktop focus is currently unavailable, so focus-lost timing is excluded. No C15–C26, schema or
+  next-round Git authority. See [evidence](docs/validation/indexing-priority-and-stable-publication-2026-10-07.md).
+
+- **Priority/stability resumed after process termination:** gate fourteen fails only the dense active
+  URL patch responsiveness case (405/406 browsers,54.8ms against unchanged50ms; isolated replay55.4ms).
+  Queued-body reuse/final background admission and primary-cache fixture assertions pass. Maintainer
+  closed Obsidian/VSCode after heat/no-progress concern; no leftover owned processes on resumption.
+  Captured profile attributes substantial canonical commit work to repeated URL lookup in cache
+  invalidation. A narrow direct canonical-URL invalidation correction is under focused validation;
+  full gate/build/exact native reference checks remain pending. Previous native artifacts certify
+  only their source. No main-vault note writes, no other repo wait, C15–C26 remain paused.
+
+- **Priority/stability exact gate15:** Node22.22.2 complete verification/build passes7/69/282/17/333/406;
+  frozen271 inputs `c38561f3…` unchanged, scanner zeroerrors/one unchangedwarning, main `5ceb3068…`.
+  Exact small native staging/smoke and all five SI5 recovery cases pass. URL mutations and300-owner
+  batched discovery/coherent handover/warm zero-read restoration pass with full fixture/preferences/
+  hook cleanup. Native focus=false excludes latency/interaction acceptance; small vault is idle and
+  Local graph ready. Remaining: focused foreground and read-only production Card/navigation checks,
+  then final acceptance record. No repeat full suite, notes writes, C15–C26 or new Git action.
+
+- **Priority/stability scoped desktop delivery:** exact main `5ceb3068…` passes final strict-focus Eager
+  foreground6/6 and the read-only production Card/navigation run.27 Cards style automatically in
+  0.777s;904 observations lose no Card/style through hydration; URL→Cohort→StoryOS→Cohort→MentalModels
+  retain all numerical gates/current relations. Independent232 body referrers plus one metadata
+  owner/four URL children match, no selfedge. Notes/stat digest/settings/enablement and all resources
+  preserved; final JS/CSS deployed only. All numeric gates arrive43.593s after host-ready plugin
+  enable: **earlier V2 few-second count target remains open**, not certified by this scoped handoff.
+  Full process startup/paint/continuous focus/physical mobile timing are not inferred. Failed CLI
+  probe retained; final reference succeeds without retries. Final evidence/acceptance checklist
+  complete, C15–C26/schema unchanged; correction uncommitted after requested1527b6e checkpoint.
+  [Report](docs/validation/indexing-priority-and-stable-publication-2026-10-07.md) and minimizedJSON
+  retain exact input/artifact identity and three prioritized device/lifecycle/manual checks.
+
+### 2026-10-07 — Active-indexing responsiveness correction (automated checks complete; foreground acceptance pending)
+
+- [x] Reopen active URL navigation acceptance following the maintainer's1–2minute freeze report; earlier reference navigation happened after indexing settled.
+- [x] Profile the exact installed reference build without note edits; repeated URL composition dominates the bounded trace.
+- [x] Add live Responsive(default)/Balanced/Faster background indexing preference and shared P3/P4 idle pacing within the existing scheduler; foreground lanes remain immediate.
+- [x] Reuse weak, revision/native-observation-fenced URL read projections; two focused browser correctness/freshness regressions pass.
+- [x] Complete isolated full verify/build and exact-build native active-indexing URL/scroll correctness checks; foreground preemption covered by scheduler regressions.
+- [x] Restore reference center/settings/enablement and remove temporary test state; record measured outcome and limits.
+- [x] Maintainer confirms responsive production UI during warm cache loading; quantified native focus/paint timing remains unmeasured.
+- Full frozen-source verify/build410browser tests, disposable smoke and eager foreground6/6 passed. Reference active URL center renders in39–67ms, but continuous foreground heartbeat fails1572ms>1000ms. Cleanup passes; acceptance remains open. The second profile identifies2593ms synchronous task and hidden-row gate expansion during layout. Defer count reads to rendered rows, then reverify/retest; no bound is widened.
+- [x] Correct count reads for clipped rows, remove the unused rendering total read, and retain presentation demand for unchanged exact page membership.20 focused layout tests/types/lint pass. Final271-input hash `238afe56…` passes required complete verify/build (410browser tests) and exact-build small-vault smoke; main `bdfd04ae…` staged for final serial reference correctness/scroll checks. Real continuous focus remains unavailable; excluded timing results are retained, not accepted.
+- Both modes pass exact-build URL/scroll functionality (232parents, four URL children,15 revealed rows with numerical counts) and exact cleanup. Passive unwrapped native observation still finds551/739ms blocking tasks: optional cross-link layout reads all clipped parents. Reopen this concrete remaining path; reuse cross-link generation for actual visible rows while preserving active global-filter edge/count semantics. No acceptance or timing bound is relaxed.
+
+Evidence/design: [active indexing throttle and URL responsiveness](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.md). No structural refactor, persistent cache schema change or Git action is authorized in this round. C15–C26 remain paused.
+
+- **Clipped cross-link candidate:**21 layout regressions/types/lint pass; main review confirms unchanged visible edge semantics and retained global-filter/section behavior. Atomic reference staging verifies the installed/loaded artifact before navigation. Active Eager URL navigation retains232parents/four children/15 newly revealed numeric rows; passive tasks peak292ms over90.791s, versus prior551/739ms tasks in a shorter phase window. Continuous focus unavailable:36.3ms DOM/470.2ms heartbeat observations are excluded from comparable timing acceptance. All note/settings/enablement/center/test-resource cleanup passes. Heavy final verification now pauses background lanes while keeping the plugin loaded, avoiding long disabled-view periods.271-input source `df95946b…` final full gate running; no responsiveness acceptance or Git action yet.
+
+- **Final automated delivery:** frozen271 inputs `df95946b…` and six build/config observations unchanged; Node22.22.2 complete verify/build passes7/69/292/17/333/410, no browser skips/cancellations, scanner0errors/one unchanged warning. Mandatory20,015-owner fixture passes; exact main `e7311fab…` matches the candidate and small native smoke. Final serial On-demand reference repeats232parents/four children/15 revealed numeric rows,11815restored/checked URL owners and zero URL body reads; passive tasks peak163ms over107.681s (Eager292ms over90.791s). Both timing classifications remain functional-passed-timing-unavailable/exit1 because continuous focus is absent; no bound widened. Separate final audit confirms original Scratchpad/Eager, loaded verified JS, unchanged notes/settings/enablement, no temporary controllers/foreground leases, normal background indexing resumed. Atomic reference deployment guidance added to CONTRIBUTING. Full evidence and up to three manual acceptance checks recorded in [report](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.md) and [minimizedJSON](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.json). Automated work complete; foreground pointer/paint/physical-device and earlier few-second startup objective remain explicitly pending. No new Git/schema/C15–C26 action.
+
+
+### 2026-10-07 — URL cache-loading status copy
+
+- [x] Record maintainer production UI responsiveness acceptance; no numeric native timing claim.
+- [x] Replace unknown-total0/0 discovery text with localized preparation/restored-cache messages; known-total, failure, local readiness and hydration precedence retained.
+- [x] Confirm factory On-demand/Responsive versus saved reference Eager/Responsive; no preference/default mutation.
+- [x] Main independently reviews;56 focused status/localization tests, architecture7, touched lint0errors/one unchanged warning, actual installed-types production build pass. No new semantic/URL-index/scheduler behavior, so broad graph benchmarks not repeated.
+- [x] Atomic main.js-only deployment and native warm status/counter observation pass. First20s observation deadline retained as failed; exact cleanup passes. Read-only follow-up sees1565→1572 restored notes and rendered count update with no0/0 label/zero body reads. Notes/current center/mode/throttle/settings/enablement preserved, test state removed. Main `56aa837741e7…`; exact follow-up scope is recorded in the existing [report](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.md) and [evidence](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.json). Uncommitted; C15–C26 remain paused.
+
+
+### 2026-10-07 — Maintainer-authorized indexing checkpoint and PR
+
+- [x] Confirm explicit authority to commit, push, create a PR and switch locally to main; no merge/release or C15–C26 work.
+- [x] Repeat complete `npm run verify` on exact final status-copy source: Node22.22.2; architecture7/core69/Node292/UI17/portable333/browser410; zero browser failures/skips/cancellations; scanner0errors/one unchanged warning; real production build.
+- [x] Mandatory20,015-owner publication passes in251.190s; frozen271 inputs `db4ed1d3…` and six build/config hashes unchanged. Final main `56aa837741e7…` matches the deployed artifact.
+- [x] Serial exact-build `kplex-test-small` native smoke passes command/DOM/error assertions on Obsidian1.14.4. Release reference background pause; verify notes/current center/settings/enablement preserved, no temporary controllers or foreground leases, background work resumed.
+- [x] Prepare reviewed checkpoint and cumulative PR description covering the unmerged indexing rounds. Preserve qualitative maintainer UI acceptance and explicit quantitative/device/startup limits in the [final evidence](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.json).
+
+Remaining manual coverage: focused pointer/paint timing, physical Android/iOS background resume,
+and high-degree global filtering/expanded sections, as prioritized in the linked report. The
+broader few-second startup objective remains open. No validation bound or semantic oracle changed.

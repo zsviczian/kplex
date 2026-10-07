@@ -1,5 +1,5 @@
 /**
- * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought.
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
@@ -12,7 +12,7 @@ import type { KplexLayoutProfile, KplexSettings, KplexViewSurface, SidecarMarkdo
 import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle, NodeVisual, PositionedEdge, PositionedNode, Role, ScrollZone } from "../types";
 import { LinkDirection, RelationType } from "../types";
 import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle } from "../index/style";
-import { buildScene, buildSectionExpandedScene, effectiveLabelLimit, expandedChildReserve, expandedNodeWidth, expandedMiniLayout, horizontalDensity, layoutColumns, spacingPolicy, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
+import { buildScene, buildSectionExpandedScene, appendVisibleCrossLinks, projectNodeCounts, rowIntersectsViewport, effectiveLabelLimit, expandedChildReserve, expandedNodeWidth, expandedMiniLayout, horizontalDensity, layoutColumns, spacingPolicy, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
 import { LayoutSlider } from "./components/LayoutSlider";
 import { ElementMotion } from "./components/ElementMotion";
 import { ResizableAreaFrame } from "./components/ResizableAreaFrame";
@@ -813,9 +813,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   }, [neighborhood, globalFiltering, filterLayoutMode, layoutSectionExpansion, predicateEngine, index, predicate, lenses, predicateRevision]);
   const scene = useMemo(() => layoutNeighborhood
     ? (layoutSectionExpansion
-      ? buildSectionExpandedScene(layoutSectionExpansion, index, settings, expandedSectionIds, showCrossLinks, centralEditorSize)
-      : buildScene(layoutNeighborhood, index, settings, showCrossLinks, centralEditorSize))
-    : { nodes: [], edges: [], zoneViewports: {}, zoneAreas: {} }, [layoutNeighborhood, layoutSectionExpansion, expandedSectionIds, index, settings, layoutRevision, showCrossLinks, centralEditorSize]);
+      ? buildSectionExpandedScene(layoutSectionExpansion, index, settings, expandedSectionIds, showCrossLinks, centralEditorSize, true)
+      : buildScene(layoutNeighborhood, index, settings, showCrossLinks && globalFiltering, centralEditorSize, true))
+    : { nodes: [], edges: [], zoneViewports: {}, zoneAreas: {} }, [layoutNeighborhood, layoutSectionExpansion, expandedSectionIds, index, settings, layoutRevision, showCrossLinks, globalFiltering, centralEditorSize]);
   const centralEditorNode = useMemo(() => centralEditorAvailable
     ? scene.nodes.find((node) => node.role === "center") ?? null
     : null, [centralEditorAvailable, scene.nodes]);
@@ -1868,6 +1868,35 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     return clusters;
   }, [sectionExpansion, settings.graphDepth, settings.compactingFactor, settings.horizontalCompactingFactor, settings.compactView, settings.minLinkLength, settings.childColumns, settings.maxItemCount, settings.siblingRelativeSize, neighborhood, scene.nodes, visibleNodePaths, renderedNodeMap, expandedScrollTop, index, layoutRevision, predicate, lenses, predicateRevision, predicateEngine]);
 
+  const retainedPresentationDemand = useRef<Set<GraphPage>>(new Set());
+  /** Retain exact visible page membership across unrelated scene renders; new page incarnations still repair. */
+  const presentationDemandPages = useMemo(() => {
+    const pages = new Set<GraphPage>();
+    for (const node of scene.nodes) if (visibleNodePaths.has(node.page.path)) pages.add(node.page);
+    for (const cluster of expandedClusters) for (const child of cluster.children) {
+      const y = cluster.top + child.localY - cluster.scrollTop;
+      if (y - child.height / 2 >= cluster.top && y + child.height / 2 <= cluster.top + cluster.viewportHeight) {
+        pages.add(child.relation.page);
+      }
+    }
+    const retained = retainedPresentationDemand.current;
+    if (retained.size === pages.size && [...pages].every(page => retained.has(page))) return retained;
+    retainedPresentationDemand.current = pages;
+    return pages;
+  }, [scene.nodes, visibleNodePaths, expandedClusters]);
+  useEffect(() => {
+    let release: (() => void) | null = null;
+    /** Hidden Obsidian leaves stay mounted; release optional work until this surface is revealed. */
+    const refreshVisibility = (): void => {
+      const visible = plugin.isKplexLeafVisible(hostLeaf);
+      if (visible && !release) release = index.acquirePresentationDemand(presentationDemandPages);
+      else if (!visible && release) { release(); release = null; }
+    };
+    refreshVisibility();
+    const unsubscribe = plugin.subscribeKplexVisibility(refreshVisibility);
+    return () => { unsubscribe(); release?.(); };
+  }, [plugin, hostLeaf, index, presentationDemandPages]);
+
   const expandedConnectors = useMemo(() => {
     if (settings.graphDepth !== 2) return [] as Array<{ key: string; d: string; stroke: string; width: number; dash?: string; markerStart?: string; markerEnd?: string; definition?: string }>;
     const connectors: Array<{ key: string; d: string; stroke: string; width: number; dash?: string; markerStart?: string; markerEnd?: string; definition?: string }> = [];
@@ -1941,9 +1970,14 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     if (!centralEditorMaximized && findPaths.length) revealFindHit(findPaths[((findCursor % findPaths.length) + findPaths.length) % findPaths.length]);
   }, [findQuery, findCursor, findHitKey, centralEditorMaximized]);
 
-  const visibleEdges = useMemo(() => scene.edges
-    .filter((edge) => visibleNodePaths.has(edge.sourcePath) && visibleNodePaths.has(edge.targetPath))
-    .map((edge) => {
+  /** Ordinary scenes acquire cross-links only for clipped visible rows; filtering retains the full-scene edge/count policy. */
+  const visibleEdges = useMemo(() => {
+    const edges = scene.edges.filter((edge) => visibleNodePaths.has(edge.sourcePath) && visibleNodePaths.has(edge.targetPath));
+    if (showCrossLinks && !globalFiltering && !layoutSectionExpansion && neighborhood) {
+      appendVisibleCrossLinks(scene.nodes.filter(node => visibleNodePaths.has(node.page.path)), edges,
+        index, settings, neighborhood.center.path);
+    }
+    return edges.map((edge) => {
       const target = scene.nodes.find((node) => node.page.path === edge.targetPath);
       if (!target || !neighborhood) return edge;
       const lensStyle = graphLensEdgeStyle(predicateEngine, index, lenses, {
@@ -1956,7 +1990,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         },
       });
       return Object.keys(lensStyle).length ? { ...edge, style: { ...edge.style, ...lensStyle } } : edge;
-    }), [scene.edges, scene.nodes, visibleNodePaths, neighborhood, predicateEngine, index, lenses, predicateRevision]);
+    });
+  }, [scene.edges, scene.nodes, visibleNodePaths, neighborhood, predicateEngine, index, settings, lenses,
+    predicateRevision, showCrossLinks, globalFiltering, layoutSectionExpansion]);
 
   const interaction = useMemo(() => {
     const edgeIds = new Set<string>();
@@ -3057,7 +3093,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, doc);
   };
 
-  const renderNode = (baseNode: PositionedNode, displayNode: PositionedNode) => {
+  /** Render live counts only for viewport-intersecting regular rows, retaining transient section gate ownership. */
+  const renderNode = (baseNode: PositionedNode, displayNode: PositionedNode, hydrateCounts = true) => {
     const highlightedGates = new Set<GateSide>();
     for (const gate of ["top", "bottom", "left", "right"] as GateSide[]) {
       if (interaction.gates.has(gateKey(baseNode.page.path, gate))) highlightedGates.add(gate);
@@ -3073,16 +3110,17 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         sourcePath: neighborhood.center.path, targetPath: baseNode.page.path,
       },
     }) : {};
-    const styledDisplayNode = Object.keys(lensNodeStyle).length ? { ...displayNode, style: { ...displayNode.style, ...lensNodeStyle } } : displayNode;
+    const countedDisplayNode = hydrateCounts ? projectNodeCounts(displayNode, index) : displayNode;
+    const styledDisplayNode = Object.keys(lensNodeStyle).length ? { ...countedDisplayNode, style: { ...countedDisplayNode.style, ...lensNodeStyle } } : countedDisplayNode;
     const gateCounts = filteredGateCounts.get(baseNode.page.path);
     const nodeForDisplay = globalFiltering && gateCounts
       ? {
         ...styledDisplayNode,
         gateStats: {
-          top: { ...displayNode.gateStats.top, shownCount: gateCounts.top },
-          bottom: { ...displayNode.gateStats.bottom, shownCount: gateCounts.bottom },
-          left: { ...displayNode.gateStats.left, shownCount: gateCounts.left },
-          right: { ...displayNode.gateStats.right, shownCount: gateCounts.right },
+          top: { ...countedDisplayNode.gateStats.top, shownCount: gateCounts.top },
+          bottom: { ...countedDisplayNode.gateStats.bottom, shownCount: gateCounts.bottom },
+          left: { ...countedDisplayNode.gateStats.left, shownCount: gateCounts.left },
+          right: { ...countedDisplayNode.gateStats.right, shownCount: gateCounts.right },
         },
       }
       : styledDisplayNode;
@@ -3235,7 +3273,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
           {displayedNodes.map((node) => {
             const local = layout.localPositions.get(node.page.path);
             if (!local) return null;
-            return renderNode(node, { ...node, x: local.x, y: local.y });
+            const hydrateCounts = rowIntersectsViewport(local.y, node.height, zoneScrollTop[zone], panel.height);
+            return renderNode(node, { ...node, x: local.x, y: local.y }, hydrateCounts);
           })}
         </div>
       </div>

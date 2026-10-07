@@ -4,7 +4,9 @@
  * Horizontal density owns widths/column spacing, vertical density owns row spacing; compact view
  * and minimum-link targets share the same geometry policy across normal/expanded/section scenes.
  * Parent width owns lateral x anchors; density three touches area edges and four permits bounded
- * margin overlap, while child-column/row controls cannot push those anchors. Callers own interaction, settings persistence and camera transforms.
+ * margin overlap, while child-column/row controls cannot push those anchors. Optional deferred counts
+ * keep offscreen geometry independent of incidence queries; rendered rows acquire current counts.
+ * Callers own interaction, settings persistence and camera transforms.
  */
 import type { KplexSettings } from "../settings";
 import type { GraphPage, Neighborhood, Neighbour, NodeStyle, PositionedEdge, PositionedNode, Role, ScrollZone } from "../types";
@@ -138,6 +140,7 @@ function makeNode(
   role: Role,
   index: GraphIndex,
   settings: KplexSettings,
+  deferCounts = false,
 ): PositionedNode {
   const resolved = resolveNodeStyle(n.page, n, role, settings);
   const scale = role === "sibling" ? siblingScale(settings) : 1;
@@ -160,9 +163,29 @@ function makeNode(
     ...size,
     style,
     label,
-    neighbourCount: index.neighbourCount(n.page),
-    gateStats: index.gateStats(n.page),
+    ...countsForLayout(n.page, index, deferCounts),
   };
+}
+
+/** Keep geometry count-free when requested; provisional zero values never certify absent edges. */
+function countsForLayout(page: GraphPage, index: GraphIndex, deferred: boolean): Pick<PositionedNode, "neighbourCount" | "gateStats"> {
+  if (!deferred) return { neighbourCount: index.neighbourCount(page), gateStats: index.gateStats(page) };
+  return { neighbourCount: 0, gateStats: {
+    top: { visibleCount: 0, hasAny: false, complete: false, countUnavailable: true },
+    bottom: { visibleCount: 0, hasAny: false, complete: false, countUnavailable: true },
+    left: { visibleCount: 0, hasAny: false, complete: false, countUnavailable: true },
+    right: { visibleCount: 0, hasAny: false, complete: false, countUnavailable: true },
+  } };
+}
+
+/** Read displayed gate counts for a rendered regular node; preserve section gates and the unused legacy total field. */
+export function projectNodeCounts(node: PositionedNode, index: GraphIndex): PositionedNode {
+  return node.page.transient ? node : { ...node, gateStats: index.gateStats(node.page) };
+}
+
+/** Include partially clipped rows while excluding offscreen rows from optional count projection. */
+export function rowIntersectsViewport(y: number, height: number, scrollTop: number, viewportHeight: number): boolean {
+  return y + height / 2 > scrollTop && y - height / 2 < scrollTop + viewportHeight;
 }
 
 export type ExpandedMiniLayout = Readonly<{
@@ -268,8 +291,9 @@ function distributeGrid(
   settings: KplexSettings,
   role: Role,
   centerPath: string,
+  deferCounts = false,
 ): PositionedNode[] {
-  const nodes = items.map((n) => makeNode(n, role, index, settings));
+  const nodes = items.map((n) => makeNode(n, role, index, settings, deferCounts));
   if (!nodes.length) return nodes;
 
   const rows: Array<{ nodes: PositionedNode[]; height: number; reserve: number }> = [];
@@ -327,8 +351,9 @@ function distributeVertical(
   settings: KplexSettings,
   role: Role,
   centerPath: string,
+  deferCounts = false,
 ): PositionedNode[] {
-  const nodes = items.map((n) => makeNode(n, role, index, settings));
+  const nodes = items.map((n) => makeNode(n, role, index, settings, deferCounts));
   if (!nodes.length) return nodes;
 
   const reserveScale = role === "sibling" ? siblingScale(settings) : 1;
@@ -476,13 +501,14 @@ function viewportFor(
   };
 }
 
-/** Arrange one neighborhood, retaining editable areas and separating measured node extents around an optional editor center. */
+/** Arrange a neighborhood with optional count-free geometry; rendered-row callers project fresh counts separately. */
 export function buildScene(
   neighborhood: Neighborhood,
   index: GraphIndex,
   settings: KplexSettings,
   showCrossLinks = true,
   centerSizeOverride?: CenterNodeSize,
+  deferCounts = false,
 ): PlexScene {
   const centerStyle = resolveNodeStyle(neighborhood.center, null, "center", settings);
   const centerLabel = index.titleFor(neighborhood.center);
@@ -498,8 +524,7 @@ export function buildScene(
     ...centerSize,
     style: centerStyle,
     label: centerLabel,
-    neighbourCount: index.neighbourCount(neighborhood.center),
-    gateStats: index.gateStats(neighborhood.center),
+    ...countsForLayout(neighborhood.center, index, deferCounts),
   };
 
   // Compactness controls inter-node spacing and label length. Expanded view adds vertical
@@ -515,13 +540,13 @@ export function buildScene(
   const childExtraGap = Math.max(42, 52 * vertical * legacySpacing);
   const childBaseY = center.height / 2 + typicalHeight / 2 + centerGap + childExtraGap;
 
-  const parents = distributeGrid(neighborhood.parents, parentBaseY, -1, layoutColumns(settings, "parent"), columnGap, rowGap, index, settings, "parent", neighborhood.center.path);
-  const children = distributeGrid(neighborhood.children, childBaseY, 1, layoutColumns(settings, "child"), columnGap, rowGap, index, settings, "child", neighborhood.center.path);
+  const parents = distributeGrid(neighborhood.parents, parentBaseY, -1, layoutColumns(settings, "parent"), columnGap, rowGap, index, settings, "parent", neighborhood.center.path, deferCounts);
+  const children = distributeGrid(neighborhood.children, childBaseY, 1, layoutColumns(settings, "child"), columnGap, rowGap, index, settings, "child", neighborhood.center.path, deferCounts);
 
   const maxCenterHalfWidth = center.width / 2;
   let sideX = maxCenterHalfWidth + (205 * horizontal * legacySpacing);
-  const left = distributeVertical(neighborhood.leftFriends, -sideX, sideGap, index, settings, "left", neighborhood.center.path);
-  const right = distributeVertical(neighborhood.rightFriends, sideX, sideGap, index, settings, "right", neighborhood.center.path);
+  const left = distributeVertical(neighborhood.leftFriends, -sideX, sideGap, index, settings, "left", neighborhood.center.path, deferCounts);
+  const right = distributeVertical(neighborhood.rightFriends, sideX, sideGap, index, settings, "right", neighborhood.center.path, deferCounts);
 
   const rightExtent = right.length ? Math.max(...right.map((n) => n.x + n.width / 2)) : maxCenterHalfWidth;
   // When there is no challenger/next strip, siblings should not reserve an empty lateral column.
@@ -532,7 +557,7 @@ export function buildScene(
     sideX + siblingBase * horizontal * legacySpacing,
     rightExtent + siblingAfterRight * horizontal * legacySpacing,
   );
-  const siblings = distributeVertical(neighborhood.siblings, siblingCenterX, sideGap, index, settings, "sibling", neighborhood.center.path);
+  const siblings = distributeVertical(neighborhood.siblings, siblingCenterX, sideGap, index, settings, "sibling", neighborhood.center.path, deferCounts);
 
   // Lateral height bands are independent of the parent height. Friends and challengers form a
   // symmetrical pair around the Plex and may extend upward into the same vertical range as
@@ -688,9 +713,10 @@ function appendSiblingParentLinks(
   }
 }
 
-/** Add each semantic relationship between already-visible, non-central persistent nodes exactly
- * once. Iterating each visible page's actual adjacency list avoids an O(visible²) pair scan. */
-function appendVisibleCrossLinks(
+/** Append semantic links between supplied visible persistent nodes, preserving existing structural
+ * pairs. Mutates only the caller-owned edge array; the caller chooses full-scene or clipped membership.
+ * Iterating adjacency avoids an O(visible²) pair scan and never queries section/transient sources. */
+export function appendVisibleCrossLinks(
   nodes: PositionedNode[],
   edges: PositionedEdge[],
   index: GraphIndex,
@@ -743,7 +769,8 @@ function appendVisibleCrossLinks(
  * below the normal Plex. Each visible section still owns a local four-gate relationship cluster.
  * Hidden descendants of a folded section project their relationships upward into the nearest
  * visible folded ancestor. Nothing here is persisted in GraphIndex. The central scene's
- * editable area controls remain available independently of expanded sections. */
+ * editable area controls remain available independently of expanded sections. Optional deferred
+ * counts preserve section-owned overrides while ordinary rendered rows project fresh gates. */
 export function buildSectionExpandedScene(
   expansion: import("../index/SectionExpansion").CentralSectionExpansion,
   index: GraphIndex,
@@ -751,6 +778,7 @@ export function buildSectionExpandedScene(
   expandedSectionIds: ReadonlySet<string> = new Set(expansion.sections.filter((section) => section.childIds.length).map((section) => section.id)),
   showCrossLinks = true,
   centerSizeOverride?: CenterNodeSize,
+  deferCounts = false,
 ): PlexScene {
   const sectionPaths = new Set(expansion.sections.map((section) => section.page.path));
   const baseNeighborhood: Neighborhood = {
@@ -759,7 +787,7 @@ export function buildSectionExpandedScene(
   };
   // Add cross-links after section/runtime relationship nodes are appended, so the visibility rule
   // is truly based on the final scene rather than only on the unexpanded center neighbourhood.
-  const scene = buildScene(baseNeighborhood, index, settings, false, centerSizeOverride);
+  const scene = buildScene(baseNeighborhood, index, settings, false, centerSizeOverride, deferCounts);
   const byId = new Map(expansion.sections.map((section) => [section.id, section] as const));
   const roots = expansion.sections.filter((section) => !section.parentId);
   const visible: Array<{ section: import("../index/SectionExpansion").ExpandedSection; depth: number }> = [];
@@ -852,7 +880,7 @@ export function buildSectionExpandedScene(
   /** Measure an outline heading and preserve separate horizontal-indent and vertical-size axes. */
   const makeSectionNode = (section: import("../index/SectionExpansion").ExpandedSection, depth: number, relations: ReturnType<typeof collectForVisibleSection>): PositionedNode => {
     const pseudo: Neighbour = { page: section.page, role: "child", relationType: RelationType.DEFINED, typeDefinition: "section", linkDirection: null };
-    const node = makeNode(pseudo, "child", index, settings);
+    const node = makeNode(pseudo, "child", index, settings, deferCounts);
     const maxSectionWidth = Math.max(172, node.style.maxWidth ?? settings.baseNodeStyle.maxWidth ?? 286);
     node.width = Math.max(172, Math.min(maxSectionWidth, node.width + (16 + (2 - 16) * horizontalDensityT)));
     node.height = Math.max(32, node.height + (3 + (-1 - 3) * verticalDensityT));
@@ -869,7 +897,7 @@ export function buildSectionExpandedScene(
 
   /** Place one bounded section-owned relation group with actual-width and non-touching rows. */
   const addRelationGroup = (sectionNode: PositionedNode, items: SourcedNeighbour[], role: Exclude<Role, "sibling">) => {
-    const nodes = items.map((item) => makeNode(item.relation, role, index, settings));
+    const nodes = items.map((item) => makeNode(item.relation, role, index, settings, deferCounts));
     const horizontal = role === "left" || role === "previous" || role === "right" || role === "next";
     const direction = role === "left" || role === "previous" ? -1 : role === "right" || role === "next" ? 1 : 0;
 

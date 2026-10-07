@@ -396,9 +396,9 @@ test("on-demand status distinguishes local readiness from complete-vault indexin
   assert.equal((await status.call(context)).label, "indexing.localUnavailable");
 });
 
-/** Independent URL work reports real progress; an idle local baseline never implies global loading. */
+/** URL preparation reports actual restored counts without an invented zero-total scan or withholding local readiness. */
 test("URL discovery status is independent of ready local graphs and clears after actual work settles", async () => {
-  let localActive = false, url = { active: true, failed: false, processed: 4, total: 100 };
+  let localActive = false, url = { active: true, failed: false, processed: 0, total: 0, restored: 0 };
   const context = {
     initialIndexComplete: false, indexDirty: false, rebuildTask: null, rebuildTimer: null,
     cachedMarkdownFileCount: 100, translator: (key, params) => JSON.stringify({ key, params }),
@@ -417,11 +417,23 @@ test("URL discovery status is independent of ready local graphs and clears after
   context.computeIndexStatusFacts = () => facts;
   assert.equal(facts.phase, "ready", "Optional discovery cannot withhold local readiness");
   assert.deepEqual(JSON.parse((await status.call(context)).label), {
+    key: "indexing.urlsPreparing",
+  });
+  url = { active: true, failed: false, processed: 0, total: 0, restored: 42 };
+  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+    key: "indexing.urlsRestoring", params: { restored: 42 },
+  });
+  url = { active: true, failed: false, processed: 0, total: 0, restored: 75 };
+  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+    key: "indexing.urlsRestoring", params: { restored: 75 },
+  }, "The label tracks the actual restored count");
+  url = { active: true, failed: false, processed: 4, total: 100, restored: 75 };
+  assert.deepEqual(JSON.parse((await status.call(context)).label), {
     key: "indexing.urlsProgress", params: { processed: 4, total: 100 },
   });
-  url = { active: false, failed: true, processed: 99, total: 100 };
+  url = { active: false, failed: true, processed: 99, total: 100, restored: 75 };
   assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.urlsIncomplete");
-  url = { active: false, failed: false, processed: 100, total: 100 };
+  url = { active: false, failed: false, processed: 100, total: 100, restored: 75 };
   assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.localReady");
   localActive = true;
   facts = await compute.call(context, 100);
@@ -461,7 +473,7 @@ test("pre-restore file events update temporary availability while preserving bac
 /** An ordinary host edit advances its source fence before starting asynchronous visible preparation. */
 test("visible metadata preview captures the event's new source revision", async () => {
   const handlers = new Map(), file = { path: "Visible.md", extension: "md", stat: { mtime: 2, size: 20 } };
-  const captures = [], visible = [];
+  const captures = [], visible = [], presentation = [];
   const context = { reactiveIndexListenersRegistered: false, indexDirtyRevision: 0,
     app: { vault: { on: () => ({}), getFileByPath: path => path === file.path ? file : null },
       metadataCache: { on: (kind, callback) => { handlers.set(kind, callback); return {}; } } },
@@ -469,7 +481,8 @@ test("visible metadata preview captures the event's new source revision", async 
     renameMetadataSuppressions: new Map(), dirtyMarkdownPaths: new Set(),
     scheduleRebuild: () => { context.indexDirtyRevision++; },
     scheduleVisibleMetadataRefresh: path => visible.push(path),
-    index: { refreshVisibleHostMetadataPreviews: (path, prior) => { captures.push([path, context.indexDirtyRevision, prior]); return true; } },
+    index: { refreshVisibleHostMetadataPreviews: (path, prior) => { captures.push([path, context.indexDirtyRevision, prior]); return true; },
+      refreshVisiblePresentation: path => { presentation.push([path, context.indexDirtyRevision]); return Promise.resolve(); } },
   };
   await productionFunction("src/main.ts", "registerReactiveIndexListeners", {}).call(context);
   handlers.get("changed")(file);
@@ -478,6 +491,7 @@ test("visible metadata preview captures the event's new source revision", async 
   context.managedMetadataWrites.set(file.path, Date.now() + 10000);
   handlers.get("changed")(file);
   assert.deepEqual(captures[1], [file.path, 1, 1], "managed writes refresh presentation without scheduling a duplicate dirty batch");
+  assert.deepEqual(presentation, [[file.path, 1], [file.path, 1]], "Ordinary and managed events repair finite optional facets after their source fence");
 });
 
 /** React portal capture runs before the native header drag helper, so its host must retain focus. */

@@ -475,6 +475,66 @@ test("restart after ontology changes reuses the old graph only as a source-backe
   } finally { await browser.cleanup(); }
 });
 
+test("late Eager bootstrap cannot certify an old-policy snapshot over a current requested scope", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const assert=Object.assign((v,m)=>ok(v,m),{equal}),M=sourceModules,f=await fixture('si5-policy-bootstrap-race');
+      const collect=${collect.toString()},hostOracle=${hostOracle.toString()},fullCenterIndex=${fullCenterIndex.toString()};
+      const currentNeighborhoodView=${currentNeighborhoodView.toString()},centerGateSettings=${centerGateSettings.toString()};
+      const wait=async(fn)=>{const at=Date.now();while(Date.now()-at<10000){if(await fn())return;await new Promise(r=>setTimeout(r,20))}throw Error('Restart did not converge')};
+      let initial,index,oracle,release,unblock;
+      try{
+        f.text=f.texts;f.add('A.md','Friends:: [[B]]');f.add('B.md','');f.app.vault.getName=()=> 'si5-policy-bootstrap-race';f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
+        await f.acquire();ok(await f.acquisition.reconcile(),'Initial neutral inventory');
+        const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
+          inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
+        const presentation={noteTypeField:'Type',primaryTagField:'Style'},view=centerGateSettings({showFolderNodes:false});
+        initial=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md'],semantic,presentation,true),semantic,view);
+        ok(await f.cache.writeSnapshot({createdAt:Date.now(),vaultSignature:M.computeVaultSignature(f.app),
+          settingsSignature:M.computeIndexSettingsSignature(initial.plugin.settings),discoveredFields:[]},
+          [...initial.state.pages.values()].map(p=>M.persistedPageFromGraphPage(p)),
+          [...initial.state.evidence.declarations()].map(e=>M.persistedDeclarationFromEvidence(e))),'Complete optional acceleration');
+        const db=await f.cache.open(),heads=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
+        initial.destroy();initial=null;f.acquisition.close();
+        const changed={...semantic,hierarchy:{...semantic.hierarchy,leftFriends:[],rightFriends:['Friends']}};
+        index=new M.GraphIndex({app:f.app,settings:{indexingMode:'eager',...changed,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
+        index.scheduleOrphanCleanup=()=>{};
+        // Admit the P2 fallback only after the old-policy candidate established source strategy.
+        // The P1 targeted preview still owns its lease, so the fallback finishes on that release
+        // before the lower P4 source inventory tail may continue.
+        const preview=index.publishSnapshotPreview.bind(index);let baseline;
+        index.publishSnapshotPreview=async(...args)=>{
+          ok(index.sourceBackedSemantics,'Changed-policy candidate already selected source strategy');
+          ok(!index.sourceAcquisition.hasSemanticDependencies(),'Source closure remains behind targeted preview');
+          release=index.acquireSemanticDemand('A.md');baseline=index.onDemandBaselineTask;
+          ok(baseline,'Real partial-Eager fallback admitted after classification');return preview(...args);
+        };
+        let entered;const reached=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r);
+        const evidence=index.indexedDb.iterateSnapshotEvidence.bind(index.indexedDb);
+        index.indexedDb.iterateSnapshotEvidence=async(...args)=>{entered();await hold;return evidence(...args);};
+        const restore=await index.restorePersistedSnapshot(['A.md']);ok(restore.restored,'Changed policy does not discard physical acceleration '+JSON.stringify({restore,diagnostics:index.getIndexDiagnostics(),source:index.getSourceRepositoryDiagnostics(),catalog:await index.indexedDb.readSnapshotCatalog(),comparison:M.compareIndexSettingsSignature?.((await index.indexedDb.readSnapshotCatalog()).active?.settingsSignature,index.plugin.settings)}));
+        await baseline;await reached;
+        ok(index.get('A.md').neighbours.get('B.md')?.isRightFriend,'Current requested challenger visible before old full evidence returns');
+        ok(index.semanticScopes.has('A.md'),'Current requested scope is retained during full candidate hydration');
+        unblock();equal((await index.waitForSnapshotHydration()).restored,true,'Complete optional baseline');
+        await wait(()=>index.sourceAcquisition.hasSemanticDependencies());await index.refreshSemanticSettings();
+        equal(index.hasPendingSemanticPreparation(),false,'Current requested publication ready');
+        ok(index.get('A.md').neighbours.get('B.md')?.isRightFriend,'Challenger from saved new policy');
+        ok(index.sourceBackedSemantics,'Old policy never promoted as current semantic authority');
+        equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No startup full graph build');
+        equal(index.getSourceAcquisitionCounters().vaultReads,0,'No valid-fact Markdown reads');equal(index.getSourceAcquisitionCounters().parses,0,'No reparsing');
+        equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll()),heads,'No source restamping');
+        oracle=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md'],changed,presentation,true),changed,view);
+        equal(currentNeighborhoodView(index,'A.md'),currentNeighborhoodView(oracle,'A.md'),'Canonical new-policy provenance/gates/siblings');
+        index.scheduleSnapshotPersist();equal(index.snapshotPersistTimer,null,'Borrowed baseline never written as complete new-policy graph');
+        return true;
+      }finally{unblock?.();release?.();oracle?.destroy();initial?.destroy();index?.destroy();f.close()}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
 for (const damage of ["missing", "metadata", "chunks", "offline-edit"]) {
   test(`source-backed startup recovers ${damage} graph acceleration without reacquiring valid owners`, async () => {
     const browser = await chromiumHarness(bundle);
@@ -504,7 +564,10 @@ for (const damage of ["missing", "metadata", "chunks", "offline-edit"]) {
           if(damage==='chunks')await edit(db,['snapshotChunks'],tx=>tx.objectStore('snapshotChunks').clear());
           initial.destroy();initial=null;f.acquisition.close();
           if(damage==='offline-edit'){f.files.get('A.md').stat.mtime++;f.texts.set('A.md','Friends:: [[B]]\\nFriends:: [[Ghost]]');}
+          const readsBefore=f.reads.length;
           index=new M.GraphIndex({app:f.app,settings:{indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
+          const originalParse=index.metadataParser.parse.bind(index.metadataParser);let actualParses=0;
+          index.metadataParser.parse=(...args)=>{actualParses++;return originalParse(...args)};
           index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
           ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Source progress restores requested startup');
           if(index.hasPendingSnapshotHydration())await index.waitForSnapshotHydration();
@@ -519,8 +582,10 @@ for (const damage of ["missing", "metadata", "chunks", "offline-edit"]) {
           ok(suggestions.tags.includes('#remote/nested'),'Host tag suggestion outside scope restored');
           equal(index.state.evidence.declarationCount,0,'Global vocabulary retains no full evidence');
           for(const page of index.state.pages.values())equal(page.neighbours.size,0,'Only requested scopes own relationships');
-          const counters=index.getSourceAcquisitionCounters();equal(counters.vaultReads,damage==='offline-edit'?1:0,'Only offline body misses read');
-          equal(counters.parses,damage==='offline-edit'?1:0,'Only offline body misses parse');
+          const counters=index.getSourceAcquisitionCounters();
+          equal(f.reads.slice(readsBefore),damage==='offline-edit'?['A.md']:[],'Exactly the offline owner is read across foreground/background acquisition');
+          equal(actualParses,damage==='offline-edit'?1:0,'Exactly the offline body is parsed across all acquisition lanes');
+          ok(counters.vaultReads<=actualParses&&counters.parses<=actualParses,'Source acquisition reuses an earlier versioned body without duplicate work');
           equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'No full graph/source rebuild');
           const after=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
           if(damage!=='offline-edit')equal(after,heads,'Valid neutral heads preserved exactly');
@@ -852,16 +917,23 @@ for (const { failure, oldParser, interruption, storageFailure } of [{ failure: f
           let signal;const paused=new Promise(resolve=>signal=resolve),held=new Promise(resolve=>unblock=resolve);
           let replayCount=0;M.GraphBuilder.prototype.buildSourceNodeCatalog=async function(...args){replayCount++;if(interruption&&replayCount===1){signal();await held;}return failure?null:original.apply(this,args)};
           index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+          const startupReads=f.reads.length,parse=index.metadataParser.parse.bind(index.metadataParser);let actualParses=0;
+          /** Count both foreground and optional acquisition through the production shared parser. */
+          index.metadataParser.parse=async(...args)=>{actualParses++;return parse(...args);};
           if(interruption?.startsWith('primary')){
             const repair=index.sourceAcquisition.prepareUrlAliasVocabulary;
             index.sourceAcquisition.prepareUrlAliasVocabulary=async function(...args){signal();await held;return repair.apply(this,args)};
           }
-          release=index.acquireSemanticDemand('A.md');const startup=index.restorePersistedSnapshot(['A.md']);
+          // Primary-cache assertions isolate optional alias work after real cache hydration. A demand
+          // admitted before that cache exists may legitimately parse/repair its URL-bearing center.
+          if(!interruption?.startsWith('primary'))release=index.acquireSemanticDemand('A.md');
+          const startup=index.restorePersistedSnapshot(['A.md']);
           if(interruption){
             await paused;const before=index.urlAliasUpgradeToken();
             if(interruption?.startsWith('primary')){
               await startup;ok((await index.waitForSnapshotHydration()).restored,'Primary cache promotes before alias repair');
               ok(index.isFullSnapshotHydrated()&&!index.hasPendingSnapshotHydration(),'Full coherent cache is already available');
+              release=index.acquireSemanticDemand('A.md');
               await index.refreshSemanticSettings();ok(!index.hasPendingSemanticPreparation(),'Current requested semantics are ready before aliases');
               ok(index.neighbours(index.get('A.md'),'left').some(n=>n.page.path==='B.md'),'Requested cached relationship available');
               ok(index.state.pages.get('Remote.md').neighbours.has(oldUrl.path),'Global cached URL relationship available before repair');
@@ -869,6 +941,8 @@ for (const { failure, oldParser, interruption, storageFailure } of [{ failure: f
               equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll()),heads.map(head=>({...head,bodyParserVersion:2})),'Primary authority does not restamp any old head');
               equal(index.getSourceAcquisitionCounters().vaultReads,0,'No parser repair is needed to expose cached relationships');
               equal(index.getSourceAcquisitionCounters().parses,0,'No optional parser work claimed complete');
+              equal(f.reads.length-startupReads,0,'Cached primary exposure reads no foreground or background body');
+              equal(actualParses,0,'Cached primary exposure invokes no foreground or background parser');
               ok(index.hasPendingSearchVocabulary(),'Alias vocabulary truthfully remains pending');
               equal(index.getUrlAliasUpgradeProgress(),{phase:'repair',processed:0,total:interruption==='primary'?3:2},'Owned optional progress is distinct from hydration');
               equal((await f.cache.readSnapshotMeta()).urlAliasVersion,1,'No false current alias certificate');
@@ -953,6 +1027,8 @@ for (const { failure, oldParser, interruption, storageFailure } of [{ failure: f
           equal([...index.state.evidence.declarations()].length,evidence.length,'Cached provenance count retained');
           equal(index.getSemanticPreparationDiagnostics().fullBuilds,0,'Facet upgrade is not a full build');
           equal(index.getSourceAcquisitionCounters().vaultReads,oldParser?(interruption==='primary'?3:2):0,'Only obsolete parser inputs require Markdown rereads');equal(index.getSourceAcquisitionCounters().parses,oldParser?(interruption==='primary'?3:2):0,'Grammar migration intentionally reparses old bodies');
+          equal(f.reads.length-startupReads,oldParser?(interruption==='primary'?3:2):0,'Only old URL-bearing owners are read across both lanes');
+          equal(actualParses,oldParser?(interruption==='primary'?3:2):0,'Only old URL-bearing owners are parsed across both lanes');
           const currentHeads=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
           if(!oldParser) equal(currentHeads,heads,'Current neutral heads preserved exactly');
           else {

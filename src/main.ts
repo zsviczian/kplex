@@ -1,5 +1,5 @@
 /**
- * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback.
+ * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback. Native metadata events request finite visible presentation repair independently of semantic readiness.
  */
 import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, getAllTags, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { captureSettingsPolicy, classifySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
@@ -631,12 +631,16 @@ export default class KplexPlugin extends Plugin {
       else if (item instanceof TFolder) void this.index.updateHostFolderAvailability(oldPath, item);
     });
     const resolved = this.app.metadataCache.on("resolve", (file) => {
-      if (this.app.vault.getFileByPath(file.path) === file) this.index.refreshVisibleHostMetadataPreviews(file.path);
+      if (this.app.vault.getFileByPath(file.path) === file) {
+        this.index.refreshVisibleHostMetadataPreviews(file.path);
+        void this.index.refreshVisiblePresentation(file.path);
+      }
     });
     const metadata = this.app.metadataCache.on("changed", (file) => {
       if (this.app.vault.getFileByPath(file.path) !== file) return;
       const previousSourceRevision = this.indexDirtyRevision;
       mark("metadata:changed", file);
+      void this.index.refreshVisiblePresentation(file.path);
       if (this.index.refreshVisibleHostMetadataPreviews(file.path, previousSourceRevision)) this.scheduleVisibleMetadataRefresh(file.path);
     });
     let released = false;
@@ -806,12 +810,16 @@ export default class KplexPlugin extends Plugin {
         if (changed) void this.saveSettings(false, false);
       }));
     this.registerEvent(this.app.metadataCache.on("resolve", (file) => {
-      if (this.app.vault.getFileByPath(file.path) === file) this.index.refreshVisibleHostMetadataPreviews(file.path);
+      if (this.app.vault.getFileByPath(file.path) === file) {
+        this.index.refreshVisibleHostMetadataPreviews(file.path);
+        void this.index.refreshVisiblePresentation(file.path);
+      }
     }));
     this.registerEvent(this.app.metadataCache.on("changed", (file) => {
       const previousSourceRevision = this.indexDirtyRevision;
       /** Capture preview freshness after this event's source revision has been advanced. */
       const refreshVisible = (): void => {
+        void this.index.refreshVisiblePresentation(file.path);
         if (this.index.refreshVisibleHostMetadataPreviews(file.path, previousSourceRevision)) this.scheduleVisibleMetadataRefresh(file.path);
       };
       this.pruneManagedMetadataWrites();
@@ -2287,7 +2295,11 @@ export default class KplexPlugin extends Plugin {
     return { upToDate, phase, indexedFiles, totalFiles };
   }
 
-  /** Report current graph/search readiness and alias-only progress without scheduling work or implying relationship failure. */
+  /**
+   * Report graph/search readiness and actual optional URL progress without scheduling work.
+   * A zero URL total is unknown during preparation: report restored note counts when available
+   * rather than implying a completed empty scan. Discovery totals apply once the inventory is known.
+   */
   getIndexStatus(): {
     upToDate: boolean;
     phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating" | "incomplete";
@@ -2306,7 +2318,11 @@ export default class KplexPlugin extends Plugin {
     const aliasProgress = phase === "updating" ? this.index.getUrlAliasUpgradeProgress?.() : null;
     const urlProgress = this.index.getUrlIndexProgress();
     const label = urlProgress.active
-      ? this.translator("indexing.urlsProgress", { processed: urlProgress.processed, total: urlProgress.total })
+      ? urlProgress.total === 0
+        ? urlProgress.restored > 0
+          ? this.translator("indexing.urlsRestoring", { restored: urlProgress.restored })
+          : this.translator("indexing.urlsPreparing")
+        : this.translator("indexing.urlsProgress", { processed: urlProgress.processed, total: urlProgress.total })
       : urlProgress.failed
         ? this.translator("indexing.urlsIncomplete")
       : this.index.isOnDemandMode() && ["ready", "preparing", "updating", "indexing", "incomplete"].includes(phase)

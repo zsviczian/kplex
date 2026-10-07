@@ -16,7 +16,7 @@ const fixture = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-m
 const temp = mkdtempSync(join(tmpdir(), "kplex-migration-"));
 process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
 await build({
-  stdin: { contents: 'export * from "./src/settings"; export * from "./src/index/style"; export * from "./src/ui/layout"; export * from "./src/ui/PurgeIndexCacheModal";', resolveDir: root },
+  stdin: { contents: 'export * from "./src/settings"; export * from "./src/core/graph/settingsPolicy"; export * from "./src/index/style"; export * from "./src/ui/layout"; export * from "./src/ui/PurgeIndexCacheModal";', resolveDir: root },
   outfile: join(temp, "migration.mjs"), bundle: true, platform: "node", format: "esm",
   plugins: [{ name: "obsidian-boundary-double", setup(builder) {
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "double" }));
@@ -41,7 +41,8 @@ await build({
     `, loader: "js" }));
   } }],
 });
-const { migrateAndMergeSettings, importExcaliBrainGraphSettings, KplexSettingTab, resolveNodeStyle, resolveLinkStyle, buildScene, PurgeIndexCacheModal } = await import(pathToFileURL(join(temp, "migration.mjs")));
+const { migrateAndMergeSettings, importExcaliBrainGraphSettings, KplexSettingTab, resolveNodeStyle, resolveLinkStyle, buildScene, PurgeIndexCacheModal,
+  captureSettingsPolicy, classifySettingsChange, encodeIndexSettingsSignature } = await import(pathToFileURL(join(temp, "migration.mjs")));
 const defaults = migrateAndMergeSettings(undefined);
 const migrated = importExcaliBrainGraphSettings(fixture);
 
@@ -62,9 +63,14 @@ test("transient ExcaliBrain drawing paths are discarded from imported and saved 
 test("indexing acquisition settings default conservatively, validate saved values and stay local on import", () => {
   assert.equal(defaults.indexingMode, "on-demand");
   assert.equal(defaults.urlIndexingMode, "background");
+  assert.equal(defaults.indexingThrottle, "responsive");
   const invalid = migrateAndMergeSettings({ indexingMode: "invalid", urlIndexingMode: "invalid" });
   assert.equal(invalid.indexingMode, "on-demand");
   assert.equal(invalid.urlIndexingMode, "background");
+  assert.equal(migrateAndMergeSettings({ indexingThrottle: "invalid" }).indexingThrottle, "responsive");
+  for (const indexingThrottle of ["responsive", "balanced", "faster"]) {
+    assert.equal(migrateAndMergeSettings({ indexingThrottle }).indexingThrottle, indexingThrottle);
+  }
   const savedEager = migrateAndMergeSettings({ indexingMode: "eager", urlIndexingMode: "on-demand" });
   assert.equal(savedEager.indexingMode, "eager", "explicit saved Eager survives the new default");
   assert.equal(savedEager.urlIndexingMode, "background", "retired URL option migrates to always-on discovery");
@@ -73,6 +79,31 @@ test("indexing acquisition settings default conservatively, validate saved value
   assert.equal(imported.indexingMode, "on-demand");
   assert.equal(imported.urlIndexingMode, "background");
   assert.deepEqual(migrateAndMergeSettings(JSON.parse(JSON.stringify(local))), local);
+});
+
+test("background throttle settings use declarative localized controls and save without reconstruction", async () => {
+  const saves = [];
+  const plugin = { settings: structuredClone(defaults), saveSettings: async (...args) => { saves.push(args); },
+    index: { unassignedOntologyFields: () => [], allPages: () => [] } };
+  const tab = new KplexSettingTab({}, plugin);
+  const page = tab.getSettingDefinitions().find(item => item.name === "Indexing config");
+  const row = page.items.flatMap(group => group.items ?? []).find(item => item.control?.key === "indexingThrottle");
+  assert.equal(row.name, "Background indexing speed");
+  assert.equal(row.control.defaultValue, "responsive");
+  assert.deepEqual(Object.keys(row.control.options), ["responsive", "balanced", "faster"]);
+  await tab.setControlValue("indexingThrottle", "faster");
+  assert.equal(plugin.settings.indexingThrottle, "faster");
+  await tab.setControlValue("indexingThrottle", "invalid");
+  assert.equal(plugin.settings.indexingThrottle, "responsive");
+  assert.deepEqual(saves, [[false, false], [false, false]]);
+  const before = captureSettingsPolicy(defaults);
+  const faster = migrateAndMergeSettings({ indexingThrottle: "faster" });
+  assert.deepEqual(classifySettingsChange(before, captureSettingsPolicy(faster)), {
+    semanticInvalidation: false, presentationFacets: false, searchTerms: false,
+    nodeVisuals: false, render: false, changedKeys: [],
+  });
+  assert.equal(encodeIndexSettingsSignature(faster), encodeIndexSettingsSignature(defaults));
+  assert.equal(importExcaliBrainGraphSettings({ ...fixture, indexingThrottle: "balanced" }, faster).indexingThrottle, "faster");
 });
 
 test("indexing settings persist without rebuilding and cache estimation is lazy and fenced to the displayed row", async () => {

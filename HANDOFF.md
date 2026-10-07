@@ -14,59 +14,39 @@ Return uncommitted changes and actual results for main-agent review unless the m
 
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
+
+
+
 ---
 
-# Main validation pending desktop unlock
+# Final indexing checkpoint — reviewed and verified
 
-Offline → main. URL correction and narrow native fan-out correction are reviewed and frozen on
-`indexing-fixes`, after checkpoint `9ba04cf`. New changes remain uncommitted; no push/PR authority.
-C15–C26 stay paused. The main agent has CLI/runtime access; no further offline edits are queued.
+Direction: main validation closeout after offline implementation and independent review. Branch
+`indexing-fixes`, implementation base `1527b6ebf9644c035fe845303971d0eb30cc641f`. The maintainer
+explicitly authorizes commit, push, PR and returning the local checkout to main. No active agent,
+repository or native-driver wait; no new implementation assignment. C15–C26 remain paused.
 
-## Exact current evidence
+The cumulative branch fixes early local/count publication and independent cached URL acquisition,
+then adds priority/stable publication, visible presentation repair, automatic drawing formatting,
+Responsive/Balanced/Faster background pacing, visible-row counts/cross-links and truthful URL-cache
+progress. Existing semantic, provenance, revision and lifecycle owners remain authoritative.
+Factory defaults are On-demand/Responsive; actual reference preferences are Eager/Responsive.
 
-- Required Node22.22.2 `verify:obsidian` passes architecture7/core69/Node253/UI17/portable327/
-  Chromium368, production fixtures/types/scanner/build and exact native smoke. Existing
-  activeLeaf warning only. Source freeze `/private/tmp/kplex-url-final9-source-freeze-20261006.json`
-  covers276 unchanged inputs; manifest SHA
-  `1f5417e21d26020b61e5f834dd744198a0d9ff5b6ca5d0c366806cccc8671ae1`.
-- Exact staged small-vault main SHA
-  `5044bdf7248ee821f31352a26fbdd82085f38320dbfe1908de674c7895061999`.
-  Reference vault still has the previous artifact; no new main.js deployment there yet.
-- Complete relationship browser file44/44. Native cached fan-out can dirty a selected linked
-  owner after the first cancellation/last retry capture; source acquisition now drains one finite
-  snapshot of its authoritative active-task Map, preserving current fences and two attempts.
-  Finally-delete/unload-clear retain its lifetime. No new parser/classifier/scheduler/schema.
-- Disposable URL fixture passes identity/property evidence/numeric gates/content/rename/delete/
-  shared hierarchy and warm URL cache15 owners/zero URL body reads. Owned notes removed and
-  settings/enablement exact hashes preserved. Initial premature child assertion failure retained;
-  rerun waits current owner closure, captures active incomplete1-child→settled2-child state.
-- Focus=false makes the fixture functional-only. Eager foreground refuses its focus prerequisite
-  and restores settings/enablement. Electron reports desktop session `locked`; all three visible
-  Obsidian windows are unfocused. Activation cannot overcome lock. CUA inspection timed out.
-  User was asked to unlock. This is an environment prerequisite, not approval rejection.
+Exact final-source `npm run verify` and real build pass on Node22.22.2: architecture7/core69/Node292/
+UI17/portable333/browser410, zero browser failures/skips/cancellations, scanner0errors/one unchanged
+warning. Mandatory20,015-owner fixture passes. Frozen271 inputs `db4ed1d3…`; six extra configuration
+hashes unchanged. Main `56aa837741e7…` matches the tested/deployed artifact. The unmodified native
+runner passes command/DOM/error checks in the disposable small vault on that exact build.
 
-## Remaining serial native work after unlock
+Production-reference qualitative UI acceptance is confirmed by the maintainer. Serial prior
+Eager/On-demand reference functionality and the final warm-label/counter check pass. Continuous
+focus/paint timing is unavailable and remains excluded; physical mobile, high-degree full-scene
+filter/section performance and the broader few-second startup target remain open. Failed/excluded
+observations are retained. Final cleanup preserves notes/current center/settings/enablement,
+removes all temporary controllers/foreground leases and resumes background work.
 
-Use required Node22 PATH plus `/usr/local/bin` and explicit small-vault variables. Keep actual
-window focus/visibility and original throttling; do not overlap drivers or browser runs.
-
-1. Rerun `/private/tmp/kplex-eager-foreground-run.mjs` with report directory
-   `/private/tmp/kplex-url-eager-foreground-20261006`; retain initial focus failure reports.
-2. Run `/private/tmp/kplex-url-si5-run.mjs` with the same explicit disposable-vault variables.
-   It backs up the7.2MiB vault and exact structured IDB values privately, invokes the existing
-   required SI5 driver in temporary Eager mode with genuine saved semantics, then restores
-   original data/enablement/controller/load/save/mode. Backup is not yet created.
-3. Run `/private/tmp/kplex-url-reference-check.mjs --deploy` then `--warm` then `--eager`,
-   one at a time. Only main.js may be deployed; reference notes strictly read-only. Private
-   independent body oracle expects232 root referrers/four subpaths before active exclusions.
-   Require actual URL center/progressive incidence/case-root identity/no self-edge/numeric
-   labels after URL→ordinary→URL navigation, exact preference/enablement/note-inventory cleanup.
-4. Run `/private/tmp/kplex-url-vault-reload.mjs`, then `/private/tmp/kplex-url-cache-size.mjs`.
-   Renderer reload is not process cold start; logical JSON UTF16 size is not physical IDB allocation.
-5. Recheck frozen inputs/artifacts/no temporary controllers or wrappers, update V2/Refactor plan/
-   validation and minimized evidence, mark HANDOFF inactive only after actual acceptance.
-
-All owned test processes have completed. Full report remains private at
-`/private/tmp/kplex-url-final9-full-20261006/report.json`; durable current findings and all failed
-attempts are in [validation](docs/validation/url-indexing-and-foreground-2026-10-06.md).
-Do not claim production latency, complete delivery or physical-device acceptance yet.
+Durable final checks, identities, cleanup and three prioritized manual checks are in
+[the throttle report](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.md),
+[exact evidence](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.json), and
+[progress](Refactor%20plan.md). Git actions follow the current explicit authorization; no merge,
+release or further automatic optimization is assigned.

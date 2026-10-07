@@ -69,6 +69,7 @@ export async function chromiumHarness(bundle) {
       socket.send(JSON.stringify({ id, method, params }));
     });
   }
+  /** Start the owned browser only after its port file contains a complete numeric endpoint. */
   async function start() {
     await rm(join(profile, "DevToolsActivePort"), { force: true });
     child = spawn(executable, ["--headless", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--remote-debugging-port=0",
@@ -78,7 +79,12 @@ export async function chromiumHarness(bundle) {
     // Launch can exceed five seconds on a busy macOS renderer; keep test assertions unchanged.
     for (let i = 0; i < 600; i++) {
       if (child.exitCode !== null) throw new Error("Chromium exited: " + stderr);
-      try { port = (await readFile(join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]; break; } catch { await new Promise(r => setTimeout(r, 25)); }
+      // Chromium can create this file before writing its first line. Existence alone is not ready.
+      try {
+        const candidate = (await readFile(join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0];
+        if (/^[1-9][0-9]{0,4}$/.test(candidate) && Number(candidate) <= 65535) { port = candidate; break; }
+      } catch {}
+      await new Promise(r => setTimeout(r, 25));
     }
     if (!port) throw new Error("Chromium startup timeout: " + stderr);
     const target = await (await fetch(`http://127.0.0.1:${port}/json/new?${pageUrl}`, { method: "PUT" })).json();

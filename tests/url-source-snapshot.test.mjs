@@ -6,7 +6,10 @@ import { browserBundle } from "./support/browserTypeScript.mjs";
 const bundle = await browserBundle([
   "src/index/IndexSnapshot.ts", "src/index/GraphState.ts", "src/types.ts",
 ], { obsidian: "exports.TFile=class TFile {}; exports.TFolder=class TFolder {};" });
-const scope = {}; new Function("window", bundle)(scope); const M = scope.sourceModules;
+let hostYields = 0;
+/** The portable fixture supplies real task timers for the legacy host facade's cooperative yield. */
+const scope = { setTimeout: (...args) => { hostYields++; return setTimeout(...args); }, clearTimeout };
+new Function("window", bundle)(scope); const M = scope.sourceModules;
 
 test("full semantic snapshot preserves frontmatter and inline property URL evidence and origin counts", async () => {
   const root = new (class { constructor() { this.path = ""; this.children = []; } })();
@@ -24,7 +27,14 @@ test("full semantic snapshot preserves frontmatter and inline property URL evide
     { sourceKind: "property-url", definition: "resource", fieldName: "Resource", rawValue: url, line: 4, start: 40, end: 64 },
   ]) state.evidence.addDeclaration("Owner.md", url, "child", M.RelationType.INFERRED, M.LinkDirection.FROM, provenance);
   state.evidence.addDeclaration("https://obsidian.md", url, "child", M.RelationType.INFERRED, M.LinkDirection.FROM, { sourceKind: "url-origin" });
-  assert.equal(await M.finalizeHydratedGraphStateCooperative(state), true);
+  let checked = false; hostYields = 0;
+  /** A real elapsed slice exercises task yielding even when this small semantic fixture runs quickly. */
+  const current = () => {
+    if (!checked) { checked = true; const until = performance.now() + 10; while (performance.now() < until) { /* Consume one real slice. */ } }
+    return true;
+  };
+  assert.equal(await M.finalizeHydratedGraphStateCooperative(state, current, 1), true);
+  assert.ok(hostYields > 0, "Finalization uses an actual host task without losing URL provenance");
   const saved = JSON.parse(JSON.stringify(M.serializeGraphState(state, app, settings)));
   assert.equal(M.isPersistedIndexSnapshot(saved), true);
   const restored = M.hydrateGraphState(saved, app);

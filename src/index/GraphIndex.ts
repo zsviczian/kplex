@@ -16,6 +16,12 @@
  * closes shared synthetic lifetimes. Physical filenames remain searchable during bounded previews;
  * terminal requested failures retain exact lifetime facts rather than implying active work. Legacy
  * URL alias cache facets replay from authenticated neutral facts without replacing cached relations.
+ * Displayed URL incidence advances only at a coalesced five-second boundary, first useful demanded
+ * result, foreground action or completion. The independent working/cache lane can progress without
+ * leaking intermediate adjacency into unrelated renders. Local foreground scopes retain read-only
+ * current certificates across strategy transfer until a durable center replacement is certified.
+ * Finite visible presentation demand repairs native/cache facets at P2 on actual input events;
+ * pending values retain known styling and released surfaces retire callbacks without vault polling.
  * Optional alias owners join current requested preparations and their existing supersession retries
  * before changing repository fences; exact failed-demand records prevent repetitive background retries.
  * Exact canonical editable pairs compose over coherent scopes under their own semantic policy;
@@ -29,13 +35,17 @@
  * Unaffected trusted warm incidence remains navigable across known metadata observations; local
  * folder membership certifies only structural gate presentation, never body or editing authority.
  * This class decides when partial cold-start or authoritative state may
- * become visible to UI readers.
+ * become visible to UI readers. URL read projections reuse existing relation-cache lifetimes and
+ * exact physical/cache observations, avoiding repeated high-degree evidence composition during render.
+ * Broad hydration, vocabulary and cache maintenance retain P4 leases through their actual task
+ * lifetimes. Targeted startup preview/progressive phases explicitly switch to P1/P2 before private
+ * preparation, relinquishing the previous lane so no foreground owner joins its own lower checkpoint.
  * Requested previews, cached preparation and hydration release CPU slices through host event tasks;
  * this owner retains its existing watchdog, delayed persistence and cancellation boundaries.
  */
 import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
-import { ForegroundWorkScheduler, type IndexWorkPriority } from "./ForegroundWorkScheduler";
+import { ForegroundWorkScheduler, INDEX_WORK_PRIORITY, type IndexWorkPriority } from "./ForegroundWorkScheduler";
 import { HostMetadataPreview } from "./HostMetadataPreview";
 import { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisition";
 import { graphCompilerSettingsFromLegacy, graphNodeViewFromLegacy } from "../adapters/obsidian/graphContracts";
@@ -111,6 +121,18 @@ type CachedRelationView = {
   gateStats: GateStats;
   neighbourCount: number;
 };
+
+/** Exact native observations fence a reusable URL read projection without acquiring source authority. */
+type UrlProjectionOwner = Readonly<{
+  path: string; file: TFile | null; mtime: number | undefined; size: number | undefined;
+  event: number; metadata: CachedMetadata | null | undefined;
+}>;
+
+/** Reuse composition only inside one existing relation-cache/publication lifetime. */
+type CachedUrlProjection = Readonly<{
+  epoch: WeakMap<GraphPage, CachedRelationView>; sourceRevision: number; hostRevision: number;
+  flushes: number; page: GraphPage; owners: readonly UrlProjectionOwner[];
+}>;
 
 type SearchEntry = {
   page: GraphPage;
@@ -291,12 +313,24 @@ export class GraphIndex {
   private readonly indexingMode: "eager" | "on-demand";
   /** URL facts have an independent cache/graph lifetime, never global relationship authority. */
   private urlState = createGraphState();
+  /** Displayed URL incidence is copied only at batch boundaries; working canonical pages mutate per owner. */
+  private publishedUrlState = createGraphState();
+  private publishedUrlOwners = new Map<string, Readonly<{ file: TFile; mtime: number; size: number; event: number; metadata: CachedMetadata | null }>>();
+  private publishedUrlComplete = false;
+  private publishedUrlCachedMetadata = false;
+  private pendingUrlPaths = new Set<string>();
+  private pendingUrlOwners = new Set<string>();
+  private urlFlushTimer: number | null = null;
+  private urlPresentationFlushes = 0;
+  private maxPendingUrlPaths = 0;
   private urlOwners = new Map<string, Readonly<{ file: TFile; mtime: number; size: number; event: number }>>();
   private urlOwnerEvents = new Map<string, number>();
   private urlAliasOwners = new Map<string, Map<string, readonly string[]>>();
   private urlOwnerTargets = new Map<string, Set<string>>();
   private urlRestoreTask: Promise<boolean> | null = null;
   private urlOwnerTasks = new Map<string, Promise<void>>();
+  /** A foreground event upgrades an already-admitted owner without duplicating its native read. */
+  private foregroundUrlOwners = new Set<string>();
   private urlPublicationLane: Promise<void> = Promise.resolve();
   private urlPendingPublications = 0;
   private urlDiscoveryComplete = false;
@@ -331,6 +365,12 @@ export class GraphIndex {
   private onDemandCachedScopes = new Map<string, ReturnType<typeof createGraphState>>();
   /** Host-known frontmatter overrides cover all direct host contributors, independently of body-owner caps. */
   private onDemandHostScopes = new Map<string, ReturnType<typeof createGraphState>>();
+  /** Existing local read certificates survive strategy transfer, never authorizing source-backed writes. */
+  private localScopeCertificates = new WeakMap<ReturnType<typeof createGraphState>, Readonly<{ sourceRevision: number; policyRevision: number; files: readonly Readonly<{ file: TFile; revision: FileRevision }>[] }>>();
+  private retainedLocalScopes = new Map<string, Readonly<{ state: ReturnType<typeof createGraphState>; sourceRevision: number; policyRevision: number; cached: boolean }>>();
+  private localHandoverStarts = 0;
+  private localHandoverCompletions = 0;
+  private localHandoverFailures = 0;
   private onDemandGateCounts = new WeakMap<GraphPage, Readonly<{ gates: GateStats; sourceRevision: number; hostRevision: number; signature: string; revision: number; pairRevision: number }>>();
   private onDemandGateRevisions = new Map<string, number>();
   private onDemandUnavailableCounts = new Map<string, Readonly<{ sourceRevision: number; hostRevision: number; signature: string; revision: number }>>();
@@ -347,6 +387,11 @@ export class GraphIndex {
   private presentationStatuses = new WeakMap<GraphPage, PresentationStatus>();
   private presentationRun = 0;
   private presentationRevision = 0;
+  /** Only mounted, actually visible pages retain optional presentation retry ownership. */
+  private visiblePresentation = new Map<string, {
+    pages: Map<GraphPage, number>; revision: number; pending: boolean; queued: boolean; task: Promise<void> | null;
+  }>();
+  private visiblePresentationCounters = { retries: 0, completed: 0, superseded: 0 };
   /** Only canonical facet/search policy changes supersede legacy URL vocabulary preparation. */
   private aliasVocabularyPresentationRevision = 0;
   private publicationRevision = 0;
@@ -390,7 +435,7 @@ export class GraphIndex {
     policyRevision: 1, requested: 0, prepared: 0, published: 0, cancelled: 0, pending: 0,
     dependencyVisits: 0, fullBuilds: 0, lastReason: null,
   };
-  private readonly workScheduler = new ForegroundWorkScheduler();
+  private readonly workScheduler: ForegroundWorkScheduler;
   private readonly hostPreview: HostMetadataPreview;
   private hostPreviewScopes = new Map<string, ReturnType<typeof createGraphState>>();
   private hostPreviewSettings = new WeakMap<GraphPage, GraphCompilerSettings>();
@@ -417,6 +462,7 @@ export class GraphIndex {
   private suggestionCatalogCache: SuggestionCatalog | null = null;
   private titleCache = new Map<string, { signature: string; title: string }>();
   private relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+  private readonly urlProjectionCache = new WeakMap<GraphPage, CachedUrlProjection>();
   private metadataParser = new MetadataParser();
   private snapshotPersistTimer: number | null = null;
   private orphanCleanupTimer: number | null = null;
@@ -478,10 +524,20 @@ export class GraphIndex {
   private activeSnapshotGeneration: string | null = null;
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
   constructor(private plugin: KplexPlugin, private app: App = plugin.app) {
+    this.workScheduler = new ForegroundWorkScheduler({
+      /** The plugin-global index and storage belong to the main application window. */
+      now: () => window.performance.now(),
+      /** Real host idle windows allow Obsidian input and rendering between background chunks. */
+      setTimeout: (callback, milliseconds) => window.setTimeout(callback, milliseconds),
+      /** Unload or foreground admission releases the sole retained idle timer. */
+      clearTimeout: timer => window.clearTimeout(timer),
+      /** Settings changes are scheduling-only and take effect at the next safe checkpoint. */
+      throttle: () => plugin.settings.indexingThrottle,
+    });
     this.indexingMode = plugin.settings.indexingMode ?? "on-demand";
     this.presentationSettings = capturePresentationSettings(plugin.settings);
     this.fullSemanticSettings = graphCompilerSettingsFromLegacy(plugin.settings);
-    this.indexedDb = new KplexIndexedDbCache(app.vault.getName(), () => this.workScheduler.checkpoint(3),
+    this.indexedDb = new KplexIndexedDbCache(app.vault.getName(), () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background),
       /** Dense sources can finish real chunks long before their whole inventory owner completes. */
       () => {
         if (!this.diagnosticsClosed && this.snapshotHydrationDiagnostics.phase === "source-authority") {
@@ -502,8 +558,11 @@ export class GraphIndex {
           this.touchSnapshotHydrationProgress(this.snapshotHydrationRun);
           this.plugin.notifyStartupProgress?.();
         }
-      }, plugin.startupDiagnostics, () => this.workScheduler.checkpoint(3));
-    this.hostPreview = new HostMetadataPreview(app, () => plugin.settings, this.semanticPreparationRuntime(() => !this.diagnosticsClosed));
+      }, plugin.startupDiagnostics, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background),
+      work => this.workScheduler.run(INDEX_WORK_PRIORITY.background, work),
+      path => { void this.refreshVisiblePresentation(path); });
+    this.hostPreview = new HostMetadataPreview(app, () => plugin.settings,
+      this.semanticPreparationRuntime(() => !this.diagnosticsClosed, INDEX_WORK_PRIORITY.currentNode));
     // Remove the old parsed-body localStorage payload. IndexedDB is now the only durable index
     // cache; localStorage is a poor fit for large vaults because serialization duplicates memory.
     void this.indexedDb.clearLegacyLocalStorage(app);
@@ -602,7 +661,8 @@ export class GraphIndex {
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.fullSnapshotHydrated = false;
       this.fullSnapshotFresh = false;
-      this.sourceBackedSemantics = false;
+      // A P2 bootstrap can finish after snapshot classification established a source-backed
+      // strategy. Publishing this body-free baseline cannot downgrade that newer strategy.
       this.hostPreviewScopes.clear();
       this.publishRestoredState(next, search, false, false);
       this.onDemandBaselineReady = true;
@@ -729,6 +789,9 @@ export class GraphIndex {
     }
     this.onDemandUnavailableCounts.delete(centerPath);
     this.onDemandHostScopes.set(centerPath, scope.state);
+    this.localScopeCertificates.set(scope.state, { sourceRevision: source, policyRevision: this.semanticPolicyRevision,
+      files: [...scope.state.pages.values()].flatMap(page => page.file ? [{ file: page.file,
+        revision: captureFileRevision(page.file) }] : []) });
     for (const page of scope.state.pages.values()) this.hostPreviewSettings.set(page, scope.settings);
     this.relationViewCache = new WeakMap();
     this.emitPresentation();
@@ -754,7 +817,9 @@ export class GraphIndex {
   }
 
   /** Supplement one actually displayed endpoint's host-known counts without acquiring its body.
-   * Only gate totals survive; the private graph is discarded and never provides write authority. */
+   * Current native folder membership separately certifies its top/bottom numerical totals; other
+   * semantic gates retain their existing partial coverage. The discarded private graph never grants
+   * write authority, and every proof still closes the owning source/host/policy/demand lifetime. */
   private ensureOnDemandGateCounts(page: GraphPage): void {
     if (this.onDemandGateTasks.has(page.path) || this.persistentCachePurged || this.diagnosticsClosed
       || page.url || page.isTag) return;
@@ -798,7 +863,7 @@ export class GraphIndex {
       }
       const gates = this.relationView(center, { page: this.composeRelationshipPairs(this.mergeOnDemandCachedPage(center)), settings: scope.settings }).gateStats;
       for (const [side, proof] of Object.entries(scope.structuralGates?.get(page.path) ?? {})) {
-        if (proof && (side === "top" || side === "bottom")) Object.assign(gates[side], proof);
+        if (proof && (side === "top" || side === "bottom")) Object.assign(gates[side], proof, { complete: true });
       }
       this.onDemandGateCounts.set(page, { gates, sourceRevision: source, hostRevision, signature, revision, pairRevision });
       this.onDemandUnavailableCounts.delete(page.path);
@@ -816,9 +881,15 @@ export class GraphIndex {
     return this.workScheduler.run(priority, work);
   }
 
-  /** A fully drained host event batch may retire provisional presentation freshness for the complete graph. */
+  /** Certify a drained host event batch and publish its switch from provisional to complete reads.
+   * The coordinator calls this only after current per-file reconciliation; no write authority or
+   * source acquisition is added. Cached coverage and visible readers share the synchronous epoch. */
   acknowledgeHostPresentation(): void {
-    this.fullSemanticSourceRevision = this.plugin.getIndexSourceRevision();
+    const revision = this.plugin.getIndexSourceRevision();
+    if (this.fullSemanticSourceRevision === revision) return;
+    this.fullSemanticSourceRevision = revision;
+    this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+    this.emitPresentation();
   }
 
   /** Check available published adjacency, including current URL discovery and exact pair updates, without acquiring any facts. */
@@ -827,7 +898,7 @@ export class GraphIndex {
     if (!page) return false;
     const pair = this.relationshipPairs.get(relationshipPairKey(page.path, targetPath));
     if (pair) return Boolean(pair.relations.get(page.path));
-    if (this.urlState.pages.get(page.path)?.neighbours.has(targetPath)) return true;
+    if (this.publishedUrlState.pages.get(page.path)?.neighbours.has(targetPath)) return true;
     if (this.urlPairIsObserved(page.path, targetPath)) return false;
     return page.neighbours.has(targetPath);
   }
@@ -866,7 +937,8 @@ export class GraphIndex {
   }
 
   /** Publish a provisional host scope separately from every authoritative graph/evidence owner. */
-  async publishHostMetadataPreview(centerPath: string): Promise<void> {
+  async publishHostMetadataPreview(centerPath: string,
+    workPriority: IndexWorkPriority = INDEX_WORK_PRIORITY.currentNode): Promise<void> {
     const publication = this.publicationRevision;
     const sourceRevision = this.plugin.getIndexSourceRevision();
     const folder = centerPath.startsWith("folder:"), structuralRevision = this.hostStructuralRevision;
@@ -881,7 +953,8 @@ export class GraphIndex {
       await this.hostBacklinksReady;
     }
     if (this.diagnosticsClosed) return;
-    const preview = await this.hostPreview.build(centerPath);
+    const preview = await this.hostPreview.build(centerPath,
+      { checkpoint: () => this.workScheduler.checkpoint(workPriority) });
     if (!preview || this.diagnosticsClosed || this.hostPreviewRequests.get(centerPath) !== request
       || (folder ? structuralRevision !== this.hostStructuralRevision || coverageSignature !== this.semanticCoverageSignature()
         || compilerSignature !== JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings))
@@ -912,7 +985,7 @@ export class GraphIndex {
       if (this.diagnosticsClosed) return;
       const centers = new Set([...this.semanticDemandCounts.keys(), this.plugin.settings.lastActivePath]);
       for (const path of centers) if (path?.startsWith("folder:")) {
-        await this.withForegroundPriority(() => this.publishHostMetadataPreview(path), 2);
+        await this.withForegroundPriority(() => this.publishHostMetadataPreview(path, INDEX_WORK_PRIORITY.visibleNeighborhood), 2);
       }
       for (const path of centers) {
         const semantic = this.semanticScopes.get(path), preview = this.hostPreviewScopes.get(path);
@@ -941,7 +1014,8 @@ export class GraphIndex {
       if (!page.isFolder || !this.isVisiblePage(page) || (existing?.coverageSignature === coverageSignature
         && existing.structuralRevision === structuralRevision)) continue;
       if (remaining-- <= 0) break;
-      const gates = await this.hostPreview.folderGates(page.path);
+      const gates = await this.hostPreview.folderGates(page.path,
+        () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood));
       if (!current()) return;
       if (!gates) continue;
       this.folderGateInfo.set(page, { gates, coverageSignature, structuralRevision });
@@ -977,13 +1051,25 @@ export class GraphIndex {
     if (urlFile && urlBody && owner?.file === urlFile && owner.mtime === urlFile.stat.mtime && owner.size === urlFile.stat.size
       && owner.event === (this.urlOwnerEvents.get(changedPath) ?? 0)
       && (knownMetadataChange || this.urlMetadataCaches.get(changedPath) !== this.app.metadataCache.getFileCache(urlFile))) {
-      this.urlDiscoveryComplete = false;
+      this.urlDiscoveryComplete = false; this.publishedUrlComplete = false;
       if (knownMetadataChange) this.urlOwnerEvents.set(changedPath, (this.urlOwnerEvents.get(changedPath) ?? 0) + 1);
       void this.refreshUrlOwner(changedPath, false, undefined, {
         body: urlBody, file: urlFile, revision: captureFileRevision(urlFile), frontmatter: this.urlOwnerFrontmatter.get(changedPath),
       });
     }
     const affectedTargets = this.hostPreview.refreshSource(changedPath);
+    for (const [center, retained] of this.retainedLocalScopes) {
+      const affected = retained.state.pages.has(changedPath) || affectedTargets.has(center);
+      if (knownMetadataChange && affected) {
+        this.retainedLocalScopes.delete(center); this.onDemandHostScopes.delete(center); this.onDemandCachedScopes.delete(center);
+      } else if (knownMetadataChange && retained.sourceRevision === previousSourceRevision && !affected) {
+        // Renew only this one attributed event; an unrelated known owner cannot change the
+        // retained scope's captured contribution. Unknown revisions never renew read cover.
+        this.retainedLocalScopes.set(center, { ...retained, sourceRevision: this.plugin.getIndexSourceRevision() });
+      }
+      // Identity-only resolve progress prepares a replacement below. It is not proof that the
+      // last physically-current read representation is wrong, so it cannot erase it first.
+    }
     this.hostPresentationRevision += 1;
     void this.refreshChangedRelationshipPairs(changedPath);
     if (this.usesLocalForeground()) {
@@ -1040,7 +1126,7 @@ export class GraphIndex {
       const page = this.hostPreviewScopes.get(center)?.pages.get(center) ?? this.semanticPage(center);
       if (center !== changedPath && !page?.neighbours.has(changedPath) && !affectedTargets.has(center)) continue;
       visible = true;
-      void this.withForegroundPriority(() => this.publishHostMetadataPreview(center), 2);
+      void this.withForegroundPriority(() => this.publishHostMetadataPreview(center, INDEX_WORK_PRIORITY.visibleNeighborhood), 2);
     }
     return visible;
   }
@@ -1071,19 +1157,25 @@ export class GraphIndex {
 
   /** Start bounded source adoption before optional graph hydration when durable work already exists. */
   private async startPersistedSourceInventory(): Promise<boolean> {
-    let after: string | null = null;
-    do {
-      const page = await this.indexedDb.sources.headPage(after);
-      if (this.diagnosticsClosed || !page.available) return false;
-      // Obsolete grammar heads require the same bounded repair owner as other cache misses.
-      if (page.invalid > 0 || page.heads.some(head => head.state === "complete")) {
-        this.enableGlobalSourceInventoryIfConfigured();
-        return true;
-      }
-      after = page.next;
-      await this.workScheduler.checkpoint(3);
-    } while (after !== null);
-    return false;
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
+    try {
+      await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
+      if (this.diagnosticsClosed) return false;
+      let after: string | null = null;
+      do {
+        const page = await this.indexedDb.sources.headPage(after);
+        if (this.diagnosticsClosed || !page.available) return false;
+        // Obsolete grammar heads require the same bounded repair owner as other cache misses.
+        if (page.invalid > 0 || page.heads.some(head => head.state === "complete")) {
+          this.enableGlobalSourceInventoryIfConfigured();
+          return true;
+        }
+        after = page.next;
+        await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
+      } while (after !== null);
+      return false;
+
+} finally { releaseWork(); }
   }
 
   /** Keep a complete physically-current cached graph as explicitly cached presentation during resolver startup. */
@@ -1109,40 +1201,44 @@ export class GraphIndex {
 
   /** Recover requested semantics from neutral progress when the optional graph cache is absent. */
   private async restoreSourceBackedBaseline(isCurrent: () => boolean, run: number, preview?: () => void): Promise<boolean> {
-    const sourceRevision = this.plugin.getIndexSourceRevision();
-    const current = (): boolean => isCurrent() && sourceRevision === this.plugin.getIndexSourceRevision();
-    const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
-      this.indexedDb, current, new Map(), this.sourceAcquisition, () => this.workScheduler.checkpoint(3));
-    const next = await builder.buildStructuralNodeBaseline();
-    if (!next || !current()) return false;
-    const prepared = await this.preparePresentationPublication(next, current,
-      () => this.touchSnapshotHydrationProgress(run), true);
-    if (!prepared || !current() || !prepared.facets.isCurrent()) return false;
-    const search = await this.prepareSearchIndex(next, current, () => this.touchSnapshotHydrationProgress(run),
-      prepared.settings, prepared.facets);
-    if (!search || !current() || !prepared.facets.isCurrent()) return false;
-    this.sourceBackedSemantics = true;
-    this.sourceBackedStartup = true;
-    this.sourceNodeVocabularyPublished = false;
-    this.sourceAcquisition.enableNodeImpactTracking();
-    this.fullSemanticPolicyRevision = 0;
-    this.fullSnapshotHydrated = false;
-    this.fullSnapshotFresh = false;
-    this.previewSnapshotPublished = false;
-    this.resumableCheckpointPaths = null;
-    this.acceptPresentation(prepared);
-    this.publishRestoredState(next, search, false, false);
-    this.recordIndexDiagnostic("restore", "source-backed-physical-baseline");
-    preview?.();
-    this.setSnapshotHydrationPhase(run, "source-authority");
-    if (!(await this.awaitStartupSourceAuthority(current)) || !current()) return false;
-    this.setSnapshotHydrationPhase(run, "requested-semantics");
-    await this.refreshSemanticSettings();
-    if (!current()) return false;
-    this.setSnapshotHydrationPhase(run, "node-vocabulary");
-    if (!(await this.adoptStartupSources()) || !current()) return false;
-    this.finishSnapshotHydrationDiagnostics(run, "complete");
-    return true;
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
+    try {
+      const sourceRevision = this.plugin.getIndexSourceRevision();
+      const current = (): boolean => isCurrent() && sourceRevision === this.plugin.getIndexSourceRevision();
+      const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
+        this.indexedDb, current, new Map(), this.sourceAcquisition, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background));
+      const next = await builder.buildStructuralNodeBaseline();
+      if (!next || !current()) return false;
+      const prepared = await this.preparePresentationPublication(next, current,
+        () => this.touchSnapshotHydrationProgress(run), true, false, true);
+      if (!prepared || !current() || !prepared.facets.isCurrent()) return false;
+      const search = await this.prepareSearchIndex(next, current, () => this.touchSnapshotHydrationProgress(run),
+        prepared.settings, prepared.facets, undefined, true);
+      if (!search || !current() || !prepared.facets.isCurrent()) return false;
+      this.sourceBackedSemantics = true;
+      this.sourceBackedStartup = true;
+      this.sourceNodeVocabularyPublished = false;
+      this.sourceAcquisition.enableNodeImpactTracking();
+      this.fullSemanticPolicyRevision = 0;
+      this.fullSnapshotHydrated = false;
+      this.fullSnapshotFresh = false;
+      this.previewSnapshotPublished = false;
+      this.resumableCheckpointPaths = null;
+      this.acceptPresentation(prepared);
+      this.publishRestoredState(next, search, false, false);
+      this.recordIndexDiagnostic("restore", "source-backed-physical-baseline");
+      preview?.();
+      this.setSnapshotHydrationPhase(run, "source-authority");
+      if (!(await this.awaitStartupSourceAuthority(current)) || !current()) return false;
+      this.setSnapshotHydrationPhase(run, "requested-semantics");
+      await this.refreshSemanticSettings();
+      if (!current()) return false;
+      this.setSnapshotHydrationPhase(run, "node-vocabulary");
+      if (!(await this.adoptStartupSources()) || !current()) return false;
+      this.finishSnapshotHydrationDiagnostics(run, "complete");
+      return true;
+
+} finally { releaseWork(); }
   }
 
   /**
@@ -1193,57 +1289,61 @@ export class GraphIndex {
    * remain live: final presentation preparation captures them without abandoning source adoption.
    */
   async adoptStartupSources(): Promise<boolean> {
-    if (!this.sourceBackedStartup || this.diagnosticsClosed) return false;
-    if (this.sourceNodeVocabularyPublished && this.sourceAcquisition.hasSemanticDependencies()
-      && !this.hasPendingSemanticPreparation()) return true;
-    if (!(await this.sourceAcquisition.flush()) || this.diagnosticsClosed) return false;
-    await this.refreshSemanticSettings();
-    if (!this.sourceAcquisition.hasSemanticDependencies() || this.hasPendingSemanticPreparation()) return false;
-    // A fully decoded trusted cache already supplies complete vocabulary. Source maintenance and
-    // demanded scopes update it incrementally; replaying every owner would discard its incidence.
-    if (this.sourceNodeVocabularyPublished) return true;
-    const policy = this.semanticPolicyRevision;
-    const presentationPolicy = captureSettingsPolicy(this.plugin.settings);
-    const source = this.plugin.getIndexSourceRevision();
-    const generation = this.generation, publication = this.publicationRevision;
-    const maintenance = this.sourceAcquisition.getMaintenanceRevision();
-    const run = this.snapshotHydrationRun;
-    /** Recheck mutable facet policy at cooperative/final boundaries, never for every source record. */
-    const refreshPolicy = (): boolean => presentationValid = !classifySettingsChange(
-      presentationPolicy, captureSettingsPolicy(this.plugin.settings)).presentationFacets;
-    let presentationValid = true;
-    const current = (): boolean => !this.diagnosticsClosed && !this.building && this.sourceBackedStartup
-      && run === this.snapshotHydrationRun
-      && generation === this.generation && publication === this.publicationRevision
-      && policy === this.semanticPolicyRevision && source === this.plugin.getIndexSourceRevision()
-      // Only compiler-owned node facets invalidate replay. Layout/editor controls do not change
-      // source facts; treating them as a failed restore makes the coordinator rebuild from zero.
-      && presentationValid
-      && maintenance === this.sourceAcquisition.getMaintenanceRevision() && this.sourceAcquisition.hasSemanticDependencies();
-    const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
-      this.indexedDb, current, new Map(), this.sourceAcquisition, async () => {
-        await this.workScheduler.checkpoint(3);
-        refreshPolicy();
-      });
-    const next = await builder.buildSourceNodeCatalog(
-      /** Real completed node work advances the existing restore inactivity watchdog. */
-      () => { if (current()) this.touchSnapshotHydrationProgress(run); });
-    if (!next || !refreshPolicy() || !current()) return false;
-    const prepared = await this.preparePresentationPublication(next, current, undefined, true, true, true);
-    if (!prepared || !current() || !prepared.facets.isCurrent()) return false;
-    const search = prepared.search;
-    if (!search || !refreshPolicy() || !current() || !prepared.facets.isCurrent()) return false;
-    // No await after accepting presentation: all live node/search publication is one synchronous step.
-    this.sourceAcquisition.resetNodeImpacts();
-    this.sourceNodeVocabularyPublished = true;
-    this.pendingUrlAliasUpgrade = !this.sourceAcquisition.hasCurrentUrlAliasAuthority();
-    this.urlAliasFacetVersion = this.pendingUrlAliasUpgrade ? 0 : URL_ALIAS_FACET_VERSION;
-    this.urlAliasUpgradeFailure = null;
-    this.acceptPresentation(prepared);
-    this.publishRestoredState(next, search, false, false);
-    return !this.diagnosticsClosed && run === this.snapshotHydrationRun && source === this.plugin.getIndexSourceRevision()
-      && policy === this.semanticPolicyRevision && maintenance === this.sourceAcquisition.getMaintenanceRevision()
-      && !this.hasPendingSemanticPreparation();
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
+    try {
+      if (!this.sourceBackedStartup || this.diagnosticsClosed) return false;
+      if (this.sourceNodeVocabularyPublished && this.sourceAcquisition.hasSemanticDependencies()
+        && !this.hasPendingSemanticPreparation()) return true;
+      if (!(await this.sourceAcquisition.flush()) || this.diagnosticsClosed) return false;
+      await this.refreshSemanticSettings();
+      if (!this.sourceAcquisition.hasSemanticDependencies() || this.hasPendingSemanticPreparation()) return false;
+      // A fully decoded trusted cache already supplies complete vocabulary. Source maintenance and
+      // demanded scopes update it incrementally; replaying every owner would discard its incidence.
+      if (this.sourceNodeVocabularyPublished) return true;
+      const policy = this.semanticPolicyRevision;
+      const presentationPolicy = captureSettingsPolicy(this.plugin.settings);
+      const source = this.plugin.getIndexSourceRevision();
+      const generation = this.generation, publication = this.publicationRevision;
+      const maintenance = this.sourceAcquisition.getMaintenanceRevision();
+      const run = this.snapshotHydrationRun;
+      /** Recheck mutable facet policy at cooperative/final boundaries, never for every source record. */
+      const refreshPolicy = (): boolean => presentationValid = !classifySettingsChange(
+        presentationPolicy, captureSettingsPolicy(this.plugin.settings)).presentationFacets;
+      let presentationValid = true;
+      const current = (): boolean => !this.diagnosticsClosed && !this.building && this.sourceBackedStartup
+        && run === this.snapshotHydrationRun
+        && generation === this.generation && publication === this.publicationRevision
+        && policy === this.semanticPolicyRevision && source === this.plugin.getIndexSourceRevision()
+        // Only compiler-owned node facets invalidate replay. Layout/editor controls do not change
+        // source facts; treating them as a failed restore makes the coordinator rebuild from zero.
+        && presentationValid
+        && maintenance === this.sourceAcquisition.getMaintenanceRevision() && this.sourceAcquisition.hasSemanticDependencies();
+      const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
+        this.indexedDb, current, new Map(), this.sourceAcquisition, async () => {
+          await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
+          refreshPolicy();
+        });
+      const next = await builder.buildSourceNodeCatalog(
+        /** Real completed node work advances the existing restore inactivity watchdog. */
+        () => { if (current()) this.touchSnapshotHydrationProgress(run); });
+      if (!next || !refreshPolicy() || !current()) return false;
+      const prepared = await this.preparePresentationPublication(next, current, undefined, true, true, true);
+      if (!prepared || !current() || !prepared.facets.isCurrent()) return false;
+      const search = prepared.search;
+      if (!search || !refreshPolicy() || !current() || !prepared.facets.isCurrent()) return false;
+      // No await after accepting presentation: all live node/search publication is one synchronous step.
+      this.sourceAcquisition.resetNodeImpacts();
+      this.sourceNodeVocabularyPublished = true;
+      this.pendingUrlAliasUpgrade = !this.sourceAcquisition.hasCurrentUrlAliasAuthority();
+      this.urlAliasFacetVersion = this.pendingUrlAliasUpgrade ? 0 : URL_ALIAS_FACET_VERSION;
+      this.urlAliasUpgradeFailure = null;
+      this.acceptPresentation(prepared);
+      this.publishRestoredState(next, search, false, false);
+      return !this.diagnosticsClosed && run === this.snapshotHydrationRun && source === this.plugin.getIndexSourceRevision()
+        && policy === this.semanticPolicyRevision && maintenance === this.sourceAcquisition.getMaintenanceRevision()
+        && !this.hasPendingSemanticPreparation();
+
+} finally { releaseWork(); }
   }
 
   /** Complete source-backed search vocabulary is separate from current requested-view semantics. */
@@ -1271,82 +1371,86 @@ export class GraphIndex {
   /** Prepare legacy URL alias facets and search privately from authenticated neutral node facts. */
   private async prepareUrlAliasUpgrade(state: ReturnType<typeof createGraphState>, parentCurrent: () => boolean,
     onProgress?: () => void): Promise<{ aliases: ReadonlyMap<GraphPage, readonly string[]>; aliasesByPath: ReadonlyMap<string, readonly string[]>; search: PreparedSearchIndex } | null> {
-    const token = this.urlAliasUpgradeToken(), publication = this.publicationRevision;
-    const settings = capturePresentationSettings(this.plugin.settings);
-    const presentationPolicy = captureSettingsPolicy(settings);
-    let presentationValid = true;
-    /** Mutable alias/facet inputs are checked after cooperative work and immediately before publish. */
-    const refreshPolicy = (): boolean => {
-      const effects = classifySettingsChange(presentationPolicy, captureSettingsPolicy(this.plugin.settings));
-      return presentationValid = !effects.presentationFacets && !effects.searchTerms;
-    };
-    /** Per-record fencing reads revision tokens only; layout/editor changes retain alias vocabulary. */
-    const current = (): boolean => parentCurrent() && token === this.urlAliasUpgradeToken()
-      && publication === this.publicationRevision && !this.diagnosticsClosed && presentationValid;
-    if (!this.sourceAcquisition.hasSemanticDependencies()) {
-      this.urlAliasUpgradeFailure = { token, reason: "source-authority-pending" };
-      return null;
-    }
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
-      let lastProgress = performance.now();
-      const repair = await this.sourceAcquisition.prepareUrlAliasVocabulary(current,
-        /** Report only actual completed canonical owner repairs, bounded by the established startup notification cadence. */
-        (processed, total) => {
-          if (!refreshPolicy() || !current()) return;
-          this.urlAliasUpgradeProgress = { phase: "repair", processed, total };
-          if (performance.now() - lastProgress >= 250) {
-            lastProgress = performance.now(); this.emitPresentation(); onProgress?.();
-          }
-        }, /** Requested primary scopes own a stable repository window before the next optional CAS. */
-        async () => { await this.prioritizeRequestedSemantics(current); refreshPolicy(); });
-      if (repair !== "ready" || !refreshPolicy() || !current()) {
-        if (current()) this.urlAliasUpgradeFailure = { token, reason: repair };
+      const token = this.urlAliasUpgradeToken(), publication = this.publicationRevision;
+      const settings = capturePresentationSettings(this.plugin.settings);
+      const presentationPolicy = captureSettingsPolicy(settings);
+      let presentationValid = true;
+      /** Mutable alias/facet inputs are checked after cooperative work and immediately before publish. */
+      const refreshPolicy = (): boolean => {
+        const effects = classifySettingsChange(presentationPolicy, captureSettingsPolicy(this.plugin.settings));
+        return presentationValid = !effects.presentationFacets && !effects.searchTerms;
+      };
+      /** Per-record fencing reads revision tokens only; layout/editor changes retain alias vocabulary. */
+      const current = (): boolean => parentCurrent() && token === this.urlAliasUpgradeToken()
+        && publication === this.publicationRevision && !this.diagnosticsClosed && presentationValid;
+      if (!this.sourceAcquisition.hasSemanticDependencies()) {
+        this.urlAliasUpgradeFailure = { token, reason: "source-authority-pending" };
         return null;
       }
-      this.urlAliasUpgradeProgress = { phase: "vocabulary", processed: 0, total: null };
-      this.emitPresentation();
-      const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
-        this.indexedDb, current, new Map(), this.sourceAcquisition, async () => {
-          await this.workScheduler.checkpoint(3); refreshPolicy();
-        });
-      const nodes = await builder.buildSourceNodeCatalog(onProgress);
-      if (!nodes || !refreshPolicy() || !current()) {
+      try {
+        let lastProgress = performance.now();
+        const repair = await this.sourceAcquisition.prepareUrlAliasVocabulary(current,
+          /** Report only actual completed canonical owner repairs, bounded by the established startup notification cadence. */
+          (processed, total) => {
+            if (!refreshPolicy() || !current()) return;
+            this.urlAliasUpgradeProgress = { phase: "repair", processed, total };
+            if (performance.now() - lastProgress >= 250) {
+              lastProgress = performance.now(); this.emitPresentation(); onProgress?.();
+            }
+          }, /** Requested primary scopes own a stable repository window before the next optional CAS. */
+          async () => { await this.prioritizeRequestedSemantics(current); refreshPolicy(); });
+        if (repair !== "ready" || !refreshPolicy() || !current()) {
+          if (current()) this.urlAliasUpgradeFailure = { token, reason: repair };
+          return null;
+        }
+        this.urlAliasUpgradeProgress = { phase: "vocabulary", processed: 0, total: null };
+        this.emitPresentation();
+        const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
+          this.indexedDb, current, new Map(), this.sourceAcquisition, async () => {
+            await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background); refreshPolicy();
+          });
+        const nodes = await builder.buildSourceNodeCatalog(onProgress);
+        if (!nodes || !refreshPolicy() || !current()) {
+          if (current()) this.urlAliasUpgradeFailure = { token, reason: "url-alias-vocabulary-unavailable" };
+          return null;
+        }
+        const aliasesByPath = new Map<string, readonly string[]>();
+        let catalogProcessed = 0, catalogSlice = performance.now();
+        for (const [path, page] of nodes.pages) {
+          if (page.url) aliasesByPath.set(path, page.aliases);
+          if ((++catalogProcessed & 255) === 0 && performance.now() - catalogSlice >= 7) {
+            onProgress?.();
+            await yieldToHostTask();
+            await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
+            if (!current()) return null;
+            catalogSlice = performance.now();
+          }
+        }
+        const aliases = new Map<GraphPage, readonly string[]>();
+        let processed = 0, slice = performance.now();
+        for (const [path, page] of state.pages) {
+          if (page.url) {
+            const prepared = nodes.pages.get(path);
+            if (prepared?.url) aliases.set(page, prepared.aliases);
+          }
+          if ((++processed & 255) === 0 && performance.now() - slice >= 7) {
+            onProgress?.();
+            await yieldToHostTask();
+            if (!current()) return null;
+            slice = performance.now();
+          }
+        }
+        const search = await this.prepareSearchIndex(state, current, onProgress, settings, null, aliases, true);
+        if (!search || !refreshPolicy() || !current()) return null;
+        return { aliases, aliasesByPath, search };
+      } catch {
         if (current()) this.urlAliasUpgradeFailure = { token, reason: "url-alias-vocabulary-unavailable" };
         return null;
       }
-      const aliasesByPath = new Map<string, readonly string[]>();
-      let catalogProcessed = 0, catalogSlice = performance.now();
-      for (const [path, page] of nodes.pages) {
-        if (page.url) aliasesByPath.set(path, page.aliases);
-        if ((++catalogProcessed & 255) === 0 && performance.now() - catalogSlice >= 7) {
-          onProgress?.();
-          await yieldToHostTask();
-          await this.workScheduler.checkpoint(3);
-          if (!current()) return null;
-          catalogSlice = performance.now();
-        }
-      }
-      const aliases = new Map<GraphPage, readonly string[]>();
-      let processed = 0, slice = performance.now();
-      for (const [path, page] of state.pages) {
-        if (page.url) {
-          const prepared = nodes.pages.get(path);
-          if (prepared?.url) aliases.set(page, prepared.aliases);
-        }
-        if ((++processed & 255) === 0 && performance.now() - slice >= 7) {
-          onProgress?.();
-          await yieldToHostTask();
-          if (!current()) return null;
-          slice = performance.now();
-        }
-      }
-      const search = await this.prepareSearchIndex(state, current, onProgress, settings, null, aliases);
-      if (!search || !refreshPolicy() || !current()) return null;
-      return { aliases, aliasesByPath, search };
-    } catch {
-      if (current()) this.urlAliasUpgradeFailure = { token, reason: "url-alias-vocabulary-unavailable" };
-      return null;
-    }
+
+} finally { releaseWork(); }
   }
 
   /** Source readiness may retry a genuinely newer alias lifetime; the existing acquisition owner drives it. */
@@ -1426,23 +1530,27 @@ export class GraphIndex {
 
   /** Publish one bounded owner's affected node metadata only after every revision/identity survives. */
   private async repairSourceNodeImpacts(): Promise<void> {
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
-      for (const [owner, endpoints] of this.sourceAcquisition.pendingNodeImpactOwners()) {
-        if (this.building || this.diagnosticsClosed) return;
-        const source = this.plugin.getIndexSourceRevision(), policy = this.semanticPolicyRevision, generation = this.generation;
-        const maintenance = this.sourceAcquisition.getMaintenanceRevision(), publication = this.publicationRevision;
-        const current = (): boolean => !this.diagnosticsClosed && !this.building && this.sourceBackedStartup
-          && source === this.plugin.getIndexSourceRevision() && policy === this.semanticPolicyRevision && generation === this.generation
-          && maintenance === this.sourceAcquisition.getMaintenanceRevision() && publication === this.publicationRevision
-          && this.sourceAcquisition.nodeImpactEndpoints(owner) === endpoints;
-        const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
-          this.indexedDb, current, new Map(), this.sourceAcquisition, () => this.workScheduler.checkpoint(3));
-        const patch = await builder.prepareNodeImpactPatch(this.state, endpoints.values());
-        if (!patch || !current()) return;
-        this.publishIncrementalFile({ sourcePath: owner, touchedPagePaths: patch.touched, semanticChanged: false }, patch.publish);
-        this.sourceAcquisition.acknowledgeNodeImpacts(owner, endpoints);
-      }
-    } catch { this.recordIndexDiagnostic("reconcile", "source-node-impact-pending"); }
+      try {
+        for (const [owner, endpoints] of this.sourceAcquisition.pendingNodeImpactOwners()) {
+          if (this.building || this.diagnosticsClosed) return;
+          const source = this.plugin.getIndexSourceRevision(), policy = this.semanticPolicyRevision, generation = this.generation;
+          const maintenance = this.sourceAcquisition.getMaintenanceRevision(), publication = this.publicationRevision;
+          const current = (): boolean => !this.diagnosticsClosed && !this.building && this.sourceBackedStartup
+            && source === this.plugin.getIndexSourceRevision() && policy === this.semanticPolicyRevision && generation === this.generation
+            && maintenance === this.sourceAcquisition.getMaintenanceRevision() && publication === this.publicationRevision
+            && this.sourceAcquisition.nodeImpactEndpoints(owner) === endpoints;
+          const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
+            this.indexedDb, current, new Map(), this.sourceAcquisition, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background));
+          const patch = await builder.prepareNodeImpactPatch(this.state, endpoints.values());
+          if (!patch || !current()) return;
+          this.publishIncrementalFile({ sourcePath: owner, touchedPagePaths: patch.touched, semanticChanged: false }, patch.publish);
+          this.sourceAcquisition.acknowledgeNodeImpacts(owner, endpoints);
+        }
+      } catch { this.recordIndexDiagnostic("reconcile", "source-node-impact-pending"); }
+
+} finally { releaseWork(); }
   }
 
   /** Aggregate semantic preparation counters used by acceptance tests and diagnostics. */
@@ -1574,16 +1682,19 @@ export class GraphIndex {
   /** Retry only demanded settings scopes after source-local dependency inventory closes. */
   private retryDemandedSemanticScopes(): void {
     if (this.isOnDemandMode() || this.diagnosticsClosed || !this.sourceAcquisition.hasSemanticDependencies()) return;
-    // Source-ready Eager returns to the existing finite durable owner. Retire local read proofs
-    // before requesting that owner; already-running local continuations fail their strategy fence.
-    if (this.onDemandBaselineTask || this.onDemandTasks.size || this.onDemandGateTasks.size
-      || this.onDemandHostScopes.size || this.onDemandCachedScopes.size || this.onDemandIndexed.size
-      || this.onDemandGateRevisions.size || this.onDemandUnavailableCounts.size) {
+    // Strategy transfer cancels unfinished acquisition, not already-published read authority.
+    // Only a certified center publication retires that center's coherent predecessor.
+    if ((this.onDemandHostScopes.size || this.onDemandCachedScopes.size) && !this.retainedLocalScopes.size) {
       this.onDemandBaselineRevision++;
-      this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear(); this.onDemandIndexed.clear();
-      this.onDemandGateRevisions.clear(); this.onDemandUnavailableCounts.clear();
-      this.onDemandGateCounts = new WeakMap(); this.onDemandPresentationPages = new WeakMap();
-      this.relationViewCache = new WeakMap();
+      for (const [center, state] of new Map([...this.onDemandCachedScopes, ...this.onDemandHostScopes])) {
+        const cached = this.onDemandHostScopes.get(center) !== state;
+        const certificate = this.localScopeCertificates.get(state);
+        const sourceRevision = cached ? this.onDemandCachedSourceRevision : certificate?.sourceRevision;
+        const policyRevision = cached ? this.semanticPolicyRevision : certificate?.policyRevision;
+        if (sourceRevision !== this.plugin.getIndexSourceRevision() || policyRevision !== this.semanticPolicyRevision) continue;
+        this.retainedLocalScopes.set(center, { state, sourceRevision, policyRevision, cached });
+        this.localHandoverStarts++;
+      }
     }
     const retry = new Set<string>();
     for (const [path, count] of this.semanticDemandCounts) if (count > 0) retry.add(path);
@@ -1593,6 +1704,7 @@ export class GraphIndex {
 
   /** Register one visible semantic center. Releasing the final demand cancels its in-flight work. */
   acquireSemanticDemand(path: string): () => void {
+    this.flushUrlPublication();
     if (/^https?:\/\//i.test(path)) { path = canonicalWebUrl(path); this.ensureUrlTarget(path); }
     const previous = this.semanticDemandCounts.get(path) ?? 0;
     this.semanticDemandCounts.set(path, previous + 1);
@@ -1609,7 +1721,7 @@ export class GraphIndex {
       const count = Math.max(0, (this.semanticDemandCounts.get(path) ?? 1) - 1);
       if (count === 0) {
         this.semanticDemandCounts.delete(path);
-        this.onDemandHostScopes.delete(path);
+        this.onDemandHostScopes.delete(path); this.retainedLocalScopes.delete(path);
         this.hostPreviewScopes.delete(path);
         this.hostPreviewRequests.set(path, (this.hostPreviewRequests.get(path) ?? 0) + 1);
         this.semanticDemandRevision.set(path, (this.semanticDemandRevision.get(path) ?? 0) + 1);
@@ -1665,13 +1777,16 @@ export class GraphIndex {
     await Promise.all([...paths].map((path) => this.ensureSemanticScope(path)));
   }
 
-  /** Create the bounded cooperative runtime shared by dependency readers and compiler finalization. */
-  private semanticPreparationRuntime(isCurrent: () => boolean): GraphCompilerRuntime {
+  /** Create a bounded runtime with the actual caller's lane: requested center P1, visible facets
+   * P2, and exact mutation pair P0. Higher lanes can preempt it without a nested self-wait. */
+  private semanticPreparationRuntime(isCurrent: () => boolean,
+    workPriority: IndexWorkPriority = INDEX_WORK_PRIORITY.currentNode): GraphCompilerRuntime {
     return {
       now: () => performance.now(),
       /** A completed semantic work slice is progress while startup prioritizes requested views. */
       yield: async () => {
         await yieldToHostTask();
+        await this.workScheduler.checkpoint(workPriority);
         if (isCurrent() && this.snapshotHydrationDiagnostics.phase === "requested-semantics") {
           this.touchSnapshotHydrationProgress(this.snapshotHydrationRun);
         }
@@ -1811,12 +1926,13 @@ export class GraphIndex {
       && this.publicationRevision === publicationRevision && this.presentationRevision === presentationRevision
       && signatureValid && (!optional || Boolean(this.plugin.settings.renderSiblings)
         && this.semanticScopes.get(centerPath) === expectedScope);
-    const baseRuntime = this.semanticPreparationRuntime(current);
+    const baseRuntime = this.semanticPreparationRuntime(current,
+      optional ? INDEX_WORK_PRIORITY.visibleNeighborhood : INDEX_WORK_PRIORITY.currentNode);
     const runtime = { ...baseRuntime,
       /** Generation tokens cancel cheaply; close unnotified edits after every scheduled continuation. */
       yield: async (): Promise<void> => {
         await baseRuntime.yield();
-        if (optional) await this.workScheduler.checkpoint(3);
+        if (optional) await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood);
         signatureValid = signaturesCurrent();
       },
     };
@@ -1830,7 +1946,7 @@ export class GraphIndex {
       });
     };
     if (optional) {
-      await this.workScheduler.checkpoint(3);
+      await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood);
       if (!current()) return;
     }
     const priorScope = this.semanticScopes.get(centerPath);
@@ -1953,7 +2069,19 @@ export class GraphIndex {
       this.preparedPageInfo.set(page, { entityId: node.id, policyRevision, settings,
         completeRelations: completeIds.has(node.id), ...(degrees.has(node.id) ? { rawDegree: degrees.get(node.id)! } : {}),
         ...(candidateGates.has(node.id) ? { gates: candidateGates.get(node.id)!, gateCoverageSignature: gateSignature } : {}) });
-      this.presentationStatuses.set(page, { noteType: "ready", styleTags: "ready" });
+      const ownsPresentation = !page.file || page.file.extension !== "md" || completeIds.has(node.id);
+      if (!ownsPresentation) {
+        // Sparse endpoints have not acquired their own presentation source. Keep known-good
+        // predecessor facets until the visible provider certifies a current value (including empty).
+        // Semantic tags/evidence remain the new compiler's facts, never copied from old incidence.
+        let prior = this.semanticPage(page.path);
+        for (const center of this.retainedLocalScopes.keys()) {
+          const predecessor = this.retainedLocalScopeFor(center)?.pages.get(page.path);
+          if (predecessor) { prior = predecessor; break; }
+        }
+        if (prior) { page.noteType = prior.noteType; page.primaryStyleTag = prior.primaryStyleTag; page.styleTags = [...prior.styleTags]; }
+      }
+      this.presentationStatuses.set(page, { noteType: ownsPresentation ? "ready" : "pending", styleTags: ownsPresentation ? "ready" : "pending" });
     }
     for (const id of requiredIds) {
       const sourceNode = compilation.node(id)!;
@@ -2006,6 +2134,12 @@ export class GraphIndex {
     // No await below this line: the revisioned page/evidence/gate/search overlay becomes visible together.
     this.releasedSemanticScopePaths.delete(centerPath);
     this.semanticScopes.set(centerPath, scope);
+    if (this.retainedLocalScopes.delete(centerPath)) this.localHandoverCompletions++;
+    this.onDemandHostScopes.delete(centerPath); this.onDemandCachedScopes.delete(centerPath);
+    if (!this.usesLocalForeground() && !this.retainedLocalScopes.size) {
+      this.onDemandIndexed.clear(); this.onDemandGateRevisions.clear(); this.onDemandUnavailableCounts.clear();
+      this.onDemandGateCounts = new WeakMap(); this.onDemandPresentationPages = new WeakMap();
+    }
     if (optional) this.siblingEnrichmentScopes.set(scope, presentationRevision);
     this.hostPreviewScopes.delete(centerPath);
     this.retireRelationshipPairs(scope);
@@ -2028,7 +2162,7 @@ export class GraphIndex {
   }
 
   /**
-   * Admit optional parent witnesses once for this published demand/presentation lifetime. P3
+   * Admit optional parent witnesses once for this published demand/presentation lifetime. P2
    * checkpoints let navigation, writes and visible changes pre-empt every compiler continuation.
    * Rejection leaves the complete direct publication and failure diagnostics untouched.
    */
@@ -2046,19 +2180,19 @@ export class GraphIndex {
       && this.plugin.getIndexSourceRevision() === scope.sourceRevision
       && this.sourceAcquisition.getMaintenanceRevision() === scope.maintenanceRevision
       && this.presentationRevision === presentationRevision && this.publicationRevision === publicationRevision;
-    const baseRuntime = this.semanticPreparationRuntime(current);
+    const baseRuntime = this.semanticPreparationRuntime(current, INDEX_WORK_PRIORITY.visibleNeighborhood);
     const runtime = { ...baseRuntime,
       /** Background admission and compilation yield behind all current foreground owners. */
-      yield: async (): Promise<void> => { await baseRuntime.yield(); await this.workScheduler.checkpoint(3); },
+      yield: async (): Promise<void> => { await baseRuntime.yield(); },
     };
     try {
-      await this.workScheduler.run(3, /** Account for the optional lifetime without joining the foreground lane. */
+      await this.workScheduler.run(INDEX_WORK_PRIORITY.visibleNeighborhood, /** Account for the optional lifetime without joining the foreground lane. */
         async (): Promise<void> => {
-          await this.workScheduler.checkpoint(3);
+          await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood);
           if (!current()) return;
           const admitted = await this.sourceAcquisition.admitRequestedSiblingParents(parents, 256, runtime);
           if (!current() || !admitted.length) return;
-          await this.workScheduler.checkpoint(3);
+          await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood);
           if (!current()) return;
           await this.prepareSemanticScope(scope.centerPath, scope.policyRevision, scope.demandRevision,
             admitted.map(/** Opaque IDs select only canonical current-parent incidence. */ parent => parent.id), scope);
@@ -2107,6 +2241,7 @@ export class GraphIndex {
     const task = this.withForegroundPriority(() => this.prepareSemanticScope(centerPath, policyRevision, demandRevision), 1).finally(() => {
       if (this.semanticPreparationTasks.get(centerPath)?.task !== task) return;
       this.semanticPreparationTasks.delete(centerPath);
+      if (this.retainedLocalScopes.has(centerPath)) this.localHandoverFailures++;
       this.emitPresentation();
       // A local graph patch/presentation commit can close after source readiness already fired.
       // Retry that superseded request once against the new fences, while its demand is still live.
@@ -2136,13 +2271,47 @@ export class GraphIndex {
       dependencyVisits: this.semanticPreparationDiagnostics.dependencyVisits + count };
   }
 
-  /** Prefer complete incidence over sparse endpoints at the current revision; retain coherent older views during repair. */
+  /** Report finite center handovers without exposing graph content or granting editing authority. */
+  getLocalHandoverDiagnostics(): Readonly<{ starts: number; completions: number; failures: number; retainedScopes: number }> {
+    return { starts: this.localHandoverStarts, completions: this.localHandoverCompletions,
+      failures: this.localHandoverFailures, retainedScopes: this.retainedLocalScopes.size };
+  }
+
+  /** Select an unchanged local predecessor while its durable center replacement prepares.
+   * Global maintenance readiness is deliberately absent: it changes acquisition strategy, not these
+   * already compiled facts. A real source/policy event retires the certificate immediately. */
+  private retainedLocalScopeFor(path: string): ReturnType<typeof createGraphState> | undefined {
+    const retained = this.retainedLocalScopes.get(path);
+    if (retained) {
+      if (retained.sourceRevision !== this.plugin.getIndexSourceRevision() || retained.policyRevision !== this.semanticPolicyRevision) return undefined;
+      if (retained.cached) {
+        // Reuse the existing finite warm certificate. Known affected events retire its map entry;
+        // native center identity/stat still fences a direct read when an event has not arrived yet.
+        if (this.onDemandCachedScopes.get(path) !== retained.state) return undefined;
+        const center = retained.state.pages.get(path), file = center?.file;
+        const revision = center && this.snapshotFileRevisions.get(center);
+        if (file && (!revision || this.app.vault.getFileByPath(path) !== file || !fileRevisionMatches(file, revision))) return undefined;
+        return retained.state;
+      }
+      if (this.onDemandHostScopes.get(path) !== retained.state) return undefined;
+      const certificate = this.localScopeCertificates.get(retained.state);
+      if (!certificate || !certificate.files.every(token => this.app.vault.getFileByPath(token.file.path) === token.file
+        && fileRevisionMatches(token.file, token.revision))) return undefined;
+      if (retained.state.pages.has(path)) return retained.state;
+    }
+    return undefined;
+  }
+
+  /** Prefer complete current incidence over sparse endpoints and native previews.
+   * Requested/retained/local owners keep their existing selection order. A full state wins over
+   * provisional reads only under the exact source/policy/maintenance certificate; newer host
+   * observations keep their provisional cover until the coordinator acknowledges reconciliation. */
   private semanticPage(path: string): GraphPage | undefined {
     if (/^https?:\/\//i.test(path)) {
       path = canonicalWebUrl(path);
       const canonical = this.state.pages.get(path);
       if (canonical?.url) return canonical;
-      const url = this.urlState.pages.get(path);
+      const url = this.publishedUrlState.pages.get(path);
       if (url && this.urlPageHasCurrentSupport(path)) return url;
     }
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
@@ -2154,6 +2323,8 @@ export class GraphIndex {
       const page = scope.pagesByPath.get(path);
       if (page) return page;
     }
+    const retained = this.retainedLocalScopeFor(path);
+    if (retained) return this.mergeOnDemandCachedPage(retained.pages.get(path)!);
     // A page prepared by any current scope wins over suppression recorded by another current scope.
     // This keeps two visible Plexes composable when their bounded affected sets overlap.
     for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
@@ -2172,6 +2343,9 @@ export class GraphIndex {
 
     const cached = this.state.pages.get(path);
     if (cached && this.cachedSnapshotPages.has(cached)) return cached;
+    // Complete current incidence outranks an earlier native preview after a full publication or
+    // a drained host patch. Otherwise navigation can resurrect the sparse preview indefinitely.
+    if (cached && this.hasCurrentCanonicalCenter(path)) return cached;
     const provisional = this.hostPreviewScopes.get(path)?.pages.get(path);
     if (provisional) return provisional;
     // Host repair closes writes immediately, but a last coherent view remains readable until a
@@ -2186,7 +2360,7 @@ export class GraphIndex {
       const page = scope.pagesByPath.get(path);
       if (page) return page;
     }
-    const canonical = this.state.pages.get(path) ?? (this.urlPageHasCurrentSupport(path) ? this.urlState.pages.get(path) : undefined);
+    const canonical = this.state.pages.get(path) ?? (this.urlPageHasCurrentSupport(path) ? this.publishedUrlState.pages.get(path) : undefined);
     const direct = this.hostPreviewScopes.get(path)?.pages.get(path);
     if (direct) return direct;
     for (const scope of this.hostPreviewScopes.values()) {
@@ -2225,6 +2399,131 @@ export class GraphIndex {
     return this.presentationStatuses.get(page) ?? { noteType: "pending", styleTags: "pending" };
   }
 
+  /**
+   * Keep optional presentation inputs current for this surface's finite visible set. Initial demand
+   * also repairs sparse candidates incorrectly regarded as ready by an older node publication.
+   * Release retires callbacks without clearing a previously known type or style.
+   */
+  acquirePresentationDemand(pages: Iterable<GraphPage>): () => void {
+    if (this.diagnosticsClosed || this.persistentCachePurged) return () => {};
+    const selected = [...new Set(pages)].filter(page => page.file?.extension === "md");
+    for (const page of selected) {
+      let entry = this.visiblePresentation.get(page.path);
+      if (!entry) {
+        entry = { pages: new Map(), revision: 0, pending: false, queued: false, task: null };
+        this.visiblePresentation.set(page.path, entry);
+      }
+      entry.pages.set(page, (entry.pages.get(page) ?? 0) + 1);
+      entry.revision += 1;
+      void this.refreshVisiblePresentation(page.path);
+    }
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      for (const page of selected) {
+        const entry = this.visiblePresentation.get(page.path);
+        if (!entry) continue;
+        const count = (entry.pages.get(page) ?? 1) - 1;
+        if (count > 0) entry.pages.set(page, count); else entry.pages.delete(page);
+        entry.revision += 1;
+        if (!entry.pages.size) this.visiblePresentation.delete(page.path);
+        else if (entry.task) entry.queued = true;
+      }
+    };
+  }
+
+  /** Collect only this demanded path's readable owners, including cached/local facade incarnations. */
+  private visiblePresentationPages(path: string, displayed: Iterable<GraphPage>): GraphPage[] {
+    const pages = new Set(displayed);
+    const add = (page: GraphPage | undefined): void => { if (page) pages.add(page); };
+    add(this.state.pages.get(path));
+    for (const scope of this.semanticScopes.values()) add(scope.pagesByPath.get(path));
+    for (const scope of this.onDemandHostScopes.values()) add(scope.pages.get(path));
+    for (const scope of this.onDemandCachedScopes.values()) add(scope.pages.get(path));
+    for (const scope of this.hostPreviewScopes.values()) add(scope.pages.get(path));
+    for (const retained of this.retainedLocalScopes.values()) add(retained.state.pages.get(path));
+    return [...pages].filter(page => page.file?.extension === "md" && page.file.path === path
+      && this.app.vault.getFileByPath(path) === page.file);
+  }
+
+  /**
+   * Retry one visible path after actual metadata/body availability. This P2 cache-only operation
+   * never acquires Markdown or polls the vault. Pending input waits for another genuine event;
+   * supersession can retry only an event already coalesced while this task was running.
+   */
+  refreshVisiblePresentation(path: string): Promise<void> {
+    const entry = this.visiblePresentation.get(path);
+    if (!entry || this.diagnosticsClosed || this.persistentCachePurged) return Promise.resolve();
+    entry.revision += 1;
+    entry.queued = true;
+    if (entry.task) return entry.task;
+    const task = this.withForegroundPriority(async () => {
+      while (entry.queued && this.visiblePresentation.get(path) === entry && !this.diagnosticsClosed && !this.persistentCachePurged) {
+        entry.queued = false;
+        const revision = entry.revision, presentation = this.presentationRevision;
+        const pages = this.visiblePresentationPages(path, entry.pages.keys());
+        const file = this.app.vault.getFileByPath(path);
+        const sourceEvent = file ? this.sourceAcquisition.getFileRevision(file) : null;
+        const settings = this.presentationSettings;
+        /** A policy/source/demand change must never install values captured before its event. */
+        const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && this.visiblePresentation.get(path) === entry
+          && entry.revision === revision && this.presentationRevision === presentation
+          && (!file || this.sourceAcquisition.getFileRevision(file) === sourceEvent);
+        this.visiblePresentationCounters.retries += 1;
+        const prepared = await prepareGraphPresentation(pages, settings, ALL_PRESENTATION_FACETS, this.app,
+          this.fieldCache, {
+            /** Reuse authenticated compact source bodies when the legacy body accelerator is absent. */
+            getBodies: async requests => {
+              const bodies = await this.indexedDb.getBodies(requests);
+              for (const request of requests) {
+                if (!current()) break;
+                if (bodies.has(request.path)) continue;
+                const file = this.app.vault.getFileByPath(request.path);
+                if (!file || file.stat.mtime !== request.mtime) continue;
+                const body = await this.sourceAcquisition.readBody(file, current);
+                if (body && current()) bodies.set(request.path, body);
+              }
+              return bodies;
+            },
+          }, current, undefined, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood));
+        if (!prepared || !current() || !prepared.isCurrent()
+          || pages.some(page => !this.visiblePresentationPages(path, entry.pages.keys()).includes(page))) {
+          this.visiblePresentationCounters.superseded += 1;
+          continue;
+        }
+        /** Compare selected fields only; ephemeral facade status changes must not trigger render loops. */
+        const signature = (): string => JSON.stringify(pages.map(page => [page.name, page.noteType,
+          page.primaryStyleTag, page.styleTags, page.maxLabelLength]));
+        const before = signature();
+        // Publication is synchronous: pending omits unknown values, ready empty can clear old ones.
+        applyPreparedPresentation(prepared, this.presentationStatuses);
+        entry.pending = prepared.pending > 0;
+        if (!entry.pending) this.visiblePresentationCounters.completed += 1;
+        if (before !== signature()) {
+          this.nodeVisualCache.delete(path);
+          this.titleCache.delete(path);
+          this.suggestionCatalogCache = null;
+          this.emitPresentation();
+        }
+      }
+    }, INDEX_WORK_PRIORITY.visibleNeighborhood).catch(() => {
+      // Optional input failure retains known values and waits for a fresh event; it is not a full-index failure.
+      if (this.visiblePresentation.get(path) === entry) entry.pending = true;
+    }).finally(() => { if (entry.task === task) entry.task = null; });
+    entry.task = task;
+    return task;
+  }
+
+  /** Aggregate optional presentation readiness without exposing note identities or stored values. */
+  getVisiblePresentationDiagnostics(): Readonly<{
+    demanded: number; pending: number; active: number; retries: number; completed: number; superseded: number;
+  }> {
+    const entries = [...this.visiblePresentation.values()];
+    return { demanded: entries.length, pending: entries.filter(entry => entry.pending).length,
+      active: entries.filter(entry => entry.task !== null).length, ...this.visiblePresentationCounters };
+  }
+
   /** Overlay only the prepared presentation policy; view/workflow preferences remain live. */
   withPreparedPresentationSettings(settings: KplexSettings): KplexSettings {
     return withPreparedPresentation(settings, this.presentationSettings);
@@ -2260,6 +2559,11 @@ export class GraphIndex {
   private presentationPages(): GraphPage[] {
     const pages = new Set<GraphPage>(this.state.pages.values());
     for (const scope of this.semanticScopes.values()) for (const page of scope.pagesByPath.values()) pages.add(page);
+    for (const scope of this.onDemandHostScopes.values()) for (const page of scope.pages.values()) pages.add(page);
+    for (const scope of this.onDemandCachedScopes.values()) for (const page of scope.pages.values()) pages.add(page);
+    for (const scope of this.hostPreviewScopes.values()) for (const page of scope.pages.values()) pages.add(page);
+    for (const retained of this.retainedLocalScopes.values()) for (const page of retained.state.pages.values()) pages.add(page);
+    for (const entry of this.visiblePresentation.values()) for (const page of entry.pages.keys()) pages.add(page);
     return [...pages];
   }
 
@@ -2314,46 +2618,53 @@ export class GraphIndex {
    * preserve those validated fields rather than replacing them with absent legacy body-cache inputs.
    * A display change during any awaited preparation restarts private presentation work, while the
    * caller's source/compiler lifetime still fences which nodes may be published.
+   * The caller supplies the lane for bounded startup phases; broad background callers default to
+   * P4. Search/facet continuations share that lane rather than borrowing a lower shared checkpoint.
    */
   private async preparePresentationPublication(
     state: ReturnType<typeof createGraphState>, isCurrent: () => boolean, onProgress?: () => void, structuralPreview = false, sourceCompiledFacets = false, background = false,
+    workPriority: IndexWorkPriority = background ? INDEX_WORK_PRIORITY.background : INDEX_WORK_PRIORITY.visibleNeighborhood,
+    retainRestoreWork?: (priority: IndexWorkPriority) => () => void,
   ): Promise<PreparedPresentationPublication | null> {
-    while (isCurrent() && !this.diagnosticsClosed) {
-      const settings = capturePresentationSettings(this.plugin.settings);
-      const policy = captureSettingsPolicy(settings);
-      const sourceRevision = this.plugin.getIndexSourceRevision();
-      const current = (): boolean => isCurrent() && !this.diagnosticsClosed &&
-        sourceRevision === this.plugin.getIndexSourceRevision();
-      const policyCurrent = (): boolean => current() && !classifySettingsChange(policy, captureSettingsPolicy(this.plugin.settings)).render;
-      const selection = sourceCompiledFacets ? { ...ALL_PRESENTATION_FACETS, noteType: false, styleTags: false } : ALL_PRESENTATION_FACETS;
-      const facets = await prepareGraphPresentation(state.pages.values(), settings, selection,
-        this.app, this.fieldCache, structuralPreview ? { getBodies: () => Promise.resolve(new Map()) } : this.indexedDb, current, onProgress, background ? () => this.workScheduler.checkpoint(3) : undefined);
-      if (!facets || !policyCurrent()) continue;
-      if (sourceCompiledFacets) {
-        // These statuses attest the validated compiler output, not a fabricated empty body cache.
-        let processed = 0;
-        const readyFacets = new Map(facets.facets);
-        for (const page of state.pages.values()) {
-          readyFacets.set(page, { ...readyFacets.get(page), status: { noteType: "ready", styleTags: "ready" } });
-          if ((++processed & 127) === 0) {
-            await yieldToHostTask();
-            if (background) await this.workScheduler.checkpoint(3);
-            if (!policyCurrent()) break;
+    const releaseWork = retainRestoreWork?.(workPriority) ?? this.workScheduler.begin(workPriority);
+    try {
+      while (isCurrent() && !this.diagnosticsClosed) {
+        const settings = capturePresentationSettings(this.plugin.settings);
+        const policy = captureSettingsPolicy(settings);
+        const sourceRevision = this.plugin.getIndexSourceRevision();
+        const current = (): boolean => isCurrent() && !this.diagnosticsClosed &&
+          sourceRevision === this.plugin.getIndexSourceRevision();
+        const policyCurrent = (): boolean => current() && !classifySettingsChange(policy, captureSettingsPolicy(this.plugin.settings)).render;
+        const selection = sourceCompiledFacets ? { ...ALL_PRESENTATION_FACETS, noteType: false, styleTags: false } : ALL_PRESENTATION_FACETS;
+        const facets = await prepareGraphPresentation(state.pages.values(), settings, selection,
+          this.app, this.fieldCache, structuralPreview ? { getBodies: () => Promise.resolve(new Map()) } : this.indexedDb, current, onProgress, () => this.workScheduler.checkpoint(workPriority));
+        if (!facets || !policyCurrent()) continue;
+        if (sourceCompiledFacets) {
+          // These statuses attest the validated compiler output, not a fabricated empty body cache.
+          let processed = 0;
+          const readyFacets = new Map(facets.facets);
+          for (const page of state.pages.values()) {
+            readyFacets.set(page, { ...readyFacets.get(page), status: { noteType: "ready", styleTags: "ready" } });
+            if ((++processed & 127) === 0) {
+              await yieldToHostTask();
+              await this.workScheduler.checkpoint(workPriority);
+              if (!policyCurrent()) break;
+            }
           }
+          if (!policyCurrent()) continue;
+          const ready = { ...facets, facets: readyFacets };
+          const search = await this.prepareSearchIndex(state, current, onProgress, settings, ready, undefined, background, workPriority, retainRestoreWork);
+          if (!search || !policyCurrent() || !ready.isCurrent()) continue;
+          return { settings, facets: ready, search };
         }
-        if (!policyCurrent()) continue;
-        const ready = { ...facets, facets: readyFacets };
-        const search = await this.prepareSearchIndex(state, current, onProgress, settings, ready, undefined, background);
-        if (!search || !policyCurrent() || !ready.isCurrent()) continue;
-        return { settings, facets: ready, search };
+        // Cold structural publication keeps its bounded seed search and never preloads all bodies.
+        const search = structuralPreview ? { entries: [], byPath: new Map<string, SearchEntry>() } :
+          await this.prepareSearchIndex(state, current, onProgress, settings, facets, undefined, background, workPriority, retainRestoreWork);
+        if (!search || !policyCurrent() || !facets.isCurrent()) continue;
+        return { settings, facets, search };
       }
-      // Cold structural publication keeps its bounded seed search and never preloads all bodies.
-      const search = structuralPreview ? { entries: [], byPath: new Map<string, SearchEntry>() } :
-        await this.prepareSearchIndex(state, current, onProgress, settings, facets, undefined, background);
-      if (!search || !policyCurrent() || !facets.isCurrent()) continue;
-      return { settings, facets, search };
-    }
-    return null;
+      return null;
+} finally { releaseWork(); }
   }
 
   /** Install facets and their narrow search lifetime immediately before graph/search publication. */
@@ -2390,7 +2701,7 @@ export class GraphIndex {
     return page ? this.composeRelationshipPairs(page) : undefined;
   }
   /** Enumerate canonical published pages, supplementing only URLs absent from the main graph. */
-  allPages(): GraphPage[] { return [...new Map([...[...this.urlState.pages].filter(([path, page]) => Boolean(page.url) && this.urlPageHasCurrentSupport(path)), ...this.state.pages]).values()]; }
+  allPages(): GraphPage[] { return [...new Map([...[...this.publishedUrlState.pages].filter(([path, page]) => Boolean(page.url) && this.urlPageHasCurrentSupport(path)), ...this.state.pages]).values()]; }
 
   private static readonly IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp"]);
 
@@ -2516,6 +2827,8 @@ export class GraphIndex {
   }
 
   evidenceFrom(sourcePath: string): Array<{ targetPath: string; evidence: RelationEvidence[] }> {
+    const retained = this.retainedLocalScopeFor(sourcePath);
+    if (retained) return retained.evidence.from(sourcePath);
     const scope = this.semanticScopeForPath(sourcePath);
     return scope ? scope.evidence.from(sourcePath) : this.state.evidence.from(sourcePath);
   }
@@ -2543,7 +2856,7 @@ export class GraphIndex {
   invalidateSemanticPolicy(): void {
     this.semanticPolicyRevision += 1;
     this.onDemandIndexed.clear();
-    this.onDemandHostScopes.clear();
+    this.onDemandHostScopes.clear(); this.retainedLocalScopes.clear();
     this.onDemandCachedScopes.clear();
     for (const [path, body] of this.urlOwnerBodies) {
       const file = this.app.vault.getFileByPath(path), owner = this.urlOwners.get(path), frontmatter = this.urlOwnerFrontmatter.get(path);
@@ -2584,123 +2897,127 @@ export class GraphIndex {
    */
   async prewarmBodyCache(isCurrent: () => boolean = () => true,
     onBody?: (file: TFile, body: ParsedBodyMetadata) => Promise<void>): Promise<boolean> {
-    const run = ++this.bodyWarmGeneration;
-    const current = () => !this.diagnosticsClosed && !this.persistentCachePurged && run === this.bodyWarmGeneration && isCurrent();
-    const files = this.app.vault.getMarkdownFiles();
-    if (!files.length) return true;
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
+    try {
+      const run = ++this.bodyWarmGeneration;
+      const current = () => !this.diagnosticsClosed && !this.persistentCachePurged && run === this.bodyWarmGeneration && isCurrent();
+      const files = this.app.vault.getMarkdownFiles();
+      if (!files.length) return true;
 
-    const storeReady = await this.indexedDb.bodyStoreReady();
-    if (!storeReady || !current()) return false;
+      const storeReady = await this.indexedDb.bodyStoreReady();
+      if (!storeReady || !current()) return false;
 
-    const lookupBatchSize = Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 384;
-    const readConcurrency = Platform.isIosApp ? 4 : Platform.isMobile ? 4 : 8;
-    const readByteBudget = Platform.isIosApp ? 1.5 * 1024 * 1024 : Platform.isMobile ? 3 * 1024 * 1024 : 8 * 1024 * 1024;
-    const writeBatchSize = Platform.isIosApp ? 24 : Platform.isMobile ? 64 : 160;
-    const pendingWrites: Array<{ path: string; mtime: number; body: ParsedBodyMetadata }> = [];
+      const lookupBatchSize = Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 384;
+      const readConcurrency = Platform.isIosApp ? 4 : Platform.isMobile ? 4 : 8;
+      const readByteBudget = Platform.isIosApp ? 1.5 * 1024 * 1024 : Platform.isMobile ? 3 * 1024 * 1024 : 8 * 1024 * 1024;
+      const writeBatchSize = Platform.isIosApp ? 24 : Platform.isMobile ? 64 : 160;
+      const pendingWrites: Array<{ path: string; mtime: number; body: ParsedBodyMetadata }> = [];
 
-    const flush = async (): Promise<boolean> => {
-      if (!pendingWrites.length) return current();
-      const batch = pendingWrites.splice(0, pendingWrites.length);
-      return (await this.indexedDb.putBodies(batch)) && current();
-    };
+      const flush = async (): Promise<boolean> => {
+        if (!pendingWrites.length) return current();
+        const batch = pendingWrites.splice(0, pendingWrites.length);
+        return (await this.indexedDb.putBodies(batch)) && current();
+      };
 
-    for (let batchStart = 0; batchStart < files.length; batchStart += lookupBatchSize) {
-      await this.workScheduler.checkpoint(3);
-      if (!current()) return false;
-      const batch = files.slice(batchStart, batchStart + lookupBatchSize);
-      const revisions = new Map(batch.map((file) => [file.path, captureFileRevision(file)] as const));
-      const lookupRequests: Array<{ path: string; mtime: number }> = [];
-      const needsLookup: TFile[] = [];
-      for (const file of batch) {
-        const revision = revisions.get(file.path)!;
-        const hot = this.fieldCache.get(file.path);
-        if (hot?.mtime === revision.mtime) {
-          if (onBody) await onBody(file, hot.body);
-          if (!current()) return false;
-          continue;
-        }
-        needsLookup.push(file);
-        lookupRequests.push({ path: file.path, mtime: revision.mtime });
-      }
-
-      const durable = await this.indexedDb.getBodies(lookupRequests);
-      if (!current()) return false;
-      if (onBody) for (const file of needsLookup) {
-        const body = durable.get(file.path);
-        if (body && fileRevisionMatches(file, revisions.get(file.path)!) && this.app.vault.getFileByPath(file.path) === file) {
-          await onBody(file, body);
-          if (!current()) return false;
-        }
-      }
-      // Prewarm is an optimization, so a file edited during this pass is simply skipped. The
-      // authoritative builder will read its latest revision; never cache stale content as current.
-      const misses = needsLookup.filter((file) => fileRevisionMatches(file, revisions.get(file.path)!) && !durable.has(file.path));
-
-      const readGroups: TFile[][] = [];
-      let group: TFile[] = [];
-      let groupBytes = 0;
-      for (const file of misses) {
-        const size = Math.max(1, revisions.get(file.path)!.size || 0);
-        if (group.length && (group.length >= readConcurrency || groupBytes + size > readByteBudget)) {
-          readGroups.push(group);
-          group = [];
-          groupBytes = 0;
-        }
-        group.push(file);
-        groupBytes += size;
-        if (group.length >= readConcurrency || groupBytes >= readByteBudget) {
-          readGroups.push(group);
-          group = [];
-          groupBytes = 0;
-        }
-      }
-      if (group.length) readGroups.push(group);
-
-      for (const readGroup of readGroups) {
-        await this.workScheduler.checkpoint(3);
+      for (let batchStart = 0; batchStart < files.length; batchStart += lookupBatchSize) {
+        await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
         if (!current()) return false;
-        // Parallelize only native file reads. Parsing remains sequential and low-memory on iOS.
-        const contents = await Promise.all(readGroup.map(async (file) => ({
-          file,
-          revision: revisions.get(file.path)!,
-          content: await this.app.vault.read(file),
-        })));
-        if (!current()) return false;
-        for (const { file, revision, content } of contents) {
-          if (!fileRevisionMatches(file, revision)) continue;
-          let body: ParsedBodyMetadata;
-          try {
-            await this.workScheduler.checkpoint(3);
+        const batch = files.slice(batchStart, batchStart + lookupBatchSize);
+        const revisions = new Map(batch.map((file) => [file.path, captureFileRevision(file)] as const));
+        const lookupRequests: Array<{ path: string; mtime: number }> = [];
+        const needsLookup: TFile[] = [];
+        for (const file of batch) {
+          const revision = revisions.get(file.path)!;
+          const hot = this.fieldCache.get(file.path);
+          if (hot?.mtime === revision.mtime) {
+            if (onBody) await onBody(file, hot.body);
             if (!current()) return false;
-            body = await this.metadataParser.parse(content, () => this.workScheduler.checkpoint(3));
-          } catch (error) {
-            if (!current()) return false;
-            throw error;
+            continue;
           }
-          if (!current()) return false;
-          if (!fileRevisionMatches(file, revision)) continue;
-          pendingWrites.push({ path: file.path, mtime: revision.mtime, body });
-          if (onBody) await onBody(file, body);
-          if (!current()) return false;
-          if (pendingWrites.length >= writeBatchSize && !(await flush())) return false;
+          needsLookup.push(file);
+          lookupRequests.push({ path: file.path, mtime: revision.mtime });
         }
 
-        // Extremely large native reads can leave substantial temporary strings behind in WebKit.
-        // Yield once for those waves without imposing a timer on every ordinary four-file group.
-        const retainedBytes = contents.reduce((sum, item) => sum + item.content.length * 2, 0);
-        if (Platform.isIosApp && retainedBytes >= 1024 * 1024) {
-          await yieldToHostTask();
-          if (!current()) return false;
+        const durable = await this.indexedDb.getBodies(lookupRequests);
+        if (!current()) return false;
+        if (onBody) for (const file of needsLookup) {
+          const body = durable.get(file.path);
+          if (body && fileRevisionMatches(file, revisions.get(file.path)!) && this.app.vault.getFileByPath(file.path) === file) {
+            await onBody(file, body);
+            if (!current()) return false;
+          }
         }
+        // Prewarm is an optimization, so a file edited during this pass is simply skipped. The
+        // authoritative builder will read its latest revision; never cache stale content as current.
+        const misses = needsLookup.filter((file) => fileRevisionMatches(file, revisions.get(file.path)!) && !durable.has(file.path));
+
+        const readGroups: TFile[][] = [];
+        let group: TFile[] = [];
+        let groupBytes = 0;
+        for (const file of misses) {
+          const size = Math.max(1, revisions.get(file.path)!.size || 0);
+          if (group.length && (group.length >= readConcurrency || groupBytes + size > readByteBudget)) {
+            readGroups.push(group);
+            group = [];
+            groupBytes = 0;
+          }
+          group.push(file);
+          groupBytes += size;
+          if (group.length >= readConcurrency || groupBytes >= readByteBudget) {
+            readGroups.push(group);
+            group = [];
+            groupBytes = 0;
+          }
+        }
+        if (group.length) readGroups.push(group);
+
+        for (const readGroup of readGroups) {
+          await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
+          if (!current()) return false;
+          // Parallelize only native file reads. Parsing remains sequential and low-memory on iOS.
+          const contents = await Promise.all(readGroup.map(async (file) => ({
+            file,
+            revision: revisions.get(file.path)!,
+            content: await this.app.vault.read(file),
+          })));
+          if (!current()) return false;
+          for (const { file, revision, content } of contents) {
+            if (!fileRevisionMatches(file, revision)) continue;
+            let body: ParsedBodyMetadata;
+            try {
+              await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
+              if (!current()) return false;
+              body = await this.metadataParser.parse(content, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background));
+            } catch (error) {
+              if (!current()) return false;
+              throw error;
+            }
+            if (!current()) return false;
+            if (!fileRevisionMatches(file, revision)) continue;
+            pendingWrites.push({ path: file.path, mtime: revision.mtime, body });
+            if (onBody) await onBody(file, body);
+            if (!current()) return false;
+            if (pendingWrites.length >= writeBatchSize && !(await flush())) return false;
+          }
+
+          // Extremely large native reads can leave substantial temporary strings behind in WebKit.
+          // Yield once for those waves without imposing a timer on every ordinary four-file group.
+          const retainedBytes = contents.reduce((sum, item) => sum + item.content.length * 2, 0);
+          if (Platform.isIosApp && retainedBytes >= 1024 * 1024) {
+            await yieldToHostTask();
+            if (!current()) return false;
+          }
+        }
+
+        // Give WebKit a real paint/autorelease opportunity between native I/O waves rather than
+        // one long chain of micro-yields. This is intentionally longer than setTimeout(0).
+        if (Platform.isIosApp) await new Promise<void>((resolve) => window.setTimeout(resolve, 8));
+        else if (Platform.isMobile) await new Promise<void>((resolve) => window.setTimeout(resolve, 8));
       }
 
-      // Give WebKit a real paint/autorelease opportunity between native I/O waves rather than
-      // one long chain of micro-yields. This is intentionally longer than setTimeout(0).
-      if (Platform.isIosApp) await new Promise<void>((resolve) => window.setTimeout(resolve, 8));
-      else if (Platform.isMobile) await new Promise<void>((resolve) => window.setTimeout(resolve, 8));
-    }
+      return (await flush()) && current();
 
-    return (await flush()) && current();
+} finally { releaseWork(); }
   }
 
   /** Report actual independent URL work; URL discovery never masquerades as local semantic preparation. */
@@ -2722,26 +3039,27 @@ export class GraphIndex {
           || (this.urlOwnerEvents.get(record.path) ?? 0) !== 0) {
           void this.indexedDb.deleteUrlOwner(record.path); continue;
         }
-        await this.publishUrlOwner(file, { urls: record.urls, inlineFieldOccurrences: record.inlineFieldOccurrences, inlineFields: {} }, 0, record.frontmatter);
+        await this.publishUrlOwner(file, { urls: record.urls, inlineFieldOccurrences: record.inlineFieldOccurrences, inlineFields: {} }, 0, record.frontmatter, true);
         if (this.urlOwners.has(record.path)) this.urlRestoredOwners++;
       }
-    }, current).then(available => { this.urlCacheAvailable = available; return available; });
+    }, current, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.urlInventory)).then(available => { this.urlCacheAvailable = available; this.flushUrlPublication(); return available; });
     return this.urlRestoreTask;
   }
 
   /** Privately replace one owner's search labels without retaining full parsed bodies. */
-  private async prepareUrlAliasOwners(owner: string, urls: ParsedBodyMetadata["urls"], current: () => boolean): Promise<Map<string, Map<string, readonly string[]>> | null> {
+  private async prepareUrlAliasOwners(owner: string, urls: ParsedBodyMetadata["urls"], current: () => boolean,
+    priority: IndexWorkPriority = INDEX_WORK_PRIORITY.urlInventory): Promise<Map<string, Map<string, readonly string[]>> | null> {
     const next = new Map<string, Map<string, readonly string[]>>();
     let sliceStarted = performance.now(), processed = 0;
     /** Alias derivation stays private and respects foreground admission before releasing CPU slices. */
     const checkpoint = async (): Promise<boolean> => {
       if ((++processed & 31) !== 0 || performance.now() - sliceStarted < 6) return current();
-      await this.workScheduler.checkpoint(3);
+      await this.workScheduler.checkpoint(priority);
       await yieldToHostTask();
       sliceStarted = performance.now();
       return current();
     };
-    await this.workScheduler.checkpoint(3);
+    await this.workScheduler.checkpoint(priority);
     if (!current()) return null;
     for (const target of this.urlOwnerTargets.get(owner) ?? []) {
       const contributors = new Map(this.urlAliasOwners.get(target)); contributors.delete(owner); next.set(target, contributors);
@@ -2786,12 +3104,15 @@ export class GraphIndex {
   }
 
   /** Canonically stage one exact URL owner, retrying only changed metadata/policy while native facts stay current. */
-  private publishUrlOwner(file: TFile, body: ParsedBodyMetadata, event: number, cachedFrontmatter?: Record<string, unknown>): Promise<void> {
+  private publishUrlOwner(file: TFile, body: ParsedBodyMetadata, event: number, cachedFrontmatter?: Record<string, unknown>, background = false): Promise<void> {
     const revision = { ...captureFileRevision(file), path: file.path };
     const alive = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && fileRevisionMatches(file, revision)
       && this.app.vault.getFileByPath(revision.path) === file && event === (this.urlOwnerEvents.get(revision.path) ?? 0);
     this.urlPendingPublications++;
-    const task = this.urlPublicationLane.catch(() => {}).then(async () => {
+    const priority = background ? INDEX_WORK_PRIORITY.urlInventory : INDEX_WORK_PRIORITY.visibleNeighborhood;
+    // Drain the already-admitted predecessor without a foreground lease. Owning P2 while joining
+    // its paused P3 compiler would self-deadlock; only this bounded stage owns the chosen lane.
+    const task = this.urlPublicationLane.catch(() => {}).then(() => this.workScheduler.run(priority, async () => {
       while (alive()) {
         const policy = this.semanticPolicyRevision, cache = this.app.metadataCache.getFileCache(file);
         const current = (): boolean => alive() && policy === this.semanticPolicyRevision
@@ -2802,11 +3123,12 @@ export class GraphIndex {
           this.urlOwners.set(revision.path, { file, mtime: revision.mtime, size: revision.size, event });
           this.urlOwnerBodies.set(revision.path, body); this.urlOwnerFrontmatter.set(revision.path, frontmatter);
           this.urlMetadataCaches.set(revision.path, cache);
-          if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path); return;
+          if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path);
+          this.queueUrlPublication([revision.path], revision.path, !background); return;
         }
         const builder = new GraphBuilder(this.plugin, this.app, new Map(), this.metadataParser,
-          this.indexedDb, current, new Map(), undefined, () => this.workScheduler.checkpoint(3));
-        const aliases = await this.prepareUrlAliasOwners(revision.path, urls, current);
+          this.indexedDb, current, new Map(), undefined, () => this.workScheduler.checkpoint(priority));
+        const aliases = await this.prepareUrlAliasOwners(revision.path, urls, current, priority);
         if (!aliases) { if (alive()) continue; return; }
         const touched = await builder.patchUrlReferences(this.urlState, file, body, (commit, publish) => {
           publish();
@@ -2815,28 +3137,88 @@ export class GraphIndex {
           this.urlMetadataCaches.set(revision.path, cache);
           if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path);
           this.publishUrlAliasOwners(revision.path, aliases);
-          this.publishUrlSearch(commit.touchedPagePaths);
-          this.relationViewCache = new WeakMap(); this.patchSearchIndex(commit.touchedPagePaths);
-          this.suggestionCatalogCache = null; this.emitPresentation();
+          this.queueUrlPublication(commit.touchedPagePaths, revision.path, !background);
         }, frontmatter);
         if (touched || current()) return;
-        await this.workScheduler.checkpoint(3);
+        await this.workScheduler.checkpoint(priority);
       }
-    }).finally(() => { this.urlPendingPublications--; this.emitPresentation(); });
+    })).finally(() => { this.urlPendingPublications--; });
     this.urlPublicationLane = task;
     return task;
+  }
+
+  /** Aggregate URL batching diagnostics are session-local and contain no owner or vault content. */
+  getUrlPublicationDiagnostics(): Readonly<{ flushes: number; pendingPaths: number; maxPendingPaths: number; timerPending: boolean }> {
+    return { flushes: this.urlPresentationFlushes, pendingPaths: this.pendingUrlPaths.size,
+      maxPendingPaths: this.maxPendingUrlPaths, timerPending: this.urlFlushTimer !== null };
+  }
+
+  /** Collect working commits without exposing intermediate adjacency on unrelated renders.
+   * Foreground edits and the first useful demanded URL publish immediately; subsequent background
+   * growth shares one maximum five-second window. No graph copy occurs at owner acquisition. */
+  private queueUrlPublication(paths: Iterable<string>, owner: string, immediate: boolean): void {
+    for (const path of paths) this.pendingUrlPaths.add(path);
+    this.pendingUrlOwners.add(owner);
+    this.maxPendingUrlPaths = Math.max(this.maxPendingUrlPaths, this.pendingUrlPaths.size);
+    const firstUseful = [...this.semanticDemandCounts.keys()].some(path =>
+      Boolean(this.urlState.pages.get(path)?.url && this.urlState.pages.get(path)?.neighbours.size)
+      && !this.publishedUrlState.pages.get(path)?.neighbours.size);
+    if (immediate || firstUseful) this.flushUrlPublication();
+    else this.requestUrlPublicationFlush();
+  }
+
+  /** Own a single cancellable timer; every continuous background batch has a finite maximum age. */
+  private requestUrlPublicationFlush(): void {
+    if (this.urlFlushTimer !== null || this.diagnosticsClosed || this.persistentCachePurged) return;
+    this.urlFlushTimer = window.setTimeout(() => {
+      this.urlFlushTimer = null;
+      this.flushUrlPublication(true);
+    }, 5000);
+  }
+
+  /** Atomically publish only accumulated page adjacency plus the immutable evidence generation.
+   * The builder's evidence is copy-on-write; retaining its pointer is safe across later commits.
+   * Page adjacency needs a shallow copy because the working builder preserves canonical identity.
+   * This is one copy per touched page per displayed batch, never a whole graph per owner. */
+  private flushUrlPublication(forceCoverage = false): void {
+    if (this.diagnosticsClosed || this.persistentCachePurged) return;
+    const coverageChanged = this.publishedUrlComplete !== this.urlDiscoveryComplete
+      || this.publishedUrlCachedMetadata !== Boolean(this.urlCachedMetadataOwners.size);
+    if (!this.pendingUrlPaths.size && !(forceCoverage && coverageChanged)) return;
+    if (this.urlFlushTimer !== null) window.clearTimeout(this.urlFlushTimer);
+    this.urlFlushTimer = null;
+    const touched = this.pendingUrlPaths;
+    for (const path of touched) {
+      const page = this.urlState.pages.get(path);
+      if (page) this.publishedUrlState.pages.set(path, { ...page, aliases: [...page.aliases], neighbours: new Map(page.neighbours) });
+      else this.publishedUrlState.pages.delete(path);
+    }
+    for (const path of this.pendingUrlOwners) {
+      const owner = this.urlOwners.get(path);
+      if (owner) this.publishedUrlOwners.set(path, { ...owner, metadata: this.urlMetadataCaches.get(path) ?? null });
+      else this.publishedUrlOwners.delete(path);
+    }
+    this.publishedUrlState.evidence = this.urlState.evidence;
+    this.publishedUrlComplete = this.urlDiscoveryComplete;
+    this.publishedUrlCachedMetadata = Boolean(this.urlCachedMetadataOwners.size);
+    this.publishUrlSearch(touched);
+    this.relationViewCache = new WeakMap(); this.patchSearchIndex(touched); this.suggestionCatalogCache = null;
+    this.pendingUrlPaths = new Set(); this.pendingUrlOwners.clear();
+    this.urlPresentationFlushes++;
+    this.emitPresentation();
   }
 
   /** Maintain independent URL search entries across optional full graph/search replacement. */
   private publishUrlSearch(paths: Iterable<string>): void {
     for (const path of paths) {
-      const page = this.urlState.pages.get(path);
+      const page = this.publishedUrlState.pages.get(path);
       if (page?.url) { this.urlSearchEntries.set(path, this.makeSearchEntry(page)); this.retiredUrlTargets.delete(path); }
       else { this.urlSearchEntries.delete(path); if (/^https?:\/\//i.test(path)) this.retiredUrlTargets.add(path); }
       if (this.usesLocalForeground()) this.onDemandGateRevisions.set(path, (this.onDemandGateRevisions.get(path) ?? 0) + 1);
       this.onDemandUnavailableCounts.delete(path);
       const canonical = this.state.pages.get(path); if (canonical) this.onDemandGateCounts.delete(canonical);
-      this.onDemandHostScopes.delete(path);
+      // The composed URL overlay supplies changed incidence. Retain coherent host/body relations
+      // until their own current source publication replaces them; discovery is not a source edit.
     }
     this.synchronizePublishedUrlFacets(paths);
     this.physicalSearchMerge = null;
@@ -2847,9 +3229,9 @@ export class GraphIndex {
    * mutating authoritative incidence. Current URL relationships remain a semantic read projection,
    * so optional full graph acceleration retains its original coherent graph/evidence ownership.
    */
-  private synchronizePublishedUrlFacets(paths: Iterable<string> = this.urlState.pages.keys()): void {
+  private synchronizePublishedUrlFacets(paths: Iterable<string> = this.publishedUrlState.pages.keys()): void {
     for (const path of paths) {
-      const canonical = this.state.pages.get(path), discovered = this.urlState.pages.get(path);
+      const canonical = this.state.pages.get(path), discovered = this.publishedUrlState.pages.get(path);
       if (canonical?.url && discovered?.url) { canonical.name = discovered.name; canonical.aliases = [...discovered.aliases]; }
     }
   }
@@ -2859,7 +3241,7 @@ export class GraphIndex {
     if (this.persistentCachePurged || this.diagnosticsClosed) return Promise.resolve(false);
     if (this.urlBackgroundTask) return this.urlBackgroundTask;
     this.urlDiscoveryRunning = true;
-    const task = this.workScheduler.run(3, async () => {
+    const task = this.workScheduler.run(INDEX_WORK_PRIORITY.urlInventory, async () => {
       await this.restoreUrlIndex();
       const files = this.app.vault.getMarkdownFiles();
       this.urlDiscoveryTotal = files.length;
@@ -2870,7 +3252,7 @@ export class GraphIndex {
       let cachedBodies = new Map<string, ParsedBodyMetadata>();
       let cachedRevisions = new Map<TFile, FileRevision>();
       while (offset < files.length && !this.diagnosticsClosed && !this.persistentCachePurged) {
-        await this.workScheduler.checkpoint(3);
+        await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.urlInventory);
         if (offset >= bodyCacheEnd) {
           const batch = files.slice(offset, offset + (Platform.isMobile ? 64 : 256));
           bodyCacheEnd = offset + batch.length;
@@ -2891,9 +3273,8 @@ export class GraphIndex {
         }
         await Promise.all(group.map(/** Native I/O overlaps; parser and canonical publication remain bounded by this wave. */
           file => this.refreshUrlOwner(file.path, false, fileRevisionMatches(file, cachedRevisions.get(file)!)
-            ? cachedBodies.get(file.path) : undefined)));
+            ? cachedBodies.get(file.path) : undefined, undefined, true)));
         this.urlDiscoveryProcessed += group.length;
-        this.emitPresentation();
       }
       if (this.diagnosticsClosed || this.persistentCachePurged) return false;
       while (this.urlOwnerTasks.size && !this.diagnosticsClosed) await Promise.all([...this.urlOwnerTasks.values()]);
@@ -2902,9 +3283,9 @@ export class GraphIndex {
         file => { const owner = this.urlOwners.get(file.path); return owner?.file === file && owner.mtime === file.stat.mtime
           && owner.size === file.stat.size && owner.event === (this.urlOwnerEvents.get(file.path) ?? 0); });
       this.plugin.startupDiagnostics?.mark("url-background-complete");
-      this.relationViewCache = new WeakMap(); this.emitPresentation();
+      this.flushUrlPublication(true);
       return this.urlDiscoveryComplete;
-    }).finally(() => { this.urlDiscoveryRunning = false; this.emitPresentation(); });
+    }).finally(() => { this.urlDiscoveryRunning = false; this.flushUrlPublication(); });
     this.urlBackgroundTask = task;
     return task;
   }
@@ -2944,6 +3325,20 @@ export class GraphIndex {
     return this.app.vault.cachedRead(file);
   }
 
+  /** Read admission is already bounded; parser CPU uses the inventory or visible-source lane.
+   * The scheduler lease ends before the caller joins serial URL publication. Foreground repairs
+   * are scheduled without joining from a mutation/current-node owner, preserving that outer lease. */
+  private async parseUrlOwnerBody(file: TFile, background: boolean, current: () => boolean): Promise<ParsedBodyMetadata | undefined> {
+    const content = await this.readUrlOwnerBody(file);
+    if (!current()) return undefined;
+    const priority = background && !this.foregroundUrlOwners.has(file.path) ? INDEX_WORK_PRIORITY.urlInventory : INDEX_WORK_PRIORITY.visibleNeighborhood;
+    return this.workScheduler.run(priority, async () => {
+      await this.workScheduler.checkpoint(priority);
+      if (!current()) return undefined;
+      return this.metadataParser.parse(content, () => this.workScheduler.checkpoint(priority));
+    });
+  }
+
   /** Persist only compact facts from a physically-current published owner, including late metadata-only discovery. */
   private persistUrlOwner(path: string): Promise<void> {
     const owner = this.urlOwners.get(path), body = this.urlOwnerBodies.get(path);
@@ -2966,11 +3361,15 @@ export class GraphIndex {
     return task;
   }
 
-  /** Observe content edits independently of host metadata readiness and optional Eager inventory. */
-  refreshUrlOwner(path: string, changed = true, cachedBody?: ParsedBodyMetadata, acquired?: Readonly<{ body: ParsedBodyMetadata; file: TFile; revision: FileRevision; frontmatter?: Record<string, unknown> }>): Promise<void> {
+  /** Observe content edits independently of host metadata readiness and optional Eager inventory.
+   * Explicit calls publish immediately; only the independent inventory supplies `background=true`.
+   * Foreground callers never join this lower-priority lifetime while holding their scheduler lease. */
+  refreshUrlOwner(path: string, changed = true, cachedBody?: ParsedBodyMetadata, acquired?: Readonly<{ body: ParsedBodyMetadata; file: TFile; revision: FileRevision; frontmatter?: Record<string, unknown> }>, background = false): Promise<void> {
     if (this.diagnosticsClosed || this.persistentCachePurged) return Promise.resolve();
+    if (!background) this.foregroundUrlOwners.add(path);
     if (changed) {
-      this.urlDiscoveryComplete = false;
+      this.urlDiscoveryComplete = false; this.publishedUrlComplete = false;
+      this.relationViewCache = new WeakMap();
       this.urlOwnerEvents.set(path, (this.urlOwnerEvents.get(path) ?? 0) + 1);
       this.urlOwners.delete(path);
       void this.indexedDb.deleteUrlOwner(path);
@@ -2978,7 +3377,7 @@ export class GraphIndex {
     const existing = this.urlOwnerTasks.get(path);
     if (existing) return existing;
     const file = this.app.vault.getFileByPath(path), event = this.urlOwnerEvents.get(path) ?? 0;
-    if (!file || file.extension !== "md") return this.retireUrlOwner(path);
+    if (!file || file.extension !== "md") { this.foregroundUrlOwners.delete(path); return this.retireUrlOwner(path); }
     const revision = captureFileRevision(file);
     const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged
       && fileRevisionMatches(file, revision) && this.app.vault.getFileByPath(path) === file
@@ -2990,12 +3389,12 @@ export class GraphIndex {
         const body = acquired?.file === file && fileRevisionMatches(file, acquired.revision) ? acquired.body
           : !changed && event === 0 && !this.sourceAcquisition.needsBodyRead(file) && (hot?.mtime === revision.mtime || cachedBody)
           ? hot?.mtime === revision.mtime ? hot.body : cachedBody!
-          : await this.metadataParser.parse(await this.readUrlOwnerBody(file), () => this.workScheduler.checkpoint(3));
-        if (!current()) return;
+          : await this.parseUrlOwnerBody(file, background, current);
+        if (!current() || !body) return;
         const inlineFieldOccurrences = body.inlineFieldOccurrences.filter(/** Retain only URL-bearing inline declarations, with exact original coordinates. */
           occurrence => [...iterateLinkReferencesFromValue(occurrence.value)].some(reference => reference.external));
         const urlBody = { urls: body.urls, inlineFieldOccurrences, inlineFields: {} };
-        await this.publishUrlOwner(file, urlBody, event, acquired?.frontmatter);
+        await this.publishUrlOwner(file, urlBody, event, acquired?.frontmatter, background && !this.foregroundUrlOwners.has(path));
         if (!current() || this.urlOwners.get(path)?.event !== event) return;
         this.urlOwnerFailures.delete(path);
         await this.persistUrlOwner(path);
@@ -3006,9 +3405,12 @@ export class GraphIndex {
         this.urlDiscoveryComplete = this.app.vault.getMarkdownFiles().every(/** Current native membership independently proves URL closure after an edit. */
           file => { const owner = this.urlOwners.get(file.path); return owner?.file === file && owner.mtime === file.stat.mtime
             && owner.size === file.stat.size && owner.event === (this.urlOwnerEvents.get(file.path) ?? 0); });
-        this.relationViewCache = new WeakMap(); this.emitPresentation();
+        if (!background || this.foregroundUrlOwners.has(path)) this.flushUrlPublication(true);
+        else this.requestUrlPublicationFlush();
       }
-      if (!current() && !this.diagnosticsClosed && !this.persistentCachePurged) void this.refreshUrlOwner(path, false);
+      if (!current() && !this.diagnosticsClosed && !this.persistentCachePurged) void this.refreshUrlOwner(path, false, undefined, undefined,
+        background && !this.foregroundUrlOwners.has(path));
+      else this.foregroundUrlOwners.delete(path);
     });
     this.urlOwnerTasks.set(path, task);
     return task;
@@ -3017,26 +3419,24 @@ export class GraphIndex {
   /** Remove deleted/renamed URL owner incidence through the canonical resolver, retaining shared URL targets. */
   private retireUrlOwner(path: string): Promise<void> {
     this.urlPendingPublications++;
-    const task = this.urlPublicationLane.catch(() => {}).then(async () => {
+    const task = this.urlPublicationLane.catch(() => {}).then(() => this.workScheduler.run(INDEX_WORK_PRIORITY.visibleNeighborhood, async () => {
       if (this.diagnosticsClosed || this.persistentCachePurged) return;
       const builder = new GraphBuilder(this.plugin, this.app, new Map(), this.metadataParser, this.indexedDb,
-        () => !this.diagnosticsClosed && !this.persistentCachePurged, new Map(), undefined, () => this.workScheduler.checkpoint(3));
-      const aliases = await this.prepareUrlAliasOwners(path, [], () => !this.diagnosticsClosed && !this.persistentCachePurged);
+        () => !this.diagnosticsClosed && !this.persistentCachePurged, new Map(), undefined, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood));
+      const aliases = await this.prepareUrlAliasOwners(path, [], () => !this.diagnosticsClosed && !this.persistentCachePurged, INDEX_WORK_PRIORITY.visibleNeighborhood);
       if (!aliases) return;
       await builder.removeUrlOwner(this.urlState, path, (commit, publish) => {
-        publish(); this.urlOwnerFailures.delete(path); this.urlOwners.delete(path); this.urlOwnerBodies.delete(path); this.urlOwnerFrontmatter.delete(path); this.urlMetadataCaches.delete(path); this.urlCachedMetadataOwners.delete(path); this.publishUrlAliasOwners(path, aliases); this.publishUrlSearch(commit.touchedPagePaths);
-        this.relationViewCache = new WeakMap(); this.patchSearchIndex(commit.touchedPagePaths); this.emitPresentation();
+        publish(); this.urlOwnerFailures.delete(path); this.urlOwners.delete(path); this.urlOwnerBodies.delete(path); this.urlOwnerFrontmatter.delete(path); this.urlMetadataCaches.delete(path); this.urlCachedMetadataOwners.delete(path); this.publishUrlAliasOwners(path, aliases); this.queueUrlPublication(commit.touchedPagePaths, path, true);
       });
-    }).finally(() => {
+    })).finally(() => {
       this.urlPendingPublications--;
       if (!this.diagnosticsClosed && !this.persistentCachePurged && !this.urlDiscoveryRunning
         && !this.urlOwnerTasks.size && !this.urlPendingPublications && this.urlOwnerFailures.size === 0) {
         this.urlDiscoveryComplete = this.app.vault.getMarkdownFiles().every(/** Deleted membership closes only when every surviving owner is current. */
           file => { const owner = this.urlOwners.get(file.path); return owner?.file === file && owner.mtime === file.stat.mtime
             && owner.size === file.stat.size && owner.event === (this.urlOwnerEvents.get(file.path) ?? 0); });
-        this.relationViewCache = new WeakMap();
       }
-      this.emitPresentation();
+      this.flushUrlPublication(true);
     });
     this.urlPublicationLane = task;
     return task;
@@ -3057,8 +3457,12 @@ export class GraphIndex {
   }
 
   destroy(): void {
+    this.visiblePresentation.clear();
     this.sourceAcquisition.close();
     this.diagnosticsClosed = true;
+    if (this.urlFlushTimer !== null) window.clearTimeout(this.urlFlushTimer);
+    this.urlFlushTimer = null; this.pendingUrlPaths.clear(); this.pendingUrlOwners.clear();
+    this.retainedLocalScopes.clear();
     this.eagerPreviewArbitration?.release();
     this.workScheduler.close();
     this.hostPreview.dispose();
@@ -3102,11 +3506,11 @@ export class GraphIndex {
     // Release graph/search/body ownership now instead of retaining a complete vault until that
     // unrelated host reference is collected. Published page objects themselves are not mutated.
     this.state = createGraphState();
-    this.urlState = createGraphState();
+    this.urlState = createGraphState(); this.publishedUrlState = createGraphState(); this.publishedUrlOwners.clear();
     this.urlOwners.clear(); this.urlOwnerEvents.clear(); this.urlOwnerBodies.clear(); this.urlOwnerFrontmatter.clear();
     this.urlMetadataCaches.clear(); this.urlCachedMetadataOwners.clear(); this.urlOwnerFailures.clear();
     this.urlAliasOwners.clear(); this.urlOwnerTargets.clear(); this.urlSearchEntries.clear(); this.retiredUrlTargets.clear();
-    this.urlOwnerTasks.clear(); this.urlCacheWrites.clear();
+    this.urlOwnerTasks.clear(); this.urlCacheWrites.clear(); this.foregroundUrlOwners.clear();
     for (const waiter of this.urlReadWaiters.splice(0)) waiter.ready(false);
     this.searchEntries = [];
     this.physicalSearchEntries.clear();
@@ -3139,9 +3543,13 @@ export class GraphIndex {
 
   /** Pause optional snapshot work behind foreground owners, releasing mobile CPU slices through a host event task. */
   private async yieldSnapshotWork(): Promise<void> {
-    await this.workScheduler.checkpoint(3);
-    if (!Platform.isMobile) return;
-    await yieldToHostTask();
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
+    try {
+      await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background);
+      if (!Platform.isMobile) return;
+      await yieldToHostTask();
+
+} finally { releaseWork(); }
   }
 
   /**
@@ -3172,6 +3580,8 @@ export class GraphIndex {
     }
     this.publicationRevision += 1;
     if (authoritativeSemantics && !this.sourceBackedSemantics) {
+      this.localHandoverCompletions += this.retainedLocalScopes.size;
+      this.retainedLocalScopes.clear(); this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear();
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
@@ -3196,7 +3606,8 @@ export class GraphIndex {
     this.searchEntryByPath = prepared.byPath;
   }
 
-  /** Stage search against a proposed presentation policy without modifying published pages/caches. */
+  /** Stage search without changing published pages/caches; hold the caller's lane through all
+   * private slices, using P4 for whole-index background work and explicit P1/P2 for finite demand. */
   private async prepareSearchIndex(
     state: ReturnType<typeof createGraphState>,
     isCurrent: () => boolean,
@@ -3205,37 +3616,42 @@ export class GraphIndex {
     facets?: PreparedGraphPresentation | null,
     aliasOverrides?: ReadonlyMap<GraphPage, readonly string[]>,
     background = false,
+    workPriority: IndexWorkPriority = background ? INDEX_WORK_PRIORITY.background : INDEX_WORK_PRIORITY.visibleNeighborhood,
+    retainRestoreWork?: (priority: IndexWorkPriority) => () => void,
   ): Promise<PreparedSearchIndex | null> {
-    const entries: SearchEntry[] = [];
-    const byPath = new Map<string, SearchEntry>();
-    const budgetMs = Platform.isIosApp ? 5 : Platform.isMobile ? 7 : 10;
-    let sliceStartedAt = performance.now();
-    let processed = 0;
+    const releaseWork = retainRestoreWork?.(workPriority) ?? this.workScheduler.begin(workPriority);
+    try {
+      const entries: SearchEntry[] = [];
+      const byPath = new Map<string, SearchEntry>();
+      const budgetMs = Platform.isIosApp ? 5 : Platform.isMobile ? 7 : 10;
+      let sliceStartedAt = performance.now();
+      let processed = 0;
 
-    for (const page of state.pages.values()) {
-      if (!isCurrent()) return null;
-      const entry = this.makeSearchEntry(page, settings, facets?.facets.get(page)?.name, aliasOverrides?.get(page));
-      entries.push(entry);
-      byPath.set(page.path, entry);
-      processed += 1;
+      for (const page of state.pages.values()) {
+        if (!isCurrent()) return null;
+        const entry = this.makeSearchEntry(page, settings, facets?.facets.get(page)?.name, aliasOverrides?.get(page));
+        entries.push(entry);
+        byPath.set(page.path, entry);
+        processed += 1;
 
-      if ((processed & 255) === 0) {
-        onProgress?.();
-        if (performance.now() - sliceStartedAt >= budgetMs) {
-          await yieldToHostTask();
-          if (!isCurrent()) return null;
-          if (background) await this.workScheduler.checkpoint(3);
-          sliceStartedAt = performance.now();
+        if ((processed & 255) === 0) {
+          onProgress?.();
+          if (performance.now() - sliceStartedAt >= budgetMs) {
+            await yieldToHostTask();
+            if (!isCurrent()) return null;
+            await this.workScheduler.checkpoint(workPriority);
+            sliceStartedAt = performance.now();
+          }
         }
       }
-    }
 
-    return { entries, byPath };
+      return { entries, byPath };
+} finally { releaseWork(); }
   }
 
   /** Publish the bounded saved neighborhood only after current facets/search pass the restore fence. */
   private async publishSnapshotPreview(meta: IndexedDbSnapshotMeta, seedPaths: readonly string[], isCurrent: () => boolean,
-    cachedCurrent?: () => boolean): Promise<boolean> {
+    cachedCurrent?: () => boolean, retainRestoreWork?: (priority: IndexWorkPriority) => () => void): Promise<boolean> {
     if (meta.schema < 2) return false;
     const seeds = [...new Set([
       ...seedPaths,
@@ -3287,7 +3703,7 @@ export class GraphIndex {
     const run = this.snapshotHydrationRun;
     this.setSnapshotHydrationPhase(run, "preview-search");
     const prepared = await this.preparePresentationPublication(next, isCurrent,
-      () => this.touchSnapshotHydrationProgress(run));
+      () => this.touchSnapshotHydrationProgress(run), false, false, false, INDEX_WORK_PRIORITY.currentNode, retainRestoreWork);
     if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return false;
     this.acceptPresentation(prepared);
     this.fullSnapshotHydrated = false;
@@ -3318,270 +3734,275 @@ export class GraphIndex {
     onNavigable?: () => void,
     semanticCurrent: () => boolean = () => true,
     physicalCurrent: () => boolean = () => true,
+    retainRestoreWork?: (priority: IndexWorkPriority) => () => void,
   ): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }> {
-    let expectedPublicationRevision = this.publicationRevision;
-    const isCurrent = () => run === this.snapshotHydrationRun && parentCurrent()
-      && expectedPublicationRevision === this.publicationRevision;
-    const next = createGraphState();
-    const persistedPhysicalPaths = new Set<string>();
-    const modifiedMarkdownPaths = new Set<string>(upgradePaths);
-    const missingFileBindings = new Set<string>();
-    const restoredFingerprints = new Map<string, string>();
-    // Old schema-2 desktop snapshots use one slow page cursor. Retain those decoded records so we
-    // do not pay the same cursor cost twice. Chunked snapshots are cheap to stream a second time,
-    // so avoid retaining 100k+ duplicate serialized page objects in memory.
-    const retainedPages: PersistedPage[] | null = !Platform.isMobile && !this.indexedDb.snapshotUsesChunks(meta) ? [] : null;
+    const releaseWork = retainRestoreWork?.(INDEX_WORK_PRIORITY.background) ?? this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
+    try {
+      let expectedPublicationRevision = this.publicationRevision;
+      const isCurrent = () => run === this.snapshotHydrationRun && parentCurrent()
+        && expectedPublicationRevision === this.publicationRevision;
+      const next = createGraphState();
+      const persistedPhysicalPaths = new Set<string>();
+      const modifiedMarkdownPaths = new Set<string>(upgradePaths);
+      const missingFileBindings = new Set<string>();
+      const restoredFingerprints = new Map<string, string>();
+      // Old schema-2 desktop snapshots use one slow page cursor. Retain those decoded records so we
+      // do not pay the same cursor cost twice. Chunked snapshots are cheap to stream a second time,
+      // so avoid retaining 100k+ duplicate serialized page objects in memory.
+      const retainedPages: PersistedPage[] | null = !Platform.isMobile && !this.indexedDb.snapshotUsesChunks(meta) ? [] : null;
 
-    this.setSnapshotHydrationPhase(run, "pages");
-    const pagesOk = await this.indexedDb.iterateSnapshotPages(meta, (page) => {
-      if (!isCurrent()) return;
-      this.noteSnapshotHydrationProgress(run, "pages");
-      retainedPages?.push(page);
-      addPersistedPageToState(next, page, this.app);
-      if (page.semanticSignature) restoredFingerprints.set(page.path, page.semanticSignature);
-      if (page.filePath) {
-        persistedPhysicalPaths.add(page.filePath);
-        const reboundPage = next.pages.get(page.path);
-        const rebound = reboundPage?.file;
-        if (rebound) {
-          if (reboundPage) this.snapshotFileRevisions.set(reboundPage, captureFileRevision(rebound));
-          if (rebound.extension === "md" && typeof page.mtime === "number") {
-            this.plugin.startupDiagnostics?.count("hydration", "physicalRevisionComparisons");
-            if (rebound.stat.mtime !== page.mtime) modifiedMarkdownPaths.add(rebound.path);
+      this.setSnapshotHydrationPhase(run, "pages");
+      const pagesOk = await this.indexedDb.iterateSnapshotPages(meta, (page) => {
+        if (!isCurrent()) return;
+        this.noteSnapshotHydrationProgress(run, "pages");
+        retainedPages?.push(page);
+        addPersistedPageToState(next, page, this.app);
+        if (page.semanticSignature) restoredFingerprints.set(page.path, page.semanticSignature);
+        if (page.filePath) {
+          persistedPhysicalPaths.add(page.filePath);
+          const reboundPage = next.pages.get(page.path);
+          const rebound = reboundPage?.file;
+          if (rebound) {
+            if (reboundPage) this.snapshotFileRevisions.set(reboundPage, captureFileRevision(rebound));
+            if (rebound.extension === "md" && typeof page.mtime === "number") {
+              this.plugin.startupDiagnostics?.count("hydration", "physicalRevisionComparisons");
+              if (rebound.stat.mtime !== page.mtime) modifiedMarkdownPaths.add(rebound.path);
+            }
+          } else missingFileBindings.add(page.path);
+        }
+      }, isCurrent, (reason) => {
+        if (isCurrent()) this.recordIndexDiagnostic("restore", `${meta.key}-pages-${reason}`);
+      });
+      if (!pagesOk || !isCurrent() || !physicalCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+
+      if (missingFileBindings.size) {
+        this.setSnapshotHydrationPhase(run, "file-rebind");
+        const delays = Platform.isMobile ? [120, 320, 700] : [80];
+        for (const delay of delays) {
+          if (!missingFileBindings.size || !isCurrent()) break;
+          await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+          if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+          for (const path of [...missingFileBindings]) {
+            const page = next.pages.get(path);
+            const file = this.app.vault.getAbstractFileByPath(path);
+            if (!page || !(file instanceof TFile)) continue;
+            page.file = file;
+            if (file.extension === "md" && typeof page.mtime === "number" && file.stat.mtime !== page.mtime) modifiedMarkdownPaths.add(file.path);
+            missingFileBindings.delete(path);
           }
-        } else missingFileBindings.add(page.path);
-      }
-    }, isCurrent, (reason) => {
-      if (isCurrent()) this.recordIndexDiagnostic("restore", `${meta.key}-pages-${reason}`);
-    });
-    if (!pagesOk || !isCurrent() || !physicalCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-
-    if (missingFileBindings.size) {
-      this.setSnapshotHydrationPhase(run, "file-rebind");
-      const delays = Platform.isMobile ? [120, 320, 700] : [80];
-      for (const delay of delays) {
-        if (!missingFileBindings.size || !isCurrent()) break;
-        await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
-        if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-        for (const path of [...missingFileBindings]) {
-          const page = next.pages.get(path);
-          const file = this.app.vault.getAbstractFileByPath(path);
-          if (!page || !(file instanceof TFile)) continue;
-          page.file = file;
-          if (file.extension === "md" && typeof page.mtime === "number" && file.stat.mtime !== page.mtime) modifiedMarkdownPaths.add(file.path);
-          missingFileBindings.delete(path);
         }
       }
-    }
 
-    const currentPhysicalPaths = new Set(inventory.filesByPath.keys());
-    let structuralMismatch = currentPhysicalPaths.size !== persistedPhysicalPaths.size;
-    if (!structuralMismatch) {
-      for (const path of currentPhysicalPaths) {
-        if (!persistedPhysicalPaths.has(path)) { structuralMismatch = true; break; }
-      }
-    }
-
-    const addedPaths = [...currentPhysicalPaths].filter((path) => !persistedPhysicalPaths.has(path));
-    const removedPaths = [...persistedPhysicalPaths].filter((path) => !currentPhysicalPaths.has(path));
-    const savedFolders = new Set([...next.pages.values()].filter((page) => page.isFolder)
-      .map((page) => page.path === "folder:/" ? "" : page.path.slice("folder:".length)));
-    const foldersMatch = savedFolders.size === inventory.folderPaths.size &&
-      [...inventory.folderPaths].every((path) => savedFolders.has(path));
-    // A completed graph can absorb note-only additions and deletions. Renames are deliberately
-    // excluded: inbound link resolution can change even when the declaring notes did not change.
-    const markdownDelta = foldersMatch && !(addedPaths.length && removedPaths.length) &&
-      addedPaths.every((path) => inventory.filesByPath.get(path)?.extension === "md") &&
-      removedPaths.every((path) => path.toLowerCase().endsWith(".md")) &&
-      [...missingFileBindings].every((path) => removedPaths.includes(path));
-    const recoverableStructuralDelta = structuralMismatch && markdownDelta;
-
-    // A bounded startup preview may already be visible, but never promote/retain a known-invalid
-    // full snapshot. Hydrating its relations + evidence only to immediately build a replacement
-    // doubles peak memory on iOS and delays the authoritative cold build on every platform.
-    if ((structuralMismatch && !recoverableStructuralDelta) ||
-      (missingFileBindings.size > 0 && !recoverableStructuralDelta) || !foldersMatch) {
-      this.recordIndexDiagnostic("restore", !foldersMatch ? "folder-structure-changed" :
-        addedPaths.length && removedPaths.length ? "possible-file-rename" :
-          addedPaths.some((path) => inventory.filesByPath.get(path)?.extension !== "md") ? "non-markdown-file-added" :
-            missingFileBindings.size ? "missing-file-binding" : "unsupported-physical-change",
-      { added: addedPaths.length, removed: removedPaths.length, modified: modifiedMarkdownPaths.size });
-      this.fullSnapshotHydrated = false;
-      this.fullSnapshotFresh = false;
-      this.restoredModifiedMarkdownPaths = [];
-      this.restoredStructuralMismatch = true;
-      this.restoredPatchPlanAvailable = false;
-      return { restored: false, fresh: false, createdAt: meta.createdAt };
-    }
-
-    // Persisted page records already carry resolved neighbour relations. Hydrate those before the
-    // much larger evidence store so a complete navigable graph can be published as soon as the
-    // page snapshot is available. Evidence/provenance continues loading in the background.
-    let relationsHydrated = meta.schema >= 2;
-    if (relationsHydrated) {
-      this.setSnapshotHydrationPhase(run, "relations");
-      let relationsComplete = true;
-      if (retainedPages) {
-        for (const saved of retainedPages) {
-          this.noteSnapshotHydrationProgress(run, "relations");
-          if (!hydratePersistedPageRelations(next, saved)) relationsComplete = false;
+      const currentPhysicalPaths = new Set(inventory.filesByPath.keys());
+      let structuralMismatch = currentPhysicalPaths.size !== persistedPhysicalPaths.size;
+      if (!structuralMismatch) {
+        for (const path of currentPhysicalPaths) {
+          if (!persistedPhysicalPaths.has(path)) { structuralMismatch = true; break; }
         }
-      } else {
-        const relationPassOk = await this.indexedDb.iterateSnapshotPages(meta, (saved) => {
-          if (!isCurrent()) return;
-          this.noteSnapshotHydrationProgress(run, "relations");
-          if (!hydratePersistedPageRelations(next, saved)) relationsComplete = false;
-        }, isCurrent, (reason) => {
-          if (isCurrent()) this.recordIndexDiagnostic("restore", `${meta.key}-relations-${reason}`);
-        });
-        relationsHydrated = relationPassOk && relationsComplete;
       }
-      if (retainedPages) relationsHydrated = relationsComplete;
-    }
-    if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
 
-    if (!physicalCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-    if (relationsHydrated) {
-      // Publish a page-only state with complete resolved relations and empty provenance. This is a
-      // deliberate progressive-hydration boundary: navigation/search can work immediately while
-      // the private `next` state continues loading evidence. Do not expose partially-loaded
-      // evidence itself.
+      const addedPaths = [...currentPhysicalPaths].filter((path) => !persistedPhysicalPaths.has(path));
+      const removedPaths = [...persistedPhysicalPaths].filter((path) => !currentPhysicalPaths.has(path));
+      const savedFolders = new Set([...next.pages.values()].filter((page) => page.isFolder)
+        .map((page) => page.path === "folder:/" ? "" : page.path.slice("folder:".length)));
+      const foldersMatch = savedFolders.size === inventory.folderPaths.size &&
+        [...inventory.folderPaths].every((path) => savedFolders.has(path));
+      // A completed graph can absorb note-only additions and deletions. Renames are deliberately
+      // excluded: inbound link resolution can change even when the declaring notes did not change.
+      const markdownDelta = foldersMatch && !(addedPaths.length && removedPaths.length) &&
+        addedPaths.every((path) => inventory.filesByPath.get(path)?.extension === "md") &&
+        removedPaths.every((path) => path.toLowerCase().endsWith(".md")) &&
+        [...missingFileBindings].every((path) => removedPaths.includes(path));
+      const recoverableStructuralDelta = structuralMismatch && markdownDelta;
+
+      // A bounded startup preview may already be visible, but never promote/retain a known-invalid
+      // full snapshot. Hydrating its relations + evidence only to immediately build a replacement
+      // doubles peak memory on iOS and delays the authoritative cold build on every platform.
+      if ((structuralMismatch && !recoverableStructuralDelta) ||
+        (missingFileBindings.size > 0 && !recoverableStructuralDelta) || !foldersMatch) {
+        this.recordIndexDiagnostic("restore", !foldersMatch ? "folder-structure-changed" :
+          addedPaths.length && removedPaths.length ? "possible-file-rename" :
+            addedPaths.some((path) => inventory.filesByPath.get(path)?.extension !== "md") ? "non-markdown-file-added" :
+              missingFileBindings.size ? "missing-file-binding" : "unsupported-physical-change",
+        { added: addedPaths.length, removed: removedPaths.length, modified: modifiedMarkdownPaths.size });
+        this.fullSnapshotHydrated = false;
+        this.fullSnapshotFresh = false;
+        this.restoredModifiedMarkdownPaths = [];
+        this.restoredStructuralMismatch = true;
+        this.restoredPatchPlanAvailable = false;
+        return { restored: false, fresh: false, createdAt: meta.createdAt };
+      }
+
+      // Persisted page records already carry resolved neighbour relations. Hydrate those before the
+      // much larger evidence store so a complete navigable graph can be published as soon as the
+      // page snapshot is available. Evidence/provenance continues loading in the background.
+      let relationsHydrated = meta.schema >= 2;
+      if (relationsHydrated) {
+        this.setSnapshotHydrationPhase(run, "relations");
+        let relationsComplete = true;
+        if (retainedPages) {
+          for (const saved of retainedPages) {
+            this.noteSnapshotHydrationProgress(run, "relations");
+            if (!hydratePersistedPageRelations(next, saved)) relationsComplete = false;
+          }
+        } else {
+          const relationPassOk = await this.indexedDb.iterateSnapshotPages(meta, (saved) => {
+            if (!isCurrent()) return;
+            this.noteSnapshotHydrationProgress(run, "relations");
+            if (!hydratePersistedPageRelations(next, saved)) relationsComplete = false;
+          }, isCurrent, (reason) => {
+            if (isCurrent()) this.recordIndexDiagnostic("restore", `${meta.key}-relations-${reason}`);
+          });
+          relationsHydrated = relationPassOk && relationsComplete;
+        }
+        if (retainedPages) relationsHydrated = relationsComplete;
+      }
+      if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+
+      if (!physicalCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      if (relationsHydrated) {
+        // Publish a page-only state with complete resolved relations and empty provenance. This is a
+        // deliberate progressive-hydration boundary: navigation/search can work immediately while
+        // the private `next` state continues loading evidence. Do not expose partially-loaded
+        // evidence itself.
+        next.discoveredFields = new Map(meta.discoveredFields);
+        const pagePreview = createGraphState();
+        pagePreview.pages = new Map(next.pages);
+        pagePreview.lowercasePathMap = next.lowercasePathMap;
+        pagePreview.discoveredFields = next.discoveredFields;
+        this.fullSnapshotHydrated = false;
+        this.fullSnapshotFresh = false;
+        this.previewSnapshotPublished = true;
+        this.restoredPatchPlanAvailable = false;
+        this.setSnapshotHydrationPhase(run, "preview-search");
+        const prepared = await this.preparePresentationPublication(pagePreview, isCurrent, () => this.touchSnapshotHydrationProgress(run), false, false, true, INDEX_WORK_PRIORITY.background, retainRestoreWork);
+        if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+        this.acceptPresentation(prepared);
+        if (!semanticCurrent()) this.retainCachedStartupPresentation(pagePreview);
+        this.publishRestoredState(pagePreview, prepared.search, false, false);
+        if (semanticCurrent() && fresh && meta.key === "active" && modifiedMarkdownPaths.size === 0) {
+          this.navigableSnapshotSourceRevision = this.plugin.getIndexSourceRevision();
+          this.retiredSnapshotPaths.clear();
+          this.hostPreviewScopes.clear();
+        }
+        expectedPublicationRevision = this.publicationRevision;
+        onNavigable?.();
+      }
+
+      this.plugin.startupDiagnostics?.mark("evidence-hydration-start");
+      this.setSnapshotHydrationPhase(run, "evidence");
+      const evidenceOk = await this.indexedDb.iterateSnapshotEvidence(meta, (item) => {
+        if (!isCurrent()) return;
+        this.noteSnapshotHydrationProgress(run, "evidence");
+        addPersistedEvidenceToState(next, item);
+      }, isCurrent, (reason) => {
+        if (isCurrent()) this.recordIndexDiagnostic("restore", `${meta.key}-evidence-${reason}`);
+      });
+      if (!evidenceOk || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      this.plugin.startupDiagnostics?.mark("evidence-hydration-end");
       next.discoveredFields = new Map(meta.discoveredFields);
-      const pagePreview = createGraphState();
-      pagePreview.pages = new Map(next.pages);
-      pagePreview.lowercasePathMap = next.lowercasePathMap;
-      pagePreview.discoveredFields = next.discoveredFields;
-      this.fullSnapshotHydrated = false;
-      this.fullSnapshotFresh = false;
-      this.previewSnapshotPublished = true;
-      this.restoredPatchPlanAvailable = false;
-      this.setSnapshotHydrationPhase(run, "preview-search");
-      const prepared = await this.preparePresentationPublication(pagePreview, isCurrent, () => this.touchSnapshotHydrationProgress(run), false, false, true);
-      if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-      this.acceptPresentation(prepared);
-      if (!semanticCurrent()) this.retainCachedStartupPresentation(pagePreview);
-      this.publishRestoredState(pagePreview, prepared.search, false, false);
-      if (semanticCurrent() && fresh && meta.key === "active" && modifiedMarkdownPaths.size === 0) {
-        this.navigableSnapshotSourceRevision = this.plugin.getIndexSourceRevision();
-        this.retiredSnapshotPaths.clear();
-        this.hostPreviewScopes.clear();
+
+      // Schema-1/early schema-2 snapshots without cached relations still need the authoritative
+      // resolver after evidence has loaded. New schema-3 snapshots take the fast relation path above.
+      if (!relationsHydrated) {
+        this.setSnapshotHydrationPhase(run, "resolve");
+        const resolved = await finalizeHydratedGraphStateCooperative(
+          next,
+          isCurrent,
+          Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
+          () => this.touchSnapshotHydrationProgress(run),
+        );
+        if (!resolved) return { restored: false, fresh: false, createdAt: meta.createdAt };
       }
-      expectedPublicationRevision = this.publicationRevision;
-      onNavigable?.();
-    }
+      if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
 
-    this.plugin.startupDiagnostics?.mark("evidence-hydration-start");
-    this.setSnapshotHydrationPhase(run, "evidence");
-    const evidenceOk = await this.indexedDb.iterateSnapshotEvidence(meta, (item) => {
-      if (!isCurrent()) return;
-      this.noteSnapshotHydrationProgress(run, "evidence");
-      addPersistedEvidenceToState(next, item);
-    }, isCurrent, (reason) => {
-      if (isCurrent()) this.recordIndexDiagnostic("restore", `${meta.key}-evidence-${reason}`);
-    });
-    if (!evidenceOk || !isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-    this.plugin.startupDiagnostics?.mark("evidence-hydration-end");
-    next.discoveredFields = new Map(meta.discoveredFields);
-
-    // Schema-1/early schema-2 snapshots without cached relations still need the authoritative
-    // resolver after evidence has loaded. New schema-3 snapshots take the fast relation path above.
-    if (!relationsHydrated) {
-      this.setSnapshotHydrationPhase(run, "resolve");
-      const resolved = await finalizeHydratedGraphStateCooperative(
-        next,
-        isCurrent,
-        Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,
-        () => this.touchSnapshotHydrationProgress(run),
-      );
-      if (!resolved) return { restored: false, fresh: false, createdAt: meta.createdAt };
-    }
-    if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-
-    const isCheckpoint = meta.key === "checkpoint";
-    if (isCheckpoint && meta.completedMarkdownPaths?.some((path) => !restoredFingerprints.has(path))) {
-      return { restored: false, fresh: false, createdAt: meta.createdAt };
-    }
-    if (isCheckpoint) {
-      for (const path of modifiedMarkdownPaths) restoredFingerprints.delete(path);
-      for (const path of removedPaths) restoredFingerprints.delete(path);
-    }
-    if (!physicalCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-    const currentSemantics = semanticCurrent();
-    if (!currentSemantics) this.retainCachedStartupPresentation(next);
-    const authoritativeFresh = currentSemantics && fresh && !structuralMismatch && missingFileBindings.size === 0;
-    // The earlier page-only publication contains the same immutable page records. Evidence hydration does
-    // not alter searchable page metadata, so avoid allocating/sorting the 100k+ search index a
-    // second time when promoting the fully hydrated state.
-    // Primary source authority is independent of additional URL search labels. Promote the
-    // coherent cached graph now; the existing alias owner repairs/stages optional vocabulary after
-    // hydration releases its task, preserving the old facet marker until authenticated completion.
-    this.setSnapshotHydrationPhase(run, "promote");
-    if (relationsHydrated) {
-      if (classifySettingsChange(captureSettingsPolicy(this.presentationSettings), captureSettingsPolicy(this.plugin.settings)).render) {
-        await this.refreshPresentationSettings();
-        if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      const isCheckpoint = meta.key === "checkpoint";
+      if (isCheckpoint && meta.completedMarkdownPaths?.some((path) => !restoredFingerprints.has(path))) {
+        return { restored: false, fresh: false, createdAt: meta.createdAt };
       }
-      this.publishRestoredState(next, null, true, currentSemantics, true);
-      expectedPublicationRevision = this.publicationRevision;
-    } else {
-      this.setSnapshotHydrationPhase(run, "authoritative-search");
-      const prepared = await this.preparePresentationPublication(next, isCurrent, () => this.touchSnapshotHydrationProgress(run), false, false, true);
-      if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
-      this.acceptPresentation(prepared);
-      this.publishRestoredState(next, prepared.search, false, currentSemantics, true);
-      expectedPublicationRevision = this.publicationRevision;
-    }
-    this.fullSnapshotHydrated = !isCheckpoint;
-    if (!isCheckpoint && authoritativeFresh && !this.pendingUrlAliasUpgrade) {
-      // Requested scopes own bounded semantics, not complete global URL-label incidence. The
-      // authenticated complete snapshot certifies those facets for this exact unchanged vault.
-      for (const scope of this.semanticScopes.values()) {
-        if (scope.policyRevision !== this.semanticPolicyRevision
-          || scope.maintenanceRevision !== this.sourceAcquisition.getMaintenanceRevision()
-          || scope.sourceRevision !== this.plugin.getIndexSourceRevision()) continue;
-        for (const page of scope.pagesByPath.values()) {
-          const complete = page.url ? next.pages.get(page.path) : undefined;
-          if (complete?.url === page.url && complete) page.aliases = [...complete.aliases];
+      if (isCheckpoint) {
+        for (const path of modifiedMarkdownPaths) restoredFingerprints.delete(path);
+        for (const path of removedPaths) restoredFingerprints.delete(path);
+      }
+      if (!physicalCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+      const currentSemantics = semanticCurrent();
+      if (!currentSemantics) this.retainCachedStartupPresentation(next);
+      const authoritativeFresh = currentSemantics && fresh && !structuralMismatch && missingFileBindings.size === 0;
+      // The earlier page-only publication contains the same immutable page records. Evidence hydration does
+      // not alter searchable page metadata, so avoid allocating/sorting the 100k+ search index a
+      // second time when promoting the fully hydrated state.
+      // Primary source authority is independent of additional URL search labels. Promote the
+      // coherent cached graph now; the existing alias owner repairs/stages optional vocabulary after
+      // hydration releases its task, preserving the old facet marker until authenticated completion.
+      this.setSnapshotHydrationPhase(run, "promote");
+      if (relationsHydrated) {
+        if (classifySettingsChange(captureSettingsPolicy(this.presentationSettings), captureSettingsPolicy(this.plugin.settings)).render) {
+          await this.refreshPresentationSettings();
+          if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+        }
+        this.publishRestoredState(next, null, true, currentSemantics, true);
+        expectedPublicationRevision = this.publicationRevision;
+      } else {
+        this.setSnapshotHydrationPhase(run, "authoritative-search");
+        const prepared = await this.preparePresentationPublication(next, isCurrent, () => this.touchSnapshotHydrationProgress(run), false, false, true, INDEX_WORK_PRIORITY.background, retainRestoreWork);
+        if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
+        this.acceptPresentation(prepared);
+        this.publishRestoredState(next, prepared.search, false, currentSemantics, true);
+        expectedPublicationRevision = this.publicationRevision;
+      }
+      this.fullSnapshotHydrated = !isCheckpoint;
+      if (!isCheckpoint && authoritativeFresh && !this.pendingUrlAliasUpgrade) {
+        // Requested scopes own bounded semantics, not complete global URL-label incidence. The
+        // authenticated complete snapshot certifies those facets for this exact unchanged vault.
+        for (const scope of this.semanticScopes.values()) {
+          if (scope.policyRevision !== this.semanticPolicyRevision
+            || scope.maintenanceRevision !== this.sourceAcquisition.getMaintenanceRevision()
+            || scope.sourceRevision !== this.plugin.getIndexSourceRevision()) continue;
+          for (const page of scope.pagesByPath.values()) {
+            const complete = page.url ? next.pages.get(page.path) : undefined;
+            if (complete?.url === page.url && complete) page.aliases = [...complete.aliases];
+          }
         }
       }
-    }
-    if (!isCheckpoint) {
-      // Exact physical membership was already compared above. Full search now owns every file.
-      this.physicalSearchEntries.clear();
-      this.physicalSearchMerge = null;
-      this.searchCandidateCache.clear();
-    }
-    if (!isCheckpoint) this.enableGlobalSourceInventoryIfConfigured();
-    this.fullSnapshotFresh = authoritativeFresh;
-    if (!this.isOnDemandMode() && !isCheckpoint && authoritativeFresh) this.onDemandPartialState = false;
-    this.finishSnapshotHydrationDiagnostics(run, "complete");
-    this.semanticFingerprints = restoredFingerprints;
-    this.previewSnapshotPublished = false;
-    this.restoredModifiedMarkdownPaths = [...modifiedMarkdownPaths];
-    this.restoredAddedMarkdownPaths = recoverableStructuralDelta ? addedPaths : [];
-    this.restoredRemovedMarkdownPaths = recoverableStructuralDelta ? removedPaths : [];
-    this.restoredStructuralMismatch = false;
-    this.restoredPatchPlanAvailable = currentSemantics && !isCheckpoint && !this.restoredStructuralMismatch;
-    this.restoredVaultSignature = inventory.signature;
-    this.resumableCheckpointPaths = isCheckpoint ? new Set(meta.completedMarkdownPaths?.filter((path) =>
-      inventory.filesByPath.has(path) && !modifiedMarkdownPaths.has(path))) : null;
-    this.recordIndexDiagnostic("restore", !currentSemantics ? "startup-host-wave-cached-presentation" : isCheckpoint ? "checkpoint-restored" :
-      recoverableStructuralDelta ? "complete-markdown-delta" :
-        modifiedMarkdownPaths.size ? "complete-modified-markdown" : "complete-restored",
-    { added: this.restoredAddedMarkdownPaths.length, removed: this.restoredRemovedMarkdownPaths.length,
-      modified: modifiedMarkdownPaths.size });
+      if (!isCheckpoint) {
+        // Exact physical membership was already compared above. Full search now owns every file.
+        this.physicalSearchEntries.clear();
+        this.physicalSearchMerge = null;
+        this.searchCandidateCache.clear();
+      }
+      if (!isCheckpoint) this.enableGlobalSourceInventoryIfConfigured();
+      this.fullSnapshotFresh = authoritativeFresh;
+      if (!this.isOnDemandMode() && !isCheckpoint && authoritativeFresh) this.onDemandPartialState = false;
+      this.finishSnapshotHydrationDiagnostics(run, "complete");
+      this.semanticFingerprints = restoredFingerprints;
+      this.previewSnapshotPublished = false;
+      this.restoredModifiedMarkdownPaths = [...modifiedMarkdownPaths];
+      this.restoredAddedMarkdownPaths = recoverableStructuralDelta ? addedPaths : [];
+      this.restoredRemovedMarkdownPaths = recoverableStructuralDelta ? removedPaths : [];
+      this.restoredStructuralMismatch = false;
+      this.restoredPatchPlanAvailable = currentSemantics && !isCheckpoint && !this.restoredStructuralMismatch;
+      this.restoredVaultSignature = inventory.signature;
+      this.resumableCheckpointPaths = isCheckpoint ? new Set(meta.completedMarkdownPaths?.filter((path) =>
+        inventory.filesByPath.has(path) && !modifiedMarkdownPaths.has(path))) : null;
+      this.recordIndexDiagnostic("restore", !currentSemantics ? "startup-host-wave-cached-presentation" : isCheckpoint ? "checkpoint-restored" :
+        recoverableStructuralDelta ? "complete-markdown-delta" :
+          modifiedMarkdownPaths.size ? "complete-modified-markdown" : "complete-restored",
+      { added: this.restoredAddedMarkdownPaths.length, removed: this.restoredRemovedMarkdownPaths.length,
+        modified: modifiedMarkdownPaths.size });
 
-    if (!isCheckpoint && !relationsHydrated) this.scheduleSnapshotPersist(5000);
-    else if (!this.indexedDb.snapshotUsesChunks(meta) && !Platform.isIosApp) {
-      // One background migration turns the old 356k-record cursor restore into a few hundred
-      // chunk reads on the next launch. Delay it so first paint and Obsidian startup stay quiet.
-      this.scheduleSnapshotPersist(8000);
-    }
-    // Previous builds could leave incomplete generations behind when a snapshot write was
-    // cancelled by another edit. Discover/clean those only after the active graph is usable.
-    this.scheduleOrphanCleanup(meta.generation);
+      if (!isCheckpoint && !relationsHydrated) this.scheduleSnapshotPersist(5000);
+      else if (!this.indexedDb.snapshotUsesChunks(meta) && !Platform.isIosApp) {
+        // One background migration turns the old 356k-record cursor restore into a few hundred
+        // chunk reads on the next launch. Delay it so first paint and Obsidian startup stay quiet.
+        this.scheduleSnapshotPersist(8000);
+      }
+      // Previous builds could leave incomplete generations behind when a snapshot write was
+      // cancelled by another edit. Discover/clean those only after the active graph is usable.
+      this.scheduleOrphanCleanup(meta.generation);
 
-    return { restored: true, fresh: authoritativeFresh, createdAt: meta.createdAt };
+      return { restored: true, fresh: authoritativeFresh, createdAt: meta.createdAt };
+
+} finally { releaseWork(); }
   }
 
   /**
@@ -3594,7 +4015,22 @@ export class GraphIndex {
     this.cancelSnapshotHydration?.();
     const run = ++this.snapshotHydrationRun;
     const semanticPolicy = computeIndexSettingsSignature(this.plugin.settings);
-    const isCurrent = () => run === this.snapshotHydrationRun && !this.diagnosticsClosed &&
+    let cancelled = false;
+    const restoreWorkReleases = new Set<() => void>();
+    /** Retire priority ownership even when an external cache read cannot be aborted. */
+    const cancelRestoreWork = (): void => {
+      cancelled = true;
+      for (const release of [...restoreWorkReleases]) release();
+    };
+    /** Every nested preview/search lease belongs to this exact restore lifetime. */
+    const retainRestoreWork = (priority: IndexWorkPriority): (() => void) => {
+      if (cancelled) return () => undefined;
+      const release = this.workScheduler.begin(priority);
+      const retire = (): void => { restoreWorkReleases.delete(retire); release(); };
+      restoreWorkReleases.add(retire);
+      return retire;
+    };
+    const isCurrent = () => !cancelled && run === this.snapshotHydrationRun && !this.diagnosticsClosed &&
       semanticPolicy === computeIndexSettingsSignature(this.plugin.settings);
     this.beginSnapshotHydrationDiagnostics(run);
     this.fullSnapshotHydrated = false;
@@ -3617,148 +4053,169 @@ export class GraphIndex {
     // Guard metadata and targeted preview reads too: startup must never wait indefinitely before
     // the public full-hydration task has even been installed.
     const restoreTask = (async () => {
-      const [catalog, previousDiagnostics] = await Promise.all([
-        this.indexedDb.readSnapshotCatalog(), this.indexedDb.readIndexDiagnostics(),
-      ]);
-      if (!isCurrent()) return { restored: false, fresh: false, createdAt };
-      this.rememberSnapshotCatalog(catalog);
-      if (this.indexDiagnostics.length === 0) this.indexDiagnostics = previousDiagnostics;
-      const { active, checkpoint } = catalog;
-      const compatibility = new Map([active, checkpoint].filter((meta): meta is IndexedDbSnapshotMeta => Boolean(meta))
-        .map((meta) => [meta, compareIndexSettingsSignature(meta.settingsSignature, this.plugin.settings)] as const));
-      // Physical classification is independent of durable source heads. A complete current-policy
-      // schema-3 generation can supply navigation before source certification or provenance.
-      this.plugin.startupDiagnostics?.mark("snapshot-catalog-read");
-      this.plugin.startupDiagnostics?.mark("host-inventory-start");
-      const inventory = captureVaultInventory(this.app);
-      this.plugin.startupDiagnostics?.mark("host-inventory-end");
-      this.plugin.startupDiagnostics?.count("hydration", "inventoryFiles", inventory.filesByPath.size);
-      this.plugin.startupDiagnostics?.count("hydration", "inventoryFolders", inventory.folderPaths.size);
-      this.restoreInventorySourceRevision = this.plugin.getIndexSourceRevision();
-      const snapshotSourceRevision = this.restoreInventorySourceRevision;
-      const snapshotHostPresentationRevision = this.hostPresentationRevision;
-      const physicalTokens = new Map([...inventory.filesByPath].map(([path, file]) => [path, { file, revision: captureFileRevision(file) }]));
-      let checkedSourceRevision = snapshotSourceRevision, physicalValid = true;
-      /** Physical identity/stats/membership remain mandatory; host resolver waves alone do not delete a coherent cache. */
-      const physicalCurrent = (): boolean => physicalValid = physicalValid
-        && captureVaultInventory(this.app).signature === inventory.signature
-        && [...physicalTokens].every(([path, token]) => this.app.vault.getFileByPath(path) === token.file
-          && fileRevisionMatches(token.file, token.revision));
-      const semanticCurrent = (): boolean => snapshotSourceRevision === this.plugin.getIndexSourceRevision()
-        && snapshotHostPresentationRevision === this.hostPresentationRevision;
-      const trustedWarmSnapshot = Boolean(active && active.key === "active" && active.schema >= 3
-        && active.vaultSignature === inventory.signature && compatibility.get(active)?.reason === "compatible"
-        && !compatibility.get(active)?.retiredFilepath);
-      if (!trustedWarmSnapshot) persistedSources = await this.startPersistedSourceInventory();
-      if (!isCurrent()) return { restored: false, fresh: false, createdAt };
-      // A changed ontology does not invalidate neutral facts. Reuse the physical/search baseline,
-      // but keep all semantic consumers on the same requested-source path used by live settings.
-      const usable = (meta: IndexedDbSnapshotMeta | null): boolean => Boolean(meta
-        && (compatibility.get(meta)?.compatible || persistedSources && meta.key === "active"
-          && compatibility.get(meta)?.reason === "semantic-settings-changed"));
-      if (!usable(active) && !usable(checkpoint)) {
-        this.eagerPreviewArbitration?.release();
-        createdAt = active?.createdAt ?? checkpoint?.createdAt ?? null;
-        const decision = (active && compatibility.get(active)) || (checkpoint && compatibility.get(checkpoint));
-        this.recordIndexDiagnostic("restore", !catalog.available ? "storage-unavailable" :
-          catalog.invalidActive || catalog.invalidCheckpoint ? "invalid-snapshot-metadata" :
-            decision ? decision.reason : "no-complete-snapshot", { changedKeys: [...(decision?.changedKeys ?? [])] });
+      let restorePriority: IndexWorkPriority = INDEX_WORK_PRIORITY.currentNode;
+      let releaseWork = retainRestoreWork(restorePriority);
+      /** Retire a completed lane before entering a different acquisition phase. */
+      const enterRestorePriority = (priority: IndexWorkPriority): void => {
+        releaseWork(); restorePriority = priority; releaseWork = retainRestoreWork(priority);
+      };
+      try {
+        await this.workScheduler.checkpoint(restorePriority);
+        const [catalog, previousDiagnostics] = await Promise.all([
+          this.indexedDb.readSnapshotCatalog(), this.indexedDb.readIndexDiagnostics(),
+        ]);
+        if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+        this.rememberSnapshotCatalog(catalog);
+        if (this.indexDiagnostics.length === 0) this.indexDiagnostics = previousDiagnostics;
+        const { active, checkpoint } = catalog;
+        const compatibility = new Map([active, checkpoint].filter((meta): meta is IndexedDbSnapshotMeta => Boolean(meta))
+          .map((meta) => [meta, compareIndexSettingsSignature(meta.settingsSignature, this.plugin.settings)] as const));
+        // Physical classification is independent of durable source heads. A complete current-policy
+        // schema-3 generation can supply navigation before source certification or provenance.
+        this.plugin.startupDiagnostics?.mark("snapshot-catalog-read");
+        this.plugin.startupDiagnostics?.mark("host-inventory-start");
+        const inventory = captureVaultInventory(this.app);
+        this.plugin.startupDiagnostics?.mark("host-inventory-end");
+        this.plugin.startupDiagnostics?.count("hydration", "inventoryFiles", inventory.filesByPath.size);
+        this.plugin.startupDiagnostics?.count("hydration", "inventoryFolders", inventory.folderPaths.size);
+        this.restoreInventorySourceRevision = this.plugin.getIndexSourceRevision();
+        const snapshotSourceRevision = this.restoreInventorySourceRevision;
+        const snapshotHostPresentationRevision = this.hostPresentationRevision;
+        const physicalTokens = new Map([...inventory.filesByPath].map(([path, file]) => [path, { file, revision: captureFileRevision(file) }]));
+        let checkedSourceRevision = snapshotSourceRevision, physicalValid = true;
+        /** Physical identity/stats/membership remain mandatory; host resolver waves alone do not delete a coherent cache. */
+        const physicalCurrent = (): boolean => physicalValid = physicalValid
+          && captureVaultInventory(this.app).signature === inventory.signature
+          && [...physicalTokens].every(([path, token]) => this.app.vault.getFileByPath(path) === token.file
+            && fileRevisionMatches(token.file, token.revision));
+        const semanticCurrent = (): boolean => snapshotSourceRevision === this.plugin.getIndexSourceRevision()
+          && snapshotHostPresentationRevision === this.hostPresentationRevision;
+        const trustedWarmSnapshot = Boolean(active && active.key === "active" && active.schema >= 3
+          && active.vaultSignature === inventory.signature && compatibility.get(active)?.reason === "compatible"
+          && !compatibility.get(active)?.retiredFilepath);
+        if (!trustedWarmSnapshot) {
+          // Cold/stale source inventory is optional background work. Release local startup demand
+          // before joining it, rather than keeping a P1 owner waiting on its own P4 checkpoint.
+          this.eagerPreviewArbitration?.release();
+          enterRestorePriority(INDEX_WORK_PRIORITY.background);
+          persistedSources = await this.startPersistedSourceInventory();
+        }
+        if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+        // A changed ontology does not invalidate neutral facts. Reuse the physical/search baseline,
+        // but keep all semantic consumers on the same requested-source path used by live settings.
+        const usable = (meta: IndexedDbSnapshotMeta | null): boolean => Boolean(meta
+          && (compatibility.get(meta)?.compatible || persistedSources && meta.key === "active"
+            && compatibility.get(meta)?.reason === "semantic-settings-changed"));
+        if (!usable(active) && !usable(checkpoint)) {
+          this.eagerPreviewArbitration?.release();
+          enterRestorePriority(INDEX_WORK_PRIORITY.background);
+          createdAt = active?.createdAt ?? checkpoint?.createdAt ?? null;
+          const decision = (active && compatibility.get(active)) || (checkpoint && compatibility.get(checkpoint));
+          this.recordIndexDiagnostic("restore", !catalog.available ? "storage-unavailable" :
+            catalog.invalidActive || catalog.invalidCheckpoint ? "invalid-snapshot-metadata" :
+              decision ? decision.reason : "no-complete-snapshot", { changedKeys: [...(decision?.changedKeys ?? [])] });
+          if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run,
+            () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }))) {
+            return { restored: true, fresh: true, createdAt };
+          }
+          return { restored: false, fresh: false, createdAt };
+        }
+        if (!this.physicalSearchEntries.size && !(await this.preparePhysicalSearchCatalog(inventory.filesByPath, isCurrent, restorePriority, retainRestoreWork))) return { restored: false, fresh: false, createdAt };
+        const vaultSignature = inventory.signature;
+        // Preserve active/checkpoint freshness preference and corruption fallback after classification.
+        const usableCheckpoint = usable(checkpoint) && (!usable(active) ||
+          (checkpoint?.vaultSignature === vaultSignature && active?.vaultSignature !== vaultSignature));
+        const candidates = (usableCheckpoint ? [checkpoint, active] : [active, checkpoint])
+          .filter((meta): meta is IndexedDbSnapshotMeta => Boolean(meta && usable(meta)));
+        for (const meta of candidates) {
+          if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+          createdAt = meta.createdAt;
+          const decision = compatibility.get(meta)!;
+          this.sourceBackedSemantics = persistedSources || trustedWarmSnapshot || !decision.compatible;
+          if (this.sourceBackedSemantics) this.fullSemanticPolicyRevision = 0;
+          if (!decision.compatible) {
+            this.recordIndexDiagnostic("restore", "source-backed-policy-baseline", { changedKeys: [...decision.changedKeys] });
+          }
+          if (decision.reason !== "compatible") this.recordIndexDiagnostic("restore", decision.reason, { changedKeys: [...decision.changedKeys] });
+          this.urlAliasFacetVersion = meta.urlAliasVersion ?? 0;
+          this.pendingUrlAliasUpgrade = this.urlAliasFacetVersion !== URL_ALIAS_FACET_VERSION;
+          this.urlAliasUpgradeFailure = null;
+          this.activeSnapshotGeneration = meta.generation;
+          const upgradePaths = decision.retiredFilepath ? await planRetiredExclusionReconciliation(
+            decision.retiredFilepath, this.plugin.settings, this.app, this.fieldCache, this.indexedDb,
+            isCurrent, () => this.plugin.getIndexSourceRevision(),
+          ) : new Set<string>();
+          if (!upgradePaths || !isCurrent()) return { restored: false, fresh: false, createdAt };
+          if (decision.retiredFilepath) this.recordIndexDiagnostic("restore", upgradePaths.size ?
+            "retired-policy-reconcile" : "retired-policy-no-affected-sources", { modified: upgradePaths.size });
+          const fresh = meta.key === "active" && meta.vaultSignature === vaultSignature && upgradePaths.size === 0;
+          this.recordIndexDiagnostic("restore", meta.key === "checkpoint" ? "checkpoint-selected" :
+            fresh ? "complete-snapshot-fresh" : "complete-snapshot-stale");
+          this.setSnapshotHydrationPhase(run, "preview");
+          enterRestorePriority(INDEX_WORK_PRIORITY.currentNode);
+          const previewPublished = await this.publishSnapshotPreview(meta, seedPaths, isCurrent,
+            trustedWarmSnapshot ? physicalCurrent : undefined, retainRestoreWork);
+          if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+          if (previewPublished && semanticCurrent() && meta.vaultSignature === inventory.signature
+            && compatibility.get(meta)?.reason === "compatible") {
+            this.onDemandCachedSourceRevision = this.plugin.getIndexSourceRevision();
+            for (const page of this.state.pages.values()) if (page.file) this.snapshotFileRevisions.set(page, captureFileRevision(page.file));
+            for (const path of seedPaths) if (this.state.pages.has(path)) this.onDemandCachedScopes.set(path, this.state);
+          }
+          this.eagerPreviewArbitration?.release();
+          enterRestorePriority(INDEX_WORK_PRIORITY.background);
+          if (previewPublished) {
+            this.plugin.startupDiagnostics?.mark("preview-available");
+            reportPreview({ restored: true, fresh, createdAt, partial: true });
+          }
+          // Optional graph/evidence reads must not compete with the restart source-authority pass.
+          // Keep the bounded preview visible, prepare its current-policy scopes, then hydrate the
+          // complete search acceleration. This does not claim complete global vocabulary early.
+          if (persistedSources) {
+            this.setSnapshotHydrationPhase(run, "source-authority");
+            const adopted = await this.awaitStartupSourceAuthority(isCurrent);
+            if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+            if (!adopted || !this.sourceAcquisition.hasSemanticDependencies()) {
+              this.recordIndexDiagnostic("restore", "startup-source-authority-pending");
+              break;
+            }
+            this.setSnapshotHydrationPhase(run, "requested-semantics");
+            this.plugin.startupDiagnostics?.mark("source-authority-await-ended");
+            await this.refreshSemanticSettings();
+            this.plugin.startupDiagnostics?.mark("requested-semantics-refresh-ended");
+            if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+          }
+          // Foreground mutations/host events cannot be overwritten by a captured graph generation.
+          const candidateCurrent = (): boolean => {
+            if (!isCurrent()) return false;
+            if (trustedWarmSnapshot && checkedSourceRevision !== this.plugin.getIndexSourceRevision()) {
+              checkedSourceRevision = this.plugin.getIndexSourceRevision();
+              if (!physicalCurrent()) return false;
+            }
+            return physicalValid;
+          };
+          // Physical freshness and a mutable acquisition strategy cannot certify a saved ontology.
+          // Every candidate closes its captured policy and native/source observations independently.
+          const candidateSemanticsCurrent = (): boolean => decision.compatible && semanticCurrent();
+          const result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory, candidateCurrent, upgradePaths,
+            trustedWarmSnapshot ? () => {
+              this.plugin.startupDiagnostics?.mark("navigable-graph-published");
+              reportPreview({ restored: true, fresh: semanticCurrent(), createdAt, partial: true });
+              this.warmSourceRecoveryAvailable = true;
+              this.enableGlobalSourceInventoryIfConfigured();
+            } : undefined, candidateSemanticsCurrent, trustedWarmSnapshot ? physicalCurrent : undefined, retainRestoreWork);
+          if (result.restored && decision.presentationChanged) this.recordIndexDiagnostic("restore", "presentation-settings-adapted",
+            { changedKeys: [...decision.changedKeys] });
+          if (result.restored) { this.warmSourceRecoveryAvailable = false; return result; }
+          if (this.retainWarmSourceRecovery() || !isCurrent()) return result;
+          if (trustedWarmSnapshot) persistedSources = await this.startPersistedSourceInventory();
+        }
         if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run,
-          () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }))) {
+            () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }))) {
           return { restored: true, fresh: true, createdAt };
         }
         return { restored: false, fresh: false, createdAt };
-      }
-      if (!this.physicalSearchEntries.size && !(await this.preparePhysicalSearchCatalog(inventory.filesByPath, isCurrent))) return { restored: false, fresh: false, createdAt };
-      const vaultSignature = inventory.signature;
-      // Preserve active/checkpoint freshness preference and corruption fallback after classification.
-      const usableCheckpoint = usable(checkpoint) && (!usable(active) ||
-        (checkpoint?.vaultSignature === vaultSignature && active?.vaultSignature !== vaultSignature));
-      const candidates = (usableCheckpoint ? [checkpoint, active] : [active, checkpoint])
-        .filter((meta): meta is IndexedDbSnapshotMeta => Boolean(meta && usable(meta)));
-      for (const meta of candidates) {
-        if (!isCurrent()) return { restored: false, fresh: false, createdAt };
-        createdAt = meta.createdAt;
-        const decision = compatibility.get(meta)!;
-        this.sourceBackedSemantics = persistedSources || trustedWarmSnapshot || !decision.compatible;
-        if (this.sourceBackedSemantics) this.fullSemanticPolicyRevision = 0;
-        if (!decision.compatible) {
-          this.recordIndexDiagnostic("restore", "source-backed-policy-baseline", { changedKeys: [...decision.changedKeys] });
-        }
-        if (decision.reason !== "compatible") this.recordIndexDiagnostic("restore", decision.reason, { changedKeys: [...decision.changedKeys] });
-        this.urlAliasFacetVersion = meta.urlAliasVersion ?? 0;
-        this.pendingUrlAliasUpgrade = this.urlAliasFacetVersion !== URL_ALIAS_FACET_VERSION;
-        this.urlAliasUpgradeFailure = null;
-        this.activeSnapshotGeneration = meta.generation;
-        const upgradePaths = decision.retiredFilepath ? await planRetiredExclusionReconciliation(
-          decision.retiredFilepath, this.plugin.settings, this.app, this.fieldCache, this.indexedDb,
-          isCurrent, () => this.plugin.getIndexSourceRevision(),
-        ) : new Set<string>();
-        if (!upgradePaths || !isCurrent()) return { restored: false, fresh: false, createdAt };
-        if (decision.retiredFilepath) this.recordIndexDiagnostic("restore", upgradePaths.size ?
-          "retired-policy-reconcile" : "retired-policy-no-affected-sources", { modified: upgradePaths.size });
-        const fresh = meta.key === "active" && meta.vaultSignature === vaultSignature && upgradePaths.size === 0;
-        this.recordIndexDiagnostic("restore", meta.key === "checkpoint" ? "checkpoint-selected" :
-          fresh ? "complete-snapshot-fresh" : "complete-snapshot-stale");
-        this.setSnapshotHydrationPhase(run, "preview");
-        const previewPublished = await this.publishSnapshotPreview(meta, seedPaths, isCurrent,
-          trustedWarmSnapshot ? physicalCurrent : undefined);
-        if (!isCurrent()) return { restored: false, fresh: false, createdAt };
-        if (previewPublished && semanticCurrent() && meta.vaultSignature === inventory.signature
-          && compatibility.get(meta)?.reason === "compatible") {
-          this.onDemandCachedSourceRevision = this.plugin.getIndexSourceRevision();
-          for (const page of this.state.pages.values()) if (page.file) this.snapshotFileRevisions.set(page, captureFileRevision(page.file));
-          for (const path of seedPaths) if (this.state.pages.has(path)) this.onDemandCachedScopes.set(path, this.state);
-        }
-        this.eagerPreviewArbitration?.release();
-        if (previewPublished) {
-          this.plugin.startupDiagnostics?.mark("preview-available");
-          reportPreview({ restored: true, fresh, createdAt, partial: true });
-        }
-        // Optional graph/evidence reads must not compete with the restart source-authority pass.
-        // Keep the bounded preview visible, prepare its current-policy scopes, then hydrate the
-        // complete search acceleration. This does not claim complete global vocabulary early.
-        if (persistedSources) {
-          this.setSnapshotHydrationPhase(run, "source-authority");
-          const adopted = await this.awaitStartupSourceAuthority(isCurrent);
-          if (!isCurrent()) return { restored: false, fresh: false, createdAt };
-          if (!adopted || !this.sourceAcquisition.hasSemanticDependencies()) {
-            this.recordIndexDiagnostic("restore", "startup-source-authority-pending");
-            break;
-          }
-          this.setSnapshotHydrationPhase(run, "requested-semantics");
-          this.plugin.startupDiagnostics?.mark("source-authority-await-ended");
-          await this.refreshSemanticSettings();
-          this.plugin.startupDiagnostics?.mark("requested-semantics-refresh-ended");
-          if (!isCurrent()) return { restored: false, fresh: false, createdAt };
-        }
-        // Foreground mutations/host events cannot be overwritten by a captured graph generation.
-        const candidateCurrent = (): boolean => {
-          if (!isCurrent()) return false;
-          if (trustedWarmSnapshot && checkedSourceRevision !== this.plugin.getIndexSourceRevision()) {
-            checkedSourceRevision = this.plugin.getIndexSourceRevision();
-            if (!physicalCurrent()) return false;
-          }
-          return physicalValid;
-        };
-        const result = await this.restoreFullIndexedDbSnapshot(meta, fresh, run, inventory, candidateCurrent, upgradePaths,
-          trustedWarmSnapshot ? () => {
-            this.plugin.startupDiagnostics?.mark("navigable-graph-published");
-            reportPreview({ restored: true, fresh: semanticCurrent(), createdAt, partial: true });
-            this.warmSourceRecoveryAvailable = true;
-            this.enableGlobalSourceInventoryIfConfigured();
-          } : undefined, trustedWarmSnapshot ? semanticCurrent : undefined, trustedWarmSnapshot ? physicalCurrent : undefined);
-        if (result.restored && decision.presentationChanged) this.recordIndexDiagnostic("restore", "presentation-settings-adapted",
-          { changedKeys: [...decision.changedKeys] });
-        if (result.restored) { this.warmSourceRecoveryAvailable = false; return result; }
-        if (this.retainWarmSourceRecovery() || !isCurrent()) return result;
-        if (trustedWarmSnapshot) persistedSources = await this.startPersistedSourceInventory();
-      }
-      if (persistedSources && await this.restoreSourceBackedBaseline(isCurrent, run,
-          () => reportPreview({ restored: true, fresh: true, createdAt, partial: true }))) {
-        return { restored: true, fresh: true, createdAt };
-      }
-      return { restored: false, fresh: false, createdAt };
+} finally { releaseWork(); }
     })().then((result) => {
       if (!result.restored) {
         this.finishSnapshotHydrationDiagnostics(run, "failed");
@@ -3783,7 +4240,7 @@ export class GraphIndex {
       this.finishSnapshotHydrationDiagnostics(run, "failed");
       return { restored: false, fresh: false, createdAt };
     });
-    const task = this.watchSnapshotHydration(restoreTask, run, () => createdAt);
+    const task = this.watchSnapshotHydration(restoreTask, run, () => createdAt, cancelRestoreWork);
     this.snapshotHydrationTask = task;
     void task.then(() => {
       if (this.snapshotHydrationTask !== task) return;
@@ -3907,15 +4364,22 @@ export class GraphIndex {
       this.diagnosticsClosed ? undefined : this.indexedDb.writeIndexDiagnostics(entries));
   }
 
+  /**
+   * Bound one restore lifetime with the existing inactivity watchdog. Cancellation or timeout
+   * retires its nested priority leases synchronously, even if an external cache read stays pending;
+   * late continuations remain private under the caller's cancelled generation fence.
+   */
   private watchSnapshotHydration(
     task: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }>,
     run: number,
     createdAt: () => number | null,
+    onStop?: () => void,
   ): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }> {
     let timer: number | null = null;
     let cancel!: () => void;
     const stalled = new Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }>((resolve) => {
       const stop = (outcome: "cancelled" | "timed-out"): void => {
+        onStop?.();
         if (timer !== null) window.clearTimeout(timer);
         timer = null;
         this.finishSnapshotHydrationDiagnostics(run, outcome);
@@ -3984,6 +4448,9 @@ export class GraphIndex {
       && Boolean(oldSource?.file && this.app.vault.getFileByPath(commit.sourcePath) === oldSource.file
         && this.snapshotFileRevisions.has(oldSource));
     publishPreparedState();
+    for (const [center, retained] of this.retainedLocalScopes) if (retained.state.pages.has(commit.sourcePath)) {
+      this.retainedLocalScopes.delete(center); this.onDemandHostScopes.delete(center); this.onDemandCachedScopes.delete(center);
+    }
     // A partial Eager foreground patch supersedes a captured graph candidate, not the neutral
     // source recovery lifetime. Its publication fence rejects stale pages/evidence independently.
     if (this.snapshotHydrationTask && !(this.usesLocalForeground() && !this.isOnDemandMode()
@@ -4030,7 +4497,7 @@ export class GraphIndex {
     }
     if ((this.urlBackgroundTask || this.urlOwners.size || this.urlDiscoveryComplete) && file?.extension === "md" && (!this.urlOwnerIsCurrent(commit.sourcePath)
       || !owner || this.urlMetadataCaches.get(commit.sourcePath) !== this.app.metadataCache.getFileCache(file))) {
-      this.urlDiscoveryComplete = false;
+      this.urlDiscoveryComplete = false; this.publishedUrlComplete = false;
       this.urlOwners.delete(commit.sourcePath);
       for (const path of commit.touchedPagePaths) if (this.state.pages.get(path)?.url) this.retiredUrlTargets.delete(path);
       const hot = this.fieldCache.get(commit.sourcePath);
@@ -4042,6 +4509,7 @@ export class GraphIndex {
     this.retryDemandedSemanticScopes();
     this.patchSearchIndex(commit.touchedPagePaths);
     this.suggestionCatalogCache = null;
+    void this.refreshVisiblePresentation(commit.sourcePath);
   }
 
   /** Complete one normal incremental publication synchronously and notify graph subscribers only
@@ -4080,73 +4548,79 @@ export class GraphIndex {
 
   /** Patch modified Markdown sources into a restored snapshot without rebuilding the whole vault. */
   async reconcileRestoredSnapshot(): Promise<{ reconciled: boolean; patched: number }> {
-    if (!this.restoredPatchPlanAvailable || this.restoredStructuralMismatch) return { reconciled: false, patched: 0 };
-    const paths = [...new Set([...this.restoredModifiedMarkdownPaths, ...this.restoredAddedMarkdownPaths])];
-    if (!paths.length && !this.restoredRemovedMarkdownPaths.length) return { reconciled: true, patched: 0 };
-    if (this.building) return { reconciled: false, patched: 0 };
-
-    const files: TFile[] = [];
-    for (const path of paths) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (!(file instanceof TFile) || file.extension !== "md") return { reconciled: false, patched: 0 };
-      files.push(file);
-    }
-    if (this.restoredRemovedMarkdownPaths.some((path) => this.app.vault.getFileByPath(path))) {
-      return { reconciled: false, patched: 0 };
-    }
-
-    this.building = true;
-    const run = ++this.generation;
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
-      for (const path of this.restoredRemovedMarkdownPaths) this.dematerializeFile(path);
-      for (const path of this.restoredAddedMarkdownPaths) {
-        const file = this.app.vault.getFileByPath(path);
-        if (!file || file.extension !== "md") return { reconciled: false, patched: 0 };
-        this.insertCreatedFile(file);
+      if (!this.restoredPatchPlanAvailable || this.restoredStructuralMismatch) return { reconciled: false, patched: 0 };
+      const paths = [...new Set([...this.restoredModifiedMarkdownPaths, ...this.restoredAddedMarkdownPaths])];
+      if (!paths.length && !this.restoredRemovedMarkdownPaths.length) return { reconciled: true, patched: 0 };
+      if (this.building) return { reconciled: false, patched: 0 };
+
+      const files: TFile[] = [];
+      for (const path of paths) {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (!(file instanceof TFile) || file.extension !== "md") return { reconciled: false, patched: 0 };
+        files.push(file);
       }
-      this.sourceAcquisition.start();
-      const builder = new GraphBuilder(
-        this.plugin,
-        this.app,
-        this.fieldCache,
-        this.metadataParser,
-        this.indexedDb,
-        () => run === this.generation,
-        this.semanticFingerprints,
-        this.sourceAcquisition,
-        () => this.workScheduler.checkpoint(3),
-      );
-      const result = await builder.patchMarkdownFiles(this.state, files, {
-        useDurableCache: true,
-        awaitBodyWrite: false,
-        publishFileCommit: this.publishIncrementalFile,
-      });
-      if (!result.ok || run !== this.generation) {
-        this.recordIndexDiagnostic("reconcile", "source-changed-during-reconcile", {
+      if (this.restoredRemovedMarkdownPaths.some((path) => this.app.vault.getFileByPath(path))) {
+        return { reconciled: false, patched: 0 };
+      }
+
+      this.building = true;
+      const run = ++this.generation;
+      try {
+        for (const path of this.restoredRemovedMarkdownPaths) this.dematerializeFile(path);
+        for (const path of this.restoredAddedMarkdownPaths) {
+          const file = this.app.vault.getFileByPath(path);
+          if (!file || file.extension !== "md") return { reconciled: false, patched: 0 };
+          this.insertCreatedFile(file);
+        }
+        this.sourceAcquisition.start();
+        const builder = new GraphBuilder(
+          this.plugin,
+          this.app,
+          this.fieldCache,
+          this.metadataParser,
+          this.indexedDb,
+          () => run === this.generation,
+          this.semanticFingerprints,
+          this.sourceAcquisition,
+          () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background),
+        );
+        const result = await builder.patchMarkdownFiles(this.state, files, {
+          useDurableCache: true,
+          awaitBodyWrite: false,
+          publishFileCommit: this.publishIncrementalFile,
+        });
+        if (!result.ok || run !== this.generation) {
+          this.recordIndexDiagnostic("reconcile", "source-changed-during-reconcile", {
+            added: this.restoredAddedMarkdownPaths.length,
+            removed: this.restoredRemovedMarkdownPaths.length,
+            modified: this.restoredModifiedMarkdownPaths.length,
+          });
+          return { reconciled: false, patched: 0 };
+        }
+        this.suggestionCatalogCache = null;
+        this.recordIndexDiagnostic("reconcile", "per-file-reconcile-complete", {
           added: this.restoredAddedMarkdownPaths.length,
           removed: this.restoredRemovedMarkdownPaths.length,
           modified: this.restoredModifiedMarkdownPaths.length,
         });
-        return { reconciled: false, patched: 0 };
+        this.restoredModifiedMarkdownPaths = [];
+        this.restoredAddedMarkdownPaths = [];
+        this.restoredRemovedMarkdownPaths = [];
+        this.restoredPatchPlanAvailable = false;
+        this.fullSnapshotFresh = true;
+        this.localHandoverCompletions += this.retainedLocalScopes.size;
+        this.retainedLocalScopes.clear(); this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear();
+        if (!this.isOnDemandMode()) this.onDemandPartialState = false;
+        this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
+        this.deferOrphanCleanup();
+        return { reconciled: true, patched: files.length };
+      } finally {
+        this.building = false;
       }
-      this.suggestionCatalogCache = null;
-      this.recordIndexDiagnostic("reconcile", "per-file-reconcile-complete", {
-        added: this.restoredAddedMarkdownPaths.length,
-        removed: this.restoredRemovedMarkdownPaths.length,
-        modified: this.restoredModifiedMarkdownPaths.length,
-      });
-      this.restoredModifiedMarkdownPaths = [];
-      this.restoredAddedMarkdownPaths = [];
-      this.restoredRemovedMarkdownPaths = [];
-      this.restoredPatchPlanAvailable = false;
-      this.fullSnapshotFresh = true;
-      if (!this.isOnDemandMode()) this.onDemandPartialState = false;
-      this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
-      this.deferOrphanCleanup();
-      return { reconciled: true, patched: files.length };
-    } finally {
-      this.building = false;
-    }
+
+} finally { releaseWork(); }
   }
 
   /** Incrementally replace declarations owned by already-indexed Markdown files.
@@ -4211,61 +4685,65 @@ export class GraphIndex {
 
   /** Deprecated disk-cache compatibility reader; production startup uses IndexedDB. */
   private async restoreChunkedSnapshot(): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null }> {
-    const manifestPath = this.snapshotManifestPath();
-    if (!manifestPath || !(await this.app.vault.adapter.exists(manifestPath))) {
-      return { restored: false, fresh: false, createdAt: null };
-    }
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
-      const raw = await this.app.vault.adapter.read(manifestPath);
-      const parsed: unknown = JSON.parse(raw);
-      if (!isPersistedIndexManifestV2(parsed)) return { restored: false, fresh: false, createdAt: null };
-      const manifest = parsed;
-      const decision = compareIndexSettingsSignature(manifest.settingsSignature, this.plugin.settings);
-      if (!decision.compatible || decision.retiredFilepath) {
-        return { restored: false, fresh: false, createdAt: manifest.createdAt };
+      const manifestPath = this.snapshotManifestPath();
+      if (!manifestPath || !(await this.app.vault.adapter.exists(manifestPath))) {
+        return { restored: false, fresh: false, createdAt: null };
+      }
+      try {
+        const raw = await this.app.vault.adapter.read(manifestPath);
+        const parsed: unknown = JSON.parse(raw);
+        if (!isPersistedIndexManifestV2(parsed)) return { restored: false, fresh: false, createdAt: null };
+        const manifest = parsed;
+        const decision = compareIndexSettingsSignature(manifest.settingsSignature, this.plugin.settings);
+        if (!decision.compatible || decision.retiredFilepath) {
+          return { restored: false, fresh: false, createdAt: manifest.createdAt };
+        }
+
+        const policy = computeIndexSettingsSignature(this.plugin.settings);
+        const current = (): boolean => !this.diagnosticsClosed && policy === computeIndexSettingsSignature(this.plugin.settings);
+        const next = createGraphState();
+        for (let i = 0; i < manifest.pageChunkCount; i += 1) {
+          const path = this.snapshotChunkPath(manifest.generation, "pages", i);
+          if (!path || !(await this.app.vault.adapter.exists(path))) throw new Error("Missing K-Plex page snapshot chunk");
+          const chunk = JSON.parse(await this.app.vault.adapter.read(path)) as PersistedPage[];
+          if (!Array.isArray(chunk)) throw new Error("Invalid K-Plex page snapshot chunk");
+          for (const saved of chunk) addPersistedPageToState(next, saved, this.app);
+          await this.yieldSnapshotWork();
+        }
+        for (let i = 0; i < manifest.evidenceChunkCount; i += 1) {
+          const path = this.snapshotChunkPath(manifest.generation, "evidence", i);
+          if (!path || !(await this.app.vault.adapter.exists(path))) throw new Error("Missing K-Plex evidence snapshot chunk");
+          const chunk = JSON.parse(await this.app.vault.adapter.read(path)) as PersistedEvidenceDeclaration[];
+          if (!Array.isArray(chunk)) throw new Error("Invalid K-Plex evidence snapshot chunk");
+          for (const declaration of chunk) addPersistedEvidenceToState(next, declaration);
+          await this.yieldSnapshotWork();
+        }
+        next.discoveredFields = new Map(manifest.discoveredFields);
+        const resolved = await finalizeHydratedGraphStateCooperative(
+          next,
+          current,
+          Platform.isIosApp ? 50 : Platform.isMobile ? 100 : 240,
+        );
+        if (!resolved) return { restored: false, fresh: false, createdAt: manifest.createdAt };
+        const prepared = await this.preparePresentationPublication(next, current, undefined, false, false, true);
+        if (!prepared || !current() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: manifest.createdAt };
+        this.acceptPresentation(prepared);
+        this.publishRestoredState(next, prepared.search);
+        const fresh = manifest.vaultSignature === computeVaultSignature(this.app);
+        // A previous iOS/WebView termination may have interrupted a new generation after some
+        // chunks were written but before its manifest became authoritative. Remove those orphaned
+        // chunks now so repeated crashes can never accumulate stale cache generations forever.
+        void this.cleanupSnapshotOrphans(manifest.generation);
+        return { restored: true, fresh, createdAt: manifest.createdAt };
+      } catch {
+        // A cache is never authoritative. Missing/corrupt chunks fall through to the legacy cache
+        // or a normal rebuild without preventing K-Plex from opening.
+        return { restored: false, fresh: false, createdAt: null };
       }
 
-      const policy = computeIndexSettingsSignature(this.plugin.settings);
-      const current = (): boolean => !this.diagnosticsClosed && policy === computeIndexSettingsSignature(this.plugin.settings);
-      const next = createGraphState();
-      for (let i = 0; i < manifest.pageChunkCount; i += 1) {
-        const path = this.snapshotChunkPath(manifest.generation, "pages", i);
-        if (!path || !(await this.app.vault.adapter.exists(path))) throw new Error("Missing K-Plex page snapshot chunk");
-        const chunk = JSON.parse(await this.app.vault.adapter.read(path)) as PersistedPage[];
-        if (!Array.isArray(chunk)) throw new Error("Invalid K-Plex page snapshot chunk");
-        for (const saved of chunk) addPersistedPageToState(next, saved, this.app);
-        await this.yieldSnapshotWork();
-      }
-      for (let i = 0; i < manifest.evidenceChunkCount; i += 1) {
-        const path = this.snapshotChunkPath(manifest.generation, "evidence", i);
-        if (!path || !(await this.app.vault.adapter.exists(path))) throw new Error("Missing K-Plex evidence snapshot chunk");
-        const chunk = JSON.parse(await this.app.vault.adapter.read(path)) as PersistedEvidenceDeclaration[];
-        if (!Array.isArray(chunk)) throw new Error("Invalid K-Plex evidence snapshot chunk");
-        for (const declaration of chunk) addPersistedEvidenceToState(next, declaration);
-        await this.yieldSnapshotWork();
-      }
-      next.discoveredFields = new Map(manifest.discoveredFields);
-      const resolved = await finalizeHydratedGraphStateCooperative(
-        next,
-        current,
-        Platform.isIosApp ? 50 : Platform.isMobile ? 100 : 240,
-      );
-      if (!resolved) return { restored: false, fresh: false, createdAt: manifest.createdAt };
-      const prepared = await this.preparePresentationPublication(next, current, undefined, false, false, true);
-      if (!prepared || !current() || !prepared.facets.isCurrent()) return { restored: false, fresh: false, createdAt: manifest.createdAt };
-      this.acceptPresentation(prepared);
-      this.publishRestoredState(next, prepared.search);
-      const fresh = manifest.vaultSignature === computeVaultSignature(this.app);
-      // A previous iOS/WebView termination may have interrupted a new generation after some
-      // chunks were written but before its manifest became authoritative. Remove those orphaned
-      // chunks now so repeated crashes can never accumulate stale cache generations forever.
-      void this.cleanupSnapshotOrphans(manifest.generation);
-      return { restored: true, fresh, createdAt: manifest.createdAt };
-    } catch {
-      // A cache is never authoritative. Missing/corrupt chunks fall through to the legacy cache
-      // or a normal rebuild without preventing K-Plex from opening.
-      return { restored: false, fresh: false, createdAt: null };
-    }
+} finally { releaseWork(); }
   }
 
   /**
@@ -4326,46 +4804,58 @@ export class GraphIndex {
   }
 
   private async cleanupLegacySnapshotFiles(): Promise<void> {
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
-      const legacyManifest = await this.readSnapshotManifest();
-      await this.removeSnapshotGeneration(legacyManifest);
-      for (const path of [this.snapshotManifestPath(), this.snapshotPath()]) {
-        if (!path) continue;
-        try { if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path); } catch { /* migration cleanup only */ }
+      try {
+        const legacyManifest = await this.readSnapshotManifest();
+        await this.removeSnapshotGeneration(legacyManifest);
+        for (const path of [this.snapshotManifestPath(), this.snapshotPath()]) {
+          if (!path) continue;
+          try { if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path); } catch { /* migration cleanup only */ }
+        }
+        if (legacyManifest) await this.cleanupSnapshotOrphans(legacyManifest.generation);
+      } catch {
+        // Cache housekeeping is best-effort and must never delay graph restoration.
       }
-      if (legacyManifest) await this.cleanupSnapshotOrphans(legacyManifest.generation);
-    } catch {
-      // Cache housekeeping is best-effort and must never delay graph restoration.
-    }
+
+} finally { releaseWork(); }
   }
 
   private async cleanupSnapshotOrphans(activeGeneration: string): Promise<void> {
-    const dir = this.plugin.manifest?.dir;
-    if (!dir) return;
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
-      const listing = await this.app.vault.adapter.list(dir);
-      const activePrefix = `${dir}/kplex-index-${activeGeneration}-`;
-      for (const path of listing.files) {
-        if (!path.startsWith(`${dir}/kplex-index-`) || path.startsWith(`${dir}/kplex-index-snapshot-`)) continue;
-        if (!/-(?:pages|evidence)-\d+\.json$/.test(path)) continue;
-        if (path.startsWith(activePrefix)) continue;
-        try { await this.app.vault.adapter.remove(path); } catch { /* orphan cleanup only */ }
+      const dir = this.plugin.manifest?.dir;
+      if (!dir) return;
+      try {
+        const listing = await this.app.vault.adapter.list(dir);
+        const activePrefix = `${dir}/kplex-index-${activeGeneration}-`;
+        for (const path of listing.files) {
+          if (!path.startsWith(`${dir}/kplex-index-`) || path.startsWith(`${dir}/kplex-index-snapshot-`)) continue;
+          if (!/-(?:pages|evidence)-\d+\.json$/.test(path)) continue;
+          if (path.startsWith(activePrefix)) continue;
+          try { await this.app.vault.adapter.remove(path); } catch { /* orphan cleanup only */ }
+        }
+      } catch {
+        // Cache housekeeping must never interfere with index restoration.
       }
-    } catch {
-      // Cache housekeeping must never interfere with index restoration.
-    }
+
+} finally { releaseWork(); }
   }
 
   private async removeSnapshotGeneration(manifest: PersistedIndexManifestV2 | null): Promise<void> {
-    if (!manifest) return;
-    for (let i = 0; i < manifest.pageChunkCount; i += 1) {
-      const path = this.snapshotChunkPath(manifest.generation, "pages", i);
-      if (path) try { if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path); } catch { /* cache cleanup only */ }
-    }
-    for (let i = 0; i < manifest.evidenceChunkCount; i += 1) {
-      const path = this.snapshotChunkPath(manifest.generation, "evidence", i);
-      if (path) try { if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path); } catch { /* cache cleanup only */ }
-    }
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
+    try {
+      if (!manifest) return;
+      for (let i = 0; i < manifest.pageChunkCount; i += 1) {
+        const path = this.snapshotChunkPath(manifest.generation, "pages", i);
+        if (path) try { if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path); } catch { /* cache cleanup only */ }
+      }
+      for (let i = 0; i < manifest.evidenceChunkCount; i += 1) {
+        const path = this.snapshotChunkPath(manifest.generation, "evidence", i);
+        if (path) try { if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path); } catch { /* cache cleanup only */ }
+      }
+
+} finally { releaseWork(); }
   }
 
   private async readSnapshotManifest(): Promise<PersistedIndexManifestV2 | null> {
@@ -4386,67 +4876,71 @@ export class GraphIndex {
     isCurrent: () => boolean = () => true,
     knownVaultSignature?: string,
   ): Promise<boolean> {
-    const checkpoint = completedMarkdownPaths !== undefined;
-    if (this.onDemandPartialState || this.persistentCachePurged) return false;
-    if (run !== this.snapshotPersistGeneration || (!checkpoint && !this.fullSnapshotHydrated) || this.state.pages.size === 0) return false;
-    const state = this.state;
-    const semanticFingerprints = this.semanticFingerprints;
-    function* pageRecords(): IterableIterator<PersistedPage> {
-      for (const page of state.pages.values()) {
-        if (!page.transient) yield persistedPageFromGraphPage(page, semanticFingerprints.get(page.path));
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
+    try {
+      const checkpoint = completedMarkdownPaths !== undefined;
+      if (this.onDemandPartialState || this.persistentCachePurged) return false;
+      if (run !== this.snapshotPersistGeneration || (!checkpoint && !this.fullSnapshotHydrated) || this.state.pages.size === 0) return false;
+      const state = this.state;
+      const semanticFingerprints = this.semanticFingerprints;
+      function* pageRecords(): IterableIterator<PersistedPage> {
+        for (const page of state.pages.values()) {
+          if (!page.transient) yield persistedPageFromGraphPage(page, semanticFingerprints.get(page.path));
+        }
       }
-    }
-    function* evidenceRecords(): IterableIterator<PersistedEvidenceDeclaration> {
-      for (const item of state.evidence.declarations()) yield persistedDeclarationFromEvidence(item);
-    }
-    const pages = pageRecords();
-    const evidence = evidenceRecords();
+      function* evidenceRecords(): IterableIterator<PersistedEvidenceDeclaration> {
+        for (const item of state.evidence.declarations()) yield persistedDeclarationFromEvidence(item);
+      }
+      const pages = pageRecords();
+      const evidence = evidenceRecords();
 
-    const vaultSignature = knownVaultSignature ?? computeVaultSignature(this.app);
-    const settingsSignature = computeIndexSettingsSignature(this.plugin.settings);
-    const snapshotCreatedAt = Date.now();
-    const completedPaths = completedMarkdownPaths ? [...completedMarkdownPaths] : null;
-    const completedMarkdownFiles = completedPaths?.length;
-    let failureReason: SnapshotWriteFailureReason | null = null;
-    const persisted = await this.indexedDb.writeSnapshot({
-      createdAt: snapshotCreatedAt,
-      vaultSignature,
-      settingsSignature,
-      urlAliasVersion: this.urlAliasFacetVersion,
-      discoveredFields: [...this.state.discoveredFields.entries()],
-      ...(completedPaths ? { completedMarkdownPaths: completedPaths } : {}),
-    }, pages, evidence, () => run === this.snapshotPersistGeneration && isCurrent(), checkpoint ? "checkpoint" : "active",
-    (reason) => { failureReason = reason; });
+      const vaultSignature = knownVaultSignature ?? computeVaultSignature(this.app);
+      const settingsSignature = computeIndexSettingsSignature(this.plugin.settings);
+      const snapshotCreatedAt = Date.now();
+      const completedPaths = completedMarkdownPaths ? [...completedMarkdownPaths] : null;
+      const completedMarkdownFiles = completedPaths?.length;
+      let failureReason: SnapshotWriteFailureReason | null = null;
+      const persisted = await this.indexedDb.writeSnapshot({
+        createdAt: snapshotCreatedAt,
+        vaultSignature,
+        settingsSignature,
+        urlAliasVersion: this.urlAliasFacetVersion,
+        discoveredFields: [...this.state.discoveredFields.entries()],
+        ...(completedPaths ? { completedMarkdownPaths: completedPaths } : {}),
+      }, pages, evidence, () => run === this.snapshotPersistGeneration && isCurrent(), checkpoint ? "checkpoint" : "active",
+      (reason) => { failureReason = reason; });
 
-    if (!persisted || run !== this.snapshotPersistGeneration) {
-      this.recordIndexDiagnostic("persist", run !== this.snapshotPersistGeneration || failureReason === "cancelled" ?
-        "snapshot-write-cancelled" : checkpoint ? `checkpoint-${failureReason ?? "write-failed"}` :
-          `complete-${failureReason ?? "write-failed"}`, { completedMarkdownFiles, durationMs: Math.max(0, Date.now() - snapshotCreatedAt) });
-      return false;
-    }
-    this.savedSnapshotSummary = {
-      ...this.savedSnapshotSummary,
-      storage: "available",
-      ...(checkpoint ? { checkpoint: { createdAt: snapshotCreatedAt, schema: 3,
-        completedMarkdownFiles: completedPaths?.length ?? 0 } } :
-        { active: { createdAt: snapshotCreatedAt, schema: 3 } }),
-    };
-    this.recordIndexDiagnostic("persist", checkpoint ? "checkpoint-saved" : "complete-saved",
-      { completedMarkdownFiles, durationMs: Math.max(0, Date.now() - snapshotCreatedAt) });
-    if (checkpoint) return true;
-    await this.indexedDb.clearCheckpoint();
-    this.savedSnapshotSummary.checkpoint = null;
-    const latestMeta = await this.indexedDb.readSnapshotMeta();
-    if (latestMeta?.generation) this.scheduleOrphanCleanup(latestMeta.generation);
-    // Clean legacy file-based snapshots only after IndexedDB has had a chance to become
-    // authoritative. Failures are harmless; they are ignored on the next startup once IDB loads.
-    const legacyManifest = await this.readSnapshotManifest();
-    await this.removeSnapshotGeneration(legacyManifest);
-    for (const path of [this.snapshotManifestPath(), this.snapshotPath()]) {
-      if (!path) continue;
-      try { if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path); } catch { /* migration cleanup only */ }
-    }
-    return true;
+      if (!persisted || run !== this.snapshotPersistGeneration) {
+        this.recordIndexDiagnostic("persist", run !== this.snapshotPersistGeneration || failureReason === "cancelled" ?
+          "snapshot-write-cancelled" : checkpoint ? `checkpoint-${failureReason ?? "write-failed"}` :
+            `complete-${failureReason ?? "write-failed"}`, { completedMarkdownFiles, durationMs: Math.max(0, Date.now() - snapshotCreatedAt) });
+        return false;
+      }
+      this.savedSnapshotSummary = {
+        ...this.savedSnapshotSummary,
+        storage: "available",
+        ...(checkpoint ? { checkpoint: { createdAt: snapshotCreatedAt, schema: 3,
+          completedMarkdownFiles: completedPaths?.length ?? 0 } } :
+          { active: { createdAt: snapshotCreatedAt, schema: 3 } }),
+      };
+      this.recordIndexDiagnostic("persist", checkpoint ? "checkpoint-saved" : "complete-saved",
+        { completedMarkdownFiles, durationMs: Math.max(0, Date.now() - snapshotCreatedAt) });
+      if (checkpoint) return true;
+      await this.indexedDb.clearCheckpoint();
+      this.savedSnapshotSummary.checkpoint = null;
+      const latestMeta = await this.indexedDb.readSnapshotMeta();
+      if (latestMeta?.generation) this.scheduleOrphanCleanup(latestMeta.generation);
+      // Clean legacy file-based snapshots only after IndexedDB has had a chance to become
+      // authoritative. Failures are harmless; they are ignored on the next startup once IDB loads.
+      const legacyManifest = await this.readSnapshotManifest();
+      await this.removeSnapshotGeneration(legacyManifest);
+      for (const path of [this.snapshotManifestPath(), this.snapshotPath()]) {
+        if (!path) continue;
+        try { if (await this.app.vault.adapter.exists(path)) await this.app.vault.adapter.remove(path); } catch { /* migration cleanup only */ }
+      }
+      return true;
+
+} finally { releaseWork(); }
   }
 
   private scheduleSnapshotPersist(delayOverride?: number): void {
@@ -4476,6 +4970,9 @@ export class GraphIndex {
    * A validated partial checkpoint can supply the already-published baseline and completed source
    * set on restart. Production progress is durable per-source; old graph checkpoints are read-only
    * migration inputs. The historical checkpoint writer is available only to characterization.
+   * Final numerical coverage invalidates relation views even when page identity is retained.
+   * The full read certificate covers the captured source observation only; later host events
+   * require the coordinator's current per-file reconciliation before previews can retire.
    *
    * @param seedPaths Ordered startup center candidates; the first graph path that exists wins.
    * @param options `prewarmBodyCache` preserves the large-iOS body pass and
@@ -4497,12 +4994,21 @@ export class GraphIndex {
     this.semanticPreparationDiagnostics = { ...this.semanticPreparationDiagnostics,
       fullBuilds: this.semanticPreparationDiagnostics.fullBuilds + 1 };
     const run = ++this.generation;
+    const sourceRevision = this.plugin.getIndexSourceRevision();
     // The coordinator retains Markdown changes that arrive during cold ingestion as a per-file
     // backlog. Cancelling the entire pass for each sync/metadata event restarted large vaults at
     // file zero. GraphBuilder still fences each source by its exact TFile/stat revision; a source
     // changed during its own read cancels safely, while unrelated events leave committed work intact.
     const isCurrent = (): boolean => run === this.generation && !this.diagnosticsClosed;
+    let workPriority: IndexWorkPriority = INDEX_WORK_PRIORITY.background;
+    let releaseWork = this.workScheduler.begin(workPriority);
+    /** Completed progressive phases relinquish their lane before the next lane is retained. */
+    const enterBuildPriority = (priority: IndexWorkPriority): void => {
+      releaseWork(); workPriority = priority; releaseWork = this.workScheduler.begin(priority);
+    };
     try {
+      await this.workScheduler.checkpoint(workPriority);
+      if (!isCurrent()) return false;
       const resuming = this.resumableCheckpointPaths !== null;
       const nextFingerprints = resuming ? this.semanticFingerprints : new Map<string, string>();
       this.sourceAcquisition.start();
@@ -4515,7 +5021,7 @@ export class GraphIndex {
         isCurrent,
         nextFingerprints,
         this.sourceAcquisition,
-        () => this.workScheduler.checkpoint(3),
+        () => this.workScheduler.checkpoint(workPriority),
       );
       const next = resuming ? this.state : await builder.buildStructuralBaseline();
       if (!next || !isCurrent()) return false;
@@ -4560,8 +5066,12 @@ export class GraphIndex {
       };
 
       const centerFile = centerPath ? markdownByPath.get(centerPath) : undefined;
+      enterBuildPriority(INDEX_WORK_PRIORITY.currentNode);
+      await this.workScheduler.checkpoint(workPriority);
       if (centerFile && !(await patchBeforePublish([centerFile]))) return false;
 
+      enterBuildPriority(INDEX_WORK_PRIORITY.visibleNeighborhood);
+      await this.workScheduler.checkpoint(workPriority);
       const initialChildFiles: TFile[] = [];
       const center = centerPath ? getGraphPage(next, centerPath) : undefined;
       if (center) {
@@ -4578,7 +5088,7 @@ export class GraphIndex {
 
       if (!isCurrent()) return false;
       if (!resuming) {
-        const prepared = await this.preparePresentationPublication(next, isCurrent, undefined, true, false, true);
+        const prepared = await this.preparePresentationPublication(next, isCurrent, undefined, true, false, true, workPriority);
         if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return false;
         this.acceptPresentation(prepared);
         this.state = next;
@@ -4615,6 +5125,9 @@ export class GraphIndex {
         this.emit();
       }
 
+      enterBuildPriority(INDEX_WORK_PRIORITY.background);
+      await this.workScheduler.checkpoint(workPriority);
+      if (!isCurrent()) return false;
       if (options.prewarmBodyCache && indexedPaths.size < markdownFiles.length) {
         const warmed = await this.prewarmBodyCache(isCurrent);
         if (!warmed || !isCurrent()) return false;
@@ -4667,101 +5180,120 @@ export class GraphIndex {
       this.physicalSearchMerge = null;
       this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
       this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+      // Only the captured observation is certified. Events arriving during ingestion remain in
+      // the coordinator's patch backlog; they cannot inherit a newer complete read certificate.
+      this.fullSemanticSourceRevision = sourceRevision;
       this.semanticScopes.clear();
       this.releasedSemanticScopePaths.clear();
       this.retirePublishedRelationshipPairs();
       this.fullSnapshotHydrated = true;
       this.enableGlobalSourceInventoryIfConfigured();
       this.fullSnapshotFresh = true;
+      this.localHandoverCompletions += this.retainedLocalScopes.size;
+      this.retainedLocalScopes.clear(); this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear();
       if (!this.isOnDemandMode()) this.onDemandPartialState = false;
       this.previewSnapshotPublished = false;
       this.resumableCheckpointPaths = null;
+      // Canonical pages survive per-file publication. Their cached partial gate coverage must not
+      // survive the final transition to complete incidence under the same page identity.
+      this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
       this.emit();
       this.scheduleSnapshotPersist();
       return true;
     } finally {
+      releaseWork();
       this.building = false;
       this.rebuildQueued = false;
     }
   }
 
-  /** Build a complete graph off to the side, then atomically publish it. */
+  /** Build a complete graph privately, then atomically publish it with its captured source epoch.
+   * Later host events retain provisional read cover until the coordinator drains their patch backlog. */
   async rebuild(): Promise<boolean> {
-    if (this.building) {
-      // Main.ts coalesces dirty events and will request one follow-up rebuild after this one.
-      // Never invalidate useful work merely because MetadataCache emitted another startup event:
-      // that cancellation loop was particularly harmful on slower mobile devices.
-      this.rebuildQueued = true;
-      return false;
-    }
-    this.building = true;
-    this.semanticPreparationDiagnostics = { ...this.semanticPreparationDiagnostics,
-      fullBuilds: this.semanticPreparationDiagnostics.fullBuilds + 1 };
-    const run = ++this.generation;
-    const semanticPolicy = computeIndexSettingsSignature(this.plugin.settings);
-    const current = (): boolean => run === this.generation && !this.diagnosticsClosed;
-    const resumeInventory = this.sourceAcquisition.pauseInventory();
+    const releaseWork = this.workScheduler.begin(INDEX_WORK_PRIORITY.background);
     try {
-      const nextFingerprints = new Map<string, string>();
-      this.sourceAcquisition.start();
-      const builder = new GraphBuilder(
-        this.plugin,
-        this.app,
-        this.fieldCache,
-        this.metadataParser,
-        this.indexedDb,
-        current,
-        nextFingerprints,
-        this.sourceAcquisition,
-        () => this.workScheduler.checkpoint(3),
-      );
-      const next = await builder.build({ acquireSources: false });
-      if (!next || !current()) {
+      if (this.building) {
+        // Main.ts coalesces dirty events and will request one follow-up rebuild after this one.
+        // Never invalidate useful work merely because MetadataCache emitted another startup event:
+        // that cancellation loop was particularly harmful on slower mobile devices.
+        this.rebuildQueued = true;
         return false;
       }
+      this.building = true;
+      this.semanticPreparationDiagnostics = { ...this.semanticPreparationDiagnostics,
+        fullBuilds: this.semanticPreparationDiagnostics.fullBuilds + 1 };
+      const run = ++this.generation;
+      const semanticPolicy = computeIndexSettingsSignature(this.plugin.settings);
+      const sourceRevision = this.plugin.getIndexSourceRevision();
+      const current = (): boolean => run === this.generation && !this.diagnosticsClosed;
+      const resumeInventory = this.sourceAcquisition.pauseInventory();
+      try {
+        const nextFingerprints = new Map<string, string>();
+        this.sourceAcquisition.start();
+        const builder = new GraphBuilder(
+          this.plugin,
+          this.app,
+          this.fieldCache,
+          this.metadataParser,
+          this.indexedDb,
+          current,
+          nextFingerprints,
+          this.sourceAcquisition,
+          () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.background),
+        );
+        const next = await builder.build({ acquireSources: false });
+        if (!next || !current()) {
+          return false;
+        }
 
-      const prepared = await this.preparePresentationPublication(next, current, undefined, false, false, true);
-      if (!prepared || !current() || !prepared.facets.isCurrent() ||
-        semanticPolicy !== computeIndexSettingsSignature(this.plugin.settings)) return false;
-      const preparedSearch = prepared.search;
-      this.acceptPresentation(prepared);
+        const prepared = await this.preparePresentationPublication(next, current, undefined, false, false, true);
+        if (!prepared || !current() || !prepared.facets.isCurrent() ||
+          semanticPolicy !== computeIndexSettingsSignature(this.plugin.settings)) return false;
+        const preparedSearch = prepared.search;
+        this.acceptPresentation(prepared);
 
-      // Atomic graph-state swap: readers never observe a half-built graph.
-      this.state = next;
-      this.synchronizePublishedUrlFacets();
-      this.publicationRevision += 1;
-      this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
-      this.sourceBackedSemantics = false;
-      this.pendingUrlAliasUpgrade = false;
-      this.urlAliasFacetVersion = URL_ALIAS_FACET_VERSION;
-      this.urlAliasUpgradeFailure = null;
-      this.sourceBackedStartup = false;
-      this.physicalSearchEntries.clear();
-      this.physicalSearchMerge = null;
-      this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
-      this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
-      this.semanticScopes.clear();
-      this.releasedSemanticScopePaths.clear();
-      this.retirePublishedRelationshipPairs();
-      this.semanticFingerprints = nextFingerprints;
-      this.fullSnapshotHydrated = true;
-      this.enableGlobalSourceInventoryIfConfigured();
-      this.fullSnapshotFresh = true;
-      if (!this.isOnDemandMode()) this.onDemandPartialState = false;
-      this.previewSnapshotPublished = false;
-      this.titleCache.clear();
-      this.nodeVisualCache.clear();
-      this.suggestionCatalogCache = null;
-      this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
-      this.installSearchIndex(preparedSearch);
-      this.emit();
-      this.scheduleSnapshotPersist();
-      return true;
-    } finally {
-      this.sourceAcquisition.resumeInventory(resumeInventory);
-      this.building = false;
-      this.rebuildQueued = false;
-    }
+        // Atomic graph-state swap: readers never observe a half-built graph.
+        this.state = next;
+        this.synchronizePublishedUrlFacets();
+        this.publicationRevision += 1;
+        this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
+        this.sourceBackedSemantics = false;
+        this.pendingUrlAliasUpgrade = false;
+        this.urlAliasFacetVersion = URL_ALIAS_FACET_VERSION;
+        this.urlAliasUpgradeFailure = null;
+        this.sourceBackedStartup = false;
+        this.physicalSearchEntries.clear();
+        this.physicalSearchMerge = null;
+        this.fullSemanticPolicyRevision = this.semanticPolicyRevision;
+        this.fullSemanticMaintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
+        // Preserve events that arrived during the build as unacknowledged host observations.
+        this.fullSemanticSourceRevision = sourceRevision;
+        this.semanticScopes.clear();
+        this.releasedSemanticScopePaths.clear();
+        this.retirePublishedRelationshipPairs();
+        this.semanticFingerprints = nextFingerprints;
+        this.fullSnapshotHydrated = true;
+        this.enableGlobalSourceInventoryIfConfigured();
+        this.fullSnapshotFresh = true;
+        this.localHandoverCompletions += this.retainedLocalScopes.size;
+        this.retainedLocalScopes.clear(); this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear();
+        if (!this.isOnDemandMode()) this.onDemandPartialState = false;
+        this.previewSnapshotPublished = false;
+        this.titleCache.clear();
+        this.nodeVisualCache.clear();
+        this.suggestionCatalogCache = null;
+        this.relationViewCache = new WeakMap<GraphPage, CachedRelationView>();
+        this.installSearchIndex(preparedSearch);
+        this.emit();
+        this.scheduleSnapshotPersist();
+        return true;
+      } finally {
+        this.sourceAcquisition.resumeInventory(resumeInventory);
+        this.building = false;
+        this.rebuildQueued = false;
+      }
+
+} finally { releaseWork(); }
   }
 
   /** Build search terms against a proposed policy without mutating pages or live title caches. */
@@ -4818,12 +5350,23 @@ export class GraphIndex {
     if (removed.size) this.searchEntries = this.searchEntries.filter((entry) => !removed.has(entry.page.path));
   }
 
+  /** Retire derived views for prepared paths without reparsing canonical URL identities.
+   * Non-URL paths still select their current scoped facade through get(); canonical URLs always
+   * have that same identity in get(), so a dense source commit can use its direct map lookup. */
   private invalidatePatchedPages(paths: Iterable<string>): void {
     for (const path of paths) {
       this.titleCache.delete(path);
       this.nodeVisualCache.delete(path);
-      const page = this.get(path);
-      if (page) this.relationViewCache.delete(page);
+      const canonical = this.state.pages.get(path);
+      const page = canonical?.url ? canonical : this.get(path);
+      // Prepared commits can mutate incoming incidence without replacing the broad cache epoch.
+      // Retire both the selected reader and canonical fallback, while unrelated URL readers reuse
+      // their projections throughout background indexing.
+      if (canonical) this.urlProjectionCache.delete(canonical);
+      if (page) {
+        this.urlProjectionCache.delete(page);
+        this.relationViewCache.delete(page);
+      }
     }
   }
 
@@ -4839,10 +5382,10 @@ export class GraphIndex {
         if (generation) this.scheduleOrphanCleanup(generation);
         return;
       }
-      void this.indexedDb.cleanupOrphanGenerations(
-        generation,
-        () => run === this.snapshotPersistGeneration && this.activeSnapshotGeneration === generation,
-      );
+      void this.workScheduler.run(INDEX_WORK_PRIORITY.background,
+        /** Disposable cache cleanup owns the broad lane until its final transaction completes. */
+        () => this.indexedDb.cleanupOrphanGenerations(generation,
+          () => !this.diagnosticsClosed && run === this.snapshotPersistGeneration && this.activeSnapshotGeneration === generation));
     }, SNAPSHOT_MAINTENANCE_IDLE_MS);
   }
 
@@ -4944,7 +5487,7 @@ export class GraphIndex {
           /** Every selected physical endpoint retains its exact observation through publication and writes. */
           token => this.app.vault.getFileByPath(token.path) === token.file && fileRevisionMatches(token.file, token.revision)
             && (token.file.extension !== "md" || this.app.metadataCache.getFileCache(token.file) === token.cache));
-      const runtime = { ...this.semanticPreparationRuntime(current), retainedBytes: this.relationshipPairBytes };
+      const runtime = { ...this.semanticPreparationRuntime(current, INDEX_WORK_PRIORITY.mutation), retainedBytes: this.relationshipPairBytes };
       const policy = { revision: String(policyRevision), settings, isCurrent: current };
       const prepared = await this.sourceAcquisition.prepareRequestedPair({ kind: "pair", endpoints }, policy,
         { noteTypeField: this.plugin.settings.noteTypeField, primaryTagField: this.plugin.settings.primaryTagField }, runtime);
@@ -5834,19 +6377,58 @@ export class GraphIndex {
    * evidence precedence resolves each shared pair; this read projection never grants edit authority.
    */
   private composeUrlRelations(page: GraphPage): GraphPage {
-    const url = this.urlState.pages.get(page.path);
+    const cached = this.urlProjectionCache.get(page);
+    if (cached?.epoch === this.relationViewCache && cached.sourceRevision === this.plugin.getIndexSourceRevision()
+      && cached.hostRevision === this.hostPreview.observationRevision() && cached.flushes === this.urlPresentationFlushes
+      && cached.owners.every(owner => this.urlProjectionOwnerMatches(owner))) {
+      // Facets can change independently of incidence. Keep the reusable map/identity, while current
+      // shared names/types/styles remain visible to readers and finite presentation demand.
+      if (cached.page !== page) Object.assign(cached.page, page, { neighbours: cached.page.neighbours });
+      return cached.page;
+    }
+    const url = this.publishedUrlState.pages.get(page.path);
     if (!url?.neighbours.size && ![...page.neighbours.keys()].some(target => this.urlPairIsObserved(page.path, target))) return page;
+    const owners = new Set<string>();
+    // Include negative owner proof as well as positive evidence: an unnotified file/cache edit must
+    // retire an otherwise reusable projection immediately, even before the native event arrives.
+    if (!page.url) owners.add(page.path);
+    for (const target of page.neighbours.values()) if (page.url && target.target.file) owners.add(target.target.path);
+    for (const pair of this.publishedUrlState.evidence.from(page.path)) for (const item of pair.evidence) {
+      if (item.sourceKind !== "url-origin") owners.add(item.declaredByPath);
+      else for (const support of this.publishedUrlState.evidence.from(item.declaredTargetPath)) {
+        for (const reference of support.evidence) if (reference.sourceKind !== "url-origin") owners.add(reference.declaredByPath);
+      }
+    }
+    const observations = [...owners].map(path => this.captureUrlProjectionOwner(path));
     const copy = { ...page, neighbours: new Map(page.neighbours) };
     for (const target of copy.neighbours.keys()) if (this.urlPairIsObserved(page.path, target)) copy.neighbours.delete(target);
     for (const [targetPath, relation] of url?.neighbours ?? []) {
-      const target = this.semanticPage(targetPath) ?? this.urlState.pages.get(targetPath) ?? relation.target;
+      const target = this.semanticPage(targetPath) ?? this.publishedUrlState.pages.get(targetPath) ?? relation.target;
       const evidence = this.semanticEvidence(page.path, targetPath).evidence;
       if (!evidence.length) { copy.neighbours.delete(targetPath); continue; }
       const resolved: Relation = { ...emptyRelation<GraphPage>(), target };
       for (const decision of applyOntologyPrecedence(evidence)) applyEvidenceToRelation(resolved, decision);
       copy.neighbours.set(targetPath, resolved);
     }
+    this.urlProjectionCache.set(page, { epoch: this.relationViewCache,
+      sourceRevision: this.plugin.getIndexSourceRevision(), hostRevision: this.hostPreview.observationRevision(),
+      flushes: this.urlPresentationFlushes, page: copy, owners: observations });
     return copy;
+  }
+
+  /** Capture scalar physical/cache identity only; no body data or durable source reads are retained. */
+  private captureUrlProjectionOwner(path: string): UrlProjectionOwner {
+    const file = this.app.vault.getFileByPath(path);
+    return { path, file, mtime: file?.stat.mtime, size: file?.stat.size,
+      event: this.urlOwnerEvents.get(path) ?? 0, metadata: file ? this.app.metadataCache.getFileCache(file) : undefined };
+  }
+
+  /** Unnotified edits and metadata replacement invalidate reuse before ordinary event-driven cache retirement. */
+  private urlProjectionOwnerMatches(owner: UrlProjectionOwner): boolean {
+    const file = this.app.vault.getFileByPath(owner.path);
+    return file === owner.file && file?.stat.mtime === owner.mtime && file?.stat.size === owner.size
+      && (this.urlOwnerEvents.get(owner.path) ?? 0) === owner.event
+      && (file ? this.app.metadataCache.getFileCache(file) : undefined) === owner.metadata;
   }
 
   /** A URL source proof belongs to one exact native/event/metadata observation. */
@@ -5857,29 +6439,37 @@ export class GraphIndex {
       && this.urlMetadataCaches.get(path) === this.app.metadataCache.getFileCache(owner.file));
   }
 
+  /** A URL source proof belongs to one exact native/event/metadata observation. */
+  private publishedUrlOwnerIsCurrent(path: string): boolean {
+    const owner = this.publishedUrlOwners.get(path);
+    return Boolean(owner && this.app.vault.getFileByPath(path) === owner.file && owner.file.stat.mtime === owner.mtime
+      && owner.file.stat.size === owner.size && owner.event === (this.urlOwnerEvents.get(path) ?? 0)
+      && owner.metadata === this.app.metadataCache.getFileCache(owner.file));
+  }
+
   /** Discard private declarations from retired owner observations, including unsupported origins. */
   private currentUrlEvidence(source: string, target: string): RelationEvidence[] {
-    return this.urlState.evidence.between(source, target).filter(item => {
-      if (item.sourceKind !== "url-origin") return this.urlOwnerIsCurrent(item.declaredByPath);
-      return this.urlState.evidence.from(item.declaredTargetPath).some(pair => pair.evidence.some(reference =>
-        reference.sourceKind !== "url-origin" && this.urlOwnerIsCurrent(reference.declaredByPath)));
+    return this.publishedUrlState.evidence.between(source, target).filter(item => {
+      if (item.sourceKind !== "url-origin") return this.publishedUrlOwnerIsCurrent(item.declaredByPath);
+      return this.publishedUrlState.evidence.from(item.declaredTargetPath).some(pair => pair.evidence.some(reference =>
+        reference.sourceKind !== "url-origin" && this.publishedUrlOwnerIsCurrent(reference.declaredByPath)));
     });
   }
 
   /** Private URL fallback lifetime requires current incidence or an explicitly demanded center. */
   private urlPageHasCurrentSupport(path: string): boolean {
     if ((this.semanticDemandCounts.get(path) ?? 0) > 0) return true;
-    return this.urlState.evidence.from(path).some(pair => this.currentUrlEvidence(path, pair.targetPath).length > 0);
+    return this.publishedUrlState.evidence.from(path).some(pair => this.currentUrlEvidence(path, pair.targetPath).length > 0);
   }
 
   /** Current URL owner facts also replace absent old URL edges; this negative proof is presentation-only. */
   private urlPairIsObserved(source: string, target: string): boolean {
-    const sourceUrl = Boolean(this.urlState.pages.get(source)?.url || this.state.pages.get(source)?.url);
-    const targetUrl = Boolean(this.urlState.pages.get(target)?.url || this.state.pages.get(target)?.url);
-    if (sourceUrl && targetUrl) return this.urlDiscoveryComplete || this.retiredUrlTargets.has(source) || this.retiredUrlTargets.has(target);
+    const sourceUrl = Boolean(this.publishedUrlState.pages.get(source)?.url || this.state.pages.get(source)?.url);
+    const targetUrl = Boolean(this.publishedUrlState.pages.get(target)?.url || this.state.pages.get(target)?.url);
+    if (sourceUrl && targetUrl) return this.publishedUrlComplete || this.retiredUrlTargets.has(source) || this.retiredUrlTargets.has(target);
     if (!sourceUrl && !targetUrl) return false;
     const path = sourceUrl ? target : source;
-    return this.urlOwnerIsCurrent(path)
+    return this.publishedUrlOwnerIsCurrent(path)
       || this.urlOwnerEvents.has(path) && !this.app.vault.getFileByPath(path);
   }
 
@@ -5994,7 +6584,8 @@ export class GraphIndex {
   private semanticEvidenceWithoutUrls(sourcePath: string, targetPath: string): Readonly<{ evidence: RelationEvidence[]; settings: GraphCompilerSettings }> {
     const pair = this.relationshipPairs.get(relationshipPairKey(sourcePath, targetPath));
     if (pair) return { evidence: pair.evidence.between(sourcePath, targetPath), settings: pair.settings };
-    const local = this.usesLocalForeground() ? this.onDemandHostScopes.get(sourcePath) ?? this.onDemandHostScopes.get(targetPath) : undefined;
+    const local = this.retainedLocalScopeFor(sourcePath) ?? this.retainedLocalScopeFor(targetPath)
+      ?? (this.usesLocalForeground() ? this.onDemandHostScopes.get(sourcePath) ?? this.onDemandHostScopes.get(targetPath) : undefined);
     if (local) return { evidence: local.evidence.between(sourcePath, targetPath), settings: this.fullSemanticSettings };
     const scope = this.semanticScopeForPair(sourcePath, targetPath);
     if (scope) return { evidence: scope.evidence.between(sourcePath, targetPath), settings: scope.settings };
@@ -6096,6 +6687,7 @@ export class GraphIndex {
       settings.renderAlias ? "1" : "0",
       settings.nodeSortOrder,
       settings.nodeTitleScript,
+      settings.nameFields,
       settings.excludeFilepaths.join("\u0002"),
     ].join("\u0001");
   }
@@ -6131,8 +6723,8 @@ export class GraphIndex {
       right: new Set<string>(),
     };
     if (source.url) {
-      for (const gate of Object.values(gateStats)) { gate.complete = this.urlDiscoveryComplete && !this.urlCachedMetadataOwners.size; gate.coverage = this.urlCachedMetadataOwners.size ? "cached" : this.urlDiscoveryComplete ? undefined : "local"; }
-    } else if (this.usesLocalForeground() && this.onDemandBaselineReady) {
+      for (const gate of Object.values(gateStats)) { gate.complete = this.publishedUrlComplete && !this.publishedUrlCachedMetadata; gate.coverage = this.publishedUrlCachedMetadata ? "cached" : this.publishedUrlComplete ? undefined : "local"; }
+    } else if ((this.usesLocalForeground() || this.retainedLocalScopeFor(source.path)) && this.onDemandBaselineReady) {
       for (const gate of Object.values(gateStats)) { gate.complete = false; gate.coverage = "local"; }
     } else if (this.cachedSnapshotPages.has(source)) {
       for (const gate of Object.values(gateStats)) { gate.complete = false; gate.coverage = "cached"; }
@@ -6435,31 +7027,37 @@ export class GraphIndex {
   }
 
   /** Capture current physical filenames once from the restore inventory, yielding without reading file contents. */
-  private async preparePhysicalSearchCatalog(files: ReadonlyMap<string, TFile>, current: () => boolean): Promise<boolean> {
-    const next = new Map<string, SearchEntry>();
-    const sourceRevision = this.plugin.getIndexSourceRevision();
-    /** Filenames are valid only for the restore owner and unchanged live source inventory revision. */
-    const inventoryCurrent = (): boolean => current() && sourceRevision === this.plugin.getIndexSourceRevision();
-    let processed = 0, slice = performance.now();
-    for (const [path, file] of files) {
-      if (!inventoryCurrent()) return false;
-      if (this.app.vault.getFileByPath(path) !== file) continue;
-      const page: GraphPage = {
-        path, file, name: file.basename, url: null, isFolder: false, isTag: false, mtime: file.stat.mtime,
-        aliases: [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 0, neighbours: new Map(),
-      };
-      next.set(path, { page, name: file.basename.toLowerCase(), aliases: [], path: path.toLowerCase() });
-      if ((++processed & 255) === 0 && performance.now() - slice >= 7) {
-        await yieldToHostTask();
-        slice = performance.now();
+  private async preparePhysicalSearchCatalog(files: ReadonlyMap<string, TFile>, current: () => boolean,
+    workPriority: IndexWorkPriority = INDEX_WORK_PRIORITY.visibleNeighborhood,
+    retainRestoreWork?: (priority: IndexWorkPriority) => () => void): Promise<boolean> {
+    const releaseWork = retainRestoreWork?.(workPriority) ?? this.workScheduler.begin(workPriority);
+    try {
+      const next = new Map<string, SearchEntry>();
+      const sourceRevision = this.plugin.getIndexSourceRevision();
+      /** Filenames are valid only for the restore owner and unchanged live source inventory revision. */
+      const inventoryCurrent = (): boolean => current() && sourceRevision === this.plugin.getIndexSourceRevision();
+      let processed = 0, slice = performance.now();
+      for (const [path, file] of files) {
+        if (!inventoryCurrent()) return false;
+        if (this.app.vault.getFileByPath(path) !== file) continue;
+        const page: GraphPage = {
+          path, file, name: file.basename, url: null, isFolder: false, isTag: false, mtime: file.stat.mtime,
+          aliases: [], tags: [], noteType: null, primaryStyleTag: null, styleTags: [], maxLabelLength: 0, neighbours: new Map(),
+        };
+        next.set(path, { page, name: file.basename.toLowerCase(), aliases: [], path: path.toLowerCase() });
+        if ((++processed & 255) === 0 && performance.now() - slice >= 7) {
+          await yieldToHostTask();
+          await this.workScheduler.checkpoint(workPriority);
+          slice = performance.now();
+        }
       }
-    }
-    if (!inventoryCurrent()) return false;
-    this.physicalSearchEntries = next;
-    this.physicalSearchMerge = null;
-    this.searchCandidateCache.clear();
-    this.emitPresentation();
-    return true;
+      if (!inventoryCurrent()) return false;
+      this.physicalSearchEntries = next;
+      this.physicalSearchMerge = null;
+      this.searchCandidateCache.clear();
+      this.emitPresentation();
+      return true;
+} finally { releaseWork(); }
   }
 
   /** Reuse one merged search array until graph search or the captured physical inventory changes. */

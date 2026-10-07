@@ -5,6 +5,7 @@
  * density from the same saved value. All saves cross the plugin settings-impact classifier; the
  * injected translator owns display copy. Indexing strategy takes effect after restart; persistent
  * cache estimates run only when their settings row is rendered, never during plugin startup.
+ * Background throttle changes apply live without reconstructing semantic data.
  */
 import {
   AbstractInputSuggest,
@@ -23,6 +24,7 @@ import { collectionWindow } from "./ui/components/collectionWindow";
 import { createObsidianTranslator } from "./adapters/obsidian/localization";
 import type { Translator, PlainTranslationKey } from "./lang";
 import { PurgeIndexCacheModal } from "./ui/PurgeIndexCacheModal";
+import { sanitizeIndexingThrottle, type IndexingThrottle } from "./index/ForegroundWorkScheduler";
 
 export const DEFAULT_LINK_STYLE: LinkStyle = {
   strokeColor: "#696969ff",
@@ -135,6 +137,8 @@ export interface KplexSettings {
   indexingMode: IndexingMode;
   /** Legacy persisted compatibility field; web links always scan independently in the background. */
   urlIndexingMode: UrlIndexingMode;
+  /** Live background scheduling policy, independent of semantic settings and cached source facts. */
+  indexingThrottle: IndexingThrottle;
   hierarchy: Hierarchy;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
@@ -269,6 +273,7 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   indexUpdateInterval: 60000,
   indexingMode: "on-demand",
   urlIndexingMode: "background",
+  indexingThrottle: "responsive",
   hierarchy: DEFAULT_HIERARCHY_DEFINITION,
   inferAllLinksAsFriends: false,
   inverseInfer: false,
@@ -517,6 +522,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     ...old,
     indexingMode: old.indexingMode === "eager" ? "eager" : "on-demand",
     urlIndexingMode: "background",
+    indexingThrottle: sanitizeIndexingThrottle(old.indexingThrottle),
     hierarchy,
     baseNodeStyle: { ...DEFAULT_NODE_STYLE, ...(old.baseNodeStyle ?? {}) },
     baseLinkStyle: { ...DEFAULT_LINK_STYLE, ...(old.baseLinkStyle ?? {}) },
@@ -1988,6 +1994,15 @@ export class KplexSettingTab extends PluginSettingTab {
                 desc: translate("indexing.urlsHelp"),
 
               },
+              {
+                name: translate("indexing.throttle"),
+                desc: translate("indexing.throttleHelp"),
+                control: { type: "dropdown", key: "indexingThrottle", defaultValue: "responsive", options: {
+                  responsive: translate("indexing.throttleResponsive"),
+                  balanced: translate("indexing.throttleBalanced"),
+                  faster: translate("indexing.throttleFaster"),
+                } },
+              },
             ],
           },
           {
@@ -2068,6 +2083,12 @@ export class KplexSettingTab extends PluginSettingTab {
 
   /** Apply every declarative control through the plugin's shared settings-impact classifier. */
   async setControlValue(key: string, value: unknown): Promise<void> {
+    if (key === "indexingThrottle") {
+      this.kplexPlugin.settings.indexingThrottle = sanitizeIndexingThrottle(value);
+      // The scheduler reads this preference live; saving must not invalidate semantic caches.
+      await this.kplexPlugin.saveSettings(false, false);
+      return;
+    }
     if (key === "indexingMode" || key === "urlIndexingMode") {
       if (key === "indexingMode") this.kplexPlugin.settings.indexingMode = value === "on-demand" ? "on-demand" : "eager";
       else this.kplexPlugin.settings.urlIndexingMode = "background";

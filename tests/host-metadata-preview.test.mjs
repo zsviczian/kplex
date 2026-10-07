@@ -409,7 +409,7 @@ test("GraphIndex folder navigation and neighboring folder gates remain numeric w
   const f = fixture(), previousWindow = globalThis.window;
   const attachment = new TFile("Notes/Image.png", f.app.vault.getFolderByPath("Notes"));
   f.files.set(attachment.path, attachment);
-  globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
+  globalThis.window = { performance, performance, setTimeout, clearTimeout, setInterval, clearInterval };
   Object.assign(f.app.vault, { getName: () => "folder-preview-index", getFiles() { throw Error("inventory forbidden"); } });
   f.app.saveLocalStorage = () => {};
   const indexSettings = { ...settings, pinnedNodes: [], lastActivePath: "folder:Notes", excludeFilepaths: [],
@@ -454,7 +454,7 @@ test("GraphIndex folder navigation and neighboring folder gates remain numeric w
 test("GraphIndex host availability renders direct relations over a physical baseline with DB and sources blocked", async () => {
   const f = fixture();
   const originalWindow = globalThis.window;
-  globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
+  globalThis.window = { performance, performance, setTimeout, clearTimeout, setInterval, clearInterval };
   Object.assign(f.app.vault, { getName: () => "preview-test", getFiles: () => [...f.files.values()] });
   f.app.saveLocalStorage = () => {};
   const indexSettings = { ...settings, indexingMode: "eager", pinnedNodes: [], lastActivePath: f.centerPath,
@@ -539,7 +539,7 @@ test("GraphIndex host availability renders direct relations over a physical base
 /** File events must retire provisional neighbor owners even before the semantic graph exists. */
 test("host-only rename/delete updates filename lookup and retires neighboring previews", async () => {
   const f = fixture(), originalWindow = globalThis.window;
-  globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
+  globalThis.window = { performance, performance, setTimeout, clearTimeout, setInterval, clearInterval };
   Object.assign(f.app.vault, { getName: () => "preview-lifetime", getFiles: () => [...f.files.values()] });
   f.app.saveLocalStorage = () => {};
   const plugin = { app: f.app, settings: { ...settings, lastActivePath: f.centerPath, pinnedNodes: [],
@@ -588,7 +588,7 @@ test("host-only rename/delete updates filename lookup and retires neighboring pr
 
 test("folder rename remaps filename-only descendants before canonical membership exists", async () => {
   const f = fixture(), originalWindow = globalThis.window;
-  globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
+  globalThis.window = { performance, performance, setTimeout, clearTimeout, setInterval, clearInterval };
   Object.assign(f.app.vault, { getName: () => "preview-folder-lifetime", getFiles: () => [...f.files.values()] });
   f.app.saveLocalStorage = () => {};
   const folder = f.files.get(f.centerPath).parent;
@@ -621,7 +621,7 @@ test("folder rename remaps filename-only descendants before canonical membership
 /** Lower-priority native event consumers may not start new canonical writers during an actual save. */
 test("visible patch and optional saved-pair refresh wait behind an active mutation", async () => {
   const f = fixture(), originalWindow = globalThis.window;
-  globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
+  globalThis.window = { performance, performance, setTimeout, clearTimeout, setInterval, clearInterval };
   Object.assign(f.app.vault, { getName: () => "preview-priority", getFiles: () => [...f.files.values()] });
   f.app.saveLocalStorage = () => {};
   const index = new GraphIndex({ app: f.app, settings: { ...settings, indexingMode: "eager", lastActivePath: f.centerPath,
@@ -649,3 +649,66 @@ test("visible patch and optional saved-pair refresh wait behind an active mutati
     assert.deepEqual(index.getWorkPriorityDiagnostics().active, [0, 0, 0, 0, 0]);
   } finally { release(); index.relationshipPairs.clear(); index.destroy(); f.preview.dispose(); globalThis.window = originalWindow; }
 });
+
+/** Native membership/cache stubs supply facts; GraphIndex owns real scheduling and task cleanup. */
+function priorityIndexFixture(){
+  const f=fixture(),previousWindow=globalThis.window;
+  globalThis.window={performance,performance,setTimeout,clearTimeout,setInterval,clearInterval};
+  Object.assign(f.app.vault,{getName:()=>"preview-lane-audit",getFiles:()=>[...f.files.values()]});
+  f.app.saveLocalStorage=()=>{};
+  const index=new GraphIndex({app:f.app,settings:{...settings,indexingMode:"eager",lastActivePath:f.centerPath,
+    pinnedNodes:[],excludeFilepaths:[],nameFields:"aliases",renderAlias:true},getIndexSourceRevision:()=>0},f.app);
+  return{index,close(){index.destroy();f.preview.dispose();globalThis.window=previousWindow;}};
+}
+
+test("GraphIndex broad inventory owns P4, pauses before storage behind P3 and lets a current-node request finish",async()=>{
+  const f=priorityIndexFixture(),i=f.index;let reads=0;
+  i.indexedDb.sources.headPage=async()=>{reads++;return{available:true,heads:[],invalid:0,next:null};};
+  const releaseUrl=i.workScheduler.begin(3);const broad=i.startPersistedSourceInventory();
+  try{
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(reads,0);assert.deepEqual(i.getWorkPriorityDiagnostics().active,[0,0,0,1,1]);
+    const foreground=await i.withForegroundPriority(()=>i.prepareSearchIndex({pages:new Map()},()=>true,
+      undefined,undefined,undefined,undefined,false,1),1);
+    assert.deepEqual(foreground,{entries:[],byPath:new Map()});assert.equal(reads,0);
+    releaseUrl();assert.equal(await broad,false);assert.equal(reads,1);
+    assert.deepEqual(i.getWorkPriorityDiagnostics().active,[0,0,0,0,0]);
+  }finally{releaseUrl();f.close();}
+});
+
+test("caller-specific semantic runtimes preempt lower work without exact mutation self-deadlock",async()=>{
+  const f=priorityIndexFixture(),i=f.index;let releaseMutation;
+  const hold=new Promise(resolve=>{releaseMutation=resolve;});
+  try{
+    let currentFinished=false;
+    const mutation=i.withForegroundPriority(()=>hold,0);
+    const requested=i.withForegroundPriority(async()=>{await i.semanticPreparationRuntime(()=>true,1).yield();currentFinished=true;},1);
+    await new Promise(resolve=>setImmediate(resolve));assert.equal(currentFinished,false);
+    await i.withForegroundPriority(()=>i.semanticPreparationRuntime(()=>true,0).yield(),0);
+    assert.equal(currentFinished,false,"P0 does not borrow the waiting P1 runtime checkpoint");
+    releaseMutation();await Promise.all([mutation,requested]);assert.equal(currentFinished,true);
+    assert.deepEqual(i.getWorkPriorityDiagnostics().active,[0,0,0,0,0]);
+  }finally{releaseMutation?.();f.close();}
+});
+
+for(const operation of ["build","folderGates"]){
+  test(`visible folder ${operation} carries its caller checkpoint through canonical compiler slices`,{timeout:3000},async()=>{
+    const f=folderFixture(),owner=priorityIndexFixture(),i=owner.index;
+    for(let n=0;n<130;n++)f.addFile(`Notes/Child-${n}.md`);
+    const release=i.workScheduler.begin(1);let entered,settled=false;
+    const boundary=new Promise(resolve=>{entered=resolve;});
+    const checkpoint=()=>{entered();return i.workScheduler.checkpoint(2);};
+    const task=i.withForegroundPriority(()=>operation==="build"
+      ?f.preview.build("folder:Notes",{checkpoint}):f.preview.folderGates("folder:Notes",checkpoint),2)
+      .finally(()=>{settled=true;});
+    try{
+      await boundary;assert.equal(settled,false);
+      assert.equal(i.getWorkPriorityDiagnostics().waiting,1,"P2 private folder progress pauses behind P1");
+      await i.withForegroundPriority(()=>i.semanticPreparationRuntime(()=>true,1).yield(),1);
+      assert.equal(settled,false,"A requested P1 consumer does not borrow the folder's P2 checkpoint");
+      release();const result=await task;assert(result);
+      const gates=operation==="build"?result.structuralGates.get("folder:Notes"):result;
+      assert.equal(gates.bottom.visibleCount,130);
+    }finally{release();f.preview.dispose();owner.close();}
+  });
+}

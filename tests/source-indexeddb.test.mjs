@@ -37,6 +37,127 @@ const initialize = `(() => {
   return true;
 })()`;
 
+/** Queued bodies are optional parser-cache data; all completed flushes still use native IndexedDB. */
+test("real Chromium: parsed-body write-behind remains readable without granting durable source authority", { timeout: 60000 }, async t => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    await t.test("matching queued bodies are readable before the write timer or database open", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=new sourceModules.KplexIndexedDbCache('queued-body-before-open');
+        const body=sourceModules.parseBodyMetadata('Field:: [[Queued]] [link](https://example.com/queued)');
+        const open=indexedDB.open;let opens=0;indexedDB.open=function(...args){opens++;return open.apply(this,args);};
+        try{
+          owner.queueBodyWrite('queued.md',4,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          equal(await owner.getBody('queued.md',4),body,'Point read reuses completed parse');
+          equal([...await owner.getBodies([{path:'queued.md',mtime:4}])],[['queued.md',body]],'Batch read reuses completed parse');
+          equal(opens,0,'Queued hits need no connection or durability');
+          const db=await owner.open();ok(db,'Real database opens');
+          equal(await requestValue(db.transaction('bodies').objectStore('bodies').count()),0,'No delayed body was persisted');
+          equal(await requestValue(db.transaction('sourceHeads').objectStore('sourceHeads').count()),0,'No neutral source authority is created');
+          return true;
+        }finally{indexedDB.open=open;owner.close();}
+      })()`),true);
+    });
+    await t.test("an in-flight flush retains matching hits until its real transaction completes", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-held-flush'),body=sourceModules.parseBodyMetadata('Field:: [[Held]]');
+        const put=owner.putBodies.bind(owner);let release,entered;
+        const hold=new Promise(resolve=>release=resolve),reached=new Promise(resolve=>entered=resolve);
+        owner.putBodies=async records=>{entered();await hold;return put(records);};
+        try{
+          owner.queueBodyWrite('held.md',5,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          const record=owner.queuedBodyWrites.get('held.md'),flushing=owner.flushQueuedBodyWrites();await reached;
+          equal(owner.bodyWriteInFlight,true,'Production flush is in flight');
+          equal(owner.queuedBodyWrites.get('held.md')===record,true,'Exact record remains owned during flush');
+          equal(await owner.getBody('held.md',5),body,'Point read remains available');
+          equal([...await owner.getBodies([{path:'held.md',mtime:5},{path:'missing.md',mtime:5}])],[['held.md',body]],'Mixed batch retains queued hit');
+          release();await flushing;equal(owner.queuedBodyWrites.size,0,'Successful transaction retires its exact record');
+          const reader=await fresh('queued-body-held-flush');
+          try{equal(await reader.getBody('held.md',5),body,'Independent owner reads actual durable body');}finally{reader.close();}
+          return true;
+        }finally{release();owner.close();}
+      })()`),true);
+    });
+    await t.test("an older completed flush cannot delete a newer queued replacement for the same path and mtime", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-latest'),first=sourceModules.parseBodyMetadata('Field:: [[First]]'),latest=sourceModules.parseBodyMetadata('Field:: [[Latest]]');
+        const put=owner.putBodies.bind(owner);let releaseFirst,releaseLatest,enteredFirst,enteredLatest,calls=0;
+        const firstHold=new Promise(resolve=>releaseFirst=resolve),latestHold=new Promise(resolve=>releaseLatest=resolve);
+        const firstReached=new Promise(resolve=>enteredFirst=resolve),latestReached=new Promise(resolve=>enteredLatest=resolve);
+        owner.putBodies=async records=>{
+          calls++;if(calls===1){const written=await put(records);enteredFirst();await firstHold;return written;}
+          enteredLatest();await latestHold;return put(records);
+        };
+        try{
+          owner.queueBodyWrite('latest.md',6,first);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          const flushing=owner.flushQueuedBodyWrites();await firstReached;
+          owner.queueBodyWrite('latest.md',6,latest);const replacement=owner.queuedBodyWrites.get('latest.md');
+          equal(await owner.getBody('latest.md',6),latest,'Latest queued body wins over older durable body');
+          releaseFirst();await latestReached;
+          equal(owner.queuedBodyWrites.get('latest.md')===replacement,true,'Older success preserves newer record identity');
+          equal([...await owner.getBodies([{path:'latest.md',mtime:6}])],[['latest.md',latest]],'Replacement remains readable during its flush');
+          const reader=await fresh('queued-body-latest');
+          try{equal(await reader.getBody('latest.md',6),first,'Older native transaction really completed');}finally{reader.close();}
+          releaseLatest();await flushing;equal(calls,2,'Replacement receives its own bounded flush');equal(owner.queuedBodyWrites.size,0,'Latest success releases queue');
+          const reopened=await fresh('queued-body-latest');
+          try{equal(await reopened.getBody('latest.md',6),latest,'Independent native read sees latest body');}finally{reopened.close();}
+          return true;
+        }finally{releaseFirst();releaseLatest();owner.close();}
+      })()`),true);
+    });
+    await t.test("failed persistence retains optional hits and the existing retry can durably settle them", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-retry'),body=sourceModules.parseBodyMetadata('Field:: [[Retry]]'),put=owner.putBodies.bind(owner);
+        owner.putBodies=async()=>false;
+        try{
+          owner.queueBodyWrite('retry.md',7,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          const record=owner.queuedBodyWrites.get('retry.md');await owner.flushQueuedBodyWrites();
+          equal(owner.bodyWriteInFlight,false,'Failed attempt releases in-flight owner');ok(owner.bodyWriteTimer!==null,'Existing retry timer is retained');
+          equal(owner.queuedBodyWrites.get('retry.md')===record,true,'Failed persistence keeps exact record');
+          equal(await owner.getBody('retry.md',7),body,'Failed optional write does not discard parsed data');
+          window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;owner.putBodies=put;await owner.flushQueuedBodyWrites();
+          equal(owner.queuedBodyWrites.size,0,'Successful retry retires record');
+          const reader=await fresh('queued-body-retry');try{equal(await reader.getBody('retry.md',7),body,'Retry persisted via real transaction');}finally{reader.close();}
+          return true;
+        }finally{owner.close();}
+      })()`),true);
+    });
+    await t.test("queued reads reject mismatched paths, mtimes, parser versions, malformed bodies and closed owners", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-validity'),body=sourceModules.parseBodyMetadata('Field:: [[Valid]]');
+        try{
+          owner.queueBodyWrite('valid.md',8,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          equal(await owner.getBody('valid.md',9),null,'Different native mtime misses');equal((await owner.getBodies([{path:'valid.md',mtime:9}])).size,0,'Batch mtime misses');
+          equal(await owner.getBody('other.md',8),null,'Different path misses');
+          const record=owner.queuedBodyWrites.get('valid.md');record.parserVersion=2;
+          equal(await owner.getBody('valid.md',8),null,'Historical queued parser version misses');equal((await owner.getBodies([{path:'valid.md',mtime:8}])).size,0,'Batch parser guard matches');
+          record.parserVersion=3;record.body={...body,urls:[{url:'https://example.com/invalid',aliases:[42]}]};
+          equal(await owner.getBody('valid.md',8),null,'Malformed current queued URL aliases rejected');equal((await owner.getBodies([{path:'valid.md',mtime:8}])).size,0,'Batch body validator matches');
+          record.body=body;record.path='wrong.md';equal(await owner.getBody('valid.md',8),null,'Queued payload path must match map key');record.path='valid.md';
+          owner.close();equal(owner.queuedBodyWrites.size,0,'Close releases queued payloads');
+          const open=indexedDB.open;let opens=0;indexedDB.open=function(...args){opens++;return open.apply(this,args);};
+          try{equal(await owner.getBody('valid.md',8),null,'Closed point read rejected');equal((await owner.getBodies([{path:'valid.md',mtime:8}])).size,0,'Closed batch rejected');equal(opens,0,'Closed reads never reopen');}finally{indexedDB.open=open;}
+          return true;
+        }finally{owner.close();}
+      })()`),true);
+    });
+    await t.test("close during a mixed batch storage wait rejects previously collected queued hits", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-close-read'),body=sourceModules.parseBodyMetadata('Field:: [[Closed]]'),open=owner.open.bind(owner);
+        let release,entered;const hold=new Promise(resolve=>release=resolve),reached=new Promise(resolve=>entered=resolve);
+        owner.open=async()=>{entered();await hold;return open();};
+        try{
+          owner.queueBodyWrite('closed.md',9,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          const reading=owner.getBodies([{path:'closed.md',mtime:9},{path:'missing.md',mtime:9}]);await reached;
+          owner.close();release();equal((await reading).size,0,'No queued partial result crosses close');
+          equal(owner.bodyWriteTimer,null,'Closed read leaves no write timer');equal(owner.queuedBodyWrites.size,0,'Closed read retains no payload');return true;
+        }finally{release();owner.close();}
+      })()`),true);
+    });
+  } finally { await browser.cleanup(); }
+});
+
 /** Maintenance uses production cursors and database deletion; no IndexedDB data model is mocked. */
 test("cache maintenance streams logical size, cancels cleanly and permanently closes after vault-local purge", { timeout: 60000 }, async t => {
   const browser = await chromiumHarness(bundle);

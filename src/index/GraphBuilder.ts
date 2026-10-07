@@ -855,7 +855,8 @@ export class GraphBuilder {
   private createFullCompiler(projection: "graph" | "nodes" = "graph"): NormalizedGraphCompiler {
     return new NormalizedGraphCompiler(this.fullCompilerSettings(), {
       now: perfNow,
-      yield: async () => { await yieldToHostTask(); },
+      /** Full and node-only compilation obey the caller's lane at every consumed CPU slice. */
+      yield: async () => { await this.yieldToHost(true); },
       isCurrent: this.isCurrent,
       sliceBudgetMs: Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13,
       resolverBatchSize: Platform.isIosApp ? 96 : Platform.isMobile ? 160 : 400,

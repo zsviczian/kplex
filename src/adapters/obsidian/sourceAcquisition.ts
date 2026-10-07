@@ -24,6 +24,10 @@
  * fences without promoting incomplete neighborhood incidence into editing authority.
  * Inventory and Date-resolution CPU slices release host event tasks; actual debounce, retry, poll
  * and external-work waits remain timed and never certify source readiness.
+ * Optional injected ownership keeps broad reconciliation in P4. Current newly available body/source
+ * inputs notify a finite presentation consumer; observer failure cannot change source authority.
+ * Background native body misses recheck foreground-acquired inputs after yielding priority, while
+ * selected foreground callers retain their own lane and never wait on a paused background parser.
  */
 import { yieldToHostTask } from "./yieldToHostTask";
 import { canonicalTagPaths } from "../../core/graph/tagPaths";
@@ -202,14 +206,20 @@ export class ObsidianSourceAcquisition {
    * Construction is side-effect free; start() explicitly owns host subscriptions.
    * The optional progress observer reports completed inventory work for startup diagnostics only;
    * it must not schedule acquisition or change authority, cancellation or publication decisions.
-   * The optional background checkpoint pauses only inventory and optional URL owners between bounded
+   * The optional P4 background checkpoint pauses only inventory and legacy URL-alias maintenance between bounded
    * work units. Foreground capture/acquisition never calls it, avoiding a foreground self-deadlock.
+   * The optional runner owns an independently scheduled P4 reconciliation lifetime; callers joining
+   * flush must not retain a higher-priority scheduler lease while waiting for this broad inventory.
+   * New current cached-body or durable-source availability may wake a targeted presentation owner;
+   * this optional observer never propagates failure or changes source authority.
    */
   constructor(private readonly app: App, private readonly cache: KplexIndexedDbCache, private readonly parse: SourceBodyParser,
     private readonly inventoryReady?: () => void,
     private readonly inventoryProgress?: () => void,
     private readonly startupDiagnostics?: StartupDiagnostics,
-    private readonly backgroundCheckpoint?: () => Promise<void>) {
+    private readonly backgroundCheckpoint?: () => Promise<void>,
+    private readonly runBackgroundWork?: (work: () => Promise<boolean>) => Promise<boolean>,
+    private readonly onPresentationInputsAvailable?: (path: string) => void) {
     this.repository = cache.sources;
     this.metadataHost = createObsidianMetadataSourceHost(app);
   }
@@ -1343,15 +1353,41 @@ export class ObsidianSourceAcquisition {
     if (body) this.counters.reusedBodies += 1;
     return body;
   }
-  /** Load one actual body miss serially; only background misses pass the cooperative parser pause capability. */
+  /** Load one current body, yielding background misses before native I/O and rechecking shared
+   * cache inputs acquired by foreground work during awaited misses. Every retry preserves the
+   * captured file/event/host lifetime; optional parser bodies never certify source durability.
+   * Foreground callers do not borrow P4 checkpoints or join its paused parser work. */
   private async loadBody(file: TFile, current: () => boolean, requireCurrentParser = false, background = false): Promise<ParsedBodyMetadata | null> {
     const capture = this.capture(file); const valid = (): boolean => this.current(capture, current);
+    if (background) await this.backgroundCheckpoint?.();
+    if (!valid()) return null;
     const neutral = await this.readBody(file, valid, requireCurrentParser); if (!valid()) return null;
     if (neutral) return neutral;
     const legacy = capture.state.bodyDirty ? undefined
       : (await this.cache.getBodies([{ path: capture.physical.path, mtime: capture.physical.mtime }])).get(capture.physical.path);
     if (!valid()) return null;
     if (legacy) { this.counters.legacyBodies += 1; return legacy; }
+    if (background) {
+      // Cache I/O can outlive P4 admission. P2 may have acquired the same body while those misses
+      // were pending; wait for that owner, then select its current neutral or optional parsed input.
+      await this.backgroundCheckpoint?.();
+      if (!valid()) return null;
+      const latest = await this.readBody(file, valid, requireCurrentParser);
+      if (!valid()) return null;
+      if (latest) return latest;
+      const queued = capture.state.bodyDirty ? undefined
+        : (await this.cache.getBodies([{ path: capture.physical.path, mtime: capture.physical.mtime }])).get(capture.physical.path);
+      if (!valid()) return null;
+      if (queued) { this.counters.legacyBodies += 1; return queued; }
+    }
+    if (background) {
+      // The final async recheck can itself outlive admission. Revalidate priority and peek only
+      // completed queued data so no further cache await separates admission from native I/O.
+      await this.backgroundCheckpoint?.();
+      if (!valid()) return null;
+      const queued = capture.state.bodyDirty ? null : this.cache.getQueuedBody(capture.physical.path, capture.physical.mtime);
+      if (queued) { this.counters.legacyBodies += 1; return queued; }
+    }
     this.counters.vaultReads += 1;
     const text = Platform.isMobile ? await this.app.vault.read(file) : await this.app.vault.cachedRead(file);
     if (!valid()) return null;
@@ -1359,8 +1395,15 @@ export class ObsidianSourceAcquisition {
     const body = await this.parse(text, background ? this.backgroundCheckpoint : undefined);
     if (!valid()) return null;
     // Versioned parser body cache remains an optional accelerator, not neutral-source durability.
-    await this.cache.putBody(capture.physical.path, capture.physical.mtime, body);
+    const saved = await this.cache.putBody(capture.physical.path, capture.physical.mtime, body);
+    if (saved && valid()) this.notifyPresentationInputs(capture.physical.path, valid);
     return valid() ? body : null;
+  }
+  /** Wake only a current owner's targeted presentation consumer; optional UI observation cannot
+   * change body/source success, propagate errors or bypass the caller/native/lifetime fence. */
+  private notifyPresentationInputs(path: string, current: () => boolean): void {
+    if (!current() || this.closed) return;
+    try { this.onPresentationInputsAvailable?.(path); } catch { /* Presentation recovery is optional. */ }
   }
   /** Resolve a lexical stream using exactly the established Obsidian reference resolver. */
   private resolution(metadata: ParsedFileMetadata, file: TFile, cache: CachedMetadata, inspection: SourceInspection,
@@ -1576,6 +1619,7 @@ export class ObsidianSourceAcquisition {
         // The body version is derived from authenticated input or the actual current parser.
         if (writtenParserVersion !== SOURCE_BODY_PARSER_VERSION && body.urls.length > 0) this.pendingUrlAliasSources.add(file.path);
         else this.pendingUrlAliasSources.delete(file.path);
+        this.notifyPresentationInputs(capture.physical.path, observationCurrent);
       }
       if (live && !saved && !optionalAliasesOnly) {
         // GraphBuilder can acquire beside inventory. A late unsaved result must retain a source-
@@ -1659,7 +1703,8 @@ export class ObsidianSourceAcquisition {
     const revision = this.inventoryRevision;
     this.inventoryCaptureRevision = revision;
     const current = (): boolean => !this.closed && revision === this.inventoryRevision;
-    this.inventory = (async () => {
+    /** Retain one broad task's priority without changing its existing inventory/CAS lifetime. */
+    const work = async (): Promise<boolean> => {
       let complete = true;
       try {
         await this.backgroundCheckpoint?.();
@@ -1812,7 +1857,8 @@ export class ObsidianSourceAcquisition {
         }
         return ready;
       } catch { this.counters.failures += 1; return false; }
-    })();
+    };
+    this.inventory = this.runBackgroundWork ? this.runBackgroundWork(work) : work();
     try { return await this.inventory; }
     finally { this.inventory = null; this.inventoryCaptureRevision = null; if (this.requested) this.requestInventory(); }
   }

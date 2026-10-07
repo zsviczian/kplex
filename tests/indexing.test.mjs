@@ -556,6 +556,7 @@ exports.createObsidianTranslator = () => createTranslator("en");
 `);
 
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
+const { ForegroundWorkScheduler } = require(join(temp, "src/index/ForegroundWorkScheduler.js"));
 const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
 const { KplexIndexedDbCache } = require(join(temp, "src/index/IndexedDbCache.js"));
 const { createIndexDiagnosticsReport } = require(join(temp, "src/adapters/obsidian/indexDiagnosticsReport.js"));
@@ -964,13 +965,16 @@ const { resolveNodeStyle } = require(join(temp, "src/index/style.js"));
 const { RelationEvidenceStore } = require(join(temp, "src/index/RelationEvidence.js"));
 
 let partialSnapshotWrites = 0;
+const partialSnapshotScheduler = new ForegroundWorkScheduler();
 await GraphIndex.prototype.persistIndexedDbSnapshot.call({
+  workScheduler: partialSnapshotScheduler,
   snapshotPersistGeneration: 7,
   fullSnapshotHydrated: false,
   state: { pages: new Map([["partial.md", {}]]) },
   indexedDb: { writeSnapshot: async () => { partialSnapshotWrites += 1; return true; } },
 }, 7);
 assert.equal(partialSnapshotWrites, 0, "A non-authoritative startup preview must never enter snapshot persistence");
+assert.deepEqual(partialSnapshotScheduler.diagnostics().active, [0, 0, 0, 0, 0], "Refused persistence must release its actual scheduler lease");
 const { buildScene, buildSectionExpandedScene, withAreaHeightOverrides } = require(join(temp, "src/ui/layout.js"));
 const { effectiveViewSettings } = require(join(temp, "src/ui/viewProfileUnderTest.js"));
 const {
@@ -2739,20 +2743,35 @@ try {
     assert.equal(legacy.getSnapshotHydrationDiagnostics().outcome, "complete");
     assert.deepEqual(evidenceShape(legacy.evidenceBetween("Note A.md", "Note B.md")), evidenceShape(index.evidenceBetween("Note A.md", "Note B.md")));
 
-    const replaced = makeRestoreIndex();
-    let releaseReplaced;
-    replaced.indexedDb.readSnapshotMeta = () => new Promise((resolve) => { releaseReplaced = resolve; });
-    const oldRestore = replaced.restoreIndexedDbSnapshot();
-    await settle();
-    replaced.indexedDb.readSnapshotMeta = async () => snapshotMeta;
-    const newRestore = await replaced.restoreIndexedDbSnapshot();
-    assert.equal((await oldRestore).restored, false);
-    assert.equal(newRestore.restored, true);
-    const replacementState = replaced.state, replacementDiagnostics = replaced.getSnapshotHydrationDiagnostics();
-    releaseReplaced(snapshotMeta); await settle();
-    assert.equal(replaced.state, replacementState);
-    assert.deepEqual(replaced.getSnapshotHydrationDiagnostics(), replacementDiagnostics);
-    assert.equal(watchdogTimers.size, 0);
+    // Supersession retires the actual restore and nested preview/facet leases before an
+    // unabortable cache read settles. A new P4 hydration must not wait behind abandoned P1.
+    for (const method of ["readSnapshotMeta", "getPages", "getBodies"]) {
+      const replaced = makeRestoreIndex();
+      const originalRead = replaced.indexedDb[method];
+      let releaseReplaced, entered;
+      const blocked = new Promise(resolve => { releaseReplaced = resolve; });
+      const reading = new Promise(resolve => { entered = resolve; });
+      replaced.indexedDb[method] = async (...args) => {
+        entered(); await blocked; return originalRead.apply(replaced.indexedDb, args);
+      };
+      const oldRestore = replaced.restoreIndexedDbSnapshot(["Note A.md"]);
+      await reading;
+      assert(replaced.getWorkPriorityDiagnostics().active[1] > 0, `${method} holds its real P1 restore lifetime`);
+      replaced.indexedDb[method] = originalRead;
+      const newRestore = await replaced.restoreIndexedDbSnapshot(["Note A.md"]);
+      assert.equal((await oldRestore).restored, false);
+      assert.equal(newRestore.restored, true);
+      assert.equal((await replaced.waitForSnapshotHydration()).restored, true,
+        `${method}: replacement background hydration completes while the old read remains held`);
+      assert.deepEqual(replaced.getWorkPriorityDiagnostics().active, [0, 0, 0, 0, 0],
+        `${method}: abandoned nested leases drain before the cache continuation returns`);
+      const replacementState = replaced.state, replacementDiagnostics = replaced.getSnapshotHydrationDiagnostics();
+      releaseReplaced(); await settle();
+      assert.equal(replaced.state, replacementState);
+      assert.deepEqual(replaced.getSnapshotHydrationDiagnostics(), replacementDiagnostics);
+      assert.deepEqual(replaced.getWorkPriorityDiagnostics().active, [0, 0, 0, 0, 0]);
+      assert.equal(watchdogTimers.size, 0);
+    }
 
     for (const phase of ["metadata", "preview", "pages", "evidence", "preview-search", "source-authority", "requested-semantics"]) {
       const stalled = makeRestoreIndex();
@@ -3616,6 +3635,7 @@ try {
   const nativeMaterializedFiles = [];
   const nativePatchCalls = [];
   const nativeDematerializedFiles = [];
+  const nativePresentationRepairs = [];
   let nativeFullBuilds = 0;
   nativeCreationCoordinator.app = {
     vault: {
@@ -3627,6 +3647,7 @@ try {
     },
   };
   nativeCreationCoordinator.index = { isOnDemandMode: () => false,
+    refreshVisiblePresentation: (path) => { nativePresentationRepairs.push(path); return Promise.resolve(); },
     invalidateHostStructure: () => {},
     refreshVisibleHostMetadataPreviews: () => false,
     acknowledgeHostPresentation: () => {},
@@ -3662,6 +3683,7 @@ try {
   nativeCreateHandler(nativeB);
   nativeMetadataHandler(nativeB);
   nativeCreateHandler(nativeImage);
+  assert.deepEqual(nativePresentationRepairs, [nativeA.path, nativeB.path], "Native metadata events request targeted optional presentation repair");
   assert.deepEqual(nativeFolders, ["Fixture"], "Empty folder is materialized directly once");
   assert.deepEqual(nativeMaterializedFiles, [nativeA.path, nativeB.path, nativeImage.path], "Markdown and attachment endpoints materialize directly under the new folder");
   assert(!nativeCreationCoordinator.indexBacklogReasons.has("vault:create"), "Folder creation must not leave a structural full-rebuild reason");
@@ -3921,6 +3943,7 @@ try {
   const renameHandlers = new Map();
   const rebuildReasons = [];
   const fastRenameCalls = [];
+  const renamedPresentationRepairs = [];
   renameCoordinator.app = {
     vault: {
       on: (name, callback) => { renameHandlers.set(`vault:${name}`, callback); return {}; },
@@ -3930,7 +3953,9 @@ try {
       on: (name, callback) => { renameHandlers.set(`metadata:${name}`, callback); return {}; },
     },
   };
-  renameCoordinator.index = { isOnDemandMode: () => false, invalidateHostStructure: () => {}, refreshVisibleHostMetadataPreviews: () => false, renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
+  renameCoordinator.index = { isOnDemandMode: () => false, invalidateHostStructure: () => {},
+    refreshVisiblePresentation: (path) => { renamedPresentationRepairs.push(path); return Promise.resolve(); },
+    refreshVisibleHostMetadataPreviews: () => false, renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
   renameCoordinator.settings = {
     ...settings,
     primaryTagField: "Note type",
@@ -3955,6 +3980,7 @@ try {
 
   metadataChangedHandler(renamedCentral);
   assert.equal(renameCoordinator.dirtyMarkdownPaths.size, 0, "Rename-generated metadata event with identical revision must be ignored");
+  assert.deepEqual(renamedPresentationRepairs, [renamedCentral.path], "Same-revision native availability still repairs optional presentation");
   assert.deepEqual(rebuildReasons, []);
 
   renamedCentral.stat.mtime += 1;
