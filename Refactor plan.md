@@ -2552,3 +2552,11 @@ Evidence/design: [active indexing throttle and URL responsiveness](docs/validati
 Remaining manual coverage: focused pointer/paint timing, physical Android/iOS background resume,
 and high-degree global filtering/expanded sections, as prioritized in the linked report. The
 broader few-second startup objective remains open. No validation bound or semantic oracle changed.
+
+
+### 2026-10-07 — Area-filter autofocus contrast
+
+- [x] Replace the area input's fixed dark surface with the existing Find field's paired theme foreground/background and muted placeholder, including programmatic focus. No React/indexing behavior changes.
+- [x] Node22.22.2: two existing Chromium theme/area-control checks pass; direct stylesheet inspection verifies focused/unfocused colors in light and dark themes. Real production build and Obsidian scanner pass (zero errors, one unchanged activeLeaf warning).
+- [x] Disposable small-vault native check opens the real filter button and confirms automatic input focus, white surface/dark text in the light theme. Built CSS is temporarily applied for this check; no deployment or notes/settings edits. CSS/controller removed and filter closure confirmed after React commits.
+- CSS-only scope: full indexing/20k suites were not repeated. Remaining manual check: community-theme input colors should remain readable when opening and typing immediately; desktop native and representative light/dark theme tokens were checked, arbitrary theme overrides cannot be exhaustively automated. C15–C26 remain paused. Maintainer explicitly requests this tested checkpoint be committed on main.

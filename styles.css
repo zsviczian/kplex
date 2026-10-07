@@ -822,10 +822,8 @@ button.kplex-sidecar-unfold-plex,
   height: 28px;
   padding: 0 7px;
   font-size: 10px;
-  color: var(--text-normal);
   border: 1px solid rgba(116,182,255,.36);
   border-radius: 6px;
-  background: rgba(9,18,28,.94);
   box-shadow: 0 3px 12px rgba(0,0,0,.34);
 }
 
@@ -3271,13 +3269,16 @@ button.kplex-style-manager-row { height: fit-content; }
   height: 28px;
   border: 1px solid var(--kplex-line);
 }
-/* Keep foreground and surface paired when the host applies focused-input styles. */
+/* Pair text and surface for both pointer focus and programmatic filter autofocus. */
 .kplex-view-host .kplex-find-input,
-.kplex-view-host .kplex-find-input:focus {
+.kplex-view-host .kplex-find-input:focus,
+.kplex-view-host .kplex-zone-filter-input,
+.kplex-view-host .kplex-zone-filter-input:focus {
   color: var(--text-normal);
   background: var(--background-primary);
 }
-.kplex-view-host .kplex-find-input::placeholder {
+.kplex-view-host .kplex-find-input::placeholder,
+.kplex-view-host .kplex-zone-filter-input::placeholder {
   color: var(--text-muted);
 }
 .kplex-find-count {

@@ -19,34 +19,24 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Final indexing checkpoint — reviewed and verified
+# Area-filter autofocus contrast — complete
 
-Direction: main validation closeout after offline implementation and independent review. Branch
-`indexing-fixes`, implementation base `1527b6ebf9644c035fe845303971d0eb30cc641f`. The maintainer
-explicitly authorizes commit, push, PR and returning the local checkout to main. No active agent,
-repository or native-driver wait; no new implementation assignment. C15–C26 remain paused.
+Direction: main validation closeout of a bounded CSS fix on main. User requests readable text when
+opening an area filter and typing without clicking its input. The maintainer now explicitly requests a commit on main. The tested source is unchanged;
+no push or further implementation/refactor assignment is requested.
 
-The cumulative branch fixes early local/count publication and independent cached URL acquisition,
-then adds priority/stable publication, visible presentation repair, automatic drawing formatting,
-Responsive/Balanced/Faster background pacing, visible-row counts/cross-links and truthful URL-cache
-progress. Existing semantic, provenance, revision and lifecycle owners remain authoritative.
-Factory defaults are On-demand/Responsive; actual reference preferences are Eager/Responsive.
+Only styles.css changes behavior: the area field reuses the existing Find field's paired theme
+foreground/background in normal and focused states, plus its muted placeholder. Fixed dark
+background removed; React autofocus and filtering remain unchanged.
 
-Exact final-source `npm run verify` and real build pass on Node22.22.2: architecture7/core69/Node292/
-UI17/portable333/browser410, zero browser failures/skips/cancellations, scanner0errors/one unchanged
-warning. Mandatory20,015-owner fixture passes. Frozen271 inputs `db4ed1d3…`; six extra configuration
-hashes unchanged. Main `56aa837741e7…` matches the tested/deployed artifact. The unmodified native
-runner passes command/DOM/error checks in the disposable small vault on that exact build.
+Node22.22.2 checks: two existing browser theme/area-control cases pass; actual stylesheet colors
+match representative light/dark tokens with and without programmatic focus; real production build
+passes; scanner zero errors/one unchanged activeLeaf warning. No new tests or full indexing suite.
+Native disposable small-vault check temporarily applies built CSS, opens the actual area filter
+button, and verifies automatic focus with white background/dark text. Temporary style/controller
+removed; React filter closure confirmed separately. No notes/settings or production vault changes.
 
-Production-reference qualitative UI acceptance is confirmed by the maintainer. Serial prior
-Eager/On-demand reference functionality and the final warm-label/counter check pass. Continuous
-focus/paint timing is unavailable and remains excluded; physical mobile, high-degree full-scene
-filter/section performance and the broader few-second startup target remain open. Failed/excluded
-observations are retained. Final cleanup preserves notes/current center/settings/enablement,
-removes all temporary controllers/foreground leases and resumes background work.
-
-Durable final checks, identities, cleanup and three prioritized manual checks are in
-[the throttle report](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.md),
-[exact evidence](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.json), and
-[progress](Refactor%20plan.md). Git actions follow the current explicit authorization; no merge,
-release or further automatic optimization is assigned.
+Durable progress and remaining arbitrary community-theme check are recorded in Refactor plan.md.
+Logs/results: /private/tmp/kplex-area-filter-{ui-check,build,scanner}.log and
+/private/tmp/kplex-area-filter-native-result.json (its immediate closure sample precedes React's
+commit; the separate native cleanup read confirms closure). C15–C26 remain paused.
