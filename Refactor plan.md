@@ -2560,3 +2560,15 @@ broader few-second startup objective remains open. No validation bound or semant
 - [x] Node22.22.2: two existing Chromium theme/area-control checks pass; direct stylesheet inspection verifies focused/unfocused colors in light and dark themes. Real production build and Obsidian scanner pass (zero errors, one unchanged activeLeaf warning).
 - [x] Disposable small-vault native check opens the real filter button and confirms automatic input focus, white surface/dark text in the light theme. Built CSS is temporarily applied for this check; no deployment or notes/settings edits. CSS/controller removed and filter closure confirmed after React commits.
 - CSS-only scope: full indexing/20k suites were not repeated. Remaining manual check: community-theme input colors should remain readable when opening and typing immediately; desktop native and representative light/dark theme tokens were checked, arbitrary theme overrides cannot be exhaustively automated. C15–C26 remain paused. Maintainer explicitly requests this tested checkpoint be committed on main.
+
+
+### 2026-10-07 — Attachment rename phantom rendering
+
+- [x] Inspect original broken small-vault graph before reload: canonical attachment/child/React scene each1, DOM2; orphan persists through layout/navigation.
+- [x] Capture unique encoded path/occurrence React keys for each positioned scene lifetime, including expanded strips and mini/connector namespace. Canonical page identity, actions, semantics and indexing unchanged.
+- [x] Real React/Chromium regression covers mutable rename/placeholder overlap, stale-scene geometry rebuild, display clones, handover/reorder, collapse, later layouts, removal and unmount. Predecessor and provisional path-only capture fail; final case passes without React warnings.
+- [x] Main independently reviews source/test return; complete frozen278-input verify/build passes7/69/292/18/333/410, scanner0errors/one existing warning, mandatory20,015-owner publication passes268.714s. Source `86d39d498cde…`, main `c08c0cde9310…`.
+- [x] Exact-build native smoke and real Obsidian rename/collapse/re-expansion pass in kplex-test-small. One settled attachment follows the editor; original graph now has one screenshot child, no duplicate thought paths. Restore owned fixture/center/save/throttle/settings/enablement. Initial console cleanup failure retained; final async original-handler restoration and diagnostic removal pass.
+- Controlled native predecessor settles correctly, so it is not claimed as persistent failure reproduction. Original live capture and deterministic browser regression supply that evidence. Actual context-menu Rename once remains the prioritized manual check; no physical-device/latency claim. Production vault untouched, no Git action requested, C15–C26 paused. [Report](docs/validation/attachment-rename-render-lifetime-2026-10-07.md) and [evidence](docs/validation/attachment-rename-render-lifetime-2026-10-07.json).
+
+- [x] Maintainer confirms the attachment rename phantom is solved and authorizes committing this verified correction on main. No push or PR requested.

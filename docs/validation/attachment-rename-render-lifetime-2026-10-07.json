@@ -1,0 +1,145 @@
+{
+  "date": "2026-10-07",
+  "scope": "Attachment rename leaves phantom Plex DOM",
+  "base": "63c4a623aa83976ec76033fd25dc11ed861e0beb",
+  "status": "accepted by maintainer",
+  "liveFailure": {
+    "indexedAttachmentPages": 1,
+    "neighborhoodAttachmentChildren": 1,
+    "renderedAttachmentThoughts": 2,
+    "currentReactAttachmentFibers": 1,
+    "alternateReactAttachmentFibers": 1,
+    "memoizedSceneAttachmentNodes": 1,
+    "orphanSurvivesLayoutAndNavigation": true
+  },
+  "cause": "Transient mutable canonical page paths collide as React keys while old scene and new-name placeholder overlap; duplicate-key reconciliation can retain DOM outside the current tree.",
+  "fix": {
+    "owner": "PlexGraph scene projection/render lifetime",
+    "keys": "Captured encoded path/occurrence per positioned scene node; expanded strips and child connector namespaces inherit captured base identity.",
+    "canonicalPageIdentityChanged": false,
+    "semanticOrFileChanges": false,
+    "schemaChanges": false,
+    "c15Started": false
+  },
+  "regression": {
+    "engine": "real Chromium/React; extracted production owners and actual ThoughtNode",
+    "covers": [
+      "memoized scene reuse",
+      "geometry rebuild from stale neighborhood",
+      "new-name placeholder handover",
+      "count-hydrated display clones",
+      "expanded strips and unique connector keys",
+      "normalization and reordered children",
+      "editor collapse",
+      "later layouts",
+      "attachment removal",
+      "unmount"
+    ],
+    "predecessor": "fails with an actual orphan",
+    "provisionalPathOnlyCapture": "fails geometry-rebuild variant",
+    "finalFocused": "passed"
+  },
+  "source": {
+    "inputs": 278,
+    "sha256": "86d39d498cde05b4337574f350af71e589a4d7fda71ac062bc309ce9d5b4dff9"
+  },
+  "nativeBaseline": {
+    "controlledFixture": "FileManager.renameFile with an existing attachment and unresolved new-name embed",
+    "settledSingleAttachment": true,
+    "transientDuplicateRows": 1,
+    "persistentOrphanReproducedInControlledFixture": false,
+    "cleanupPassed": true,
+    "settingsAndEnablementPreserved": true,
+    "originalLiveFailureCapturedBeforeReload": true
+  },
+  "harnessFailuresRetained": [
+    "Initial temporary script escaping error: no controller/files created",
+    "Navigation prerequisite before source seeding; cleanup passed",
+    "Fixture capture included unrelated existing orphan or omitted pathless placeholder; cleanup passed",
+    "Console restoration inside synchronous CLI eval was overwritten by CLI cleanup; final async CDP cleanup recovered captured original through test/CLI wrapper layers. No source/build change."
+  ],
+  "limits": [
+    "Programmatic Obsidian FileManager rename exercises rename/cache/editor ordering; it does not automate the context-menu dialog itself.",
+    "No physical-device or universal timing claim.",
+    "Native functional fixture temporarily disabled renderer background throttling, restored afterward; no native performance acceptance claimed."
+  ],
+  "gitActionsRequested": true,
+  "fullVerification": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "hash": "86d39d498cde05b4337574f350af71e589a4d7fda71ac062bc309ce9d5b4dff9",
+    "inputs": 278,
+    "node": "v22.22.2",
+    "checks": {
+      "architecture": 7,
+      "core": 69,
+      "node": 292,
+      "ui": 18,
+      "portableSource": 333,
+      "browser": 410
+    },
+    "artifacts": {
+      "main.js": "c08c0cde9310bea8b010e9c4458fbc952e9d96c1f74ffd0ae0baf771dd3d65ea",
+      "styles.css": "d9ca9609bbbd16b60e5338a9c228e7e0f0fca4cf468d09bcfc4e77b649f13e7e",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62"
+    },
+    "scannerErrors": 0,
+    "scannerWarnings": 1,
+    "warning": "Existing activeLeaf deprecation",
+    "browserFailures": 0,
+    "browserSkips": 0,
+    "browserCancellations": 0,
+    "requiredScaleOwners": 20015,
+    "requiredScaleDurationMs": 268713.813042
+  },
+  "nativeSmoke": {
+    "status": "passed",
+    "host": "1.14.4 (installer 1.14.0)",
+    "installedHashesMatch": true,
+    "assertions": [
+      "plugin command registered",
+      "rendered .kplex-app contains K-Plex",
+      "no captured JavaScript errors"
+    ]
+  },
+  "nativeFinal": {
+    "vault": "kplex-test-small",
+    "artifact": "c08c0cde9310bea8b010e9c4458fbc952e9d96c1f74ffd0ae0baf771dd3d65ea",
+    "settledSingleAttachment": true,
+    "renamedThoughts": 1,
+    "collapsedThoughts": 1,
+    "expandedThoughts": 1,
+    "collapsedTop": "112.895px",
+    "expandedTop": "318.895px",
+    "transientSamePathPairObserved": true,
+    "fixtureRemoved": true,
+    "centerRestored": true,
+    "throttlingRestored": true,
+    "saveRestored": true,
+    "settingsAndEnablementBytesUnchanged": true,
+    "nativeWarningCollectionClaimed": false
+  },
+  "diagnosticCleanup": {
+    "done": true,
+    "restored": true,
+    "original": "function error() { [native code] }",
+    "layers": [
+      "test wrapper",
+      "CLI wrapper"
+    ],
+    "candidate": "function error() { [native code] }",
+    "detached": true
+  },
+  "finalAudit": {
+    "diagnosticControllers": 0,
+    "testFixtureFiles": 0,
+    "debuggerAttached": false,
+    "renderedThoughts": 11,
+    "duplicateThoughtPaths": 0,
+    "originalScreenshotChildren": 1,
+    "settingsAndEnablementBytesUnchanged": true,
+    "productionVaultTouched": false
+  },
+  "maintainerAcceptance": "Maintainer confirms the reported issue is solved and requests a commit.",
+  "gitAuthorization": "Commit only; no push or PR requested."
+}

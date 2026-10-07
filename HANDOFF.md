@@ -14,29 +14,32 @@ Return uncommitted changes and actual results for main-agent review unless the m
 
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
-
-
-
 ---
 
-# Area-filter autofocus contrast — complete
+# Attachment rename rendering — main validation complete
 
-Direction: main validation closeout of a bounded CSS fix on main. User requests readable text when
-opening an area filter and typing without clicking its input. The maintainer now explicitly requests a commit on main. The tested source is unchanged;
-no push or further implementation/refactor assignment is requested.
+State: scoped fix reviewed, automated validation passed and maintainer confirms the issue solved;
+no active implementation assignment.
+Repo main/base63c4a623aa83976ec76033fd25dc11ed861e0beb. Maintainer authorizes committing the verified correction on main; no push or PR requested. C15–C26 remain paused.
 
-Only styles.css changes behavior: the area field reuses the existing Find field's paired theme
-foreground/background in normal and focused states, plus its muted placeholder. Fixed dark
-background removed; React autofocus and filtering remain unchanged.
+Canonical-one/DOM-two original live failure traced to mutable rename paths colliding as React
+keys across independently memoized scenes. PlexGraph captures scene path/occurrence keys for
+base nodes, expanded strips and child connector namespaces without altering canonical pages,
+semantics, actions, indexing or schemas. Focused regression fails with predecessor/path-only
+candidate and passes with final capture through stale-scene rebuild, handover, collapse and teardown.
 
-Node22.22.2 checks: two existing browser theme/area-control cases pass; actual stylesheet colors
-match representative light/dark tokens with and without programmatic focus; real production build
-passes; scanner zero errors/one unchanged activeLeaf warning. No new tests or full indexing suite.
-Native disposable small-vault check temporarily applies built CSS, opens the actual area filter
-button, and verifies automatic focus with white background/dark text. Temporary style/controller
-removed; React filter closure confirmed separately. No notes/settings or production vault changes.
+Main independently reviewed return. Final Node22.22.2 full verify/build passes7/69/292/18/333/410,
+scanner0errors/one unchanged warning; mandatory20,015-owner case passes. Frozen278 inputs
+`86d39d498cde…`; exact main `c08c0cde9310…` passes serial native smoke and real FileManager
+rename/collapse/re-expansion in disposable kplex-test-small. Native predecessor fixture settles
+correctly: persistent failure evidence comes from original live capture and browser schedule.
+Original graph now has one screenshot child and zero duplicate thought paths. Production untouched.
 
-Durable progress and remaining arbitrary community-theme check are recorded in Refactor plan.md.
-Logs/results: /private/tmp/kplex-area-filter-{ui-check,build,scanner}.log and
-/private/tmp/kplex-area-filter-native-result.json (its immediate closure sample precedes React's
-commit; the separate native cleanup read confirms closure). C15–C26 remain paused.
+Test fixture/center/save/throttle and exact settings/enablement bytes restored. Initial console
+cleanup failed due CLI console interception; final async captured-original restoration passes,
+zero test globals/fixtures/debugger remain. No native warning-capture or performance claim.
+
+Durable result: [validation report](docs/validation/attachment-rename-render-lifetime-2026-10-07.md),
+[exact evidence](docs/validation/attachment-rename-render-lifetime-2026-10-07.json) and Refactor plan.md.
+Maintainer acceptance closes the reported bug. The documented manual check was actual editor
+image context-menu Rename followed by collapse/re-expand, expecting one moving child. No new touch workflow or physical-device claim.

@@ -1,5 +1,5 @@
 /**
- * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy.
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
@@ -200,6 +200,8 @@ type ExpandedMiniThought = {
 };
 
 type ExpandedCluster = {
+  /** Captured base-scene identity; the displayed parent may be a geometry clone with a live path. */
+  key: string;
   parent: PositionedNode;
   left: number;
   top: number;
@@ -816,6 +818,17 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       ? buildSectionExpandedScene(layoutSectionExpansion, index, settings, expandedSectionIds, showCrossLinks, centralEditorSize, true)
       : buildScene(layoutNeighborhood, index, settings, showCrossLinks && globalFiltering, centralEditorSize, true))
     : { nodes: [], edges: [], zoneViewports: {}, zoneAreas: {} }, [layoutNeighborhood, layoutSectionExpansion, expandedSectionIds, index, settings, layoutRevision, showCrossLinks, globalFiltering, centralEditorSize]);
+  const sceneNodeKeys = useMemo(/** Capture unique reconciliation keys for this scene without changing mutable canonical page identity. */ () => {
+    const occurrences = new Map<string, number>();
+    return new Map(scene.nodes.map(/** Keep renamed endpoints and new-name placeholders distinct even if geometry rebuilds before their authoritative handover. */ (node) => {
+      const path = node.page.path;
+      const occurrence = occurrences.get(path) ?? 0;
+      occurrences.set(path, occurrence + 1);
+      // Encode the pair: vault paths are opaque strings and can contain any delimiter. Ordinary
+      // scenes keep one stable key per path; only an intermediate collision needs an occurrence.
+      return [node, JSON.stringify([path, occurrence])];
+    }));
+  }, [scene.nodes]);
   const centralEditorNode = useMemo(() => centralEditorAvailable
     ? scene.nodes.find((node) => node.role === "center") ?? null
     : null, [centralEditorAvailable, scene.nodes]);
@@ -1780,7 +1793,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     return counts;
   }, [globalFiltering, scene.nodes, scene.edges, filterMatchedNodePaths]);
 
-  const expandedClusters = useMemo<ExpandedCluster[]>(() => {
+  const expandedClusters = useMemo<ExpandedCluster[]>(/** Project descendant strips with the original base node's captured scene identity. */ () => {
     if (sectionExpansion || settings.graphDepth !== 2 || !neighborhood) return [];
     const clusters: ExpandedCluster[] = [];
 
@@ -1825,6 +1838,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       if (viewportHeight <= 0) continue;
       const cellWidth = width / columns;
       const scrollTop = Math.max(0, Math.min(expandedScrollTop[parent.page.path] ?? 0, Math.max(0, contentHeight - viewportHeight)));
+      const clusterKey = `expanded:${sceneNodeKeys.get(baseNode)}`;
 
       const children: ExpandedMiniThought[] = relations.map((relation, indexValue) => {
         const col = indexValue % columns;
@@ -1842,7 +1856,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         const shownChars = Math.min(label.length, maxChars);
         const nodeWidth = Math.max(64 * miniScale, Math.min(cellWidth - columnGap, (34 + shownChars * 3.8) * miniScale));
         return {
-          key: `${parent.page.path}::${relation.page.path}::${indexValue}`,
+          key: JSON.stringify([clusterKey, relation.page.path, indexValue]),
           relation,
           label,
           style,
@@ -1854,6 +1868,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       });
 
       clusters.push({
+        key: clusterKey,
         parent,
         left: parent.x - width / 2,
         top,
@@ -1866,7 +1881,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     }
 
     return clusters;
-  }, [sectionExpansion, settings.graphDepth, settings.compactingFactor, settings.horizontalCompactingFactor, settings.compactView, settings.minLinkLength, settings.childColumns, settings.maxItemCount, settings.siblingRelativeSize, neighborhood, scene.nodes, visibleNodePaths, renderedNodeMap, expandedScrollTop, index, layoutRevision, predicate, lenses, predicateRevision, predicateEngine]);
+  }, [sectionExpansion, settings.graphDepth, settings.compactingFactor, settings.horizontalCompactingFactor, settings.compactView, settings.minLinkLength, settings.childColumns, settings.maxItemCount, settings.siblingRelativeSize, neighborhood, scene.nodes, sceneNodeKeys, visibleNodePaths, renderedNodeMap, expandedScrollTop, index, layoutRevision, predicate, lenses, predicateRevision, predicateEngine]);
 
   const retainedPresentationDemand = useRef<Set<GraphPage>>(new Set());
   /** Retain exact visible page membership across unrelated scene renders; new page incarnations still repair. */
@@ -3093,7 +3108,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, doc);
   };
 
-  /** Render live counts only for viewport-intersecting regular rows, retaining transient section gate ownership. */
+  /** Render live counts only for viewport-intersecting regular rows with captured scene keys, retaining transient section gate ownership. */
   const renderNode = (baseNode: PositionedNode, displayNode: PositionedNode, hydrateCounts = true) => {
     const highlightedGates = new Set<GateSide>();
     for (const gate of ["top", "bottom", "left", "right"] as GateSide[]) {
@@ -3128,7 +3143,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     const canOpenCentralEditor = baseNode.role === "center" && centralEditorCapable && !hasCentralEditor;
 
     return <ThoughtNode
-      key={baseNode.page.path}
+      key={sceneNodeKeys.get(baseNode)}
       node={nodeForDisplay}
       translate={translate}
       visual={hasCentralEditor ? undefined : nodeVisuals.get(baseNode.page.path)}
@@ -3281,10 +3296,11 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     </div>;
   };
 
+  /** Render a projected descendant strip with its captured base-scene key, independently of mutable parent paths. */
   const renderExpandedCluster = (cluster: ExpandedCluster) => {
     const scrollable = cluster.contentHeight > cluster.viewportHeight + 0.5;
     return <div
-      key={`expanded:${cluster.parent.page.path}`}
+      key={cluster.key}
       className="kplex-expanded-cluster"
       style={{ left: cluster.left, top: cluster.top, width: cluster.width, height: cluster.viewportHeight }}
       onPointerDown={(event: PointerEvent<HTMLDivElement>) => event.stopPropagation()}

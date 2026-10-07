@@ -1230,6 +1230,101 @@ test("ActionButton rendered browser behavior", () => {
   runBrowserDom(browserEntry(), "ActionButton browser behavior passed");
 });
 
+/** Exercise production reconciliation keys and thought DOM across a mutable rename/placeholder handover. */
+function attachmentRenameBrowserEntry() {
+  return `
+import React, { useMemo } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { alphaHexToCss, resolveNodeStyle } from ${JSON.stringify(join(root, "src/index/style.ts"))};
+import { effectiveLabelLimit, nodeLabelFontSize, gateDiameter, projectNodeCounts, expandedMiniLayout, siblingScale } from ${JSON.stringify(join(root, "src/ui/layout.ts"))};
+import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/features/positionPresentation.ts"))};
+
+const result = document.querySelector("#result");
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+const warnings = [], originalError = console.error;
+console.error = (...args) => { warnings.push(args.map(String).join(" ")); originalError(...args); };
+// Native icons are the only thought-rendering host boundary; this scenario has no icon effects.
+const ObsidianIcon = () => null;
+${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
+
+const settings = { horizontalCompactingFactor: 2, compactingFactor: 2, baseFontSize: 12.4, wrapNodeLabels: false, showNeighborCount: true, graphDepth: 2, minLinkLength: 18, childColumns: 2, maxItemCount: 100, siblingRelativeSize: 85 };
+const translate = (key) => key;
+const interaction = { gates: new Set(), nodePaths: new Set() }, connectDrag = null, nodeDrag = null;
+const globalFiltering = false, filteredGateCounts = new Map(), nodeVisuals = new Map();
+const predicate = null, lenses = { lenses: [] }, predicateEngine = {}, predicateRevision = 0, layoutRevision = 0;
+const graphLensNodeStyle = () => ({});
+const centralEditorCapable = true, finding = false, hover = null, activeNodeFlair = null, findNodePaths = new Set();
+const connectionStateFor = () => "normal", onCentralNodeEditorChange = () => {}, gateKey = (path, gate) => path + ":" + gate;
+const persistentPageFor = (page) => page;
+const activePath = "Editor.md", centralEditorAvailable = true, sectionExpanded = false;
+const page = (path, materialized = true) => ({ path, name: path, file: materialized ? { extension: "png", path } : null });
+const centerPage = page(activePath), attachmentPage = page("Before.png"), placeholderPage = page("After.png", false), sentinelPage = page("Other.png");
+const neighborhood = { center: centerPage }, miniPage = page("Descendant.png");
+const gates = Object.fromEntries(["top", "bottom", "left", "right"].map((gate) => [gate, { visibleCount: 0, hasAny: false, complete: true }]));
+const index = { gateStats: () => gates, neighbours: () => [{ page: miniPage, role: "child", relationType: 1 }], titleFor: (page) => page.name };
+const node = (page, role, x, y, height = 26) => ({ page, role, x, y, width: 180, height, style: { fontSize: 18 }, label: page.name, neighbourCount: 0, gateStats: gates });
+/** Render actual base nodes with separate zone-local/count-hydrated display copies. */
+function Scene({ scene: sourceScene, expanded }) {
+  const scene = { ...sourceScene, zoneViewports: {}, zoneAreas: {} };
+  const centralEditorPage = expanded ? centerPage : null;
+  const sectionExpansion = null, expandedScrollTop = {};
+  const visibleNodePaths = useMemo(() => new Set(scene.nodes.map((item) => item.page.path)), [scene.nodes]);
+  const renderedNodeMap = useMemo(() => new Map(scene.nodes.map((item) => [item.page.path, { ...item }])), [scene.nodes]);
+  ${uiDefinitions("src/ui/PlexGraph.tsx", ["sceneNodeKeys", "expandedClusters", "renderNode", "renderExpandedCluster", "zoneForRole"])}
+  const miniKeys = expandedClusters.flatMap((cluster) => cluster.children.map((child) => child.key));
+  check(new Set(miniKeys).size === miniKeys.length, "expanded connector keys collide during rename");
+  return <><div className="kplex-nodes">{scene.nodes.map((item) => renderNode(item, { ...item }))}</div><div>{expandedClusters.map(renderExpandedCluster)}</div></>;
+}
+
+try {
+ for (const rebuildDuringRename of [false, true]) {
+  attachmentPage.path = "Before.png"; attachmentPage.name = "Before.png"; attachmentPage.file.path = "Before.png";
+  const container = document.createElement("div"); document.body.append(container);
+  const root = createRoot(container);
+  const initial = { nodes: [node(centerPage, "center", 0, 0, 380), node(attachmentPage, "child", -100, 300), node(placeholderPage, "child", 100, 300), node(sentinelPage, "child", 0, 350)] };
+  const render = (scene, expanded) => flushSync(() => root.render(<Scene scene={scene} expanded={expanded} />));
+  const attachments = () => [...container.querySelectorAll(".kplex-thought")].filter((element) => element.dataset.kplexPath === "After.png");
+  const clusters = () => container.querySelectorAll(".kplex-expanded-cluster").length;
+  render(initial, true);
+  check(container.querySelectorAll(".kplex-thought").length === 4, "initial real endpoint and unresolved placeholder were not distinct");
+  check(clusters() === 3, "fixture did not render expanded strips through the production owner");
+  // GraphIndex.renameTreeEndpoint intentionally retains canonical page identity and mutates its
+  // path; an unrelated React update may reuse the existing scene before its publication commits.
+  attachmentPage.path = "After.png"; attachmentPage.name = "After.png"; attachmentPage.file.path = "After.png";
+  render(rebuildDuringRename ? { nodes: initial.nodes.map((item) => ({ ...item })) } : initial, true);
+  check(attachments().length === 2, "fixture did not exercise the transient rename collision");
+  const normalized = { nodes: [node(centerPage, "center", 0, 0, 380), node(sentinelPage, "child", -100, 300), node(attachmentPage, "child", 100, 300)] };
+  render(normalized, true);
+  check(attachments().length === 1, "rename handover left an attachment outside the current React scene");
+  check(container.querySelectorAll(".kplex-thought").length === normalized.nodes.length, "DOM count diverged from the authoritative scene");
+  check(clusters() === 2, "rename handover left an orphan expanded strip");
+  const collapsed = { nodes: normalized.nodes.map((item) => ({ ...item, y: item.role === "center" ? 0 : 110, height: item.role === "center" ? 48 : item.height })) };
+  render(collapsed, false);
+  check(attachments().length === 1 && attachments()[0].style.top === "97px", "collapsed editor left an unmoved phantom attachment");
+  check(clusters() === 2, "collapsed editor left an orphan expanded strip");
+  for (let update = 0; update < 4; update++) {
+    render({ nodes: collapsed.nodes.map((item) => ({ ...item, x: item.x + update * 8 })) }, false);
+    check(attachments().length === 1, "later layout publication retained a duplicate attachment");
+  }
+  render({ nodes: collapsed.nodes.filter((item) => item.page !== attachmentPage) }, false);
+  check(attachments().length === 0, "attachment removal left orphan DOM");
+  check(clusters() === 1, "attachment removal left its expanded strip behind");
+  check(warnings.length === 0, "rename rendered duplicate React keys: " + warnings.join(" | "));
+  flushSync(() => root.unmount());
+  check(container.childElementCount === 0, "scene teardown retained thoughts");
+  container.remove();
+ }
+ result.dataset.status = "passed"; result.textContent = "Attachment rename reconciliation passed";
+} catch (error) { result.dataset.status = "failed"; result.textContent = String(error?.stack ?? error); }
+finally { console.error = originalError; }
+`;
+}
+
+test("attachment rename collision retires placeholder DOM through collapse, later layout and unmount", () => {
+  runBrowserDom(attachmentRenameBrowserEntry(), "Attachment rename reconciliation passed");
+});
+
 test("FloatingLayer owner-document browser behavior", () => {
   runBrowserDom(floatingLayerBrowserEntry(), "FloatingLayer browser behavior passed");
 });
