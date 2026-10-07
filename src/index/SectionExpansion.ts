@@ -9,6 +9,7 @@ import { extractLinksFromValue, parseBodyMetadataCooperative } from "./fieldPars
 import type { GraphIndex } from "./GraphIndex";
 import { applyEvidenceToRelation, applyOntologyPrecedence, emptyRelation, type EvidenceRole, type RelationEvidence } from "./RelationEvidence";
 import { classifyRelation, explainResolvedRelationship, type RelationshipExplanation } from "./RelationResolver";
+import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
 
 export type ExpandedSection = {
   id: string;
@@ -270,12 +271,23 @@ export async function buildCentralSectionExpansion(
   // Preserve inbound/structural/frontmatter evidence on the real center, but move outgoing body
   // evidence under headings to the appropriate transient section.
   const centerEvidence = new Map<string, { target: GraphPage; evidence: RelationEvidence[] }>();
+  const propertyUrlsBySection = new Map<string, Array<{ target: GraphPage; evidence: RelationEvidence }>>();
   for (const entry of index.evidenceFrom(centerPage.path)) {
     const target = index.get(entry.targetPath);
     if (!target) continue;
+    // Reuse compiled physical inline URL provenance; frontmatter URLs stay on the real center.
+    // Bucket once so dense expanded notes do not scan every property for each heading.
+    for (const item of entry.evidence) {
+      if (item.sourceKind !== "property-url" || item.declaredByPath !== centerPage.path || typeof item.line !== "number") continue;
+      const heading = headingForLine(item.line);
+      if (!heading) continue;
+      const bucket = propertyUrlsBySection.get(heading.id) ?? [];
+      bucket.push({ target, evidence: item }); propertyUrlsBySection.set(heading.id, bucket);
+    }
     const kept = entry.evidence.filter((item) => {
       if (item.declaredByPath !== centerPage.path) return true;
       if (item.sourceKind === "frontmatter-ontology" || item.sourceKind === "date-property" || item.sourceKind === "file-tree" || item.sourceKind === "tag-tree") return true;
+      if (item.sourceKind === "property-url") return typeof item.line !== "number" || item.line < firstHeadingLine;
       if (item.sourceKind === "inline-ontology" || item.sourceKind === "body-url") return (item.line ?? Number.MAX_SAFE_INTEGER) < firstHeadingLine;
       if (item.sourceKind === "obsidian-link" || item.sourceKind === "unresolved-link") return preambleTargets.has(item.declaredTargetPath);
       return true;
@@ -318,6 +330,10 @@ export async function buildCentralSectionExpansion(
     }
     const byTarget = new Map<string, { target: GraphPage; evidence: RelationEvidence[] }>();
     let counter = 0;
+    for (const item of propertyUrlsBySection.get(heading.id) ?? []) {
+      const target = sectionTarget(item.target, heading.id);
+      addEvidence(byTarget, target, { ...item.evidence, sourcePath: sectionPath, targetPath: target.path });
+    }
 
     // Ordinary body wikilinks/Markdown links are still inferred evidence, even when the same text
     // also participates in a Dataview ontology field.
@@ -349,7 +365,7 @@ export async function buildCentralSectionExpansion(
     }
 
     for (const reference of parsed.urls) {
-      const actual = index.get(reference.url);
+      const actual = index.get(canonicalWebUrl(reference.url));
       if (!actual) continue;
       const target = sectionTarget(actual, heading.id);
       const role = inferredRole(plugin);
@@ -425,7 +441,7 @@ function currentSectionEvidence(index: GraphIndex, source: SectionProjectionSour
     if (!actual) continue;
     for (const item of entry.evidence) {
       const bodyOwned = item.declaredByPath === source.centerPage.path
-        && (item.sourceKind === "inline-ontology" || item.sourceKind === "body-url"
+        && (item.sourceKind === "inline-ontology" || item.sourceKind === "body-url" || (item.sourceKind === "property-url" && typeof item.line === "number")
           || item.sourceKind === "obsidian-link" || item.sourceKind === "unresolved-link");
       const section = bodyOwned && typeof item.line === "number" ? sectionAt(item.line) : null;
       if (!section) { addEvidence(center, actual, item); continue; }

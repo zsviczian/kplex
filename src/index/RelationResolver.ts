@@ -1,6 +1,9 @@
 /**
  * Compatibility exports for the portable relationship resolver. Existing host callers retain this facade while semantic decisions remain core-owned.
+ * The cooperative compatibility adapter supplies host event-task yields to the canonical resolver;
+ * the caller still owns cancellation and final publication.
  */
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import type { GraphPage } from "../types";
 import type { RelationEvidenceStore } from "../core/graph/evidence";
 import { resolveEvidenceStoreCooperative as resolveEvidenceStoreCooperativeCore } from "../core/graph/resolver";
@@ -30,7 +33,7 @@ export async function resolveEvidenceStoreCooperative(
     store,
     {
       now: () => performance.now(),
-      yield: () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)),
+      yield: () => yieldToHostTask(),
       isCurrent,
     },
     batchSize,

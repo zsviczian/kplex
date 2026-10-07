@@ -106,6 +106,7 @@ export class RemainingNodeReferencesModal extends Modal {
           "unresolved-link": this.translate("references.unresolvedMarkdownLink"),
           "inline-ontology": this.translate("references.inlineRelationship"),
           "body-url": this.translate("references.bodyUrl"),
+          "property-url": this.translate("references.propertyUrl"),
         } as Partial<Record<EvidenceSourceKind, string>>)[reference.sourceKind] ?? this.translate("references.reference");
         const setting = new Setting(this.contentEl)
           .setName(reference.label || source)

@@ -44,7 +44,7 @@ window.makeRelationshipFixture=async name=>{
  await f.acquire();ok(await f.acquisition.reconcile(),'Seed genuine source inventory');
  const compilation=await hostOracle(f,f.app.vault.getMarkdownFiles().map(file=>file.path),semantic,{noteTypeField:'Type',primaryTagField:'Style'},true);
  f.acquisition.close();
- const plugin={app:f.app,settings:{...semantic,...centerGateSettings({showFolderNodes:false,showTagNodes:false}),lastActivePath:'',pinnedNodes:[]},getIndexSourceRevision:()=>index.sourceAcquisition.getMaintenanceRevision()};
+ const plugin={app:f.app,settings:{indexingMode:'eager',...semantic,...centerGateSettings({showFolderNodes:false,showTagNodes:false}),lastActivePath:'',pinnedNodes:[]},getIndexSourceRevision:()=>index.sourceAcquisition.getMaintenanceRevision()};
  const index=new M.GraphIndex(plugin,f.app),builder=new M.GraphBuilder(plugin,f.app,new Map(),index.metadataParser,index.indexedDb,()=>true);
  index.state=await builder.bindCompiledGraph(compilation,{materializedFile:facet=>f.files.get(facet.path)??null});
  ok(await index.sourceAcquisition.reconcile(),'Actual index reuses authenticated sources');
@@ -61,7 +61,7 @@ window.makeRelationshipFixture=async name=>{
 };`;
 
 /** Saved pair replacements must compose across edits without changing unedited old-policy relations. */
-test("canonical pair edits preserve all earlier relationships, exact URL case, inverse provenance and old-policy baselines",async()=>{
+test("canonical pair edits preserve earlier relationships, normalized URL authority, inverse provenance and old-policy baselines",async()=>{
  const browser=await chromiumHarness(bundle);
  try{
   assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
@@ -75,7 +75,7 @@ test("canonical pair edits preserve all earlier relationships, exact URL case, i
     const oldRole=i.neighbours(i.get('A.md'),'child').some(x=>x.page.path==='Unrelated.md');ok(oldRole,'Old coherent inferred body relationship');
     // This actual unrelated task must never be joined by the pair mutation consumer.
     let release;const blocked=new Promise(done=>{release=done});i.semanticPreparationTasks.set('https://dense.example.com',{task:blocked});
-    const url='https://Obsidian.md',lower='https://obsidian.md';
+    const url='https://obsidian.md',upper='https://Obsidian.md';
     const read=i.sourceAcquisition.prepareRequestedPair.bind(i.sourceAcquisition),covers=[];
     i.sourceAcquisition.prepareRequestedPair=async(...args)=>{const result=await read(...args);if(result.outcome==='ready')covers.push(result.certificate.sourceIds);return result;};
     await c.createRelationToPage(i.get('A.md'),'child',i.get('image.png'),'Children');
@@ -83,8 +83,8 @@ test("canonical pair edits preserve all earlier relationships, exact URL case, i
     ok(i.neighbours(i.get('image.png'),'parent').some(x=>x.page.path==='URL-owner.md'),'Attachment retains genuine pre-existing incidence');
     await c.createRelationToPage(i.get('A.md'),'child',i.get(url),'Children');
     ok(i.neighbours(i.get('A.md'),'child').some(x=>x.page.path==='image.png'),'First saved attachment remains visible after URL commit');
-    ok(i.neighbours(i.get('A.md'),'child').some(x=>x.page.path===url),'Uppercase exact URL is child');
-    ok(!i.isConnected(i.get('A.md'),lower),'Lowercase URL remains a distinct negative pair');
+    ok(i.neighbours(i.get('A.md'),'child').some(x=>x.page.path===url),'Canonical web URL is child');
+    equal(i.get(upper),i.get(url),'Host capitalization selects the same canonical URL node');
     ok(i.neighbours(i.get(url),'parent').length>80,'URL neighbor page preserves its genuine full baseline incidence');
     ok(covers.every(ids=>!ids.some(id=>id.startsWith('Shared-'))),'Editable document pair omits unrelated shared URL owners');
     ok(i.neighbours(i.get('A.md'),'child').some(x=>x.page.path==='Unrelated.md'),'Unedited body edge still uses retained old policy');
@@ -326,6 +326,34 @@ for(const mode of ['policy','cache','file','unrelated']){
   }finally{await browser.cleanup();}
  });
 }
+
+/** Known linked-source fanout must settle before the unchanged exact pair spends its last retry. */
+test('exact pair retry drains admitted linked-owner resolution fanout without joining semantic inventory',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('pair-admitted-fanout'),i=f.index;let releasePair,releaseFanout;
+   try{
+    const prepare=i.sourceAcquisition.prepareRequestedPair.bind(i.sourceAcquisition),lookup=i.sourceAcquisition.repository.lookupLocalDependencies.bind(i.sourceAcquisition.repository);
+    let enteredPair,enteredFanout,enteredRetry,once=true,calls=0,bodyBeforeFanout=false,fanoutReleased=false;
+    const pairReached=new Promise(r=>enteredPair=r),pairHold=new Promise(r=>releasePair=r),fanoutReached=new Promise(r=>enteredFanout=r),fanoutHold=new Promise(r=>releaseFanout=r),retryReached=new Promise(r=>enteredRetry=r);
+    i.sourceAcquisition.prepareRequestedPair=async(...args)=>{calls++;if(calls===2)enteredRetry();const result=await prepare(...args);if(once){once=false;enteredPair();await pairHold;}return result;};
+    i.sourceAcquisition.repository.lookupLocalDependencies=async(...args)=>{const result=await lookup(...args);if(args[0].some(key=>key.includes('Unrelated'))){ok(result.outcome==='ready'&&result.value.sources.some(s=>s.head.sourceId==='A.md'),'Real admitted fanout identifies selected A owner');enteredFanout();await fanoutHold;}return result;};
+    const load=i.sourceAcquisition.loadBody.bind(i.sourceAcquisition);i.sourceAcquisition.loadBody=async(file,...args)=>{if(calls===2&&!fanoutReleased&&file.path==='A.md')bodyBeforeFanout=true;return load(file,...args);};
+    // An unrelated semantic lifetime remains held; exact cached native fanout is the only drain.
+    i.semanticPreparationTasks.set('Unrelated.md',{task:new Promise(()=>{}),policyRevision:i.semanticPolicyRevision});
+    const revision=i.getSemanticRevision(),task=i.prepareRelationshipPair('A.md','image.png');await pairReached;
+    const unrelated=f.files.get('Unrelated.md');unrelated.stat.mtime++;f.texts.set(unrelated.path,'Changed');f.app.vault.trigger('modify',unrelated);
+    await fanoutReached;releasePair();await retryReached;await new Promise(r=>setTimeout(r,0));
+    equal(bodyBeforeFanout,false,'Retry captures selected owner only after its admitted resolution impact');fanoutReleased=true;releaseFanout();
+    ok(await task,'Unchanged endpoint/policy prepares after exact cached fanout');equal(calls,2,'Original two-attempt budget retained');
+    equal(i.getSemanticRevision(),revision+1,'One complete pair publication');ok(!i.isConnected(i.get('A.md'),'image.png'),'Coherent negative pair preserved');
+    equal(i.getWorkPriorityDiagnostics().active,[0,0,0,0,0],'All exact priority owners released');return true;
+   }finally{releasePair?.();releaseFanout?.();f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
 
 /** Cancellation before the native callback must prevent persistence, unlike a saved pending outcome. */
 for(const mode of ['cancel','rename','delete']){

@@ -1,0 +1,281 @@
+{
+  "date": "2026-10-07",
+  "scope": "Indexing priority and stable publication handoff; desktop correctness/stability",
+  "branch": "indexing-fixes",
+  "base": "1527b6ebf9644c035fe845303971d0eb30cc641f",
+  "newChangesCommitted": false,
+  "repository": {
+    "node": "22.22.2",
+    "command": "npm run verify",
+    "exitCode": 0,
+    "frozenInputs": 271,
+    "inputSha256": "c38561f3d9f6cca3a9520f788ede44988963e14025d87a4f7f235f03a689b3e1",
+    "checks": {
+      "architecture": 7,
+      "core": 69,
+      "node": 282,
+      "ui": 17,
+      "portableSource": 333,
+      "browser": 406,
+      "productionSettings": 24
+    },
+    "scanner": {
+      "errors": 0,
+      "existingWarnings": 1
+    },
+    "timingLimitRelaxed": false,
+    "artifacts": {
+      "main.js": "5ceb30688fdf74cd78f2a2024951334a098b8f7de3c8f31741aa5ea48279ceda",
+      "styles.css": "0d75bb3b4dd6a863319116b54b3d1b9f31d21d03ee8c8d24963aa0e344ebf01c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62"
+    }
+  },
+  "native": {
+    "host": {
+      "cpu": "Apple M1",
+      "logicalCPUs": 8,
+      "physicalMemoryBytes": 8589934592,
+      "os": "darwin 23.5.0",
+      "obsidian": "1.14.4 (installer 1.14.0)"
+    },
+    "stage": "passed; unmodified runner reuses exact completed repository gate",
+    "recovery": {
+      "status": "passed",
+      "runs": [
+        {
+          "name": "changed-policy",
+          "ready": true,
+          "semanticReads": 0,
+          "semanticParses": 0,
+          "reusedCurrentBody": false,
+          "foregroundComparable": false
+        },
+        {
+          "name": "missing-cache",
+          "ready": true,
+          "semanticReads": 0,
+          "semanticParses": 0,
+          "reusedCurrentBody": false,
+          "foregroundComparable": false
+        },
+        {
+          "name": "corrupt-cache",
+          "ready": true,
+          "semanticReads": 0,
+          "semanticParses": 0,
+          "reusedCurrentBody": false,
+          "foregroundComparable": false
+        },
+        {
+          "name": "corrupt-source",
+          "ready": true,
+          "semanticReads": 0,
+          "semanticParses": 0,
+          "reusedCurrentBody": null,
+          "foregroundComparable": false
+        },
+        {
+          "name": "offline-edit",
+          "ready": true,
+          "semanticReads": 1,
+          "semanticParses": 1,
+          "reusedCurrentBody": true,
+          "foregroundComparable": false
+        }
+      ],
+      "cleanup": {
+        "controllerRemoved": true,
+        "pluginLoaded": true,
+        "fixturesAbsent": true
+      },
+      "settingsUnchanged": true,
+      "enablementUnchanged": true
+    },
+    "foreground": {
+      "status": "passed",
+      "scenarios": [
+        {
+          "id": "folder-tree-and-numeric-gates-during-inventory",
+          "backgroundHeld": true
+        },
+        {
+          "id": "navigate-during-inventory",
+          "backgroundHeld": true
+        },
+        {
+          "id": "create-link-during-inventory",
+          "backgroundHeld": true
+        },
+        {
+          "id": "remove-link-during-inventory",
+          "backgroundHeld": true
+        },
+        {
+          "id": "create-node-during-inventory",
+          "backgroundHeld": true
+        },
+        {
+          "id": "visible-edit-during-inventory",
+          "backgroundHeld": true
+        }
+      ],
+      "broadFlushes": 0,
+      "resumed": true,
+      "context": {
+        "hidden": false,
+        "focused": true,
+        "throttling": true
+      },
+      "configurationRestored": true
+    },
+    "urls": {
+      "status": "passed",
+      "warmReads": 0,
+      "warmOwners": 15,
+      "cleanup": {
+        "done": true,
+        "value": {
+          "remaining": 0
+        }
+      },
+      "settingsUnchanged": true,
+      "enablementUnchanged": true,
+      "latencyAccepted": false
+    },
+    "highDegree": {
+      "status": "passed",
+      "referrers": 300,
+      "declarations": 300,
+      "numericGate": "300",
+      "coldFlushes": 5,
+      "warmFlushes": 2,
+      "reusedInputProof": {
+        "nativeReads": 298,
+        "versionedBodyCacheHits": 2,
+        "neutralSourceCacheHits": 0,
+        "reusedInputs": 2,
+        "coveredOwners": 300,
+        "sourceReadyAtProof": false
+      },
+      "observations": 297,
+      "localLosses": 0,
+      "handover": {
+        "starts": 1,
+        "completions": 1,
+        "failures": 0,
+        "retainedScopes": 0
+      },
+      "warmReads": 0,
+      "cleanup": {
+        "remaining": 0,
+        "folderRemaining": false,
+        "throttlingRestored": true,
+        "originalSettings": true
+      },
+      "settingsUnchanged": true,
+      "enablementUnchanged": true,
+      "latencyAccepted": false
+    },
+    "reference": {
+      "status": "passed",
+      "mode": "saved-eager",
+      "bodyReads": 0,
+      "cardCount": 27,
+      "styledCards": 27,
+      "firstAllStyledMs": 776.6000000238419,
+      "firstAllNumericMs": 43592.5,
+      "observations": 904,
+      "lostCards": 0,
+      "lostStyles": 0,
+      "oracle": {
+        "expectedBodyReferrers": 232,
+        "missingBodyReferrers": 0,
+        "additionalReferrers": 1,
+        "urlChildren": 4,
+        "sameCaseIdentity": true,
+        "missingBodyUrlChildren": 0,
+        "rootSelfEdge": false
+      },
+      "navigation": [
+        {
+          "target": "https://Obsidian.md",
+          "neighbors": 237,
+          "invalidGateLabels": 0,
+          "focus": true,
+          "hidden": false
+        },
+        {
+          "target": "IIB - StoryOS Cohort 1",
+          "neighbors": 9,
+          "invalidGateLabels": 0,
+          "focus": true,
+          "hidden": false
+        },
+        {
+          "target": "IIB - StoryOS",
+          "neighbors": 13,
+          "invalidGateLabels": 0,
+          "focus": true,
+          "hidden": false
+        },
+        {
+          "target": "IIB - StoryOS Cohort 1",
+          "neighbors": 9,
+          "invalidGateLabels": 0,
+          "focus": true,
+          "hidden": false
+        },
+        {
+          "target": "IIB - Mental Models",
+          "neighbors": 37,
+          "invalidGateLabels": 0,
+          "focus": true,
+          "hidden": false
+        }
+      ],
+      "transportErrors": 0,
+      "focus": "Confirmed at initial/full-ready/final/navigation checkpoints; continuous aggregate not captured",
+      "cleanup": {
+        "notesUnchanged": true,
+        "saveRestored": true,
+        "readRestored": true,
+        "controllerRemoved": true,
+        "settingsUnchanged": true,
+        "enablementUnchanged": true
+      },
+      "onlyJsCssDeployed": true,
+      "noteWrites": false
+    }
+  },
+  "limits": {
+    "fewSecondNumericTargetAchieved": false,
+    "productionNumericObservationMs": 43592.5,
+    "scopeComplete": true,
+    "wholeProcessFinalArtifactStartupMeasured": false,
+    "actualPaintMeasured": false,
+    "physicalMobileMeasured": false,
+    "continuousFocusBenchmark": false,
+    "refactorMilestonesStarted": false
+  },
+  "retainedFailures": [
+    "gate14 dense timer54.8ms, unchanged isolated55.4ms vs50ms",
+    "final-reference functional probe CLI subprocess failure; semantic assertions/cleanup preserved",
+    "prior interrupted/failed gates retained in detailed report"
+  ],
+  "postCleanup": {
+    "bothVaultsReady": true,
+    "activeLanes": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "waiters": 0,
+    "urlActive": false,
+    "semanticActive": false,
+    "presentationActive": 0,
+    "presentationPending": 0,
+    "testControllers": 0
+  }
+}

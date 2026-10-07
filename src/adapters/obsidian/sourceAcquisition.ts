@@ -22,7 +22,14 @@
  * certifies both positive and negative declarations before global incidence inventory is ready.
  * Candidate count-only gate proofs share their existing degree compilation and final observation
  * fences without promoting incomplete neighborhood incidence into editing authority.
+ * Inventory and Date-resolution CPU slices release host event tasks; actual debounce, retry, poll
+ * and external-work waits remain timed and never certify source readiness.
+ * Optional injected ownership keeps broad reconciliation in P4. Current newly available body/source
+ * inputs notify a finite presentation consumer; observer failure cannot change source authority.
+ * Background native body misses recheck foreground-acquired inputs after yielding priority, while
+ * selected foreground callers retain their own lane and never wait on a paused background parser.
  */
+import { yieldToHostTask } from "./yieldToHostTask";
 import { canonicalTagPaths } from "../../core/graph/tagPaths";
 import type { StartupDiagnostics } from "./startupDiagnostics";
 import { Platform, TFile, TFolder, type App, type CachedMetadata } from "obsidian";
@@ -86,13 +93,13 @@ const DEFERRED_RESOLUTION_RETRY_MAX_MS = 30000;
 function producer(steps: () => Iterable<StoredSourceFact | null>): SourceFamilyProducer {
   return async (emit) => { for (const fact of steps()) if (!(await emit(fact))) return false; return true; };
 }
-/** Yield inventory CPU slices by elapsed time, avoiding one clamped browser timer per cached owner. */
+/** Release consumed inventory CPU slices through event tasks under the existing platform-specific budget. */
 function inventoryCheckpoint(): () => Promise<void> {
   const budget = Platform.isIosApp ? 7 : Platform.isMobile ? 9 : 13;
   let lastYield = window.performance.now();
   return async () => {
     if (window.performance.now() - lastYield < budget) return;
-    await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+    await yieldToHostTask();
     lastYield = window.performance.now();
   };
 }
@@ -175,7 +182,7 @@ export class ObsidianSourceAcquisition {
   private readonly pendingKnownFiles = new Set<TFile>();
   /** Synchronous event bursts share one deferred fan-out task per TFile. */
   private readonly pendingKnownImpacts = new Map<TFile, { oldPaths: Set<string>; canLookup: boolean }>();
-  private readonly knownFanoutTasks = new WeakMap<TFile, Promise<void>>();
+  private readonly knownFanoutTasks = new Map<TFile, Promise<void>>();
   /** Startup captures reusable stable coordinates; hot maintenance never rebuilds whole-vault order. */
   private readonly sourceCoordinates = new Map<string, SourceCoordinates>();
   /** One repair attempt per observed incarnation/revision; persistent damage cannot spin a retry loop. */
@@ -199,14 +206,20 @@ export class ObsidianSourceAcquisition {
    * Construction is side-effect free; start() explicitly owns host subscriptions.
    * The optional progress observer reports completed inventory work for startup diagnostics only;
    * it must not schedule acquisition or change authority, cancellation or publication decisions.
-   * The optional background checkpoint pauses only inventory and optional URL owners between bounded
+   * The optional P4 background checkpoint pauses only inventory and legacy URL-alias maintenance between bounded
    * work units. Foreground capture/acquisition never calls it, avoiding a foreground self-deadlock.
+   * The optional runner owns an independently scheduled P4 reconciliation lifetime; callers joining
+   * flush must not retain a higher-priority scheduler lease while waiting for this broad inventory.
+   * New current cached-body or durable-source availability may wake a targeted presentation owner;
+   * this optional observer never propagates failure or changes source authority.
    */
   constructor(private readonly app: App, private readonly cache: KplexIndexedDbCache, private readonly parse: SourceBodyParser,
     private readonly inventoryReady?: () => void,
     private readonly inventoryProgress?: () => void,
     private readonly startupDiagnostics?: StartupDiagnostics,
-    private readonly backgroundCheckpoint?: () => Promise<void>) {
+    private readonly backgroundCheckpoint?: () => Promise<void>,
+    private readonly runBackgroundWork?: (work: () => Promise<boolean>) => Promise<boolean>,
+    private readonly onPresentationInputsAvailable?: (path: string) => void) {
     this.repository = cache.sources;
     this.metadataHost = createObsidianMetadataSourceHost(app);
   }
@@ -342,6 +355,7 @@ export class ObsidianSourceAcquisition {
   /** Cancel every continuation and release event/timer ownership; unload does not await persistence. */
   close(): void {
     this.closed = true; this.inventoryRevision += 1;
+    this.knownFanoutTasks.clear();
     this.nodeImpacts.clear(); this.nodeImpactBytes = 0;
     this.pendingUrlAliasSources.clear(); this.urlAliasInventoryComplete = false;
     for (const dispose of this.cleanup.splice(0)) dispose();
@@ -424,7 +438,7 @@ export class ObsidianSourceAcquisition {
         }
         this.pendingKnownFiles.add(file);
         if (++marked % SOURCE_MAX_BATCH_RECORDS === 0) {
-          await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+          await yieldToHostTask();
           if (!current()) return "cancelled";
         }
       }
@@ -612,7 +626,7 @@ export class ObsidianSourceAcquisition {
       }
       if (page.next === null) break;
       after = page.next;
-      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
     }
     if (changedPaths.size) {
       this.maintenanceRevision += 1; this.localDependenciesReady = false;
@@ -755,7 +769,7 @@ export class ObsidianSourceAcquisition {
             else this.pendingKnownFiles.add(file);
           }
         }
-        await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+        await yieldToHostTask();
       }
       if (!complete || retryPendingMetadata) break;
       if (this.localInventoryCompletionPending) {
@@ -801,7 +815,7 @@ export class ObsidianSourceAcquisition {
         const local = await this.repository.ensureLocalDependencies(file.path, order, markdownOrder, current);
         complete &&= local === "ready";
       }
-      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
     }
     return current() && complete;
   }
@@ -1125,6 +1139,15 @@ export class ObsidianSourceAcquisition {
     presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<SourcePairPreparation> {
     this.start();
     if (!EditablePairContributorDiscovery.supports(request)) return selectedSourceFailure("unsupported-scope");
+    // A known event's cached dependency lookup can mark a selected endpoint resolution-dirty
+    // after the first attempt was prepared (for example A links to the modified note). Drain one
+    // finite snapshot of already-admitted native fanout before capturing selected revision tokens.
+    // These callbacks use existing bounded/backpressured cached lookup; they never join bodies,
+    // semantic/URL owners or inventory. Later event arrivals remain subject to normal cancellation,
+    // not a chased queue or another retry budget, and this exact pair is never enqueued as fanout.
+    const admittedFanout = [...this.knownFanoutTasks.values()];
+    if (admittedFanout.length) await Promise.all(admittedFanout);
+    if (this.closed || !runtime.isCurrent()) return selectedSourceFailure("cancelled");
     // Editable relations are owned exclusively by their document endpoints. A third note's
     // incoming URL/attachment declaration cannot describe this unordered pair. Recompute those
     // owners' host resolution even on restart: an unrelated offline alias/path edit may have
@@ -1330,15 +1353,41 @@ export class ObsidianSourceAcquisition {
     if (body) this.counters.reusedBodies += 1;
     return body;
   }
-  /** Load one actual body miss serially; only background misses pass the cooperative parser pause capability. */
+  /** Load one current body, yielding background misses before native I/O and rechecking shared
+   * cache inputs acquired by foreground work during awaited misses. Every retry preserves the
+   * captured file/event/host lifetime; optional parser bodies never certify source durability.
+   * Foreground callers do not borrow P4 checkpoints or join its paused parser work. */
   private async loadBody(file: TFile, current: () => boolean, requireCurrentParser = false, background = false): Promise<ParsedBodyMetadata | null> {
     const capture = this.capture(file); const valid = (): boolean => this.current(capture, current);
+    if (background) await this.backgroundCheckpoint?.();
+    if (!valid()) return null;
     const neutral = await this.readBody(file, valid, requireCurrentParser); if (!valid()) return null;
     if (neutral) return neutral;
     const legacy = capture.state.bodyDirty ? undefined
       : (await this.cache.getBodies([{ path: capture.physical.path, mtime: capture.physical.mtime }])).get(capture.physical.path);
     if (!valid()) return null;
     if (legacy) { this.counters.legacyBodies += 1; return legacy; }
+    if (background) {
+      // Cache I/O can outlive P4 admission. P2 may have acquired the same body while those misses
+      // were pending; wait for that owner, then select its current neutral or optional parsed input.
+      await this.backgroundCheckpoint?.();
+      if (!valid()) return null;
+      const latest = await this.readBody(file, valid, requireCurrentParser);
+      if (!valid()) return null;
+      if (latest) return latest;
+      const queued = capture.state.bodyDirty ? undefined
+        : (await this.cache.getBodies([{ path: capture.physical.path, mtime: capture.physical.mtime }])).get(capture.physical.path);
+      if (!valid()) return null;
+      if (queued) { this.counters.legacyBodies += 1; return queued; }
+    }
+    if (background) {
+      // The final async recheck can itself outlive admission. Revalidate priority and peek only
+      // completed queued data so no further cache await separates admission from native I/O.
+      await this.backgroundCheckpoint?.();
+      if (!valid()) return null;
+      const queued = capture.state.bodyDirty ? null : this.cache.getQueuedBody(capture.physical.path, capture.physical.mtime);
+      if (queued) { this.counters.legacyBodies += 1; return queued; }
+    }
     this.counters.vaultReads += 1;
     const text = Platform.isMobile ? await this.app.vault.read(file) : await this.app.vault.cachedRead(file);
     if (!valid()) return null;
@@ -1346,8 +1395,15 @@ export class ObsidianSourceAcquisition {
     const body = await this.parse(text, background ? this.backgroundCheckpoint : undefined);
     if (!valid()) return null;
     // Versioned parser body cache remains an optional accelerator, not neutral-source durability.
-    await this.cache.putBody(capture.physical.path, capture.physical.mtime, body);
+    const saved = await this.cache.putBody(capture.physical.path, capture.physical.mtime, body);
+    if (saved && valid()) this.notifyPresentationInputs(capture.physical.path, valid);
     return valid() ? body : null;
+  }
+  /** Wake only a current owner's targeted presentation consumer; optional UI observation cannot
+   * change body/source success, propagate errors or bypass the caller/native/lifetime fence. */
+  private notifyPresentationInputs(path: string, current: () => boolean): void {
+    if (!current() || this.closed) return;
+    try { this.onPresentationInputsAvailable?.(path); } catch { /* Presentation recovery is optional. */ }
   }
   /** Resolve a lexical stream using exactly the established Obsidian reference resolver. */
   private resolution(metadata: ParsedFileMetadata, file: TFile, cache: CachedMetadata, inspection: SourceInspection,
@@ -1382,7 +1438,7 @@ export class ObsidianSourceAcquisition {
       }
       // Reuse the single accepted Date grammar/host compatibility seam. No Date classifier is duplicated.
       const date = new ObsidianMetadataSourceCollector(this.metadataHost, { isCurrent: current,
-        sourceRevision: () => this.hostRevision, checkpoint: async () => { await new Promise<void>(resolve => window.setTimeout(resolve, 0)); return current(); } },
+        sourceRevision: () => this.hostRevision, checkpoint: async () => { await yieldToHostTask(); return current(); } },
       file, metadata, { noteTypeField: "", primaryTagField: "" }, "relations");
       return date.collectBatches(async (batch) => {
         for (const record of batch.records) if (record.kind === "date-property") {
@@ -1563,6 +1619,7 @@ export class ObsidianSourceAcquisition {
         // The body version is derived from authenticated input or the actual current parser.
         if (writtenParserVersion !== SOURCE_BODY_PARSER_VERSION && body.urls.length > 0) this.pendingUrlAliasSources.add(file.path);
         else this.pendingUrlAliasSources.delete(file.path);
+        this.notifyPresentationInputs(capture.physical.path, observationCurrent);
       }
       if (live && !saved && !optionalAliasesOnly) {
         // GraphBuilder can acquire beside inventory. A late unsaved result must retain a source-
@@ -1646,7 +1703,8 @@ export class ObsidianSourceAcquisition {
     const revision = this.inventoryRevision;
     this.inventoryCaptureRevision = revision;
     const current = (): boolean => !this.closed && revision === this.inventoryRevision;
-    this.inventory = (async () => {
+    /** Retain one broad task's priority without changing its existing inventory/CAS lifetime. */
+    const work = async (): Promise<boolean> => {
       let complete = true;
       try {
         await this.backgroundCheckpoint?.();
@@ -1799,7 +1857,8 @@ export class ObsidianSourceAcquisition {
         }
         return ready;
       } catch { this.counters.failures += 1; return false; }
-    })();
+    };
+    this.inventory = this.runBackgroundWork ? this.runBackgroundWork(work) : work();
     try { return await this.inventory; }
     finally { this.inventory = null; this.inventoryCaptureRevision = null; if (this.requested) this.requestInventory(); }
   }

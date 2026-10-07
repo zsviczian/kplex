@@ -80,7 +80,7 @@ test("real IndexedDB finite raw-degree parity, read-only reopen and terminal fen
             f.cache.close();reopened=new M.KplexIndexedDbCache('degree-v${version}');ok(await reopened.open(),'Actual reopen');
             const d=new M.SourceContributorDiscovery(reopened.sources,f.discovery.host,runtime()),reader=degreeReader(f,d,reopened.sources);
             const result=await reader.prepare(degreeRequest(...candidates),policies[0],runtime());equal(result.outcome,'ready','Reopen proof '+JSON.stringify(result));equal(result.inputs,expected[0],'Reopen count parity');
-            const db=await reopened.open();for(const [store,rows]of Object.entries(before))equal(await value(db.transaction(store).objectStore(store).getAll()),rows,store+' unchanged after reopen');equal(db.version,9,'No additional schema change');equal(reopened.sources.readers.size,0,'No reopened leases');return true;
+            const db=await reopened.open();for(const [store,rows]of Object.entries(before))equal(await value(db.transaction(store).objectStore(store).getAll()),rows,store+' unchanged after reopen');equal(db.version,10,'Supported v10 schema remains unchanged');equal(reopened.sources.readers.size,0,'No reopened leases');return true;
           }finally{reopened?.close();f.close();}
         })()`), true);
       });

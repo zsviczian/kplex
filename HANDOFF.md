@@ -14,14 +14,39 @@ Return uncommitted changes and actual results for main-agent review unless the m
 
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
+
+
+
 ---
 
-# Current handoff — U10 filter right-edge alignment delivered
+# Final indexing checkpoint — reviewed and verified
 
-Branch `ui-improvements-batch-2`, base `5091f88abb69f660c900fed1dd0d41c7b738af81`; U2–U10 accepted by the maintainer. Publication is explicitly authorized: commit and push this branch, open a PR against `main`, then switch the local checkout to `main`. C15–C26 remain paused.
+Direction: main validation closeout after offline implementation and independent review. Branch
+`indexing-fixes`, implementation base `1527b6ebf9644c035fe845303971d0eb30cc641f`. The maintainer
+explicitly authorizes commit, push, PR and returning the local checkout to main. No active agent,
+repository or native-driver wait; no new implementation assignment. C15–C26 remain paused.
 
-The shared filter toolbar's right inset is now zero. Filter button edges match each scroll area's right edge; the open field extends leftward, preserving U9's six-pixel above-region gap, focused-panel stacking and node clipping. No node geometry/settings/filtering/indexing changes.
+The cumulative branch fixes early local/count publication and independent cached URL acquisition,
+then adds priority/stable publication, visible presentation repair, automatic drawing formatting,
+Responsive/Balanced/Faster background pacing, visible-row counts/cross-links and truthful URL-cache
+progress. Existing semantic, provenance, revision and lifecycle owners remain authoritative.
+Factory defaults are On-demand/Responsive; actual reference preferences are Eager/Responsive.
 
-Full `verify:obsidian` passes 7/67/226/17/322/296 without skips, settings 24, installed types/scanner/build/exact smoke. Scanner zero errors/one retained legacy warning. Native 62/62 (56 desktop + 6 emulation) passes: zero right-edge offset in all five areas, 6 px vertical clearance, interactive overflow and unchanged clipping. No captured errors/timeouts; exact settings/enablement and owned fixture/view/controller/window/mobile/throttling restoration. All 270 inputs and artifacts match: main `8b3fea71…` unchanged from U9, styles `0d75bb3b…`. Final audit confirms ready desktop, original notes/center/layout/typography, hidden controls and no previews/pending owners.
+Exact final-source `npm run verify` and real build pass on Node22.22.2: architecture7/core69/Node292/
+UI17/portable333/browser410, zero browser failures/skips/cancellations, scanner0errors/one unchanged
+warning. Mandatory20,015-owner fixture passes. Frozen271 inputs `db4ed1d3…`; six extra configuration
+hashes unchanged. Main `56aa837741e7…` matches the tested/deployed artifact. The unmodified native
+runner passes command/DOM/error checks in the disposable small vault on that exact build.
 
-[Validation](docs/validation/area-filter-alignment-2026-10-06.md) and [exact evidence](docs/validation/area-filter-alignment-2026-10-06.json) retain final acceptance. Tracker marks U10 complete. No additional manual check required for this one-value CSS correction; physical touch/WebView remains separate from desktop emulation. No personal-vault deployment or native large-vault timing claim.
+Production-reference qualitative UI acceptance is confirmed by the maintainer. Serial prior
+Eager/On-demand reference functionality and the final warm-label/counter check pass. Continuous
+focus/paint timing is unavailable and remains excluded; physical mobile, high-degree full-scene
+filter/section performance and the broader few-second startup target remain open. Failed/excluded
+observations are retained. Final cleanup preserves notes/current center/settings/enablement,
+removes all temporary controllers/foreground leases and resumes background work.
+
+Durable final checks, identities, cleanup and three prioritized manual checks are in
+[the throttle report](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.md),
+[exact evidence](docs/validation/indexing-throttle-and-url-responsiveness-2026-10-07.json), and
+[progress](Refactor%20plan.md). Git actions follow the current explicit authorization; no merge,
+release or further automatic optimization is assigned.

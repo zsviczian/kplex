@@ -11,6 +11,7 @@ export type EvidenceSourceKind =
   | "frontmatter-ontology"
   | "inline-ontology"
   | "body-url"
+  | "property-url"
   | "date-property"
   | "file-tree"
   | "tag-tree"

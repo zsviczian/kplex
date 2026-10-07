@@ -61,6 +61,7 @@ const EVIDENCE_SOURCE_SPECS: ChoiceSpec[] = [
   { value: "frontmatter-ontology", labelKey: "filter.sourceFrontmatter" }, { value: "inline-ontology", labelKey: "filter.sourceInline" },
   { value: "obsidian-link", labelKey: "filter.sourceMarkdown" }, { value: "unresolved-link", labelKey: "filter.sourceUnresolved" },
   { value: "date-property", labelKey: "filter.sourceDate" }, { value: "body-url", labelKey: "filter.sourceBodyUrl" },
+  { value: "property-url", labelKey: "filter.sourcePropertyUrl" },
   { value: "file-tree", labelKey: "filter.sourceFolder" }, { value: "tag-tree", labelKey: "filter.sourceTag" },
   { value: "url-origin", labelKey: "filter.sourceUrlOrigin" },
 ];

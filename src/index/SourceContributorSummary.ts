@@ -6,6 +6,7 @@
  * Discovery owns persisted page authentication; SourceRepository continues to own source leases.
  */
 import type { NormalizedSourceRecord, SourceEntityRef } from "../core/graph/source";
+import { canonicalWebUrl, webUrlOrigin } from "../adapters/obsidian/urlIdentity";
 import {
   SOURCE_CHUNK_TARGET_BYTES, SOURCE_DECODE_BUDGET_BYTES, SOURCE_MAX_BATCH_RECORDS, SourceFactError, sourceCount, sourceObject, validSourceTarget,
   type StoredSourceFact,
@@ -52,8 +53,11 @@ export function* contributorRecordKeys(record: NormalizedSourceRecord): Iterable
     || record.kind === "date-property" || record.kind === "body-url" || record.kind === "file-tree" || record.kind === "tag-tree") {
     yield contributorKey("node", record.target.entity.id);
     yield contributorKey("literal", record.target.rawTarget);
+    if (record.target.entity.kind === "url") {
+      yield contributorKey("literal", canonicalWebUrl(record.target.entity.semanticPath ?? record.target.rawTarget));
+    }
   }
-  if (record.kind === "body-url" && record.origin) yield contributorKey("node", record.origin.entity.id);
+  if ((record.kind === "body-url" || record.kind === "reference-candidate") && record.origin) yield contributorKey("node", record.origin.entity.id);
   if (record.kind === "file-tree" || record.kind === "tag-tree") yield contributorKey("node", record.source.id);
   if (record.kind === "tag-tree") yield contributorKey("family", "tag-tree");
   if (record.kind === "date-property" && record.provenance?.normalizedFieldName) yield contributorKey("field", record.provenance.normalizedFieldName);
@@ -67,6 +71,18 @@ export function* contributorStoredKeys(record: StoredSourceFact): IterableIterat
   if (record.kind === "reference-candidate" || record.kind === "host-literal") yield contributorKey("literal", record.rawTarget);
   else if ((record.kind === "reference-resolution" || record.kind === "literal-resolution") && record.target) {
     yield contributorKey("node", record.target.entity.id);
+  }
+  // Raw neutral spellings in historical frames are retained, then augmented at this host boundary.
+  const raw = record.kind === "body-url" ? record.url
+    : record.kind === "reference-candidate" && record.external ? record.rawTarget
+      : (record.kind === "reference-resolution" || record.kind === "literal-resolution") && record.target?.entity.kind === "url"
+        ? record.target.entity.semanticPath ?? record.target.rawTarget : null;
+  if (raw !== null) {
+    const url = canonicalWebUrl(raw);
+    yield contributorKey("node", url);
+    yield contributorKey("literal", url);
+    const origin = webUrlOrigin(url);
+    if (origin) yield contributorKey("node", origin);
   }
 }
 /** Charge the exact JSON encoding plus conservative retained-key and set/array storage. */

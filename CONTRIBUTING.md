@@ -573,6 +573,15 @@ completion/error state and bounded polls; verify the actual instance and install
 Preserve and byte-compare the original settings and community-plugin enablement list. A configured-state
 mismatch is a staging issue, not a slow-start timeout; neither requires resetting Obsidian configuration.
 
+For a maintainer-authorized reference-vault deployment, finish writing each replacement beside its
+live destination and verify the staged hash before unloading the plugin. Rename the complete staged
+file over the destination atomically; never delete the live artifact first or restart during a direct
+overwrite. Verify installed hashes before enabling, then confirm the actual loaded instance. Skip
+unchanged artifacts. During long verification pauses, keep K-Plex loaded and pause only background
+scheduler lanes; do not leave an open production view pointing to a disabled plugin. Restore every
+temporary scheduler lease, controller and preference wrapper after the check.
+
+
 
 The [bounded posting-read correction and native results](docs/validation/settings-independent-indexing-si5-posting-batching-2026-10-04.md)
 use one count-limited primary-key range request per existing byte/record-bounded batch, with every

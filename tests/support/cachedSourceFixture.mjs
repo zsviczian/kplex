@@ -61,6 +61,7 @@ export function replayFixture() {
     schedule: (callback, delay) => { const id = ++timerId; timers.set(id, { callback, delay }); return id; }, cancel: id => timers.delete(id),
   });
   const cache = { sources: repository,
+    getQueuedBody: (path, mtime) => { const item = legacy.get(path); return item?.mtime === mtime ? item.body : null; },
     getBodies: async requests => new Map(requests.flatMap(({ path, mtime }) => { const item = legacy.get(path); return item?.mtime === mtime ? [[path, item.body]] : []; })),
     putBody: async (path, mtime, body) => { legacy.set(path, { path, mtime, parserVersion: 2, body }); },
   };

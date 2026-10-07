@@ -1,6 +1,6 @@
 /**
- * Builds complete locale catalogs from translated message text while preserving the English source
- * catalog's stable keys, translator context, interpolation parameters and plural metadata.
+ * Builds complete locale catalogs from translated text and explicitly permitted English fallback
+ * entries while preserving stable keys, translator context, interpolation and plural metadata.
  */
 import { englishCatalog, type EnglishCatalog } from "./en";
 
@@ -11,10 +11,15 @@ type TranslationValue<K extends EnglishKey> = SourceEntry<K> extends { readonly 
   ? Readonly<Record<string, string>>
   : string;
 
-/** Every locale must translate every English key; plural entries provide locale-specific forms. */
+/** V2 copy ships in English until reviewed translations are supplied; existing keys stay exhaustive. */
+type EnglishFallbackKey = Extract<EnglishKey, `indexing.${string}` | "node.gateLocalCount" | "node.gateCachedCount" | "node.gateHostUnavailable"
+  | "filter.sourcePropertyUrl" | "graph.sourcePropertyUrl" | "explain.sourcePropertyUrl"
+  | "explain.summarySourcePropertyUrl" | "references.propertyUrl">;
+
+/** Existing translations remain required; approved new V2 keys may use the source English entry. */
 export type LocaleTranslationMap = {
-  readonly [K in EnglishKey]: TranslationValue<K>;
-};
+  readonly [K in Exclude<EnglishKey, EnglishFallbackKey>]: TranslationValue<K>;
+} & { readonly [K in EnglishFallbackKey]?: TranslationValue<K> };
 
 /** Runtime shape accepted by the strict formatter in `src/lang/index.ts`. */
 export type LocaleCatalog = Readonly<Record<string, Readonly<{
@@ -28,7 +33,7 @@ export type LocaleCatalog = Readonly<Record<string, Readonly<{
 /**
  * Materialize a locale catalog without duplicating non-translatable metadata in every language file.
  *
- * @param translations - Exhaustive translated text keyed exactly like the English source catalog.
+ * @param translations - Existing translated text plus optional approved V2 translations.
  * @returns A complete runtime catalog retaining source context, params and plural count metadata.
  */
 export function buildLocaleCatalog(translations: LocaleTranslationMap): LocaleCatalog {
@@ -36,6 +41,10 @@ export function buildLocaleCatalog(translations: LocaleTranslationMap): LocaleCa
   for (const key of Object.keys(englishCatalog) as EnglishKey[]) {
     const source = englishCatalog[key];
     const translated = translations[key];
+    if (translated === undefined) {
+      catalog[key] = source;
+      continue;
+    }
     if ("plural" in source) {
       catalog[key] = {
         context: source.context,

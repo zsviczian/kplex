@@ -199,6 +199,9 @@ export async function runSettingsIndependence(c) {
     for (const key of ["hierarchy.parents", "inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty"]) {
       await scenario(`semantic control ${key}`, async () => {
         const p = owner(); await restore(p);
+        // Trusted warm snapshots now use local foreground preparation. This historical scenario
+        // specifically exercises the full Eager policy-refresh route after complete publication.
+        assert.equal(await p.index.rebuild(), true);
         p.settings.lastActivePath = "Note A.md";
         const tab = new settingsModule.KplexSettingTab(app, p);
         const before = p.index.getSemanticPreparationDiagnostics();
@@ -268,9 +271,10 @@ export async function runSettingsIndependence(c) {
     });
     await scenario("missing cache is pending, never a Markdown fallback", async () => {
       const p = owner(); await restore(p); p.index.indexedDb.getBodies = async () => new Map();
+      const knownType = p.index.get("Note A.md").noteType;
       await zeroSemanticWork(p, async () => {
         p.settings.noteTypeField = "uncached-inline-selector"; await p.saveSettings();
-        assert.equal(p.index.get("Note A.md").noteType, null);
+        assert.equal(p.index.get("Note A.md").noteType, knownType);
         assert.equal(p.index.getPresentationStatus(p.index.get("Note A.md")).noteType, "pending");
       });
     });
@@ -290,7 +294,7 @@ export async function runSettingsIndependence(c) {
     });
     for (const mode of ["mtime-change", "file-detached"]) await scenario(`${mode} during cached preparation`, async () => {
       const p = owner(); await restore(p);
-      const page = p.index.get("Note A.md"), file = page.file, oldMtime = file.stat.mtime;
+      const page = p.index.get("Note A.md"), file = page.file, oldMtime = file.stat.mtime, knownType = page.noteType;
       const getFile = app.vault.getFileByPath;
       let entered, release;
       const barrier = new Promise((resolve) => { entered = resolve; });
@@ -304,7 +308,7 @@ export async function runSettingsIndependence(c) {
           if (mode === "mtime-change") file.stat.mtime++;
           else app.vault.getFileByPath = (path) => path === file.path ? null : getFile.call(app.vault, path);
           release(); await refresh;
-          assert.equal(page.noteType, null);
+          assert.equal(page.noteType, knownType);
           assert.equal(p.index.getPresentationStatus(page).noteType, "pending");
         });
       } finally { release?.(); file.stat.mtime = oldMtime; app.vault.getFileByPath = getFile; }

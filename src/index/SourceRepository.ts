@@ -5,8 +5,10 @@
  * leases, conservative cleanup, bounded unsaved facts/backoff and aggregate-only diagnostics. Owned
  * cancellation/domain rollback rejects without poisoning healthy storage; genuine faults retain
  * the shared cache owner’s existing failure/backoff policy. This repository
- * never reads a Vault, selects a relationship policy, or serializes a graph. The additive SI4b1
- * catalog uses this same transaction owner. v7 retains its original summary/root proof in a durable
+ * never reads a Vault, selects a relationship policy, or serializes a graph. An optional aggregate
+ * completed-work observer reports bounded validated/staged progress without changing source
+ * authority, scheduling or transaction boundaries; cancellation/close and observer errors are isolated.
+ * The additive SI4b1 catalog uses this same transaction owner. v7 retains its original summary/root proof in a durable
  * repair journal before mutation, with a separate non-queryable impact certificate and root leases.
  * A deletion-only pin capability can retire a masked head without making it readable as live data.
  * A bounded retirement observer may retain old endpoint candidates under that same writer pin;
@@ -21,7 +23,10 @@
  * cleanup rather than selected-count repair, under exact closed owner/head/journal fences. Optional
  * parent admission may read fenced local owner counts without loading memberships; those counts
  * schedule bounded work and never certify a semantic degree, relation or absence.
+ * The default host runtime releases CPU slices through event tasks; timed retries remain separate
+ * runtime capabilities and injected runtimes retain their existing dispatch contract.
  */
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { estimateReferenceRecordBytes } from "../core/graph/source";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
 import {
@@ -51,7 +56,7 @@ import {
 import { releaseContributorRootLease, type ContributorRootLease } from "./SourceContributorLease";
 import {
   SOURCE_LOCAL_STATE_VERSION, SOURCE_LOCAL_DEPENDENCY_STATE_KEY, SOURCE_LOCAL_DEPENDENCY_STORE, SOURCE_LOCAL_DEPENDENCY_VERSION, SOURCE_LOCAL_KEY_STORE, SOURCE_LOCAL_LOOKUP_INDEX, SOURCE_LOCAL_OWNER_STORE, SOURCE_LOCAL_REPAIR_STORE,
-  sourceLocalDependencyState, sourceLocalStoredDependencyKeys, sourceLocalStoredUpgradeKeys, sourceLocalStructuralBaseKeys, validSourceLocalDependencyOwner,
+  sourceLocalDependencyState, sourceLocalStateCoversProjection, sourceLocalOwnerCoversProjection, type SourceLocalProjectionRequirement, sourceLocalStoredDependencyKeys, sourceLocalStoredUpgradeKeys, sourceLocalStructuralBaseKeys, validSourceLocalDependencyOwner,
   validSourceLocalDependencyKeyState, validSourceLocalDependencyRepair, validSourceLocalDependencyRow, validSourceLocalDependencyState, type SourceLocalDependencyKeyState, type SourceLocalDependencyOwner, type SourceLocalDependencyRepair, type SourceLocalDependencyRow,
   type SourceLocalDependencyState,
 } from "./SourceLocalDependencies";
@@ -96,11 +101,11 @@ export type SourceRepositoryRuntime = Readonly<{
   uniqueId(): string;
   localDependencyCheckpoint?(phase: SourceLocalDependencyCheckpoint): void;
 }>;
-/** Select the browser's owning storage/runtime services only at the composition boundary. */
+/** Select host event-task CPU dispatch separately from timed retry/cleanup services at the composition boundary. */
 export function sourceRepositoryRuntime(): SourceRepositoryRuntime {
   return {
     now: () => Date.now(),
-    yield: () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)),
+    yield: () => yieldToHostTask(),
     schedule: (callback, delay) => window.setTimeout(callback, delay),
     cancel: (timer) => window.clearTimeout(timer),
     digest: async (text) => {
@@ -359,8 +364,14 @@ export class NeutralSourceRepository {
   private diagnostics = sanitizeSourceRepositoryDiagnostics(null);
 
   /** Keep connection/runtime effects injected; construction does not open storage or start work. */
-  constructor(private readonly storage: SourceStorage, private readonly runtime: SourceRepositoryRuntime = sourceRepositoryRuntime()) {
+  constructor(private readonly storage: SourceStorage, private readonly runtime: SourceRepositoryRuntime = sourceRepositoryRuntime(),
+    private readonly completedWork?: () => void) {
     // Allocate the session token lazily, so graph/body-only users do not require crypto at construction.
+  }
+  /** Report completed bounded work outside transactions; observation cannot alter repository results. */
+  private reportCompletedWork(current: () => boolean): void {
+    if (!this.completedWork || this.closed || !current()) return;
+    try { this.completedWork(); } catch { /* An observational consumer never owns source success. */ }
   }
   /** Copy allowlisted aggregate state, never heads, exceptions, paths or reference values. */
   getDiagnostics(): SourceRepositoryDiagnostics {
@@ -1277,10 +1288,12 @@ export class NeutralSourceRepository {
             postings += batch.length;
             postingDigest = await this.runtime.digest(postingDigest + JSON.stringify(batch));
             if (!current()) return "cancelled";
+            this.reportCompletedWork(current);
           }
           records += raw.records; bytes += raw.bytes;
           if (!(await consume(facts)) || !current()) return "cancelled";
           captureChunk?.(raw, capturedPostings);
+          this.reportCompletedWork(current);
         } finally { release(); }
         await this.runtime.yield();
         if (!current()) return "cancelled";
@@ -1342,7 +1355,9 @@ export class NeutralSourceRepository {
     /** Hash one private batch; asynchronous hashing never expands the retained byte allowance. */
     const flush = async (): Promise<boolean> => {
       if (!current() || this.closed) return false;
+      const completedRecords = encoded.length;
       digest = await this.runtime.digest(digest + `[${encoded.join(",")}]`);
+      if (completedRecords) this.reportCompletedWork(current);
       for (const release of releases) release();
       releases = []; encoded = []; bytes = 2;
       return current() && !this.closed;
@@ -1360,7 +1375,10 @@ export class NeutralSourceRepository {
           encoded.push(text); bytes += size;
           if ((bytes >= SOURCE_CHUNK_TARGET_BYTES || encoded.length >= SOURCE_MAX_BATCH_RECORDS) && !(await flush())) return false;
         }
-        if (this.runtime.now() - lastYield >= 8) { await this.runtime.yield(); lastYield = this.runtime.now(); }
+        if (this.runtime.now() - lastYield >= 8) {
+          if (fact !== null) this.reportCompletedWork(current);
+          await this.runtime.yield(); lastYield = this.runtime.now();
+        }
         return current() && !this.closed;
       });
       if (!accepted || !current() || this.closed) throw new SourceFactError("cancelled", family);
@@ -1476,6 +1494,7 @@ export class NeutralSourceRepository {
       }
     });
     if (!current()) throw new SourceFactError("cancelled");
+    this.reportCompletedWork(current);
   }
   /** A same-revision zero-progress journal is a durable marker for privately staged, not-yet-selected rows. */
   private isLocalDependencyStaging(repair: SourceLocalDependencyRepair): boolean {
@@ -1619,6 +1638,7 @@ export class NeutralSourceRepository {
     });
     this.runtime.localDependencyCheckpoint?.("after-local-staging-page");
     if (!current() || this.closed) throw new SourceFactError("cancelled");
+    this.reportCompletedWork(current);
   }
 
   /**
@@ -1684,6 +1704,7 @@ export class NeutralSourceRepository {
           this.runtime.localDependencyCheckpoint?.("after-local-new-count-batch");
           if (!current() || this.closed) return "cancelled";
         }
+        if (progress.decremented || progress.incremented) this.reportCompletedWork(current);
         if (progress.complete) return "ready";
         await this.runtime.yield();
       }
@@ -1947,6 +1968,7 @@ export class NeutralSourceRepository {
           recordCount += facts.length; byteCount += chunk.bytes;
           digest = await this.runtime.digest(digest + chunk.digest);
           lastFlush = this.runtime.now();
+          if (facts.length) this.reportCompletedWork(current);
           await this.runtime.yield(); lastYield = this.runtime.now();
           return current() && !this.closed;
         };
@@ -1964,7 +1986,10 @@ export class NeutralSourceRepository {
             pending.push(fact); encoded.push(value); pendingBytes += bytes;
             if ((pending.length >= SOURCE_MAX_BATCH_RECORDS || pendingBytes >= SOURCE_CHUNK_TARGET_BYTES) && !(await flush(false))) return false;
           }
-          if (this.runtime.now() - lastYield >= 8) { await this.runtime.yield(); lastYield = this.runtime.now(); }
+          if (this.runtime.now() - lastYield >= 8) {
+            if (fact !== null) this.reportCompletedWork(current);
+            await this.runtime.yield(); lastYield = this.runtime.now();
+          }
           return current() && !this.closed;
         };
         let accepted: boolean;
@@ -2283,14 +2308,14 @@ export class NeutralSourceRepository {
     } catch { return { available: false, heads: [], invalid: 0, next: null }; }
   }
   /**
-   * Upgrade an accepted historical owner by appending resolver and canonical tag ancestor memberships. The source
+   * Upgrade an accepted historical owner by appending resolver, tag-ancestor and canonical URL memberships. The source
    * revision/head never changes: immutable rows are staged idempotently, then the existing selected
    * count journal publishes their counts exactly once before closed-world lookup can resume.
    */
   private async upgradeLocalDependencyOwner(db: IDBDatabase, owner: SourceLocalDependencyOwner, head: SourceManifest,
     current: () => boolean): Promise<SourceReason> {
     if (owner.version >= SOURCE_LOCAL_DEPENDENCY_VERSION) return "ready";
-    if ((owner.version !== 1 && owner.version !== 2) || owner.state !== "complete" || head.state !== "complete"
+    if ((owner.version !== 1 && owner.version !== 2 && owner.version !== 3) || owner.state !== "complete" || head.state !== "complete"
       || owner.sourceRevision !== head.sourceRevision) return "dependency-invalid";
     try {
       let rows: SourceLocalDependencyRow[] = []; let bytes = 0; let records = owner.records; let digest = owner.digest;
@@ -2309,6 +2334,7 @@ export class NeutralSourceRepository {
           }
         });
         digest = await this.runtime.digest(digest + JSON.stringify(page.map((row) => row.key)));
+        this.reportCompletedWork(current);
         await this.runtime.yield();
         if (!current() || this.closed) throw new SourceFactError("cancelled");
       };
@@ -2322,7 +2348,10 @@ export class NeutralSourceRepository {
       };
       const read = await this.readSelected(owner.sourceId, (stamp) => stamp.saved && stamp.sequence === owner.sequence
         && stamp.head.sourceRevision === owner.sourceRevision ? "ready" : "superseded", async (reader) => {
-        for (const family of (owner.version === 1 ? ["values", "metadata"] : ["metadata"]) as readonly SourceFamily[]) {
+        // URL spellings occur in body and property-resolution families as well as lexical values.
+        // Authenticate all four existing streams under the same selected head; this never reparses
+        // Markdown or grants current-projection negatives before the captured inventory closes.
+        for (const family of SOURCE_FAMILIES) {
           const reason = await reader.visit(family, async (familyRows) => {
             for (const record of familyRows) for (const key of sourceLocalStoredUpgradeKeys(head.physical.path, record, owner.version)) await add(key);
             return current();
@@ -2571,7 +2600,7 @@ export class NeutralSourceRepository {
    * owner and count; malformed/pending/currentness failures never return a partial count prefix.
    */
   async lookupLocalDependencyCounts(keys: readonly string[], current: () => boolean = () => true,
-    requireCurrentProjection = false): Promise<SourceLocalDependencyLookupResult<Readonly<{
+    requireCurrentProjection: SourceLocalProjectionRequirement = false): Promise<SourceLocalDependencyLookupResult<Readonly<{
       fence: Readonly<{ revision: number; sequence: number }>;
       counts: readonly Readonly<{ key: string; owners: number }>[];
       work: Readonly<{ keys: number; keyPages: number }>;
@@ -2593,7 +2622,7 @@ export class NeutralSourceRepository {
         const rawState = await unknownValue(meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
         const sequenceRecord = await unknownValue(meta.get(SOURCE_SEQUENCE_KEY));
         if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
-          || requireCurrentProjection && rawState.version !== SOURCE_LOCAL_STATE_VERSION) throw new SourceFactError("dependency-pending");
+          || !sourceLocalStateCoversProjection(rawState, requireCurrentProjection)) throw new SourceFactError("dependency-pending");
         if (sequenceRecord !== undefined && (!sourceObject(sequenceRecord) || sequenceRecord.key !== SOURCE_SEQUENCE_KEY
           || !sourceCount(sequenceRecord.value))) throw new SourceFactError("dependency-invalid");
         return { revision: rawState.revision, sequence: sourceObject(sequenceRecord) && sourceCount(sequenceRecord.value) ? sequenceRecord.value : 0 };
@@ -2610,7 +2639,7 @@ export class NeutralSourceRepository {
           const sequence = sequenceRecord === undefined ? 0
             : sourceObject(sequenceRecord) && sequenceRecord.key === SOURCE_SEQUENCE_KEY && sourceCount(sequenceRecord.value) ? sequenceRecord.value : -1;
           if (!validSourceLocalDependencyState(state) || !state.complete || state.pending !== 0
-            || requireCurrentProjection && state.version !== SOURCE_LOCAL_STATE_VERSION
+            || !sourceLocalStateCoversProjection(state, requireCurrentProjection)
             || state.revision !== fence.revision || sequence !== fence.sequence) throw new SourceFactError("superseded");
           return Promise.all(page.map(/** Read only the selected count ledger; do not materialize owner memberships. */
             async (key) => {
@@ -2634,7 +2663,7 @@ export class NeutralSourceRepository {
 
   /** Authenticated source-local lookup. Hot keys continue in bounded pages and publish only after a final fence check. */
   async lookupLocalDependencies(keys: readonly string[], current: () => boolean = () => true,
-    requireCurrentProjection = false): Promise<SourceLocalDependencyLookupResult<Readonly<{
+    requireCurrentProjection: SourceLocalProjectionRequirement = false): Promise<SourceLocalDependencyLookupResult<Readonly<{
     fence: Readonly<{ revision: number; sequence: number }>; sources: readonly SelectedSourceStamp[]; orders: readonly number[];
     markdownOrders: readonly number[];
     work: Readonly<{ keys: number; keyPages: number; pages: number; rows: number; owners: number; yields: number; peakItems: number; peakBytes: number }>;
@@ -2650,7 +2679,7 @@ export class NeutralSourceRepository {
         const rawState = await unknownValue(meta.get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
         const sequenceRecord = await unknownValue(meta.get(SOURCE_SEQUENCE_KEY));
         if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
-            || requireCurrentProjection && rawState.version !== SOURCE_LOCAL_STATE_VERSION) throw new SourceFactError("dependency-pending");
+            || !sourceLocalStateCoversProjection(rawState, requireCurrentProjection)) throw new SourceFactError("dependency-pending");
         if (sequenceRecord !== undefined && (!sourceObject(sequenceRecord) || sequenceRecord.key !== SOURCE_SEQUENCE_KEY
           || !sourceCount(sequenceRecord.value))) throw new SourceFactError("dependency-invalid");
         const sequence = sourceObject(sequenceRecord) && sourceCount(sequenceRecord.value) ? sequenceRecord.value : 0;
@@ -2667,7 +2696,7 @@ export class NeutralSourceRepository {
           const sequence = sequenceRecord === undefined ? 0
             : sourceObject(sequenceRecord) && sequenceRecord.key === SOURCE_SEQUENCE_KEY && sourceCount(sequenceRecord.value) ? sequenceRecord.value : -1;
           if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
-            || requireCurrentProjection && rawState.version !== SOURCE_LOCAL_STATE_VERSION
+            || !sourceLocalStateCoversProjection(rawState, requireCurrentProjection)
             || rawState.revision !== fence.revision || sequence !== fence.sequence) throw new SourceFactError("superseded");
           return Promise.all(page.map(async (key) => {
             const rawKey = await unknownValue(transaction.objectStore(SOURCE_LOCAL_KEY_STORE).get(key));
@@ -2703,7 +2732,7 @@ export class NeutralSourceRepository {
               const sequence = sequenceRecord === undefined ? 0
                 : sourceObject(sequenceRecord) && sequenceRecord.key === SOURCE_SEQUENCE_KEY && sourceCount(sequenceRecord.value) ? sequenceRecord.value : -1;
               if (!validSourceLocalDependencyState(rawState) || !rawState.complete || rawState.pending !== 0
-            || requireCurrentProjection && rawState.version !== SOURCE_LOCAL_STATE_VERSION
+            || !sourceLocalStateCoversProjection(rawState, requireCurrentProjection)
                 || rawState.revision !== fence.revision || sequence !== fence.sequence) throw new SourceFactError("superseded");
               return new Promise<{ next: IDBValidKey | null; done: boolean; entries: Array<{ row: SourceLocalDependencyRow;
                 owner: SourceLocalDependencyOwner | null; head: SourceHead | null }> }>((resolve, reject) => {
@@ -2746,7 +2775,7 @@ export class NeutralSourceRepository {
             const { row, owner, head } = entry;
             if (!owner || !head || owner.state !== "complete" || head.state !== "complete"
               || owner.sourceRevision !== row.sourceRevision || head.sourceRevision !== row.sourceRevision || head.sequence !== owner.sequence) continue;
-            if (requireCurrentProjection && owner.version !== SOURCE_LOCAL_DEPENDENCY_VERSION) throw new SourceFactError("dependency-invalid");
+            if (!sourceLocalOwnerCoversProjection(owner, requireCurrentProjection)) throw new SourceFactError("dependency-invalid");
             active += 1;
             const stamp: SelectedSourceStamp = { head, sequence: head.sequence, saved: true };
             const prior = selected.get(row.sourceId);
@@ -2787,7 +2816,7 @@ export class NeutralSourceRepository {
 
   /** Revalidate a local lookup certificate after compiler/policy awaits without rebuilding anything. */
   async validateLocalDependencies(fence: Readonly<{ revision: number; sequence: number }>, stamps: readonly SelectedSourceStamp[],
-    current: () => boolean = () => true, requireCurrentProjection = false): Promise<SourceReason> {
+    current: () => boolean = () => true, requireCurrentProjection: SourceLocalProjectionRequirement = false): Promise<SourceReason> {
     try {
       this.localDependencyAvailable(current);
       const db = await this.open(); if (!db) return this.storage.unavailableReason?.() ?? "storage-unavailable";
@@ -2795,7 +2824,7 @@ export class NeutralSourceRepository {
         const state = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_LOCAL_DEPENDENCY_STATE_KEY));
         const seq = await unknownValue(transaction.objectStore(META_STORE).get(SOURCE_SEQUENCE_KEY));
         return validSourceLocalDependencyState(state) && state.complete && state.pending === 0
-          && (!requireCurrentProjection || state.version === SOURCE_LOCAL_STATE_VERSION) && state.revision === fence.revision
+          && sourceLocalStateCoversProjection(state, requireCurrentProjection) && state.revision === fence.revision
           && (seq === undefined ? 0 : sourceObject(seq) && sourceCount(seq.value) ? seq.value : -1) === fence.sequence;
       });
       if (!same) return "superseded";

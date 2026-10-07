@@ -111,7 +111,7 @@ test("local tag ancestor queries upgrade historical derivatives without selectin
         equal(await r.completeLocalDependencyInventory(),'ready','Count journal closes');
         equal((await r.inspect('A.md')).head,headBefore,'Successful derivative upgrade never changes source head');
         const upgraded=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('A.md'));
-        equal(upgraded.version,3,'Current ancestor projection');equal(upgraded.records,owner.records,'Resumed rows counted exactly once');
+        equal(upgraded.version,M.SOURCE_LOCAL_DEPENDENCY_VERSION,'Current canonical projection');equal(upgraded.records,owner.records,'Resumed rows counted exactly once');
         equal((await r.lookupLocalDependencies([absentKey],()=>true,true)).reason,'dependency-pending','Selected-owner upgrade alone cannot certify negative projection coverage');
         const foreign=await r.beginLocalDependencyInventoryProjection(3,()=>true);
         for(const [ordinal,id] of ['A.md','B.md','C.md'].entries())equal(await r.ensureLocalDependencies(id,ordinal,ordinal,()=>true,foreign),'ready','Authenticate entire captured current-owner pass');
@@ -121,7 +121,7 @@ test("local tag ancestor queries upgrade historical derivatives without selectin
         // A fresh native inventory uses its real per-file selection/physical/cache authority.
         f.acquisition.close();const acquisition=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>M.parseBodyMetadata(text));
         ok(await acquisition.reconcile(),'Actual all-owner acquisition closes current projection');
-        const state=await value(db.transaction('meta').objectStore('meta').get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY));equal(state.version,2,'Current inventory closure is persisted');
+        const state=await value(db.transaction('meta').objectStore('meta').get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY));equal(state.version,M.SOURCE_LOCAL_STATE_VERSION,'Current inventory closure is persisted');
         const discovery=acquisition.localContributorDiscovery(runtime());ok(discovery,'Current production adapter available');
         const query=async path=>discovery.discover({kind:'neighborhood',endpoints:[ref(path,'tag')]});
         const ancestor=await query('tag:project');equal(ancestor.outcome,'ready','Ancestor closed range');equal(ancestor.sourceIds,['A.md','B.md'],'Only genuine descendants selected');
@@ -234,7 +234,7 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
     assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
     assert.equal(await browser.evaluate(repairBrowserInitialize), true);
 
-    await t.test("exact v8 source-local fixture upgrades additively to v9", async () => {
+    await t.test("exact v8 source-local fixture upgrades additively to v10", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const M=sourceModules,f=await fixture('local-r1-v8-template');
         try{
@@ -245,7 +245,7 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
             tx.objectStore('pages').put({generation:'r1-v8',path:'retained',value:{retained:true}});tx.objectStore('evidence').put({generation:'r1-v8',key:'retained',value:{retained:true}});
             tx.objectStore('snapshotChunks').put({generation:'r1-v8',kind:'pages',index:0,values:[]});
           });
-          const excluded=M.SOURCE_LOCAL_REPAIR_STORE,names=[...db.objectStoreNames].filter(name=>name!==excluded),schema=[],rows={};
+          const excluded=M.SOURCE_LOCAL_REPAIR_STORE,names=[...db.objectStoreNames].filter(name=>name!==excluded&&name!=='urlOwners'),schema=[],rows={};
           for(const name of names){
             const store=db.transaction(name).objectStore(name);schema.push({name,keyPath:store.keyPath,autoIncrement:store.autoIncrement,indexes:[...store.indexNames].map(index=>{const item=store.index(index);return {name:index,keyPath:item.keyPath,unique:item.unique,multiEntry:item.multiEntry};})});
             rows[name]=await value(store.getAll());
@@ -256,12 +256,13 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
           }
           f.close();
           const old=await rawOpen(dbName('local-r1-v8-upgrade'),8,created=>{for(const spec of schema){const store=created.createObjectStore(spec.name,{keyPath:spec.keyPath,autoIncrement:spec.autoIncrement});for(const index of spec.indexes)store.createIndex(index.name,index.keyPath,{unique:index.unique,multiEntry:index.multiEntry});}});
-          await edit(old,names,tx=>{for(const name of names)for(const row of rows[name])tx.objectStore(name).put(row);});equal(old.version,8,'Exact old database version');old.close();
-          const cache=new M.KplexIndexedDbCache('local-r1-v8-upgrade'),upgraded=await cache.open();equal(upgraded.version,9,'Additive v9 upgrade');
+          await edit(old,names,tx=>{for(const name of names)for(const row of rows[name])tx.objectStore(name).put(row);});equal(old.version,8,'Exact old database version');ok(!old.objectStoreNames.contains('urlOwners'),'Genuine v8 schema has no independent URL cache');old.close();
+          const cache=new M.KplexIndexedDbCache('local-r1-v8-upgrade'),upgraded=await cache.open();equal(upgraded.version,10,'Additive v10 upgrade');
           for(const name of names){
             const expected=name==='meta'?rows.meta.map(row=>row.key===M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY?{...row,pending:0}:row):rows[name];
             equal(await value(upgraded.transaction(name).objectStore(name).getAll()),expected,name+' preserved byte-for-byte except pending field migration');
           }
+          ok(upgraded.objectStoreNames.contains('urlOwners'),'Independent URL cache added');equal(await value(upgraded.transaction('urlOwners').objectStore('urlOwners').count()),0,'Migration invents no URL owners');
           ok(upgraded.objectStoreNames.contains(M.SOURCE_LOCAL_REPAIR_STORE),'Repair store added');equal(await value(upgraded.transaction(M.SOURCE_LOCAL_REPAIR_STORE).objectStore(M.SOURCE_LOCAL_REPAIR_STORE).count()),0,'No repair invented');
           equal((await value(upgraded.transaction('meta').objectStore('meta').get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY))).pending,0,'Legacy state gains pending zero');cache.close();return true;
         }finally{try{f.close();}catch{}}
@@ -1079,5 +1080,122 @@ test("source-local semantic dependencies are incrementally activated, reusable, 
       assert.ok(measured.scans > 1); assert.ok(measured.work.yields > 0); assert.equal(measured.cancelYields, 1);
       t.diagnostic(`SOURCE-LOCAL HOT-KEY MEASUREMENT ${JSON.stringify(measured)}`);
     });
+  } finally { await browser.cleanup(); }
+});
+
+/** A real v3 owner upgrades canonical URL postings without rewriting its unchanged neutral source. */
+test("local canonical URL memberships migrate v3 owners additively and survive reopen", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,name='local-url-identity-v4',f=await fixture(name);let reopened=null,acquisition=null;
+      try{
+        const raw='https://Obsidian.md/Slug',canonical='https://obsidian.md/Slug';
+        f.add('Owner.md','[Docs]('+raw+')');await f.acquire();ok(await f.acquisition.reconcile(),'Seed source facts');
+        const db=await f.cache.open(),r=f.repository,sourceStores=['sourceHeads','sourceChunks','sourcePostings','bodies'];
+        const before={};for(const store of sourceStores)before[store]=await value(db.transaction(store).objectStore(store).getAll());
+        const owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('Owner.md'));
+        const rows=await value(db.transaction(M.SOURCE_LOCAL_DEPENDENCY_STORE).objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE).index(M.SOURCE_LOCAL_REVISION_INDEX).getAll(IDBKeyRange.only(['Owner.md',owner.sourceRevision])));
+        const canonicalKeys=[M.sourceLocalDependencyKey('node',canonical),M.sourceLocalDependencyKey('literal',canonical)];
+        const removed=rows.filter(row=>canonicalKeys.includes(row.key)),keep=rows.filter(row=>!removed.includes(row)).map((row,index)=>({...row,index}));
+        equal(removed.length,2,'Fixture removes only newly canonical subpath memberships');
+        const digest=await r.observationDigest('0'.repeat(64)+JSON.stringify(keep.map(row=>row.key)));
+        await edit(db,[M.SOURCE_LOCAL_DEPENDENCY_STORE,M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_KEY_STORE,'meta'],async tx=>{
+          const store=tx.objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE);store.delete(IDBKeyRange.bound(['Owner.md',owner.sourceRevision,0],['Owner.md',owner.sourceRevision,Number.MAX_SAFE_INTEGER]));
+          for(const row of keep)store.put(row);
+          for(const row of removed){const keys=tx.objectStore(M.SOURCE_LOCAL_KEY_STORE),selected=await value(keys.get(row.key));keys.put({...selected,count:selected.count-1});}
+          tx.objectStore(M.SOURCE_LOCAL_OWNER_STORE).put({...owner,version:3,records:keep.length,digest});
+          const meta=tx.objectStore('meta'),state=await value(meta.get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY));meta.put({...state,version:2});
+        });
+        equal((await r.lookupLocalDependencies([canonicalKeys[0]],()=>true,true)).reason,'dependency-pending','Historical closure cannot certify a canonical negative');
+        const document=await r.lookupLocalDependencies([M.sourceLocalDependencyKey('node','Owner.md')],()=>true,3);
+        equal(document.outcome,'ready','Historical v3 owner and v2 inventory retain ordinary-document capability');
+        equal(document.value.sources.map(source=>source.head.sourceId),['Owner.md'],'Document lookup preserves its genuine owner');
+        const headBefore=(await r.inspect('Owner.md')).head,reads=f.reads.length,parses=f.parses.length;
+        let current=true;const originalYield=r.runtime.yield;r.runtime.yield=async()=>{current=false;};
+        equal(await r.ensureLocalDependencies('Owner.md',owner.order,owner.markdownOrder,()=>current),'cancelled','Interrupted additive projection never publishes');
+        r.runtime.yield=originalYield;
+        equal(await r.ensureLocalDependencies('Owner.md',owner.order,owner.markdownOrder),'ready','Additive upgrade resumes');
+        equal((await r.inspect('Owner.md')).head,headBefore,'Neutral head untouched');
+        f.acquisition.close();acquisition=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>M.parseBodyMetadata(text));
+        ok(await acquisition.reconcile(),'New session captured all-owner inventory closes current projection');
+        const upgraded=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('Owner.md'));
+        equal(upgraded.version,M.SOURCE_LOCAL_DEPENDENCY_VERSION,'Current owner selected');equal(upgraded.records,owner.records,'No duplicated membership rows');
+        for(const key of [...canonicalKeys,M.sourceLocalDependencyKey('node',raw)]){
+          const found=await r.lookupLocalDependencies([key],()=>true,true);equal(found.outcome,'ready','Authenticated raw and canonical lookup');equal(found.value.sources.map(source=>source.head.sourceId),['Owner.md'],'Same genuine owner retained');
+        }
+        equal((await r.lookupLocalDependencies([M.sourceLocalDependencyKey('node','https://obsidian.md/slug')],()=>true,true)).value.sources,[],'Distinct path case remains an authenticated negative');
+        equal(f.reads.length,reads,'No Markdown read during derivative upgrade');equal(f.parses.length,parses,'No parser work during derivative upgrade');
+        for(const store of sourceStores)equal(await value(db.transaction(store).objectStore(store).getAll()),before[store],store+' unchanged');
+        reopened=new M.KplexIndexedDbCache(name);ok(await reopened.open(),'Independent durable reopen');
+        const warm=await reopened.sources.lookupLocalDependencies([canonicalKeys[0]],()=>true,true);equal(warm.outcome,'ready','Canonical projection survives reopen');equal(warm.value.sources.map(source=>source.head.sourceId),['Owner.md'],'Durable current lookup');
+        return true;
+      }finally{acquisition?.close();reopened?.close();f.close();}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
+/** Fresh and historical URL derivatives retain identical per-occurrence keys across all lexical surfaces. */
+test("canonical URL property and body upgrades preserve clean membership multiplicity and counts", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules,f=await fixture('local-url-mixed-parity');let acquisition=null;
+      try{
+        f.add('Owner.md','[Root](https://obsidian.md)\\n[Subpath](https://Obsidian.md/Slug)\\nWebsite:: https://Obsidian.md/Other\\nWebsite2:: https://obsidian.md/',
+          {Docs:['https://obsidian.md','https://Obsidian.md/Slug'],Website:'https://obsidian.md/Other'});
+        await f.acquire();ok(await f.acquisition.reconcile(),'Seed current neutral facts');
+        const r=f.repository,db=await f.cache.open(),owner=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('Owner.md'));
+        const selectedRows=()=>value(db.transaction(M.SOURCE_LOCAL_DEPENDENCY_STORE).objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE).index(M.SOURCE_LOCAL_REVISION_INDEX).getAll(IDBKeyRange.only(['Owner.md',owner.sourceRevision])));
+        const cleanRows=await selectedRows(),cleanCounts=await value(db.transaction(M.SOURCE_LOCAL_KEY_STORE).objectStore(M.SOURCE_LOCAL_KEY_STORE).getAll());
+        const sources=['sourceHeads','sourceChunks','sourcePostings','bodies'],before={};
+        for(const store of sources)before[store]=await value(db.transaction(store).objectStore(store).getAll());
+        const oldKeys=[M.sourceLocalDependencyKey('node','Owner.md')];let candidates=0,resolutions=0,bodyUrls=0;
+        // Reconstruct the accepted v3 vocabulary from authenticated neutral facts, independently
+        // of the current additive helper. Counts are row occurrences, including root/body-origin repeats.
+        for(const family of M.SOURCE_FAMILIES)equal(await r.visit('Owner.md',family,records=>{
+          for(const record of records){
+            if(['reference-value','inline-value','field-name','date-property'].includes(record.kind))oldKeys.push(M.sourceLocalDependencyKey('field',record.normalizedFieldName));
+            if(record.kind==='reference-candidate'||record.kind==='host-literal'){
+              oldKeys.push(M.sourceLocalDependencyKey('literal',record.rawTarget));const resolver=M.sourceLocalResolverDependencyKey(record.rawTarget,'Owner.md');if(resolver)oldKeys.push(resolver);
+              if(record.kind==='reference-candidate'&&record.external)candidates++;
+            }
+            if(record.kind==='reference-resolution'||record.kind==='literal-resolution'){
+              if(record.target)oldKeys.push(M.sourceLocalDependencyKey('node',record.target.entity.id));
+              if(record.target?.entity.kind==='url')resolutions++;
+            }
+            if(record.kind==='host-link')oldKeys.push(M.sourceLocalDependencyKey('node',record.target),M.sourceLocalDependencyKey('literal',record.target));
+            if(record.kind==='body-url'){bodyUrls++;oldKeys.push(M.sourceLocalDependencyKey('node',record.url),M.sourceLocalDependencyKey('literal',record.url),M.sourceLocalDependencyKey('node',new URL(record.url).origin));}
+          }
+          return true;
+        }),'ready','Authenticate historical '+family);
+        ok(candidates>=4&&resolutions>=4&&bodyUrls>=2,'Mixed fixture includes actual property resolutions and body URLs');
+        const rootKey=M.sourceLocalDependencyKey('node','https://obsidian.md');
+        ok(oldKeys.filter(key=>key===rootKey).length>1,'Historical repeated root and property occurrence membership retained');
+        const digest=await r.observationDigest('0'.repeat(64)+JSON.stringify(oldKeys));
+        await edit(db,[M.SOURCE_LOCAL_DEPENDENCY_STORE,M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_KEY_STORE,'meta'],async tx=>{
+          const rows=tx.objectStore(M.SOURCE_LOCAL_DEPENDENCY_STORE);rows.delete(IDBKeyRange.bound(['Owner.md',owner.sourceRevision,0],['Owner.md',owner.sourceRevision,Number.MAX_SAFE_INTEGER]));
+          oldKeys.forEach((key,index)=>rows.put({version:1,sourceId:'Owner.md',sourceRevision:owner.sourceRevision,index,key}));
+          const keys=tx.objectStore(M.SOURCE_LOCAL_KEY_STORE);keys.clear();const counts=new Map();for(const key of oldKeys)counts.set(key,(counts.get(key)??0)+1);for(const [key,count]of counts)keys.put({version:1,key,count});
+          tx.objectStore(M.SOURCE_LOCAL_OWNER_STORE).put({...owner,version:3,records:oldKeys.length,digest});
+          const meta=tx.objectStore('meta'),state=await value(meta.get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY));meta.put({...state,version:2});
+        });
+        const head=(await r.inspect('Owner.md')).head,reads=f.reads.length,parses=f.parses.length;
+        equal(await r.ensureLocalDependencies('Owner.md',owner.order,owner.markdownOrder),'ready','Upgrade historical owner');
+        f.acquisition.close();acquisition=new M.ObsidianSourceAcquisition(f.app,f.cache,async text=>M.parseBodyMetadata(text));ok(await acquisition.reconcile(),'Close new projection inventory');
+        const upgraded=await value(db.transaction(M.SOURCE_LOCAL_OWNER_STORE).objectStore(M.SOURCE_LOCAL_OWNER_STORE).get('Owner.md'));
+        equal(upgraded.records,owner.records,'Clean and upgraded owner row totals match');
+        equal((await selectedRows()).map(row=>row.key).sort(),cleanRows.map(row=>row.key).sort(),'Exact clean and upgraded key multisets match');
+        equal(await value(db.transaction(M.SOURCE_LOCAL_KEY_STORE).objectStore(M.SOURCE_LOCAL_KEY_STORE).getAll()),cleanCounts,'Exact selected count ledger matches');
+        for(const key of [rootKey,M.sourceLocalDependencyKey('node','https://obsidian.md/Slug'),M.sourceLocalDependencyKey('literal','https://obsidian.md/Other')]){
+          const found=await r.lookupLocalDependencies([key],()=>true,true);equal(found.outcome,'ready','Authenticate mixed canonical lookup');equal(found.value.sources.map(source=>source.head.sourceId),['Owner.md'],'Repeated membership returns one genuine owner');
+        }
+        equal((await r.inspect('Owner.md')).head,head,'Source head remains intact');equal(f.reads.length,reads,'No Markdown reads');equal(f.parses.length,parses,'No reparsing');
+        for(const store of sources)equal(await value(db.transaction(store).objectStore(store).getAll()),before[store],store+' remains intact');
+        return true;
+      }finally{acquisition?.close();f.close();}
+    })()`), true);
   } finally { await browser.cleanup(); }
 });

@@ -6,7 +6,10 @@
  * Editable pair discovery also supports a finite document-owner proof while global inventory is
  * unfinished. It certifies exact selected heads and delegates positive/negative evidence to full
  * cached family replay; it never grants global incidence or source-readiness authority.
+ * Certificate and structural-fact batches release host event tasks, then recheck the same request
+ * lifetime without changing contributor coverage or count/byte bounds.
  */
+import { yieldToHostTask } from "./yieldToHostTask";
 import { canonicalTagPaths } from "../../core/graph/tagPaths";
 import { TFile, TFolder, type App } from "obsidian";
 import { contributorRecordKeys, type ContributorCertificate,
@@ -35,9 +38,10 @@ function failure(reason: SourceReason): ContributorFailure {
   return { outcome, reason };
 }
 
+/** Release each completed contributor batch through a host task, then reject a superseded host lifetime. */
 async function requestCheckpoint(index: number, current: () => boolean): Promise<void> {
   if (index === 0 || index % SOURCE_MAX_BATCH_RECORDS !== 0) return;
-  await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+  await yieldToHostTask();
   if (!current()) throw new SourceFactError("host-catalog-stale");
 }
 
@@ -101,7 +105,7 @@ async function queryKeys(request: ContributorRequest, current: () => boolean, ed
   return [...keys];
 }
 
-/** Hash certificate inputs with both byte and record bounds; release each serialized page on await. */
+/** Hash certificate inputs with byte/record bounds, release each page through a host event task and reject stale request lifetimes. */
 async function digestCertificateValues(repository: NeutralSourceRepository, digest: string, label: string,
   values: readonly unknown[], current: () => boolean): Promise<string> {
   for (let start = 0; start < values.length;) {
@@ -114,8 +118,7 @@ async function digestCertificateValues(repository: NeutralSourceRepository, dige
     }
     if (!current()) throw new SourceFactError("host-catalog-stale");
     digest = await repository.observationDigest(JSON.stringify([digest, label, values.slice(start, end)]));
-    await new Promise<void>(/** Yield between bounded digest buffers under the same host fence. */
-      resolve => window.setTimeout(resolve, 0));
+    await yieldToHostTask();
     if (!current()) throw new SourceFactError("host-catalog-stale");
     start = end;
   }
@@ -149,7 +152,7 @@ async function structuralFacts(app: App, request: ContributorRequest, sourceIds:
   /** Cooperate while constructing structural facts; never expose a partial host stream. */
   const checkpoint = async (): Promise<void> => {
     if (++visited % SOURCE_MAX_BATCH_RECORDS !== 0) return;
-    await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+    await yieldToHostTask();
     if (!current()) throw new SourceFactError("host-catalog-stale");
   };
   /** Retain only relevant, compactly deduplicated facts under the aggregate structural budget. */
@@ -265,7 +268,7 @@ export class SourceLocalContributorDiscovery {
     try {
       if (!this.current()) throw new SourceFactError("host-catalog-stale");
       const scope = copyRequest(input), keys = await queryKeys(scope, this.current, this.editablePair), keySet = new Set(keys);
-      const selected = await this.repository.lookupLocalDependencies(keys, this.current, true);
+      const selected = await this.repository.lookupLocalDependencies(keys, this.current, scope.endpoints.some(endpoint => endpoint.kind === "url") ? true : 3);
       if (selected.outcome !== "ready") {
         if (selected.reason === "dependency-invalid") this.onDependencyInvalid?.();
         return failure(selected.reason);
@@ -314,7 +317,7 @@ export class SourceLocalContributorDiscovery {
         || certificate.markdownOrder.some((value, index, values) => !Number.isSafeInteger(value) || value < 0
           || index > 0 && value <= values[index - 1]))) return "dependency-invalid";
       const reason = await this.repository.validateLocalDependencies(
-        { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }, certificate.sources, this.current, true);
+        { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }, certificate.sources, this.current, certificate.scope.endpoints.some(endpoint => endpoint.kind === "url") ? true : 3);
       if (reason === "dependency-invalid") this.onDependencyInvalid?.();
       return reason;
     } catch (error) { return error instanceof SourceFactError ? error.reason : "read-error"; }

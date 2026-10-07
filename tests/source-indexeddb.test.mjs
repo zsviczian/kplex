@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { browserBundle, chromiumHarness } from "./support/browserTypeScript.mjs";
 
-const bundle = await browserBundle(["src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/core/parser/metadata.ts", "src/index/CachedSourceSemantics.ts"], {
+const bundle = await browserBundle(["src/index/IndexedDbCache.ts", "src/index/SourceFacts.ts", "src/core/parser/metadata.ts", "src/index/CachedSourceSemantics.ts", "src/adapters/obsidian/yieldToHostTask.ts"], {
   obsidian: "exports.Platform={isMobile:false,isIosApp:false};",
 });
 
@@ -37,15 +37,217 @@ const initialize = `(() => {
   return true;
 })()`;
 
+/** Queued bodies are optional parser-cache data; all completed flushes still use native IndexedDB. */
+test("real Chromium: parsed-body write-behind remains readable without granting durable source authority", { timeout: 60000 }, async t => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    await t.test("matching queued bodies are readable before the write timer or database open", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=new sourceModules.KplexIndexedDbCache('queued-body-before-open');
+        const body=sourceModules.parseBodyMetadata('Field:: [[Queued]] [link](https://example.com/queued)');
+        const open=indexedDB.open;let opens=0;indexedDB.open=function(...args){opens++;return open.apply(this,args);};
+        try{
+          owner.queueBodyWrite('queued.md',4,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          equal(await owner.getBody('queued.md',4),body,'Point read reuses completed parse');
+          equal([...await owner.getBodies([{path:'queued.md',mtime:4}])],[['queued.md',body]],'Batch read reuses completed parse');
+          equal(opens,0,'Queued hits need no connection or durability');
+          const db=await owner.open();ok(db,'Real database opens');
+          equal(await requestValue(db.transaction('bodies').objectStore('bodies').count()),0,'No delayed body was persisted');
+          equal(await requestValue(db.transaction('sourceHeads').objectStore('sourceHeads').count()),0,'No neutral source authority is created');
+          return true;
+        }finally{indexedDB.open=open;owner.close();}
+      })()`),true);
+    });
+    await t.test("an in-flight flush retains matching hits until its real transaction completes", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-held-flush'),body=sourceModules.parseBodyMetadata('Field:: [[Held]]');
+        const put=owner.putBodies.bind(owner);let release,entered;
+        const hold=new Promise(resolve=>release=resolve),reached=new Promise(resolve=>entered=resolve);
+        owner.putBodies=async records=>{entered();await hold;return put(records);};
+        try{
+          owner.queueBodyWrite('held.md',5,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          const record=owner.queuedBodyWrites.get('held.md'),flushing=owner.flushQueuedBodyWrites();await reached;
+          equal(owner.bodyWriteInFlight,true,'Production flush is in flight');
+          equal(owner.queuedBodyWrites.get('held.md')===record,true,'Exact record remains owned during flush');
+          equal(await owner.getBody('held.md',5),body,'Point read remains available');
+          equal([...await owner.getBodies([{path:'held.md',mtime:5},{path:'missing.md',mtime:5}])],[['held.md',body]],'Mixed batch retains queued hit');
+          release();await flushing;equal(owner.queuedBodyWrites.size,0,'Successful transaction retires its exact record');
+          const reader=await fresh('queued-body-held-flush');
+          try{equal(await reader.getBody('held.md',5),body,'Independent owner reads actual durable body');}finally{reader.close();}
+          return true;
+        }finally{release();owner.close();}
+      })()`),true);
+    });
+    await t.test("an older completed flush cannot delete a newer queued replacement for the same path and mtime", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-latest'),first=sourceModules.parseBodyMetadata('Field:: [[First]]'),latest=sourceModules.parseBodyMetadata('Field:: [[Latest]]');
+        const put=owner.putBodies.bind(owner);let releaseFirst,releaseLatest,enteredFirst,enteredLatest,calls=0;
+        const firstHold=new Promise(resolve=>releaseFirst=resolve),latestHold=new Promise(resolve=>releaseLatest=resolve);
+        const firstReached=new Promise(resolve=>enteredFirst=resolve),latestReached=new Promise(resolve=>enteredLatest=resolve);
+        owner.putBodies=async records=>{
+          calls++;if(calls===1){const written=await put(records);enteredFirst();await firstHold;return written;}
+          enteredLatest();await latestHold;return put(records);
+        };
+        try{
+          owner.queueBodyWrite('latest.md',6,first);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          const flushing=owner.flushQueuedBodyWrites();await firstReached;
+          owner.queueBodyWrite('latest.md',6,latest);const replacement=owner.queuedBodyWrites.get('latest.md');
+          equal(await owner.getBody('latest.md',6),latest,'Latest queued body wins over older durable body');
+          releaseFirst();await latestReached;
+          equal(owner.queuedBodyWrites.get('latest.md')===replacement,true,'Older success preserves newer record identity');
+          equal([...await owner.getBodies([{path:'latest.md',mtime:6}])],[['latest.md',latest]],'Replacement remains readable during its flush');
+          const reader=await fresh('queued-body-latest');
+          try{equal(await reader.getBody('latest.md',6),first,'Older native transaction really completed');}finally{reader.close();}
+          releaseLatest();await flushing;equal(calls,2,'Replacement receives its own bounded flush');equal(owner.queuedBodyWrites.size,0,'Latest success releases queue');
+          const reopened=await fresh('queued-body-latest');
+          try{equal(await reopened.getBody('latest.md',6),latest,'Independent native read sees latest body');}finally{reopened.close();}
+          return true;
+        }finally{releaseFirst();releaseLatest();owner.close();}
+      })()`),true);
+    });
+    await t.test("failed persistence retains optional hits and the existing retry can durably settle them", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-retry'),body=sourceModules.parseBodyMetadata('Field:: [[Retry]]'),put=owner.putBodies.bind(owner);
+        owner.putBodies=async()=>false;
+        try{
+          owner.queueBodyWrite('retry.md',7,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          const record=owner.queuedBodyWrites.get('retry.md');await owner.flushQueuedBodyWrites();
+          equal(owner.bodyWriteInFlight,false,'Failed attempt releases in-flight owner');ok(owner.bodyWriteTimer!==null,'Existing retry timer is retained');
+          equal(owner.queuedBodyWrites.get('retry.md')===record,true,'Failed persistence keeps exact record');
+          equal(await owner.getBody('retry.md',7),body,'Failed optional write does not discard parsed data');
+          window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;owner.putBodies=put;await owner.flushQueuedBodyWrites();
+          equal(owner.queuedBodyWrites.size,0,'Successful retry retires record');
+          const reader=await fresh('queued-body-retry');try{equal(await reader.getBody('retry.md',7),body,'Retry persisted via real transaction');}finally{reader.close();}
+          return true;
+        }finally{owner.close();}
+      })()`),true);
+    });
+    await t.test("queued reads reject mismatched paths, mtimes, parser versions, malformed bodies and closed owners", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-validity'),body=sourceModules.parseBodyMetadata('Field:: [[Valid]]');
+        try{
+          owner.queueBodyWrite('valid.md',8,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          equal(await owner.getBody('valid.md',9),null,'Different native mtime misses');equal((await owner.getBodies([{path:'valid.md',mtime:9}])).size,0,'Batch mtime misses');
+          equal(await owner.getBody('other.md',8),null,'Different path misses');
+          const record=owner.queuedBodyWrites.get('valid.md');record.parserVersion=2;
+          equal(await owner.getBody('valid.md',8),null,'Historical queued parser version misses');equal((await owner.getBodies([{path:'valid.md',mtime:8}])).size,0,'Batch parser guard matches');
+          record.parserVersion=3;record.body={...body,urls:[{url:'https://example.com/invalid',aliases:[42]}]};
+          equal(await owner.getBody('valid.md',8),null,'Malformed current queued URL aliases rejected');equal((await owner.getBodies([{path:'valid.md',mtime:8}])).size,0,'Batch body validator matches');
+          record.body=body;record.path='wrong.md';equal(await owner.getBody('valid.md',8),null,'Queued payload path must match map key');record.path='valid.md';
+          owner.close();equal(owner.queuedBodyWrites.size,0,'Close releases queued payloads');
+          const open=indexedDB.open;let opens=0;indexedDB.open=function(...args){opens++;return open.apply(this,args);};
+          try{equal(await owner.getBody('valid.md',8),null,'Closed point read rejected');equal((await owner.getBodies([{path:'valid.md',mtime:8}])).size,0,'Closed batch rejected');equal(opens,0,'Closed reads never reopen');}finally{indexedDB.open=open;}
+          return true;
+        }finally{owner.close();}
+      })()`),true);
+    });
+    await t.test("close during a mixed batch storage wait rejects previously collected queued hits", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('queued-body-close-read'),body=sourceModules.parseBodyMetadata('Field:: [[Closed]]'),open=owner.open.bind(owner);
+        let release,entered;const hold=new Promise(resolve=>release=resolve),reached=new Promise(resolve=>entered=resolve);
+        owner.open=async()=>{entered();await hold;return open();};
+        try{
+          owner.queueBodyWrite('closed.md',9,body);window.clearTimeout(owner.bodyWriteTimer);owner.bodyWriteTimer=null;
+          const reading=owner.getBodies([{path:'closed.md',mtime:9},{path:'missing.md',mtime:9}]);await reached;
+          owner.close();release();equal((await reading).size,0,'No queued partial result crosses close');
+          equal(owner.bodyWriteTimer,null,'Closed read leaves no write timer');equal(owner.queuedBodyWrites.size,0,'Closed read retains no payload');return true;
+        }finally{release();owner.close();}
+      })()`),true);
+    });
+  } finally { await browser.cleanup(); }
+});
+
+/** Maintenance uses production cursors and database deletion; no IndexedDB data model is mocked. */
+test("cache maintenance streams logical size, cancels cleanly and permanently closes after vault-local purge", { timeout: 60000 }, async t => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    await t.test("size scans stores sequentially without getAll or origin-wide estimates", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('maintenance-size'),db=await owner.open();
+        const before=await owner.estimateStoredBytes();ok(before!==null,'Initial logical estimate available');
+        const cycle={label:'known payload '.repeat(1000)};cycle.self=cycle;
+        await edit(db,['meta','bodies'],tx=>{
+          tx.objectStore('meta').put({key:'measurement',value:cycle,map:new Map([['map-key',42]]),set:new Set(['set-item']),binary:new Uint8Array(4096),blob:new Blob(['blob payload'])});
+          tx.objectStore('bodies').put({path:'size-only.md',payload:'body '.repeat(1000)});
+        });
+        const getAll=IDBObjectStore.prototype.getAll,openCursor=IDBObjectStore.prototype.openCursor;
+        const transaction=IDBDatabase.prototype.transaction;let active=0,maxActive=0,cursors=0,wrongMode=false;
+        IDBObjectStore.prototype.getAll=function(){throw new Error('getAll is forbidden for size maintenance');};
+        IDBObjectStore.prototype.openCursor=function(...args){cursors++;return openCursor.apply(this,args);};
+        IDBDatabase.prototype.transaction=function(...args){
+          const tx=transaction.apply(this,args);active++;maxActive=Math.max(active,maxActive);
+          if(args[1]!=='readonly')wrongMode=true;
+          tx.addEventListener('complete',()=>active--);tx.addEventListener('abort',()=>active--);return tx;
+        };
+        const storage=navigator.storage.estimate;navigator.storage.estimate=()=>{throw new Error('Origin size must not be read');};
+        try{
+          const after=await owner.estimateStoredBytes();ok(after>=before+cycle.label.length*2+10000+4096,'Strings and binary increase logical size');
+          equal(cursors,db.objectStoreNames.length,'Exactly one cursor per store');equal(maxActive,1,'Only one store scan active');equal(wrongMode,false,'All scans readonly');
+          equal(await owner.estimateStoredBytes(),after,'Cycle-safe estimate is repeatable');return true;
+        }finally{IDBObjectStore.prototype.getAll=getAll;IDBObjectStore.prototype.openCursor=openCursor;IDBDatabase.prototype.transaction=transaction;navigator.storage.estimate=storage;owner.close();}
+      })()`),true);
+    });
+    await t.test("close cancels an active cursor and oversized depth returns unavailable", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('maintenance-cancel'),cursor=IDBObjectStore.prototype.openCursor;
+        IDBObjectStore.prototype.openCursor=function(...args){const request=cursor.apply(this,args);request.addEventListener('success',()=>owner.close(),{once:true});return request;};
+        try{equal(await owner.estimateStoredBytes(),null,'Closed scan has no partial subtotal');equal(owner.maintenanceReads.size,0,'No retained transactions');}
+        finally{IDBObjectStore.prototype.openCursor=cursor;owner.close();}
+        const deep=await fresh('maintenance-depth'),db=await deep.open();let value={leaf:'value'};for(let i=0;i<300;i++)value={child:value};
+        await edit(db,['meta'],tx=>tx.objectStore('meta').put({key:'deep',value}));
+        try{equal(await deep.estimateStoredBytes(),null,'Unbounded record is not reported as a complete estimate');equal(deep.maintenanceReads.size,0,'Failed scan releases ownership');return true;}finally{deep.close();}
+      })()`),true);
+    });
+    await t.test("purge deletes only the selected database, discards queued writes and never reopens", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('maintenance-purge'),other=await fresh('maintenance-unrelated');
+        const body=sourceModules.parseBodyMetadata('A real body [URL](https://example.com/cache-maintenance)');
+        ok(await owner.putBody('cached.md',1,body),'Populate selected database');ok(await other.putBody('retained.md',1,body),'Populate unrelated database');
+        owner.queueBodyWrite('queued.md',2,body);ok(owner.bodyWriteTimer!==null,'Queued timer exists');
+        const first=owner.purgeAndClose();equal(owner.purgeAndClose()===first,true,'Concurrent purge shares one request');
+        ok(await first,'Actual deleteDatabase success');equal(owner.closed,true,'Owner permanently closed');equal(owner.sources.closed,true,'Repository lifetime closed');
+        equal(owner.bodyWriteTimer,null,'Queued timer cancelled');equal(owner.queuedBodyWrites.size,0,'Queued bodies discarded');
+        const names=(await indexedDB.databases()).map(db=>db.name);ok(!names.includes(databaseName('maintenance-purge')),'Selected database removed');ok(names.includes(databaseName('maintenance-unrelated')),'Unrelated database retained');
+        const open=indexedDB.open;let opens=0;indexedDB.open=function(...args){opens++;return open.apply(this,args);};
+        try{
+          equal(await owner.getBody('cached.md',1),null,'No old body remains available');equal(await owner.putBody('later.md',3,body),false,'Writes stay closed');
+          equal(await owner.estimateStoredBytes(),null,'Estimates stay closed');owner.queueBodyWrite('later.md',3,body);
+          equal(await owner.releaseContributorLease({key:'ended-reader',impactSlot:0}),false,'Retired cleanup cannot reopen after purge');
+          equal(opens,0,'Neither regular operations nor retired cleanup reopen');ok(await other.getBody('retained.md',1),'Unrelated payload unchanged');return true;
+        }finally{indexedDB.open=open;owner.close();other.close();}
+      })()`),true);
+    });
+    await t.test("blocked and storage failures report false but retain the closed lifetime", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const blocked=await fresh('maintenance-blocked'),hold=await rawOpen(databaseName('maintenance-blocked'),10);
+        try{equal(await blocked.purgeAndClose(),false,'External handle produces blocked failure');equal(blocked.closed,true,'Failed purge cannot resume writes');equal(await blocked.open(),null,'Failed purge cannot reopen');}
+        finally{hold.close();blocked.close();}
+        const failed=await fresh('maintenance-error'),remove=indexedDB.deleteDatabase;indexedDB.deleteDatabase=()=>{throw new Error('Injected storage failure');};
+        try{equal(await failed.purgeAndClose(),false,'Delete exception reported');equal(failed.closed,true,'Error retains closed lifetime');equal(await failed.open(),null,'Error cannot reopen');return true;}
+        finally{indexedDB.deleteDatabase=remove;failed.close();}
+      })()`),true);
+    });
+    await t.test("purge fences an opening connection before it can adopt or recreate storage", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=new sourceModules.KplexIndexedDbCache('maintenance-opening'),opening=owner.bodyStoreReady();
+        ok(await owner.purgeAndClose(),'Deletion also succeeds before a pending open settles');equal(await opening,false,'Late opening work cannot become usable');
+        equal(await owner.open(),null,'No same-session reopen');ok(!(await indexedDB.databases()).some(db=>db.name===databaseName('maintenance-opening')),'Pending open cannot recreate purged database');return true;
+      })()`),true);
+    });
+  } finally { await browser.cleanup(); }
+});
+
 // One profile is intentionally retained through a NEW Chromium process, then removed in finally.
 test("real Chromium: version migration, atomic source heads, repair, failure recovery and process restart", { timeout: 180000 }, async t => {
   const browser = await chromiumHarness(bundle);
   try {
     await browser.evaluate(initialize);
-    await t.test("cold v9 plus v4 upgrade preserve legacy stores, body-v2 and schema-1/2/3 pointers", async () => {
+    await t.test("cold v10 plus v4 upgrade preserve legacy stores, body-v2 and schema-1/2/3 pointers", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
-        cache=await fresh('cold'); const db=await cache.open(); equal(db.version,9,'Cold database version');
-        for(const name of ['meta','pages','evidence','bodies','snapshotChunks','sourceHeads','sourceChunks','sourcePostings','sourceDependencies','sourceImpacts','sourceLocalDependencies','sourceLocalDependencyOwners','sourceLocalDependencyKeys','sourceLocalDependencyRepairs'])ok(db.objectStoreNames.contains(name),'Missing store '+name);
+        cache=await fresh('cold'); const db=await cache.open(); equal(db.version,10,'Cold database version');
+        for(const name of ['meta','pages','evidence','bodies','urlOwners','snapshotChunks','sourceHeads','sourceChunks','sourcePostings','sourceDependencies','sourceImpacts','sourceLocalDependencies','sourceLocalDependencyOwners','sourceLocalDependencyKeys','sourceLocalDependencyRepairs'])ok(db.objectStoreNames.contains(name),'Missing store '+name);
         const tx=db.transaction(['sourceChunks','sourcePostings','meta'],'readonly');
         ok(tx.objectStore('sourceChunks').indexNames.contains('sourceFamilyRevision'),'Family index');
         ok(tx.objectStore('sourcePostings').indexNames.contains('lookup'),'Posting lookup index');
@@ -467,13 +669,118 @@ test("real Chromium: version migration, atomic source heads, repair, failure rec
         await edit(db,['meta'],tx=>tx.objectStore('meta').put(meta));const reasons=[];
         equal(await cache.iterateSnapshotPages(meta,()=>{throw new Error('No page expected');},()=>true,reason=>reasons.push(reason)),false,'Missing graph chunk rejected');
         equal(reasons,['missing-chunk'],'Graph failure reason');equal((await r.inspect('A')).sequence,a.sequence,'Neutral head unaffected');
-        let oldError;try{await rawOpen(databaseName('durability'),4);}catch(error){oldError=error.name;}equal(oldError,'VersionError','An old binary cannot downgrade v9');
-        const newer=await rawOpen(databaseName('newer'),10,db=>db.createObjectStore('sentinel'));await edit(newer,['sentinel'],tx=>tx.objectStore('sentinel').put('retained','key'));newer.close();
+        let oldError;try{await rawOpen(databaseName('durability'),4);}catch(error){oldError=error.name;}equal(oldError,'VersionError','An old binary cannot downgrade v10');
+        const newer=await rawOpen(databaseName('newer'),11,db=>db.createObjectStore('sentinel'));await edit(newer,['sentinel'],tx=>tx.objectStore('sentinel').put('retained','key'));newer.close();
         const old=new sourceModules.KplexIndexedDbCache('newer');equal(await old.readSnapshotMeta(),null,'VersionError falls back');
         equal(old.sources.getDiagnostics().activated,0,'No fake progress');await old.sources.inspect('anything');equal(old.sources.getDiagnostics().lastReason,'newer-database','Closed reason');old.close();
-        const intact=await rawOpen(databaseName('newer'),10);equal(await requestValue(intact.transaction('sentinel').objectStore('sentinel').get('key')),'retained','No destructive reset');intact.close();
+        const intact=await rawOpen(databaseName('newer'),11);equal(await requestValue(intact.transaction('sentinel').objectStore('sentinel').get('key')),'retained','No destructive reset');intact.close();
         const diagnostics=JSON.stringify(r.getDiagnostics());ok(!/\.md|Alpha|Changed|Dormant|hierarchy|Field|Long/.test(diagnostics),'Aggregate-only diagnostic privacy');cache.close();return true;
       })()`), true);
     });
   } finally { await browser.cleanup(); }
+});
+
+/** Completed-work observation is tested against actual dense immutable families and real IDB. */
+test("real Chromium: completed source work is observable without masking waits or changing authority", { timeout: 90000 }, async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    assert.equal(await browser.evaluate(`(async()=>{
+      let events=0,throwObserver=false,clock=0,lastWork=0,maxGap=0;
+      const observed=new sourceModules.KplexIndexedDbCache('completed-source-work',undefined,()=>{
+        events++;maxGap=Math.max(maxGap,clock-lastWork);lastWork=clock;
+        if(throwObserver)throw new Error('Observer failure');
+      });
+      const r=observed.sources;
+      try {
+        ok(await observed.open(),'Real production database');
+        const originalYield=r.runtime.yield;
+        r.runtime.yield=async()=>{clock+=20000;await originalYield();};
+        await r.runtime.yield();equal(events,0,'A bare continuation has no completed work');
+        const text=Array.from({length:600},(_,i)=>'Field'+i+':: [[Target'+i+']]').join(String.fromCharCode(10));
+        const input=await make(r,'Dense',{kind:'missing'},text);
+        throwObserver=true;
+        equal((await r.replace(input)).outcome,'activated','Observer exceptions do not affect activation');
+        ok(events>5,'Dense production/staging/count pages report work');
+        throwObserver=false;events=0;clock=0;lastWork=0;maxGap=0;
+        const body=await r.readBody('Dense',()=>true);
+        const parsed=sourceModules.parseBodyMetadata(text);
+        const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)
+          ?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
+        ok(canonical(body)===canonical(parsed),'Dense authenticated body preserves all fields/provenance/URLs');
+        ok(clock>90000,'One owner crosses the existing inactivity duration in the cooperative clock');
+        ok(events>5,'Validated posting/chunk pages report progress within that same owner');
+        ok(maxGap<90000,'Actual dense work advances before the inactivity limit');
+        equal(await r.ensureLocalDependencies('Dense',0,0), 'ready','Observation leaves dependency authority unchanged');
+        equal(await r.completeLocalDependencyInventory(), 'ready','Inventory closes normally');
+
+        // Pause before the first source chunk request, outside a transaction. Pin/head reads are
+        // real IDB, and neither those waits nor bare continuations manufacture completed work.
+        const transact=r.transaction.bind(r);let entered,release;
+        const reached=new Promise(resolve=>entered=resolve),held=new Promise(resolve=>release=resolve);
+        let block=true;
+        r.transaction=async(...args)=>{
+          if(block&&args[1].includes('sourceChunks')&&args[2]==='readonly'){block=false;entered();await held;}
+          return transact(...args);
+        };
+        events=0;const pending=r.readBody('Dense',()=>true);await reached;
+        const frozenEvents=events;await r.runtime.yield();await r.runtime.yield();
+        equal(events,frozenEvents,'Frozen I/O and continuations do not extend inactivity');
+        release();equal(await pending,body,'Released real IDB read stays coherent');
+        ok(events>frozenEvents,'Only completed resumed work reports progress');
+        r.transaction=transact;
+
+        // A late old read cannot keep a new restore alive after its storage owner closes.
+        let enteredClosed,releaseClosed;block=true;
+        const reachedClosed=new Promise(resolve=>enteredClosed=resolve),heldClosed=new Promise(resolve=>releaseClosed=resolve);
+        r.transaction=async(...args)=>{
+          if(block&&args[1].includes('sourceChunks')&&args[2]==='readonly'){block=false;enteredClosed();await heldClosed;}
+          return transact(...args);
+        };
+        const late=r.readBody('Dense',()=>true);await reachedClosed;observed.close();
+        const terminalEvents=events;releaseClosed();equal(await late,null,'Closed read is rejected');
+        await r.runtime.yield();equal(events,terminalEvents,'Close suppresses late completed-work observation');
+        return true;
+      }finally{observed.close();}
+    })()`), true);
+  } finally { await browser.cleanup(); }
+});
+
+/** Native browser message tasks must settle even when zero-delay timer callbacks are withheld. */
+test("real Chromium: host task continuation survives withheld timers and closes native ports", { timeout: 90000 }, async () => {
+  const browser=await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(`(async()=>{
+      const NativeChannel=window.MessageChannel;let timerCalls=0,closed=0,settled=false;
+      const owner={setTimeout(){timerCalls++;},MessageChannel:class {
+        constructor(){const channel=new NativeChannel();
+          for(const port of [channel.port1,channel.port2]){const close=port.close.bind(port);port.close=()=>{closed++;close();};}
+          return channel;
+        }
+      }};
+      const pending=sourceModules.yieldToHostTask(owner).then(()=>{settled=true;});
+      await Promise.resolve();if(settled)throw new Error('Continuation did not release an event task');
+      await pending;if(timerCalls!==0||closed!==2)throw new Error('Native ports/timers were not preserved');
+      const cache=new sourceModules.KplexIndexedDbCache('native-task-cancel'),r=cache.sources;
+      try {
+        const body=sourceModules.parseBodyMetadata('Field:: [[Target]]');
+        const input={sourceId:'Owner',physical:{identity:'owner',path:'Owner.md',mtime:1,size:20},
+          observation:{epoch:'task-test',revision:0,environment:await r.observationDigest('host')},expected:{kind:'missing'},
+          families:{values:async emit=>{for(const fact of sourceModules.sourceValueSteps({...body,frontmatter:{},aliases:[],tags:[]}))if(!await emit(fact))return false;return true;},
+            'body-urls':async()=>true,metadata:async()=>true,resolution:async()=>true}};
+        if((await r.replace(input)).outcome!=='activated')throw new Error('Cancellation source did not activate');
+        let cancellationCloses=0;
+        const cancellingOwner={setTimeout(){throw new Error('Cancellation used a timer');},MessageChannel:class {
+          constructor(){const channel=new NativeChannel(),post=channel.port2.postMessage.bind(channel.port2);
+            for(const port of [channel.port1,channel.port2]){const close=port.close.bind(port);port.close=()=>{cancellationCloses++;close();};}
+            channel.port2.postMessage=value=>{post(value);cache.close();};return channel;
+          }
+        }};
+        r.runtime.yield=()=>sourceModules.yieldToHostTask(cancellingOwner);
+        if(await r.readBody('Owner',()=>true)!==null)throw new Error('Queued task bypassed closed source lifetime');
+        if(cancellationCloses!==2)throw new Error('Cancelled native task retained ports');
+      }finally{cache.close();}
+      return true;
+    })()`),true);
+  }finally{await browser.cleanup();}
 });

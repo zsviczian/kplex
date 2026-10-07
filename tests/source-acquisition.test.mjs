@@ -5,7 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { browserBundle } from "./support/browserTypeScript.mjs";
 
 const bundle = await browserBundle([
-  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts", "src/index/fieldParser.ts",
+  "src/adapters/obsidian/sourceAcquisition.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts", "src/index/GraphBuilder.ts", "src/index/fieldParser.ts", "src/index/ForegroundWorkScheduler.ts",
 ], { obsidian: `exports.Platform={isMobile:false}; exports.TFile=class TFile {
   constructor(path){this.path=path;this.name=path.split('/').pop();this.extension=path.split('.').pop();this.basename=path.split('/').pop().replace(/\\.[^.]+$/,'');this.stat={mtime:1,size:100,ctime:1};this.parent={path:''};}
 }; exports.TFolder=class TFolder {constructor(){this.path='';this.name='';this.children=[];this.parent=null;}};
@@ -41,7 +41,7 @@ test("streaming frontmatter aliases match the canonical merge without unrelated 
 });
 
 /** Only host events and file IO are fixtures; source codecs, repository and acquisition are production. */
-function hostFixture() {
+function hostFixture(backgroundCheckpoint, runBackgroundWork, onPresentationInputsAvailable) {
   const files = new Map(), metadata = new Map(), text = new Map(), legacy = new Map(), resolutions = new Map();
   const reads = [], parses = [], timers = new Map(); let timerId = 0;
   const events = () => {
@@ -69,14 +69,15 @@ function hostFixture() {
     schedule: (callback, delay) => { const id = ++timerId; timers.set(id, { callback, delay }); return id; }, cancel: id => timers.delete(id),
   });
   const cache = { sources: repository,
+    getQueuedBody: (path, mtime) => { const item = legacy.get(path); return item?.mtime === mtime ? item.body : null; },
     getBodies: async requests => new Map(requests.flatMap(({ path, mtime }) => { const item = legacy.get(path); return item?.mtime === mtime ? [[path, item.body]] : []; })),
-    putBody: async (path, mtime, body) => { legacy.set(path, { path, mtime, parserVersion: 2, body }); },
+    putBody: async (path, mtime, body) => { legacy.set(path, { path, mtime, parserVersion: 2, body }); return true; },
   };
   cache.putBodies = async values => { for (const value of values) await cache.putBody(value.path, value.mtime, value.body); };
   cache.deleteBody = async path => { legacy.delete(path); };
   cache.queueBodyWrite = (path, mtime, body) => { legacy.set(path, { path, mtime, parserVersion: 2, body }); };
   const parser = async value => { parses.push(value); return parseBodyMetadata(value); };
-  const acquisition = new ObsidianSourceAcquisition(app, cache, parser);
+  const acquisition = new ObsidianSourceAcquisition(app, cache, parser, undefined, undefined, undefined, backgroundCheckpoint, runBackgroundWork, onPresentationInputsAvailable);
   const add = (path, bodyText = "Links:: [[Alias]] [[Target]]", frontmatter = {}) => {
     const file = new TFile(path); file.parent = root; files.set(path, file); text.set(path, bodyText);
     metadata.set(path, { frontmatter, links: [] });
@@ -85,6 +86,70 @@ function hostFixture() {
   const facts = async (path, family) => { const result = []; assert.equal(await repository.visit(path, family, records => { result.push(...records); return true; }), "ready"); return result; };
   return { files, metadata, text, legacy, resolutions, reads, parses, app, repository, acquisition, cache, parser, add, facts,
     close() { acquisition.close(); repository.close(); assert.equal(vault.count(), 0); assert.equal(app.metadataCache.count(), 0); assert.equal(timers.size, 0); } };
+}
+
+test("independently scheduled source inventory owns P4 and yields to P3 without losing its unload fence", async () => {
+  const {ForegroundWorkScheduler,INDEX_WORK_PRIORITY:P}=window.sourceModules;
+  const scheduler=new ForegroundWorkScheduler();
+  const f=hostFixture(()=>scheduler.checkpoint(P.background),work=>scheduler.run(P.background,work));
+  const release=scheduler.begin(P.urlInventory);
+  let settled=false;const task=f.acquisition.reconcile().finally(()=>{settled=true;});
+  try {
+    await Promise.resolve();await Promise.resolve();
+    assert.equal(settled,false);
+    assert.deepEqual(scheduler.diagnostics().active,[0,0,0,1,1]);
+    assert.equal(scheduler.diagnostics().waiting,1);
+    assert.equal(f.acquisition.getCounters().checked,0,"No inventory reads begin behind the higher URL lane");
+    f.acquisition.close();scheduler.close();
+    assert.equal(await task,false,"A woken lower lane does not acquire late source authority");
+    release();assert.deepEqual(scheduler.diagnostics().active,[0,0,0,0,0]);
+  } finally {release();scheduler.close();f.close();}
+});
+
+test("full and node-only compiler continuations retain the builder caller's priority checkpoint", async () => {
+  const {ForegroundWorkScheduler,INDEX_WORK_PRIORITY:P,GraphBuilder}=window.sourceModules;
+  const scheduler=new ForegroundWorkScheduler();
+  for(const projection of ["graph","nodes"]){
+    const builder=Object.create(GraphBuilder.prototype);
+    builder.fullCompilerSettings=()=>({hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]}});
+    builder.isCurrent=()=>true;builder.backgroundCheckpoint=()=>scheduler.checkpoint(P.background);
+    const compiler=builder.createFullCompiler(projection),release=scheduler.begin(P.urlInventory);
+    let entered;
+    const boundary=new Promise(resolve=>{entered=resolve;});
+    builder.backgroundCheckpoint=()=>{entered();return scheduler.checkpoint(P.background);};
+    let settled=false;const continuation=compiler.runtime.yield().finally(()=>{settled=true;});
+    try{
+      await boundary;assert.equal(settled,false);
+      assert.equal(scheduler.diagnostics().waiting,1,`${projection} must yield behind URL inventory`);
+      release();await continuation;assert.equal(scheduler.diagnostics().waiting,0);
+    }finally{release();}
+  }
+  scheduler.close();
+});
+
+test("current new body availability wakes targeted presentation once; callback failure does not reject acquisition", async () => {
+  const events=[],f=hostFixture(undefined,undefined,path=>{events.push(path);throw Error("optional observer");});
+  try{
+    const file=f.add("style.md","type:: excalidraw");
+    const body=await f.acquisition.loadBody(file,()=>true);
+    assert(body);assert.deepEqual(events,[file.path]);
+    assert.equal(await f.acquisition.loadBody(file,()=>true),body);
+    assert.deepEqual(events,[file.path],"Existing cache reuse does not masquerade as new input availability");
+  }finally{f.close();}
+});
+
+for(const change of ["unload","native revision","caller"]){
+  test(`late body-cache availability cannot wake presentation after ${change}`,async()=>{
+    const events=[],f=hostFixture(undefined,undefined,path=>events.push(path));let valid=true,release,entered;
+    const reached=new Promise(resolve=>{entered=resolve;});const held=new Promise(resolve=>{release=resolve;});
+    try{
+      const file=f.add("style.md","type:: excalidraw"),original=f.cache.putBody;
+      f.cache.putBody=async(...args)=>{entered();await held;return original(...args);};
+      const task=f.acquisition.loadBody(file,()=>valid);await reached;
+      if(change==="unload")f.acquisition.close();else if(change==="native revision")file.stat.mtime++;else valid=false;
+      release();assert.equal(await task,null);assert.deepEqual(events,[]);
+    }finally{release?.();f.close();}
+  });
 }
 
 test("resolver-neutral local tokens cover relative, extensionless, encoded and subpath spellings", () => {

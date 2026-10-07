@@ -36,7 +36,26 @@ let initialized=false;
 try{
   report.preflight=await run(`${helper}const remote=require('@electron/remote'),win=remote.getCurrentWindow();remote.app.show();remote.app.focus({steal:true});await delay(100);win.show();win.moveTop();win.focus();await delay(300);const p=await settle();ok(current(),'Native test cancelled');
     window.kplexSi5Native={settings:structuredClone(p.settings),created:[],reads:0,hidden:document.hidden,throttle:win.webContents.getBackgroundThrottling(),startCenter:p.settings.lastActivePath};
-    const c=window.kplexSi5Native;for(const name of ['read','cachedRead']){const original=app.vault[name];c[name]=original;app.vault[name]=function(file,...args){if(file.extension==='md')c.reads++;return original.call(this,file,...args)}};
+    const c=window.kplexSi5Native;c.parserWrappers=[];
+    // Count canonical semantic acquisition across foreground/background owners. Independent URL
+    // discovery and Obsidian editor reads have separate lifetimes and cannot be charged here.
+    c.resetAcquisitionCounts=()=>{c.reads=0;c.semanticReads=0;c.semanticParses=0;c.semanticReadOwners=new Set();c.parserCoverageMisses=0};
+    c.attachSemanticParser=index=>{const parser=index?.metadataParser;if(!parser||typeof parser.parse!=='function')return false;
+      if(c.parserWrappers.some(owner=>owner.parser===parser&&parser.parse===owner.wrapper))return true;
+      const original=parser.parse,wrapper=function(...args){const stack=new Error().stack??'';
+        if(stack.includes('parseBody')||stack.includes('loadBody'))c.semanticParses++;
+        return original.apply(this,args)};
+      parser.parse=wrapper;c.parserWrappers.push({parser,original,wrapper});return true};
+    c.restoreParserWrappers=()=>{for(const owner of c.parserWrappers)if(owner.parser.parse===owner.wrapper)owner.parser.parse=owner.original;c.parserWrappers=[]};
+    c.resetAcquisitionCounts();c.attachSemanticParser(p.index);
+    for(const name of ['read','cachedRead']){const original=app.vault[name];c[name]=original;app.vault[name]=function(file,...args){
+      if(file.extension==='md'){c.reads++;const stack=new Error().stack??'';
+        const semantic=stack.includes('plugin:k-plex')&&!stack.includes('readUrlOwnerBody');
+        if(semantic){c.semanticReads++;c.semanticReadOwners.add(file.path)}
+        // Install before the original awaited read can resume its parser, including startup work
+        // that runs before plugin:enable returns. No waits or additional I/O enter this wrapper.
+        if(!c.attachSemanticParser(app.plugins.plugins['k-plex']?.index)&&semantic)c.parserCoverageMisses++;
+      }return original.call(this,file,...args)}};
     ${restartOnly?"c.expectedHeadDigest=await headsDigest(p);":""}
     void p.activateView();
     return {ready:true,hidden:document.hidden,throttle:c.throttle,markdownFiles:app.vault.getMarkdownFiles().length};`,"preflight");initialized=true;
@@ -62,13 +81,13 @@ try{
         const before=i.getSourceAcquisitionCounters(),semBefore=i.getSemanticPreparationDiagnostics(),a=(await s.repository.inspect(A,[])).head,b=(await s.repository.inspect(B,[])).head;
         ok(a.families.values.chunks>0,'Fixture has a values chunk');const db=await i.indexedDb.open();
         await new Promise((resolve,reject)=>{const tx=db.transaction('sourceChunks','readwrite');tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);tx.onerror=()=>reject(tx.error);tx.objectStore('sourceChunks').delete([A,a.families.values.revision,'values',0])});
-        c.reads=0;i.invalidateSemanticPolicy();await i.refreshSemanticSettings();await settle();await i.refreshSemanticSettings();
+        c.resetAcquisitionCounts();c.attachSemanticParser(i);i.invalidateSemanticPolicy();await i.refreshSemanticSettings();await settle();await i.refreshSemanticSettings();
         const counters=i.getSourceAcquisitionCounters(),sem=i.getSemanticPreparationDiagnostics(),after=(await s.repository.inspect(A,[])).head;
         ok(counters.repaired-before.repaired===1,'Exactly one source repaired');ok(counters.vaultReads-before.vaultReads<=1&&counters.parses-before.parses<=1,'At most one damaged-source acquisition');
         ok(sem.fullBuilds===semBefore.fullBuilds,'No corruption full build');ok(after.sourceRevision!==a.sourceRevision,'Damaged source replaced');
         ok(JSON.stringify((await s.repository.inspect(B,[])).head)===JSON.stringify(b),'Unrelated source unchanged');
         ok(i.get(A)?.neighbours.get(B)?.isRightFriend&&i.isSemanticWriteReady(A,B),'Automatic current-policy repair');
-        return {status:p.getIndexStatus(),counters,delta:Object.fromEntries(Object.keys(before).map(k=>[k,counters[k]-before[k]])),semantic:sem,markdownReads:c.reads,unrelatedHeadUnchanged:true,automaticRepair:true,hidden:document.hidden,backgroundThrottling:require('@electron/remote').getCurrentWindow().webContents.getBackgroundThrottling(),jsHeapBytes:performance.memory?.usedJSHeapSize??null};`,name);
+        return {status:p.getIndexStatus(),counters,delta:Object.fromEntries(Object.keys(before).map(k=>[k,counters[k]-before[k]])),semantic:sem,markdownReads:c.reads,semanticMarkdownReads:c.semanticReads,semanticParserCalls:c.semanticParses,semanticOwnerCount:c.semanticReadOwners.size,unrelatedHeadUnchanged:true,automaticRepair:true,hidden:document.hidden,backgroundThrottling:require('@electron/remote').getCurrentWindow().webContents.getBackgroundThrottling(),jsHeapBytes:performance.memory?.usedJSHeapSize??null};`,name);
       report.runs.push({name,elapsedMs:Date.now()-started,...result});continue;
     }
     if(name==='missing-cache'||name==='corrupt-cache')await run(`${helper}const p=await settle();p.index.cancelPendingPersistence();const db=await p.index.indexedDb.open();
@@ -77,17 +96,29 @@ try{
       ${name==='corrupt-cache'?"tx.objectStore('meta').put({key:'active',schema:999,generation:'invalid-si5'});":""}});return {damagedOptionalCache:true};`,name+" prepare");
     cli("plugin:disable","id=k-plex");
     if(name==='offline-edit')await run(`${helper}await app.vault.modify(app.vault.getFileByPath('__kplex_si5_A.md'),'SI5Friends:: [[__kplex_si5_B.md]]\\nSI5Friends:: [[__kplex_si5_Ghost]]');await delay(500);return {edited:true};`,"offline sync edit");
-    evaluate("(()=>{window.kplexSi5Native.reads=0;return JSON.stringify({reset:true})})()");
+    evaluate("(()=>{window.kplexSi5Native.resetAcquisitionCounts();return JSON.stringify({reset:true})})()");
     const started=Date.now();cli("plugin:enable","id=k-plex");
-    evaluate(`(()=>{const p=app.plugins.plugins['k-plex'],s=p.index.sourceAcquisition,c=window.kplexSi5Native;c.trace=[];
+    evaluate(`(()=>{const p=app.plugins.plugins['k-plex'],s=p.index.sourceAcquisition,c=window.kplexSi5Native;c.trace=[];c.attachSemanticParser(p.index);
       const inspect=s.repository.inspect;s.repository.inspect=async function(...args){const r=await inspect.apply(this,args);if(r.reason!=='ready'&&c.trace.length<12)c.trace.push({phase:'inspect',reason:r.reason,hasHead:!!r.head,expected:r.expected.kind,families:args[1]});return r;};
       const load=s.loadBody;c.instanceOriginals={inspect,load};s.loadBody=async function(file,...args){if(c.trace.length<12)c.trace.push({phase:'load-body',bodyDirty:this.states.get(file)?.bodyDirty,dirty:this.states.get(file)?.dirty,created:this.states.get(file)?.created,size:file.stat.size});return load.call(this,file,...args)};
       void p.activateView();return JSON.stringify({opened:true})})()`);
     const result=await run(`${helper}const p=await settle(),i=p.index,c=window.kplexSi5Native;await i.refreshSemanticSettings();await delay(100);
       const counters=i.getSourceAcquisitionCounters(),sem=i.getSemanticPreparationDiagnostics(),heads={};for(const path of c.created)heads[path]=(await i.sourceAcquisition.repository.inspect(path,[])).head;
       ok(sem.fullBuilds===0,'Warm source-backed restart used full graph build');
-      ok(counters.vaultReads===${name==='offline-edit'?1:0},'Unexpected Markdown acquisition '+JSON.stringify(counters));
-      ok(counters.parses===${name==='offline-edit'?1:0},'Unexpected parser calls');
+      ok(c.semanticReads===${name==='offline-edit'?1:0},'Unexpected canonical semantic Markdown acquisition');
+      ok(c.semanticParses===${name==='offline-edit'?1:0},'Unexpected canonical semantic parser calls');
+      ok(c.parserCoverageMisses===0,'Canonical parser measurement missed its startup owner');
+      ${name==='offline-edit'?"ok(c.semanticReadOwners.size===1&&c.semanticReadOwners.has('__kplex_si5_A.md'),'Only the edited source may need semantic Markdown');":"ok(c.semanticReadOwners.size===0,'Unchanged sources must not need semantic Markdown');"}
+      ok(counters.vaultReads<=c.semanticReads&&counters.parses<=c.semanticParses,'Source acquisition duplicated canonical semantic work');
+      let currentReusedBody=false;
+      if(counters.vaultReads<c.semanticReads||counters.parses<c.semanticParses){
+        const file=app.vault.getFileByPath('__kplex_si5_A.md'),head=heads['__kplex_si5_A.md'];
+        const bodies=file?await i.indexedDb.getBodies([{path:file.path,mtime:file.stat.mtime}]):new Map();
+        currentReusedBody=!!file&&bodies.has(file.path)&&head?.state==='complete'
+          &&head.physical.mtime===file.stat.mtime&&head.physical.size===file.stat.size
+          &&counters.reusedBodies+counters.legacyBodies>0;
+        ok(currentReusedBody,'Foreground semantic acquisition must leave a current reusable body and durable source');
+      }
       ${restartOnly?"ok(await headsDigest(p)===c.expectedHeadDigest,'Warm restart rewrote selected source heads');":""}
       ${restartOnly?"":"ok(i.get('__kplex_si5_A.md')?.neighbours.get('__kplex_si5_B.md')?.isRightFriend,'Saved ontology after reload');ok(i.isSemanticWriteReady('__kplex_si5_A.md','__kplex_si5_B.md'),'Current write authority');for(const path of c.created)if(path!=='__kplex_si5_A.md'||"+JSON.stringify(name)+"!=='offline-edit')ok(JSON.stringify(heads[path])===JSON.stringify(c.heads[path]),'Valid neutral head rewritten');"}
       ${name==='offline-edit'?"ok(i.get('__kplex_si5_A.md')?.neighbours.get('__kplex_si5_Ghost')?.isRightFriend,'Latest offline candidate replayed');":""}
@@ -95,17 +126,17 @@ try{
       const center=p.settings.lastActivePath,node=[...document.querySelectorAll('[data-kplex-path]')].find(el=>el.getAttribute('data-kplex-path')===center&&el.classList.contains('kplex-role-center'));
       ok(node,'Rendered restored center');return {status:p.getIndexStatus(),counters,semantic:sem,sourceBackedStartup:i.hasSourceBackedStartup(),
         sourceBackedSemantics:i.sourceBackedSemantics,hydration:i.getSnapshotHydrationDiagnostics(),hidden:document.hidden,backgroundThrottling:require('@electron/remote').getCurrentWindow().webContents.getBackgroundThrottling(),
-        markdownReads:c.reads,trace:c.trace,jsHeapBytes:performance.memory?.usedJSHeapSize??null,renderedCenter:true,globalVocabularyRecovered:${!restartOnly&&(name==='missing-cache'||name==='corrupt-cache')},${restartOnly?"sourceHeadsUnchanged:true,":""}};`,name);
+        markdownReads:c.reads,semanticMarkdownReads:c.semanticReads,semanticParserCalls:c.semanticParses,semanticOwnerCount:c.semanticReadOwners.size,currentReusedBody,trace:c.trace,jsHeapBytes:performance.memory?.usedJSHeapSize??null,renderedCenter:true,globalVocabularyRecovered:${!restartOnly&&(name==='missing-cache'||name==='corrupt-cache')},${restartOnly?"sourceHeadsUnchanged:true,":""}};`,name);
     report.runs.push({name,elapsedMs:Date.now()-started,...result});
   }
   report.status="passed";
 }catch(error){report.error=String(error);report.failedCommand=lastCliCommand;report.failedPhase=report.currentPhase;
-  try{report.failure=evaluate("JSON.stringify({trace:window.kplexSi5Native?.trace,source:app.plugins.plugins['k-plex']?.index.getSourceAcquisitionCounters(),semantic:app.plugins.plugins['k-plex']?.index.getSemanticPreparationDiagnostics(),status:app.plugins.plugins['k-plex']?.getIndexStatus(),foreground:window.kplexSi5Probe?.foreground,hidden:document.hidden})");}catch(captureError){report.captureError=String(captureError);}}
+  try{report.failure=evaluate("JSON.stringify({trace:window.kplexSi5Native?.trace,source:app.plugins.plugins['k-plex']?.index.getSourceAcquisitionCounters(),semantic:app.plugins.plugins['k-plex']?.index.getSemanticPreparationDiagnostics(),status:app.plugins.plugins['k-plex']?.getIndexStatus(),markdownReads:window.kplexSi5Native?.reads,semanticMarkdownReads:window.kplexSi5Native?.semanticReads,semanticParserCalls:window.kplexSi5Native?.semanticParses,semanticOwnerCount:window.kplexSi5Native?.semanticReadOwners?.size,parserCoverageMisses:window.kplexSi5Native?.parserCoverageMisses,foreground:window.kplexSi5Probe?.foreground,hidden:document.hidden})");}catch(captureError){report.captureError=String(captureError);}}
 finally{
   try{evaluate("(()=>{if(window.kplexSi5Probe){window.kplexSi5Probe.closed=true;window.clearTimeout(window.kplexSi5Probe.timer);window.clearInterval(window.kplexSi5Probe.foregroundTimer)}return JSON.stringify({probeCancelled:true})})()");}catch{}
   if(!initialized)try{initialized=evaluate("JSON.stringify({initialized:!!window.kplexSi5Native})").initialized;}catch{}
   if(initialized)try{evaluate("(()=>{window.kplexSi5Native.closed=true;return JSON.stringify({cancelled:true})})()");report.cleanup=await run(`${helper}const c=window.kplexSi5Native;let p=app.plugins.plugins['k-plex'];if(!p){await app.plugins.enablePlugin('k-plex');p=app.plugins.plugins['k-plex']}
-    for(const name of ['read','cachedRead'])app.vault[name]=c[name];if(c.instanceOriginals){p.index.sourceAcquisition.repository.inspect=c.instanceOriginals.inspect;p.index.sourceAcquisition.loadBody=c.instanceOriginals.load;}Object.assign(p.settings,c.settings);await p.saveSettings();
+    for(const name of ['read','cachedRead'])app.vault[name]=c[name];c.restoreParserWrappers?.();if(c.instanceOriginals){p.index.sourceAcquisition.repository.inspect=c.instanceOriginals.inspect;p.index.sourceAcquisition.loadBody=c.instanceOriginals.load;}Object.assign(p.settings,c.settings);await p.saveSettings();
     c.fixtureLeaf?.detach();for(const leaf of app.workspace.getLeavesOfType('k-plex-react-view'))if(c.created.some(path=>leaf.view.containerEl.querySelector('[data-kplex-path="'+path+'"]')))leaf.detach();
     for(const path of c.created.slice().reverse()){const f=app.vault.getFileByPath(path);if(f)await app.vault.delete(f,true)}
     require('@electron/remote').getCurrentWindow().webContents.setBackgroundThrottling(c.throttle);delete window.kplexSi5Native;

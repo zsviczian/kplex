@@ -3,8 +3,10 @@
  * reference-bearing frontmatter/inline value without ontology or image settings, resolves lexical
  * targets through the host, and streams one shared provenance payload per physical occurrence.
  * GraphBuilder owns acquisition; this adapter owns bounded output and source/file revision fences.
+ * External targets normalize web authority/root identity; raw property spellings stay in provenance.
  */
 import { TFile } from "obsidian";
+import { canonicalWebUrl, webUrlOriginTarget } from "./urlIdentity";
 import { nodeId, type GraphNodeKind, type NodeId } from "../../core/graph/model";
 import {
   estimateReferenceRecordBytes,
@@ -74,7 +76,8 @@ function decodeInternalCandidate(rawTarget: string): string {
 export function resolveObsidianReferenceTarget(host: ReferenceSourceCollectorHost, sourcePath: string, reference: ExtractedLinkReference): SourceTargetRef | null {
   if (reference.external) {
     if (!reference.rawTarget) return null;
-    return { entity: { id: nodeId(reference.rawTarget), kind: "url", state: "materialized", semanticPath: reference.rawTarget },
+    const url = canonicalWebUrl(reference.rawTarget);
+    return { entity: { id: nodeId(url), kind: "url", state: "materialized", semanticPath: url },
       rawTarget: reference.rawTarget, resolvedBy: "url" };
   }
   const candidate = decodeInternalCandidate(reference.rawTarget);
@@ -106,12 +109,16 @@ export class ObsidianReferenceSourceCollector {
   private nextSequence = 0;
   private state: "new" | "collecting" | "finalized" | "failed" = "new";
 
-  /** Capture the source boundary. This constructor deliberately accepts no configuration policy. */
+  /**
+   * Capture the source boundary without ontology configuration. The optional external-only lane
+   * restricts facts to URLs while retaining the same grammar, provenance and source-read fences.
+   */
   constructor(
     private readonly host: ReferenceSourceCollectorHost,
     private readonly runtime: ReferenceSourceCollectorRuntime,
     private readonly file: TFile,
     private readonly metadata: ParsedFileMetadata,
+    private readonly options: Readonly<{ externalOnly?: boolean }> = {},
   ) {
     this.startingHostRevision = runtime.sourceRevision();
     this.capturedFile = { path: file.path, mtime: file.stat.mtime, size: file.stat.size };
@@ -170,7 +177,11 @@ export class ObsidianReferenceSourceCollector {
       && boundary.snapshotRevision === this.boundary.snapshotRevision;
   }
 
-  /** Enumerate one value lazily; deduplicate targets only within this physical value occurrence. */
+  /**
+   * Enumerate one value lazily; deduplicate targets only within this physical value occurrence.
+   * The URL lane may request external-only facts, retaining original value payload/provenance and
+   * cancellation work while skipping internal resolution and unrelated semantic candidates.
+   */
   private async collectValue(
     occurrence: PropertyValueOccurrence,
     emit: (record: NormalizedSourceRecord) => Promise<boolean>,
@@ -181,11 +192,12 @@ export class ObsidianReferenceSourceCollector {
     const header: ReferenceValueFact = { ...identity, kind: "reference-value", source: this.source, sourceRevision: this.revision,
       valueId: referenceValueId(JSON.stringify([identity.surface, identity.origin, identity.fieldName, identity.ordinal])) };
     const seen = new Set<NodeId>();
-    let pending: Readonly<{ target: SourceTargetRef; hostOccurrenceCount: number }> | undefined;
+    let pending: Readonly<{ target: SourceTargetRef; origin?: SourceTargetRef; hostOccurrenceCount: number }> | undefined;
     let ordinal = 0;
     for (const reference of iterateReferenceScanSteps(value)) {
       if (!(await touch())) return false;
       if (!reference) continue;
+      if (this.options.externalOnly && !reference.external) continue;
       const target = resolveObsidianReferenceTarget(this.host, this.capturedFile.path, reference);
       if (!target || seen.has(target.entity.id)) continue;
       seen.add(target.entity.id);
@@ -203,7 +215,8 @@ export class ObsidianReferenceSourceCollector {
       }
       if (pending && !(await emit({ kind: "reference-candidate", source: this.source, sourceRevision: this.revision,
         valueId: header.valueId, ordinal: ordinal++, final: false, ...pending }))) return false;
-      pending = { target,
+      const origin = webUrlOriginTarget(target);
+      pending = { target, ...(origin ? { origin } : {}),
         hostOccurrenceCount: this.host.resolvedLinkCount(this.capturedFile.path, target.entity.semanticPath ?? "") };
     }
     if (pending && !(await emit({ kind: "reference-candidate", source: this.source, sourceRevision: this.revision,

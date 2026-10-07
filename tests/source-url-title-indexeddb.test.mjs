@@ -86,7 +86,7 @@ test("real IndexedDB URL-title order, compatibility and terminal fences", { time
           for(const options of variants)expected.push(await titleFull(f,titleUrl,options));equal(expected,['First label','First label','First label','First label'],'Fresh full GraphIndex');
           const relation=await f.discovery.discover({kind:'neighborhood',endpoints:[titleRef()]});equal(relation.sourceIds,['Root.md','Nested/First.md'],'Structural relation order preserved');
           const before=await titleSnapshot(f),root=await f.repository.readDependencyRoot(()=>true),check=titleGuard(f);
-          equal(JSON.parse(root.data).version,4,'Derivative v4');equal((await f.cache.open()).version,9,'No additional IDB schema bump');
+          equal(JSON.parse(root.data).version,4,'Derivative v4');equal((await f.cache.open()).version,10,'Supported v10 schema remains unchanged');
           for(let i=0;i<variants.length;i++){
             const policy=titlePolicy();Object.assign(policy.settings,variants[i]);const result=await titleReader(f).prepare(titleRef(),policy,runtime());
             equal(result.outcome,'ready','Bounded title input '+JSON.stringify(result));equal(result.input.name,expected[i],'Full title parity');
@@ -113,12 +113,12 @@ test("real IndexedDB URL-title order, compatibility and terminal fences", { time
           equal((await d.rebuild()).outcome,'ready','Only explicit acquisition replaces derivative root');
           equal((await d.discoverUrlTitle(titleRef())).sourceIds,['Nested/First.md','Root.md'],'New authenticated order');
           const reopened=await other.open();for(const [store,rows]of Object.entries(before))equal(await value(reopened.transaction(store).objectStore(store).getAll()),rows,store+' preserved through coexistence');
-          equal(reopened.version,9,'No additional database migration');return true;
+          equal(reopened.version,10,'Supported v10 schema survives reopen');return true;
         }finally{other?.close();f.close();}
       })()`), true);
     });
 
-    await t.test("v5 to v9 upgrade preserves accepted data before creating a v3 derivative", async () => {
+    await t.test("v5 to v10 upgrade preserves accepted data before creating a v3 derivative", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const M=sourceModules,seed=await titleSeed('url-title-upgrade-source'),db=await seed.cache.open(),copied={};
         const stores=['meta','sourceHeads','sourceChunks','sourcePostings','bodies'];for(const name of stores)copied[name]=await value(db.transaction(name).objectStore(name).getAll());seed.close();
@@ -126,9 +126,10 @@ test("real IndexedDB URL-title order, compatibility and terminal fences", { time
           db.createObjectStore('meta',{keyPath:'key'}).createIndex('sourceLease',['sourceId','revision']);db.createObjectStore('bodies',{keyPath:'path'});db.createObjectStore('sourceHeads',{keyPath:'sourceId'});
           for(const name of ['sourceChunks','sourcePostings']){const store=db.createObjectStore(name,{keyPath:['sourceId','revision','family','index']});store.createIndex('sourceRevision',['sourceId','revision']);store.createIndex('sourceFamilyRevision',['sourceId','revision','family']);if(name==='sourcePostings')store.createIndex('lookup',['kind','key','sourceId','revision','family','index']);}
         });
-        await edit(old,stores,tx=>{for(const name of stores)for(const row of copied[name]){if(name==='meta'&&(row.key.startsWith('source-dependency-')||row.key.startsWith('source-impact-')))continue;tx.objectStore(name).put(row);}});old.close();
+        await edit(old,stores,tx=>{for(const name of stores)for(const row of copied[name]){if(name==='meta'&&(row.key.startsWith('source-dependency-')||row.key.startsWith('source-impact-')))continue;tx.objectStore(name).put(row);}});ok(!old.objectStoreNames.contains('urlOwners'),'Genuine v5 schema has no independent URL cache');old.close();
         const f=await fixture('url-title-v5');try{
-          const upgraded=await f.cache.open();equal(upgraded.version,9,'Existing additive upgrade');
+          const upgraded=await f.cache.open();equal(upgraded.version,10,'Existing additive upgrade');
+          ok(upgraded.objectStoreNames.contains('urlOwners'),'Independent URL cache added in the version-change transaction');equal(await value(upgraded.transaction('urlOwners').objectStore('urlOwners').count()),0,'Upgrade invents no URL owners');
           for(const name of ['sourceHeads','sourceChunks','sourcePostings','bodies'])equal(await value(upgraded.transaction(name).objectStore(name).getAll()),copied[name],name+' preserved during upgrade');
           titleRejected(await f.acquisition.contributorDiscovery(runtime()).discoverUrlTitle(titleRef()),'dependency-pending');
           f.add('A.md','[New label]('+titleUrl+')');await f.acquire();const d=await f.build();equal((await d.discoverUrlTitle(titleRef())).outcome,'ready','Explicit fresh v3 catalog');return true;

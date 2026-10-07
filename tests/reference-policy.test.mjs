@@ -6,6 +6,8 @@ import { loadPortableModules } from "./support/portableTypeScript.mjs";
 
 const loaded = loadPortableModules([
   "src/core/graph/compiler.ts", "src/core/graph/patch.ts", "src/core/graph/source.ts",
+  "src/core/graph/resolver.ts",
+  "src/core/graph/relations.ts",
   "src/core/graph/sourcePolicy.ts", "src/core/parser/metadata.ts", "src/core/parser/referenceValues.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts", "src/index/SourceFingerprint.ts",
 ], { obsidian: `class TFile { constructor(path) { this.path=path; this.name=path.split('/').pop();
@@ -90,9 +92,9 @@ test("same unassigned frontmatter/inline facts replay parent, friend, challenger
   }
 });
 
-test("dormant values cannot materialize even their source or demand missing published targets", async () => {
+test("dormant internal values cannot materialize even their source or demand missing published targets", async () => {
   const file = sourceFile(), target = new TFile("NotPublished.md");
-  const { records } = await collect(metadata({ Unknown: ["[[NotPublished]]", "[[Ghost]]", "https://dormant.example/a"] }), { file, host: host([target]) });
+  const { records } = await collect(metadata({ Unknown: ["[[NotPublished]]", "[[Ghost]]"] }), { file, host: host([target]) });
   const result = await compile(records, policy());
   assert.equal(result.nodes.size, 0); assert.deepEqual(declarations(result), []); assert.equal(result.discoveredFields.size, 0);
   const source = ref(file), fact = entityFact(source), lookedUp = [];
@@ -104,7 +106,8 @@ test("dormant values cannot materialize even their source or demand missing publ
   assert.equal(outcome.patch.compilation.nodes.size, 1); assert.deepEqual([...outcome.patch.newNodes()], []);
   assert.deepEqual([...outcome.patch.declarations()], []);
   // A distinct acquired family can still activate the same target: dormancy is not a blacklist.
-  const url = records.find(r => r.target?.entity.kind === "url").target;
+  const url = { entity: { id: "https://dormant.example/a", kind: "url", state: "materialized", semanticPath: "https://dormant.example/a" },
+    rawTarget: "https://dormant.example/a", resolvedBy: "url" };
   const withBody = await compile([fact, ...records, { kind: "body-url", source, sourceRevision: "body:1", target: url, provenance: { surface: "body" } }], policy());
   assert(withBody.node(url.entity.id)); assert.equal(declarations(withBody).length, 1);
 });
@@ -160,6 +163,31 @@ test("image policy replay keeps image-only, prose-plus-image and ontology-plus-i
       await feed(patch, [structural[0], generic, ...records]); const out = await patch.finish();
       assert.equal(out.outcome, "prepared"); assert.deepEqual(canonical(out.patch.compilation), canonical(full));
     }
+  }
+});
+
+test("image-only web properties preserve materialization without inferred links or origins in full and patch", async () => {
+  const { file, records } = await collect(metadata({ Cover: "https://Obsidian.md/Cover" }));
+  const source = ref(file), fact = entityFact(source), candidate = records.find(item => item.kind === "reference-candidate");
+  assert(candidate?.origin);
+  const body = { kind: "body-url", source, sourceRevision: "body:1", target: candidate.target, origin: candidate.origin,
+    provenance: { surface: "body", rawValue: candidate.target.rawTarget, line: 5 } };
+  const imagePolicy = policy({}, { thumbnailProperty: "Cover", nodeImageProperty: "cover" });
+  for (const [settings, bodyReference] of [[imagePolicy, false], [imagePolicy, true],
+    [policy({ parents: ["Cover"] }, { thumbnailProperty: "Cover" }), false]]) {
+    const input = [fact, ...records, ...(bodyReference ? [body] : [])];
+    const full = await compile(input, settings), evidence = declarations(full);
+    assert.equal(full.node(candidate.target.entity.id).url, "https://obsidian.md/Cover", "Presentation URL entity remains materialized");
+    assert.equal(evidence.filter(item => item.sourceKind === "property-url").length, 0, "Image-only property cannot infer a child");
+    assert.equal(evidence.filter(item => item.sourceKind === "body-url").length, bodyReference ? 1 : 0, "Independent genuine body reference survives");
+    const semantic = bodyReference || settings.hierarchy.parents.length > 0;
+    assert.equal(evidence.filter(item => item.sourceKind === "url-origin").length, semantic ? 1 : 0, "Only actual relationship input creates origin evidence");
+    assert.equal(Boolean(full.node(candidate.origin.entity.id)), semantic, "Image-only property cannot seed a phantom origin");
+    assert.equal(evidence.filter(item => item.sourceKind === "frontmatter-ontology").length, settings.hierarchy.parents.length ? 1 : 0,
+      "Explicit ontology plus image remains semantic");
+    const patch = new c.NormalizedSourcePatchPreparer(source.id, settings, runtime(), { entity: item => item.id === source.id ? fact : undefined });
+    await feed(patch, input); const result = await patch.finish();
+    assert.equal(result.outcome, "prepared"); assert.deepEqual(canonical(result.patch.compilation), canonical(full));
   }
 });
 
@@ -244,4 +272,29 @@ test("SI2 retains settings-triggered semantic rebuilds and introduces no durable
   const docs = readFileSync(new URL("../docs/INDEX_SETTINGS_INDEPENDENCE_DESIGN.md", import.meta.url), "utf8");
   assert(docs.includes("SI3") && docs.includes("SI4"));
   // Persistence/restart reuse and demand-driven reinterpretation are pending SI3/SI4, not SI2 claims.
+});
+
+/** URLs in genuine property occurrences have default inference without pretending to be body links. */
+test("unassigned property URLs infer with raw provenance, configured roles and root hierarchy remain canonical", async () => {
+  const raw = "https://Obsidian.md/Slug", second = "https://obsidian.md/Other";
+  const meta = metadata({ Website: [raw], Parents: raw, Hidden: second }, "Resource:: https://Obsidian.md/Inline");
+  const found = await collect(meta), source = ref(found.file), fact = entityFact(source);
+  const inferred = await compile([fact, ...found.records], policy());
+  const property = declarations(inferred).filter(record => record.sourceKind === "property-url");
+  assert(property.some(record => record.declaredTargetPath === "https://obsidian.md/Slug" && record.fieldName === "Website" && record.rawValue === raw));
+  assert(property.some(record => record.declaredTargetPath === "https://obsidian.md/Inline" && record.fieldName === "Resource" && record.line === 1));
+  assert.equal(declarations(inferred).filter(record => record.sourceKind === "body-url").length, 0, "reference family retains property provenance");
+  assert.equal(declarations(inferred).filter(record => record.sourceKind === "url-origin").length, 3, "one hierarchy edge per distinct property target");
+  const defined = await compile([fact, ...found.records], policy({ parents: ["Parents"], hidden: ["Hidden"] }));
+  const role = [...defined.node(source.id).neighbours.values()].find(relation => relation.target.semanticPath === "https://obsidian.md/Slug");
+  assert.equal(c.classifyRelation(role, "parent", false), c.RelationType.DEFINED);
+  assert.equal(c.classifyRelation(role, "child", false), null, "configured parent overrides default inference in the canonical resolver");
+  assert.equal(declarations(defined).filter(record => record.sourceKind === "frontmatter-ontology" && record.declaredTargetPath === "https://obsidian.md/Slug").length, 1);
+  assert.equal(declarations(defined).filter(record => record.sourceKind === "property-url" && record.fieldName === "Parents").length, 0);
+  const hidden = [...defined.node(source.id).neighbours.values()].find(relation => relation.target.semanticPath === second);
+  assert.equal(hidden.isHidden, true, "configured hidden URL remains hidden");
+  assert.equal(declarations(defined).filter(record => record.sourceKind === "property-url" && record.fieldName === "Hidden").length, 0);
+  const preparer = new c.NormalizedSourcePatchPreparer(source.id, policy(), runtime(), { entity: e => e.id === source.id ? fact : undefined });
+  await feed(preparer, [fact, ...found.records]); const patch = await preparer.finish(); assert.equal(patch.outcome, "prepared");
+  assert.deepEqual(declarations(patch.patch.compilation), declarations(inferred), "full and patch share the URL default and hierarchy owner");
 });

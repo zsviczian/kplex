@@ -31,6 +31,8 @@ for (const file of [
   "src/core/parser/referenceValues.ts",
   "src/core/graph/source.ts",
   "src/index/fieldParser.ts",
+  "src/adapters/obsidian/yieldToHostTask.ts",
+  "src/adapters/obsidian/urlIdentity.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts",
 ]) compile(file);
 
@@ -54,6 +56,7 @@ const { TFile } = require(join(obsidianDir, "index.js"));
 const { ObsidianReferenceSourceCollector } = require(join(temp, "src/adapters/obsidian/ontologySourceCollector.js"));
 const { extractLinksFromValue, extractLinkReferencesFromValue, iterateLinkReferencesFromValue } = require(join(temp, "src/index/fieldParser.js"));
 const { MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH, acceptSourceBatch, beginSourceRead, sourceReadCanPublish } = require(join(temp, "src/core/graph/source.js"));
+const { canonicalWebUrl } = require(join(temp, "src/adapters/obsidian/urlIdentity.js"));
 
 function makeHost(files, resolutions = {}) {
   const byPath = new Map(files.map((file) => [file.path, file]));
@@ -87,6 +90,38 @@ function assertNoHostObject(value) {
 }
 
 try {
+  {
+    const { canonicalWebUrl, webUrlOrigin } = require(join(temp, "src/adapters/obsidian/urlIdentity.js"));
+    assert.equal(canonicalWebUrl("HTTPS://Obsidian.MD/"), "https://obsidian.md");
+    assert.equal(canonicalWebUrl("https://Obsidian.md/?"), "https://obsidian.md?");
+    assert.equal(canonicalWebUrl("https://Obsidian.md/#"), "https://obsidian.md#");
+    assert.equal(canonicalWebUrl("https://Obsidian.md:443/Slug?Key=Value#Part"), "https://obsidian.md/Slug?Key=Value#Part");
+    assert.notEqual(canonicalWebUrl("https://obsidian.md/Slug"), canonicalWebUrl("https://obsidian.md/slug"));
+    assert.notEqual(canonicalWebUrl("https://obsidian.md?Key=Value"), canonicalWebUrl("https://obsidian.md?key=Value"));
+    assert.notEqual(canonicalWebUrl("https://obsidian.md#Part"), canonicalWebUrl("https://obsidian.md#part"));
+    assert.equal(canonicalWebUrl("https://bad:port/item"), "https://bad:port/item");
+    assert.equal(webUrlOrigin("https://bad:port/item"), null);
+    assert.equal(webUrlOrigin("https://Obsidian.md/slug1"), "https://obsidian.md");
+    const source = new TFile("URL-property.md"), { host, calls } = makeHost([source]);
+    const raw = "https://Obsidian.md/";
+    const collector = new ObsidianReferenceSourceCollector(host, {
+      isCurrent: () => true, sourceRevision: () => 1, checkpoint: async () => true,
+    }, source, { frontmatter: { Parent: raw }, inlineFields: {}, inlineFieldOccurrences: [], aliases: [], tags: [], urls: [] });
+    const records = (await collect(collector)).flatMap(batch => batch.records);
+    const reference = records.find(record => record.kind === "reference-candidate");
+    assert.equal(reference.target.entity.id, "https://obsidian.md");
+    assert.equal(reference.target.rawTarget, raw, "property lexical target survives canonical identity normalization");
+    assert.deepEqual(extractLinksFromValue(host, [raw, "https://obsidian.md"], source), ["https://obsidian.md"]);
+    const urlOnly = new ObsidianReferenceSourceCollector(host, {
+      isCurrent: () => true, sourceRevision: () => 1, checkpoint: async () => true,
+    }, source, { frontmatter: { Parent: "[[Internal]] [Docs](https://Obsidian.md/)", Other: "[[Unrelated]]" },
+      inlineFields: {}, inlineFieldOccurrences: [], aliases: [], tags: [], urls: [] }, { externalOnly: true });
+    const isolated = (await collect(urlOnly)).flatMap(batch => batch.records);
+    assert.deepEqual(isolated.filter(record => record.kind === "reference-candidate").map(record => record.target.entity.id), ["https://obsidian.md"]);
+    assert.deepEqual(isolated.filter(record => record.kind === "reference-value").map(record => record.fieldName), ["Parent"]);
+    assert.equal(isolated.find(record => record.kind === "reference-payload").text, "[[Internal]] [Docs](https://Obsidian.md/)");
+    assert.equal(calls.length, 0, "external-only lane does not resolve unrelated internal references");
+  }
   {
     const source = new TFile("Folder/Source.md", 10, 100);
     const topic = new TFile("Folder/Topic.md", 20, 200);
@@ -290,12 +325,14 @@ try {
       { a: ["[[Topic]]", "[[Topic]]"], b: "[label](Never%20There) https://example.org/x!" },
     ];
     for (const value of corpus) {
-      const expected = legacyExtract(value);
-      assert.deepEqual(extractLinksFromValue({ metadataCache: host.metadataCache }, value, source), expected, "compatibility wrapper must preserve accepted grammar and exact targets");
+      // Accepted discovery grammar stays unchanged. Only web authority/root identity is deliberately
+      // normalized. The existing per-value deduplication now recognizes equivalent web identities.
+      const expected = [...new Set(legacyExtract(value).map(canonicalWebUrl))];
+      assert.deepEqual(extractLinksFromValue({ metadataCache: host.metadataCache }, value, source), expected, "compatibility wrapper preserves discovery with canonical web identities");
       const meta = { frontmatter: { Parent: value }, inlineFields: {}, inlineFieldOccurrences: [], aliases: [], tags: [], urls: [] };
       const collector = new ObsidianReferenceSourceCollector(host, { isCurrent: () => true, sourceRevision: () => 1, checkpoint: async () => true }, source, meta);
       const records = (await collect(collector)).flatMap(batch => batch.records);
-      assert.deepEqual(records.filter(record => record.kind === "reference-candidate").map(record => record.target.entity.semanticPath), expected, "normalized collector must preserve legacy target deduplication/order");
+      assert.deepEqual(records.filter(record => record.kind === "reference-candidate").map(record => record.target.entity.semanticPath), expected, "normalized collector preserves per-value target order and deduplication through canonical identity normalization");
     }
   }
 

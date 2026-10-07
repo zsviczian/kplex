@@ -15,7 +15,7 @@ await build({
   plugins: [{ name: "obsidian-boundary", setup(builder) {
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "double" }));
     builder.onLoad({ filter: /.*/, namespace: "double" }, () => ({ contents: `
-      export class App {} export class Modal {} export class Notice {} export class AbstractInputSuggest {}
+      export class App {} export class Modal {} export class Notice {} export class Setting {} export class AbstractInputSuggest {}
       export class PluginSettingTab {} export const getIcon = () => null; export const getIconIds = () => [];
       export const getLanguage = () => "en"; export const Platform = {};
     `, loader: "js" }));
@@ -145,6 +145,84 @@ function sectionFixture() {
   const nested = { id: "nested", parentId: "root", childIds: [], page: page("Nested"), neighborhood: neighborhood(8) };
   return { centerNeighborhood: center, sections: [root, nested] };
 }
+
+/** Count projection must not mutate geometry or query rows that are outside the viewport. */
+test("deferred ordinary and section geometry performs no count queries and preserves every physical coordinate", () => {
+  const calls = [];
+  const counting = { ...index, neighbourCount: page => { calls.push(page.path); return 7; },
+    gateStats: page => { calls.push(page.path); return { top: { visibleCount: 7, hasAny: true, complete: true } }; } };
+  const stripCounts = scene => ({ ...scene, nodes: scene.nodes.map(({ neighbourCount, gateStats, ...node }) => node) });
+  for (const graphDepth of [1, 2]) {
+    const settings = { ...defaults, graphDepth };
+    const ordinary = geometry.buildScene(neighborhood(240), counting, settings, false);
+    assert(calls.length > 0, "Default callers retain immediate counts");calls.length = 0;
+    const deferred = geometry.buildScene(neighborhood(240), counting, settings, false, undefined, true);
+    assert.equal(calls.length, 0, "Geometry never asks for optional counts");
+    assert.deepEqual(stripCounts(deferred), stripCounts(ordinary));
+    assert.equal(deferred.nodes[0].gateStats.top.complete, false);
+    assert.equal(deferred.nodes[0].gateStats.top.countUnavailable, true);
+    const expansion = sectionFixture();
+    const immediateSections = geometry.buildSectionExpandedScene(expansion, counting, settings, new Set(["root"]), false);
+    calls.length = 0;
+    const deferredSections = geometry.buildSectionExpandedScene(expansion, counting, settings, new Set(["root"]), false, undefined, true);
+    assert.equal(calls.length, 0, "Section geometry also defers optional counts");
+    assert.deepEqual(stripCounts(deferredSections), stripCounts(immediateSections));
+  }
+});
+
+test("rendered count projection reads current numbers without changing geometry or transient section gates", () => {
+  const deferred = geometry.buildScene(sparse(), index, defaults, false, undefined, true);
+  const node = deferred.nodes.find(node => node.role === "child"), calls = [];
+  let count = 4;
+  const live = { neighbourCount: () => assert.fail("Unused legacy total must not force semantic incidence"),
+    gateStats: page => { calls.push(page.path); return { top: { visibleCount: count, hasAny: true, complete: true } }; } };
+  const first = geometry.projectNodeCounts(node, live);
+  assert.equal(first.neighbourCount, node.neighbourCount);assert.equal(first.gateStats.top.visibleCount, 4);
+  assert.deepEqual([first.x, first.y, first.width, first.height], [node.x, node.y, node.width, node.height]);
+  assert.equal(node.gateStats.top.countUnavailable, true, "Projection keeps the deferred scene immutable");
+  count = 9;assert.equal(geometry.projectNodeCounts(node, live).gateStats.top.visibleCount, 9);
+  assert.deepEqual(calls, [node.page.path, node.page.path]);
+  const transient = { ...node, page: { ...node.page, transient: { kind: "section", sourcePath: "Center.md", actualPath: "Center.md", sectionId: "section" } },
+    gateStats: { top: { visibleCount: 13, hasAny: true } } };
+  calls.length = 0;assert.equal(geometry.projectNodeCounts(transient, live), transient);assert.equal(calls.length, 0);
+});
+
+test("viewport count selection includes partially clipped rows and excludes rows touching outside edges", () => {
+  for (const y of [95, 110, 190, 205]) assert.equal(geometry.rowIntersectsViewport(y, 20, 100, 100), true);
+  for (const y of [80, 90, 210, 220]) assert.equal(geometry.rowIntersectsViewport(y, 20, 100, 100), false);
+});
+
+test("clipped cross-link projection equals full-scene edges while querying only visible persistent endpoints", () => {
+  const n = neighborhood(3);
+  n.parents = n.parents.slice(0, 2);n.children = n.children.slice(0, 2);
+  n.leftFriends = [];n.rightFriends = [];n.siblings = n.siblings.slice(0, 1);
+  const transient = page("Transient");transient.transient = { kind: "section-target", sourcePath: "Center.md", actualPath: "C0.md", sectionId: "section" };
+  n.children.push({ page: transient, role: "child", relationType: 1, typeDefinition: "", linkDirection: 0 });
+  const pages = new Map([n.center, ...[n.parents, n.children, n.siblings].flat().map(item => item.page)].map(page => [page.path, page]));
+  const pairs = { "P0.md": [["S0.md", "child"], ["C0.md", "left"], ["C1.md", "child"]],
+    "S0.md": [["P0.md", "parent"]], "C0.md": [["P0.md", "right"]], "P1.md": [["C1.md", "child"]] };
+  const calls = [];
+  const linked = { ...index, visibleRelationshipsWithin(source, targets) {
+    calls.push({ source: source.path, targets: [...targets].sort() });
+    return (pairs[source.path] ?? []).filter(([target]) => targets.has(target)).map(([target, role]) => ({
+      page: pages.get(target), role, relationType: 1, typeDefinition: "", linkDirection: 0,
+    }));
+  } };
+  const full = geometry.buildScene(n, linked, defaults, true);
+  const ordinary = geometry.buildScene(n, linked, defaults, false, undefined, true);
+  for (const visible of [new Set(["Center.md", "P0.md", "C0.md", "S0.md", "Transient.md"]),
+    new Set(["Center.md", "P1.md", "C1.md"])]) {
+    const inside = edge => visible.has(edge.sourcePath) && visible.has(edge.targetPath);
+    const projected = ordinary.edges.filter(inside);calls.length = 0;
+    geometry.appendVisibleCrossLinks(ordinary.nodes.filter(node => visible.has(node.page.path)), projected, linked, defaults, n.center.path);
+    assert.deepEqual(projected, full.edges.filter(inside), "Visible output must preserve old full-scene edge semantics");
+    const persistent = [...visible].filter(path => path !== n.center.path && path !== transient.path).sort();
+    assert.deepEqual(calls.map(call => call.source).sort(), persistent);
+    for (const call of calls) assert.deepEqual(call.targets, persistent);
+    const structural = projected.filter(edge => [edge.sourcePath, edge.targetPath].sort().join("/") === "P0.md/S0.md");
+    if (visible.has("S0.md")) assert.equal(structural.length, 1, "Structural sibling edges are never duplicated");
+  }
+});
 
 test("expanded scroll viewports and editable areas include actual child-box widths", () => {
   const n = neighborhood(30);

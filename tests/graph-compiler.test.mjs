@@ -535,3 +535,43 @@ test("dense URL alias accumulation cooperates within one normalized record", asy
   ] }), false);
   assert.equal(yields, 1);
 });
+
+/** Canonical origin identity groups subpaths while opaque-equal root facts never form self-edges. */
+test("canonical URL root is parent of distinct subpaths without a self relationship", async () => {
+  const source = { id: core.nodeId("opaque owner"), kind: "document", state: "materialized", semanticPath: "Owner.md", physicalPath: "Owner.md" };
+  const root = { id: core.nodeId("opaque root"), kind: "url", state: "synthetic", semanticPath: "https://obsidian.md" };
+  const target = (id, path) => ({ id: core.nodeId(id), kind: "url", state: "synthetic", semanticPath: path });
+  const slug1 = target("opaque first", "https://obsidian.md/slug1"), slug2 = target("opaque second", "https://obsidian.md/slug2");
+  const sourceRevision = core.sourceRevision("url-origin:1");
+  const urlReference = entity => ({ entity, rawTarget: entity.semanticPath, resolvedBy: "url" });
+  const body = entity => ({ kind: "body-url", source, sourceRevision, target: urlReference(entity), origin: urlReference(root) });
+  const { compilation } = await compileRecords([
+    { kind: "entity", source, sourceRevision, entity: source, name: "Owner", url: null },
+    body(root), body(slug1), body(slug2), body(slug1),
+  ]);
+  const origins = [...compilation.declarations()].filter(record => record.sourceKind === "url-origin");
+  assert.equal(origins.length, 2, "repeated subpath occurrence does not duplicate shared origin hierarchy");
+  assert.deepEqual(origins.map(record => [record.sourceId, record.targetId]).sort(), [[root.id, slug1.id], [root.id, slug2.id]].sort());
+  assert.equal(compilation.evidenceBetween(root.id, root.id).length, 0, "legacy equal-origin fact has no self evidence");
+  assert.equal([...compilation.nodes.get(root.id).neighbours.values()].find(relation => relation.target.id === slug1.id).isChild, true);
+  assert.equal([...compilation.nodes.get(slug2.id).neighbours.values()].find(relation => relation.target.id === root.id).isParent, true);
+});
+
+/** Raw URL declarations and opaque target identities remain separate from canonical presentation. */
+test("canonical URL materialization preserves raw source facts without default-spelling aliases", async () => {
+  const source = { id: core.nodeId("owner"), kind: "document", state: "materialized", semanticPath: "Owner.md", physicalPath: "Owner.md" };
+  const target = { id: core.nodeId("opaque URL"), kind: "url", state: "synthetic", semanticPath: "https://obsidian.md" };
+  const revision = core.sourceRevision("raw-url:1");
+  const raw = "https://Obsidian.md/";
+  const record = { kind: "body-url", source, sourceRevision: revision, target: { entity: target, rawTarget: raw, resolvedBy: "url" }, label: raw,
+    aliases: [raw, "Documentation"], provenance: { surface: "body", rawValue: raw, location: { line: 3 } } };
+  const { compilation } = await compileRecords([{ kind: "entity", source, sourceRevision: revision, entity: source, name: "Owner", url: null }, record]);
+  const node = compilation.nodes.get(target.id);
+  assert.equal(node.id, "opaque URL"); assert.equal(node.semanticPath, "https://obsidian.md"); assert.equal(node.url, "https://obsidian.md");
+  assert.equal(node.name, "https://obsidian.md"); assert.deepEqual(node.aliases, ["Documentation"]);
+  assert.equal(record.target.rawTarget, raw); assert.equal(record.provenance.rawValue, raw);
+  const pathless = { ...target, id: core.nodeId("pathless URL") }; delete pathless.semanticPath;
+  const result = await compileRecords([{ kind: "entity", source, sourceRevision: revision, entity: source, name: "Owner", url: null },
+    { ...record, target: { ...record.target, entity: pathless }, label: undefined, aliases: [] }]);
+  assert.equal(result.compilation.nodes.get(pathless.id).url, raw);
+});

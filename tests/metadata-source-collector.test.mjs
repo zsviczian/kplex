@@ -33,6 +33,8 @@ for (const file of [
   "src/adapters/obsidian/ontologySourceCollector.ts",
   "src/core/graph/source.ts",
   "src/index/fieldParser.ts",
+  "src/adapters/obsidian/yieldToHostTask.ts",
+  "src/adapters/obsidian/urlIdentity.ts",
   "src/adapters/obsidian/metadataSourceCollector.ts",
 ]) compile(file);
 
@@ -56,6 +58,7 @@ const { TFile } = require(join(obsidianDir, "index.js"));
 const {
   ObsidianMetadataSourceCollector,
   createObsidianMetadataSourceHost,
+  normalizedBodyUrl,
 } = require(join(temp, "src/adapters/obsidian/metadataSourceCollector.js"));
 const {
   MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH,
@@ -143,6 +146,23 @@ function assertNoHostObject(value) {
 }
 
 try {
+  {
+    // Real adapter replay normalizes old raw URL facts without rewriting lexical provenance.
+    const source = { id: "source opaque", kind: "document", state: "materialized", semanticPath: "Source.md", physicalPath: "Source.md" };
+    const variants = ["https://Obsidian.md", "HTTPS://OBSIDIAN.MD/", "https://obsidian.md"];
+    for (const raw of variants) {
+      const record = normalizedBodyUrl(source, "revision", { url: raw, label: "Docs", line: 9 });
+      assert.equal(record.target.entity.id, "https://obsidian.md");
+      assert.equal(record.target.entity.semanticPath, "https://obsidian.md");
+      assert.equal(record.target.rawTarget, raw, "declared target survives adapter normalization");
+      assert.equal(record.origin, undefined, "root does not manufacture its own parent");
+      assert.equal(record.provenance.rawValue, raw);
+      assert.deepEqual(record.provenance.location, { line: 9 });
+    }
+    const slug = normalizedBodyUrl(source, "revision", { url: "https://Obsidian.md/Slug?Key=Value#Part" });
+    assert.equal(slug.target.entity.id, "https://obsidian.md/Slug?Key=Value#Part");
+    assert.equal(slug.origin.entity.id, "https://obsidian.md");
+  }
   {
     // Accepted C12b map-based reads/extractor are an independent normalization oracle.
     const { extractLinksFromValue, getNormalizedFrontmatterValues, getNormalizedInlineFieldValues } =

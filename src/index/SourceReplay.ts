@@ -1,10 +1,12 @@
 /**
  * Validated SI3 facts -> bounded canonical normalized batches. This storage adapter joins lexical
- * frames to their selected resolution family, without Markdown reads, scanning or semantic policy.
+ * frames to their selected resolution family and canonicalizes explicit URL semantic identities
+ * without rewriting their lexical evidence, Markdown reads, scanning or semantic policy.
  * It owns one source pin at a time; callers supply current host facts and keep compilation private.
  * An optional neutral-fact observer shares the same four validated family visits and pin. Observer
  * effects are private until the entire selected read succeeds; it cannot authorize publication.
  */
+import { canonicalWebTarget, webUrlOriginTarget } from "../adapters/obsidian/urlIdentity";
 import {
   acceptSourceBatch, beginSourceRead, estimateReferenceRecordBytes, MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH,
   MAX_REFERENCE_BATCH_ESTIMATED_BYTES, referenceValueId, sourceGeneration, sourceReadCanPublish, sourceRevision, sourceSnapshotRevision,
@@ -290,11 +292,13 @@ export class CachedSourceReplay {
       if (!header || !active || !resolved || active.next++ !== record.ordinal
         || resolved.target && (resolved.target.rawTarget !== record.rawTarget
           || !record.external && resolved.target.subpath !== record.subpath)) throw new SourceFactError("invalid-frame", "resolution");
-      if (resolved.target && !seen.has(resolved.target.entity.id)) {
-        seen.add(resolved.target.entity.id);
+      const target = resolved.target && record.external ? canonicalWebTarget(resolved.target) : resolved.target;
+      if (target && !seen.has(target.entity.id)) {
+        seen.add(target.entity.id);
         if (pending && !(await emitMarkdown({ ...pending, ordinal: ordinal++, final: false }))) return false;
+        const origin = record.external ? webUrlOriginTarget(target) : undefined;
         pending = { ...base, kind: "reference-candidate", valueId: referenceValueId(record.valueId),
-          target: resolved.target, hostOccurrenceCount: resolved.hostOccurrenceCount };
+          target, ...(origin ? { origin } : {}), hostOccurrenceCount: resolved.hostOccurrenceCount };
       }
       if (record.final) {
         if (active.next !== active.records.length) throw new SourceFactError("invalid-frame", "resolution");

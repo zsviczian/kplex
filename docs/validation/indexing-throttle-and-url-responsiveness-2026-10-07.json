@@ -1,0 +1,331 @@
+{
+  "date": "2026-10-07",
+  "scope": "Background indexing throttle and active URL navigation",
+  "status": "implementation and exact final-source verification complete; maintainer accepts production UI responsiveness; quantitative foreground/device limits retained",
+  "branch": "indexing-fixes",
+  "base": "1527b6ebf9644c035fe845303971d0eb30cc641f",
+  "newChangesCommitted": false,
+  "repository": {
+    "node": "22.22.2",
+    "command": "npm run verify",
+    "exitCode": 0,
+    "frozenInputs": 271,
+    "inputSha256": "df95946bd08cb8ca96a2e8ade4423301a475e2b19275e994d632db607bf294df",
+    "additionalBuildInputs": {
+      "tsconfig.json": "157fdd96a014af7fb143214b431fdbf5c88605ee6471ec036293d14b5f37ee36",
+      "tsconfig.core.json": "f013b474df5a54e476e4cfb58c7ed8917d37f732ed5e9fabca565b407b703b14",
+      "eslint.config.mjs": "8ba702346bb8f0be4ce94080745accccfae98742caf50f3e4173a2adfa964baa",
+      "esbuild.config.mjs": "5349f44cce097af0e419332cc5feca1e18309e4a93a16f45008570a4464b314c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "manifest-beta.json": "5b0baecbeae3a06ad576422f47052b541b51af97e18493534a33f4b6db38eaa8"
+    },
+    "checks": {
+      "architecture": 7,
+      "core": 69,
+      "node": 292,
+      "ui": 17,
+      "portableSource": 333,
+      "browser": 410
+    },
+    "scanner": {
+      "errors": 0,
+      "existingWarnings": 1
+    },
+    "browserDurationMs": 599708.499875,
+    "scaleFixture": {
+      "owners": 20015,
+      "status": "passed",
+      "durationMs": 254381.875667
+    },
+    "timingLimitRelaxed": false,
+    "artifacts": {
+      "main.js": "e7311fab28182436a6aad8729486e94b8b72f17664354513efd7a3e27f9b0eea",
+      "styles.css": "0d75bb3b4dd6a863319116b54b3d1b9f31d21d03ee8c8d24963aa0e344ebf01c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62"
+    }
+  },
+  "native": {
+    "host": {
+      "cpu": "Apple M1",
+      "logicalCPUs": 8,
+      "physicalMemoryBytes": 8589934592,
+      "os": "darwin 23.5.0",
+      "obsidian": "1.14.4 (installer 1.14.0)"
+    },
+    "exactSmallVaultSmoke": "passed; unmodified runner authenticates completed source/config-matched gate",
+    "reference": [
+      {
+        "mode": "eager",
+        "status": "functional-passed-timing-unavailable",
+        "processExitCode": 1,
+        "physicalReferrers": 233,
+        "parentRoleCount": 232,
+        "urlChildren": 4,
+        "caseIdentity": true,
+        "selfEdge": false,
+        "scroll": {
+          "done": true,
+          "visibleRows": 15,
+          "unknownCounts": 0
+        },
+        "restoredOwners": 11815,
+        "checkedOwners": 11815,
+        "urlBodyReads": 0,
+        "presentation": {
+          "demanded": 11,
+          "pending": 0,
+          "active": 0,
+          "retries": 181,
+          "completed": 169,
+          "superseded": 12
+        },
+        "passiveTaskObservation": {
+          "durationMs": 90791.39999997616,
+          "longTasks": 27,
+          "maxLongTaskMs": 292
+        },
+        "excludedTiming": {
+          "continuousForeground": false,
+          "syntheticClickDispatchMs": 2.5,
+          "firstCenterDomMs": 36.299999952316284,
+          "max50msHeartbeatExcessMs": 470.2000000476837
+        },
+        "cleanup": {
+          "notesUnchanged": true,
+          "centerRestored": true,
+          "saveRestored": true,
+          "loadRestored": true,
+          "controllerRemoved": true,
+          "settingsUnchanged": true,
+          "enabledUnchanged": true
+        }
+      },
+      {
+        "mode": "on-demand",
+        "status": "functional-passed-timing-unavailable",
+        "processExitCode": 1,
+        "physicalReferrers": 233,
+        "parentRoleCount": 232,
+        "urlChildren": 4,
+        "caseIdentity": true,
+        "selfEdge": false,
+        "scroll": {
+          "done": true,
+          "visibleRows": 15,
+          "unknownCounts": 0
+        },
+        "restoredOwners": 11815,
+        "checkedOwners": 11815,
+        "urlBodyReads": 0,
+        "presentation": {
+          "demanded": 11,
+          "pending": 0,
+          "active": 0,
+          "retries": 209,
+          "completed": 204,
+          "superseded": 5
+        },
+        "passiveTaskObservation": {
+          "durationMs": 107680.5,
+          "longTasks": 30,
+          "maxLongTaskMs": 163
+        },
+        "excludedTiming": {
+          "continuousForeground": false,
+          "syntheticClickDispatchMs": 4.200000047683716,
+          "firstCenterDomMs": 50.39999997615814,
+          "max50msHeartbeatExcessMs": 758.6000000238419
+        },
+        "cleanup": {
+          "notesUnchanged": true,
+          "centerRestored": true,
+          "saveRestored": true,
+          "loadRestored": true,
+          "controllerRemoved": true,
+          "settingsUnchanged": true,
+          "enabledUnchanged": true
+        }
+      }
+    ],
+    "finalAudit": {
+      "pluginLoaded": true,
+      "originalMode": "eager",
+      "throttle": "responsive",
+      "centerRestored": true,
+      "testGlobals": [],
+      "foregroundLeases": [
+        0,
+        0,
+        0
+      ],
+      "backgroundIndexingResumed": true,
+      "notesUnchanged": true,
+      "settingsUnchanged": true,
+      "enabledUnchanged": true,
+      "installedArtifactsMatch": true
+    }
+  },
+  "priorFailuresRetained": [
+    "on-demand active foreground heartbeat 1572ms exceeds1000ms on predecessor",
+    "count/demand predecessor passive tasks551ms and739ms",
+    "candidate staging preflight after external restart retired baseline controller",
+    "focused retry unable to establish foreground; excluded timings are not passes"
+  ],
+  "limits": [
+    "No comparable continuous-foreground, trusted pointer, actual-paint or physical-device latency result.",
+    "Passive task observations are sequential different-phase windows, not paired benchmarks or exclusive attribution.",
+    "Cooperative throttle cannot hard-bound a single synchronous operation.",
+    "Global-filter/section cross-link policies retained; no broad responsiveness certification.",
+    "Earlier V2 few-second all-local-count startup target remains open."
+  ],
+  "deployment": {
+    "referenceWorkflow": "stage/hash while loaded; brief unload; atomic rename without delete gap; installed hash check; enable and verify actual instance",
+    "longVerificationPause": "existing P2 scheduler lease pauses P3/P4 only; plugin loaded; no saveData suppression",
+    "onlyAuthorizedJsCssInstalled": true,
+    "schemaChanged": false,
+    "refactorC15Started": false
+  },
+  "manualChecks": [
+    {
+      "priority": 1,
+      "workflow": "Foreground pointer navigation from note to high-degree URL during both indexing modes at Responsive",
+      "expected": "No sustained UI stall; relations and newly revealed numeric gates update",
+      "limit": "Continuous native focus could not be established; synthetic DOM and passive tasks do not certify pointer/paint latency."
+    },
+    {
+      "priority": 2,
+      "workflow": "Physical Android/iOS cold/warm start and background resume while indexing",
+      "expected": "Responsive interaction and preserved current numbers/drawing styling",
+      "limit": "Physical devices are unavailable to this automation."
+    },
+    {
+      "priority": 3,
+      "workflow": "High-degree global filter and expanded section navigation/scrolling",
+      "expected": "Established edge/count semantics retained and usable interaction",
+      "limit": "These full-scene paths intentionally retain their policy and need separate native responsiveness coverage."
+    }
+  ],
+  "maintainerAcceptance": {
+    "productionUiResponsive": true,
+    "source": "Maintainer reports UI is responsive during warm cache loading, 2026-10-07.",
+    "quantifiedNativeFocusOrPaintMeasurement": false
+  },
+  "statusCopyFollowup": {
+    "inputSha256": "db4ed1d3b827fd0c93c72b856c8c9a1c4e3aa03e55ca266ab905a6b08fa2a6b8",
+    "artifact": "56aa837741e7bf9a7068640dc4af64eb2f4efe4df8a07a36ca0d9e28cf2c2c06",
+    "changedScope": [
+      "getIndexStatus localized label",
+      "two English messages",
+      "existing status regression"
+    ],
+    "defaults": {
+      "factoryIndexingMode": "on-demand",
+      "factoryThrottle": "responsive",
+      "savedReferenceIndexingMode": "eager",
+      "savedReferenceThrottle": "responsive"
+    },
+    "checks": {
+      "focusedStatusLocalization": 56,
+      "architecture": 7,
+      "typeCheckAndProductionBuild": "passed",
+      "scannerErrors": 0,
+      "existingWarnings": 1,
+      "fullSemanticSuiteRepeated": true
+    },
+    "native": {
+      "status": "passed read-only follow-up",
+      "restoredCounts": [
+        1565,
+        1566,
+        1572
+      ],
+      "displayedCachedCountChanged": true,
+      "noZeroOverZeroLabel": true,
+      "firstProbe": "failed20second observation deadline; retained separately",
+      "firstProbeCleanup": {
+        "loaded": true,
+        "centerPreserved": true,
+        "modePreserved": true,
+        "throttlePreserved": true,
+        "notesUnchanged": true,
+        "saveRestored": true,
+        "controllerRemoved": true,
+        "settingsUnchanged": true,
+        "enabledUnchanged": true
+      },
+      "controllerAbsent": true,
+      "installedArtifactMatchesBuild": true,
+      "latencyInferred": false
+    },
+    "onlyMainJsDeployed": true,
+    "indexingSchedulingSemanticsChanged": false
+  },
+  "commitVerification": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "hash": "db4ed1d3b827fd0c93c72b856c8c9a1c4e3aa03e55ca266ab905a6b08fa2a6b8",
+    "frozenInputs": 271,
+    "browserTests": 410,
+    "browserDurationMs": 597028.765916,
+    "scaleFixture": {
+      "owners": 20015,
+      "status": "passed",
+      "durationMs": 251190.414292
+    },
+    "additionalBuildInputs": {
+      "tsconfig.json": "157fdd96a014af7fb143214b431fdbf5c88605ee6471ec036293d14b5f37ee36",
+      "tsconfig.core.json": "f013b474df5a54e476e4cfb58c7ed8917d37f732ed5e9fabca565b407b703b14",
+      "eslint.config.mjs": "8ba702346bb8f0be4ce94080745accccfae98742caf50f3e4173a2adfa964baa",
+      "esbuild.config.mjs": "5349f44cce097af0e419332cc5feca1e18309e4a93a16f45008570a4464b314c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "manifest-beta.json": "5b0baecbeae3a06ad576422f47052b541b51af97e18493534a33f4b6db38eaa8"
+    },
+    "artifacts": {
+      "main.js": "56aa837741e7bf9a7068640dc4af64eb2f4efe4df8a07a36ca0d9e28cf2c2c06",
+      "styles.css": "0d75bb3b4dd6a863319116b54b3d1b9f31d21d03ee8c8d24963aa0e344ebf01c",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62"
+    },
+    "node": "22.22.2",
+    "checks": {
+      "architecture": 7,
+      "core": 69,
+      "node": 292,
+      "ui": 17,
+      "portableSource": 333,
+      "browser": 410
+    },
+    "scanner": {
+      "errors": 0,
+      "existingWarnings": 1
+    },
+    "nativeSmoke": {
+      "status": "passed",
+      "obsidian": "1.14.4 (installer 1.14.0)",
+      "artifactHashes": {
+        "main.js": "56aa837741e7bf9a7068640dc4af64eb2f4efe4df8a07a36ca0d9e28cf2c2c06",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "0d75bb3b4dd6a863319116b54b3d1b9f31d21d03ee8c8d24963aa0e344ebf01c"
+      },
+      "assertions": [
+        "plugin command registered",
+        "rendered .kplex-app contains K-Plex",
+        "no captured JavaScript errors"
+      ]
+    },
+    "referenceCleanup": {
+      "notesUnchanged": true,
+      "centerPreserved": true,
+      "settingsUnchanged": true,
+      "enabledUnchanged": true,
+      "installedMatchesBuild": true
+    },
+    "temporaryControllersRemoved": true,
+    "foregroundLeases": [
+      0,
+      0,
+      0
+    ],
+    "backgroundWorkResumed": true,
+    "gitAuthorization": "Maintainer explicitly requests commit, push, PR and switch local branch to main; no merge/release authorization."
+  }
+}

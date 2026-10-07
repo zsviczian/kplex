@@ -25,6 +25,7 @@ const SOURCE_LABEL: Record<EvidenceSourceKind, PlainTranslationKey> = {
   "frontmatter-ontology": "explain.sourceDocumentProperty",
   "inline-ontology": "explain.sourceMarkdownBodyProperty",
   "body-url": "explain.sourceBodyUrl",
+  "property-url": "explain.sourcePropertyUrl",
   "date-property": "explain.sourceDateProperty",
   "file-tree": "explain.sourcePhysicalFolderTree",
   "tag-tree": "explain.sourceTagTree",
@@ -51,6 +52,7 @@ function relationshipSummaryLabel(summary: RelationshipSummary, translate: Trans
     case "source:obsidian-link": return translate("explain.summarySourceResolvedNoteLink");
     case "source:unresolved-link": return translate("explain.summarySourceUnresolvedNoteLink");
     case "source:body-url": return translate("explain.summarySourceBodyUrl");
+    case "source:property-url": return translate("explain.summarySourcePropertyUrl");
     case "source:date-property": return translate("explain.summarySourceDateProperty");
     case "source:file-tree": return translate("explain.summarySourceFolderTree");
     case "source:tag-tree": return translate("explain.summarySourceTagTree");
@@ -292,7 +294,7 @@ export class RelationshipExplanationModal extends Modal {
         const occurrenceGroups = new Map<string, { section: RelationshipSourceSection; decisions: EvidenceDecision[]; priority: number }>();
         const priorityFor = (decision: EvidenceDecision): number => {
           if (decision.evidence.sourceKind === "frontmatter-ontology" || decision.evidence.sourceKind === "inline-ontology") return 0;
-          if (decision.evidence.sourceKind === "body-url" || decision.evidence.sourceKind === "date-property") return 1;
+          if (decision.evidence.sourceKind === "body-url" || decision.evidence.sourceKind === "property-url" || decision.evidence.sourceKind === "date-property") return 1;
           return 2;
         };
         for (const decision of this.explanation.decisions) {

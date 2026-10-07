@@ -402,7 +402,17 @@ async function compareGates(result, full, scope, semantic, expected, view, fixtu
   assert.equal(result.certificate.visibleLists, "not-certified");
   assert.equal(result.certificate.relations.gateTotals, "not-certified", "Relation-only certificate is not relabelled");
   assert.equal(result.certificate.presentationRevision, presentationRevision);
-  assert.deepEqual(result.gates, expected);
+  if (scope.center.kind === "url") {
+    // The independent binder deliberately runs no URL discovery lane. Host URL gates now carry
+    // availability annotations, while the portable certificate proves only semantic counts/fill.
+    // Assert that exact product delta as well as every count; never discard unknown gate fields.
+    assert.deepEqual(Object.keys(result.gates).sort(), ["bottom", "left", "right", "top"]);
+    assert.deepEqual(Object.keys(expected).sort(), ["bottom", "left", "right", "top"]);
+    for (const side of ["top", "bottom", "left", "right"]) {
+      assert.deepEqual(result.gates[side], { hasAny: expected[side].hasAny, visibleCount: expected[side].visibleCount });
+      assert.deepEqual(expected[side], { ...result.gates[side], complete: false, coverage: "local" });
+    }
+  } else assert.deepEqual(result.gates, expected);
   assert(!("neighborhood" in result) && !("siblings" in result), "No uncertified visible lists escape");
   assert.equal(result.certificate.relations.coverage, "complete-visible-parent-relations");
   const index = await fullCenterIndex(M, fixture, full, semantic, view);

@@ -5,8 +5,19 @@
  * contributor pins may use one cleanup-only existing-database connection after normal-handle
  * failure; cleanup never resets write backoff or acquires source/publication authority. Attributed
  * source cancellation/domain rollback AbortErrors preserve the healthy shared connection; genuine
- * storage faults still close the handle and enter the existing bounded recovery backoff.
+ * storage faults still close the handle and enter the existing bounded recovery backoff. A caller
+ * may observe completed neutral-source work without receiving identities/content or acquiring
+ * source readiness; the repository owns observer isolation and closed-lifetime fencing.
+ * Snapshot decoding and mobile write batches release CPU slices through host event tasks; connection
+ * opening, delayed body writes and failure recovery retain their actual timed waits.
+ * Valid queued parsed bodies are optional cache hits before and during persistence; they grant no
+ * durability or neutral-source authority. A successful flush retires only its exact queued records.
+ * Settings-only maintenance estimates logical payloads through sequential cursors. Purging ends
+ * this owner's lifetime before deleting this vault's database; no same-session reopen is allowed.
+ * Broad maintenance uses its injected P4 checkpoint; URL-owner restoration supplies a P3 override,
+ * while foreground point reads never borrow the lower-priority maintenance checkpoint.
  */
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
 import { Platform } from "obsidian";
 import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE,
@@ -21,12 +32,14 @@ import { SOURCE_IMPACT_STORE, SOURCE_IMPACT_SLOT_INDEX, SOURCE_IMPACT_LEASE_INDE
 
 import { releaseContributorRootLeaseFresh, type ContributorRootLease } from "./SourceContributorLease";
 
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 const BODY_CACHE_VERSION = 3;
 const META_STORE = "meta";
 const PAGE_STORE = "pages";
 const EVIDENCE_STORE = "evidence";
 const BODY_STORE = "bodies";
+const URL_STORE = "urlOwners";
+const URL_CACHE_VERSION = 3;
 const SNAPSHOT_CHUNK_STORE = "snapshotChunks";
 const GENERATION_INDEX = "generation";
 
@@ -96,6 +109,49 @@ function validCachedBody(body: ParsedBodyMetadata | undefined): body is ParsedBo
   return Boolean(body && Array.isArray(body.inlineFieldOccurrences) && Array.isArray(body.urls)
     && body.urls.every(/** Reuse the strict neutral URL vocabulary; never coerce stored alias values. */
       (reference) => validSourceFact({ kind: "body-url", ...reference }, "body-urls")));
+}
+
+/** URL-only derived facts retain native revision and parser provenance independently of graph settings. */
+export type UrlOwnerRecord = Readonly<{
+  path: string; mtime: number; size: number; version: number; parserVersion: number; urls: ParsedBodyMetadata["urls"];
+  inlineFieldOccurrences: ParsedBodyMetadata["inlineFieldOccurrences"];
+  frontmatter: Record<string, unknown>;
+}>;
+
+/** Validate the JSON-like native property payload without recursive stack growth. */
+function validUrlPropertyValue(value: unknown): boolean {
+  const pending: Array<{ value: unknown; exit?: boolean }> = [{ value }];
+  const active = new WeakSet<object>();
+  while (pending.length) {
+    const frame = pending.pop()!;
+    const item = frame.value;
+    if (frame.exit) { active.delete(item as object); continue; }
+    if (item === null || typeof item === "string" || typeof item === "boolean"
+      || typeof item === "number" && Number.isFinite(item)) continue;
+    if (!item || typeof item !== "object" || active.has(item)) return false;
+    if (item instanceof Date) { if (!Number.isFinite(item.getTime())) return false; continue; }
+    active.add(item);
+    pending.push({ value: item, exit: true });
+    if (Array.isArray(item)) for (const nested of item) pending.push({ value: nested });
+    else if (isUnknownRecord(item)) for (const nested of Object.values(item)) pending.push({ value: nested });
+    else return false;
+  }
+  return true;
+}
+
+/** Validate optional cache data before publishing any URL owner; malformed records become cold misses. */
+function validUrlOwner(value: unknown): value is UrlOwnerRecord {
+  return isUnknownRecord(value) && typeof value.path === "string" && typeof value.mtime === "number"
+    && Number.isFinite(value.mtime) && typeof value.size === "number" && Number.isSafeInteger(value.size)
+    && value.size >= 0 && value.version === URL_CACHE_VERSION && value.parserVersion === BODY_CACHE_VERSION && isUnknownRecord(value.frontmatter)
+    && Object.values(value.frontmatter).every(validUrlPropertyValue) && Array.isArray(value.inlineFieldOccurrences)
+    && value.inlineFieldOccurrences.every(item => isUnknownRecord(item) && typeof item.name === "string"
+      && typeof item.normalizedName === "string" && typeof item.value === "string" && Number.isSafeInteger(item.line) && Number(item.line) >= 0
+      && Number.isSafeInteger(item.start) && Number(item.start) >= 0 && Number.isSafeInteger(item.end)
+      && Number(item.end) >= Number(item.start)
+      && (item.syntax === "line" || item.syntax === "bracketed" || item.syntax === "parenthesized")) && Array.isArray(value.urls)
+    && value.urls.every(/** Use the accepted URL-fact validator rather than coercing labels/provenance. */
+      reference => isUnknownRecord(reference) && validSourceFact({ kind: "body-url", ...reference }, "body-urls"));
 }
 
 type SnapshotChunkRecord = {
@@ -204,12 +260,60 @@ function safeDbName(vaultName: string): string {
   return `k-plex-index-v1-${encoded || "vault"}`;
 }
 
+/** Iterate container members without allocating another array proportional to a dense record. */
+function* storedValueParts(value: object): Generator<unknown> {
+  if (value instanceof Map) {
+    for (const [key, item] of value) { yield key; yield item; }
+  } else if (value instanceof Set) {
+    yield* value.values();
+  } else {
+    for (const key in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+      yield key;
+      yield (value as Record<string, unknown>)[key];
+    }
+  }
+}
+
+/**
+ * Approximate one cloned record with bounded, cycle-safe iterative traversal. Binary payloads
+ * use their byte length; strings use UTF-16 length. A pathological record returns null rather
+ * than blocking the settings page indefinitely or reporting an incomplete total as accurate.
+ */
+function estimatedStoredValueBytes(value: unknown): number | null {
+  const stack: Array<Iterator<unknown>> = [[value][Symbol.iterator]()];
+  const seen = new WeakSet<object>();
+  let bytes = 0;
+  let remaining = 1_000_000;
+  while (stack.length) {
+    if (--remaining < 0 || stack.length > 256) return null;
+    const next = stack[stack.length - 1].next();
+    if (next.done) { stack.pop(); continue; }
+    const item: unknown = next.value;
+    if (typeof item === "string") bytes += item.length * 2;
+    else if (typeof item === "number") bytes += 8;
+    else if (typeof item === "boolean" || item === null || item === undefined) bytes += 4;
+    else if (typeof item === "bigint") bytes += item.toString().length * 2 + 8;
+    else if (typeof item === "object") {
+      if (seen.has(item)) { bytes += 8; continue; }
+      seen.add(item);
+      if (item instanceof ArrayBuffer || ArrayBuffer.isView(item)) bytes += item.byteLength + 24;
+      else if (item instanceof Blob) bytes += item.size + item.type.length * 2 + 24;
+      else if (item instanceof Date) bytes += 8;
+      else if (item instanceof RegExp) bytes += (item.source.length + item.flags.length) * 2 + 24;
+      else { bytes += 32; stack.push(storedValueParts(item)); }
+    } else return null;
+    if (!Number.isSafeInteger(bytes)) return null;
+  }
+  return bytes;
+}
+
 /** Durable K-Plex cache backed by IndexedDB. */
 export class KplexIndexedDbCache {
   private dbPromise: Promise<IDBDatabase | null> | null = null;
   private openFailureCount = 0;
   private openRetryAfter = 0;
-  private queuedBodyWrites = new Map<string, { path: string; mtime: number; body: ParsedBodyMetadata }>();
+  private queuedBodyWrites = new Map<string, BodyRecord>();
   private bodyWriteTimer: number | null = null;
   private bodyWriteInFlight = false;
 
@@ -218,13 +322,16 @@ export class KplexIndexedDbCache {
   private connection: IDBDatabase | null = null;
   private openEpoch = 0;
   private newerDatabase = false;
+  private maintenanceReads = new Set<IDBTransaction>();
+  private purgePromise: Promise<boolean> | null = null;
 
-  /** Share one recoverable connection owner without coupling source progress to graph snapshots. */
-  constructor(private vaultName: string, private readonly backgroundCheckpoint?: () => Promise<void>) {
+  /** Share one connection owner. The injected checkpoint belongs to broad cache maintenance (P4);
+   * caller-specific URL restore overrides it with P3 and foreground point reads never borrow it. */
+  constructor(private vaultName: string, private readonly backgroundCheckpoint?: () => Promise<void>, completedWork?: () => void) {
     this.sources = new NeutralSourceRepository({ open: () => this.open(), failed: (db) => this.storageFailed(db),
       unavailableReason: () => this.newerDatabase ? "newer-database" : "storage-unavailable",
       /** Cleanup borrows no normal writer authority and accepts only an ended reader's lease. */
-      releaseContributorLease: lease => this.releaseContributorLease(lease) });
+      releaseContributorLease: lease => this.releaseContributorLease(lease) }, undefined, completedWork);
   }
 
   /**
@@ -232,7 +339,7 @@ export class KplexIndexedDbCache {
    * handle cannot create/upgrade a database, clear backoff, or make this cache available for writes.
    */
   private releaseContributorLease(lease: ContributorRootLease): Promise<boolean> {
-    if (typeof indexedDB === "undefined") return Promise.resolve(false);
+    if (this.purgePromise || typeof indexedDB === "undefined") return Promise.resolve(false);
     return releaseContributorRootLeaseFresh(indexedDB, safeDbName(this.vaultName), DB_VERSION, lease, {
       /** Use the storage owner's window, matching the normal connection lifetime. */
       schedule: (callback, delay) => window.setTimeout(callback, delay),
@@ -266,7 +373,7 @@ export class KplexIndexedDbCache {
     catch (error) { this.storageFailed(db); throw error; }
   }
 
-  /** Lazily open v9 with bounded backoff and reject late, blocked or newer-version connections. */
+  /** Lazily open v10 with bounded backoff and reject late, blocked or newer-version connections. */
   private open(): Promise<IDBDatabase | null> {
     if (this.closed || this.newerDatabase) return Promise.resolve(null);
     if (this.dbPromise) return this.dbPromise;
@@ -310,6 +417,8 @@ export class KplexIndexedDbCache {
             store.createIndex(GENERATION_INDEX, "generation", { unique: false });
           }
           if (!db.objectStoreNames.contains(BODY_STORE)) db.createObjectStore(BODY_STORE, { keyPath: "path" });
+          // v10 adds only a disposable URL-owner cache; neutral sources and graph generations remain intact.
+          if (!db.objectStoreNames.contains(URL_STORE)) db.createObjectStore(URL_STORE, { keyPath: "path" });
           if (!db.objectStoreNames.contains(SNAPSHOT_CHUNK_STORE)) {
             const store = db.createObjectStore(SNAPSHOT_CHUNK_STORE, { keyPath: ["generation", "kind", "index"] });
             store.createIndex(GENERATION_INDEX, "generation", { unique: false });
@@ -406,6 +515,10 @@ export class KplexIndexedDbCache {
     this.closed = true;
     this.openEpoch += 1;
     this.sources.close();
+    for (const transaction of this.maintenanceReads) {
+      try { transaction.abort(); } catch { /* A completed estimate already released its cursor. */ }
+    }
+    this.maintenanceReads.clear();
     this.connection = null;
     if (this.bodyWriteTimer !== null) window.clearTimeout(this.bodyWriteTimer);
     this.bodyWriteTimer = null;
@@ -415,6 +528,95 @@ export class KplexIndexedDbCache {
     void pending?.then((db) => {
       try { db?.close(); } catch { /* shutdown only */ }
     });
+  }
+
+  /**
+   * Settings-only, best-effort logical payload size for this database. One readonly cursor per
+   * store avoids retaining all source records or counting unrelated origin storage. Closing the
+   * owner cancels an in-flight estimate; unavailable, failed or oversized records return null.
+   */
+  async estimateStoredBytes(): Promise<number | null> {
+    const db = await this.open();
+    if (!db || this.closed) return null;
+    let bytes = 0;
+    try {
+      for (const name of Array.from(db.objectStoreNames)) {
+        if (this.closed) return null;
+        const measured = await this.estimateStoreBytes(db, name);
+        if (measured === null || this.closed) return null;
+        bytes += measured;
+        if (!Number.isSafeInteger(bytes)) return null;
+      }
+      return bytes;
+    } catch { return null; }
+  }
+
+  /** Own a single streaming transaction and acknowledge a subtotal only after it commits. */
+  private estimateStoreBytes(db: IDBDatabase, name: string): Promise<number | null> {
+    return new Promise<number | null>(/** Cursor values stay private to the storage owner. */ resolve => {
+      let transaction: IDBTransaction | undefined;
+      let bytes = 0;
+      let complete = false;
+      let settled = false;
+      /** Clear maintenance ownership exactly once on every terminal transaction/request event. */
+      const finish = (result: number | null): void => {
+        if (settled) return;
+        settled = true;
+        if (transaction) this.maintenanceReads.delete(transaction);
+        resolve(result);
+      };
+      /** Stop the current cursor on cancellation or a malformed/unbounded record. */
+      const fail = (): void => {
+        try { transaction?.abort(); } catch { /* Already terminal or never opened. */ }
+        finish(null);
+      };
+      try {
+        transaction = this.openTransaction(db, name, "readonly");
+        this.maintenanceReads.add(transaction);
+        transaction.oncomplete = /** In-flight requests alone never certify a complete scan. */ () => finish(complete && !this.closed ? bytes : null);
+        transaction.onabort = /** Closing the cache cancels settings maintenance. */ () => finish(null);
+        transaction.onerror = fail;
+        const request = transaction.objectStore(name).openCursor();
+        request.onerror = fail;
+        request.onsuccess = /** Process only this cursor record before requesting the next host task. */ () => {
+          if (settled || this.closed) { fail(); return; }
+          const cursor = request.result;
+          if (!cursor) { complete = true; return; }
+          try {
+            const measured = estimatedStoredValueBytes([cursor.key, cursor.value]);
+            if (measured === null || !Number.isSafeInteger(bytes + measured)) { fail(); return; }
+            bytes += measured;
+            cursor.continue();
+          } catch { fail(); }
+        };
+      } catch { fail(); }
+    });
+  }
+
+  /**
+   * End this cache/repository lifetime, discard queued body writes and delete only this vault's
+   * K-Plex database. Blocked/error results are false; a failed purge still requires restart because
+   * this owner remains closed. Concurrent calls share the same deletion request.
+   */
+  purgeAndClose(): Promise<boolean> {
+    if (this.purgePromise) return this.purgePromise;
+    const pending = this.dbPromise;
+    // Assign the promise before close retires source readers: their cleanup cannot reopen a
+    // database which is being deleted. The microtask also lets close install its late-open fence.
+    this.purgePromise = Promise.resolve().then(/** Wait for any pending normal handle to close before deletion. */ async () => {
+      try { await pending; } catch { /* A failed open must not prevent deleting a disposable cache. */ }
+      if (typeof indexedDB === "undefined") return false;
+      return new Promise<boolean>(/** Only success acknowledges deletion; blocked is a terminal UI failure. */ resolve => {
+        try {
+          const request = indexedDB.deleteDatabase(safeDbName(this.vaultName));
+          request.onsuccess = /** Notes and unrelated database names are never involved. */ () => resolve(true);
+          request.onerror = /** Storage failure leaves this instance closed. */ () => resolve(false);
+          request.onblocked = /** Another connection must be released through restart. */ () => resolve(false);
+        } catch { resolve(false); }
+      });
+    });
+    this.close();
+    return this.purgePromise;
   }
 
   /** Read an activated complete generation or a separately activated partial checkpoint. */
@@ -575,7 +777,7 @@ export class KplexIndexedDbCache {
             if (processed % 128 === 0 && !isCurrent()) { onFailure?.("cancelled"); return false; }
           }
           if (performance.now() - sliceStartedAt >= (Platform.isMobile ? 6 : 8)) {
-            await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+            await yieldToHostTask();
             await this.backgroundCheckpoint?.();
             sliceStartedAt = performance.now();
             if (!isCurrent()) { onFailure?.("cancelled"); return false; }
@@ -668,7 +870,7 @@ export class KplexIndexedDbCache {
       // IndexedDB completion is asynchronous, but serialization/structured cloning happens on the
       // caller thread. Give input/paint a real task boundary after every bounded write wave on all
       // platforms; desktop gets larger waves above, so this does not become a per-record yield.
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
     };
     const cancelAndCleanup = async (): Promise<boolean> => {
       // Do not launch a large delete transaction in the same moment the user resumes editing.
@@ -856,26 +1058,47 @@ export class KplexIndexedDbCache {
     }
   }
 
+  /** Read optional parser-cache data, including matching current queued writes; callers own native validity. */
   async getBodies(requests: ReadonlyArray<{ path: string; mtime: number }>): Promise<Map<string, ParsedBodyMetadata>> {
     const result = new Map<string, ParsedBodyMetadata>();
-    if (!requests.length) return result;
+    if (this.closed || !requests.length) return result;
+    const missing = requests.filter(({ path, mtime }) => {
+      const body = this.getQueuedBody(path, mtime);
+      if (!body) return true;
+      result.set(path, body);
+      return false;
+    });
+    if (!missing.length) return result;
     const db = await this.open();
-    if (!db) return result;
-    try {
-      const tx = this.openTransaction(db, BODY_STORE, "readonly");
-      const done = transactionDone(tx);
-      const store = tx.objectStore(BODY_STORE);
-      const values = await Promise.all(requests.map(({ path }) => requestResult(store.get(path)) as Promise<BodyRecord | undefined>));
-      await done;
-      for (let i = 0; i < requests.length; i += 1) {
-        const request = requests[i];
-        const value = values[i];
-        if (value && value.mtime === request.mtime && value.parserVersion === BODY_CACHE_VERSION && validCachedBody(value.body)) result.set(request.path, value.body);
-      }
-    } catch {
-      return result;
+    if (db && !this.closed) {
+      try {
+        const tx = this.openTransaction(db, BODY_STORE, "readonly");
+        const done = transactionDone(tx);
+        const store = tx.objectStore(BODY_STORE);
+        const values = await Promise.all(missing.map(({ path }) => requestResult(store.get(path)) as Promise<BodyRecord | undefined>));
+        await done;
+        for (let i = 0; i < missing.length; i += 1) {
+          const request = missing[i];
+          const value = values[i];
+          if (value && value.mtime === request.mtime && value.parserVersion === BODY_CACHE_VERSION && validCachedBody(value.body)) result.set(request.path, value.body);
+        }
+      } catch { /* Queued parser data remains reusable when optional persistence is unavailable. */ }
+    }
+    if (this.closed) return new Map();
+    // A producer can replace or enqueue a record while the readonly transaction is pending.
+    for (const { path, mtime } of requests) {
+      const body = this.getQueuedBody(path, mtime);
+      if (body) result.set(path, body);
     }
     return result;
+  }
+
+  /** Peek completed write-behind data synchronously at a caller's native-I/O admission boundary.
+   * The same parser/path/mtime guards apply; this optional hit grants no durability/source authority. */
+  getQueuedBody(path: string, mtime: number): ParsedBodyMetadata | null {
+    const record = this.closed ? undefined : this.queuedBodyWrites.get(path);
+    return record && record.path === path && record.mtime === mtime && record.parserVersion === BODY_CACHE_VERSION
+      && validCachedBody(record.body) ? record.body : null;
   }
 
   async bodyStoreReady(): Promise<boolean> {
@@ -903,11 +1126,12 @@ export class KplexIndexedDbCache {
   /**
    * Coalescing write-behind for live edits. Runtime graph publication must never wait for an
    * IndexedDB write: on Chromium/WebKit, unrelated snapshot maintenance can hold storage work for
-   * seconds. Only the latest mtime for a path is retained while a flush is pending.
+   * seconds. The latest queued record for a path remains an optional read hit until its transaction
+   * completes, including during failed flush/retry; queuing does not attest durable source facts.
    */
   queueBodyWrite(path: string, mtime: number, body: ParsedBodyMetadata): void {
     if (this.closed) return;
-    this.queuedBodyWrites.set(path, { path, mtime, body });
+    this.queuedBodyWrites.set(path, { path, mtime, parserVersion: BODY_CACHE_VERSION, body });
     if (this.bodyWriteTimer !== null || this.bodyWriteInFlight) return;
     this.bodyWriteTimer = window.setTimeout(() => {
       this.bodyWriteTimer = null;
@@ -915,21 +1139,24 @@ export class KplexIndexedDbCache {
     }, Platform.isMobile ? 1200 : 700);
   }
 
+  /** Flush bounded batches without hiding in-flight hits or deleting a newer replacement for a path. */
   private async flushQueuedBodyWrites(): Promise<void> {
     if (this.closed || this.bodyWriteInFlight || !this.queuedBodyWrites.size) return;
     this.bodyWriteInFlight = true;
     try {
       const limit = Platform.isIosApp ? 16 : Platform.isMobile ? 32 : 64;
       while (!this.closed && this.queuedBodyWrites.size) {
-        const records: Array<{ path: string; mtime: number; body: ParsedBodyMetadata }> = [];
-        for (const [path, record] of this.queuedBodyWrites) {
+        const records: BodyRecord[] = [];
+        for (const record of this.queuedBodyWrites.values()) {
           records.push(record);
-          this.queuedBodyWrites.delete(path);
           if (records.length >= limit) break;
         }
         const ok = await this.putBodies(records);
         if (!ok) break;
-        if (Platform.isMobile) await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+        for (const record of records) {
+          if (this.queuedBodyWrites.get(record.path) === record) this.queuedBodyWrites.delete(record.path);
+        }
+        if (Platform.isMobile) await yieldToHostTask();
       }
     } finally {
       this.bodyWriteInFlight = false;
@@ -942,18 +1169,94 @@ export class KplexIndexedDbCache {
     }
   }
 
-  async getBody(path: string, mtime: number): Promise<ParsedBodyMetadata | null> {
+  /** Read count/byte-bounded URL-owner pages; consumer work begins after its transaction completes.
+   * The operation checkpoint must match its owning lane: a P3 URL restore cannot borrow the
+   * shared P4 maintenance checkpoint, which would wait for its own active P3 owner forever. */
+  async readUrlOwners(consume: (records: readonly UrlOwnerRecord[]) => Promise<void>, isCurrent: () => boolean,
+    operationCheckpoint: (() => Promise<void>) | undefined = this.backgroundCheckpoint): Promise<boolean> {
     const db = await this.open();
-    if (!db) return null;
+    if (!db || !isCurrent()) return false;
+    let after: IDBValidKey | undefined;
+    const countLimit = Platform.isMobile ? 32 : 64, byteLimit = (Platform.isMobile ? 512 : 2048) * 1024;
+    try {
+      while (isCurrent()) {
+        await operationCheckpoint?.();
+        if (!isCurrent()) return false;
+        const page = await this.readUrlOwnerPage(db, after, countLimit, byteLimit, isCurrent);
+        if (!isCurrent()) return false;
+        if (page.values.length) await consume(page.values.filter(validUrlOwner));
+        if (page.exhausted) return true;
+        if (page.lastKey === undefined) return false;
+        after = page.lastKey;
+        await operationCheckpoint?.();
+      }
+    } catch { return false; }
+    return false;
+  }
+
+  /**
+   * Retain at most one bounded URL page. A single oversized record is delivered alone; a record
+   * exceeding the remaining page budget is revisited in the next transaction, not retained here.
+   * Cursor callbacks never await, and transaction completion precedes the returned page.
+   */
+  private async readUrlOwnerPage(db: IDBDatabase, after: IDBValidKey | undefined, countLimit: number, byteLimit: number,
+    isCurrent: () => boolean): Promise<{ values: unknown[]; lastKey?: IDBValidKey; exhausted: boolean }> {
+    const tx = this.openTransaction(db, URL_STORE, "readonly"), done = transactionDone(tx);
+    const values: unknown[] = []; let bytes = 0, lastKey: IDBValidKey | undefined, exhausted = false;
+    const request = tx.objectStore(URL_STORE).openCursor(after === undefined ? undefined : IDBKeyRange.lowerBound(after, true));
+    request.onsuccess = /** Decode only one owner at a time and stop admitting records when either page bound is met. */ () => {
+      if (!isCurrent()) { tx.abort(); return; }
+      const cursor = request.result;
+      if (!cursor) { exhausted = true; return; }
+      const value: unknown = cursor.value, measured = estimatedStoredValueBytes(value);
+      if (measured === null || typeof cursor.key !== "string") { tx.abort(); return; }
+      if (values.length && bytes + measured > byteLimit) return;
+      values.push(value); bytes += measured; lastKey = cursor.key;
+      if (values.length < countLimit && bytes < byteLimit) cursor.continue();
+    };
+    await done;
+    return { values, ...(lastKey === undefined ? {} : { lastKey }), exhausted };
+  }
+
+  /** Persist a small URL-only batch; recheck the caller fence after opening storage and before starting its transaction. */
+  async putUrlOwners(records: readonly Omit<UrlOwnerRecord, "version" | "parserVersion">[], isCurrent?: () => boolean): Promise<boolean> {
+    const db = await this.open();
+    if (!db || this.closed || isCurrent?.() === false) return false;
+    try {
+      const tx = this.openTransaction(db, URL_STORE, "readwrite"), done = transactionDone(tx);
+      for (const record of records) tx.objectStore(URL_STORE).put({ ...record, version: URL_CACHE_VERSION, parserVersion: BODY_CACHE_VERSION });
+      await done;
+      return !this.closed && isCurrent?.() !== false;
+    } catch { return false; }
+  }
+
+  /** Retire one modified/deleted/renamed owner without touching unrelated graph or neutral-source caches. */
+  async deleteUrlOwner(path: string): Promise<void> {
+    const db = await this.open();
+    if (!db || this.closed) return;
+    try {
+      const tx = this.openTransaction(db, URL_STORE, "readwrite"), done = transactionDone(tx);
+      tx.objectStore(URL_STORE).delete(path);
+      await done;
+    } catch { /* disposable cache cleanup only */ }
+  }
+
+  /** Reuse a completed parsed body before optional persistence, without acquiring source authority. */
+  async getBody(path: string, mtime: number): Promise<ParsedBodyMetadata | null> {
+    const queued = this.getQueuedBody(path, mtime);
+    if (queued) return queued;
+    const db = await this.open();
+    if (!db || this.closed) return this.getQueuedBody(path, mtime);
     try {
       const tx = this.openTransaction(db, BODY_STORE, "readonly");
       const done = transactionDone(tx);
       const value = await requestResult(tx.objectStore(BODY_STORE).get(path)) as BodyRecord | undefined;
       await done;
+      if (this.closed) return null;
       const hit = Boolean(value && value.mtime === mtime && value.parserVersion === BODY_CACHE_VERSION && validCachedBody(value.body));
-      return hit ? value!.body : null;
+      return this.getQueuedBody(path, mtime) ?? (hit ? value!.body : null);
     } catch {
-      return null;
+      return this.getQueuedBody(path, mtime);
     }
   }
 

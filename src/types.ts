@@ -119,8 +119,14 @@ export type Neighborhood = {
 export type GateStat = {
   /** Available connections after visibility/inferred filters, before a local Plex filter/lens. */
   visibleCount: number;
-  /** False for uncertified lower-bound counts; omitted/true means exact counts, not complete incidence or editing authority. */
+  /** False means global semantic coverage is uncertified. With local coverage, numbers still count
+   * all available host/indexed incidence; otherwise they are lower bounds. Never grants editing authority. */
   complete?: boolean;
+  /** Local counts cover available host/indexed incidence; cached counts describe the last coherent
+   * snapshot awaiting current validation. Neither grants current/global negative-evidence authority. */
+  coverage?: "local" | "cached";
+  /** Current host inputs failed a decode/record guard or are missing; no numerical total is asserted. */
+  countUnavailable?: boolean;
   /** Connections surviving the currently active Quick Filter / Graph Lenses. Undefined when no global filter is active. */
   shownCount?: number;
   /** True when an available semantic relationship occupies the gate, even if its target is filtered out. */

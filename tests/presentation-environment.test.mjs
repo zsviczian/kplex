@@ -436,3 +436,188 @@ test("URL expansion normalizes videos, preserves private Vimeo tokens and reject
   assert.deepEqual(urlEmbed(`https://youtube.com.evil.example/watch?v=${id}`), { url: `https://youtube.com.evil.example/watch?v=${id}`, aspectRatio: null });
   for (const raw of ["javascript:alert(1)", "file:///private/secrets", "data:text/html,test", "invalid"]) assert.equal(urlEmbed(raw), null);
 });
+
+/** Compile the actual cache-only facet provider and its host-free dependencies into test-owned output. */
+function compileGraphPresentation() {
+  const temp = mkdtempSync(join(tmpdir(), "kplex-graph-presentation-"));
+  for (const relative of ["src/index/GraphPresentation.ts", "src/adapters/obsidian/yieldToHostTask.ts",
+    "src/core/contracts/fieldName.ts", "src/core/graph/presentation.ts", "src/core/graph/settingsPolicy.ts"]) {
+    const output = join(temp, relative.replace(/\.ts$/, ".js"));
+    mkdirSync(dirname(output), { recursive: true });
+    writeFileSync(output, ts.transpileModule(readFileSync(join(root, relative), "utf8"), {
+      compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.CommonJS },
+    }).outputText);
+  }
+  const obsidianPath = join(temp, "node_modules/obsidian/index.js");
+  mkdirSync(dirname(obsidianPath), { recursive: true });
+  writeFileSync(obsidianPath, "exports.getAllTags = cache => cache.hostTags ?? [];\n");
+  return { temp, provider: require(join(temp, "src/index/GraphPresentation.js")) };
+}
+const graphPresentation = compileGraphPresentation();
+process.on("exit", () => rmSync(graphPresentation.temp, { recursive: true, force: true }));
+
+/** Selected host/cache doubles make all forbidden acquisition and whole-vault enumeration fail loudly. */
+function facetFixture() {
+  const file = { path: "Visible.md", extension: "md", stat: { mtime: 1, size: 40 } };
+  const page = { path: file.path, file, tags: ["#card", "#drawing"], isTag: false,
+    noteType: "Card", primaryStyleTag: "#card", styleTags: ["#drawing"], maxLabelLength: 20 };
+  const settings = { noteTypeField: "Type", primaryTagField: "Style", tagStyleList: ["#card", "#drawing"],
+    showFullTagName: true, baseNodeStyle: { maxLabelLength: 30 } };
+  const metadata = { frontmatter: {}, hostTags: ["#card", "#drawing"] }, body = { inlineFields: { type: ["Drawing"], style: ["#drawing"] } };
+  const state = { file, metadata }, hot = new Map(), statuses = new WeakMap();
+  let reads = 0;
+  /** Acquisition is outside the presentation provider's contract. */
+  const forbidden = () => assert.fail("Presentation attempted Vault reads or enumeration");
+  const app = { vault: { getFileByPath: path => path === file.path ? state.file : null,
+    read: forbidden, cachedRead: forbidden, getFiles: forbidden, getMarkdownFiles: forbidden },
+  metadataCache: { getFileCache: () => state.metadata } };
+  const storage = { getBodies: async requests => { reads++; assert.deepEqual(requests, [{ path: file.path, mtime: 1 }]); return new Map([[file.path, body]]); } };
+  return { file, page, settings, metadata, body, state, hot, statuses, app, storage, reads: () => reads };
+}
+
+/** Use the production owning-window task continuation while restoring all test-owned host globals. */
+async function withFacetWindow(work) {
+  const previous = globalThis.window;
+  globalThis.window = { setTimeout, MessageChannel };
+  try { await work(); } finally { if (previous === undefined) delete globalThis.window; else globalThis.window = previous; }
+}
+
+test("unknown note type and style facets omit fields and preserve shared page identity and known-good values", async () => {
+  await withFacetWindow(async () => {
+    const f = facetFixture(), P = graphPresentation.provider;
+    f.state.metadata = null;
+    f.storage.getBodies = async () => new Map();
+    const result = await P.prepareGraphPresentation([f.page], f.settings, P.ALL_PRESENTATION_FACETS,
+      f.app, f.hot, f.storage, () => true);
+    assert(result && result.isCurrent()); assert.equal(result.pending, 1);
+    assert.deepEqual(result.facets.get(f.page), { maxLabelLength: 30, status: { noteType: "pending", styleTags: "pending" } });
+    const shared = f.page;
+    P.applyPreparedPresentation(result, f.statuses);
+    assert.equal(shared, f.page); assert.equal(shared.noteType, "Card"); assert.equal(shared.primaryStyleTag, "#card");
+    assert.deepEqual(shared.styleTags, ["#drawing"]); assert.deepEqual(f.statuses.get(shared), { noteType: "pending", styleTags: "pending" });
+    f.page.tags = [];
+    const sparse = P.presentationFacetsForPage(f.page, f.settings, f.app, undefined);
+    assert.equal(sparse.status.styleTags, "pending"); assert.equal("primaryStyleTag" in sparse, false);
+  });
+});
+
+test("current cached presentation replaces styles and ready empty clears them without acquisition", async () => {
+  await withFacetWindow(async () => {
+    const f = facetFixture(), P = graphPresentation.provider;
+    const prepare = () => P.prepareGraphPresentation([f.page], f.settings, P.ALL_PRESENTATION_FACETS, f.app, f.hot, f.storage, () => true);
+    const ready = await prepare(); assert(ready && ready.isCurrent()); assert.equal(ready.pending, 0);
+    P.applyPreparedPresentation(ready, f.statuses);
+    assert.equal(f.page.noteType, "Drawing"); assert.equal(f.page.primaryStyleTag, "#drawing"); assert.deepEqual(f.page.styleTags, ["#card"]);
+    f.body.inlineFields = {}; f.page.tags = []; f.metadata.hostTags = [];
+    const empty = await prepare(); assert(empty && empty.isCurrent()); P.applyPreparedPresentation(empty, f.statuses);
+    assert.equal(f.page.noteType, null); assert.equal(f.page.primaryStyleTag, null); assert.deepEqual(f.page.styleTags, []);
+    assert.deepEqual(f.statuses.get(f.page), { noteType: "ready", styleTags: "ready" }); assert.equal(f.reads(), 2);
+  });
+});
+
+for (const mutation of ["metadata-replaced", "frontmatter-in-place", "file-modified", "file-replaced", "file-renamed", "settings-in-place", "tags-in-place", "source-revision", "unload"]) {
+  test(`presentation preparation rejects ${mutation} across a durable body-cache await`, async () => {
+    await withFacetWindow(async () => {
+      const f = facetFixture(), P = graphPresentation.provider;
+      let current = true, entered, release;
+      const blocked = new Promise(resolve => { release = resolve; }), started = new Promise(resolve => { entered = resolve; });
+      f.storage.getBodies = async () => { entered(); await blocked; return new Map([["Visible.md", f.body]]); };
+      const preparing = P.prepareGraphPresentation([f.page], f.settings, P.ALL_PRESENTATION_FACETS, f.app, f.hot, f.storage, () => current);
+      await started;
+      if (mutation === "metadata-replaced") f.state.metadata = { frontmatter: {} };
+      else if (mutation === "frontmatter-in-place") f.metadata.frontmatter.Type = "Changed";
+      else if (mutation === "file-modified") f.file.stat.size++;
+      else if (mutation === "file-replaced") f.state.file = { ...f.file };
+      else if (mutation === "file-renamed") f.file.path = "Renamed.md";
+      else if (mutation === "settings-in-place") f.settings.tagStyleList.push("#new");
+      else if (mutation === "tags-in-place") f.page.tags.push("#new");
+      else current = false;
+      release(); assert.equal(await preparing, null);
+      assert.equal(f.page.noteType, "Card"); assert.equal(f.page.primaryStyleTag, "#card"); assert.deepEqual(f.page.styleTags, ["#drawing"]);
+    });
+  });
+}
+
+test("final presentation fence rejects changed same-object metadata and hot body before synchronous apply", async () => {
+  await withFacetWindow(async () => {
+    for (const input of ["frontmatter", "hot-body", "hot-entry", "policy", "file", "tags"]) {
+      const f = facetFixture(), P = graphPresentation.provider;
+      f.hot.set(f.file.path, { mtime: 1, body: f.body });
+      const ready = await P.prepareGraphPresentation([f.page], f.settings, P.ALL_PRESENTATION_FACETS, f.app, f.hot, f.storage, () => true);
+      assert(ready && ready.isCurrent()); assert.equal(f.reads(), 0);
+      if (input === "frontmatter") f.metadata.frontmatter.Style = "#card";
+      if (input === "hot-body") f.body.inlineFields.type[0] = "Changed";
+      if (input === "hot-entry") f.hot.set(f.file.path, { mtime: 1, body: f.body });
+      if (input === "policy") f.settings.noteTypeField = "Other";
+      if (input === "file") f.page.file = { ...f.file };
+      if (input === "tags") f.page.tags.reverse();
+      assert.equal(ready.isCurrent(), false, input);
+      assert.equal(f.page.noteType, "Card"); assert.equal(f.page.primaryStyleTag, "#card");
+    }
+  });
+});
+
+test("presentation captures only selected fields and preserves ready facets when another facet is pending", async () => {
+  await withFacetWindow(async () => {
+    const f = facetFixture(), P = graphPresentation.provider;
+    f.metadata.frontmatter.Type = "Current"; f.storage.getBodies = async () => new Map();
+    const ready = await P.prepareGraphPresentation([f.page], f.settings, P.ALL_PRESENTATION_FACETS, f.app, f.hot, f.storage, () => true);
+    assert(ready && ready.isCurrent()); assert.deepEqual(ready.facets.get(f.page), {
+      maxLabelLength: 30, noteType: "Current", status: { noteType: "ready", styleTags: "pending" },
+    });
+    const unrelated = {}; unrelated.self = unrelated; f.metadata.frontmatter.Unrelated = unrelated;
+    assert.equal(ready.isCurrent(), true, "Unselected cyclic metadata is never traversed");
+    P.applyPreparedPresentation(ready, f.statuses);
+    assert.equal(f.page.noteType, "Current"); assert.equal(f.page.primaryStyleTag, "#card");
+    assert.equal(f.statuses.get(f.page).styleTags, "pending");
+  });
+});
+
+test("sparse incoming Card candidates recover actual host tag styling without altering semantic tag membership", async () => {
+  await withFacetWindow(async () => {
+    const f = facetFixture(), P = graphPresentation.provider;
+    f.page.tags = []; f.page.noteType = null; f.page.primaryStyleTag = null; f.page.styleTags = [];
+    f.metadata.hostTags = ["#excalidraw"]; f.metadata.frontmatter.tags = ["excalidraw"];
+    f.settings.tagStyleList = ["#excalidraw"]; f.settings.primaryTagField = ""; f.settings.noteTypeField = "";
+    const ready = await P.prepareGraphPresentation([f.page], f.settings, { names: false, limits: false, noteType: true, styleTags: true },
+      f.app, f.hot, f.storage, () => true);
+    assert(ready && ready.isCurrent()); assert.equal(ready.pending, 0); assert.equal(f.reads(), 0);
+    P.applyPreparedPresentation(ready, f.statuses);
+    assert.equal(f.page.primaryStyleTag, "#excalidraw"); assert.deepEqual(f.page.styleTags, []);
+    assert.deepEqual(f.page.tags, [], "Presentation never rewrites source-owned semantic tags");
+    f.metadata.hostTags[0] = "#changed";
+    assert.equal(ready.isCurrent(), false, "Actual host tag mutation fences even the same MetadataCache object");
+  });
+});
+
+test("frontmatter primary style avoids body lookup while genuine empty policy clears old presentation", async () => {
+  await withFacetWindow(async () => {
+    const f = facetFixture(), P = graphPresentation.provider;
+    f.metadata.frontmatter.Style = "#drawing"; f.metadata.frontmatter.Type = "Ready";
+    const ready = await P.prepareGraphPresentation([f.page], f.settings, P.ALL_PRESENTATION_FACETS, f.app, f.hot, f.storage, () => true);
+    assert(ready && ready.isCurrent()); assert.equal(f.reads(), 0); P.applyPreparedPresentation(ready, f.statuses);
+    assert.equal(f.page.primaryStyleTag, "#drawing"); assert.equal(f.page.noteType, "Ready");
+    f.settings.tagStyleList = []; f.settings.noteTypeField = ""; f.state.metadata = null;
+    const disabled = await P.prepareGraphPresentation([f.page], f.settings, P.ALL_PRESENTATION_FACETS, f.app, f.hot, f.storage, () => true);
+    assert(disabled && disabled.isCurrent()); assert.equal(disabled.pending, 0); P.applyPreparedPresentation(disabled, f.statuses);
+    assert.equal(f.page.noteType, null); assert.equal(f.page.primaryStyleTag, null); assert.deepEqual(f.page.styleTags, []);
+  });
+});
+
+test("an earlier presentation batch remains fenced while a later cache batch is prepared", async () => {
+  await withFacetWindow(async () => {
+    const f = facetFixture(), P = graphPresentation.provider;
+    f.metadata.frontmatter.Type = "Known"; f.settings.primaryTagField = "";
+    const pages = Array.from({ length: 65 }, (_, index) => {
+      const file = { path: `Node-${index}.md`, extension: "md", stat: { mtime: 1, size: 40 } };
+      return { ...f.page, path: file.path, file, tags: [...f.page.tags] };
+    });
+    const files = new Map(pages.map(page => [page.path, page.file]));
+    f.app.vault.getFileByPath = path => files.get(path) ?? null;
+    let checkpoints = 0;
+    const result = await P.prepareGraphPresentation(pages, f.settings, P.ALL_PRESENTATION_FACETS, f.app, f.hot, f.storage,
+      () => true, undefined, async () => { if (++checkpoints === 2) pages[0].file.stat.mtime++; });
+    assert.equal(checkpoints, 2); assert.equal(result, null);
+    assert(pages.every(page => page.noteType === "Card"), "All staged facets remain private on cross-batch cancellation");
+  });
+});

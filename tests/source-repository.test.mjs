@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import { loadPortableModules } from "./support/portableTypeScript.mjs";
-const { exports: source } = loadPortableModules(["src/index/SourceFacts.ts", "src/index/SourceRepository.ts", "src/core/parser/metadata.ts"]);
+const { exports: source } = loadPortableModules(["src/index/SourceFacts.ts", "src/index/SourceRepository.ts", "src/index/SourceLocalDependencies.ts", "src/core/parser/metadata.ts"]);
 const { NeutralSourceRepository, SourceFrameValidator, SourceBodyDecoder, sourceValueSteps, parseBodyMetadata,
   sanitizeSourceRepositoryDiagnostics, SOURCE_FAMILIES } = source;
 
@@ -342,4 +342,23 @@ test("primary source grammar compatibility admits exact parser2 candidates and r
       assert.equal(source.sourceHeadReason({ ...raw, families }), "invalid-head");
     }
   } finally { f.repository.close(); }
+});
+
+/** Canonical web memberships augment historical rows using explicit URL facts, never opaque IDs. */
+test("local URL derivative upgrades preserve raw membership and normalize host-only spelling", () => {
+  const raw = "https://Obsidian.md/Slug?Key=Value#Part", canonical = "https://obsidian.md/Slug?Key=Value#Part";
+  const body = { kind: "body-url", url: raw };
+  const key = source.sourceLocalDependencyKey;
+  const current = new Set(source.sourceLocalStoredDependencyKeys("Owner.md", body));
+  for (const wanted of [key("node", raw), key("literal", raw), key("node", canonical), key("literal", canonical), key("node", "https://obsidian.md")]) assert(current.has(wanted));
+  const added = new Set(source.sourceLocalStoredUpgradeKeys("Owner.md", body, 3));
+  assert(added.has(key("node", canonical))); assert(added.has(key("literal", canonical)));
+  assert(!added.has(key("node", raw)), "already authenticated historical spelling need not be appended twice");
+  assert.equal([...source.sourceLocalStoredUpgradeKeys("Owner.md", body, 4)].length, 0);
+  const opaque = { kind: "reference-resolution", target: { entity: { id: "opaque URL", kind: "url", state: "materialized", semanticPath: raw }, rawTarget: raw, resolvedBy: "url" } };
+  const keys = new Set(source.sourceLocalStoredDependencyKeys("Owner.md", opaque));
+  assert(keys.has(key("node", "opaque URL"))); assert(keys.has(key("node", canonical)));
+  assert(!keys.has(key("node", "https://obsidian.md/slug?Key=Value#Part")), "path case stays significant");
+  const external = { kind: "reference-candidate", rawTarget: raw, external: true };
+  assert(new Set(source.sourceLocalStoredUpgradeKeys("Owner.md", external, 3)).has(key("node", canonical)));
 });

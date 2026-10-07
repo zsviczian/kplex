@@ -3,7 +3,12 @@
  * by core/parser; this boundary normalizes cached frontmatter aliases/tags without choosing graph
  * policy or treating host metadata as acquired Markdown. Alias traversal supports synchronous merge
  * and cooperative finite requested facets through one canonical normalization implementation.
+ * Cooperative parsing releases host event tasks before optional background-priority checkpoints;
+ * parser grammar and the caller-owned cancellation predicate remain in the portable owner.
+ * External target extraction shares the source adapters' canonical web authority/root identities.
  */
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
+import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
 import type { App, CachedMetadata, TFile } from "obsidian";
 import {
   extractLinkReferencesFromValue,
@@ -71,7 +76,7 @@ export function parseBodyMetadataCooperative(
   return parseBodyMetadataCooperativeCore(content, {
     now: () => Date.now(),
     yield: async () => {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
       await afterYield?.();
     },
     shouldContinue,
@@ -157,7 +162,7 @@ function resolveLink(app: App, raw: string, hostPath: string): string {
 export function extractLinksFromValue(app: App, value: unknown, file: TFile): string[] {
   const found = new Set<string>();
   for (const reference of iterateLinkReferencesFromValue(value)) {
-    const target = reference.external ? reference.rawTarget : resolveLink(app, reference.rawTarget, file.path);
+    const target = reference.external ? canonicalWebUrl(reference.rawTarget) : resolveLink(app, reference.rawTarget, file.path);
     if (target) found.add(target);
   }
   return [...found];

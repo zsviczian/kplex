@@ -248,6 +248,7 @@ test("reactive startup backlog cannot rebuild a partial cache preview before hyd
     indexBacklogReasons: new Set(["startup:stale-snapshot"]), dirtyMarkdownPaths: new Set(), metadataStabilized: true,
     rebuildTask: null, rebuildTimer: null,
     index: {
+      isOnDemandMode: () => false,
       size: 3, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
       waitForSnapshotHydration: async () => { events.push("wait"); await closed; hydrating = false; return { restored: true, fresh: false }; },
       hasSourceBackedStartup: () => false, isFullSnapshotHydrated: () => !hydrating, hasIncrementalRestorePatch: () => true,
@@ -280,6 +281,7 @@ for (const outcome of ["fresh", "stale", "failed", "sources", "sources-pending"]
       indexBacklogReasons: new Set(["startup:no-snapshot"]), dirtyMarkdownPaths: new Set(), metadataStabilized: false,
       metadataStabilityPromise: null, rebuildTask: null, rebuildTimer: null,
       index: {
+        isOnDemandMode: () => false,
         size: 0, hasPendingStructuralMaintenance: () => false, hasPendingSnapshotHydration: () => hydrating,
         hasSourceBackedStartup: () => sourceBacked, isFullSnapshotHydrated: () => hydrated,
         hasPhysicalBaseline: () => hydrated || sourceBacked, hasRestoredCheckpoint: () => false,
@@ -332,6 +334,7 @@ test("settled semantic failure exposes incomplete status while real active work 
   const context = {
     initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
     index: {
+      isOnDemandMode: () => false,
       hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => true,
       hasActiveSemanticPreparation: () => active, hasPendingSearchVocabulary: () => false,
       isCheckpointSaving: () => false, indexedMarkdownFileCount: () => 2,
@@ -349,8 +352,9 @@ test("optional alias progress and failure use distinct status copy while relatio
   const context={
     cachedMarkdownFileCount:5,
     computeIndexStatusFacts:()=>({upToDate:false,phase,indexedFiles:5,totalFiles:5}),
-    index:{getSemanticPreparationFailure:()=>relationshipFailure,getSearchVocabularyFailure:()=>searchFailure,
-      getUrlAliasUpgradeProgress:()=>progress,getSnapshotHydrationDiagnostics:()=>null},
+    index:{isOnDemandMode:()=>false,getSemanticPreparationFailure:()=>relationshipFailure,getSearchVocabularyFailure:()=>searchFailure,
+      getUrlAliasUpgradeProgress:()=>progress,getSnapshotHydrationDiagnostics:()=>null,
+      getUrlIndexProgress:()=>({active:false,failed:false,processed:5,total:5})},
     translator:(key,params)=>JSON.stringify({key,params}),
   };
   const status=productionFunction("src/main.ts","getIndexStatus",{});
@@ -365,15 +369,88 @@ test("optional alias progress and failure use distinct status copy while relatio
   assert.equal(JSON.parse((await status.call(context)).label).key,"index.statusRelationshipLimit");
 });
 
+/** Local readiness reports acquired owners and exposes unavailable inputs without global certification. */
+test("on-demand status distinguishes local readiness from complete-vault indexing", async () => {
+  let unavailable = false;
+  const context = {
+    initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
+    cachedMarkdownFileCount: 100, translator: key => key,
+    index: {
+      isOnDemandMode: () => true, hasLocalBaseline: () => true, hasPendingSnapshotHydration: () => false,
+      hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
+      hasUnavailableLocalCounts: () => unavailable, indexedMarkdownFileCount: () => 2,
+      isCheckpointSaving: () => false, getSnapshotHydrationDiagnostics: () => null,
+      getUrlIndexProgress: () => ({ active: false, failed: false, processed: 100, total: 100 }),
+    },
+  };
+  const compute = productionFunction("src/main.ts", "computeIndexStatusFacts", {});
+  const status = productionFunction("src/main.ts", "getIndexStatus", {});
+  let facts = await compute.call(context, 100);
+  context.computeIndexStatusFacts = () => facts;
+  assert.deepEqual(facts, { upToDate: true, phase: "ready", indexedFiles: 2, totalFiles: 100 });
+  assert.equal((await status.call(context)).label, "indexing.localReady");
+  unavailable = true;
+  facts = await compute.call(context, 100);
+  assert.equal(facts.upToDate, false);
+  assert.equal(facts.phase, "incomplete");
+  assert.equal((await status.call(context)).label, "indexing.localUnavailable");
+});
+
+/** URL preparation reports actual restored counts without an invented zero-total scan or withholding local readiness. */
+test("URL discovery status is independent of ready local graphs and clears after actual work settles", async () => {
+  let localActive = false, url = { active: true, failed: false, processed: 0, total: 0, restored: 0 };
+  const context = {
+    initialIndexComplete: false, indexDirty: false, rebuildTask: null, rebuildTimer: null,
+    cachedMarkdownFileCount: 100, translator: (key, params) => JSON.stringify({ key, params }),
+    index: {
+      isOnDemandMode: () => true, hasLocalBaseline: () => true,
+      hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => localActive,
+      hasActiveSemanticPreparation: () => localActive, hasPendingSearchVocabulary: () => false,
+      hasUnavailableLocalCounts: () => false, isCheckpointSaving: () => false,
+      indexedMarkdownFileCount: () => 2, getSnapshotHydrationDiagnostics: () => null,
+      getUrlIndexProgress: () => url,
+    },
+  };
+  const compute = productionFunction("src/main.ts", "computeIndexStatusFacts", {});
+  const status = productionFunction("src/main.ts", "getIndexStatus", {});
+  let facts = await compute.call(context, 100);
+  context.computeIndexStatusFacts = () => facts;
+  assert.equal(facts.phase, "ready", "Optional discovery cannot withhold local readiness");
+  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+    key: "indexing.urlsPreparing",
+  });
+  url = { active: true, failed: false, processed: 0, total: 0, restored: 42 };
+  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+    key: "indexing.urlsRestoring", params: { restored: 42 },
+  });
+  url = { active: true, failed: false, processed: 0, total: 0, restored: 75 };
+  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+    key: "indexing.urlsRestoring", params: { restored: 75 },
+  }, "The label tracks the actual restored count");
+  url = { active: true, failed: false, processed: 4, total: 100, restored: 75 };
+  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+    key: "indexing.urlsProgress", params: { processed: 4, total: 100 },
+  });
+  url = { active: false, failed: true, processed: 99, total: 100, restored: 75 };
+  assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.urlsIncomplete");
+  url = { active: false, failed: false, processed: 100, total: 100, restored: 75 };
+  assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.localReady");
+  localActive = true;
+  facts = await compute.call(context, 100);
+  assert.equal(facts.upToDate, false);
+  assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.localPreparing");
+});
+
 test("pre-restore file events update temporary availability while preserving backlog revision fences", async () => {
   class TFile { constructor(path) { this.path = path; this.extension = "md"; } }
   class TFolder { constructor(path) { this.path = path; } }
-  const vaultEvents = new Map(), metadataEvents = new Map(), updates = [], cleanup = [];
+  const vaultEvents = new Map(), metadataEvents = new Map(), updates = [], cleanup = [], topology = [];
   const context = { preRestoreListenerCleanup: null, preRestoreChanged: false, indexDirtyRevision: 0,
     preRestoreReasons: new Map(), preRestoreMarkdownPaths: new Map(),
     app: { vault: { on: (kind, callback) => { vaultEvents.set(kind, callback); return kind; }, offref: kind => vaultEvents.delete(kind) },
       metadataCache: { on: (kind, callback) => { metadataEvents.set(kind, callback); return kind; }, offref: kind => metadataEvents.delete(kind) } },
-    index: { updateHostFileAvailability: (...args) => updates.push([context.indexDirtyRevision, ...args]),
+    index: { invalidateHostStructure: () => topology.push(context.indexDirtyRevision),
+      updateHostFileAvailability: (...args) => updates.push([context.indexDirtyRevision, ...args]),
       updateHostFolderAvailability: async (...args) => updates.push([context.indexDirtyRevision, ...args]) }, register: callback => cleanup.push(callback) };
   const install = productionFunction("src/main.ts", "installPreRestoreChangeFence", { TFile, TFolder });
   await install.call(context);
@@ -389,13 +466,14 @@ test("pre-restore file events update temporary availability while preserving bac
   vaultEvents.get("create")(folder); folder.path = "MovedFolder"; vaultEvents.get("rename")(folder, "NewFolder");
   vaultEvents.get("delete")(folder);
   assert.deepEqual(updates.slice(3), [[4, "NewFolder", folder], [5, "NewFolder", folder], [6, "MovedFolder"]]);
+  assert.deepEqual(topology, [0, 1, 2, 3, 4, 5], "Each pre-restore topology observation closes native count proof before deferred refresh");
   cleanup[0](); assert.equal(vaultEvents.size, 0); assert.equal(metadataEvents.size, 0);
 });
 
 /** An ordinary host edit advances its source fence before starting asynchronous visible preparation. */
 test("visible metadata preview captures the event's new source revision", async () => {
   const handlers = new Map(), file = { path: "Visible.md", extension: "md", stat: { mtime: 2, size: 20 } };
-  const captures = [], visible = [];
+  const captures = [], visible = [], presentation = [];
   const context = { reactiveIndexListenersRegistered: false, indexDirtyRevision: 0,
     app: { vault: { on: () => ({}), getFileByPath: path => path === file.path ? file : null },
       metadataCache: { on: (kind, callback) => { handlers.set(kind, callback); return {}; } } },
@@ -403,15 +481,17 @@ test("visible metadata preview captures the event's new source revision", async 
     renameMetadataSuppressions: new Map(), dirtyMarkdownPaths: new Set(),
     scheduleRebuild: () => { context.indexDirtyRevision++; },
     scheduleVisibleMetadataRefresh: path => visible.push(path),
-    index: { refreshVisibleHostMetadataPreviews: path => { captures.push([path, context.indexDirtyRevision]); return true; } },
+    index: { refreshVisibleHostMetadataPreviews: (path, prior) => { captures.push([path, context.indexDirtyRevision, prior]); return true; },
+      refreshVisiblePresentation: path => { presentation.push([path, context.indexDirtyRevision]); return Promise.resolve(); } },
   };
   await productionFunction("src/main.ts", "registerReactiveIndexListeners", {}).call(context);
   handlers.get("changed")(file);
-  assert.deepEqual(captures, [[file.path, 1]], "the preview must not capture the revision invalidated later in the same callback");
+  assert.deepEqual(captures, [[file.path, 1, 0]], "the preview captures the new revision and exact previous known-event revision");
   assert.deepEqual(visible, [file.path]);
   context.managedMetadataWrites.set(file.path, Date.now() + 10000);
   handlers.get("changed")(file);
-  assert.deepEqual(captures[1], [file.path, 1], "managed writes refresh presentation without scheduling a duplicate dirty batch");
+  assert.deepEqual(captures[1], [file.path, 1, 1], "managed writes refresh presentation without scheduling a duplicate dirty batch");
+  assert.deepEqual(presentation, [[file.path, 1], [file.path, 1]], "Ordinary and managed events repair finite optional facets after their source fence");
 });
 
 /** React portal capture runs before the native header drag helper, so its host must retain focus. */

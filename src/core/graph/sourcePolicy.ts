@@ -1,7 +1,8 @@
 /**
  * Canonical, portable selection of neutral property references. Full compilation and source patches
  * use this same read state BEFORE seeding/materializing any graph entity. It retains only the active
- * value's selected provenance; dormant payload chunks are validated and discarded. No host lookup,
+ * value's selected provenance; unconfigured physical URL references remain inferred, while dormant
+ * internal references and payload chunks are validated and discarded. No host lookup,
  * Markdown parsing, persistence or publication is performed here.
  */
 import { normalizeFieldName } from "../contracts/fieldName";
@@ -160,7 +161,11 @@ export class ReferenceSourcePolicyRead {
     if (!active.payloadComplete || active.candidatesComplete || record.ordinal !== active.nextCandidate) return { accepted: false };
     active.nextCandidate += 1;
     active.candidatesComplete = record.final;
-    if (!active.selection.assignments.length && !active.selection.image) return { accepted: true };
+    // All physical property URL occurrences participate even without an ontology assignment.
+    // Inline-map mirrors stay dormant so they cannot duplicate the same physical inline fact.
+    const defaultUrl = record.target.entity.kind === "url" && record.target.resolvedBy === "url"
+      && active.value.origin !== "inline-map";
+    if (!active.selection.assignments.length && !active.selection.image && !defaultUrl) return { accepted: true };
     return { accepted: true, record: { ...record, kind: "selected-reference", value: active.value,
       selection: active.selection, ...(active.rawValue === undefined ? {} : { rawValue: active.rawValue }) } };
   }

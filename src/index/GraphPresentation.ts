@@ -2,14 +2,18 @@
  * Obsidian presentation preparation for the synchronous GraphPage compatibility facade. Only
  * selected MetadataCache fields and mtime-valid parsed-body records are read. Preparation is
  * private, batched and cancellable; optional background checkpoints run before cache batches; the repository publishes all facets and policy without awaits.
+ * Unknown facets are omitted so pending input cannot erase known-good shared page values.
  * Missing inputs remain explicitly pending and never cause Markdown acquisition or graph work.
+ * Facet batches release CPU slices through host event tasks while keeping captured metadata,
+ * settings and cancellation fences independent of dispatch.
  */
-import type { App, TFile } from "obsidian";
+import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
+import { getAllTags, type App, type CachedMetadata, type TFile } from "obsidian";
 import type { KplexSettings } from "../settings";
 import type { GraphPage } from "../types";
 import { normalizeFieldName } from "../core/contracts/fieldName";
 import type { ParsedBodyMetadata } from "../core/parser/metadata";
-import { selectStyleTags, tagDisplayName, unwrapNoteType } from "../core/graph/presentation";
+import { primaryStyleTagFromValues, selectStyleTags, tagDisplayName, unwrapNoteType } from "../core/graph/presentation";
 import { PRESENTATION_KEYS } from "../core/graph/settingsPolicy";
 import type { FieldCacheEntry } from "./GraphBuilder";
 import type { KplexIndexedDbCache } from "./IndexedDbCache";
@@ -43,21 +47,36 @@ function fieldValues(frontmatter: Record<string, unknown>, normalized: string): 
   return Object.entries(frontmatter).filter(([key]) => key !== "position" && normalizeFieldName(key) === normalized).map(([, value]) => value);
 }
 
-/** Determine whether selected facets actually need inline input, without guessing an empty body. */
-function needsBody(page: GraphPage, settings: KplexSettings, selection: FacetSelection, frontmatter: Record<string, unknown>): boolean {
-  return (selection.noteType && Boolean(normalizeFieldName(settings.noteTypeField)) && fieldValues(frontmatter, normalizeFieldName(settings.noteTypeField))[0] == null) ||
-    (selection.styleTags && Boolean(normalizeFieldName(settings.primaryTagField)) && page.tags.some((tag) => settings.tagStyleList.some((prefix) => tag.startsWith(prefix))));
+/** Read actual host tag membership for physical notes; sparse compiled tags are not presentation proof. */
+function presentationTags(page: GraphPage, cache: CachedMetadata | null): readonly string[] {
+  return page.file?.extension === "md" && cache ? getAllTags(cache) ?? [] : page.tags;
+}
+
+/** A matching frontmatter primary selector outranks all inline selectors and needs no body input. */
+function needsStyleBody(page: GraphPage, settings: KplexSettings, cache: CachedMetadata | null): boolean {
+  const primaryField = normalizeFieldName(settings.primaryTagField);
+  const styleTags = presentationTags(page, cache).filter(tag => settings.tagStyleList.some(prefix => tag.startsWith(prefix)));
+  return Boolean(primaryField && styleTags.length
+    && !primaryStyleTagFromValues(styleTags, fieldValues(cache?.frontmatter ?? {}, primaryField)));
+}
+
+/** Determine whether selected facets need inline input, never treating unavailable body input as empty. */
+function needsBody(page: GraphPage, settings: KplexSettings, selection: FacetSelection, cache: CachedMetadata | null): boolean {
+  return (selection.noteType && Boolean(normalizeFieldName(settings.noteTypeField))
+    && fieldValues(cache?.frontmatter ?? {}, normalizeFieldName(settings.noteTypeField))[0] == null)
+    || (selection.styleTags && needsStyleBody(page, settings, cache));
 }
 
 /** Skip pages whose current and next selected facets are both empty; broad restore preparation still visits all pages through limits. */
 function needsFacetPreparation(page: GraphPage, settings: KplexSettings, selection: FacetSelection): boolean {
   if (selection.limits || (selection.names && page.isTag)) return true;
   if (selection.noteType && (page.file?.extension === "md" || page.noteType !== null)) return true;
-  return selection.styleTags && (page.primaryStyleTag !== null || page.styleTags.length > 0 ||
+  return selection.styleTags && ((page.file?.extension === "md" && settings.tagStyleList.length > 0)
+    || page.primaryStyleTag !== null || page.styleTags.length > 0 ||
     page.tags.some((tag) => settings.tagStyleList.some((prefix) => tag.startsWith(prefix))));
 }
 
-/** Compute current facets from prepared inputs; null plus pending never asserts a known-empty value. */
+/** Compute selected facets: ready empties clear prior values, while pending omits unknown fields. */
 export function presentationFacetsForPage(
   page: GraphPage, settings: KplexSettings, app: App, body: ParsedBodyMetadata | undefined,
   selection: FacetSelection = ALL_PRESENTATION_FACETS,
@@ -76,12 +95,13 @@ export function presentationFacetsForPage(
   const fmTypes = fieldValues(frontmatter, typeField);
   const inline = body?.inlineFields;
   const typePending = Boolean(materializedNote && typeField && (!cache || (fmTypes[0] == null && !body)));
-  const tagMatches = page.tags.some((tag) => settings.tagStyleList.some((prefix) => tag.startsWith(prefix)));
-  const tagsPending = Boolean(materializedNote && primaryField && tagMatches && (!cache || !body));
-  if (selection.noteType) result.noteType = typePending ? null : unwrapNoteType(fmTypes[0] ?? inline?.[typeField]?.[0]);
-  if (selection.styleTags) {
-    Object.assign(result, tagsPending ? { primaryStyleTag: null, styleTags: [] } :
-      selectStyleTags(page.tags, settings.tagStyleList, [...fieldValues(frontmatter, primaryField), ...(inline?.[primaryField] ?? [])]));
+  const tags = presentationTags(page, cache ?? null);
+  const tagsPending = Boolean(materializedNote && settings.tagStyleList.length
+    && (!cache || (needsStyleBody(page, settings, cache ?? null) && !body)));
+  if (selection.noteType && !typePending) result.noteType = unwrapNoteType(fmTypes[0] ?? inline?.[typeField]?.[0]);
+  if (selection.styleTags && !tagsPending) {
+    Object.assign(result, selectStyleTags(tags, settings.tagStyleList,
+      [...fieldValues(frontmatter, primaryField), ...(inline?.[primaryField] ?? [])]));
   }
   result.status = {
     ...(selection.noteType ? { noteType: typePending ? "pending" as const : "ready" as const } : {}),
@@ -90,7 +110,34 @@ export function presentationFacetsForPage(
   return result;
 }
 
-/** Stage lightweight facets, not a second graph, and release each body batch before reading another. */
+/** Capture only presentation semantics, avoiding arbitrary or cyclic unrelated property values. */
+function selectedInputSignature(page: GraphPage, cache: CachedMetadata | null, body: ParsedBodyMetadata | undefined,
+  settings: KplexSettings, selection: FacetSelection): string {
+  const typeField = normalizeFieldName(settings.noteTypeField), primaryField = normalizeFieldName(settings.primaryTagField);
+  return JSON.stringify([
+    selection.noteType ? unwrapNoteType(fieldValues(cache?.frontmatter ?? {}, typeField)[0]) : null,
+    selection.noteType ? unwrapNoteType(body?.inlineFields[typeField]?.[0]) : null,
+    selection.styleTags ? [page.tags, presentationTags(page, cache)] : null,
+    selection.styleTags ? fieldValues(cache?.frontmatter ?? {}, primaryField).filter(value => typeof value === "string") : null,
+    selection.styleTags ? (body?.inlineFields[primaryField] ?? []).filter(value => typeof value === "string") : null,
+  ]);
+}
+
+/** Bind an in-place policy edit to selected facets without capturing unrelated settings or graph policy. */
+function selectedPolicySignature(settings: KplexSettings, selection: FacetSelection): string {
+  return JSON.stringify([
+    selection.names ? settings.showFullTagName : null,
+    selection.limits ? settings.baseNodeStyle.maxLabelLength : null,
+    selection.noteType ? settings.noteTypeField : null,
+    selection.styleTags ? [settings.primaryTagField, settings.tagStyleList] : null,
+  ]);
+}
+
+/**
+ * Stage lightweight facets without acquisition. File/metadata identity, selected lexical values,
+ * tags, cached body inputs and caller policy/source lifetime survive every await and final apply.
+ * Pending statuses preserve published fields; ready empty replacements still clear them.
+ */
 export async function prepareGraphPresentation(
   pages: Iterable<GraphPage>, settings: KplexSettings, selection: FacetSelection,
   app: App, hot: ReadonlyMap<string, FieldCacheEntry>, storage: Pick<KplexIndexedDbCache, "getBodies">,
@@ -98,17 +145,26 @@ export async function prepareGraphPresentation(
   backgroundCheckpoint?: () => Promise<void>,
 ): Promise<PreparedGraphPresentation | null> {
   const facets = new Map<GraphPage, PreparedPageFacets>();
-  const revisions: Array<{ file: TFile; path: string; mtime: number; size: number }> = [];
+  const policySignature = selectedPolicySignature(settings, selection);
+  const revisions: Array<{ page: GraphPage; file: TFile; path: string; mtime: number; size: number;
+    cache: CachedMetadata | null; hotEntry?: FieldCacheEntry; signature: string }> = [];
   let pending = 0;
   let started = Date.now();
   let batch: GraphPage[] = [];
   /** Reject renamed/deleted/modified files as well as a superseded policy or repository lifetime. */
-  const current = (): boolean => isCurrent() && revisions.every(({ file, path, mtime, size }) =>
-    file.path === path && file.stat.mtime === mtime && file.stat.size === size && app.vault.getFileByPath(path) === file);
+  const inputsCurrent = (inputs: typeof revisions): boolean => isCurrent() && selectedPolicySignature(settings, selection) === policySignature
+    && inputs.every(({ page, file, path, mtime, size, cache, hotEntry, signature }) =>
+      page.file === file && file.path === path && file.stat.mtime === mtime && file.stat.size === size
+      && app.vault.getFileByPath(path) === file && app.metadataCache.getFileCache(file) === cache
+      && (!hotEntry || hot.get(path) === hotEntry)
+      && selectedInputSignature(page, cache, hotEntry?.body, settings, selection) === signature);
+  /** Validate the complete accumulated observation only at final publication, retaining linear work. */
+  const current = (): boolean => inputsCurrent(revisions);
   /** Consume one bounded cache batch; no parser or Vault read exists in this provider. */
   const flush = async (): Promise<boolean> => {
     await backgroundCheckpoint?.();
     if (!isCurrent()) return false;
+    const inputs: typeof revisions = [];
     const bodies = new Map<string, ParsedBodyMetadata>();
     const requests: Array<{ path: string; mtime: number }> = [];
     for (const page of batch) {
@@ -117,18 +173,26 @@ export async function prepareGraphPresentation(
       // A source already removed from the vault has no current inputs. Publish pending facets
       // rather than repeatedly retrying a detached file while normal semantic work is deferred.
       if (file?.extension !== "md" || app.vault.getFileByPath(file.path) !== file) continue;
-      revisions.push({ file, path: file.path, mtime: file.stat.mtime, size: file.stat.size });
       const cache = app.metadataCache.getFileCache(file);
-      if (!needsBody(page, settings, selection, cache?.frontmatter ?? {})) continue;
+      const revision: (typeof revisions)[number] = { page, file, path: file.path, mtime: file.stat.mtime, size: file.stat.size, cache,
+        signature: selectedInputSignature(page, cache, undefined, settings, selection) };
+      revisions.push(revision); inputs.push(revision);
+      if (!needsBody(page, settings, selection, cache)) continue;
       const entry = hot.get(file.path);
-      if (entry && entry.mtime === file.stat.mtime) bodies.set(file.path, entry.body);
-      else requests.push({ path: file.path, mtime: file.stat.mtime });
+      if (entry && entry.mtime === file.stat.mtime) {
+        revision.hotEntry = entry;
+        revision.signature = selectedInputSignature(page, cache, entry.body, settings, selection);
+        bodies.set(file.path, entry.body);
+      } else requests.push({ path: file.path, mtime: file.stat.mtime });
     }
     if (requests.length) {
       const loaded = await storage.getBodies(requests);
-      if (!isCurrent()) return false;
+      if (!inputsCurrent(inputs)) return false;
+      // Durable bodies are mtime-validated by getBodies and released after this batch. Retain
+      // only selected facets and file/metadata/source proofs, never whole-vault parsed bodies.
       for (const [path, body] of loaded) bodies.set(path, body);
     }
+    if (!inputsCurrent(inputs)) return false;
     for (const page of batch) {
       const values = presentationFacetsForPage(page, settings, app, page.file ? bodies.get(page.file.path) : undefined, selection);
       if (values.status?.noteType === "pending" || values.status?.styleTags === "pending") pending += 1;
@@ -137,10 +201,10 @@ export async function prepareGraphPresentation(
     batch = [];
     onProgress?.();
     if (Date.now() - started >= 8) {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await yieldToHostTask();
       started = Date.now();
     }
-    return isCurrent();
+    return inputsCurrent(inputs);
   };
   for (const page of pages) {
     if (!needsFacetPreparation(page, settings, selection)) continue;

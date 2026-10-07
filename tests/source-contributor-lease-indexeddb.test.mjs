@@ -42,7 +42,8 @@ test("real Chromium retired contributor lease: aborted cleanup, retry and versio
     await t.test("cleanup-only reopen cannot create or upgrade a database", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
         const M=sourceModules;
-        for(const version of [null,7,10]){
+        // v11 is deliberately newer than the supported v10 schema; cleanup never migrates it.
+        for(const version of [null,7,11]){
           const name='si4-lease-version-'+version,cache=new M.KplexIndexedDbCache(name),database=dbName(name);
           if(version!==null){const db=await rawOpen(database,version,db=>db.createObjectStore('meta',{keyPath:'key'}));db.close();}
           try{

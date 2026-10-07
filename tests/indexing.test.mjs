@@ -355,6 +355,8 @@ for (const file of [
   "src/core/plex/predicateParser.ts",
   "src/core/plex/lens.ts",
   "src/adapters/obsidian/startupDiagnostics.ts",
+  "src/adapters/obsidian/yieldToHostTask.ts",
+  "src/adapters/obsidian/urlIdentity.ts",
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/adjacentFileLeaf.ts",
   "src/adapters/obsidian/excalidrawIntegrationVersion.ts",
@@ -404,6 +406,7 @@ for (const file of [
   "src/lens/GraphLens.ts",
   "src/lens/GraphLensSimple.ts",
   "src/lens/SimplePlexFilter.ts",
+  "src/ui/PurgeIndexCacheModal.ts",
   "src/ui/layout.ts",
   "src/ui/components/collectionWindow.ts",
 ]) compile(file);
@@ -553,6 +556,7 @@ exports.createObsidianTranslator = () => createTranslator("en");
 `);
 
 const { GraphIndex } = require(join(temp, "src/index/GraphIndex.js"));
+const { ForegroundWorkScheduler } = require(join(temp, "src/index/ForegroundWorkScheduler.js"));
 const { GraphBuilder } = require(join(temp, "src/index/GraphBuilder.js"));
 const { KplexIndexedDbCache } = require(join(temp, "src/index/IndexedDbCache.js"));
 const { createIndexDiagnosticsReport } = require(join(temp, "src/adapters/obsidian/indexDiagnosticsReport.js"));
@@ -667,7 +671,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     cachedMarkdownFileCount: null,
     computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: false, indexDirty: true, rebuildTask: null, rebuildTimer: null,
-    index: { hasPendingSnapshotHydration: () => true, hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false, indexedMarkdownFileCount: () => 8 },
+    index: { isOnDemandMode: () => false, hasPendingSnapshotHydration: () => true, hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(status, { upToDate: false, phase: "loading-cache", indexedFiles: 8, totalFiles: null });
@@ -675,7 +679,7 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     cachedMarkdownFileCount: null,
     computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
     initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
-    index: { hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false, indexedMarkdownFileCount: () => 8 },
+    index: { isOnDemandMode: () => false, hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false, indexedMarkdownFileCount: () => 8 },
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(readyStatus, { upToDate: true, phase: "ready", indexedFiles: 8, totalFiles: null });
@@ -712,7 +716,9 @@ const indexingStatusContext = {
   } } },
   cachedMarkdownFileCount: null,
   markdownFileCountReads: 0,
-  index: {
+  index: { isOnDemandMode: () => false,
+    hasLocalBaseline: () => false,
+    getUrlIndexProgress: () => ({ active: false, failed: false, processed: 0, total: 0 }),
     size: 3,
     hasPendingSnapshotHydration: () => false,
     hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
@@ -730,6 +736,32 @@ const indexingStatusContext = {
     return "Status: updating index";
   },
 };
+// Local readiness must not certify every physical note as semantically indexed.
+{
+  const context = { ...indexingStatusContext, initialIndexComplete: true, indexDirty: false,
+    rebuildTask: null, cachedMarkdownFileCount: 5,
+    index: { ...indexingStatusContext.index, isOnDemandMode: () => true }, translator: key => key };
+  const status = KplexPlugin.prototype.getIndexStatus.call(context);
+  assert.equal(status.indexedFiles, 3);
+  assert.equal(status.label, "indexing.localReady");
+  context.index.hasUnavailableLocalCounts = () => true;
+  const unavailable = KplexPlugin.prototype.getIndexStatus.call(context);
+  assert.equal(unavailable.upToDate, false);
+  assert.equal(unavailable.phase, "incomplete");
+  assert.equal(unavailable.label, "indexing.localUnavailable");
+}
+// Local closure and independent URL progress must not inherit an idle global-startup label.
+{
+  const context = { ...indexingStatusContext, initialIndexComplete: false, indexDirty: false,
+    rebuildTask: null, cachedMarkdownFileCount: 5,
+    index: { ...indexingStatusContext.index, isOnDemandMode: () => true, hasLocalBaseline: () => true },
+    translator: (key, params) => params ? `${key}:${params.processed}/${params.total}` : key };
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.localReady");
+  context.index.getUrlIndexProgress = () => ({ active: true, failed: false, processed: 2, total: 5 });
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.urlsProgress:2/5");
+  context.index.getUrlIndexProgress = () => ({ active: false, failed: true, processed: 2, total: 5 });
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.urlsIncomplete");
+}
 // Startup labels describe the real pass; record loading has no invented percentage.
 {
   const { StartupDiagnostics } = require(join(temp, "src/adapters/obsidian/startupDiagnostics.js"));
@@ -737,7 +769,7 @@ const indexingStatusContext = {
   diagnostics.phase("source", "source-reconciliation", 4);
   diagnostics.processed("source");
   const context = { ...indexingStatusContext, cachedMarkdownFileCount: 5, startupDiagnostics: diagnostics,
-    index: { ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true,
+    index: { isOnDemandMode: () => false, ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true,
       getSnapshotHydrationDiagnostics: () => ({ phase: "source-authority" }) },
     translator: (key, params) => key === "index.startupChecking" ? "Verifying cached notes"
       : key === "index.startupRechecking" ? "Processing pending changes"
@@ -786,6 +818,7 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   const statusMembershipCoordinator = new KplexPlugin();
   const handlers = new Map();
   let markdownEnumerations = 0;
+  let structuralInvalidations = 0;
   statusMembershipCoordinator.app = {
     vault: {
       on: (name, callback) => { handlers.set(`vault:${name}`, callback); return {}; },
@@ -794,7 +827,10 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
     },
     metadataCache: { on: (name, callback) => { handlers.set(`metadata:${name}`, callback); return {}; } },
   };
-  statusMembershipCoordinator.index = {
+  statusMembershipCoordinator.index = { isOnDemandMode: () => false,
+    hasLocalBaseline: () => false,
+    getUrlIndexProgress: () => ({ active: false, failed: false, processed: 0, total: 0 }),
+    invalidateHostStructure: () => { structuralInvalidations += 1; },
     size: 10,
     hasPendingSnapshotHydration: () => false,
     hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
@@ -843,10 +879,11 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   renameHandler(renamedFromMarkdown, "Counted-Renamed.md");
   assert.equal(statusMembershipCoordinator.cachedMarkdownFileCount, 10, "Markdown to non-Markdown rename decrements the known denominator");
   assert.equal(markdownEnumerations, 0, "Rename-from-Markdown status publication must not enumerate Markdown");
+  assert.equal(structuralInvalidations, 5, "Every native membership notification retires folder count proof, including repeated delete notifications");
 }
 assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
-  index: { ...indexingStatusContext.index, isCheckpointSaving: () => true },
+  index: { isOnDemandMode: () => false, ...indexingStatusContext.index, isCheckpointSaving: () => true },
 }), {
   upToDate: false,
   phase: "saving-cache",
@@ -857,7 +894,7 @@ assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
 assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call({
   ...indexingStatusContext,
   rebuildTask: null,
-  index: { ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 0 },
+  index: { isOnDemandMode: () => false, ...indexingStatusContext.index, hasPendingSnapshotHydration: () => true, indexedMarkdownFileCount: () => 0 },
 }), {
   upToDate: false,
   phase: "loading-cache",
@@ -928,13 +965,16 @@ const { resolveNodeStyle } = require(join(temp, "src/index/style.js"));
 const { RelationEvidenceStore } = require(join(temp, "src/index/RelationEvidence.js"));
 
 let partialSnapshotWrites = 0;
+const partialSnapshotScheduler = new ForegroundWorkScheduler();
 await GraphIndex.prototype.persistIndexedDbSnapshot.call({
+  workScheduler: partialSnapshotScheduler,
   snapshotPersistGeneration: 7,
   fullSnapshotHydrated: false,
   state: { pages: new Map([["partial.md", {}]]) },
   indexedDb: { writeSnapshot: async () => { partialSnapshotWrites += 1; return true; } },
 }, 7);
 assert.equal(partialSnapshotWrites, 0, "A non-authoritative startup preview must never enter snapshot persistence");
+assert.deepEqual(partialSnapshotScheduler.diagnostics().active, [0, 0, 0, 0, 0], "Refused persistence must release its actual scheduler lease");
 const { buildScene, buildSectionExpandedScene, withAreaHeightOverrides } = require(join(temp, "src/ui/layout.js"));
 const { effectiveViewSettings } = require(join(temp, "src/ui/viewProfileUnderTest.js"));
 const {
@@ -1160,6 +1200,9 @@ const hierarchy = {
 };
 
 const settings = {
+  // This historical compatibility oracle exercises a completed full graph. On-demand startup
+  // and independently restored URL discovery have dedicated real-browser regression lanes.
+  indexingMode: "eager",
   hierarchy,
   pinnedNodes: [],
   noteTypeField: "Note type",
@@ -1225,10 +1268,16 @@ const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnosti
 {
   const searchIndex = new GraphIndex(plugin, app);
   const performanceDescriptor = Object.getOwnPropertyDescriptor(globalThis, "performance");
-  const originalTimeout = window.setTimeout;
+  const OriginalChannel = window.MessageChannel;
   let ticks = 0, yields = 0, current = true;
   Object.defineProperty(globalThis, "performance", { configurable: true, value: { now: () => ticks += 20 } });
-  window.setTimeout = (callback) => { yields++; current = false; callback(); return 0; };
+  // Cancel on the actual host event task, before its continuation resumes preparation.
+  window.MessageChannel = class extends OriginalChannel {
+    constructor() {
+      super();
+      this.port1.addEventListener("message", () => { yields++; current = false; }, { once: true });
+    }
+  };
   try {
     const pages = new Map(Array.from({ length: 1024 }, (_, i) => [String(i), { path: String(i) }]));
     searchIndex.makeSearchEntry = page => ({ page, name: page.path, aliases: [], path: page.path });
@@ -1237,7 +1286,7 @@ const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnosti
     assert.equal(searchIndex.searchEntries.length, 0, "Cancelled search publishes no prefix");
   } finally {
     Object.defineProperty(globalThis, "performance", performanceDescriptor);
-    window.setTimeout = originalTimeout;
+    window.MessageChannel = OriginalChannel;
     searchIndex.destroy();
   }
 }
@@ -1254,7 +1303,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
   { inventoryRevision: 0, fresh: false, remainsDirty: true },
 ]) {
   const startup = new KplexPlugin();
-  startup.index = {
+  startup.index = { isOnDemandMode: () => false,
     getRestoreInventorySourceRevision: () => inventoryRevision,
     hasPendingSnapshotHydration: () => false,
     size: 1,
@@ -1280,7 +1329,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
 }
 {
   const startup = new KplexPlugin();
-  startup.index = { getRestoreInventorySourceRevision: () => 1 };
+  startup.index = { isOnDemandMode: () => false, getRestoreInventorySourceRevision: () => 1 };
   startup.preRestoreChanged = true;
   startup.indexDirtyRevision = 1;
   startup.preRestoreReasons.set("metadata:changed", 1);
@@ -1291,7 +1340,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
 }
 {
   const startup = new KplexPlugin();
-  startup.index = { getRestoreInventorySourceRevision: () => 1 };
+  startup.index = { isOnDemandMode: () => false, getRestoreInventorySourceRevision: () => 1 };
   startup.preRestoreChanged = true;
   startup.indexDirtyRevision = 2;
   startup.preRestoreReasons.set("vault:rename-folder", 1);
@@ -1307,7 +1356,7 @@ for (const { inventoryRevision, fresh, remainsDirty } of [
 for (const adopted of [true, false]) {
   const startup = new KplexPlugin();
   let fullBuilds = 0;
-  startup.index = {
+  startup.index = { isOnDemandMode: () => false,
     size: 1, hasPendingSnapshotHydration: () => false, hasPhysicalBaseline: () => true,
     hasSourceBackedStartup: () => true, adoptStartupSources: async () => adopted,
     isFullSnapshotHydrated: () => false,
@@ -1406,6 +1455,8 @@ try {
 
   await index.rebuild();
   assert.equal(index.indexedMarkdownFileCount(), app.vault.getMarkdownFiles().length, "Authoritative build must count every indexed Markdown source");
+  assert.equal(await index.startBackgroundUrlIndex(), true, "Full compatibility fixture also closes independent URL discovery");
+  assert.equal(index.getUrlIndexProgress().complete, true);
 
   // Obsidian/cancelled continuations can retain an unloaded index. Its ownership must be empty
   // while independently held published pages remain intact and usable by the current index.
@@ -1445,6 +1496,38 @@ try {
     "https://source.com/ontology-inline": "Source URL inline ontology alias",
   };
   for (const page of frozenBaseline.graph.pages) if (urlLabels[page.path]) page.aliases = [urlLabels[page.path]];
+  // Explicit product delta: property URLs now receive the same origin-parent relation as body
+  // URLs. Extend only this one declared edge, its two incidence rows and its exact explanation;
+  // keep the archived baseline and every unrelated page/declaration/layout field unchanged.
+  const propertyOrigin = {
+    declaredByPath: "https://source.com", declaredRole: "child", declaredTargetPath: "https://source.com/frontmatter",
+    definition: "url-origin", direction: 1, relationType: 2, role: "child", sourceKind: "url-origin",
+    sourcePath: "https://source.com", targetPath: "https://source.com/frontmatter",
+  };
+  /** Match the fixture's exact deterministic array order without consulting graph semantics. */
+  const jsonOrder = (left, right) => JSON.stringify(left) < JSON.stringify(right) ? -1 : JSON.stringify(left) > JSON.stringify(right) ? 1 : 0;
+  frozenBaseline.graph.declarations.push(propertyOrigin); frozenBaseline.graph.declarations.sort(jsonOrder);
+  frozenBaseline.graph.pages.find(page => page.path === "https://source.com").relations.unshift({
+    actualTargetPath: "https://source.com/frontmatter", childType: 2, childTypeDefinition: "url-origin", direction: 1,
+    isChild: true, isHidden: false, isLeftFriend: false, isNextFriend: false, isParent: false, isPreviousFriend: false,
+    isRightFriend: false, targetPath: "https://source.com/frontmatter",
+  });
+  frozenBaseline.graph.pages.find(page => page.path === "https://source.com/frontmatter").relations.push({
+    actualTargetPath: "https://source.com", direction: 2, isChild: false, isHidden: false, isLeftFriend: false,
+    isNextFriend: false, isParent: true, isPreviousFriend: false, isRightFriend: false, parentType: 2,
+    parentTypeDefinition: "url-origin", targetPath: "https://source.com",
+  });
+  frozenBaseline.graph.explanations.push({ sourcePath: "https://source.com", targetPath: "https://source.com/frontmatter",
+    hidden: false, summary: "source:url-origin", resolvedRoles: [{ relationType: 2, role: "child" }],
+    decisions: [{ active: true, evidence: propertyOrigin }] });
+  frozenBaseline.graph.explanations.sort((left, right) => jsonOrder([left.sourcePath, left.targetPath], [right.sourcePath, right.targetPath]));
+  // URL closure is now independent of full-graph closure and explicitly reported on these four
+  // historical scene nodes. Exact visible counts and all other scene fields remain frozen.
+  for (const path of ["https://source.com/ontology-full-line", "https://source.com/ontology-inline",
+    "https://source.com/inferred", "https://youtu.be/excalibrain-fixture-video"]) {
+    const node = frozenBaseline.scene.nodes.find(node => node.path === path); assert(node);
+    for (const gate of Object.values(node.gateStats)) gate.complete = true;
+  }
   assert.deepEqual(baseline, frozenBaseline);
 
   // A new Markdown file may arrive after the last complete snapshot and before the five-minute
@@ -2660,20 +2743,35 @@ try {
     assert.equal(legacy.getSnapshotHydrationDiagnostics().outcome, "complete");
     assert.deepEqual(evidenceShape(legacy.evidenceBetween("Note A.md", "Note B.md")), evidenceShape(index.evidenceBetween("Note A.md", "Note B.md")));
 
-    const replaced = makeRestoreIndex();
-    let releaseReplaced;
-    replaced.indexedDb.readSnapshotMeta = () => new Promise((resolve) => { releaseReplaced = resolve; });
-    const oldRestore = replaced.restoreIndexedDbSnapshot();
-    await settle();
-    replaced.indexedDb.readSnapshotMeta = async () => snapshotMeta;
-    const newRestore = await replaced.restoreIndexedDbSnapshot();
-    assert.equal((await oldRestore).restored, false);
-    assert.equal(newRestore.restored, true);
-    const replacementState = replaced.state, replacementDiagnostics = replaced.getSnapshotHydrationDiagnostics();
-    releaseReplaced(snapshotMeta); await settle();
-    assert.equal(replaced.state, replacementState);
-    assert.deepEqual(replaced.getSnapshotHydrationDiagnostics(), replacementDiagnostics);
-    assert.equal(watchdogTimers.size, 0);
+    // Supersession retires the actual restore and nested preview/facet leases before an
+    // unabortable cache read settles. A new P4 hydration must not wait behind abandoned P1.
+    for (const method of ["readSnapshotMeta", "getPages", "getBodies"]) {
+      const replaced = makeRestoreIndex();
+      const originalRead = replaced.indexedDb[method];
+      let releaseReplaced, entered;
+      const blocked = new Promise(resolve => { releaseReplaced = resolve; });
+      const reading = new Promise(resolve => { entered = resolve; });
+      replaced.indexedDb[method] = async (...args) => {
+        entered(); await blocked; return originalRead.apply(replaced.indexedDb, args);
+      };
+      const oldRestore = replaced.restoreIndexedDbSnapshot(["Note A.md"]);
+      await reading;
+      assert(replaced.getWorkPriorityDiagnostics().active[1] > 0, `${method} holds its real P1 restore lifetime`);
+      replaced.indexedDb[method] = originalRead;
+      const newRestore = await replaced.restoreIndexedDbSnapshot(["Note A.md"]);
+      assert.equal((await oldRestore).restored, false);
+      assert.equal(newRestore.restored, true);
+      assert.equal((await replaced.waitForSnapshotHydration()).restored, true,
+        `${method}: replacement background hydration completes while the old read remains held`);
+      assert.deepEqual(replaced.getWorkPriorityDiagnostics().active, [0, 0, 0, 0, 0],
+        `${method}: abandoned nested leases drain before the cache continuation returns`);
+      const replacementState = replaced.state, replacementDiagnostics = replaced.getSnapshotHydrationDiagnostics();
+      releaseReplaced(); await settle();
+      assert.equal(replaced.state, replacementState);
+      assert.deepEqual(replaced.getSnapshotHydrationDiagnostics(), replacementDiagnostics);
+      assert.deepEqual(replaced.getWorkPriorityDiagnostics().active, [0, 0, 0, 0, 0]);
+      assert.equal(watchdogTimers.size, 0);
+    }
 
     for (const phase of ["metadata", "preview", "pages", "evidence", "preview-search", "source-authority", "requested-semantics"]) {
       const stalled = makeRestoreIndex();
@@ -2701,6 +2799,9 @@ try {
         await advanceWatchdog(60000);
         stalled.sourceAcquisition.inventoryProgress();
         assert.equal(stalled.getSnapshotHydrationDiagnostics().lastProgressAt, Date.now(), "Completed source work advances the watchdog");
+        await advanceWatchdog(60000);
+        stalled.indexedDb.sources.completedWork();
+        assert.equal(stalled.getSnapshotHydrationDiagnostics().lastProgressAt, Date.now(), "Completed dense-source chunks advance the watchdog before the file finishes");
       }
       await advanceWatchdog(89999);
       assert.equal(stalled.hasPendingSnapshotHydration(), true, "Watchdog must honor the inactivity window");
@@ -2737,6 +2838,7 @@ try {
       const rebuiltState = stalled.state;
       const terminal = stalled.getSnapshotHydrationDiagnostics();
       release(); await settle();
+      stalled.indexedDb.sources.completedWork();
       assert.equal(stalled.state, rebuiltState, "Released old work must not publish over the rebuilt graph");
       assert.deepEqual(stalled.getSnapshotHydrationDiagnostics(), terminal, "Late work must not rewrite terminal diagnostics");
     }
@@ -2815,7 +2917,7 @@ try {
   assert.equal(index.get("Note A.md"), noteAIdentity, "Incremental publication must preserve canonical GraphPage identity");
   for (const source of index.state.pages.values()) {
     for (const relation of source.neighbours.values()) {
-      assert.equal(relation.target, index.get(relation.target.path), `Relation target must be canonical: ${source.path} -> ${relation.target.path}`);
+      assert.equal(relation.target === index.get(relation.target.path), true, `Relation target must be canonical: ${source.path} -> ${relation.target.path}`);
     }
   }
 
@@ -3533,6 +3635,7 @@ try {
   const nativeMaterializedFiles = [];
   const nativePatchCalls = [];
   const nativeDematerializedFiles = [];
+  const nativePresentationRepairs = [];
   let nativeFullBuilds = 0;
   nativeCreationCoordinator.app = {
     vault: {
@@ -3543,7 +3646,9 @@ try {
       on: (name, callback) => { nativeCreationHandlers.set(`metadata:${name}`, callback); return {}; },
     },
   };
-  nativeCreationCoordinator.index = {
+  nativeCreationCoordinator.index = { isOnDemandMode: () => false,
+    refreshVisiblePresentation: (path) => { nativePresentationRepairs.push(path); return Promise.resolve(); },
+    invalidateHostStructure: () => {},
     refreshVisibleHostMetadataPreviews: () => false,
     acknowledgeHostPresentation: () => {},
     hasPendingStructuralMaintenance: () => false,
@@ -3578,6 +3683,7 @@ try {
   nativeCreateHandler(nativeB);
   nativeMetadataHandler(nativeB);
   nativeCreateHandler(nativeImage);
+  assert.deepEqual(nativePresentationRepairs, [nativeA.path, nativeB.path], "Native metadata events request targeted optional presentation repair");
   assert.deepEqual(nativeFolders, ["Fixture"], "Empty folder is materialized directly once");
   assert.deepEqual(nativeMaterializedFiles, [nativeA.path, nativeB.path, nativeImage.path], "Markdown and attachment endpoints materialize directly under the new folder");
   assert(!nativeCreationCoordinator.indexBacklogReasons.has("vault:create"), "Folder creation must not leave a structural full-rebuild reason");
@@ -3658,10 +3764,13 @@ try {
   managedFile.stat.size = urlHeavyBody.length;
   contents.set(managedFile.path, urlHeavyBody);
   index.fieldCache.set(managedFile.path, { mtime: managedFile.stat.mtime, body: urlHeavyParsed });
+  assert.equal(index.isOnDemandMode(), false, "Dense-patch responsiveness uses the existing Eager session");
+  assert.equal(index.onDemandGateRevisions.size, 0, "Eager editing must not allocate On-demand-only count revision tokens");
   const graphPatchGap = await maxTimerGapDuring(async () => {
     assert.deepEqual(await index.patchMarkdownPaths([managedFile.path]), { outcome: "patched", count: 1 });
   });
   assert(graphPatchGap < 50, `URL-heavy post-parse graph patch blocked timers for ${graphPatchGap.toFixed(1)} ms`);
+  assert.equal(index.onDemandGateRevisions.size, 0, "A dense Eager patch retains no On-demand-only per-URL count state");
   assert(index.get("https://perf-9999.example/path/9999"), "URL-heavy staged patch must publish all URL nodes");
   assert.equal(index.get(managedFile.path), managedPageIdentity, "Bulk publication must preserve existing GraphPage identity");
   for (const source of index.state.pages.values()) {
@@ -3734,7 +3843,7 @@ try {
   let signalCoordinatorPatch;
   const coordinatorPatchStarted = new Promise((resolve) => { signalCoordinatorPatch = resolve; });
   const coordinatorPatchGate = new Promise((resolve) => { releaseCoordinatorPatch = resolve; });
-  coordinator.index = {
+  coordinator.index = { isOnDemandMode: () => false,
     acknowledgeHostPresentation: () => {},
     hasPendingStructuralMaintenance: () => false,
     hasPendingSnapshotHydration: () => false,
@@ -3783,7 +3892,7 @@ try {
   let creationFullBuilds = 0;
   const creationPatchCalls = [];
   creationCoordinator.app = { vault: { getFileByPath: (path) => path === createdDuringPatch.path ? createdDuringPatch : null } };
-  creationCoordinator.index = {
+  creationCoordinator.index = { isOnDemandMode: () => false,
     acknowledgeHostPresentation: () => {},
     withForegroundPriority: work => work(),
     hasPendingStructuralMaintenance: () => false,
@@ -3834,6 +3943,7 @@ try {
   const renameHandlers = new Map();
   const rebuildReasons = [];
   const fastRenameCalls = [];
+  const renamedPresentationRepairs = [];
   renameCoordinator.app = {
     vault: {
       on: (name, callback) => { renameHandlers.set(`vault:${name}`, callback); return {}; },
@@ -3843,7 +3953,9 @@ try {
       on: (name, callback) => { renameHandlers.set(`metadata:${name}`, callback); return {}; },
     },
   };
-  renameCoordinator.index = { refreshVisibleHostMetadataPreviews: () => false, renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
+  renameCoordinator.index = { isOnDemandMode: () => false, invalidateHostStructure: () => {},
+    refreshVisiblePresentation: (path) => { renamedPresentationRepairs.push(path); return Promise.resolve(); },
+    refreshVisibleHostMetadataPreviews: () => false, renameFile: (oldPath, file) => { fastRenameCalls.push([oldPath, file.path]); return true; } };
   renameCoordinator.settings = {
     ...settings,
     primaryTagField: "Note type",
@@ -3868,6 +3980,7 @@ try {
 
   metadataChangedHandler(renamedCentral);
   assert.equal(renameCoordinator.dirtyMarkdownPaths.size, 0, "Rename-generated metadata event with identical revision must be ignored");
+  assert.deepEqual(renamedPresentationRepairs, [renamedCentral.path], "Same-revision native availability still repairs optional presentation");
   assert.deepEqual(rebuildReasons, []);
 
   renamedCentral.stat.mtime += 1;
