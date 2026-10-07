@@ -199,6 +199,9 @@ export async function runSettingsIndependence(c) {
     for (const key of ["hierarchy.parents", "inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty"]) {
       await scenario(`semantic control ${key}`, async () => {
         const p = owner(); await restore(p);
+        // Trusted warm snapshots now use local foreground preparation. This historical scenario
+        // specifically exercises the full Eager policy-refresh route after complete publication.
+        assert.equal(await p.index.rebuild(), true);
         p.settings.lastActivePath = "Note A.md";
         const tab = new settingsModule.KplexSettingTab(app, p);
         const before = p.index.getSemanticPreparationDiagnostics();

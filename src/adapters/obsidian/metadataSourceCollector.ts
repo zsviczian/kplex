@@ -2,8 +2,10 @@
  * Obsidian Date/body-URL and finite presentation-metadata source adapter. Reference/image candidate
  * acquisition belongs to the neutral reference collector; this owner never selects image fields.
  * GraphBuilder owns parser/cache acquisition and publication; reads retain per-source revision fences.
+ * Live and durable raw body facts share canonical web identities without changing lexical provenance.
  */
 import { TFile, type App } from "obsidian";
+import { canonicalWebUrl, webUrlOrigin } from "./urlIdentity";
 import { nodeId, type GraphNodeKind } from "../../core/graph/model";
 import {
   MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH,
@@ -148,6 +150,7 @@ function unresolvedRef(path: string): SourceEntityRef {
   };
 }
 
+/** Materialize an already canonical web identity without changing physical occurrence provenance. */
 function urlRef(url: string): SourceEntityRef {
   return {
     id: nodeId(url),
@@ -183,16 +186,17 @@ function metadataValue(value: unknown): SemanticMetadataValue {
 /** Canonical body-URL normalization shared by live collection and validated cached replay. */
 export function normalizedBodyUrl(source: SourceEntityRef, revision: SourceRevision,
   reference: Readonly<{ url: string; label?: string; aliases?: readonly string[]; line?: number }>): BodyUrlOccurrence {
+  const url = canonicalWebUrl(reference.url);
   const target: SourceTargetRef = {
-    entity: urlRef(reference.url),
+    entity: urlRef(url),
     rawTarget: reference.url,
     resolvedBy: "url",
   };
   let origin: SourceTargetRef | undefined;
-  try {
-    const originUrl = new URL(reference.url).origin;
+  const originUrl = webUrlOrigin(url);
+  if (originUrl && originUrl !== url) {
     origin = { entity: urlRef(originUrl), rawTarget: originUrl, resolvedBy: "url" };
-  } catch { /* malformed URL: retain raw URL node without origin input */ }
+  }
   return {
     kind: "body-url",
     source,

@@ -133,6 +133,7 @@ const EVIDENCE_SOURCE_LABEL: Record<string, PlainTranslationKey> = {
   "frontmatter-ontology": "graph.sourceDocumentProperty",
   "inline-ontology": "graph.sourceBodyProperty",
   "body-url": "graph.sourceBodyUrl",
+  "property-url": "graph.sourcePropertyUrl",
   "date-property": "graph.sourceDateProperty",
   "file-tree": "graph.sourceFolderTree",
   "tag-tree": "graph.sourceTagTree",

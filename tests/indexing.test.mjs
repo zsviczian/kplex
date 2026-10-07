@@ -356,6 +356,7 @@ for (const file of [
   "src/core/plex/lens.ts",
   "src/adapters/obsidian/startupDiagnostics.ts",
   "src/adapters/obsidian/yieldToHostTask.ts",
+  "src/adapters/obsidian/urlIdentity.ts",
   "src/adapters/obsidian/graphContracts.ts",
   "src/adapters/obsidian/adjacentFileLeaf.ts",
   "src/adapters/obsidian/excalidrawIntegrationVersion.ts",
@@ -715,6 +716,8 @@ const indexingStatusContext = {
   cachedMarkdownFileCount: null,
   markdownFileCountReads: 0,
   index: { isOnDemandMode: () => false,
+    hasLocalBaseline: () => false,
+    getUrlIndexProgress: () => ({ active: false, failed: false, processed: 0, total: 0 }),
     size: 3,
     hasPendingSnapshotHydration: () => false,
     hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
@@ -745,6 +748,18 @@ const indexingStatusContext = {
   assert.equal(unavailable.upToDate, false);
   assert.equal(unavailable.phase, "incomplete");
   assert.equal(unavailable.label, "indexing.localUnavailable");
+}
+// Local closure and independent URL progress must not inherit an idle global-startup label.
+{
+  const context = { ...indexingStatusContext, initialIndexComplete: false, indexDirty: false,
+    rebuildTask: null, cachedMarkdownFileCount: 5,
+    index: { ...indexingStatusContext.index, isOnDemandMode: () => true, hasLocalBaseline: () => true },
+    translator: (key, params) => params ? `${key}:${params.processed}/${params.total}` : key };
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.localReady");
+  context.index.getUrlIndexProgress = () => ({ active: true, failed: false, processed: 2, total: 5 });
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.urlsProgress:2/5");
+  context.index.getUrlIndexProgress = () => ({ active: false, failed: true, processed: 2, total: 5 });
+  assert.equal(KplexPlugin.prototype.getIndexStatus.call(context).label, "indexing.urlsIncomplete");
 }
 // Startup labels describe the real pass; record loading has no invented percentage.
 {
@@ -812,6 +827,8 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
     metadataCache: { on: (name, callback) => { handlers.set(`metadata:${name}`, callback); return {}; } },
   };
   statusMembershipCoordinator.index = { isOnDemandMode: () => false,
+    hasLocalBaseline: () => false,
+    getUrlIndexProgress: () => ({ active: false, failed: false, processed: 0, total: 0 }),
     invalidateHostStructure: () => { structuralInvalidations += 1; },
     size: 10,
     hasPendingSnapshotHydration: () => false,
@@ -1179,6 +1196,9 @@ const hierarchy = {
 };
 
 const settings = {
+  // This historical compatibility oracle exercises a completed full graph. On-demand startup
+  // and independently restored URL discovery have dedicated real-browser regression lanes.
+  indexingMode: "eager",
   hierarchy,
   pinnedNodes: [],
   noteTypeField: "Note type",
@@ -1431,6 +1451,8 @@ try {
 
   await index.rebuild();
   assert.equal(index.indexedMarkdownFileCount(), app.vault.getMarkdownFiles().length, "Authoritative build must count every indexed Markdown source");
+  assert.equal(await index.startBackgroundUrlIndex(), true, "Full compatibility fixture also closes independent URL discovery");
+  assert.equal(index.getUrlIndexProgress().complete, true);
 
   // Obsidian/cancelled continuations can retain an unloaded index. Its ownership must be empty
   // while independently held published pages remain intact and usable by the current index.
@@ -1470,6 +1492,38 @@ try {
     "https://source.com/ontology-inline": "Source URL inline ontology alias",
   };
   for (const page of frozenBaseline.graph.pages) if (urlLabels[page.path]) page.aliases = [urlLabels[page.path]];
+  // Explicit product delta: property URLs now receive the same origin-parent relation as body
+  // URLs. Extend only this one declared edge, its two incidence rows and its exact explanation;
+  // keep the archived baseline and every unrelated page/declaration/layout field unchanged.
+  const propertyOrigin = {
+    declaredByPath: "https://source.com", declaredRole: "child", declaredTargetPath: "https://source.com/frontmatter",
+    definition: "url-origin", direction: 1, relationType: 2, role: "child", sourceKind: "url-origin",
+    sourcePath: "https://source.com", targetPath: "https://source.com/frontmatter",
+  };
+  /** Match the fixture's exact deterministic array order without consulting graph semantics. */
+  const jsonOrder = (left, right) => JSON.stringify(left) < JSON.stringify(right) ? -1 : JSON.stringify(left) > JSON.stringify(right) ? 1 : 0;
+  frozenBaseline.graph.declarations.push(propertyOrigin); frozenBaseline.graph.declarations.sort(jsonOrder);
+  frozenBaseline.graph.pages.find(page => page.path === "https://source.com").relations.unshift({
+    actualTargetPath: "https://source.com/frontmatter", childType: 2, childTypeDefinition: "url-origin", direction: 1,
+    isChild: true, isHidden: false, isLeftFriend: false, isNextFriend: false, isParent: false, isPreviousFriend: false,
+    isRightFriend: false, targetPath: "https://source.com/frontmatter",
+  });
+  frozenBaseline.graph.pages.find(page => page.path === "https://source.com/frontmatter").relations.push({
+    actualTargetPath: "https://source.com", direction: 2, isChild: false, isHidden: false, isLeftFriend: false,
+    isNextFriend: false, isParent: true, isPreviousFriend: false, isRightFriend: false, parentType: 2,
+    parentTypeDefinition: "url-origin", targetPath: "https://source.com",
+  });
+  frozenBaseline.graph.explanations.push({ sourcePath: "https://source.com", targetPath: "https://source.com/frontmatter",
+    hidden: false, summary: "source:url-origin", resolvedRoles: [{ relationType: 2, role: "child" }],
+    decisions: [{ active: true, evidence: propertyOrigin }] });
+  frozenBaseline.graph.explanations.sort((left, right) => jsonOrder([left.sourcePath, left.targetPath], [right.sourcePath, right.targetPath]));
+  // URL closure is now independent of full-graph closure and explicitly reported on these four
+  // historical scene nodes. Exact visible counts and all other scene fields remain frozen.
+  for (const path of ["https://source.com/ontology-full-line", "https://source.com/ontology-inline",
+    "https://source.com/inferred", "https://youtu.be/excalibrain-fixture-video"]) {
+    const node = frozenBaseline.scene.nodes.find(node => node.path === path); assert(node);
+    for (const gate of Object.values(node.gateStats)) gate.complete = true;
+  }
   assert.deepEqual(baseline, frozenBaseline);
 
   // A new Markdown file may arrive after the last complete snapshot and before the five-minute
@@ -2844,7 +2898,7 @@ try {
   assert.equal(index.get("Note A.md"), noteAIdentity, "Incremental publication must preserve canonical GraphPage identity");
   for (const source of index.state.pages.values()) {
     for (const relation of source.neighbours.values()) {
-      assert.equal(relation.target, index.get(relation.target.path), `Relation target must be canonical: ${source.path} -> ${relation.target.path}`);
+      assert.equal(relation.target === index.get(relation.target.path), true, `Relation target must be canonical: ${source.path} -> ${relation.target.path}`);
     }
   }
 

@@ -28,12 +28,14 @@ import { SOURCE_IMPACT_STORE, SOURCE_IMPACT_SLOT_INDEX, SOURCE_IMPACT_LEASE_INDE
 
 import { releaseContributorRootLeaseFresh, type ContributorRootLease } from "./SourceContributorLease";
 
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 const BODY_CACHE_VERSION = 3;
 const META_STORE = "meta";
 const PAGE_STORE = "pages";
 const EVIDENCE_STORE = "evidence";
 const BODY_STORE = "bodies";
+const URL_STORE = "urlOwners";
+const URL_CACHE_VERSION = 3;
 const SNAPSHOT_CHUNK_STORE = "snapshotChunks";
 const GENERATION_INDEX = "generation";
 
@@ -103,6 +105,49 @@ function validCachedBody(body: ParsedBodyMetadata | undefined): body is ParsedBo
   return Boolean(body && Array.isArray(body.inlineFieldOccurrences) && Array.isArray(body.urls)
     && body.urls.every(/** Reuse the strict neutral URL vocabulary; never coerce stored alias values. */
       (reference) => validSourceFact({ kind: "body-url", ...reference }, "body-urls")));
+}
+
+/** URL-only derived facts retain native revision and parser provenance independently of graph settings. */
+export type UrlOwnerRecord = Readonly<{
+  path: string; mtime: number; size: number; version: number; parserVersion: number; urls: ParsedBodyMetadata["urls"];
+  inlineFieldOccurrences: ParsedBodyMetadata["inlineFieldOccurrences"];
+  frontmatter: Record<string, unknown>;
+}>;
+
+/** Validate the JSON-like native property payload without recursive stack growth. */
+function validUrlPropertyValue(value: unknown): boolean {
+  const pending: Array<{ value: unknown; exit?: boolean }> = [{ value }];
+  const active = new WeakSet<object>();
+  while (pending.length) {
+    const frame = pending.pop()!;
+    const item = frame.value;
+    if (frame.exit) { active.delete(item as object); continue; }
+    if (item === null || typeof item === "string" || typeof item === "boolean"
+      || typeof item === "number" && Number.isFinite(item)) continue;
+    if (!item || typeof item !== "object" || active.has(item)) return false;
+    if (item instanceof Date) { if (!Number.isFinite(item.getTime())) return false; continue; }
+    active.add(item);
+    pending.push({ value: item, exit: true });
+    if (Array.isArray(item)) for (const nested of item) pending.push({ value: nested });
+    else if (isUnknownRecord(item)) for (const nested of Object.values(item)) pending.push({ value: nested });
+    else return false;
+  }
+  return true;
+}
+
+/** Validate optional cache data before publishing any URL owner; malformed records become cold misses. */
+function validUrlOwner(value: unknown): value is UrlOwnerRecord {
+  return isUnknownRecord(value) && typeof value.path === "string" && typeof value.mtime === "number"
+    && Number.isFinite(value.mtime) && typeof value.size === "number" && Number.isSafeInteger(value.size)
+    && value.size >= 0 && value.version === URL_CACHE_VERSION && value.parserVersion === BODY_CACHE_VERSION && isUnknownRecord(value.frontmatter)
+    && Object.values(value.frontmatter).every(validUrlPropertyValue) && Array.isArray(value.inlineFieldOccurrences)
+    && value.inlineFieldOccurrences.every(item => isUnknownRecord(item) && typeof item.name === "string"
+      && typeof item.normalizedName === "string" && typeof item.value === "string" && Number.isSafeInteger(item.line) && Number(item.line) >= 0
+      && Number.isSafeInteger(item.start) && Number(item.start) >= 0 && Number.isSafeInteger(item.end)
+      && Number(item.end) >= Number(item.start)
+      && (item.syntax === "line" || item.syntax === "bracketed" || item.syntax === "parenthesized")) && Array.isArray(value.urls)
+    && value.urls.every(/** Use the accepted URL-fact validator rather than coercing labels/provenance. */
+      reference => isUnknownRecord(reference) && validSourceFact({ kind: "body-url", ...reference }, "body-urls"));
 }
 
 type SnapshotChunkRecord = {
@@ -323,7 +368,7 @@ export class KplexIndexedDbCache {
     catch (error) { this.storageFailed(db); throw error; }
   }
 
-  /** Lazily open v9 with bounded backoff and reject late, blocked or newer-version connections. */
+  /** Lazily open v10 with bounded backoff and reject late, blocked or newer-version connections. */
   private open(): Promise<IDBDatabase | null> {
     if (this.closed || this.newerDatabase) return Promise.resolve(null);
     if (this.dbPromise) return this.dbPromise;
@@ -367,6 +412,8 @@ export class KplexIndexedDbCache {
             store.createIndex(GENERATION_INDEX, "generation", { unique: false });
           }
           if (!db.objectStoreNames.contains(BODY_STORE)) db.createObjectStore(BODY_STORE, { keyPath: "path" });
+          // v10 adds only a disposable URL-owner cache; neutral sources and graph generations remain intact.
+          if (!db.objectStoreNames.contains(URL_STORE)) db.createObjectStore(URL_STORE, { keyPath: "path" });
           if (!db.objectStoreNames.contains(SNAPSHOT_CHUNK_STORE)) {
             const store = db.createObjectStore(SNAPSHOT_CHUNK_STORE, { keyPath: ["generation", "kind", "index"] });
             store.createIndex(GENERATION_INDEX, "generation", { unique: false });
@@ -1090,6 +1137,73 @@ export class KplexIndexedDbCache {
         }, Platform.isMobile ? 1500 : 900);
       }
     }
+  }
+
+  /** Read count/byte-bounded URL-owner pages; consumer work always begins after its transaction completes. */
+  async readUrlOwners(consume: (records: readonly UrlOwnerRecord[]) => Promise<void>, isCurrent: () => boolean): Promise<boolean> {
+    const db = await this.open();
+    if (!db || !isCurrent()) return false;
+    let after: IDBValidKey | undefined;
+    const countLimit = Platform.isMobile ? 32 : 64, byteLimit = (Platform.isMobile ? 512 : 2048) * 1024;
+    try {
+      while (isCurrent()) {
+        const page = await this.readUrlOwnerPage(db, after, countLimit, byteLimit, isCurrent);
+        if (!isCurrent()) return false;
+        if (page.values.length) await consume(page.values.filter(validUrlOwner));
+        if (page.exhausted) return true;
+        if (page.lastKey === undefined) return false;
+        after = page.lastKey;
+        await this.backgroundCheckpoint?.();
+      }
+    } catch { return false; }
+    return false;
+  }
+
+  /**
+   * Retain at most one bounded URL page. A single oversized record is delivered alone; a record
+   * exceeding the remaining page budget is revisited in the next transaction, not retained here.
+   * Cursor callbacks never await, and transaction completion precedes the returned page.
+   */
+  private async readUrlOwnerPage(db: IDBDatabase, after: IDBValidKey | undefined, countLimit: number, byteLimit: number,
+    isCurrent: () => boolean): Promise<{ values: unknown[]; lastKey?: IDBValidKey; exhausted: boolean }> {
+    const tx = this.openTransaction(db, URL_STORE, "readonly"), done = transactionDone(tx);
+    const values: unknown[] = []; let bytes = 0, lastKey: IDBValidKey | undefined, exhausted = false;
+    const request = tx.objectStore(URL_STORE).openCursor(after === undefined ? undefined : IDBKeyRange.lowerBound(after, true));
+    request.onsuccess = /** Decode only one owner at a time and stop admitting records when either page bound is met. */ () => {
+      if (!isCurrent()) { tx.abort(); return; }
+      const cursor = request.result;
+      if (!cursor) { exhausted = true; return; }
+      const value: unknown = cursor.value, measured = estimatedStoredValueBytes(value);
+      if (measured === null || typeof cursor.key !== "string") { tx.abort(); return; }
+      if (values.length && bytes + measured > byteLimit) return;
+      values.push(value); bytes += measured; lastKey = cursor.key;
+      if (values.length < countLimit && bytes < byteLimit) cursor.continue();
+    };
+    await done;
+    return { values, ...(lastKey === undefined ? {} : { lastKey }), exhausted };
+  }
+
+  /** Persist a small URL-only batch; recheck the caller fence after opening storage and before starting its transaction. */
+  async putUrlOwners(records: readonly Omit<UrlOwnerRecord, "version" | "parserVersion">[], isCurrent?: () => boolean): Promise<boolean> {
+    const db = await this.open();
+    if (!db || this.closed || isCurrent?.() === false) return false;
+    try {
+      const tx = this.openTransaction(db, URL_STORE, "readwrite"), done = transactionDone(tx);
+      for (const record of records) tx.objectStore(URL_STORE).put({ ...record, version: URL_CACHE_VERSION, parserVersion: BODY_CACHE_VERSION });
+      await done;
+      return !this.closed && isCurrent?.() !== false;
+    } catch { return false; }
+  }
+
+  /** Retire one modified/deleted/renamed owner without touching unrelated graph or neutral-source caches. */
+  async deleteUrlOwner(path: string): Promise<void> {
+    const db = await this.open();
+    if (!db || this.closed) return;
+    try {
+      const tx = this.openTransaction(db, URL_STORE, "readwrite"), done = transactionDone(tx);
+      tx.objectStore(URL_STORE).delete(path);
+      await done;
+    } catch { /* disposable cache cleanup only */ }
   }
 
   async getBody(path: string, mtime: number): Promise<ParsedBodyMetadata | null> {

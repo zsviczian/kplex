@@ -10,6 +10,8 @@
  * unchanged-host impact; changed-host fan-out remains explicitly unknown. This module never
  * classifies relationships, parses Markdown, publishes a
  * graph, or schedules acquisition. SourceRepository owns all disk effects and existing source leases.
+ * The independently authenticated URL identity capability distinguishes roots containing canonical
+ * web memberships. Historical roots retain non-URL coverage but cannot certify canonical URL absence.
  */
 import type { FileTreeOccurrence, SourceEntityFact, SourceEntityRef, TagTreeOccurrence } from "../core/graph/source";
 import {
@@ -150,6 +152,8 @@ type CatalogRoot = Readonly<{
   sources: number; hostFacts: number; rows: number;
   buckets: readonly SourceDependencyBucketManifest[];
   hostLinkOwnerOrder?: ContributorHostLinkOwnerOrderManifest;
+  /** Optional only on historical roots; current producers always commit canonical URL coverage. */
+  urlIdentityVersion?: 1;
 }>;
 type DependencyRow =
   | Readonly<{ kind: "link"; key: string; owner: string }>
@@ -298,9 +302,11 @@ function decodeRoot(data: string): CatalogRoot {
     throw new SourceFactError("dependency-invalid");
   }
   const version = value.version;
-  const fields = ["version", "build", "host", "sources", "hostFacts", "rows", "buckets", ...(version === 4 ? ["hostLinkOwnerOrder"] : [])];
+  const fields = ["version", "build", "host", "sources", "hostFacts", "rows", "buckets", ...(version === 4 ? ["hostLinkOwnerOrder"] : []),
+    ...(Object.prototype.hasOwnProperty.call(value, "urlIdentityVersion") ? ["urlIdentityVersion"] : [])];
   if (!exact(value, fields) || !validSourceDependencyBuild(value.build) || !hostStamp(value.host)
     || !sourceCount(value.sources) || !sourceCount(value.hostFacts) || !sourceCount(value.rows)
+    || value.urlIdentityVersion !== undefined && value.urlIdentityVersion !== 1
     || value.rows > MAX_CATALOG_ROWS || value.sources + value.hostFacts > value.rows
     || !Array.isArray(value.buckets) || value.buckets.length !== SOURCE_DEPENDENCY_BUCKETS) throw new SourceFactError("dependency-invalid");
   let hostLinkOwnerOrder: ContributorHostLinkOwnerOrderManifest | undefined;
@@ -322,7 +328,8 @@ function decodeRoot(data: string): CatalogRoot {
     count += bucket.records; totalBytes += bucket.bytes;
   }
   if (count !== value.rows || totalBytes > SOURCE_DEPENDENCY_MAX_BYTES) throw new SourceFactError("dependency-invalid");
-  const common = { build: value.build, host: value.host, sources: value.sources, hostFacts: value.hostFacts, rows: value.rows, buckets };
+  const common = { build: value.build, host: value.host, sources: value.sources, hostFacts: value.hostFacts, rows: value.rows, buckets,
+    ...(value.urlIdentityVersion === 1 ? { urlIdentityVersion: 1 as const } : {}) };
   if (version === 4) {
     if (!hostLinkOwnerOrder) throw new SourceFactError("dependency-invalid");
     return { version, ...common, hostLinkOwnerOrder };
@@ -491,9 +498,9 @@ export class SourceContributorDiscovery {
       if (version === 4) {
         if (!hostLinkOwnerOrder) throw new SourceFactError("dependency-invalid");
         root = { version, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows,
-          buckets: writer.manifests, hostLinkOwnerOrder };
+          buckets: writer.manifests, hostLinkOwnerOrder, urlIdentityVersion: 1 };
       } else {
-        root = { version, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows, buckets: writer.manifests };
+        root = { version, build, host: { ...this.host.stamp }, sources, hostFacts, rows: writer.rows, buckets: writer.manifests, urlIdentityVersion: 1 };
       }
       const data = JSON.stringify(root);
       if (bytes(data) > SOURCE_DEPENDENCY_ROOT_BYTES) throw new SourceFactError("decode-budget");
@@ -1068,6 +1075,9 @@ export class SourceContributorDiscovery {
       if (keys.size > MAX_QUERY_KEYS || [...keys].reduce((total, key) => total + bytes(key), 0) > MAX_QUERY_KEY_BYTES) throw new SourceFactError("backpressure");
       const { root, record } = await this.root();
       if (markdown && root.version < 3) throw new SourceFactError("dependency-pending");
+      if (scope.endpoints.some(endpoint => endpoint.kind === "url") && root.urlIdentityVersion !== 1) {
+        throw new SourceFactError("dependency-pending");
+      }
       const budget: QueryBudget = { buckets: new Map(), pages: 0, bytes: 0 };
       const ownerKeys = new Set<string>();
       for (const value of await this.lookup(root, keys, budget)) {
@@ -1149,6 +1159,9 @@ export class SourceContributorDiscovery {
         || certificate.selectionIdentity !== await this.repository.observationDigest(JSON.stringify(certificate.markdownOrder === undefined
           ? [certificate.sources, certificate.hostFacts] : [certificate.sources, certificate.hostFacts, certificate.markdownOrder]))) return "dependency-invalid";
       const { record, root } = await this.root();
+      if (certificate.scope.endpoints.some(endpoint => endpoint.kind === "url") && root.urlIdentityVersion !== 1) {
+        return "dependency-pending";
+      }
       if (certificate.markdownOrder !== undefined && (root.version < 3
         || certificate.markdownOrder.length !== certificate.sources.length
         || certificate.markdownOrder.some(/** Revalidation must not accept a reordered or duplicate title cover. */

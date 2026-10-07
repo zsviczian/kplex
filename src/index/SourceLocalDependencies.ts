@@ -3,8 +3,11 @@
  * selected source revision: no settings, relationship roles, presentation policy or graph pages are
  * stored here. Immutable membership rows are selected only through the source-local owner record,
  * which is activated in the same IndexedDB transaction as the source head.
+ * Version 4 adds canonical web URL memberships alongside authenticated historical spellings;
+ * upgrading this disposable derivative never reparses or restamps its selected neutral source.
  */
 import { canonicalTagPaths } from "../core/graph/tagPaths";
+import { canonicalWebUrl, webUrlOrigin } from "../adapters/obsidian/urlIdentity";
 import { SOURCE_DECODE_BUDGET_BYTES, sourceCount, sourceObject, type SourceHead, type StoredSourceFact } from "./SourceFacts";
 
 export const SOURCE_LOCAL_DEPENDENCY_STORE = "sourceLocalDependencies";
@@ -14,14 +17,17 @@ export const SOURCE_LOCAL_REPAIR_STORE = "sourceLocalDependencyRepairs";
 export const SOURCE_LOCAL_LOOKUP_INDEX = "sourceLocalLookup";
 export const SOURCE_LOCAL_REVISION_INDEX = "sourceLocalRevision";
 export const SOURCE_LOCAL_DEPENDENCY_STATE_KEY = "source-local-dependency-state";
-export const SOURCE_LOCAL_DEPENDENCY_VERSION = 3;
-/** State format 2 certifies that the inventory closed the ancestor-aware owner projection. */
-export const SOURCE_LOCAL_STATE_VERSION = 2;
+export const SOURCE_LOCAL_DEPENDENCY_VERSION = 4;
+/** State format 3 certifies complete canonical URL and ancestor-aware owner projections. */
+export const SOURCE_LOCAL_STATE_VERSION = 3;
 export const SOURCE_LOCAL_DEPENDENCY_BUDGET = SOURCE_DECODE_BUDGET_BYTES;
+
+/** True requires all current URL memberships; 3 retains accepted non-URL/tag-ancestor coverage. */
+export type SourceLocalProjectionRequirement = boolean | 3;
 
 export type SourceLocalDependencyState = Readonly<{
   key: typeof SOURCE_LOCAL_DEPENDENCY_STATE_KEY;
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   revision: number;
   complete: boolean;
   /** Number of selected-owner count journals that must finish before closed-world lookups resume. */
@@ -29,8 +35,8 @@ export type SourceLocalDependencyState = Readonly<{
 }>;
 
 export type SourceLocalDependencyOwner = Readonly<{
-  /** Versions 1/2 retain accepted projections; version 3 adds canonical tag ancestor memberships. */
-  version: 1 | 2 | 3;
+  /** Versions 1–3 retain accepted projections; version 4 adds canonical web URL memberships. */
+  version: 1 | 2 | 3 | 4;
   sourceId: string;
   sourceRevision: string;
   state: SourceHead["state"];
@@ -72,6 +78,16 @@ export type SourceLocalDependencyRow = Readonly<{
   index: number;
   key: string;
 }>;
+
+/** Match only the projection needed by a semantic caller, without weakening count/journal fences. */
+export function sourceLocalStateCoversProjection(state: SourceLocalDependencyState, required: SourceLocalProjectionRequirement): boolean {
+  return !required || state.version >= (required === 3 ? 2 : SOURCE_LOCAL_STATE_VERSION);
+}
+
+/** Historical non-URL owners retain their accepted capabilities while canonical URLs require v4. */
+export function sourceLocalOwnerCoversProjection(owner: SourceLocalDependencyOwner, required: SourceLocalProjectionRequirement): boolean {
+  return !required || owner.version >= (required === 3 ? 3 : SOURCE_LOCAL_DEPENDENCY_VERSION);
+}
 
 /** Exact JSON tuples keep kind and opaque identity/value separate without delimiter ambiguity. */
 export function sourceLocalDependencyKey(kind: "node" | "field" | "literal" | "family" | "resolver", value: string): string {
@@ -128,11 +144,29 @@ export function sourceLocalStructuralBaseKeys(sourceId: string, _physicalPath: s
 }
 
 /**
- * Project one stored neutral fact onto direct contributor memberships. This intentionally follows
- * the same incidence vocabulary as contributor summaries, but operates before canonical replay so
- * source activation can persist the derivative atomically without a second family pass.
+ * Add conservative URL memberships using explicit lexical/kind facts, never parsing an opaque ID.
+ * Original raw keys remain available to historical callers; these additions let canonical roots
+ * and subpaths select existing owners without rewriting body or property source frames.
  */
-export function* sourceLocalStoredDependencyKeys(sourcePath: string, record: StoredSourceFact): IterableIterator<string> {
+function* sourceLocalCanonicalUrlKeys(record: StoredSourceFact): IterableIterator<string> {
+  const raw = record.kind === "body-url" ? record.url
+    : record.kind === "reference-candidate" && record.external ? record.rawTarget
+      : (record.kind === "reference-resolution" || record.kind === "literal-resolution") && record.target?.entity.kind === "url"
+        ? record.target.entity.semanticPath ?? record.target.rawTarget : null;
+  if (raw === null) return;
+  const url = canonicalWebUrl(raw);
+  yield sourceLocalDependencyKey("node", url);
+  yield sourceLocalDependencyKey("literal", url);
+  const origin = webUrlOrigin(url);
+  if (origin) yield sourceLocalDependencyKey("node", origin);
+}
+
+/**
+ * Retain the accepted v3 membership vocabulary for one neutral fact, including raw URL spelling
+ * and repeated root/body-origin keys. Canonical additions use this baseline in both fresh source
+ * activation and historical upgrades; occurrence counts must remain identical across those routes.
+ */
+function* sourceLocalHistoricalDependencyKeys(sourcePath: string, record: StoredSourceFact): IterableIterator<string> {
   if (record.kind === "reference-value" || record.kind === "inline-value" || record.kind === "field-name" || record.kind === "date-property") {
     yield sourceLocalDependencyKey("field", record.normalizedFieldName);
   }
@@ -158,7 +192,8 @@ export function* sourceLocalStoredDependencyKeys(sourcePath: string, record: Sto
   if (record.kind === "body-url") {
     yield sourceLocalDependencyKey("node", record.url);
     yield sourceLocalDependencyKey("literal", record.url);
-    try { yield sourceLocalDependencyKey("node", new URL(record.url).origin); } catch { /* malformed URL has no origin input */ }
+    const origin = webUrlOrigin(record.url);
+    if (origin) yield sourceLocalDependencyKey("node", origin);
     return;
   }
   if (record.kind === "tag") {
@@ -171,9 +206,30 @@ export function* sourceLocalStoredDependencyKeys(sourcePath: string, record: Sto
   // independently by the bounded structural host supplement.
 }
 
-/** Append only memberships absent from the authenticated historical owner projection. */
+/**
+ * Append canonical URL keys absent from this fact's historical projection. The small per-fact
+ * arrays retain old occurrence multiplicity without collecting a whole source's memberships;
+ * fresh and upgraded owners therefore share the exact same key multiset and selected counts.
+ */
+function* sourceLocalAdditionalUrlKeys(sourcePath: string, record: StoredSourceFact): IterableIterator<string> {
+  const canonical = [...sourceLocalCanonicalUrlKeys(record)];
+  if (!canonical.length) return;
+  const historical = [...sourceLocalHistoricalDependencyKeys(sourcePath, record)];
+  for (const [index, key] of canonical.entries()) {
+    if (!historical.includes(key) && canonical.indexOf(key) === index) yield key;
+  }
+}
+
+/** Project current memberships while preserving historical raw keys and occurrence multiplicity. */
+export function* sourceLocalStoredDependencyKeys(sourcePath: string, record: StoredSourceFact): IterableIterator<string> {
+  yield* sourceLocalHistoricalDependencyKeys(sourcePath, record);
+  yield* sourceLocalAdditionalUrlKeys(sourcePath, record);
+}
+
+/** Append only per-fact memberships absent from the authenticated historical owner projection. */
 export function* sourceLocalStoredUpgradeKeys(sourcePath: string, record: StoredSourceFact,
   version: SourceLocalDependencyOwner["version"]): IterableIterator<string> {
+  if (version < 4) yield* sourceLocalAdditionalUrlKeys(sourcePath, record);
   if (version === 1 && (record.kind === "reference-candidate" || record.kind === "host-literal")) {
     const resolver = sourceLocalResolverDependencyKey(record.rawTarget, sourcePath);
     if (resolver) yield resolver;
@@ -193,11 +249,11 @@ export function sourceLocalDependencyState(revision = 0, complete = false, pendi
 
 export function validSourceLocalDependencyState(value: unknown): value is SourceLocalDependencyState {
   return sourceObject(value) && Object.keys(value).length === 5 && value.key === SOURCE_LOCAL_DEPENDENCY_STATE_KEY
-    && (value.version === 1 || value.version === SOURCE_LOCAL_STATE_VERSION) && sourceCount(value.revision) && typeof value.complete === "boolean" && sourceCount(value.pending);
+    && (value.version === 1 || value.version === 2 || value.version === SOURCE_LOCAL_STATE_VERSION) && sourceCount(value.revision) && typeof value.complete === "boolean" && sourceCount(value.pending);
 }
 
 export function validSourceLocalDependencyOwner(value: unknown): value is SourceLocalDependencyOwner {
-  return sourceObject(value) && Object.keys(value).length === 9 && (value.version === 1 || value.version === 2 || value.version === SOURCE_LOCAL_DEPENDENCY_VERSION)
+  return sourceObject(value) && Object.keys(value).length === 9 && (value.version === 1 || value.version === 2 || value.version === 3 || value.version === SOURCE_LOCAL_DEPENDENCY_VERSION)
     && typeof value.sourceId === "string" && value.sourceId.length > 0
     && typeof value.sourceRevision === "string" && value.sourceRevision.length > 0
     && (value.state === "complete" || value.state === "tombstone")

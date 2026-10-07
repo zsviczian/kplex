@@ -187,6 +187,8 @@ export type ReferenceCandidate = SourceRecordBase & Readonly<{
   /** Proves that this physical value's candidate sequence reached its terminal record. */
   final: boolean;
   target: SourceTargetRef;
+  /** Producer-derived web origin only; portable classification never parses URL or opaque IDs. */
+  origin?: SourceTargetRef;
   /** Exact host resolved-link aggregate for image reconciliation, independent of image selectors. */
   hostOccurrenceCount: number;
 }>;

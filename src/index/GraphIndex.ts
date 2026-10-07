@@ -3,7 +3,7 @@
  * sessions publish a body-free host baseline, then canonicalize bounded direct owners without global
  * inventory. Host-only count covers separate available local numbers from semantic/write authority;
  * their demand lifetimes retire obsolete navigation work. Fresh finite cached incidence accelerates
- * reads, partial graphs never certify complete snapshots, and optional URL vocabulary is independent.
+ * reads, partial graphs never certify complete snapshots, and compact URL discovery is independent and always active in both strategies.
  * Trusted physically-current caches survive startup resolver waves as explicitly cached read-only
  * presentation; current complete scopes outrank them. A bounded inactive scope cover preserves
  * canonical navigation without repeating source preparation. Policy projection follows cooperative
@@ -33,6 +33,7 @@
  * Requested previews, cached preparation and hydration release CPU slices through host event tasks;
  * this owner retains its existing watchdog, delayed persistence and cancellation boundaries.
  */
+import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { ForegroundWorkScheduler, type IndexWorkPriority } from "./ForegroundWorkScheduler";
 import { HostMetadataPreview } from "./HostMetadataPreview";
@@ -41,7 +42,7 @@ import { graphCompilerSettingsFromLegacy, graphNodeViewFromLegacy } from "../ada
 import type { CompiledGraphNode, GraphCompilerRuntime, GraphCompilerSettings } from "../core/graph/compiler";
 import type { NodeId } from "../core/graph/model";
 import { estimateReferenceRecordBytes, sourceRevision, type SourceEntityFact, type SourceEntityRef } from "../core/graph/source";
-import { RelationEvidenceStore } from "../core/graph/evidence";
+import { RelationEvidenceStore, emptyRelation, applyOntologyPrecedence, applyEvidenceToRelation } from "../core/graph/evidence";
 import { Platform, TFile, TFolder, normalizePath, type App, type CachedMetadata } from "obsidian";
 import type KplexPlugin from "../main";
 import type { KplexSettings } from "../settings";
@@ -59,7 +60,7 @@ import {
 } from "../types";
 import { planRetiredExclusionReconciliation } from "./LegacySnapshotPolicy";
 import { GraphBuilder, type FieldCacheEntry, type PatchFileCommit, type PatchFilePublisher } from "./GraphBuilder";
-import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
+import { iterateLinkReferencesFromValue, normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
 import { extractLinksFromValue, iterateFrontmatterAliasSteps } from "./fieldParser";
 import { MAX_CACHED_SCOPE_RETAINED_BYTES } from "./CachedSourceSemantics";
 import { KplexIndexedDbCache, URL_ALIAS_FACET_VERSION, sanitizeIndexDiagnostics, type IndexedDbSnapshotMeta, type IndexDiagnosticEntry,
@@ -194,6 +195,7 @@ const FILE_CONTENT_EVIDENCE = new Set<EvidenceSourceKind>([
   "frontmatter-ontology",
   "inline-ontology",
   "body-url",
+  "property-url",
   "date-property",
 ]);
 
@@ -287,8 +289,39 @@ export class GraphIndex {
   private state = createGraphState();
   /** Strategy is captured once: settings changes take effect after restart, never halfway through work. */
   private readonly indexingMode: "eager" | "on-demand";
-  private readonly urlIndexingMode: "on-demand" | "background";
+  /** URL facts have an independent cache/graph lifetime, never global relationship authority. */
+  private urlState = createGraphState();
+  private urlOwners = new Map<string, Readonly<{ file: TFile; mtime: number; size: number; event: number }>>();
+  private urlOwnerEvents = new Map<string, number>();
+  private urlAliasOwners = new Map<string, Map<string, readonly string[]>>();
+  private urlOwnerTargets = new Map<string, Set<string>>();
+  private urlRestoreTask: Promise<boolean> | null = null;
+  private urlOwnerTasks = new Map<string, Promise<void>>();
+  private urlPublicationLane: Promise<void> = Promise.resolve();
+  private urlPendingPublications = 0;
+  private urlDiscoveryComplete = false;
+  private urlDiscoveryRunning = false;
+  private urlOwnerBodies = new Map<string, ParsedBodyMetadata>();
+  private urlOwnerFrontmatter = new Map<string, Record<string, unknown>>();
+  private urlSearchEntries = new Map<string, SearchEntry>();
+  private retiredUrlTargets = new Set<string>();
+  private urlMetadataCaches = new Map<string, CachedMetadata | null>();
+  private urlCachedMetadataOwners = new Set<string>();
+  private urlDiscoveryProcessed = 0;
+  private urlDiscoveryTotal = 0;
+  private urlOwnerFailures = new Set<string>();
+  private urlCacheWrites = new Map<string, Promise<void>>();
+  private urlCacheAvailable = true;
+  private urlCacheWritesFailed = 0;
+  private urlRestoredOwners = 0;
+  private urlReadOwners = 0;
+  private urlReadActive = 0;
+  private urlReadBytes = 0;
+  private urlReadWaiters: Array<Readonly<{ size: number; ready: (admitted: boolean) => void }>> = [];
+  private urlCheckedOwners = 0;
   private onDemandBaselineReady = false;
+  /** Finite saved-preview arbitration; never retains a foreground scheduler priority. */
+  private eagerPreviewArbitration: { task: Promise<void>; release: () => void } | null = null;
   private onDemandBaselineRevision = 0;
   private onDemandPartialState = false;
   private onDemandBaselineTask: Promise<boolean> | null = null;
@@ -445,8 +478,7 @@ export class GraphIndex {
   private activeSnapshotGeneration: string | null = null;
   private nodeVisualCache = new Map<string, { signature: string; visual: NodeVisual | null }>();
   constructor(private plugin: KplexPlugin, private app: App = plugin.app) {
-    this.indexingMode = plugin.settings.indexingMode ?? "eager";
-    this.urlIndexingMode = plugin.settings.urlIndexingMode ?? "on-demand";
+    this.indexingMode = plugin.settings.indexingMode ?? "on-demand";
     this.presentationSettings = capturePresentationSettings(plugin.settings);
     this.fullSemanticSettings = graphCompilerSettingsFromLegacy(plugin.settings);
     this.indexedDb = new KplexIndexedDbCache(app.vault.getName(), () => this.workScheduler.checkpoint(3),
@@ -479,6 +511,15 @@ export class GraphIndex {
 
   /** Session strategy, independent of restart-required setting edits. */
   isOnDemandMode(): boolean { return this.indexingMode === "on-demand"; }
+
+  /** Local baseline readiness is independent of optional URL/global background jobs. */
+  hasLocalBaseline(): boolean { return this.onDemandBaselineReady; }
+
+  /** Eager uses local work until a trusted read snapshot or durable source authority is ready. */
+  private usesLocalForeground(): boolean {
+    return this.isOnDemandMode() || !this.fullSnapshotFresh
+      && !this.sourceAcquisition.hasSemanticDependencies() && this.navigableSnapshotSourceRevision === null;
+  }
 
   /** Reconcile visible demand only; topology changes rebuild the cheap host baseline, never all bodies. */
   async refreshOnDemandGraph(seedPaths: readonly string[], rebuildBaseline = false): Promise<boolean> {
@@ -545,7 +586,7 @@ export class GraphIndex {
     this.cancelPendingPersistence();
     const run = ++this.generation, baselineRevision = this.onDemandBaselineRevision;
     const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && run === this.generation
-      && baselineRevision === this.onDemandBaselineRevision;
+      && baselineRevision === this.onDemandBaselineRevision && this.usesLocalForeground();
     const task = this.withForegroundPriority(async () => {
       this.sourceAcquisition.start();
       const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
@@ -583,16 +624,25 @@ export class GraphIndex {
 
   /** Canonicalize center first, then at most 63 direct host candidates through the ordinary patch owner. */
   private ensureOnDemandCenter(centerPath: string): Promise<void> {
-    if (!this.isOnDemandMode() || this.diagnosticsClosed || this.persistentCachePurged) return Promise.resolve();
+    if (!this.usesLocalForeground() || this.diagnosticsClosed || this.persistentCachePurged) return Promise.resolve();
     const existing = this.onDemandTasks.get(centerPath);
     if (existing) return existing;
     const demand = this.semanticDemandRevision.get(centerPath) ?? 0;
     const policy = this.semanticPolicyRevision, baselineRevision = this.onDemandBaselineRevision;
-    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged
+    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && this.usesLocalForeground()
       && baselineRevision === this.onDemandBaselineRevision
       && policy === this.semanticPolicyRevision && demand === (this.semanticDemandRevision.get(centerPath) ?? 0);
     const task = (async () => {
+      if (this.eagerPreviewArbitration) await this.eagerPreviewArbitration.task;
+      if (!current()) return;
+      const cached = this.onDemandCachedScopes.get(centerPath);
+      if (cached && this.onDemandCachedSourceRevision === this.plugin.getIndexSourceRevision()
+        && [...cached.pages.values()].every(page => !page.file || this.app.vault.getFileByPath(page.path) === page.file
+          && Boolean(this.snapshotFileRevisions.get(page) && fileRevisionMatches(page.file, this.snapshotFileRevisions.get(page)!)))) return;
       if (!(await this.initializeOnDemandBaseline()) || !current()) return;
+      if (/^https?:\/\//i.test(centerPath)) {
+        this.ensureUrlTarget(centerPath); void this.startBackgroundUrlIndex(); return;
+      }
       const candidates = [...await this.hostPreview.candidateMarkdownPaths(centerPath, 64)];
       if (!current()) return;
       await this.publishOnDemandHostScope(centerPath, current);
@@ -608,6 +658,9 @@ export class GraphIndex {
           if (token?.file === file && token.mtime === file.stat.mtime && token.size === file.stat.size
             && token.policyRevision === policy) continue;
           const revision = captureFileRevision(file);
+          if (this.building) {
+            await this.ensureSemanticScope(centerPath); return;
+          }
           const result = await this.patchMarkdownPaths([path], {
             useDurableCache: true, forceRecompile: token?.policyRevision !== policy, isCurrent: current,
           });
@@ -661,7 +714,10 @@ export class GraphIndex {
       /** Only exact live hot bodies are selected; missing bodies stay absent, never trigger reads. */
       bodyForPath: path => {
         const file = this.app.vault.getFileByPath(path), hot = this.fieldCache.get(path);
-        return file && hot?.mtime === file.stat.mtime && !this.sourceAcquisition.needsBodyRead(file) ? hot.body : undefined;
+        if (file && hot?.mtime === file.stat.mtime && !this.sourceAcquisition.needsBodyRead(file)) return hot.body;
+        const owner = this.urlOwners.get(path);
+        return owner?.file === file && owner.mtime === file?.stat.mtime && owner.size === file?.stat.size
+          && owner.event === (this.urlOwnerEvents.get(path) ?? 0) ? this.urlOwnerBodies.get(path) : undefined;
       },
     });
     if (!scopedCurrent()) return;
@@ -711,7 +767,7 @@ export class GraphIndex {
     }));
     // Direct diagnostic/API count requests without a visible demand remain valid. UI requests
     // otherwise retain only the exact views alive when this count cover was admitted.
-    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged
+    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && this.usesLocalForeground()
       && (demands.length === 0 || demands.some(demand => this.semanticDemandCounts.has(demand.path)
         && demand.revision === (this.semanticDemandRevision.get(demand.path) ?? 0)))
       && source === this.plugin.getIndexSourceRevision() && policy === this.semanticPolicyRevision
@@ -727,7 +783,10 @@ export class GraphIndex {
         /** Current already-acquired bodies enrich counts; this lane never reads a body or source. */
         bodyForPath: path => {
           const file = this.app.vault.getFileByPath(path), hot = this.fieldCache.get(path);
-          return file && hot?.mtime === file.stat.mtime && !this.sourceAcquisition.needsBodyRead(file) ? hot.body : undefined;
+          if (file && hot?.mtime === file.stat.mtime && !this.sourceAcquisition.needsBodyRead(file)) return hot.body;
+        const owner = this.urlOwners.get(path);
+        return owner?.file === file && owner.mtime === file?.stat.mtime && owner.size === file?.stat.size
+          && owner.event === (this.urlOwnerEvents.get(path) ?? 0) ? this.urlOwnerBodies.get(path) : undefined;
         },
       });
       const center = scope?.state.pages.get(page.path);
@@ -762,15 +821,26 @@ export class GraphIndex {
     this.fullSemanticSourceRevision = this.plugin.getIndexSourceRevision();
   }
 
+  /** Check available published adjacency, including current URL discovery and exact pair updates, without acquiring any facts. */
+  private hasReadableNeighbour(centerPath: string, targetPath: string): boolean {
+    const page = this.get(centerPath);
+    if (!page) return false;
+    const pair = this.relationshipPairs.get(relationshipPairKey(page.path, targetPath));
+    if (pair) return Boolean(pair.relations.get(page.path));
+    if (this.urlState.pages.get(page.path)?.neighbours.has(targetPath)) return true;
+    if (this.urlPairIsObserved(page.path, targetPath)) return false;
+    return page.neighbours.has(targetPath);
+  }
+
   /** Canonicalize one visible source ahead of unrelated dirty files; background builds retain their progress. */
   refreshVisibleMarkdownPath(path: string): Promise<void> {
-    if (this.isOnDemandMode()) {
+    if (this.usesLocalForeground()) {
       this.onDemandIndexed.delete(path);
-      for (const center of this.semanticDemandCounts.keys()) if (center === path || this.get(center)?.neighbours.has(path)) {
+      for (const center of this.semanticDemandCounts.keys()) if (center === path || this.hasReadableNeighbour(center, path)) {
         this.semanticDemandRevision.set(center, (this.semanticDemandRevision.get(center) ?? 0) + 1);
       }
       return Promise.all([...this.semanticDemandCounts.keys()]
-        .filter(center => center === path || this.get(center)?.neighbours.has(path))
+        .filter(center => center === path || this.hasReadableNeighbour(center, path))
         .map(center => this.ensureOnDemandCenter(center))).then(() => undefined);
     }
     return this.withForegroundPriority(async () => {
@@ -780,7 +850,7 @@ export class GraphIndex {
       if (!file || file.extension !== "md" || this.diagnosticsClosed) return;
       if (!this.building && this.state.pages.has(path)) await this.patchMarkdownPaths([path]);
       else for (const [center, count] of this.semanticDemandCounts) {
-        if (count > 0 && (center === path || this.get(center)?.neighbours.has(path))) await this.ensureSemanticScope(center);
+        if (count > 0 && (center === path || this.hasReadableNeighbour(center, path))) await this.ensureSemanticScope(center);
       }
     }, 2);
   }
@@ -902,17 +972,28 @@ export class GraphIndex {
    * one known metadata event; unrelated or unbounded source revisions never renew warm freshness.
    */
   refreshVisibleHostMetadataPreviews(changedPath: string, previousSourceRevision = this.plugin.getIndexSourceRevision()): boolean {
+    const urlBody = this.urlOwnerBodies.get(changedPath), urlFile = this.app.vault.getFileByPath(changedPath), owner = this.urlOwners.get(changedPath);
+    const knownMetadataChange = this.plugin.getIndexSourceRevision() === previousSourceRevision + 1;
+    if (urlFile && urlBody && owner?.file === urlFile && owner.mtime === urlFile.stat.mtime && owner.size === urlFile.stat.size
+      && owner.event === (this.urlOwnerEvents.get(changedPath) ?? 0)
+      && (knownMetadataChange || this.urlMetadataCaches.get(changedPath) !== this.app.metadataCache.getFileCache(urlFile))) {
+      this.urlDiscoveryComplete = false;
+      if (knownMetadataChange) this.urlOwnerEvents.set(changedPath, (this.urlOwnerEvents.get(changedPath) ?? 0) + 1);
+      void this.refreshUrlOwner(changedPath, false, undefined, {
+        body: urlBody, file: urlFile, revision: captureFileRevision(urlFile), frontmatter: this.urlOwnerFrontmatter.get(changedPath),
+      });
+    }
     const affectedTargets = this.hostPreview.refreshSource(changedPath);
     this.hostPresentationRevision += 1;
     void this.refreshChangedRelationshipPairs(changedPath);
-    if (this.isOnDemandMode()) {
+    if (this.usesLocalForeground()) {
       for (const [center, scope] of this.onDemandCachedScopes) {
         if (scope.pages.has(changedPath) || affectedTargets.has(center)) this.onDemandCachedScopes.delete(center);
       }
       this.onDemandIndexed.delete(changedPath);
       let visible = false;
       for (const center of this.semanticDemandCounts.keys()) {
-        if (center !== changedPath && !affectedTargets.has(center) && !this.get(center)?.neighbours.has(changedPath)) continue;
+        if (center !== changedPath && !affectedTargets.has(center) && !this.hasReadableNeighbour(center, changedPath)) continue;
         visible = true;
         this.onDemandHostScopes.delete(center);
         this.semanticDemandRevision.set(center, (this.semanticDemandRevision.get(center) ?? 0) + 1);
@@ -1382,7 +1463,7 @@ export class GraphIndex {
 
   /** True while the requested semantic policy has no coherent prepared publication for active demand. */
   hasPendingSemanticPreparation(): boolean {
-    if (this.isOnDemandMode()) return this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0 || this.onDemandGateTasks.size > 0;
+    if (this.usesLocalForeground()) return this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0 || this.onDemandGateTasks.size > 0;
     if (this.pendingStructuralTasks > 0) return true;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
@@ -1406,7 +1487,7 @@ export class GraphIndex {
   hasActiveSemanticPreparation(): boolean { return this.hasOnDemandWork() || this.pendingStructuralTasks > 0 || this.semanticPreparationTasks.size > 0; }
 
   /** Actual local tasks are separate from optional absent global authority. */
-  private hasOnDemandWork(): boolean { return this.isOnDemandMode() && (this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0 || this.onDemandGateTasks.size > 0); }
+  private hasOnDemandWork(): boolean { return this.usesLocalForeground() && (this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0 || this.onDemandGateTasks.size > 0); }
 
   /** Return one current demanded failure reason without exposing paths or trusting historical aggregate counters. */
   getSemanticPreparationFailure(): string | null {
@@ -1493,6 +1574,17 @@ export class GraphIndex {
   /** Retry only demanded settings scopes after source-local dependency inventory closes. */
   private retryDemandedSemanticScopes(): void {
     if (this.isOnDemandMode() || this.diagnosticsClosed || !this.sourceAcquisition.hasSemanticDependencies()) return;
+    // Source-ready Eager returns to the existing finite durable owner. Retire local read proofs
+    // before requesting that owner; already-running local continuations fail their strategy fence.
+    if (this.onDemandBaselineTask || this.onDemandTasks.size || this.onDemandGateTasks.size
+      || this.onDemandHostScopes.size || this.onDemandCachedScopes.size || this.onDemandIndexed.size
+      || this.onDemandGateRevisions.size || this.onDemandUnavailableCounts.size) {
+      this.onDemandBaselineRevision++;
+      this.onDemandHostScopes.clear(); this.onDemandCachedScopes.clear(); this.onDemandIndexed.clear();
+      this.onDemandGateRevisions.clear(); this.onDemandUnavailableCounts.clear();
+      this.onDemandGateCounts = new WeakMap(); this.onDemandPresentationPages = new WeakMap();
+      this.relationViewCache = new WeakMap();
+    }
     const retry = new Set<string>();
     for (const [path, count] of this.semanticDemandCounts) if (count > 0) retry.add(path);
     if (this.plugin.settings.lastActivePath) retry.add(this.plugin.settings.lastActivePath);
@@ -1501,13 +1593,14 @@ export class GraphIndex {
 
   /** Register one visible semantic center. Releasing the final demand cancels its in-flight work. */
   acquireSemanticDemand(path: string): () => void {
+    if (/^https?:\/\//i.test(path)) { path = canonicalWebUrl(path); this.ensureUrlTarget(path); }
     const previous = this.semanticDemandCounts.get(path) ?? 0;
     this.semanticDemandCounts.set(path, previous + 1);
     this.releasedSemanticScopePaths.delete(path);
     if (previous === 0) this.semanticDemandRevision.set(path, (this.semanticDemandRevision.get(path) ?? 0) + 1);
     void this.withForegroundPriority(() => this.publishHostMetadataPreview(path), 1);
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
-    if (this.isOnDemandMode()) void this.ensureOnDemandCenter(path);
+    if (this.usesLocalForeground()) void this.ensureOnDemandCenter(path);
     else if (this.fullSemanticPolicyRevision !== this.semanticPolicyRevision || this.fullSemanticMaintenanceRevision !== maintenanceRevision) void this.ensureSemanticScope(path);
     let released = false;
     return () => {
@@ -1556,7 +1649,7 @@ export class GraphIndex {
 
   /** Prepare all active centers for the current policy; no full/source rebuild is scheduled here. */
   async refreshSemanticSettings(): Promise<void> {
-    if (this.isOnDemandMode()) {
+    if (this.usesLocalForeground()) {
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.onDemandIndexed.clear();
       this.onDemandCachedScopes.clear();
@@ -2045,6 +2138,13 @@ export class GraphIndex {
 
   /** Prefer complete incidence over sparse endpoints at the current revision; retain coherent older views during repair. */
   private semanticPage(path: string): GraphPage | undefined {
+    if (/^https?:\/\//i.test(path)) {
+      path = canonicalWebUrl(path);
+      const canonical = this.state.pages.get(path);
+      if (canonical?.url) return canonical;
+      const url = this.urlState.pages.get(path);
+      if (url && this.urlPageHasCurrentSupport(path)) return url;
+    }
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     const currentSourceRevision = this.plugin.getIndexSourceRevision();
     // An endpoint borrowed by another center can be sparse even when a complete current scope
@@ -2063,7 +2163,7 @@ export class GraphIndex {
     }
     for (const scope of this.semanticScopes.values()) if (scope.maintenanceRevision === maintenanceRevision
       && scope.policyRevision === this.semanticPolicyRevision && scope.sourceRevision === currentSourceRevision && scope.suppressedPaths.has(path)) return undefined;
-    if (this.isOnDemandMode() && this.onDemandBaselineReady) {
+    if (this.usesLocalForeground() && this.onDemandBaselineReady) {
       // A native baseline contains all host edges, while the early preview is deliberately capped.
       // Counts must never be limited by that preview/candidate cap.
       const local = this.onDemandHostScopes.get(path)?.pages.get(path) ?? this.state.pages.get(path);
@@ -2086,7 +2186,7 @@ export class GraphIndex {
       const page = scope.pagesByPath.get(path);
       if (page) return page;
     }
-    const canonical = this.state.pages.get(path);
+    const canonical = this.state.pages.get(path) ?? (this.urlPageHasCurrentSupport(path) ? this.urlState.pages.get(path) : undefined);
     const direct = this.hostPreviewScopes.get(path)?.pages.get(path);
     if (direct) return direct;
     for (const scope of this.hostPreviewScopes.values()) {
@@ -2270,15 +2370,27 @@ export class GraphIndex {
   indexedMarkdownFileCount(): number { return this.semanticFingerprints.size; }
   /** The progressive builder pauses source ingestion while a checkpoint is made durable. */
   isCheckpointSaving(): boolean { return this.checkpointSaving; }
+  /**
+   * Return the stable canonical URL object when the published graph owns it, including during
+   * independent discovery. Raw neighbours remain the coherent main graph's incidence; semantic
+   * neighborhood/count readers compose current URL/negative and exact-pair projections. URL labels
+   * update at the same synchronous publication boundary without granting semantic authority.
+   */
   get(path: string): GraphPage | undefined {
+    if (/^https?:\/\//i.test(path)) {
+      path = canonicalWebUrl(path);
+      const canonical = this.state.pages.get(path);
+      if (canonical?.url) return canonical;
+    }
     const exactPrepared = this.semanticPage(path);
     if (exactPrepared && exactPrepared !== this.state.pages.get(path)) return this.composeRelationshipPairs(exactPrepared);
-    const base = getGraphPage(this.state, path);
+    const base = /^https?:\/\//i.test(path) ? this.state.pages.get(path) : getGraphPage(this.state, path);
     if (!base) return exactPrepared ? this.composeRelationshipPairs(exactPrepared) : undefined;
     const page = this.semanticPage(base.path);
     return page ? this.composeRelationshipPairs(page) : undefined;
   }
-  allPages(): GraphPage[] { return [...this.state.pages.values()]; }
+  /** Enumerate canonical published pages, supplementing only URLs absent from the main graph. */
+  allPages(): GraphPage[] { return [...new Map([...[...this.urlState.pages].filter(([path, page]) => Boolean(page.url) && this.urlPageHasCurrentSupport(path)), ...this.state.pages]).values()]; }
 
   private static readonly IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp"]);
 
@@ -2433,6 +2545,14 @@ export class GraphIndex {
     this.onDemandIndexed.clear();
     this.onDemandHostScopes.clear();
     this.onDemandCachedScopes.clear();
+    for (const [path, body] of this.urlOwnerBodies) {
+      const file = this.app.vault.getFileByPath(path), owner = this.urlOwners.get(path), frontmatter = this.urlOwnerFrontmatter.get(path);
+      if (file && owner?.file === file && owner.mtime === file.stat.mtime && owner.size === file.stat.size
+        && owner.event === (this.urlOwnerEvents.get(path) ?? 0)
+        && (body.urls.length || body.inlineFieldOccurrences.length || Object.keys(frontmatter ?? {}).length)) {
+        void this.publishUrlOwner(file, body, owner.event, frontmatter);
+      }
+    }
     this.navigableSnapshotSourceRevision = null;
     this.retiredSnapshotPaths.clear();
     this.hostPreviewScopes.clear();
@@ -2583,46 +2703,342 @@ export class GraphIndex {
     return (await flush()) && current();
   }
 
-  /** Optional background body-cache/URL vocabulary enrichment, never semantic incidence or readiness. */
+  /** Report actual independent URL work; URL discovery never masquerades as local semantic preparation. */
+  getUrlIndexProgress(): Readonly<{ processed: number; total: number; complete: boolean; active: boolean; failed: boolean; restored: number; reads: number; checked: number; cacheAvailable: boolean; cacheWritesFailed: number }> {
+    return { processed: this.urlDiscoveryProcessed, total: this.urlDiscoveryTotal, complete: this.urlDiscoveryComplete,
+      active: this.urlDiscoveryRunning || this.urlOwnerTasks.size > 0 || this.urlPendingPublications > 0,
+      failed: this.urlOwnerFailures.size > 0, restored: this.urlRestoredOwners, reads: this.urlReadOwners, checked: this.urlCheckedOwners, cacheAvailable: this.urlCacheAvailable, cacheWritesFailed: this.urlCacheWritesFailed };
+  }
+
+  /** Restore compact physically-current URL owners before any optional whole-graph cache decoding. */
+  restoreUrlIndex(): Promise<boolean> {
+    if (this.urlRestoreTask) return this.urlRestoreTask;
+    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged;
+    this.urlRestoreTask = this.indexedDb.readUrlOwners(async records => {
+      for (const record of records) {
+        if (!current()) return;
+        const file = this.app.vault.getFileByPath(record.path);
+        if (!file || file.extension !== "md" || file.stat.mtime !== record.mtime || file.stat.size !== record.size
+          || (this.urlOwnerEvents.get(record.path) ?? 0) !== 0) {
+          void this.indexedDb.deleteUrlOwner(record.path); continue;
+        }
+        await this.publishUrlOwner(file, { urls: record.urls, inlineFieldOccurrences: record.inlineFieldOccurrences, inlineFields: {} }, 0, record.frontmatter);
+        if (this.urlOwners.has(record.path)) this.urlRestoredOwners++;
+      }
+    }, current).then(available => { this.urlCacheAvailable = available; return available; });
+    return this.urlRestoreTask;
+  }
+
+  /** Privately replace one owner's search labels without retaining full parsed bodies. */
+  private async prepareUrlAliasOwners(owner: string, urls: ParsedBodyMetadata["urls"], current: () => boolean): Promise<Map<string, Map<string, readonly string[]>> | null> {
+    const next = new Map<string, Map<string, readonly string[]>>();
+    let sliceStarted = performance.now(), processed = 0;
+    /** Alias derivation stays private and respects foreground admission before releasing CPU slices. */
+    const checkpoint = async (): Promise<boolean> => {
+      if ((++processed & 31) !== 0 || performance.now() - sliceStarted < 6) return current();
+      await this.workScheduler.checkpoint(3);
+      await yieldToHostTask();
+      sliceStarted = performance.now();
+      return current();
+    };
+    await this.workScheduler.checkpoint(3);
+    if (!current()) return null;
+    for (const target of this.urlOwnerTargets.get(owner) ?? []) {
+      const contributors = new Map(this.urlAliasOwners.get(target)); contributors.delete(owner); next.set(target, contributors);
+      if (!(await checkpoint())) return null;
+    }
+    for (const reference of urls) {
+      const target = canonicalWebUrl(reference.url);
+      const contributors = next.get(target) ?? new Map(this.urlAliasOwners.get(target));
+      contributors.set(owner, [...new Set([...(contributors.get(owner) ?? []), ...(reference.label ? [reference.label] : []), ...(reference.aliases ?? [])])]);
+      next.set(target, contributors);
+      if (!(await checkpoint())) return null;
+    }
+    return next;
+  }
+
+  /** Publish already prepared search facets with the URL evidence commit; removed owners lose their labels. */
+  private publishUrlAliasOwners(owner: string, prepared: Map<string, Map<string, readonly string[]>>): void {
+    const targets = new Set<string>();
+    for (const [target, contributors] of prepared) {
+      if (contributors.has(owner)) targets.add(target);
+      if (contributors.size) this.urlAliasOwners.set(target, contributors); else this.urlAliasOwners.delete(target);
+      const page = this.urlState.pages.get(target);
+      if (!page?.url) continue;
+      page.aliases = [...new Set([...contributors.values()].flat())];
+      page.name = page.aliases[0] ?? page.url;
+    }
+    if (targets.size) this.urlOwnerTargets.set(owner, targets); else this.urlOwnerTargets.delete(owner);
+  }
+
+  /** Keep only native property values containing URL references, using the accepted parser grammar. */
+  private urlFrontmatterProjection(frontmatter: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    // The URL lane filters candidates, not provenance. Mixed arrays/objects must retain their
+    // complete original field payload so cold and cached facts describe the same declaration.
+    // Occurrence ordinals are local to this private compiler stream: field identity/raw payload
+    // and relative URL-field order are unchanged; no neutral source IDs/authority are published.
+    for (const [key, value] of Object.entries(frontmatter)) {
+      if (key === "position" || ![...iterateLinkReferencesFromValue(value)].some(reference => reference.external)) continue;
+      result[key] = value;
+    }
+    return result;
+  }
+
+  /** Canonically stage one exact URL owner, retrying only changed metadata/policy while native facts stay current. */
+  private publishUrlOwner(file: TFile, body: ParsedBodyMetadata, event: number, cachedFrontmatter?: Record<string, unknown>): Promise<void> {
+    const revision = { ...captureFileRevision(file), path: file.path };
+    const alive = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && fileRevisionMatches(file, revision)
+      && this.app.vault.getFileByPath(revision.path) === file && event === (this.urlOwnerEvents.get(revision.path) ?? 0);
+    this.urlPendingPublications++;
+    const task = this.urlPublicationLane.catch(() => {}).then(async () => {
+      while (alive()) {
+        const policy = this.semanticPolicyRevision, cache = this.app.metadataCache.getFileCache(file);
+        const current = (): boolean => alive() && policy === this.semanticPolicyRevision
+          && cache === this.app.metadataCache.getFileCache(file);
+        const frontmatter = this.urlFrontmatterProjection(cache?.frontmatter ?? cachedFrontmatter ?? {});
+        const urls = body.urls;
+        if (!urls.length && !body.inlineFieldOccurrences.length && !Object.keys(frontmatter).length && !this.urlState.pages.has(revision.path)) {
+          this.urlOwners.set(revision.path, { file, mtime: revision.mtime, size: revision.size, event });
+          this.urlOwnerBodies.set(revision.path, body); this.urlOwnerFrontmatter.set(revision.path, frontmatter);
+          this.urlMetadataCaches.set(revision.path, cache);
+          if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path); return;
+        }
+        const builder = new GraphBuilder(this.plugin, this.app, new Map(), this.metadataParser,
+          this.indexedDb, current, new Map(), undefined, () => this.workScheduler.checkpoint(3));
+        const aliases = await this.prepareUrlAliasOwners(revision.path, urls, current);
+        if (!aliases) { if (alive()) continue; return; }
+        const touched = await builder.patchUrlReferences(this.urlState, file, body, (commit, publish) => {
+          publish();
+          this.urlOwners.set(revision.path, { file, mtime: revision.mtime, size: revision.size, event });
+          this.urlOwnerBodies.set(revision.path, body); this.urlOwnerFrontmatter.set(revision.path, frontmatter);
+          this.urlMetadataCaches.set(revision.path, cache);
+          if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path);
+          this.publishUrlAliasOwners(revision.path, aliases);
+          this.publishUrlSearch(commit.touchedPagePaths);
+          this.relationViewCache = new WeakMap(); this.patchSearchIndex(commit.touchedPagePaths);
+          this.suggestionCatalogCache = null; this.emitPresentation();
+        }, frontmatter);
+        if (touched || current()) return;
+        await this.workScheduler.checkpoint(3);
+      }
+    }).finally(() => { this.urlPendingPublications--; this.emitPresentation(); });
+    this.urlPublicationLane = task;
+    return task;
+  }
+
+  /** Maintain independent URL search entries across optional full graph/search replacement. */
+  private publishUrlSearch(paths: Iterable<string>): void {
+    for (const path of paths) {
+      const page = this.urlState.pages.get(path);
+      if (page?.url) { this.urlSearchEntries.set(path, this.makeSearchEntry(page)); this.retiredUrlTargets.delete(path); }
+      else { this.urlSearchEntries.delete(path); if (/^https?:\/\//i.test(path)) this.retiredUrlTargets.add(path); }
+      if (this.usesLocalForeground()) this.onDemandGateRevisions.set(path, (this.onDemandGateRevisions.get(path) ?? 0) + 1);
+      this.onDemandUnavailableCounts.delete(path);
+      const canonical = this.state.pages.get(path); if (canonical) this.onDemandGateCounts.delete(canonical);
+      this.onDemandHostScopes.delete(path);
+    }
+    this.synchronizePublishedUrlFacets(paths);
+    this.physicalSearchMerge = null;
+  }
+
+  /**
+   * Mirror current neutral URL labels into the public canonical page without replacing identity or
+   * mutating authoritative incidence. Current URL relationships remain a semantic read projection,
+   * so optional full graph acceleration retains its original coherent graph/evidence ownership.
+   */
+  private synchronizePublishedUrlFacets(paths: Iterable<string> = this.urlState.pages.keys()): void {
+    for (const path of paths) {
+      const canonical = this.state.pages.get(path), discovered = this.urlState.pages.get(path);
+      if (canonical?.url && discovered?.url) { canonical.name = discovered.name; canonical.aliases = [...discovered.aliases]; }
+    }
+  }
+
+  /** Always scan missing/modified owners with bounded parallel native reads and the canonical parser. */
   startBackgroundUrlIndex(): Promise<boolean> {
-    if (!this.isOnDemandMode() || this.urlIndexingMode !== "background" || this.persistentCachePurged
-      || this.diagnosticsClosed) return Promise.resolve(false);
+    if (this.persistentCachePurged || this.diagnosticsClosed) return Promise.resolve(false);
     if (this.urlBackgroundTask) return this.urlBackgroundTask;
+    this.urlDiscoveryRunning = true;
     const task = this.workScheduler.run(3, async () => {
-      if (!(await this.initializeOnDemandBaseline())) return false;
+      await this.restoreUrlIndex();
+      const files = this.app.vault.getMarkdownFiles();
+      this.urlDiscoveryTotal = files.length;
       this.plugin.startupDiagnostics?.mark("url-background-start");
-      const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged;
-      const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
-        this.indexedDb, current, this.semanticFingerprints, undefined, () => this.workScheduler.checkpoint(3));
-      const ok = await this.prewarmBodyCache(current, async (file, body) => {
-        const revision = captureFileRevision(file);
-        const pages = await builder.buildBodyUrlVocabulary(file, body);
-        if (!pages || !current() || !fileRevisionMatches(file, revision) || this.app.vault.getFileByPath(file.path) !== file) return;
-        const touched = new Set<string>();
-        for (const page of pages) {
-          const existing = this.state.pages.get(page.path);
-          if (!existing) {
-            this.state.pages.set(page.path, page);
-            this.state.lowercasePathMap.set(page.path.toLowerCase(), page.path);
-            touched.add(page.path);
-          } else if (existing.url) {
-            const aliases = new Set([...existing.aliases, ...page.aliases]);
-            if (existing.name === existing.url && page.name !== page.url) existing.name = page.name;
-            if (aliases.size !== existing.aliases.length) existing.aliases = [...aliases];
-            touched.add(existing.path);
-          }
+      const concurrency = Platform.isIosApp ? 1 : Platform.isMobile ? 2 : 6;
+      const byteBudget = (Platform.isMobile ? 2 : 8) * 1024 * 1024;
+      let offset = 0, bodyCacheEnd = 0;
+      let cachedBodies = new Map<string, ParsedBodyMetadata>();
+      let cachedRevisions = new Map<TFile, FileRevision>();
+      while (offset < files.length && !this.diagnosticsClosed && !this.persistentCachePurged) {
+        await this.workScheduler.checkpoint(3);
+        if (offset >= bodyCacheEnd) {
+          const batch = files.slice(offset, offset + (Platform.isMobile ? 64 : 256));
+          bodyCacheEnd = offset + batch.length;
+          cachedRevisions = new Map(batch.map(file => [file, captureFileRevision(file)]));
+          cachedBodies = await this.indexedDb.getBodies(batch.filter(file => !this.urlOwners.has(file.path))
+            .map(file => ({ path: file.path, mtime: cachedRevisions.get(file)!.mtime })));
         }
-        if (touched.size) {
-          this.patchSearchIndex(touched);
-          this.suggestionCatalogCache = null;
-          this.emitPresentation();
+        const group: TFile[] = []; let bytes = 0;
+        while (offset < files.length && offset < bodyCacheEnd && group.length < concurrency) {
+          const file = files[offset];
+          if (group.length && bytes + file.stat.size > byteBudget) break;
+          this.urlCheckedOwners++; offset++; bytes += file.stat.size;
+          const owner = this.urlOwners.get(file.path);
+          if (owner?.file === file && owner.mtime === file.stat.mtime && owner.size === file.stat.size
+            && owner.event === (this.urlOwnerEvents.get(file.path) ?? 0)) { this.urlDiscoveryProcessed++; continue; }
+          group.push(file);
+          if (bytes >= byteBudget) break;
         }
-      });
-      if (ok) this.plugin.startupDiagnostics?.mark("url-background-complete");
-      return ok;
-    });
+        await Promise.all(group.map(/** Native I/O overlaps; parser and canonical publication remain bounded by this wave. */
+          file => this.refreshUrlOwner(file.path, false, fileRevisionMatches(file, cachedRevisions.get(file)!)
+            ? cachedBodies.get(file.path) : undefined)));
+        this.urlDiscoveryProcessed += group.length;
+        this.emitPresentation();
+      }
+      if (this.diagnosticsClosed || this.persistentCachePurged) return false;
+      while (this.urlOwnerTasks.size && !this.diagnosticsClosed) await Promise.all([...this.urlOwnerTasks.values()]);
+      const currentFiles = this.app.vault.getMarkdownFiles();
+      this.urlDiscoveryComplete = this.urlOwnerFailures.size === 0 && currentFiles.every(/** Closed URL discovery requires exact current owners, including zero-link notes. */
+        file => { const owner = this.urlOwners.get(file.path); return owner?.file === file && owner.mtime === file.stat.mtime
+          && owner.size === file.stat.size && owner.event === (this.urlOwnerEvents.get(file.path) ?? 0); });
+      this.plugin.startupDiagnostics?.mark("url-background-complete");
+      this.relationViewCache = new WeakMap(); this.emitPresentation();
+      return this.urlDiscoveryComplete;
+    }).finally(() => { this.urlDiscoveryRunning = false; this.emitPresentation(); });
     this.urlBackgroundTask = task;
-    // Retain the completed promise: the opt-in scan runs only once per plugin lifetime.
+    return task;
+  }
+
+  /** Admit both discovery and event reads under one native-I/O count/byte bound, not a semantic scheduler. */
+  private async withUrlReadBudget<T>(file: TFile, work: () => Promise<T>): Promise<T | undefined> {
+    const size = Math.max(1, file.stat.size), count = Platform.isIosApp ? 1 : Platform.isMobile ? 2 : 6;
+    const budget = (Platform.isMobile ? 2 : 8) * 1024 * 1024;
+    const admitted = await new Promise<boolean>(/** Queued events retain only identity; unload cancels before any native read. */ resolve => {
+      if (this.diagnosticsClosed || this.persistentCachePurged) { resolve(false); return; }
+      this.urlReadWaiters.push({ size, ready: resolve });
+      this.admitUrlReads(count, budget);
+    });
+    if (!admitted) return undefined;
+    try { return await work(); }
+    finally {
+      this.urlReadActive--; this.urlReadBytes -= size; this.admitUrlReads(count, budget);
+    }
+  }
+
+  /** Wake bounded native readers; a single oversized file runs alone, including after unload for cleanup only. */
+  private admitUrlReads(count: number, budget: number): void {
+    if (this.diagnosticsClosed || this.persistentCachePurged) {
+      for (const waiter of this.urlReadWaiters.splice(0)) waiter.ready(false);
+      return;
+    }
+    while (this.urlReadWaiters.length && this.urlReadActive < count) {
+      const next = this.urlReadWaiters[0];
+      if (this.urlReadActive && this.urlReadBytes + next.size > budget) break;
+      this.urlReadWaiters.shift(); this.urlReadActive++; this.urlReadBytes += next.size; next.ready(true);
+    }
+  }
+
+  /** Count only actual Markdown reads belonging to independent URL discovery. */
+  private async readUrlOwnerBody(file: TFile): Promise<string> {
+    this.urlReadOwners++;
+    return this.app.vault.cachedRead(file);
+  }
+
+  /** Persist only compact facts from a physically-current published owner, including late metadata-only discovery. */
+  private persistUrlOwner(path: string): Promise<void> {
+    const owner = this.urlOwners.get(path), body = this.urlOwnerBodies.get(path);
+    const frontmatter = this.urlOwnerFrontmatter.get(path) ?? {};
+    /** Both publication identity and native revision must match after an awaited cache write. */
+    const current = (): boolean => Boolean(owner && body && !this.diagnosticsClosed && !this.persistentCachePurged
+      && this.urlOwners.get(path) === owner && this.app.vault.getFileByPath(path) === owner.file
+      && owner.file.stat.mtime === owner.mtime && owner.file.stat.size === owner.size
+      && owner.event === (this.urlOwnerEvents.get(path) ?? 0));
+    const task = (this.urlCacheWrites.get(path) ?? Promise.resolve()).catch(() => {}).then(async () => {
+      if (!current() || !owner || !body) return;
+      const stored = await this.indexedDb.putUrlOwners([{ path, mtime: owner.mtime, size: owner.size, urls: body.urls,
+        inlineFieldOccurrences: body.inlineFieldOccurrences, frontmatter }], current);
+      // A same-stat Vault event can arrive before the transaction opens. Its deletion may precede
+      // this stale write, so retire the stale record before the queued replacement can write.
+      if (!current() && !this.diagnosticsClosed && !this.persistentCachePurged) await this.indexedDb.deleteUrlOwner(path);
+      else if (!stored && current()) this.urlCacheWritesFailed++;
+    }).finally(() => { if (this.urlCacheWrites.get(path) === task) this.urlCacheWrites.delete(path); });
+    this.urlCacheWrites.set(path, task);
+    return task;
+  }
+
+  /** Observe content edits independently of host metadata readiness and optional Eager inventory. */
+  refreshUrlOwner(path: string, changed = true, cachedBody?: ParsedBodyMetadata, acquired?: Readonly<{ body: ParsedBodyMetadata; file: TFile; revision: FileRevision; frontmatter?: Record<string, unknown> }>): Promise<void> {
+    if (this.diagnosticsClosed || this.persistentCachePurged) return Promise.resolve();
+    if (changed) {
+      this.urlDiscoveryComplete = false;
+      this.urlOwnerEvents.set(path, (this.urlOwnerEvents.get(path) ?? 0) + 1);
+      this.urlOwners.delete(path);
+      void this.indexedDb.deleteUrlOwner(path);
+    }
+    const existing = this.urlOwnerTasks.get(path);
+    if (existing) return existing;
+    const file = this.app.vault.getFileByPath(path), event = this.urlOwnerEvents.get(path) ?? 0;
+    if (!file || file.extension !== "md") return this.retireUrlOwner(path);
+    const revision = captureFileRevision(file);
+    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged
+      && fileRevisionMatches(file, revision) && this.app.vault.getFileByPath(path) === file
+      && event === (this.urlOwnerEvents.get(path) ?? 0);
+    const task = this.withUrlReadBudget(file, async () => {
+      try {
+        if (!current()) return;
+        const hot = this.fieldCache.get(path);
+        const body = acquired?.file === file && fileRevisionMatches(file, acquired.revision) ? acquired.body
+          : !changed && event === 0 && !this.sourceAcquisition.needsBodyRead(file) && (hot?.mtime === revision.mtime || cachedBody)
+          ? hot?.mtime === revision.mtime ? hot.body : cachedBody!
+          : await this.metadataParser.parse(await this.readUrlOwnerBody(file), () => this.workScheduler.checkpoint(3));
+        if (!current()) return;
+        const inlineFieldOccurrences = body.inlineFieldOccurrences.filter(/** Retain only URL-bearing inline declarations, with exact original coordinates. */
+          occurrence => [...iterateLinkReferencesFromValue(occurrence.value)].some(reference => reference.external));
+        const urlBody = { urls: body.urls, inlineFieldOccurrences, inlineFields: {} };
+        await this.publishUrlOwner(file, urlBody, event, acquired?.frontmatter);
+        if (!current() || this.urlOwners.get(path)?.event !== event) return;
+        this.urlOwnerFailures.delete(path);
+        await this.persistUrlOwner(path);
+      } catch { if (current()) this.urlOwnerFailures.add(path); }
+    }).finally(() => {
+      if (this.urlOwnerTasks.get(path) === task) this.urlOwnerTasks.delete(path);
+      if (!this.urlDiscoveryRunning && !this.urlOwnerTasks.size && this.urlOwnerFailures.size === 0) {
+        this.urlDiscoveryComplete = this.app.vault.getMarkdownFiles().every(/** Current native membership independently proves URL closure after an edit. */
+          file => { const owner = this.urlOwners.get(file.path); return owner?.file === file && owner.mtime === file.stat.mtime
+            && owner.size === file.stat.size && owner.event === (this.urlOwnerEvents.get(file.path) ?? 0); });
+        this.relationViewCache = new WeakMap(); this.emitPresentation();
+      }
+      if (!current() && !this.diagnosticsClosed && !this.persistentCachePurged) void this.refreshUrlOwner(path, false);
+    });
+    this.urlOwnerTasks.set(path, task);
+    return task;
+  }
+
+  /** Remove deleted/renamed URL owner incidence through the canonical resolver, retaining shared URL targets. */
+  private retireUrlOwner(path: string): Promise<void> {
+    this.urlPendingPublications++;
+    const task = this.urlPublicationLane.catch(() => {}).then(async () => {
+      if (this.diagnosticsClosed || this.persistentCachePurged) return;
+      const builder = new GraphBuilder(this.plugin, this.app, new Map(), this.metadataParser, this.indexedDb,
+        () => !this.diagnosticsClosed && !this.persistentCachePurged, new Map(), undefined, () => this.workScheduler.checkpoint(3));
+      const aliases = await this.prepareUrlAliasOwners(path, [], () => !this.diagnosticsClosed && !this.persistentCachePurged);
+      if (!aliases) return;
+      await builder.removeUrlOwner(this.urlState, path, (commit, publish) => {
+        publish(); this.urlOwnerFailures.delete(path); this.urlOwners.delete(path); this.urlOwnerBodies.delete(path); this.urlOwnerFrontmatter.delete(path); this.urlMetadataCaches.delete(path); this.urlCachedMetadataOwners.delete(path); this.publishUrlAliasOwners(path, aliases); this.publishUrlSearch(commit.touchedPagePaths);
+        this.relationViewCache = new WeakMap(); this.patchSearchIndex(commit.touchedPagePaths); this.emitPresentation();
+      });
+    }).finally(() => {
+      this.urlPendingPublications--;
+      if (!this.diagnosticsClosed && !this.persistentCachePurged && !this.urlDiscoveryRunning
+        && !this.urlOwnerTasks.size && !this.urlPendingPublications && this.urlOwnerFailures.size === 0) {
+        this.urlDiscoveryComplete = this.app.vault.getMarkdownFiles().every(/** Deleted membership closes only when every surviving owner is current. */
+          file => { const owner = this.urlOwners.get(file.path); return owner?.file === file && owner.mtime === file.stat.mtime
+            && owner.size === file.stat.size && owner.event === (this.urlOwnerEvents.get(file.path) ?? 0); });
+        this.relationViewCache = new WeakMap();
+      }
+      this.emitPresentation();
+    });
+    this.urlPublicationLane = task;
     return task;
   }
 
@@ -2643,6 +3059,7 @@ export class GraphIndex {
   destroy(): void {
     this.sourceAcquisition.close();
     this.diagnosticsClosed = true;
+    this.eagerPreviewArbitration?.release();
     this.workScheduler.close();
     this.hostPreview.dispose();
     this.hostPreviewScopes.clear();
@@ -2685,6 +3102,12 @@ export class GraphIndex {
     // Release graph/search/body ownership now instead of retaining a complete vault until that
     // unrelated host reference is collected. Published page objects themselves are not mutated.
     this.state = createGraphState();
+    this.urlState = createGraphState();
+    this.urlOwners.clear(); this.urlOwnerEvents.clear(); this.urlOwnerBodies.clear(); this.urlOwnerFrontmatter.clear();
+    this.urlMetadataCaches.clear(); this.urlCachedMetadataOwners.clear(); this.urlOwnerFailures.clear();
+    this.urlAliasOwners.clear(); this.urlOwnerTargets.clear(); this.urlSearchEntries.clear(); this.retiredUrlTargets.clear();
+    this.urlOwnerTasks.clear(); this.urlCacheWrites.clear();
+    for (const waiter of this.urlReadWaiters.splice(0)) waiter.ready(false);
     this.searchEntries = [];
     this.physicalSearchEntries.clear();
     this.physicalSearchMerge = null;
@@ -2740,6 +3163,7 @@ export class GraphIndex {
       this.retiredSnapshotPaths.clear();
     }
     this.state = next;
+    this.synchronizePublishedUrlFacets();
     if (authoritativeSemantics) this.hostPreviewScopes.clear();
     if (authoritativeSemantics || this.sourceNodeVocabularyPublished) {
       // These publications contain every captured physical endpoint; preview facets can retire.
@@ -2766,6 +3190,7 @@ export class GraphIndex {
   }
 
   private installSearchIndex(prepared: PreparedSearchIndex): void {
+    this.physicalSearchMerge = null;
     this.searchCandidateCache.clear();
     this.searchEntries = prepared.entries;
     this.searchEntryByPath = prepared.byPath;
@@ -3128,6 +3553,7 @@ export class GraphIndex {
     }
     if (!isCheckpoint) this.enableGlobalSourceInventoryIfConfigured();
     this.fullSnapshotFresh = authoritativeFresh;
+    if (!this.isOnDemandMode() && !isCheckpoint && authoritativeFresh) this.onDemandPartialState = false;
     this.finishSnapshotHydrationDiagnostics(run, "complete");
     this.semanticFingerprints = restoredFingerprints;
     this.previewSnapshotPublished = false;
@@ -3231,6 +3657,7 @@ export class GraphIndex {
         && (compatibility.get(meta)?.compatible || persistedSources && meta.key === "active"
           && compatibility.get(meta)?.reason === "semantic-settings-changed"));
       if (!usable(active) && !usable(checkpoint)) {
+        this.eagerPreviewArbitration?.release();
         createdAt = active?.createdAt ?? checkpoint?.createdAt ?? null;
         const decision = (active && compatibility.get(active)) || (checkpoint && compatibility.get(checkpoint));
         this.recordIndexDiagnostic("restore", !catalog.available ? "storage-unavailable" :
@@ -3277,6 +3704,13 @@ export class GraphIndex {
         const previewPublished = await this.publishSnapshotPreview(meta, seedPaths, isCurrent,
           trustedWarmSnapshot ? physicalCurrent : undefined);
         if (!isCurrent()) return { restored: false, fresh: false, createdAt };
+        if (previewPublished && semanticCurrent() && meta.vaultSignature === inventory.signature
+          && compatibility.get(meta)?.reason === "compatible") {
+          this.onDemandCachedSourceRevision = this.plugin.getIndexSourceRevision();
+          for (const page of this.state.pages.values()) if (page.file) this.snapshotFileRevisions.set(page, captureFileRevision(page.file));
+          for (const path of seedPaths) if (this.state.pages.has(path)) this.onDemandCachedScopes.set(path, this.state);
+        }
+        this.eagerPreviewArbitration?.release();
         if (previewPublished) {
           this.plugin.startupDiagnostics?.mark("preview-available");
           reportPreview({ restored: true, fresh, createdAt, partial: true });
@@ -3543,9 +3977,19 @@ export class GraphIndex {
    * state visible. It must be invoked before search/cache invalidation and must never be retained.
    */
   private commitPreparedFile(commit: PatchFileCommit, publishPreparedState: () => void): void {
+    const warmRevision = this.navigableSnapshotSourceRevision;
+    const sourceRevision = this.plugin.getIndexSourceRevision();
+    const oldSource = this.state.pages.get(commit.sourcePath);
+    const preserveWarm = warmRevision !== null && sourceRevision === warmRevision
+      && Boolean(oldSource?.file && this.app.vault.getFileByPath(commit.sourcePath) === oldSource.file
+        && this.snapshotFileRevisions.has(oldSource));
     publishPreparedState();
-    if (this.snapshotHydrationTask) this.cancelSnapshotHydration?.();
-    this.navigableSnapshotSourceRevision = null;
+    // A partial Eager foreground patch supersedes a captured graph candidate, not the neutral
+    // source recovery lifetime. Its publication fence rejects stale pages/evidence independently.
+    if (this.snapshotHydrationTask && !(this.usesLocalForeground() && !this.isOnDemandMode()
+      && !this.warmSourceRecoveryAvailable)) this.cancelSnapshotHydration?.();
+    this.navigableSnapshotSourceRevision = preserveWarm ? sourceRevision : null;
+    if (preserveWarm) for (const path of commit.touchedPagePaths) this.retiredSnapshotPaths.add(path);
     this.publicationRevision += 1;
     // A coherent older scope may remain readable during repair, but cannot shadow a newer atomic
     // file publication. Retire only affected overlays; source readiness owns their bounded refresh.
@@ -3576,6 +4020,24 @@ export class GraphIndex {
       Object.assign(page, facets);
       if (status) this.presentationStatuses.set(page, { noteType: "pending", styleTags: "pending", ...status });
     }
+    // Ordinary source publication can discover URL edits before a native event reaches the URL
+    // lane. Retire that old negative/positive owner proof at this same atomic publication boundary.
+    const file = this.app.vault.getFileByPath(commit.sourcePath), owner = this.urlOwners.get(commit.sourcePath);
+    // An awaited restore may not have delivered this owner yet. Retire its event token without
+    // starting a duplicate URL read; a future cache callback rejects the pre-commit record.
+    if (this.urlRestoreTask && !owner && !this.urlBackgroundTask) {
+      this.urlOwnerEvents.set(commit.sourcePath, (this.urlOwnerEvents.get(commit.sourcePath) ?? 0) + 1);
+    }
+    if ((this.urlBackgroundTask || this.urlOwners.size || this.urlDiscoveryComplete) && file?.extension === "md" && (!this.urlOwnerIsCurrent(commit.sourcePath)
+      || !owner || this.urlMetadataCaches.get(commit.sourcePath) !== this.app.metadataCache.getFileCache(file))) {
+      this.urlDiscoveryComplete = false;
+      this.urlOwners.delete(commit.sourcePath);
+      for (const path of commit.touchedPagePaths) if (this.state.pages.get(path)?.url) this.retiredUrlTargets.delete(path);
+      const hot = this.fieldCache.get(commit.sourcePath);
+      const acquired = hot?.mtime === file.stat.mtime ? { body: hot.body, file, revision: captureFileRevision(file) } : undefined;
+      void this.refreshUrlOwner(commit.sourcePath, false, undefined, acquired);
+    }
+    this.synchronizePublishedUrlFacets(commit.touchedPagePaths);
     this.invalidatePatchedPages(commit.touchedPagePaths);
     this.retryDemandedSemanticScopes();
     this.patchSearchIndex(commit.touchedPagePaths);
@@ -3586,9 +4048,9 @@ export class GraphIndex {
    * when graph topology changed. The publisher never awaits or retains the prepared-state callback. */
   private publishIncrementalFile: PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void): void => {
     this.commitPreparedFile(commit, publishPreparedState);
-    // These revision/overlay owners exist only in the captured On-demand session. Eager commits
-    // must not allocate per-URL count tokens or retain demand-only cleanup state.
-    if (this.isOnDemandMode()) {
+    // Partial Eager and On-demand foreground owners share these local count proofs. Once a full
+    // current Eager graph exists, ordinary commits avoid unnecessary per-URL local tokens.
+    if (this.usesLocalForeground()) {
       for (const path of commit.touchedPagePaths) {
         this.onDemandGateRevisions.set(path, (this.onDemandGateRevisions.get(path) ?? 0) + 1);
         this.onDemandUnavailableCounts.delete(path);
@@ -3678,6 +4140,7 @@ export class GraphIndex {
       this.restoredRemovedMarkdownPaths = [];
       this.restoredPatchPlanAvailable = false;
       this.fullSnapshotFresh = true;
+      if (!this.isOnDemandMode()) this.onDemandPartialState = false;
       this.scheduleSnapshotPersist(SNAPSHOT_EDIT_IDLE_MS);
       this.deferOrphanCleanup();
       return { reconciled: true, patched: files.length };
@@ -3811,12 +4274,28 @@ export class GraphIndex {
    * string/object. A v1 file is still accepted once for seamless migration.
    */
   async restorePersistedSnapshot(seedPaths: readonly string[] = []): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
-    if (this.isOnDemandMode()) return this.restoreOnDemandPreview(seedPaths);
-    // IndexedDB is the sole active graph cache. A small neighborhood is published first from
-    // targeted page reads; full graph hydration continues independently in the background.
-    const indexed = await this.restoreIndexedDbSnapshot(seedPaths);
-    void this.cleanupLegacySnapshotFiles();
-    return indexed;
+    await this.restoreUrlIndex();
+    let arbitration: typeof this.eagerPreviewArbitration = null;
+    if (!this.isOnDemandMode()) {
+      this.eagerPreviewArbitration?.release();
+      this.onDemandBaselineRevision++; this.generation++;
+      this.onDemandBaselineTask = null;
+      let resolve!: () => void;
+      const task = new Promise<void>(done => { resolve = done; });
+      arbitration = { task, release: () => {
+        resolve();
+        if (this.eagerPreviewArbitration === arbitration) this.eagerPreviewArbitration = null;
+      } };
+      this.eagerPreviewArbitration = arbitration;
+    }
+    try {
+      if (this.isOnDemandMode()) return this.restoreOnDemandPreview(seedPaths);
+      // Targeted preview/no-cache classification releases local demand independently of the full
+      // page/evidence/source task. The finally also releases failed or abandoned restorations.
+      const indexed = await this.restoreIndexedDbSnapshot(seedPaths);
+      void this.cleanupLegacySnapshotFiles();
+      return indexed;
+    } finally { arbitration?.release(); }
   }
 
   /** Restore only a finite fresh cached neighborhood; no source inventory or broad hydration follows. */
@@ -4103,6 +4582,7 @@ export class GraphIndex {
         if (!prepared || !isCurrent() || !prepared.facets.isCurrent()) return false;
         this.acceptPresentation(prepared);
         this.state = next;
+        this.synchronizePublishedUrlFacets();
         this.publicationRevision += 1;
         this.semanticFingerprints = nextFingerprints;
         this.fullSnapshotHydrated = false;
@@ -4193,6 +4673,7 @@ export class GraphIndex {
       this.fullSnapshotHydrated = true;
       this.enableGlobalSourceInventoryIfConfigured();
       this.fullSnapshotFresh = true;
+      if (!this.isOnDemandMode()) this.onDemandPartialState = false;
       this.previewSnapshotPublished = false;
       this.resumableCheckpointPaths = null;
       this.emit();
@@ -4247,6 +4728,7 @@ export class GraphIndex {
 
       // Atomic graph-state swap: readers never observe a half-built graph.
       this.state = next;
+      this.synchronizePublishedUrlFacets();
       this.publicationRevision += 1;
       this.fullSemanticSettings = graphCompilerSettingsFromLegacy(this.plugin.settings);
       this.sourceBackedSemantics = false;
@@ -4265,6 +4747,7 @@ export class GraphIndex {
       this.fullSnapshotHydrated = true;
       this.enableGlobalSourceInventoryIfConfigured();
       this.fullSnapshotFresh = true;
+      if (!this.isOnDemandMode()) this.onDemandPartialState = false;
       this.previewSnapshotPublished = false;
       this.titleCache.clear();
       this.nodeVisualCache.clear();
@@ -4378,6 +4861,8 @@ export class GraphIndex {
    * lifetime; unrelated document owners proceed independently of those finite predecessors.
    */
   prepareRelationshipPair(sourcePath: string, targetPath: string, provisionalTarget?: GraphPage): Promise<boolean> {
+    if (/^https?:\/\//i.test(sourcePath)) sourcePath = canonicalWebUrl(sourcePath);
+    if (/^https?:\/\//i.test(targetPath)) targetPath = canonicalWebUrl(targetPath);
     const key = relationshipPairKey(sourcePath, targetPath);
     const existing = this.relationshipPairTasks.get(key);
     if (existing && this.relationshipPairTaskObservations.get(existing)?.current()) return existing;
@@ -4689,11 +5174,26 @@ export class GraphIndex {
     return changed;
   }
 
+  /** Repair one known moved URL owner without a folder-wide read or joining background publication. */
+  private refreshRenamedUrlOwner(oldPath: string, file: TFile): void {
+    if (file.extension !== "md" || !this.urlBackgroundTask && !this.urlRestoreTask) return;
+    const owner = this.urlOwners.get(oldPath), body = this.urlOwnerBodies.get(oldPath);
+    // The early native TFile listener may already own both repairs. Folder-only events reach this
+    // boundary with the old owner intact; reuse its exact unchanged physical body observation.
+    if (!owner && (this.urlOwnerTasks.has(file.path) || this.urlOwners.get(file.path)?.file === file)) return;
+    const acquired = owner?.file === file && body && owner.mtime === file.stat.mtime && owner.size === file.stat.size
+      && owner.event === (this.urlOwnerEvents.get(oldPath) ?? 0)
+      ? { body, file, revision: captureFileRevision(file), frontmatter: this.urlOwnerFrontmatter.get(oldPath) } : undefined;
+    void this.refreshUrlOwner(oldPath);
+    void this.refreshUrlOwner(file.path, true, undefined, acquired);
+  }
+
   /** Remap one known physical endpoint using the same evidence/search/identity boundary for files and folders. */
   private renameTreeEndpoint(oldPath: string, file: TFile | TFolder): boolean {
     const isFolder = file instanceof TFolder;
     const newPath = isFolder ? `folder:${file.path}` : file.path;
     if (!oldPath || !newPath || oldPath === newPath) return true;
+    if (!isFolder) this.refreshRenamedUrlOwner(oldPath, file);
 
     const retiredHost = this.retireHostEndpoint(oldPath, isFolder ? undefined : file);
 
@@ -5102,9 +5602,14 @@ export class GraphIndex {
     return page;
   }
 
+  /** Keep a requested URL selected before discovery supplies any incidence; this grants no source authority. */
+  private ensureUrlTarget(path: string): void {
+    if (!this.get(path)?.url) this.insertUrlPage(path);
+  }
+
   /** Insert a URL target after persistence, retaining every explicit alias for immediate Vault search. */
   insertUrlPage(rawUrl: string, alias?: string): GraphPage {
-    const url = rawUrl.trim();
+    const url = canonicalWebUrl(rawUrl);
     const existing = this.get(url);
     if (existing) {
       if (alias?.trim()) {
@@ -5324,10 +5829,64 @@ export class GraphIndex {
     return page ? this.semanticRelationSource(page).settings.inferAllLinksAsFriends : this.fullSemanticSettings.inferAllLinksAsFriends;
   }
 
+  /**
+   * Combine URL-only incidence with the selected canonical host/property publication. Canonical
+   * evidence precedence resolves each shared pair; this read projection never grants edit authority.
+   */
+  private composeUrlRelations(page: GraphPage): GraphPage {
+    const url = this.urlState.pages.get(page.path);
+    if (!url?.neighbours.size && ![...page.neighbours.keys()].some(target => this.urlPairIsObserved(page.path, target))) return page;
+    const copy = { ...page, neighbours: new Map(page.neighbours) };
+    for (const target of copy.neighbours.keys()) if (this.urlPairIsObserved(page.path, target)) copy.neighbours.delete(target);
+    for (const [targetPath, relation] of url?.neighbours ?? []) {
+      const target = this.semanticPage(targetPath) ?? this.urlState.pages.get(targetPath) ?? relation.target;
+      const evidence = this.semanticEvidence(page.path, targetPath).evidence;
+      if (!evidence.length) { copy.neighbours.delete(targetPath); continue; }
+      const resolved: Relation = { ...emptyRelation<GraphPage>(), target };
+      for (const decision of applyOntologyPrecedence(evidence)) applyEvidenceToRelation(resolved, decision);
+      copy.neighbours.set(targetPath, resolved);
+    }
+    return copy;
+  }
+
+  /** A URL source proof belongs to one exact native/event/metadata observation. */
+  private urlOwnerIsCurrent(path: string): boolean {
+    const owner = this.urlOwners.get(path);
+    return Boolean(owner && this.app.vault.getFileByPath(path) === owner.file && owner.file.stat.mtime === owner.mtime
+      && owner.file.stat.size === owner.size && owner.event === (this.urlOwnerEvents.get(path) ?? 0)
+      && this.urlMetadataCaches.get(path) === this.app.metadataCache.getFileCache(owner.file));
+  }
+
+  /** Discard private declarations from retired owner observations, including unsupported origins. */
+  private currentUrlEvidence(source: string, target: string): RelationEvidence[] {
+    return this.urlState.evidence.between(source, target).filter(item => {
+      if (item.sourceKind !== "url-origin") return this.urlOwnerIsCurrent(item.declaredByPath);
+      return this.urlState.evidence.from(item.declaredTargetPath).some(pair => pair.evidence.some(reference =>
+        reference.sourceKind !== "url-origin" && this.urlOwnerIsCurrent(reference.declaredByPath)));
+    });
+  }
+
+  /** Private URL fallback lifetime requires current incidence or an explicitly demanded center. */
+  private urlPageHasCurrentSupport(path: string): boolean {
+    if ((this.semanticDemandCounts.get(path) ?? 0) > 0) return true;
+    return this.urlState.evidence.from(path).some(pair => this.currentUrlEvidence(path, pair.targetPath).length > 0);
+  }
+
+  /** Current URL owner facts also replace absent old URL edges; this negative proof is presentation-only. */
+  private urlPairIsObserved(source: string, target: string): boolean {
+    const sourceUrl = Boolean(this.urlState.pages.get(source)?.url || this.state.pages.get(source)?.url);
+    const targetUrl = Boolean(this.urlState.pages.get(target)?.url || this.state.pages.get(target)?.url);
+    if (sourceUrl && targetUrl) return this.urlDiscoveryComplete || this.retiredUrlTargets.has(source) || this.retiredUrlTargets.has(target);
+    if (!sourceUrl && !targetUrl) return false;
+    const path = sourceUrl ? target : source;
+    return this.urlOwnerIsCurrent(path)
+      || this.urlOwnerEvents.has(path) && !this.app.vault.getFileByPath(path);
+  }
+
   /** Select coherent relation flags with their compiling policy, including uncertified partial incidence. */
   private semanticRelationSource(page: GraphPage): Readonly<{ page: GraphPage; settings: GraphCompilerSettings }> {
     const info = this.preparedPageInfo.get(page);
-    if (info?.completeRelations) return { page: this.composeRelationshipPairs(page), settings: info.settings };
+    if (info?.completeRelations) return { page: this.composeRelationshipPairs(this.composeUrlRelations(page)), settings: info.settings };
     const scope = this.semanticScopeForPath(page.path);
     const selected = this.semanticPage(page.path) ?? page;
     // Sparse candidates own their current aliases/metadata, while unaffected warm incidence still
@@ -5338,10 +5897,10 @@ export class GraphIndex {
         && !this.retiredSnapshotPaths.has(page.path)
         || this.cachedSnapshotPages.has(this.state.pages.get(page.path)!))) {
       const warm = this.state.pages.get(page.path);
-      if (warm) return { page: this.composeRelationshipPairs(warm), settings: this.fullSemanticSettings };
+      if (warm) return { page: this.composeRelationshipPairs(this.composeUrlRelations(warm)), settings: this.fullSemanticSettings };
     }
     const ownsSelected = scope?.pagesByPath.get(page.path) === selected;
-    return { page: this.composeRelationshipPairs(selected),
+    return { page: this.composeRelationshipPairs(this.composeUrlRelations(selected)),
       settings: this.preparedPageInfo.get(selected)?.settings ?? (ownsSelected ? scope.settings : undefined)
         ?? this.hostPreviewSettings.get(selected) ?? this.fullSemanticSettings };
   }
@@ -5432,14 +5991,27 @@ export class GraphIndex {
   }
 
   /** Return evidence from the same coherent semantic publication as the relation source. */
-  private semanticEvidence(sourcePath: string, targetPath: string): Readonly<{ evidence: RelationEvidence[]; settings: GraphCompilerSettings }> {
+  private semanticEvidenceWithoutUrls(sourcePath: string, targetPath: string): Readonly<{ evidence: RelationEvidence[]; settings: GraphCompilerSettings }> {
     const pair = this.relationshipPairs.get(relationshipPairKey(sourcePath, targetPath));
     if (pair) return { evidence: pair.evidence.between(sourcePath, targetPath), settings: pair.settings };
-    const local = this.onDemandHostScopes.get(sourcePath) ?? this.onDemandHostScopes.get(targetPath);
+    const local = this.usesLocalForeground() ? this.onDemandHostScopes.get(sourcePath) ?? this.onDemandHostScopes.get(targetPath) : undefined;
     if (local) return { evidence: local.evidence.between(sourcePath, targetPath), settings: this.fullSemanticSettings };
     const scope = this.semanticScopeForPair(sourcePath, targetPath);
     if (scope) return { evidence: scope.evidence.between(sourcePath, targetPath), settings: scope.settings };
     return { evidence: this.state.evidence.between(sourcePath, targetPath), settings: this.fullSemanticSettings };
+  }
+
+  /** Preserve canonical exact-pair precedence while exposing current URL discovery provenance. */
+  private semanticEvidence(sourcePath: string, targetPath: string): Readonly<{ evidence: RelationEvidence[]; settings: GraphCompilerSettings }> {
+    sourcePath = /^https?:\/\//i.test(sourcePath) ? canonicalWebUrl(sourcePath) : sourcePath;
+    targetPath = /^https?:\/\//i.test(targetPath) ? canonicalWebUrl(targetPath) : targetPath;
+    const canonical = this.semanticEvidenceWithoutUrls(sourcePath, targetPath);
+    if (this.relationshipPairs.has(relationshipPairKey(sourcePath, targetPath))) return canonical;
+    const urls = this.currentUrlEvidence(sourcePath, targetPath);
+    if (this.urlPairIsObserved(sourcePath, targetPath)) return { settings: canonical.settings, evidence: urls };
+    return urls.length ? { settings: canonical.settings, evidence: [...canonical.evidence.filter(
+      /** Independent URL owner facts replace duplicate cached body evidence only for this exact pair. */
+      item => item.sourceKind !== "body-url" && item.sourceKind !== "property-url" && item.sourceKind !== "url-origin"), ...urls] } : canonical;
   }
 
   explainRelationship(sourcePath: string, targetPath: string): RelationshipExplanation | null {
@@ -5558,7 +6130,9 @@ export class GraphIndex {
       left: new Set<string>(),
       right: new Set<string>(),
     };
-    if (this.isOnDemandMode() && this.onDemandBaselineReady) {
+    if (source.url) {
+      for (const gate of Object.values(gateStats)) { gate.complete = this.urlDiscoveryComplete && !this.urlCachedMetadataOwners.size; gate.coverage = this.urlCachedMetadataOwners.size ? "cached" : this.urlDiscoveryComplete ? undefined : "local"; }
+    } else if (this.usesLocalForeground() && this.onDemandBaselineReady) {
       for (const gate of Object.values(gateStats)) { gate.complete = false; gate.coverage = "local"; }
     } else if (this.cachedSnapshotPages.has(source)) {
       for (const gate of Object.values(gateStats)) { gate.complete = false; gate.coverage = "cached"; }
@@ -5705,6 +6279,7 @@ export class GraphIndex {
   }
 
   isConnected(source: GraphPage, targetPath: string): boolean {
+    if (/^https?:\/\//i.test(targetPath)) targetPath = canonicalWebUrl(targetPath);
     const semanticSource = this.semanticRelationSource(source).page;
     if (semanticSource.neighbours.has(targetPath)) return true;
     const target = this.get(targetPath);
@@ -5714,7 +6289,7 @@ export class GraphIndex {
   /** Return local numerical coverage separately from global semantic/write completeness. */
   gateStats(page: GraphPage): GateStats {
     const unavailable = this.onDemandUnavailableCounts.get(page.path);
-    if (this.isOnDemandMode() && unavailable?.sourceRevision === this.plugin.getIndexSourceRevision()
+    if (this.usesLocalForeground() && unavailable?.sourceRevision === this.plugin.getIndexSourceRevision()
       && unavailable.hostRevision === this.hostPreview.observationRevision()
       && unavailable.signature === this.semanticCoverageSignature()
       && unavailable.revision === (this.onDemandGateRevisions.get(page.path) ?? 0)) {
@@ -5724,7 +6299,7 @@ export class GraphIndex {
         left: { ...available.left, complete: false, countUnavailable: true },
         right: { ...available.right, complete: false, countUnavailable: true } };
     }
-    if (this.isOnDemandMode() && this.onDemandBaselineReady && !this.onDemandHostScopes.has(page.path)) {
+    if (this.usesLocalForeground() && this.onDemandBaselineReady && !this.onDemandHostScopes.has(page.path)) {
       const canonical = this.state.pages.get(page.path);
       if (canonical) {
         const proof = this.onDemandGateCounts.get(canonical);
@@ -5889,10 +6464,11 @@ export class GraphIndex {
 
   /** Reuse one merged search array until graph search or the captured physical inventory changes. */
   private completePhysicalSearchEntries(): SearchEntry[] {
-    if (!this.physicalSearchEntries.size) return this.searchEntries;
+    if (!this.physicalSearchEntries.size && !this.urlSearchEntries.size && !this.retiredUrlTargets.size) return this.searchEntries;
     const cached = this.physicalSearchMerge;
     if (cached?.base === this.searchEntries && cached.physical === this.physicalSearchEntries) return cached.entries;
-    const entries = [...this.searchEntries];
+    const entries = this.searchEntries.filter(entry => !this.urlSearchEntries.has(entry.page.path) && !this.retiredUrlTargets.has(entry.page.path));
+    entries.push(...this.urlSearchEntries.values());
     for (const [path, entry] of this.physicalSearchEntries) if (!this.searchEntryByPath.has(path)) entries.push(entry);
     this.physicalSearchMerge = { base: this.searchEntries, physical: this.physicalSearchEntries, entries };
     return entries;
@@ -5909,7 +6485,8 @@ export class GraphIndex {
 
   /** Merge current bounded semantic publications into the immutable full search catalog. */
   private effectiveSearchEntries(includePhysicalFiles = false): SearchEntry[] {
-    const entries = includePhysicalFiles ? this.completePhysicalSearchEntries() : this.searchEntries;
+    const entries = includePhysicalFiles ? this.completePhysicalSearchEntries()
+      : [...this.searchEntries.filter(entry => !this.urlSearchEntries.has(entry.page.path) && !this.retiredUrlTargets.has(entry.page.path)), ...this.urlSearchEntries.values()];
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     if (this.fullSemanticPolicyRevision === this.semanticPolicyRevision
       && this.fullSemanticMaintenanceRevision === maintenanceRevision) return entries;
@@ -5933,7 +6510,7 @@ export class GraphIndex {
     const output: SearchEntry[] = [];
     const emitted = new Set<string>();
     const add = (page: GraphPage): void => {
-      if (emitted.has(page.path)) return;
+      if (emitted.has(page.path) || this.retiredUrlTargets.has(page.path)) return;
       emitted.add(page.path);
       output.push({ page, name: this.titleFor(page).toLowerCase(), aliases: page.aliases.map((alias) => alias.toLowerCase()),
         path: page.path.toLowerCase() });
@@ -5954,9 +6531,9 @@ export class GraphIndex {
     const max = Math.max(1, limit);
     const searchEntries = this.effectiveSearchEntries(scope === "vault-files");
     /** Vault search ignores graph filters while excluding folders, tags, unresolved and deleted files. */
-    const eligible = (page: GraphPage): boolean => scope === "vault-files"
+    const eligible = (page: GraphPage): boolean => (!page.url || Boolean(this.get(page.path))) && (scope === "vault-files"
       ? Boolean(page.url || page.file && page.path === page.file.path && this.app.vault.getFileByPath(page.path) === page.file)
-      : this.isVisiblePage(page, settings);
+      : this.isVisiblePage(page, settings));
 
     if (!q) {
       const output: GraphPage[] = [];
@@ -5972,7 +6549,7 @@ export class GraphIndex {
       for (const entry of searchEntries) {
         if (seen.has(entry.page.path) || !eligible(entry.page)) continue;
         seen.add(entry.page.path);
-        output.push(entry.page);
+        output.push(entry.page.url ? this.get(entry.page.path) ?? entry.page : entry.page);
         if (output.length >= max) break;
       }
       return output;
@@ -6017,6 +6594,6 @@ export class GraphIndex {
       this.searchCandidateCache.delete(oldest.value);
     }
 
-    return best.map((item) => item.page);
+    return best.map((item) => item.page.url ? this.get(item.page.path) ?? item.page : item.page);
   }
 }

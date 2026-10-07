@@ -133,7 +133,7 @@ export interface KplexSettings {
   indexUpdateInterval: number;
   /** Acquisition policy applied at the next plugin startup, not a semantic graph setting. */
   indexingMode: IndexingMode;
-  /** Optional independent URL vocabulary scan, applied at the next plugin startup. */
+  /** Legacy persisted compatibility field; web links always scan independently in the background. */
   urlIndexingMode: UrlIndexingMode;
   hierarchy: Hierarchy;
   inferAllLinksAsFriends: boolean;
@@ -267,8 +267,8 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   horizontalCompactingFactor: 2,
   minLinkLength: 18,
   indexUpdateInterval: 60000,
-  indexingMode: "eager",
-  urlIndexingMode: "on-demand",
+  indexingMode: "on-demand",
+  urlIndexingMode: "background",
   hierarchy: DEFAULT_HIERARCHY_DEFINITION,
   inferAllLinksAsFriends: false,
   inverseInfer: false,
@@ -515,8 +515,8 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...old,
-    indexingMode: old.indexingMode === "on-demand" ? "on-demand" : "eager",
-    urlIndexingMode: old.urlIndexingMode === "background" ? "background" : "on-demand",
+    indexingMode: old.indexingMode === "eager" ? "eager" : "on-demand",
+    urlIndexingMode: "background",
     hierarchy,
     baseNodeStyle: { ...DEFAULT_NODE_STYLE, ...(old.baseNodeStyle ?? {}) },
     baseLinkStyle: { ...DEFAULT_LINK_STYLE, ...(old.baseLinkStyle ?? {}) },
@@ -1979,16 +1979,14 @@ export class KplexSettingTab extends PluginSettingTab {
               {
                 name: translate("indexing.mode"),
                 desc: translate("indexing.modeHelp"),
-                control: { type: "dropdown", key: "indexingMode", defaultValue: "eager", options: {
+                control: { type: "dropdown", key: "indexingMode", defaultValue: "on-demand", options: {
                   eager: translate("indexing.eager"), "on-demand": translate("indexing.onDemand"),
                 } },
               },
               {
                 name: translate("indexing.urls"),
                 desc: translate("indexing.urlsHelp"),
-                control: { type: "dropdown", key: "urlIndexingMode", defaultValue: "on-demand", options: {
-                  "on-demand": translate("indexing.onDemand"), background: translate("indexing.background"),
-                } },
+
               },
             ],
           },
@@ -2072,7 +2070,7 @@ export class KplexSettingTab extends PluginSettingTab {
   async setControlValue(key: string, value: unknown): Promise<void> {
     if (key === "indexingMode" || key === "urlIndexingMode") {
       if (key === "indexingMode") this.kplexPlugin.settings.indexingMode = value === "on-demand" ? "on-demand" : "eager";
-      else this.kplexPlugin.settings.urlIndexingMode = value === "background" ? "background" : "on-demand";
+      else this.kplexPlugin.settings.urlIndexingMode = "background";
       // Strategy changes apply at restart and must not trigger live semantic reconstruction.
       await this.kplexPlugin.saveSettings(false, false);
       return;

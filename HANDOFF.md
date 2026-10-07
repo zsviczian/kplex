@@ -16,10 +16,57 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Inactive — reopened V2 desktop regression accepted
+# Main validation pending desktop unlock
 
-Main independently reviewed the returned diff against AGENTS/CONTRIBUTING/architecture, including canonical ownership, opaque identities, current/cached/write authority, physical/policy/publication fences, bounded scope retention, mutable policy checkpoints, TSDoc/localization, settings compatibility and cleanup. No source/schema/C15–C26 expansion.
+Offline → main. URL correction and narrow native fan-out correction are reviewed and frozen on
+`indexing-fixes`, after checkpoint `9ba04cf`. New changes remain uncommitted; no push/PR authority.
+C15–C26 stay paused. The main agent has CLI/runtime access; no further offline edits are queued.
 
-Final exact main.js `65bceafc178d368b51210a8783ae2f3786d83643096f432ffdcfc4723c73d08e`; all280 frozen inputs unchanged. RequiredNode22.22.2 full verification7/67/248/17/322/341 passes, no failures/skips/cancellations, fixture24/types/scanner/build/exact native smoke. Actual saved-Eager vault reload/cached named navigation and temporary On-demand current local named sequence pass. Reference notes/configuration/enablement unchanged, original saved Eager restored, only main.js deployed; both final instances ready and all temporary probes/wrappers/controllers removed.
+## Exact current evidence
 
-Durable results, failed checks/corrections, target misses and cache/current/process/mobile limitations are recorded in Refactor plan.md and docs/validation/on-demand-indexing-v2-2026-10-06.{md,json}; design in INDEXING_OPTIMIZATION_V2.md. Persistent On-demand process-start and physical device timing remain unmeasured. V2 is checkpointed before the new URL-indexing assignment; prior checkpointe97696f already committed under explicit authorization. No automatic refactor resume or new assignment.
+- Required Node22.22.2 `verify:obsidian` passes architecture7/core69/Node253/UI17/portable327/
+  Chromium368, production fixtures/types/scanner/build and exact native smoke. Existing
+  activeLeaf warning only. Source freeze `/private/tmp/kplex-url-final9-source-freeze-20261006.json`
+  covers276 unchanged inputs; manifest SHA
+  `1f5417e21d26020b61e5f834dd744198a0d9ff5b6ca5d0c366806cccc8671ae1`.
+- Exact staged small-vault main SHA
+  `5044bdf7248ee821f31352a26fbdd82085f38320dbfe1908de674c7895061999`.
+  Reference vault still has the previous artifact; no new main.js deployment there yet.
+- Complete relationship browser file44/44. Native cached fan-out can dirty a selected linked
+  owner after the first cancellation/last retry capture; source acquisition now drains one finite
+  snapshot of its authoritative active-task Map, preserving current fences and two attempts.
+  Finally-delete/unload-clear retain its lifetime. No new parser/classifier/scheduler/schema.
+- Disposable URL fixture passes identity/property evidence/numeric gates/content/rename/delete/
+  shared hierarchy and warm URL cache15 owners/zero URL body reads. Owned notes removed and
+  settings/enablement exact hashes preserved. Initial premature child assertion failure retained;
+  rerun waits current owner closure, captures active incomplete1-child→settled2-child state.
+- Focus=false makes the fixture functional-only. Eager foreground refuses its focus prerequisite
+  and restores settings/enablement. Electron reports desktop session `locked`; all three visible
+  Obsidian windows are unfocused. Activation cannot overcome lock. CUA inspection timed out.
+  User was asked to unlock. This is an environment prerequisite, not approval rejection.
+
+## Remaining serial native work after unlock
+
+Use required Node22 PATH plus `/usr/local/bin` and explicit small-vault variables. Keep actual
+window focus/visibility and original throttling; do not overlap drivers or browser runs.
+
+1. Rerun `/private/tmp/kplex-eager-foreground-run.mjs` with report directory
+   `/private/tmp/kplex-url-eager-foreground-20261006`; retain initial focus failure reports.
+2. Run `/private/tmp/kplex-url-si5-run.mjs` with the same explicit disposable-vault variables.
+   It backs up the7.2MiB vault and exact structured IDB values privately, invokes the existing
+   required SI5 driver in temporary Eager mode with genuine saved semantics, then restores
+   original data/enablement/controller/load/save/mode. Backup is not yet created.
+3. Run `/private/tmp/kplex-url-reference-check.mjs --deploy` then `--warm` then `--eager`,
+   one at a time. Only main.js may be deployed; reference notes strictly read-only. Private
+   independent body oracle expects232 root referrers/four subpaths before active exclusions.
+   Require actual URL center/progressive incidence/case-root identity/no self-edge/numeric
+   labels after URL→ordinary→URL navigation, exact preference/enablement/note-inventory cleanup.
+4. Run `/private/tmp/kplex-url-vault-reload.mjs`, then `/private/tmp/kplex-url-cache-size.mjs`.
+   Renderer reload is not process cold start; logical JSON UTF16 size is not physical IDB allocation.
+5. Recheck frozen inputs/artifacts/no temporary controllers or wrappers, update V2/Refactor plan/
+   validation and minimized evidence, mark HANDOFF inactive only after actual acceptance.
+
+All owned test processes have completed. Full report remains private at
+`/private/tmp/kplex-url-final9-full-20261006/report.json`; durable current findings and all failed
+attempts are in [validation](docs/validation/url-indexing-and-foreground-2026-10-06.md).
+Do not claim production latency, complete delivery or physical-device acceptance yet.

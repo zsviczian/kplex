@@ -72,13 +72,13 @@ test('dense host totals are not truncated by the64owner or rendered item caps', 
   }finally{release?.();o.close();}
 })()`));
 
-test('optional URL scan publishes vocabulary without semantic edges or source authority', async()=>scenario(`(async()=>{
+test('URL scan publishes canonical incidence independently of global source authority', async()=>scenario(`(async()=>{
   const o=await onDemandFixture('v2-demand-urls',{urlIndexingMode:'background'});const{f,index}=o;
   try{
     f.add('A.md','');f.add('Other.md','[First](https://example.com/background)\\nParent:: [[A]]');
     ok(await index.initializeOnDemandBaseline(),'Baseline');ok(await index.startBackgroundUrlIndex(),'Independent URL scan completes');
     const url=index.get('https://example.com/background');ok(url?.url,'URL vocabulary');ok(index.search('First',10).some(x=>x.path===url.path),'URL alias searchable');
-    ok(!index.get('Other.md').neighbours.has(url.path),'URL scan has no document incidence');ok(!index.get('Other.md').neighbours.has('A.md'),'No unrelated ontology compiled');
+    ok(index.getNeighborhood(url.path).parents.some(x=>x.page.path==='Other.md'),'URL scan supplies incoming notes');ok(!index.get('Other.md').neighbours.has('A.md'),'No unrelated ontology compiled');
     ok(!index.sourceAcquisition.hasSemanticDependencies(),'No global authority');equal(o.inventoryStarts,0,'No inventory');return true;
   }finally{o.close();}
 })()`));
@@ -94,8 +94,8 @@ test('incoming frontmatter beyond64bodyowners keeps canonical local count totals
   }finally{release?.();o.close();}
 })()`));
 
-test('displayed neighbor counts use its direct host metadata without expanding body demand', async()=>scenario(`(async()=>{
-  const o=await onDemandFixture('v2-demand-neighbor');const{f,index}=o;let release;
+for(const mode of ['on-demand','eager']) test('displayed neighbor counts use its direct host metadata without expanding body demand ('+mode+')', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-demand-neighbor-'+${JSON.stringify(mode)},{indexingMode:${JSON.stringify(mode)}});const{f,index}=o;let release;
   try{
     f.add('A.md','');f.add('B.md','');const resolved={'A.md':{'B.md':1}};
     for(let n=0;n<100;n++){const path='Outer'+n+'.md';f.add(path,'',{Parent:'[[B]]'});resolved[path]={'B.md':1};}
@@ -181,12 +181,12 @@ test('foreground navigation preempts and resumes an optional URL scan without ac
   const o=await onDemandFixture('v2-demand-preemption',{urlIndexingMode:'background'});const{f,index}=o;let release,unblock;
   try{
     f.add('A.md','[Center](https://example.com/center)');f.add('Other.md','[Background](https://example.com/background)');
-    ok(await index.initializeOnDemandBaseline(),'Baseline');let entered;const reading=new Promise(resolve=>entered=resolve);const hold=new Promise(resolve=>unblock=resolve);const read=f.app.vault.read;
-    f.app.vault.read=async file=>{if(file.path==='Other.md'){entered();await hold;}return read(file);};
+    ok(await index.initializeOnDemandBaseline(),'Baseline');let entered;const reading=new Promise(resolve=>entered=resolve);const hold=new Promise(resolve=>unblock=resolve);const read=f.app.vault.cachedRead;
+    f.app.vault.cachedRead=async file=>{if(file.path==='Other.md'){entered();await hold;}return read(file);};
     const background=index.startBackgroundUrlIndex();await reading;release=index.acquireSemanticDemand('A.md');await settleDemand(index);
     ok(index.get('A.md').neighbours.has('https://example.com/center'),'Foreground canonicalization finishes while background read held');
     unblock();ok(await background,'Existing URL scan resumes');ok(index.get('https://example.com/background'),'Background URL vocabulary added');
-    ok(!index.get('Other.md').neighbours.has('https://example.com/background'),'Background still grants no incidence');equal(o.inventoryStarts,0,'No inventory');return true;
+    ok(index.getNeighborhood('https://example.com/background').parents.some(x=>x.page.path==='Other.md'),'Background publishes discovered incidence');equal(o.inventoryStarts,0,'No inventory');return true;
   }finally{unblock?.();release?.();o.close();}
 })()`));
 
@@ -318,4 +318,410 @@ test('nonphysical URL and tag centers retain canonical identity and local incomi
     release=index.acquireSemanticDemand(url);await settleDemand(index);const urlPage=index.get(url);equal(urlPage.url,url,'URL identity retained');ok(!urlPage.isTag,'URL remains URL');ok(urlPage.neighbours.has('A.md'),'Known body URL incoming remains');ok(!index.hasUnavailableLocalCounts(),'URL requires no physical metadata');release();
     release=index.acquireSemanticDemand('tag:topic/child');await settleDemand(index);const tag=index.get('tag:topic/child');ok(tag.isTag&&!tag.url,'Tag identity retained');ok(tag.neighbours.has('A.md'),'Native tag membership retained');ok(tag.neighbours.has('tag:topic'),'Canonical tag parent retained');ok(!index.hasUnavailableLocalCounts(),'Tag requires no physical metadata');equal(o.inventoryStarts,0,'No global source inventory');return true;
   }finally{release?.();o.close();}
+})()`));
+
+
+test('independent URL cache restores first, reuses unchanged owners and retires edits/deletions', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-cache-mutations');let second;const{f,index}=o;
+  try{
+    f.add('A.md','[Old](https://Obsidian.md/slug)');f.add('B.md','[Second](https://obsidian.md/slug)');
+    await index.initializeOnDemandBaseline();await index.startBackgroundUrlIndex();
+    equal(index.getUrlIndexProgress().reads,2,'Cold URL bodies read once');
+    equal(index.gateStats(index.get('https://obsidian.md/slug')).top.visibleCount,3,'Two referrers and root parent');
+    ok(index.getNeighborhood('https://Obsidian.md').children.some(x=>x.page.path==='https://obsidian.md/slug'),'Canonical origin child');
+    ok(index.search('Old',10).some(x=>x.path==='https://obsidian.md/slug'),'First alias');
+    f.files.get('A.md').stat.mtime++;f.texts.set('A.md','');await index.refreshUrlOwner('A.md');
+    ok(!index.search('Old',10).some(x=>x.path==='https://obsidian.md/slug'),'Removed owner alias retires');
+    ok(index.search('Second',10).some(x=>x.path==='https://obsidian.md/slug'),'Shared owner alias survives');
+    equal(index.gateStats(index.get('https://obsidian.md/slug')).top.visibleCount,2,'Remaining referrer+root');
+    index.destroy();
+    second=new sourceModules.GraphIndex({app:f.app,settings:o.settings,getIndexSourceRevision:()=>0},f.app);
+    await second.restoreUrlIndex();
+    ok(second.get('https://Obsidian.md/slug'),'URL cache restores without broader graph');
+    await second.startBackgroundUrlIndex();equal(second.getUrlIndexProgress().reads,0,'Warm owners need no body reads');
+    equal(second.getUrlIndexProgress().restored,2,'Zero-link and URL owners restored');
+    f.files.delete('B.md');await second.refreshUrlOwner('B.md');
+    ok(!second.get('https://obsidian.md/slug'),'Final owner deletion retires URL');
+    ok(!second.getUrlIndexProgress().active,'No forever-active completed background job');return true;
+  }finally{second?.destroy();o.close();}
+})()`));
+
+test('URL-only scan honors native and inline ontology overrides without unrelated relations', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-ontology');const{f,index}=o;
+  try{
+    f.add('A.md','[Body](https://Obsidian.md)\\nFriend:: https://obsidian.md\\nParent:: [[B]]',{Parent:'https://Obsidian.md'});
+    f.add('B.md','');f.add('Only.md','',{Child:'https://Obsidian.md/only'});
+    await index.initializeOnDemandBaseline();await index.startBackgroundUrlIndex();
+    ok(index.get('https://obsidian.md/only'),'Frontmatter-only URL discovered');
+    const h=index.getNeighborhood('https://obsidian.md');
+    ok(h.children.some(x=>x.page.path==='A.md'),'Explicit Parent beats inferred URL child direction');
+    ok(!index.getNeighborhood('A.md').parents.some(x=>x.page.path==='B.md'),'Unrelated internal ontology omitted');
+    ok(!index.sourceAcquisition.hasSemanticDependencies(),'Independent URL graph never authorizes global source writes');return true;
+  }finally{o.close();}
+})()`));
+
+
+test('Eager foreground notes use local demand and apply edits before unrelated inventory closes', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-eager-foreground',{indexingMode:'eager'});const{f,index}=o;let release;
+  try{
+    f.add('A.md','');f.add('B.md','');for(let n=0;n<100;n++)f.add('Unrelated'+n+'.md','');
+    await index.initializeOnDemandBaseline();release=index.acquireSemanticDemand('A.md');await settleDemand(index);
+    equal(o.inventoryStarts,0,'Foreground demand does not flush unrelated inventory');
+    f.texts.set('A.md','Child:: [[B]]');f.files.get('A.md').stat.mtime++;o.bump();
+    index.refreshVisibleHostMetadataPreviews('A.md');await index.refreshVisibleMarkdownPath('A.md');await settleDemand(index);
+    ok(index.getNeighborhood('A.md').children.some(x=>x.page.path==='B.md'),'Saved body edit appears while global authority is unavailable');
+    equal(index.isOnDemandMode(),false,'Explicit saved Eager strategy preserved');return true;
+  }finally{release?.();o.close();}
+})()`));
+
+test('URL cache survives metadata absence and updates on current frontmatter without rereading bodies', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-cached-properties');const{f,index}=o;let next;
+  try{
+    f.add('Only.md','',{Parent:'https://Obsidian.md'});await index.startBackgroundUrlIndex();index.destroy();
+    const cache=f.metadata.get('Only.md');f.metadata.delete('Only.md');
+    next=new sourceModules.GraphIndex({app:f.app,settings:o.settings,getIndexSourceRevision:()=>0},f.app);
+    await next.restoreUrlIndex();ok(next.get('https://obsidian.md'),'FM-only URL survives missing host metadata');
+    equal(next.gateStats(next.get('https://obsidian.md')).bottom.visibleCount,1,'Cached explicit parent incidence retained');
+    equal(next.gateStats(next.get('https://obsidian.md')).bottom.coverage,'cached','Cached host property proof is explicit');
+    f.metadata.set('Only.md',cache);next.refreshVisibleHostMetadataPreviews('Only.md');await next.urlOwnerTasks.get('Only.md');
+    equal(next.getUrlIndexProgress().reads,0,'Native metadata reconciliation performs no body read');
+    ok(next.getNeighborhood('https://obsidian.md').children.some(x=>x.page.path==='Only.md'),'Current ontology incidence retained');return true;
+  }finally{next?.destroy();o.close();}
+})()`));
+
+
+test('cold URL demand stays central and progresses as body owners are discovered', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-progressive');const{f,index}=o;let release,unblock;
+  try{
+    for(let n=0;n<8;n++)f.add('Owner'+n+'.md','https://Obsidian.md');
+    await index.initializeOnDemandBaseline();let entered;const held=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r);
+    const read=f.app.vault.cachedRead;f.app.vault.cachedRead=async file=>{if(file.path==='Owner6.md'){entered();await hold;}return read(file);};
+    release=index.acquireSemanticDemand('https://Obsidian.md');await held;
+    await index.urlPublicationLane;
+    ok(index.get('https://Obsidian.md'),'Cold URL remains requested center');
+    ok(index.getNeighborhood('https://Obsidian.md').parents.length>0,'Known referrers display before final discovery');
+    ok(!index.getUrlIndexProgress().complete,'Partial discovery truthful');ok(!index.hasUnavailableLocalCounts(),'URL absence is not unavailable host metadata');
+    unblock();await index.urlBackgroundTask;equal(index.gateStats(index.get('https://obsidian.md')).top.visibleCount,8,'Final refs complete');return true;
+  }finally{unblock?.();release?.();o.close();}
+})()`));
+
+test('current URL removal replaces stale cached edges and previously queried count proofs', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-negative',{indexingMode:'eager'});const{f,index}=o;
+  try{
+    const a=f.add('A.md','https://obsidian.md');await index.initializeOnDemandBaseline();
+    index.gateStats(index.get('A.md'));while(index.onDemandGateTasks.size)await Promise.all([...index.onDemandGateTasks.values()]);
+    equal(index.gateStats(index.get('A.md')).bottom.visibleCount,0,'Old zero count cover');
+    await index.startBackgroundUrlIndex();
+    while(index.onDemandGateTasks.size)await Promise.all([...index.onDemandGateTasks.values()]);
+    equal(index.gateStats(index.get('A.md')).bottom.visibleCount,1,'Independent URL discovery invalidates old proof');
+    await index.patchMarkdownPaths(['A.md'],{useDurableCache:true});
+    ok(index.state.pages.get('A.md').neighbours.has('https://obsidian.md'),'Broader old graph contains URL edge');
+    f.texts.set('A.md','');a.stat.mtime++;await index.refreshUrlOwner('A.md');
+    ok(!index.getNeighborhood('A.md').children.some(x=>x.page.url),'Current URL negative replaces stale cached body edge');
+    equal(index.getNeighborhood('https://Obsidian.md').parents.length,0,'URL center drops stale referrer');
+    ok(!index.search('obsidian.md',10).some(x=>x.url),'Retired URL absent from search');return true;
+  }finally{o.close();}
+})()`));
+
+
+test('labeled repeated property URLs retain genuine provenance through metadata-free cache reopen', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-property-roundtrip');const{f,index}=o;let next;
+  try{
+    const raw='[Obsidian home](https://Obsidian.md/slug)';
+    f.add('Only.md','',{Child:[raw,raw]});await index.startBackgroundUrlIndex();
+    const before=index.evidenceBetween('Only.md','https://obsidian.md/slug');
+    const lexical=JSON.stringify([raw,raw]);
+    ok(before.some(x=>x.rawValue===lexical),'Original labeled repeated property payload preserved');
+    const count=before.filter(x=>x.sourceKind==='frontmatter-ontology').length;
+    equal(count,1,'Shared grammar deduplicates targets within one physical property value');index.destroy();f.metadata.delete('Only.md');
+    next=new sourceModules.GraphIndex({app:f.app,settings:o.settings,getIndexSourceRevision:()=>0},f.app);
+    await next.restoreUrlIndex();const restored=next.evidenceBetween('Only.md','https://Obsidian.md/slug');
+    equal(restored.filter(x=>x.sourceKind==='frontmatter-ontology').length,count,'Cached multiplicity preserved');
+    ok(restored.some(x=>x.rawValue===lexical),'Cached lexical provenance preserves repeated values, labels and target spelling');
+    equal(next.getUrlIndexProgress().reads,0,'No body reread for physically unchanged property owner');return true;
+  }finally{next?.destroy();o.close();}
+})()`));
+
+test('ordinary same-stat commit fences a held old URL cache restore without a duplicate URL read', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v3-url-held-restore',{indexingMode:'eager'});const{f,index}=o;let next,unblock;
+  try{
+    f.add('A.md','https://old.example');await index.startBackgroundUrlIndex();index.destroy();
+    next=new sourceModules.GraphIndex({app:f.app,settings:o.settings,getIndexSourceRevision:()=>0},f.app);
+    let entered;const held=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r),read=next.indexedDb.readUrlOwners.bind(next.indexedDb);
+    next.indexedDb.readUrlOwners=(consume,current)=>read(async rows=>{entered();await hold;await consume(rows);},current);
+    const restore=next.restoreUrlIndex();await held;await next.initializeOnDemandBaseline();f.texts.set('A.md','https://new.example');
+    equal((await next.patchMarkdownPaths(['A.md'])).outcome,'patched','Current canonical owner committed');
+    unblock();await restore;ok(!next.semanticRelationSource(next.get('A.md')).page.neighbours.has('https://old.example'),'Late old URL cache cannot replace current same-stat owner');
+    ok(next.getNeighborhood('A.md').children.some(x=>x.page.path==='https://new.example'),'Committed URL remains visible');
+    equal(next.getUrlIndexProgress().reads,0,'Empty private lifetime does not duplicate canonical acquired read');return true;
+  }finally{unblock?.();next?.destroy();o.close();}
+})()`));
+
+test('known same-object property edit refreshes URL incidence without body rereads', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v3-url-inplace-property');const{f,index}=o;let unblock;
+  try{
+    f.add('Only.md','',{Child:'https://obsidian.md/old'});await index.startBackgroundUrlIndex();
+    const reads=index.getUrlIndexProgress().reads,cache=f.metadata.get('Only.md');
+    const hold=new Promise(r=>unblock=r);index.urlPublicationLane=index.urlPublicationLane.then(()=>hold);
+    cache.frontmatter.Child='[New site](https://obsidian.md/new)';o.bump();index.refreshVisibleHostMetadataPreviews('Only.md',0);
+    ok(!index.getUrlIndexProgress().complete,'Known changed property retires complete URL negative proof immediately');
+    unblock();await index.urlOwnerTasks.get('Only.md');
+    ok(index.getUrlIndexProgress().complete,'Current replacement closes discovery after publication');
+    ok(!index.getNeighborhood('Only.md').children.some(x=>x.page.path==='https://obsidian.md/old'),'Old property incidence retired');
+    ok(index.getNeighborhood('https://obsidian.md/new').parents.some(x=>x.page.path==='Only.md'),'Current in-place property discovered');
+    equal(index.getUrlIndexProgress().reads,reads,'Compact current body reused');return true;
+  }finally{unblock?.();o.close();}
+})()`));
+
+test('mixed nested URL property payloads and shared YAML values preserve full lexical provenance on warm reopen', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v3-url-mixed-property');const{f,index}=o;let next;
+  try{
+    const raw='[Obsidian home](https://Obsidian.md/slug)',shared={label:raw,internal:'[[Unrelated]]',flag:true,number:2};
+    const mixed=['plain',shared,null,shared,['nested',raw]],properties={Description:'nonURL first',Child:mixed,Unrelated:'private unrelated property'};
+    f.add('Only.md','',properties);await index.startBackgroundUrlIndex();
+    const lexical=JSON.stringify(mixed),before=index.evidenceBetween('Only.md','https://obsidian.md/slug');
+    ok(before.some(x=>x.sourceKind==='frontmatter-ontology'&&x.rawValue===lexical&&x.fieldName==='Child'),'Whole mixed field lexical payload and genuine field retained');
+    const rows=[];await index.indexedDb.readUrlOwners(async records=>{rows.push(...records);},()=>true);
+    const row=rows.find(r=>r.path==='Only.md');equal(JSON.stringify(row.frontmatter.Child),lexical,'Cache retains nested shape, internal members and repeated values');
+    ok(!('Description'in row.frontmatter)&&!('Unrelated'in row.frontmatter),'Unrelated fields omitted');
+    index.destroy();f.metadata.delete('Only.md');next=new sourceModules.GraphIndex({app:f.app,settings:o.settings,getIndexSourceRevision:()=>0},f.app);
+    await next.restoreUrlIndex();const restored=next.evidenceBetween('Only.md','https://obsidian.md/slug');
+    equal(restored.map(x=>[x.sourceKind,x.fieldName,x.rawValue]),before.map(x=>[x.sourceKind,x.fieldName,x.rawValue]),'Cold and cached provenance exact');
+    equal(next.getUrlIndexProgress().reads,0,'Unchanged nested property owner never rereads body');return true;
+  }finally{next?.destroy();o.close();}
+})()`));
+
+test('equal-stat edit during awaited URL cache write cannot persist stale facts on warm restart', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-cache-write-race');const{f,index}=o;let next,unblock;
+  try{
+    f.add('A.md','https://obsidian.md');let entered;const held=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r);
+    const put=index.indexedDb.putUrlOwners.bind(index.indexedDb);let first=true;
+    index.indexedDb.putUrlOwners=async records=>{if(first){first=false;entered();await hold;}return put(records);};
+    const scan=index.startBackgroundUrlIndex();await held;f.texts.set('A.md','');void index.refreshUrlOwner('A.md');unblock();await scan;
+    while(index.urlOwnerTasks.size)await Promise.all([...index.urlOwnerTasks.values()]);
+    ok(!index.getNeighborhood('https://obsidian.md')?.parents.length,'Live superseded URL incidence retires');index.destroy();
+    next=new sourceModules.GraphIndex({app:f.app,settings:o.settings,getIndexSourceRevision:()=>0},f.app);
+    await next.startBackgroundUrlIndex();ok(!next.get('https://obsidian.md'),'Stale equal-stat URL cache cannot resurrect on warm reopen');
+    equal(next.getUrlIndexProgress().reads,0,'Replacement zero-URL owner remains reusable');return true;
+  }finally{unblock?.();next?.destroy();o.close();}
+})()`));
+
+
+test('independent URL policy replay uses cached facts and current ontology without native rereads', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-policy');const{f,index}=o;
+  try{
+    f.add('Only.md','',{Child:'https://obsidian.md/slug'});await index.startBackgroundUrlIndex();
+    ok(index.getNeighborhood('https://obsidian.md/slug').parents.some(x=>x.page.path==='Only.md'),'Original child property');
+    const reads=index.getUrlIndexProgress().reads;
+    o.settings.hierarchy.children=[];o.settings.hierarchy.parents.push('Child');index.invalidateSemanticPolicy();
+    await index.refreshSemanticSettings();await index.urlPublicationLane;
+    ok(index.getNeighborhood('https://obsidian.md/slug').children.some(x=>x.page.path==='Only.md'),'Current parent property replaces old role');
+    ok(!index.getNeighborhood('https://obsidian.md/slug').parents.some(x=>x.page.path==='Only.md'),'Old ontology incidence retired');
+    equal(index.getUrlIndexProgress().reads,reads,'Policy replay does not read Markdown');ok(!index.getUrlIndexProgress().active,'Recompiled lane settles truthfully');return true;
+  }finally{o.close();}
+})()`));
+
+
+test('dense URL cache restoration pages obey byte and count admission and consume outside transactions', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-dense-pages');const{index}=o;
+  try{
+    const projection='https://obsidian.md/'+ 'x'.repeat(300000);
+    const owners=[];for(let n=0;n<5;n++)owners.push({path:'Dense'+n+'.md',mtime:1,size:1,urls:[],inlineFieldOccurrences:[],frontmatter:{Child:projection}});
+    owners.push({path:'Huge.md',mtime:1,size:1,urls:[],inlineFieldOccurrences:[],frontmatter:{Child:projection.repeat(5)}});
+    ok(await index.indexedDb.putUrlOwners(owners),'Dense cache seeded');
+    let pageCount=0,total=0,hugeAlone=false;
+    ok(await index.indexedDb.readUrlOwners(async records=>{
+      pageCount++;total+=records.length;
+      const chars=records.reduce((n,r)=>n+JSON.stringify(r).length,0);
+      ok(records.length<=64,'Count admission retained');
+      ok(chars*2<=2097152 || records.length===1,'Byte admission retained; one oversized owner alone');
+      if(records.some(r=>r.path==='Huge.md'))hugeAlone=records.length===1;
+      const db=await index.indexedDb.open();
+      await new Promise((resolve,reject)=>{const tx=db.transaction('urlOwners','readwrite');tx.objectStore('urlOwners').get('Dense0.md');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
+    },()=>true),'Cursor restoration completes');
+    equal(total,6,'No page-boundary loss or duplicates');ok(pageCount>=3,'Dense owners span bounded pages');ok(hugeAlone,'Oversized owner delivered alone');return true;
+  }finally{o.close();}
+})()`));
+
+
+test('unload releases queued URL readers without starting reads behind a hung native operation', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-queued-unload');const{f,index}=o;let unblock;
+  try{
+    for(let n=0;n<7;n++)f.add('Owner'+n+'.md','https://obsidian.md');
+    let admitted=0,entered;const full=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r);
+    const read=f.app.vault.cachedRead;f.app.vault.cachedRead=async file=>{admitted++;if(admitted===6)entered();await hold;return read(file);};
+    const tasks=[...f.files.keys()].map(path=>index.refreshUrlOwner(path));await full;
+    equal(index.urlReadWaiters.length,1,'Seventh owner queued');index.destroy();await tasks[6];
+    equal(admitted,6,'Unload does not admit another native read');equal(index.urlReadWaiters.length,0,'Queue released while active reads remain held');
+    unblock();await Promise.all(tasks);equal(index.urlReadActive,0,'Admission accounting settles');equal(index.urlReadBytes,0,'Byte reservations released');return true;
+  }finally{unblock?.();o.close();}
+})()`));
+
+test('URL cache writer rechecks owner fence after delayed open and cannot resurrect stale facts after unload', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-open-fence');const{f,index}=o;let next,unblock;
+  try{
+    f.add('A.md','');const cache=index.indexedDb;let current=true,entered;
+    const record={path:'A.md',mtime:1,size:0,urls:[{url:'https://obsidian.md'}],inlineFieldOccurrences:[],frontmatter:{}};
+    const db=await cache.open(),open=cache.open.bind(cache),held=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r);let first=true;
+    cache.open=async()=>{if(first){first=false;entered();await hold;return db;}return open();};
+    const write=cache.putUrlOwners([record],()=>current);await held;current=false;await cache.deleteUrlOwner('A.md');index.destroy();unblock();
+    equal(await write,false,'Delayed writer refuses a retired owner before transaction admission');
+    next=new sourceModules.GraphIndex({app:f.app,settings:o.settings,getIndexSourceRevision:()=>0},f.app);
+    await next.restoreUrlIndex();ok(!next.get('https://obsidian.md'),'Reopen cannot resurrect a stale equal-stat owner');return true;
+  }finally{unblock?.();next?.destroy();o.close();}
+})()`));
+
+
+test('canonical URL identity survives independent progressive discovery in Eager and On demand', async()=>scenario(`(async()=>{
+  for(const mode of ['eager','on-demand']){
+    const o=await onDemandFixture('v2-url-public-identity-'+mode,{indexingMode:mode});const{f,index}=o;let unblock;
+    try{
+      const a=f.add('A.md','[Original](https://Obsidian.md/slug)');f.add('B.md','https://obsidian.md/slug');f.add('C.md','https://obsidian.md/slug');
+      await index.initializeOnDemandBaseline();await index.patchMarkdownPaths(['A.md'],{useDurableCache:true});
+      const path='https://obsidian.md/slug',canonical=index.state.pages.get(path);
+      ok(index.get('https://Obsidian.md/slug')===canonical,'Public get preserves main graph canonical identity');
+      let entered;const held=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r),read=f.app.vault.cachedRead;
+      f.app.vault.cachedRead=async file=>{if(file.path==='B.md'){entered();await hold;}return read(file);};
+      const scan=index.startBackgroundUrlIndex();await held;await index.urlOwnerTasks.get('C.md');await index.urlPublicationLane;
+      ok(index.get(path)===canonical,'Discovery never replaces public identity');
+      ok(index.semanticRelationSource(index.get(path)).page.neighbours.has('C.md'),'Public semantic URL incidence updates progressively');
+      ok(index.getNeighborhood(path).parents.some(x=>x.page.path==='C.md'),'Semantic projection also progresses');
+      unblock();await scan;
+      ok(index.allPages().find(p=>p.path===path)===canonical,'Enumeration preserves same identity');
+      ok(index.search('Original',10).find(p=>p.path===path)===canonical,'URL alias search returns public identity');
+      for(const page of index.state.pages.values())for(const relation of page.neighbours.values())
+        ok(relation.target===index.get(relation.target.path),'Core published relation target remains canonical');
+      f.texts.set('A.md','');a.stat.mtime++;await index.refreshUrlOwner('A.md');
+      ok(!index.semanticRelationSource(index.get(path)).page.neighbours.has('A.md'),'URL semantic incidence drops a stale owner');
+      ok(!index.getNeighborhood('A.md').children.some(x=>x.page.path===path),'Note projection drops stale cached incidence');
+    }finally{unblock?.();o.close();}
+  }
+  return true;
+})()`));
+
+test('settled URL owner deletion closes progress and reports pending retirement truthfully', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-delete-progress');const{f,index}=o;let unblock;
+  try{
+    f.add('A.md','https://obsidian.md');f.add('B.md','https://obsidian.md');await index.startBackgroundUrlIndex();
+    const hold=new Promise(r=>unblock=r);index.urlPublicationLane=index.urlPublicationLane.then(()=>hold);
+    f.files.delete('B.md');const retirement=index.refreshUrlOwner('B.md');
+    ok(index.getUrlIndexProgress().active,'Pending deletion is active work');ok(!index.getUrlIndexProgress().complete,'Deletion awaits current publication');
+    unblock();await retirement;
+    ok(index.getUrlIndexProgress().complete,'Surviving current URL owners close discovery');ok(!index.getUrlIndexProgress().active,'No forever-active settled deletion');
+    equal(index.gateStats(index.get('https://obsidian.md')).top.visibleCount,1,'Only surviving referrer counted');return true;
+  }finally{unblock?.();o.close();}
+})()`));
+
+
+test('ordinary source publication retires stale URL closure and reuses its acquired body', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-ordinary-publication',{indexingMode:'eager'});const{f,index}=o;let unblock;
+  try{
+    const a=f.add('A.md','https://old.example/slug');f.add('B.md','https://old.example/slug');
+    await index.initializeOnDemandBaseline();await index.patchMarkdownPaths(['A.md'],{useDurableCache:true});await index.startBackgroundUrlIndex();
+    ok(index.getUrlIndexProgress().complete,'Initial private discovery is closed');const reads=index.getUrlIndexProgress().reads;
+    let committed;const atCommit=new Promise(r=>committed=r),hold=new Promise(r=>unblock=r);
+    index.urlPublicationLane=index.urlPublicationLane.then(()=>hold);
+    const publish=index.publishIncrementalFile;index.publishIncrementalFile=(commit,swap)=>{publish(commit,swap);committed();};
+    f.texts.set('A.md','https://repeat.example/path');a.stat.mtime++;
+    const patch=index.withForegroundPriority(()=>index.patchMarkdownPaths(['A.md']),2);await atCommit;
+    ok(!index.getUrlIndexProgress().complete,'Ordinary publication invalidates the stale global URL closure synchronously');
+    equal(index.evidenceBetween('https://repeat.example','https://repeat.example/path').filter(e=>e.sourceKind==='url-origin').length,1,'New full-source origin evidence remains visible before private repair');
+    ok(!index.getNeighborhood('A.md').children.some(x=>x.page.path==='https://old.example/slug'),'Retired private source incidence cannot reappear');
+    ok(index.getNeighborhood('https://old.example/slug').parents.some(x=>x.page.path==='B.md'),'Still-current shared owner remains visible');
+    equal((await Promise.race([patch,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Foreground patch waited for lower-priority URL repair')),1500))])).outcome,'patched','Foreground patch completes while lower-priority URL publication remains held');
+    ok(!index.getUrlIndexProgress().complete,'Independent repair is still truthfully pending');
+    unblock();await index.urlOwnerTasks.get('A.md');
+    equal(index.getUrlIndexProgress().reads,reads,'Repair reuses the body already acquired by the source publisher');
+    ok(index.getUrlIndexProgress().complete,'URL closure settles after the committed owner repair');
+    equal(index.evidenceBetween('https://repeat.example','https://repeat.example/path').filter(e=>e.sourceKind==='url-origin').length,1,'Canonical derived evidence remains idempotent');
+    const retireHold=new Promise(r=>unblock=r);index.urlPublicationLane=index.urlPublicationLane.then(()=>retireHold);
+    f.texts.set('A.md','');a.stat.mtime++;
+    equal((await index.withForegroundPriority(()=>index.patchMarkdownPaths(['A.md']),2)).outcome,'patched','Final owner retirement also stays foreground-safe');
+    ok(!index.get('https://repeat.example/path')&&!index.get('https://repeat.example'),'Unsupported private URL and origin disappear before asynchronous retirement');
+    ok(!index.search('repeat.example').some(p=>p.url),'Unsupported private URL search entries disappear immediately');
+    unblock();await index.urlOwnerTasks.get('A.md');ok(index.getUrlIndexProgress().complete,'Retirement repair settles');return true;
+  }finally{unblock?.();o.close();}
+})()`));
+
+
+test('fully current Eager URL discovery avoids local count tokens while partial Eager retains them', async()=>scenario(`(async()=>{
+  for(const full of [true,false]){
+    const o=await onDemandFixture('v2-url-eager-tokens-'+full,{indexingMode:'eager'});const{f,index}=o;
+    try{
+      f.add('A.md','https://obsidian.md');const b=f.add('B.md','');
+      if(full){delete index.sourceAcquisition.enableInventory;ok(await index.rebuild(),'Real complete graph publishes');ok(!index.usesLocalForeground(),'Complete Eager uses full graph');}
+      else{await index.initializeOnDemandBaseline();ok(index.usesLocalForeground(),'Partial Eager uses local proofs');}
+      await index.startBackgroundUrlIndex();equal(index.gateStats(index.get('https://obsidian.md')).top.visibleCount,1,'Initial URL count');
+      if(full)equal(index.onDemandGateRevisions.size,0,'Full Eager discovery allocates no local tokens');else ok(index.onDemandGateRevisions.size>0,'Partial Eager discovery invalidates local proofs');
+      f.texts.set('B.md','https://obsidian.md');b.stat.mtime++;await index.refreshUrlOwner('B.md');
+      equal(index.gateStats(index.get('https://obsidian.md')).top.visibleCount,2,'Independent URL updates invalidate current counts in either strategy');
+      if(full)equal(index.onDemandGateRevisions.size,0,'Full Eager update still allocates no local tokens');else ok(index.onDemandGateRevisions.has('B.md'),'Partial Eager owner has a revision token');
+    }finally{o.close();}
+  }
+  return true;
+})()`));
+
+test('dense active URL alias preparation remains cooperative and cancels privately', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-dense-aliases',{indexingMode:'eager'});const{f,index}=o;
+  try{
+    delete index.sourceAcquisition.enableInventory;const a=f.add('A.md','');ok(await index.rebuild(),'Complete Eager graph');await index.startBackgroundUrlIndex();
+    const dense=Array.from({length:10000},(_,n)=>'https://perf-'+n+'.example/path/'+n).join('\\n');
+    f.texts.set('A.md',dense);a.stat.mtime++;a.stat.size=dense.length;
+    index.fieldCache.set('A.md',{mtime:a.stat.mtime,body:sourceModules.parseBodyMetadata(dense)});
+    let previous=performance.now(),gap=0;const timer=setInterval(()=>{const now=performance.now();gap=Math.max(gap,now-previous);previous=now;},1);
+    try{equal((await index.patchMarkdownPaths(['A.md'])).outcome,'patched','Dense ordinary patch publishes');}finally{clearInterval(timer);}
+    ok(gap<50,'Dense source patch with active private URL lane preserves 50ms timer bound: '+gap.toFixed(1));
+    equal(index.onDemandGateRevisions.size,0,'Complete Eager retains no per-URL local count tokens');
+    await index.urlOwnerTasks.get('A.md');equal(index.gateStats(index.get('A.md')).bottom.visibleCount,10000,'All URL relations remain available');
+    const before=index.urlAliasOwners.size;let current=true;const cancellation=setTimeout(()=>{current=false;},0);
+    const prepared=await index.prepareUrlAliasOwners('Cancelled.md',Array.from({length:10000},(_,n)=>({url:'https://cancel-'+n+'.example',label:'Label '+n})),()=>current);clearTimeout(cancellation);
+    equal(prepared,null,'Cancellation retires private alias staging at a released slice');equal(index.urlAliasOwners.size,before,'Cancelled alias preparation publishes nothing');return true;
+  }finally{o.close();}
+})()`));
+
+test('parent-only folder rename transfers current URL owners and cached property facts without rereads', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-url-folder-rename',{indexingMode:'eager'});const{f,index}=o;let next;
+  try{
+    delete index.sourceAcquisition.enableInventory;const root=f.app.vault.getRoot(),folder=new ContributorFolder();folder.path='Old';folder.name='Old';folder.parent=root;
+    const file=f.add('Old/A.md','https://obsidian.md',{Website:'[Property site](https://property.example/path)'});file.parent=folder;folder.children=[file];root.children=[folder];
+    const folders=new Map([['Old',folder]]);f.app.vault.getRoot=()=>root;f.app.vault.getFolderByPath=path=>path==='/'||path===''?root:folders.get(path)??null;
+    f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??folders.get(path)??(path==='/'?root:null);
+    ok(await index.rebuild(),'Known folder tree publishes');await index.startBackgroundUrlIndex();const reads=index.getUrlIndexProgress().reads;
+    const text=f.texts.get(file.path);f.files.delete(file.path);f.texts.delete(file.path);f.metadata.delete(file.path);folders.delete('Old');
+    folder.path='New';folder.name='New';folders.set('New',folder);file.path='New/A.md';f.files.set(file.path,file);f.texts.set(file.path,text);
+    await index.withForegroundPriority(()=>index.renameFolder('Old',folder),2);
+    while(index.urlOwnerTasks.size)await Promise.all([...index.urlOwnerTasks.values()]);await index.urlPublicationLane;
+    equal(index.getUrlIndexProgress().reads,reads,'Known subtree move reuses acquired URL bodies');
+    ok(!index.urlOwners.has('Old/A.md')&&index.urlOwners.has('New/A.md'),'URL owner keys move after parent-only event');
+    equal(index.getNeighborhood('https://obsidian.md').parents.map(x=>x.page.path),['New/A.md'],'Body URL referrer follows moved path');
+    equal(index.getNeighborhood('https://property.example/path').parents.filter(x=>!x.page.url).map(x=>x.page.path),['New/A.md'],'Cached property URL survives missing post-move metadata');
+    ok(index.getUrlIndexProgress().complete&&!index.getUrlIndexProgress().active,'Moved ownership settles discovery');
+    const records=[];await index.indexedDb.readUrlOwners(page=>{records.push(...page);return Promise.resolve();},()=>true);
+    ok(!records.some(r=>r.path==='Old/A.md')&&records.some(r=>r.path==='New/A.md'&&r.frontmatter.Website.includes('Property site')),'Separate durable cache retires old path and preserves original property declaration');
+    index.destroy();next=new sourceModules.GraphIndex({app:f.app,settings:{...o.settings,indexingMode:'on-demand'},getIndexSourceRevision:()=>0},f.app);
+    await next.restoreUrlIndex();equal(next.getNeighborhood('https://property.example/path').parents.filter(x=>!x.page.url).map(x=>x.page.path),['New/A.md'],'Warm URL restore retains moved cached property incidence');return true;
+  }finally{next?.destroy();o.close();}
+})()`));
+
+
+test('partial Eager hands over to genuine ready source scopes and retires late local owners', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-eager-source-handover',{indexingMode:'eager'});const{f,index}=o;let release,unblock;
+  try{
+    delete index.sourceAcquisition.enableInventory;index.plugin.startupDiagnostics.processed=()=>{};f.add('A.md','Child:: [[B]]');f.add('B.md','');f.app.metadataCache.resolvedLinks={'A.md':{'B.md':1}};
+    await index.initializeOnDemandBaseline();ok(index.usesLocalForeground(),'Missing source authority uses local foreground');
+    let entered;const reached=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r),host=index.publishOnDemandHostScope.bind(index);let first=true;
+    index.publishOnDemandHostScope=async(...args)=>{if(first){first=false;entered();await hold;}return host(...args);};
+    release=index.acquireSemanticDemand('A.md');await reached;const reads=f.reads.length;
+    await f.acquire();ok(await index.sourceAcquisition.reconcile(),'Real native inventory and authenticated source closure complete');
+    ok(index.sourceAcquisition.hasSemanticDependencies(),'Actual durable authority ready');ok(!index.fullSnapshotFresh,'No fabricated whole-graph freshness');
+    ok(!index.usesLocalForeground(),'Ready Eager uses the existing finite source owner');await index.ensureSemanticScope('A.md');
+    const canonical=index.get('A.md');ok(index.semanticScopes.get('A.md')?.completePaths.has('A.md'),'Ready finite center proof published');
+    ok(index.getNeighborhood('A.md').children.some(x=>x.page.path==='B.md'),'Ready body ontology preserved');
+    unblock();await settleDemand(index);ok(index.get('A.md')===canonical,'Late local owner cannot replace ready source publication');
+    equal(index.onDemandHostScopes.size,0,'No stale local evidence overlay');equal(f.reads.length,reads,'Handover performs no native body reads');
+    equal(index.onDemandGateTasks.size,0,'No local supplement remains after ready handover');index.gateStats(index.get('B.md'));
+    equal(index.onDemandGateTasks.size,0,'Source-ready Eager neighbor gates use finite source proof without local supplements');
+    equal(f.reads.length,reads,'Ready neighbor gate query performs no native body reads');
+    ok(!index.hasPendingSemanticPreparation(),'No stale local pending owner remains');return true;
+  }finally{unblock?.();release?.();o.close();}
 })()`));

@@ -138,7 +138,10 @@ export class NormalizedSourcePatchPreparer {
         requiredPublished: this.requiresPublishedMaterializedTarget(record),
       });
     }
-    if (record.kind === "body-url" && record.origin) refs.push({ ref: record.origin.entity, requiredPublished: false });
+    if ((record.kind === "body-url" || record.kind === "selected-reference"
+      && (!record.selection.image || record.selection.assignments.length > 0)) && record.origin) {
+      refs.push({ ref: record.origin.entity, requiredPublished: false });
+    }
     for (const { ref, requiredPublished } of refs) {
       if (this.seededIds.has(ref.id)) continue;
       const fact = this.readPort.entity(ref);

@@ -353,7 +353,8 @@ test("optional alias progress and failure use distinct status copy while relatio
     cachedMarkdownFileCount:5,
     computeIndexStatusFacts:()=>({upToDate:false,phase,indexedFiles:5,totalFiles:5}),
     index:{isOnDemandMode:()=>false,getSemanticPreparationFailure:()=>relationshipFailure,getSearchVocabularyFailure:()=>searchFailure,
-      getUrlAliasUpgradeProgress:()=>progress,getSnapshotHydrationDiagnostics:()=>null},
+      getUrlAliasUpgradeProgress:()=>progress,getSnapshotHydrationDiagnostics:()=>null,
+      getUrlIndexProgress:()=>({active:false,failed:false,processed:5,total:5})},
     translator:(key,params)=>JSON.stringify({key,params}),
   };
   const status=productionFunction("src/main.ts","getIndexStatus",{});
@@ -375,10 +376,11 @@ test("on-demand status distinguishes local readiness from complete-vault indexin
     initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
     cachedMarkdownFileCount: 100, translator: key => key,
     index: {
-      isOnDemandMode: () => true, hasPendingSnapshotHydration: () => false,
+      isOnDemandMode: () => true, hasLocalBaseline: () => true, hasPendingSnapshotHydration: () => false,
       hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
       hasUnavailableLocalCounts: () => unavailable, indexedMarkdownFileCount: () => 2,
       isCheckpointSaving: () => false, getSnapshotHydrationDiagnostics: () => null,
+      getUrlIndexProgress: () => ({ active: false, failed: false, processed: 100, total: 100 }),
     },
   };
   const compute = productionFunction("src/main.ts", "computeIndexStatusFacts", {});
@@ -392,6 +394,39 @@ test("on-demand status distinguishes local readiness from complete-vault indexin
   assert.equal(facts.upToDate, false);
   assert.equal(facts.phase, "incomplete");
   assert.equal((await status.call(context)).label, "indexing.localUnavailable");
+});
+
+/** Independent URL work reports real progress; an idle local baseline never implies global loading. */
+test("URL discovery status is independent of ready local graphs and clears after actual work settles", async () => {
+  let localActive = false, url = { active: true, failed: false, processed: 4, total: 100 };
+  const context = {
+    initialIndexComplete: false, indexDirty: false, rebuildTask: null, rebuildTimer: null,
+    cachedMarkdownFileCount: 100, translator: (key, params) => JSON.stringify({ key, params }),
+    index: {
+      isOnDemandMode: () => true, hasLocalBaseline: () => true,
+      hasPendingSnapshotHydration: () => false, hasPendingSemanticPreparation: () => localActive,
+      hasActiveSemanticPreparation: () => localActive, hasPendingSearchVocabulary: () => false,
+      hasUnavailableLocalCounts: () => false, isCheckpointSaving: () => false,
+      indexedMarkdownFileCount: () => 2, getSnapshotHydrationDiagnostics: () => null,
+      getUrlIndexProgress: () => url,
+    },
+  };
+  const compute = productionFunction("src/main.ts", "computeIndexStatusFacts", {});
+  const status = productionFunction("src/main.ts", "getIndexStatus", {});
+  let facts = await compute.call(context, 100);
+  context.computeIndexStatusFacts = () => facts;
+  assert.equal(facts.phase, "ready", "Optional discovery cannot withhold local readiness");
+  assert.deepEqual(JSON.parse((await status.call(context)).label), {
+    key: "indexing.urlsProgress", params: { processed: 4, total: 100 },
+  });
+  url = { active: false, failed: true, processed: 99, total: 100 };
+  assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.urlsIncomplete");
+  url = { active: false, failed: false, processed: 100, total: 100 };
+  assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.localReady");
+  localActive = true;
+  facts = await compute.call(context, 100);
+  assert.equal(facts.upToDate, false);
+  assert.equal(JSON.parse((await status.call(context)).label).key, "indexing.localPreparing");
 });
 
 test("pre-restore file events update temporary availability while preserving backlog revision fences", async () => {

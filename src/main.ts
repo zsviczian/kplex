@@ -199,6 +199,18 @@ export default class KplexPlugin extends Plugin {
 
     this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this);
+    // URL acquisition is independent of MetadataCache, local graph preparation and full Eager inventory.
+    this.registerEvent(this.app.vault.on("modify", /** Retire exact URL facts on content edits, including equal-stat writes. */
+      file => { if (file instanceof TFile && file.extension === "md") void this.index.refreshUrlOwner(file.path); }));
+    this.registerEvent(this.app.vault.on("create", /** New Markdown owners join the independent URL cache. */
+      file => { if (file instanceof TFile && file.extension === "md" && this.layoutReady) void this.index.refreshUrlOwner(file.path); }));
+    this.registerEvent(this.app.vault.on("delete", /** Deleted owners cannot retain URL reference counts. */
+      file => { if (file instanceof TFile && file.extension === "md") void this.index.refreshUrlOwner(file.path); }));
+    this.registerEvent(this.app.vault.on("rename", /** Old URL source coordinates retire before the renamed owner publishes. */
+      (file, oldPath) => { if (file instanceof TFile) {
+        if (oldPath.toLowerCase().endsWith(".md")) void this.index.refreshUrlOwner(oldPath);
+        if (file.extension === "md") void this.index.refreshUrlOwner(file.path);
+      } }));
 
     this.registerView(KPLEX_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexView(leaf, this));
     this.registerView(KPLEX_SIDEPANEL_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexSidepanelView(leaf, this));
@@ -375,6 +387,7 @@ export default class KplexPlugin extends Plugin {
 
         if (this.unloading) return;
         this.layoutReady = true;
+        void this.index.startBackgroundUrlIndex();
         this.startupDiagnostics.mark("layout-ready");
         await this.index.primePhysicalSearchCatalog();
         if (this.unloading) return;
@@ -2244,7 +2257,7 @@ export default class KplexPlugin extends Plugin {
     const semanticPreparing = this.index.hasPendingSemanticPreparation();
     const semanticIncomplete = semanticPreparing && !this.index.hasActiveSemanticPreparation?.()
       || Boolean(this.index.getSearchVocabularyFailure?.()) || Boolean(this.index.hasUnavailableLocalCounts?.());
-    const upToDate = this.initialIndexComplete
+    const upToDate = (this.initialIndexComplete || this.index.isOnDemandMode() && this.index.hasLocalBaseline())
       && !this.indexDirty
       && this.rebuildTask === null
       && this.rebuildTimer === null
@@ -2291,7 +2304,12 @@ export default class KplexPlugin extends Plugin {
     const failure = phase === "incomplete" ? this.index.getSemanticPreparationFailure?.() : null;
     const searchFailure = phase === "incomplete" && !failure ? this.index.getSearchVocabularyFailure?.() : null;
     const aliasProgress = phase === "updating" ? this.index.getUrlAliasUpgradeProgress?.() : null;
-    const label = this.index.isOnDemandMode() && ["ready", "preparing", "updating", "indexing", "incomplete"].includes(phase)
+    const urlProgress = this.index.getUrlIndexProgress();
+    const label = urlProgress.active
+      ? this.translator("indexing.urlsProgress", { processed: urlProgress.processed, total: urlProgress.total })
+      : urlProgress.failed
+        ? this.translator("indexing.urlsIncomplete")
+      : this.index.isOnDemandMode() && ["ready", "preparing", "updating", "indexing", "incomplete"].includes(phase)
       ? this.translator(phase === "ready" ? "indexing.localReady" : phase === "incomplete" ? "indexing.localUnavailable" : "indexing.localPreparing")
       : searchFailure
       ? this.translator("index.statusSearchIncomplete")
@@ -4134,7 +4152,8 @@ export default class KplexPlugin extends Plugin {
       positions.push({ path: file.path, line: safeLine, label });
     };
 
-    if (evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url") {
+    if (evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url"
+      || evidence.sourceKind === "property-url" && evidence.line !== undefined) {
       if (evidence.line) add(evidence.line - 1, this.translator("evidence.navigateLine", { line: evidence.line }));
       return positions;
     }
@@ -4161,7 +4180,7 @@ export default class KplexPlugin extends Plugin {
       return positions;
     }
 
-    if (evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "date-property") {
+    if (evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "date-property" || evidence.sourceKind === "property-url") {
       const fieldName = evidence.fieldName;
       if (!fieldName) return positions;
       const propertyRange = await this.frontmatterPropertyLineRange(file, fieldName);
@@ -4245,10 +4264,11 @@ export default class KplexPlugin extends Plugin {
           sourceKind: evidence.sourceKind,
         });
         let sections: RelationshipSourceSection[] = [];
-        if ((evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "date-property") && evidence.fieldName) {
+        if ((evidence.sourceKind === "frontmatter-ontology" || evidence.sourceKind === "date-property"
+          || evidence.sourceKind === "property-url" && evidence.line === undefined) && evidence.fieldName) {
           const range = propertyRange(evidence.fieldName);
           sections = range ? [make(range.start, range.end, this.translator("evidence.property", { field: evidence.fieldName }))] : [];
-        } else if ((evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url") && evidence.line) {
+        } else if ((evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url" || evidence.sourceKind === "property-url") && evidence.line) {
           const range = paragraphRange(evidence.line - 1);
           sections = [make(range.start, range.end, this.translator("evidence.paragraphAroundLine", { line: evidence.line }))];
         } else if (evidence.sourceKind === "obsidian-link" || evidence.sourceKind === "unresolved-link") {

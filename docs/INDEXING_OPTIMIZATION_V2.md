@@ -1,5 +1,42 @@
 # K-Plex Indexing Optimization V2 — On-Demand Semantic Indexing Handoff
 
+## 2026-10-06 amendment: URL connections and Eager foreground behavior
+
+This maintainer-requested correction supersedes the historical URL strategy/defaults and the earlier restrictions on a URL store, schema version and parallel URL reads below. The previous implementation discovered only URL search vocabulary; it could display a URL center with no incoming connections and an idle “Preparing local graph” label. V2 ordinary-note acceptance does not cover this URL failure. The preceding implementation is checkpointed at `9ba04cf`.
+
+### Required behavior
+
+- Make **On demand** the default graph strategy, preserving an explicitly saved Eager preference. Eager must prepare visible local graphs and reflect edits promptly during startup, then finish its broader source index in the background. The existing V2 source-backed catalog is retained; full relationship incidence need not be materialized merely to provide global source authority.
+- Always discover URLs independently in both graph strategies; remove URL On-demand from the settings UI and migrate the old URL preference. URL discovery must not depend on Obsidian having an external-link index.
+- Restore a separate compact per-note URL cache first. Key reusable records by exact physical file revision plus format/parser version. Preserve unchanged owners, replace changed owners, and retire deleted/renamed owners. Cache failure must not erase neutral sources or notes.
+- Cold discovery uses bounded concurrent Vault reads and cooperative shared parsing. Publish discovered note-to-URL and origin-to-URL connections incrementally; an open URL center updates as referrers are discovered. Persist partial progress for restart reuse. Avoid compiling unrelated note ontology simply to populate URL relationships.
+- While URL discovery is incomplete, show truthful discovery progress and partial counts; never report complete zero counts or idle local preparation as if work were underway. Foreground navigation/edits preempt background discovery.
+- Normalize URL scheme/host case and equivalent root slash, preserve path/query/fragment case and raw provenance. `https://Obsidian.md` and `https://obsidian.md/` identify one root. The root is the parent of discovered `/slug1` and `/slug2` URL nodes, with no self-edge.
+- URL source/cache facts, canonical graph classification, and local/global coverage remain distinct. URL discovery cannot authorize note-to-note negative evidence or bypass exact relationship-edit preparation.
+
+### Implementation boundaries
+
+- Discover visible body links and URL-bearing frontmatter/inline property values through the existing parser and reference collector. Preserve raw target spelling, physical property/line provenance, configured ontology precedence, hidden relationships, and shared URL lifetimes. Unassigned property URLs receive inferred relationships with a distinct property-web-link source; they do not become explicit editable ontology declarations.
+- Store URL-bearing body occurrences and a compact projection of URL-bearing property values in a disposable URL-owner IndexedDB store. Restore these records before graph snapshot hydration. Cached frontmatter remains provisional until current host metadata arrives; native file events and exact physical revisions retire stale owners.
+- Compile owner patches privately through the existing canonical source patch preparer. Publish incidence, evidence, aliases, search facets, gate-proof invalidation, and notifications synchronously at the existing per-file publication boundary. Current owner facts replace stale cached positive edges, including a newly proven absence, for read presentation only.
+- URL normalization belongs to the Obsidian adapter. Older neutral sources remain unchanged; their URL targets normalize during replay. URL-dependent derived projections must carry the new identity capability, while compatible older non-URL projections retain their existing readiness. Do not restamp source heads or block ordinary notes on a URL derivative upgrade.
+- A scan has bounded native read count and byte admission shared with file events. Parser/compiler work remains cooperative on the existing scheduler. Discovery completion requires exact current coverage of every Markdown owner, including notes with no URLs; an unfinished or failed scan cannot certify a complete zero count.
+
+### Action plan and acceptance
+
+- [x] Commit the existing V2 checkpoint.
+- [x] Reproduce reference-vault URL failure and inspect Excalibrain URLParser.
+- [x] Implement independent incremental URL facts, separate cache, and progressive current URL centers — focused current-owner, mutation, race, warm-reuse and byte-bound checks pass; aggregate/native acceptance pending.
+- [x] Implement URL identity equivalence/root hierarchy and focused compatibility tests — adapter/core/replay/projection migration tests pass, preserving lexical provenance and image-only behavior.
+- [x] Implement Eager foreground parity, On demand defaults, and clear settings/progress copy — focused Eager startup edits and settings/localization checks pass.
+- [ ] Run required verification, disposable cold/warm/edit/delete/rename cases, and exact-build reference URL navigation/restart.
+- [ ] Record measurements, limitations, and cleanup; keep reference notes/preferences unchanged.
+
+Initial estimate: 90–150 minutes. Native baseline at exact `65bceafc…` reproduced missing mixed-case root, an empty lowercase root, no active URL scan, and idle “Preparing local graph” for 15 seconds per center with saved On demand/background. Notes and configuration hashes were unchanged. This is functional failure evidence, not a latency benchmark.
+
+
+Current validation: exact Node22 full verification/build/native smoke passes, including 368 browser cases. Disposable native URL mutations, numerical gates and 15-owner warm URL cache with zero URL body reads pass. Desktop focus checks are currently blocked by the locked session; the maintainer has been asked to unlock. Eager foreground, SI5 recovery and production URL navigation/reload measurements remain pending. The reference vault has not received the new artifact. Estimated remaining work after unlock: 15–25 minutes, subject to native findings. See [validation](validation/url-indexing-and-foreground-2026-10-06.md); no five-second production URL claim is made.
+
 ## 1. Assignment
 
 Implement a **bounded V2 indexing mode** that removes the current global warm-start source-certification workload from the normal startup path and allows K-Plex to build semantic relationships **on demand**.
@@ -72,7 +109,7 @@ Capture layout/metadata-ready → preview → local canonical publication → nu
 
 Initial implementation/validation estimate: **2½–4 hours**. The four-hour scope cap remains. Progress reports must name completed results, next work and revised ETA; unmet requirements remain explicit.
 
-**Earlier scoped desktop evidence; production acceptance reopened:** controlled small-vault local count closure3.624s, warm restart2.614s, and accepted ordinary-center reference-vault closure3.695s with all24 rendered gate labels numerical and global inventory disabled. This is one accepted reference timing sample after host metadata/layout readiness, not full application cold-launch, actual paint, physical-mobile acceptance or a universal five-second guarantee. Notes/settings/enablement were restored exactly; failed harness/cleanup and excluded focus-lost attempts are retained in the validation record. V2 remains uncommitted.
+**Earlier scoped desktop evidence; production acceptance reopened:** controlled small-vault local count closure3.624s, warm restart2.614s, and accepted ordinary-center reference-vault closure3.695s with all24 rendered gate labels numerical and global inventory disabled. This is one accepted reference timing sample after host metadata/layout readiness, not full application cold-launch, actual paint, physical-mobile acceptance or a universal five-second guarantee. Notes/settings/enablement were restored exactly; failed harness/cleanup and excluded focus-lost attempts are retained in the validation record. This preceding V2 checkpoint was committed as `9ba04cf`; the URL correction above remains under validation.
 
 ---
 

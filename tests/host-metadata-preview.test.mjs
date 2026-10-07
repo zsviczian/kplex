@@ -457,7 +457,7 @@ test("GraphIndex host availability renders direct relations over a physical base
   globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
   Object.assign(f.app.vault, { getName: () => "preview-test", getFiles: () => [...f.files.values()] });
   f.app.saveLocalStorage = () => {};
-  const indexSettings = { ...settings, pinnedNodes: [], lastActivePath: f.centerPath,
+  const indexSettings = { ...settings, indexingMode: "eager", pinnedNodes: [], lastActivePath: f.centerPath,
     excludeFilepaths: [], nameFields: "aliases", renderAlias: true, nodeTitleScript: "", nodeSortOrder: "name",
     showInferredNodes: true, showVirtualNodes: true, showAttachments: true, showFolderNodes: true,
     showTagNodes: true, showPageNodes: true, showURLNodes: true, maxItemCount: 100, renderSiblings: false,
@@ -624,11 +624,14 @@ test("visible patch and optional saved-pair refresh wait behind an active mutati
   globalThis.window = { setTimeout, clearTimeout, setInterval, clearInterval };
   Object.assign(f.app.vault, { getName: () => "preview-priority", getFiles: () => [...f.files.values()] });
   f.app.saveLocalStorage = () => {};
-  const index = new GraphIndex({ app: f.app, settings: { ...settings, lastActivePath: f.centerPath,
+  const index = new GraphIndex({ app: f.app, settings: { ...settings, indexingMode: "eager", lastActivePath: f.centerPath,
     pinnedNodes: [], excludeFilepaths: [], nameFields: "aliases", renderAlias: true }, getIndexSourceRevision: () => 0 }, f.app);
   let release;
   const held = new Promise(resolve => { release = resolve; });
   let patches = 0, pairs = 0;
+  // This contract exercises the complete Eager direct-patch owner. Partial Eager uses the
+  // requested local-demand owner, whose mutation parity is covered by on-demand-indexing tests.
+  index.fullSnapshotFresh = true;
   index.state.pages.set(f.centerPath, { path: f.centerPath });
   index.patchMarkdownPaths = async () => { patches++; return { outcome: "patched", count: 1 }; };
   index.prepareRelationshipPair = async () => { pairs++; return true; };

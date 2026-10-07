@@ -479,7 +479,11 @@ export class NormalizedGraphCompiler {
     return true;
   }
 
-  /** Materialize only after canonical selection; raw physical names never encode current roles. */
+  /**
+   * Apply configured property roles, or infer an unassigned physical property URL with genuine
+   * field/lexical/location provenance. URL hierarchy consumes only producer-supplied origin facts.
+   * Image-only properties materialize presentation targets without contributing graph relations.
+   */
   private consumeReference(record: SelectedReferenceCandidate): boolean {
     const source = this.ensureNode(record.source, this.fallbackName(record.source));
     const target = this.ensureNode(record.target.entity, this.fallbackName(record.target.entity, record.target.rawTarget));
@@ -500,6 +504,19 @@ export class NormalizedGraphCompiler {
       };
       if (assignment.role === "hidden") this.addHidden(record, source, target, provenance, assignment);
       else this.addEvidence(record, source, target, assignment.role, RelationType.DEFINED, LinkDirection.FROM, provenance, assignment);
+    }
+    if (record.target.entity.kind === "url" && record.target.resolvedBy === "url"
+      && (!record.selection.image || record.selection.assignments.length > 0)) {
+      if (!record.selection.assignments.length && value.origin !== "inline-map") {
+        const location = value.location;
+        this.addInferred(record, source, target, "property-url", {
+          definition: value.normalizedFieldName, fieldName: value.fieldName, rawValue: record.target.rawTarget,
+          ...(location?.line === undefined ? {} : { line: location.line }),
+          ...(location?.start === undefined ? {} : { start: location.start }),
+          ...(location?.end === undefined ? {} : { end: location.end }),
+        });
+      }
+      if (!this.consumeUrlOrigin(record, target)) return false;
     }
     if (this.projection === "graph" && record.selection.image) {
       const key = this.pairCountKey(this.keyForNode(source), this.keyForNode(target));
@@ -569,18 +586,24 @@ export class NormalizedGraphCompiler {
     return true;
   }
 
-  /** Keep the primary display label/declaration while collecting every search label in bounded host slices. */
+  /**
+   * Keep lexical URL provenance while materializing the producer's canonical semantic URL. A label
+   * equal to the declared lexical URL is a default spelling, not an independent display alias.
+   * Pathless producers retain their explicit raw URL fallback; opaque IDs are never interpreted.
+   */
   private async consumeBodyUrl(record: BodyUrlOccurrence): Promise<boolean> {
     if (record.target.resolvedBy !== "url") return false;
     const source = this.ensureNode(record.source, this.fallbackName(record.source));
-    const target = this.ensureNode(record.target.entity, record.label || record.target.rawTarget, record.target.rawTarget);
+    const canonicalUrl = record.target.entity.semanticPath ?? record.target.rawTarget;
+    const label = record.label && record.label !== record.target.rawTarget ? record.label : undefined;
+    const target = this.ensureNode(record.target.entity, label || canonicalUrl, canonicalUrl);
     if (!source || !target) return false;
-    if (record.label && record.label !== target.url && !this.urlLabels.has(target.id)) this.urlLabels.set(target.id, record.label);
-    if (record.label && record.label !== target.url && !target.aliases.includes(record.label)) target.aliases.push(record.label);
+    if (label && label !== target.url && !this.urlLabels.has(target.id)) this.urlLabels.set(target.id, label);
+    if (label && label !== target.url && !target.aliases.includes(label)) target.aliases.push(label);
     const retainedAliases = new Set(target.aliases);
     let processedAliases = 0;
     for (const alias of record.aliases ?? []) {
-      if (alias && alias !== target.url && !retainedAliases.has(alias)) {
+      if (alias && alias !== target.url && alias !== record.target.rawTarget && !retainedAliases.has(alias)) {
         retainedAliases.add(alias); target.aliases.push(alias);
       }
       if ((++processedAliases & 127) === 0 && !(await this.checkpoint())) return false;
@@ -589,8 +612,16 @@ export class NormalizedGraphCompiler {
     if (preferredLabel) target.name = preferredLabel;
     const line = record.provenance?.location?.line;
     this.addInferred(record, source, target, "body-url", line ? { line } : undefined);
-    if (record.origin) {
-      const origin = this.ensureNode(record.origin.entity, record.origin.rawTarget, record.origin.rawTarget);
+    return this.consumeUrlOrigin(record, target);
+  }
+
+  /** Share producer-derived root hierarchy across body and property URLs without self/duplicate edges. */
+  private consumeUrlOrigin(record: BodyUrlOccurrence | SelectedReferenceCandidate, target: CompiledGraphNode): boolean {
+    // URL roots may arrive from older neutral caches with an origin equal to their target. The
+    // semantic owner excludes that self-edge using opaque identity equality, never ID parsing.
+    if (record.origin && record.origin.entity.id !== target.id) {
+      const originUrl = record.origin.entity.semanticPath ?? record.origin.rawTarget;
+      const origin = this.ensureNode(record.origin.entity, originUrl, originUrl);
       if (!origin) return false;
       if (!this.hasSourceKindBetween(origin, target, "url-origin")) {
         this.addEvidence(record, origin, target, "child", RelationType.INFERRED, LinkDirection.TO, {

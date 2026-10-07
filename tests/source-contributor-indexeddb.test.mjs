@@ -116,8 +116,9 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
         });
         await edit(old,names,tx=>{for(const name of names)for(const row of copied[name]){
           if(name==='meta'&&row.key.startsWith('source-dependency-'))continue;tx.objectStore(name).put(row);
-        }tx.objectStore('meta').put({key:'checkpoint',schema:2,generation:'preserved',createdAt:1,vaultSignature:'v',settingsSignature:'s',discoveredFields:[],completedMarkdownPaths:[]});});old.close();
-        const f=await fixture('contributor-v5'),upgraded=await f.cache.open();equal(upgraded.version,9,'Additive upgrade');
+        }tx.objectStore('meta').put({key:'checkpoint',schema:2,generation:'preserved',createdAt:1,vaultSignature:'v',settingsSignature:'s',discoveredFields:[],completedMarkdownPaths:[]});});ok(!old.objectStoreNames.contains('urlOwners'),'Genuine v5 schema has no independent URL cache');old.close();
+        const f=await fixture('contributor-v5'),upgraded=await f.cache.open();equal(upgraded.version,10,'Additive upgrade');
+        ok(upgraded.objectStoreNames.contains('urlOwners'),'Independent URL cache added alongside retained source stores');equal(await value(upgraded.transaction('urlOwners').objectStore('urlOwners').count()),0,'Upgrade invents no URL owners');
         for(const name of ['sourceHeads','sourceChunks','sourcePostings','bodies'])equal(await value(upgraded.transaction(name).objectStore(name).getAll()),copied[name],name+' byte-shape preservation');
         equal((await f.cache.readSnapshotMeta('checkpoint')).generation,'preserved','Graph pointer preserved');
         equal((await f.acquisition.contributorDiscovery(runtime()).discover(absent())).outcome,'pending','No migrated root is not empty');
@@ -161,7 +162,7 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
         await edit(db,['meta'],tx=>tx.objectStore('meta').put(downgraded));
         equal((await d.discover(absent())).reason,'dependency-invalid','A v1 negative is not v2 authority');
         equal((await d.readOwnerSummary('A.md')).reason,'dependency-invalid','No synthesized owner summary');
-        equal(db.version,9,'Additive journal schema; old derivative remains rejected');
+        equal(db.version,10,'Supported v10 schema; old derivative remains rejected');
         equal((await f.cache.readSnapshotMeta('checkpoint')).generation,'summary-migration-kept','Graph snapshot preserved');
         equal((await d.rebuild()).outcome,'ready','Explicit derivative bootstrap can select v2');
         for(const name of names)equal(await value(db.transaction(name).objectStore(name).getAll()),before[name],name+' byte-shape preservation');
@@ -472,5 +473,40 @@ test("real Chromium contributor catalogs: migration, integrity, mutation fences 
         await f.acquire();const d=await f.build();equal((await d.discover(absent())).outcome,'ready','Reconciled fresh capability');f.close();return true;
       })()`), true);
     });
+  } finally { await browser.cleanup(); }
+});
+
+/** URL normalization is a checksum-bound derivative capability independent of retained order formats. */
+test("canonical URL catalog capability roundtrips every root format and rejects historical URL negatives", async () => {
+  const browser=await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize),true);
+    assert.equal(await browser.evaluate(`(async()=>{
+      const M=sourceModules;
+      for(const version of [2,3,4]){
+        const name='canonical-url-catalog-'+version,f=await fixture(name);let reopened=null;
+        try{
+          f.add('Owner.md','[Docs](https://Obsidian.md/Slug)');await f.acquire();
+          const original=f.acquisition.contributorDiscovery(runtime()),host={...original.host};
+          if(version<4){host.hostLinkOwnerOrderVersion=undefined;host.captureHostLinkOwnerOrder=undefined;}
+          if(version<3){host.markdownOrderVersion=undefined;host.collect=emit=>original.host.collect(fact=>emit(fact));}
+          const d=new M.SourceContributorDiscovery(f.repository,host,runtime());equal((await d.rebuild()).outcome,'ready','Current derivative root');
+          const root=await f.repository.readDependencyRoot(()=>true),decoded=JSON.parse(root.data);equal(decoded.version,version,'Retained order format');equal(decoded.urlIdentityVersion,1,'Current capability committed');
+          const endpoint=ref('https://obsidian.md/Slug','url'),scope={kind:'neighborhood',endpoints:[endpoint]};
+          const selected=await d.discover(scope);equal(selected.outcome,'ready','Current canonical URL cover');equal(selected.sourceIds,['Owner.md'],'Genuine referring owner');
+          const db=await f.cache.open(),before=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
+          reopened=new M.KplexIndexedDbCache(name);ok(await reopened.open(),'Durable reopen');
+          const warm=new M.SourceContributorDiscovery(reopened.sources,host,runtime());equal((await warm.discover(scope)).sourceIds,['Owner.md'],'Capability survives durable root codec');
+          const legacy={...decoded};delete legacy.urlIdentityVersion;const data=JSON.stringify(legacy),digest=await f.repository.observationDigest(data);
+          await edit(db,['meta'],tx=>tx.objectStore('meta').put({...root,data,digest}));
+          equal((await d.discover(scope)).reason,'dependency-pending','Old root cannot certify canonical URL absence');
+          equal((await d.discover({kind:'neighborhood',endpoints:[ref('Owner.md')]})).outcome,'ready','Historical document capability retained');
+          equal(await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll()),before,'No source head rewrite');
+          // Keeping the old digest while restoring the flag must fail before any URL cover escapes.
+          await edit(db,['meta'],tx=>tx.objectStore('meta').put({...root,digest}));
+          equal((await d.discover(scope)).reason,'dependency-invalid','URL marker is checksum-bound');
+        }finally{reopened?.close();f.close();}
+      }return true;
+    })()`),true);
   } finally { await browser.cleanup(); }
 });

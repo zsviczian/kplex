@@ -1,4 +1,4 @@
-/** Foreground availability and authority fences through production GraphIndex with real browser IndexedDB. */
+/** Eager foreground availability and authority fences through production GraphIndex with real browser IndexedDB. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { contributorBrowserBundle, contributorBrowserInitialize } from "./support/contributorBrowserFixture.mjs";
@@ -21,6 +21,7 @@ const initialize = `(() => {
       await f.acquire();ok(await f.acquisition.reconcile(),'Seeded neutral sources have genuine authority');
       const semantic={hierarchy:{hidden:['Hidden'],parents:['Parent'],children:['Child'],leftFriends:['Friend'],rightFriends:['Right'],previous:['Previous'],next:['Next']},inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
       initial=await fullCenterIndex(M,f,await hostOracle(f,[...f.files.keys()],semantic,{noteTypeField:'Type',primaryTagField:'Style'},true),semantic,centerGateSettings({showFolderNodes:false,renderSiblings:false}));
+      // These fixtures exercise optional Eager hydration/inventory authority; On-demand startup has its own suite.
       const settings={...initial.plugin.settings,lastActivePath:'A.md',pinnedNodes:[]};
       const pages=[...initial.state.pages.values()].map(page=>M.persistedPageFromGraphPage(page));
       const evidence=[...initial.state.evidence.declarations()].map(item=>M.persistedDeclarationFromEvidence(item));

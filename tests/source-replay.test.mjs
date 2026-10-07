@@ -237,7 +237,7 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
   try {
     const ids = f.app.vault.getMarkdownFiles().map(file => file.path);
     const view = centerGateSettings({ showFolderNodes: false, maxItemCount: 50, renderSiblings: true });
-    const semantic = { ...structuredClone(settings), thumbnailProperty: "Thumbnail", nodeImageProperty: "OtherImage" };
+    const semantic = { ...structuredClone(settings), indexingMode: "eager", thumbnailProperty: "Thumbnail", nodeImageProperty: "OtherImage" };
     const compilerPolicy = host => ({ hierarchy: structuredClone(host.hierarchy), thumbnailProperty: host.thumbnailProperty,
       nodeImageProperty: host.nodeImageProperty, inferAllLinksAsFriends: host.inferAllLinksAsFriends,
       inverseInfer: host.inverseInfer, showFullTagName: host.showFullTagName, tagStyleList: [...host.tagStyleList],
@@ -245,6 +245,10 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
     const presentationPolicy = host => ({ noteTypeField: host.noteTypeField, primaryTagField: host.primaryTagField });
     const initial = await hostOracle(f, ids, semantic, presentationPolicy({ ...semantic, ...view }));
     index = await fullCenterIndex(M, f, initial, semantic, view);
+    index.publishRestoredState(index.state);
+    // This fixture exercises policy refresh after a genuine complete Eager graph, rather than
+    // the newly shared local foreground path used before that full publication is ready.
+    index.fullSnapshotFresh = true;
     index.rebuildSearchIndex();
 
     // The Node fixture has no IndexedDB, so provide only the new repository-local derivative port.
@@ -342,6 +346,7 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
         // A blank index now grants no full-graph authority. Publish the genuine completed live
         // builder result through its production boundary before comparing writable candidates.
         oracle.publishRestoredState(state);
+        oracle.fullSnapshotFresh = true;
         // This oracle bypasses production source acquisition intentionally; mark its already-built
         // source authority ready so relationship-write candidate comparison remains meaningful.
         oracle.sourceAcquisition.localDependenciesReady = true;
@@ -611,6 +616,69 @@ test("opaque source/target IDs are never converted into paths and selected alias
     assert.equal(declaration.rawValue, "[[Alias#part]]");
     assert.equal(result.compilation.node(target.id).file.path, "target.png");
   } finally { f.close(); }
+});
+
+test("historical property URL bindings canonicalize on replay without rewriting lexical source facts", async () => {
+  const f = replayFixture();
+  try {
+    const raw = "https://Obsidian.md/Slug?Case=Value#Part", canonical = "https://obsidian.md/Slug?Case=Value#Part";
+    const file = f.add("Owner.md", "Resource:: " + raw, { Website: raw });
+    await acquire(f, [file.path]);
+    const snapshot = await f.repository.inspect(file.path), facts = {};
+    for (const family of ["values", "metadata", "body-urls", "resolution"]) facts[family] = await f.facts(file.path, family);
+    for (const record of facts.resolution) if (record.target?.entity.kind === "url") {
+      record.target.entity = { ...record.target.entity, id: raw, semanticPath: raw };
+    }
+    const replaced = await f.repository.replace({ sourceId: file.path, physical: snapshot.head.physical, observation: snapshot.head.observation,
+      expected: snapshot.expected, families: Object.fromEntries(Object.entries(facts).map(([family, records]) => [family, async emit => {
+        for (const record of records) if (!await emit(record)) return false; return true;
+      }])) });
+    assert.equal(replaced.outcome, "unsaved");
+    const head = await f.repository.inspect(file.path), before = f.acquisition.getCounters();
+    const oracle = await hostOracle(f, [file.path], settings);
+    f.app.vault.read = f.app.vault.cachedRead = async () => assert.fail("URL replay must not read Markdown");
+    f.repository.replace = async () => assert.fail("URL normalization cannot rewrite neutral source heads");
+    f.app.metadataCache.getFirstLinkpathDest = () => assert.fail("Stored lexical URL bindings need no resolver call");
+    const result = await f.acquisition.prepareCachedSemantics([file.path], policy(), presentation, runtime());
+    assert.equal(result.outcome, "ready", JSON.stringify(result));
+    assert.deepEqual(semanticView(result.compilation), semanticView(oracle));
+    assert.equal(result.compilation.node(canonical).url, canonical);
+    assert(!result.compilation.node(raw));
+    const declarations = [...result.compilation.declarations()].filter(item => item.sourceKind === "property-url");
+    assert.equal(declarations.length, 2);
+    assert(declarations.every(item => item.rawValue === raw));
+    assert(declarations.some(item => item.fieldName === "Website" && item.line === undefined));
+    assert(declarations.some(item => item.fieldName === "Resource" && typeof item.line === "number"));
+    assert(result.compilation.node("https://obsidian.md").neighbours.get(canonical).isChild);
+    assert.deepEqual(await f.repository.inspect(file.path), head);
+    assert.deepEqual(f.acquisition.getCounters(), before);
+    assert.deepEqual(await f.facts(file.path, "resolution"), facts.resolution);
+  } finally { f.close(); }
+});
+
+test("section expansion preserves property URL provenance above and below headings using canonical targets", async () => {
+  const f = replayFixture(); let index;
+  try {
+    const file = f.add("Owner.md", "Prelude:: https://Obsidian.md/Prelude\n# First\nResource:: https://Obsidian.md/First\n[Body](https://Obsidian.md/Body#Case)\n# Second\nResource:: https://Obsidian.md/Second",
+      { Website: "https://Obsidian.md/Frontmatter" });
+    const semantic = { ...settings, indexingMode: "eager" }, view = centerGateSettings({ renderSiblings: false });
+    const compilation = await hostOracle(f, [file.path], semantic);
+    index = await fullCenterIndex(M, f, compilation, semantic, view);
+    index.publishRestoredState(index.state); index.fullSnapshotFresh = true;
+    const expansion = await M.buildCentralSectionExpansion(index.plugin, index, index.get(file.path));
+    assert(expansion);
+    const urls = neighborhood => neighborhood.children.filter(item => item.page.url).map(item => item.page.url).sort();
+    assert.deepEqual(urls(expansion.centerNeighborhood), ["https://obsidian.md/Frontmatter", "https://obsidian.md/Prelude"]);
+    assert.deepEqual(urls(expansion.sections[0].neighborhood), ["https://obsidian.md/Body#Case", "https://obsidian.md/First"]);
+    assert.deepEqual(urls(expansion.sections[1].neighborhood), ["https://obsidian.md/Second"]);
+    const first = [...expansion.explanations.values()].flatMap(item => item.decisions).find(item =>
+      item.evidence.sourceKind === "property-url" && item.evidence.fieldName === "Resource" && item.evidence.line === 3);
+    assert(first); assert.equal(first.evidence.rawValue, "https://Obsidian.md/First");
+    f.app.vault.cachedRead = async () => assert.fail("Section reprojection must not reread Markdown");
+    const projected = M.projectCentralSectionExpansion(index.plugin, index, expansion);
+    assert.deepEqual(urls(projected.centerNeighborhood), urls(expansion.centerNeighborhood));
+    for (let n = 0; n < expansion.sections.length; n++) assert.deepEqual(urls(projected.sections[n].neighborhood), urls(expansion.sections[n].neighborhood));
+  } finally { index?.destroy(); f.close(); }
 });
 
 test("private source scopes do not import old-policy synthetic nodes and preserve shared URL origin ownership", async () => {

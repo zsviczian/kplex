@@ -268,7 +268,7 @@ export class SourceLocalContributorDiscovery {
     try {
       if (!this.current()) throw new SourceFactError("host-catalog-stale");
       const scope = copyRequest(input), keys = await queryKeys(scope, this.current, this.editablePair), keySet = new Set(keys);
-      const selected = await this.repository.lookupLocalDependencies(keys, this.current, true);
+      const selected = await this.repository.lookupLocalDependencies(keys, this.current, scope.endpoints.some(endpoint => endpoint.kind === "url") ? true : 3);
       if (selected.outcome !== "ready") {
         if (selected.reason === "dependency-invalid") this.onDependencyInvalid?.();
         return failure(selected.reason);
@@ -317,7 +317,7 @@ export class SourceLocalContributorDiscovery {
         || certificate.markdownOrder.some((value, index, values) => !Number.isSafeInteger(value) || value < 0
           || index > 0 && value <= values[index - 1]))) return "dependency-invalid";
       const reason = await this.repository.validateLocalDependencies(
-        { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }, certificate.sources, this.current, true);
+        { revision: certificate.dependency.revision, sequence: certificate.dependency.sequence }, certificate.sources, this.current, certificate.scope.endpoints.some(endpoint => endpoint.kind === "url") ? true : 3);
       if (reason === "dependency-invalid") this.onDependencyInvalid?.();
       return reason;
     } catch (error) { return error instanceof SourceFactError ? error.reason : "read-error"; }

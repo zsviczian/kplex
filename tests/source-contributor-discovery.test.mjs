@@ -228,3 +228,18 @@ test("v4 stores two complete 20,000-owner coordinates in bounded pages while the
   assert(storage.state.reads < persisted.hostLinkOwnerOrder.resolved.pages,
     `one selected rank/page must stay below full-coordinate enumeration; read ${storage.state.reads} physical pages for ${persisted.hostLinkOwnerOrder.resolved.pages} logical pages`);
 });
+
+/** Historical catalog order capabilities do not certify the newly canonical URL key space. */
+test("canonical URL capability is authenticated while legacy non-URL discovery remains available", async () => {
+  const f = fixture(); await f.seal();
+  const scope = { kind: "neighborhood", endpoints: [f.url] };
+  assert.equal((await f.discovery.discover(scope)).outcome, "ready");
+  assert.equal(JSON.parse(f.state.root.data).urlIdentityVersion, 1);
+  const legacy = JSON.parse(f.state.root.data); delete legacy.urlIdentityVersion;
+  f.state.root.data = JSON.stringify(legacy); f.state.root.digest = sha(f.state.root.data);
+  assert.equal((await f.discovery.discover(scope)).reason, "dependency-pending", "old catalog cannot certify URL absence");
+  assert.equal((await f.discovery.discover({ kind: "neighborhood", endpoints: [f.a] })).outcome, "ready", "historical document coverage retained");
+  const newer = { ...legacy, urlIdentityVersion: 2 };
+  f.state.root.data = JSON.stringify(newer); f.state.root.digest = sha(f.state.root.data);
+  assert.equal((await f.discovery.discover(scope)).reason, "dependency-invalid", "unknown URL capability fails closed");
+});

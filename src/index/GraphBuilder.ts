@@ -5,7 +5,7 @@
  * Markdown semantics progressively without exposing half-committed source state. Node-only recovery
  * streams current durable source facts through the same compiler without retaining relationships.
  * On-demand owners reuse this patch boundary and durable body records; independent background URL
- * vocabulary uses the canonical node compiler without compiling unrelated document relationships.
+ * discovery uses canonical source patches in an independent graph without unrelated document relationships.
  * Compiler and collector CPU slices dispatch host event tasks, then retain the existing caller-owned
  * cancellation and optional foreground-priority checkpoints before continuing private preparation.
  */
@@ -89,6 +89,7 @@ const FILE_OWNED_EVIDENCE = new Set<EvidenceSourceKind>([
   "frontmatter-ontology",
   "inline-ontology",
   "body-url",
+  "property-url",
   "date-property",
 ]);
 
@@ -520,7 +521,8 @@ export class GraphBuilder {
       let referenceCount = 0;
       const existingOrigins: string[] = [];
       for (const item of state.evidence.declarationsTouchingIterator(urlPath)) {
-        if (item.sourceKind === "body-url" && item.declaredTargetPath === urlPath) referenceCount += 1;
+        if (item.declaredTargetPath === urlPath && (item.sourceKind === "body-url" || item.sourceKind === "property-url"
+          || item.sourceKind === "frontmatter-ontology" || item.sourceKind === "inline-ontology")) referenceCount += 1;
         if (item.sourceKind === "url-origin" && item.declaredTargetPath === urlPath) existingOrigins.push(item.declaredByPath);
         processed += 1;
         if ((processed & 127) === 0 && !(await this.yieldToHost())) return false;
@@ -651,6 +653,94 @@ export class GraphBuilder {
       if ((pages.length & 127) === 0 && !(await this.yieldToHost())) return null;
     }
     return current() ? pages : null;
+  }
+
+  /**
+   * Replace one owner's URL-only contribution in an independent disposable graph. The canonical
+   * patch preparer and origin-lifetime reconciliation are shared with ordinary Markdown patches;
+   * existing inline/property grammar is restricted to external targets; unrelated note relations and source inventory are not acquired here.
+   * Private copy-on-write staging is committed only after exact native file/lifetime checks.
+   * @returns Paths affected by the synchronous publication, or null after supersession.
+   */
+  async patchUrlReferences(state: GraphState, file: TFile, body: ParsedBodyMetadata, publisher: PatchFilePublisher, cachedFrontmatter?: Record<string, unknown>): Promise<Set<string> | null> {
+    const revision = this.captureFileRevision(file), sourcePath = revision.path;
+    if (!this.isCurrent() || !(await this.compactPublishedPatchLayers(state))) return null;
+    const staged = this.createPatchState(state, true);
+    if (!staged.pages.has(sourcePath)) this.addPage(staged, this.createPage({ path: sourcePath, name: file.basename, file }));
+    const source = entityFactForFile(file);
+    const preparer = new NormalizedSourcePatchPreparer(nodeId(sourcePath), this.fullCompilerSettings(),
+      this.patchCompilerRuntime(), this.patchReadPort(staged));
+    const boundary = { generation: sourceGeneration(`url-owner:${sourcePath}:${revision.mtime}`),
+      snapshotRevision: sourceSnapshotRevision(`url-owner:${sourcePath}:${revision.mtime}`) };
+    const read = preparer.beginRead(boundary);
+    const entityBatch = { boundary, sequence: 0, final: body.urls.length === 0, records: [source] };
+    if (!(await preparer.acceptBatch(read, entityBatch))) return null;
+    for (let start = 0, sequence = 1; start < body.urls.length; start += 256, sequence++) {
+      const records = body.urls.slice(start, start + 256).map(/** Preserve canonical identity and lexical provenance. */
+        reference => normalizedBodyUrl(source.entity, source.sourceRevision, reference));
+      if (!(await preparer.acceptBatch(read, { boundary, sequence, final: start + 256 >= body.urls.length, records }))) return null;
+    }
+    if (!preparer.completeRead(read, boundary)) return null;
+    const references = new ObsidianReferenceSourceCollector(
+      { metadataCache: this.app.metadataCache, resolvedLinkCount: this.metadataSourceHost.resolvedLinkCount },
+      { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => 0 }, file,
+      mergeFileMetadata(this.app.metadataCache.getFileCache(file) ?? (cachedFrontmatter ? { frontmatter: cachedFrontmatter } : null), body), { externalOnly: true });
+    if (!(await this.collectPatchFinalSource(preparer, references))) return null;
+    const result = await preparer.finish();
+    if (result.outcome !== "prepared" || !this.fileRevisionMatches(file, revision)) return null;
+    const affected = new Set<string>([sourcePath]), urls = new Set<string>();
+    for (const item of staged.evidence.declarationsTouchingIterator(sourcePath)) {
+      affected.add(item.declaredTargetPath);
+      if (item.sourceKind !== "url-origin" && staged.pages.get(item.declaredTargetPath)?.url) urls.add(item.declaredTargetPath);
+    }
+    if (await staged.evidence.removeDeclarationsTouchingCooperative(sourcePath,
+      /** This isolated graph contains only the owner's canonical external URL evidence. */
+      item => item.declaredByPath === sourcePath && FILE_OWNED_EVIDENCE.has(item.sourceKind), () => this.yieldToHost()) === null) return null;
+    const origins = new Map<string, string>();
+    if (!(await this.applyPreparedSourcePatch(staged, sourcePath, result.patch, affected, origins, "patch"))) return null;
+    for (const path of affected) if (staged.pages.get(path)?.url) urls.add(path);
+    if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, origins, affected))) return null;
+    for (const path of affected) if (path !== sourcePath) {
+      this.resolvePatchEvidencePair(staged, sourcePath, path);
+      this.resolvePatchEvidencePair(staged, path, sourcePath);
+    }
+    if (!(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected))) return null;
+    if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) return null;
+    // No await below: URL source evidence, incidence and shared origin lifetimes publish together.
+    this.publishUrlPatch(state, staged, sourcePath, affected, publisher);
+    return affected;
+  }
+
+  /** Retire a removed URL-only source privately, preserving origins referenced by surviving owners. */
+  async removeUrlOwner(state: GraphState, path: string, publisher: PatchFilePublisher): Promise<Set<string> | null> {
+    if (!(await this.compactPublishedPatchLayers(state))) return null;
+    const staged = this.createPatchState(state, true), affected = new Set<string>([path]), urls = new Set<string>();
+    for (const item of staged.evidence.declarationsTouchingIterator(path)) {
+      affected.add(item.declaredTargetPath);
+      if (item.sourceKind !== "url-origin" && staged.pages.get(item.declaredTargetPath)?.url) urls.add(item.declaredTargetPath);
+    }
+    if (await staged.evidence.removeDeclarationsTouchingCooperative(path,
+      /** URL-only owner removal never erases shared synthetic origin declarations. */
+      item => item.declaredByPath === path && FILE_OWNED_EVIDENCE.has(item.sourceKind), () => this.yieldToHost()) === null) return null;
+    staged.pages.delete(path); staged.lowercasePathMap.delete(path.toLowerCase());
+    for (const target of affected) if (target !== path) staged.pages.get(target)?.neighbours.delete(path);
+    if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, new Map(), affected))
+      || !(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected)) || !this.isCurrent()) return null;
+    this.publishUrlPatch(state, staged, path, affected, publisher);
+    return affected;
+  }
+
+  /** Enforce the existing exactly-once synchronous publisher contract for URL-only source commits. */
+  private publishUrlPatch(live: GraphState, staged: GraphState, sourcePath: string, affected: Set<string>, publisher: PatchFilePublisher): void {
+    let accepting = true, published = false;
+    try {
+      publisher({ sourcePath, touchedPagePaths: affected, semanticChanged: true }, /** Commit only during the publisher call. */
+        () => {
+          if (!accepting || published) throw new Error("URL publisher callback expired or already used");
+          published = true; this.commitPatchState(live, staged);
+        });
+    } finally { accepting = false; }
+    if (!published) throw new Error("URL publisher did not publish synchronously");
   }
 
   /** Recover structural vocabulary with canonical materialization and no retained relationships. */
@@ -1412,7 +1502,8 @@ export class GraphBuilder {
           affected.add(item.declaredByPath);
           affected.add(item.declaredTargetPath);
           if (tagMembership) oldTagPaths.add(item.declaredByPath);
-          if (item.sourceKind === "body-url") oldUrlPaths.add(item.declaredTargetPath);
+          if (stagedState.pages.get(item.declaredTargetPath)?.url && (item.sourceKind === "body-url"
+            || item.sourceKind === "property-url" || item.sourceKind === "frontmatter-ontology" || item.sourceKind === "inline-ontology")) oldUrlPaths.add(item.declaredTargetPath);
         }
         processed += 1;
         if ((processed & 127) === 0 && !(await this.yieldToHost())) {
@@ -1432,7 +1523,8 @@ export class GraphBuilder {
       for (const item of stagedState.evidence.declarationsTouchingIterator(sourcePath)) {
         affected.add(item.declaredByPath);
         affected.add(item.declaredTargetPath);
-        if (item.sourceKind === "body-url") oldUrlPaths.add(item.declaredTargetPath);
+        if (stagedState.pages.get(item.declaredTargetPath)?.url && (item.sourceKind === "body-url"
+            || item.sourceKind === "property-url" || item.sourceKind === "frontmatter-ontology" || item.sourceKind === "inline-ontology")) oldUrlPaths.add(item.declaredTargetPath);
         processed += 1;
         if ((processed & 127) === 0 && !(await this.yieldToHost())) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }

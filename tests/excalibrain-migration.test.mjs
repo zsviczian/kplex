@@ -60,11 +60,14 @@ test("transient ExcaliBrain drawing paths are discarded from imported and saved 
 });
 
 test("indexing acquisition settings default conservatively, validate saved values and stay local on import", () => {
-  assert.equal(defaults.indexingMode, "eager");
-  assert.equal(defaults.urlIndexingMode, "on-demand");
+  assert.equal(defaults.indexingMode, "on-demand");
+  assert.equal(defaults.urlIndexingMode, "background");
   const invalid = migrateAndMergeSettings({ indexingMode: "invalid", urlIndexingMode: "invalid" });
-  assert.equal(invalid.indexingMode, "eager");
-  assert.equal(invalid.urlIndexingMode, "on-demand");
+  assert.equal(invalid.indexingMode, "on-demand");
+  assert.equal(invalid.urlIndexingMode, "background");
+  const savedEager = migrateAndMergeSettings({ indexingMode: "eager", urlIndexingMode: "on-demand" });
+  assert.equal(savedEager.indexingMode, "eager", "explicit saved Eager survives the new default");
+  assert.equal(savedEager.urlIndexingMode, "background", "retired URL option migrates to always-on discovery");
   const local = migrateAndMergeSettings({ indexingMode: "on-demand", urlIndexingMode: "background" });
   const imported = importExcaliBrainGraphSettings({ ...fixture, indexingMode: "eager", urlIndexingMode: "on-demand" }, local);
   assert.equal(imported.indexingMode, "on-demand");

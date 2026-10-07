@@ -178,7 +178,7 @@ export class ObsidianSourceAcquisition {
   private readonly pendingKnownFiles = new Set<TFile>();
   /** Synchronous event bursts share one deferred fan-out task per TFile. */
   private readonly pendingKnownImpacts = new Map<TFile, { oldPaths: Set<string>; canLookup: boolean }>();
-  private readonly knownFanoutTasks = new WeakMap<TFile, Promise<void>>();
+  private readonly knownFanoutTasks = new Map<TFile, Promise<void>>();
   /** Startup captures reusable stable coordinates; hot maintenance never rebuilds whole-vault order. */
   private readonly sourceCoordinates = new Map<string, SourceCoordinates>();
   /** One repair attempt per observed incarnation/revision; persistent damage cannot spin a retry loop. */
@@ -345,6 +345,7 @@ export class ObsidianSourceAcquisition {
   /** Cancel every continuation and release event/timer ownership; unload does not await persistence. */
   close(): void {
     this.closed = true; this.inventoryRevision += 1;
+    this.knownFanoutTasks.clear();
     this.nodeImpacts.clear(); this.nodeImpactBytes = 0;
     this.pendingUrlAliasSources.clear(); this.urlAliasInventoryComplete = false;
     for (const dispose of this.cleanup.splice(0)) dispose();
@@ -1128,6 +1129,15 @@ export class ObsidianSourceAcquisition {
     presentation: ObsidianMetadataSourceSettings, runtime: GraphCompilerRuntime): Promise<SourcePairPreparation> {
     this.start();
     if (!EditablePairContributorDiscovery.supports(request)) return selectedSourceFailure("unsupported-scope");
+    // A known event's cached dependency lookup can mark a selected endpoint resolution-dirty
+    // after the first attempt was prepared (for example A links to the modified note). Drain one
+    // finite snapshot of already-admitted native fanout before capturing selected revision tokens.
+    // These callbacks use existing bounded/backpressured cached lookup; they never join bodies,
+    // semantic/URL owners or inventory. Later event arrivals remain subject to normal cancellation,
+    // not a chased queue or another retry budget, and this exact pair is never enqueued as fanout.
+    const admittedFanout = [...this.knownFanoutTasks.values()];
+    if (admittedFanout.length) await Promise.all(admittedFanout);
+    if (this.closed || !runtime.isCurrent()) return selectedSourceFailure("cancelled");
     // Editable relations are owned exclusively by their document endpoints. A third note's
     // incoming URL/attachment declaration cannot describe this unordered pair. Recompute those
     // owners' host resolution even on restart: an unrelated offline alias/path edit may have

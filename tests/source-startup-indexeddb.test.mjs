@@ -273,7 +273,7 @@ for (const { cancel, retry } of [{ cancel: false, retry: false }, { cancel: true
             [...initial.state.evidence.declarations()].map(e=>M.persistedDeclarationFromEvidence(e))),'Complete acceleration seeded');
           initial.destroy();initial=null;f.acquisition.close();
           const db=await f.cache.open(),heads=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
-          index=new M.GraphIndex({app:f.app,settings:{...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
+          index=new M.GraphIndex({app:f.app,settings:{indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
           index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
           let entered=false,pagePasses=0,evidencePasses=0;
           const blocked=new Promise(resolve=>{unblock=resolve}),flush=index.sourceAcquisition.flush;
@@ -454,7 +454,7 @@ test("restart after ontology changes reuses the old graph only as a source-backe
         const db=await f.cache.open(),heads=await value(db.transaction('sourceHeads').objectStore('sourceHeads').getAll());
         initial.destroy();initial=null;f.acquisition.close();
         const changed={...semantic,hierarchy:{...semantic.hierarchy,leftFriends:[],rightFriends:['Friends']}};
-        index=new M.GraphIndex({app:f.app,settings:{...changed,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
+        index=new M.GraphIndex({app:f.app,settings:{indexingMode:'eager',...changed,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
         index.scheduleOrphanCleanup=()=>{};
         release=index.acquireSemanticDemand('A.md');
         const restore=await index.restorePersistedSnapshot(['A.md']);ok(restore.restored,'Changed policy does not discard physical acceleration '+JSON.stringify({restore,diagnostics:index.getIndexDiagnostics(),source:index.getSourceRepositoryDiagnostics(),catalog:await index.indexedDb.readSnapshotCatalog(),comparison:M.compareIndexSettingsSignature?.((await index.indexedDb.readSnapshotCatalog()).active?.settingsSignature,index.plugin.settings)}));
@@ -504,7 +504,7 @@ for (const damage of ["missing", "metadata", "chunks", "offline-edit"]) {
           if(damage==='chunks')await edit(db,['snapshotChunks'],tx=>tx.objectStore('snapshotChunks').clear());
           initial.destroy();initial=null;f.acquisition.close();
           if(damage==='offline-edit'){f.files.get('A.md').stat.mtime++;f.texts.set('A.md','Friends:: [[B]]\\nFriends:: [[Ghost]]');}
-          index=new M.GraphIndex({app:f.app,settings:{...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
+          index=new M.GraphIndex({app:f.app,settings:{indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
           index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
           ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Source progress restores requested startup');
           if(index.hasPendingSnapshotHydration())await index.waitForSnapshotHydration();
@@ -542,7 +542,7 @@ test("unavailable storage does not fabricate source-backed readiness", async () 
     assert.equal(await browser.evaluate(`(async()=>{
       const M=sourceModules,f=await fixture('si5-unavailable');f.app.vault.getName=()=> 'si5-unavailable';
       const view=${centerGateSettings.toString()}({showFolderNodes:false});
-      const index=new M.GraphIndex({app:f.app,settings:{hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},tagStyleList:[],inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,maxLabelLength:30,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
+      const index=new M.GraphIndex({app:f.app,settings:{indexingMode:'eager',hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},tagStyleList:[],inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,maxLabelLength:30,...view,lastActivePath:'A.md',pinnedNodes:[]},getIndexSourceRevision:()=>0},f.app);
       try {
         index.indexedDb.open=async()=>null;
         const restored=await index.restorePersistedSnapshot(['A.md']);equal(restored.restored,false,'No source/graph fabricated');
@@ -560,7 +560,7 @@ test("a damaged requested source schedules one local repair and automatic ready 
     assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
     assert.equal(await browser.evaluate(`(async()=>{
       const M=sourceModules,f=await fixture('si5-requested-repair');
-      const policy={revision:'si5',settings:{hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
+      const policy={revision:'si5',settings:{indexingMode:'eager',hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
         inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30},isCurrent:()=>true};
       const gates={revision:'si5',settings:{excludeFilepaths:[],showVirtualNodes:true,showAttachments:true,showFolderNodes:false,showTagNodes:true,showPageNodes:true,showURLNodes:true,showInferredNodes:true},isCurrent:()=>true};
       const presentation={noteTypeField:'Type',primaryTagField:'Style'},request={kind:'neighborhood',center:ref('A.md')};
@@ -608,7 +608,7 @@ test("source-backed node vocabulary preserves shared URL lifetime through ordina
         const url='https://example.com/shared';
         f.add('A.md','');f.add('C.md','[First label]('+url+')');f.add('D.md','[Second label]('+url+')');
         await f.acquire();ok(await f.acquisition.reconcile(),'Durable source inventory');f.acquisition.close();
-        const settings={...centerGateSettings({showFolderNodes:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},
+        const settings={indexingMode:'eager',...centerGateSettings({showFolderNodes:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},
           inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30,lastActivePath:'A.md'};
         index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);
         index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
@@ -661,7 +661,7 @@ test("source-backed vocabulary repairs deleted owners without a graph or vocabul
         f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
         f.add('A.md','');f.add('C.md','Friends:: [[Ghost]]\\n[Deleted URL](https://example.com/deleted)');
         await f.acquire();ok(await f.acquisition.reconcile(),'Initial facts');f.acquisition.close();
-        const settings={...centerGateSettings({showFolderNodes:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
+        const settings={indexingMode:'eager',...centerGateSettings({showFolderNodes:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
           inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30,lastActivePath:'A.md'};
         index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
         ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Source-backed restore');ok(index.hasPendingSearchVocabulary(),'Physical baseline is not global vocabulary');
@@ -697,7 +697,7 @@ for (const stage of ["replay", "presentation"]) test(`embedded-center toggle dur
         await f.acquire();ok(await f.acquisition.reconcile(),'Durable source inventory');
         const semantic={hierarchy:{hidden:[],parents:[],children:[],leftFriends:['Friends'],rightFriends:[],previous:[],next:[]},
           inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30};
-        const view=centerGateSettings({showFolderNodes:false}),settings={...semantic,...view,lastActivePath:'A.md',embedCentralNode:false};
+        const view=centerGateSettings({showFolderNodes:false}),settings={indexingMode:'eager',...semantic,...view,lastActivePath:'A.md',embedCentralNode:false};
         initial=await fullCenterIndex(M,f,await hostOracle(f,['A.md','B.md','C.md'],semantic,{noteTypeField:'Type',primaryTagField:'Style'},true),semantic,view);
         ok(await f.cache.writeSnapshot({createdAt:Date.now(),vaultSignature:M.computeVaultSignature(f.app),
           settingsSignature:M.computeIndexSettingsSignature(initial.plugin.settings),discoveredFields:[]},
@@ -744,7 +744,7 @@ for (const cancellation of ["policy", "restore"]) test(`late ${cancellation} can
         f.app.vault.getName=()=> 'si5-node-cancellation';
         f.app.vault.getAbstractFileByPath=path=>f.files.get(path)??(path==='/'||path===''?f.app.vault.getRoot():null);
         f.add('A.md','');f.add('C.md','[URL](https://example.com/late)');await f.acquire();ok(await f.acquisition.reconcile(),'Initial facts');f.acquisition.close();
-        const settings={...centerGateSettings({showFolderNodes:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},
+        const settings={indexingMode:'eager',...centerGateSettings({showFolderNodes:false}),hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[]},
           inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:[],maxLabelLength:30,lastActivePath:'A.md'};
         index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};release=index.acquireSemanticDemand('A.md');
         let finished;const catalogFinished=new Promise(r=>finished=r);originalCatalog=M.GraphBuilder.prototype.buildSourceNodeCatalog;

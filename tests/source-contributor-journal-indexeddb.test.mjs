@@ -196,20 +196,21 @@ test("real Chromium owner repair journal: atomic authority, recovery, leases and
       })()`), true);
     });
 
-    await t.test("actual v6 database upgrades additively to v9 and preserves every accepted record", async () => {
+    await t.test("actual v6 database upgrades additively to v10 and preserves every accepted record", async () => {
       assert.equal(await browser.evaluate(`(async()=>{
-        const M=sourceModules,seed=await repairSeed('s2-migration-seed'),db=await seed.cache.open(),names=[...db.objectStoreNames].filter(name=>![M.SOURCE_IMPACT_STORE,M.SOURCE_LOCAL_DEPENDENCY_STORE,M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_KEY_STORE,M.SOURCE_LOCAL_REPAIR_STORE].includes(name)),rows={},schema=[];
+        const M=sourceModules,seed=await repairSeed('s2-migration-seed'),db=await seed.cache.open(),names=[...db.objectStoreNames].filter(name=>![M.SOURCE_IMPACT_STORE,M.SOURCE_LOCAL_DEPENDENCY_STORE,M.SOURCE_LOCAL_OWNER_STORE,M.SOURCE_LOCAL_KEY_STORE,M.SOURCE_LOCAL_REPAIR_STORE,'urlOwners'].includes(name)),rows={},schema=[];
         for(const name of names){const store=db.transaction(name).objectStore(name);schema.push({name,keyPath:store.keyPath,indexes:[...store.indexNames].filter(index=>index!==M.SOURCE_IMPACT_LEASE_INDEX).map(index=>{const i=store.index(index);return {name:index,keyPath:i.keyPath,unique:i.unique,multiEntry:i.multiEntry};})});rows[name]=await value(store.getAll());}
         rows.meta=rows.meta.filter(row=>row.key!==M.SOURCE_IMPACT_ENABLED_KEY&&row.key!==M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY);seed.close();
         const old=await rawOpen(dbName('s2-migrate-v6'),6,db=>{for(const spec of schema){const store=db.createObjectStore(spec.name,{keyPath:spec.keyPath});for(const index of spec.indexes)store.createIndex(index.name,index.keyPath,{unique:index.unique,multiEntry:index.multiEntry});}});
-        await edit(old,names,tx=>{for(const name of names)for(const row of rows[name])tx.objectStore(name).put(row);});equal(old.version,6,'Actual old database, not just old root bytes');old.close();
-        const cache=new M.KplexIndexedDbCache('s2-migrate-v6'),upgraded=await cache.open();equal(upgraded.version,9,'Version upgrade');
+        await edit(old,names,tx=>{for(const name of names)for(const row of rows[name])tx.objectStore(name).put(row);});equal(old.version,6,'Actual old database, not just old root bytes');ok(!old.objectStoreNames.contains('urlOwners'),'Genuine v6 schema has no independent URL cache');old.close();
+        const cache=new M.KplexIndexedDbCache('s2-migrate-v6'),upgraded=await cache.open();equal(upgraded.version,10,'Version upgrade');
         for(const name of names){
           const upgradedRows=await value(upgraded.transaction(name).objectStore(name).getAll());
           equal(name==='meta'?upgradedRows.filter(row=>row.key!==M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY):upgradedRows,rows[name],name+' exact structured-record preservation');
         }
         equal(await value(upgraded.transaction('meta').objectStore('meta').get(M.SOURCE_LOCAL_DEPENDENCY_STATE_KEY)),M.sourceLocalDependencyState(),'New local derivative starts incomplete');
         ok(upgraded.objectStoreNames.contains(M.SOURCE_IMPACT_STORE),'New derivative journal store');equal(await value(upgraded.transaction(M.SOURCE_IMPACT_STORE).objectStore(M.SOURCE_IMPACT_STORE).count()),0,'Migration invents no dirty owners');
+        ok(upgraded.objectStoreNames.contains('urlOwners'),'Independent URL cache added in the version-change transaction');equal(await value(upgraded.transaction('urlOwners').objectStore('urlOwners').count()),0,'Migration invents no URL source facts');
         ok(upgraded.transaction('meta').objectStore('meta').indexNames.contains(M.SOURCE_IMPACT_LEASE_INDEX),'Additive lease index');cache.close();return true;
       })()`), true);
     });

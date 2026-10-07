@@ -25,7 +25,7 @@ export function centerGatePolicy(settings, overrides = {}) {
  */
 export async function fullCenterIndex(M, f, compilation, semantic, presentation) {
   const app = { ...f.app, vault: { ...f.app.vault, getName: () => "private-center-gate-oracle" } };
-  const plugin = { app, settings: { ...semantic, ...presentation }, getIndexSourceRevision: () => f.acquisition.hostRevision };
+  const plugin = { app, settings: { indexingMode: "eager", ...semantic, ...presentation }, getIndexSourceRevision: () => f.acquisition.hostRevision };
   const index = new M.GraphIndex(plugin, app);
   try {
     const builder = new M.GraphBuilder(plugin, app, new Map(), index.metadataParser, index.indexedDb, () => true);
