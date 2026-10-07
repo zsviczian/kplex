@@ -68,7 +68,7 @@ export const englishCatalog = {
     params: [],
   },
   "styles.legacyTagHelp": {
-    message: "Style notes whose primary style tag starts with this prefix. Imported tag styles keep their original matching order.",
+    message: "Style notes whose primary style tag starts with this prefix. The first matching tag style takes priority.",
     context: "K-Plex node style settings and imported style management.",
     params: [],
   },
@@ -76,6 +76,16 @@ export const englishCatalog = {
     message: "Style notes where “{property}” matches this value. Existing values and vault tags are suggested as you type.",
     context: "K-Plex node style settings and imported style management.",
     params: ["property"],
+  },
+  "styles.type": {
+    message: "Style type",
+    context: "Choose property-value matching or primary-style-tag-prefix matching for a new style; existing styles retain their type.",
+    params: [],
+  },
+  "styles.tagPrefixPlaceholder": {
+    message: "#project",
+    context: "Example tag prefix; users may type the prefix with or without its leading hashtag.",
+    params: [],
   },
   "styles.tagPrefix": {
     message: "Tag prefix",
@@ -88,7 +98,7 @@ export const englishCatalog = {
     params: [],
   },
   "styles.legacyTag": {
-    message: "Imported tag style",
+    message: "Tag style",
     context: "K-Plex node style settings and imported style management.",
     params: [],
   },
@@ -98,7 +108,7 @@ export const englishCatalog = {
     params: [],
   },
   "styles.managerHelp": {
-    message: "Manage styles for values of “{property}” and imported tag styles.",
+    message: "Manage styles for values of “{property}” and tag prefixes.",
     context: "K-Plex node style settings and imported style management.",
     params: ["property"],
   },
@@ -118,7 +128,7 @@ export const englishCatalog = {
     params: [],
   },
   "styles.settingsSummary": {
-    message: "{count} custom styles. Search and edit property-value and imported tag styles.",
+    message: "{count} custom styles. Search and edit property-value and tag styles.",
     context: "K-Plex node style settings and imported style management.",
     params: ["count"],
   },

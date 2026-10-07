@@ -16,14 +16,38 @@ const fixture = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-m
 const temp = mkdtempSync(join(tmpdir(), "kplex-migration-"));
 process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
 await build({
-  stdin: { contents: 'export * from "./src/settings"; export * from "./src/core/graph/settingsPolicy"; export * from "./src/index/style"; export * from "./src/ui/layout"; export * from "./src/ui/PurgeIndexCacheModal";', resolveDir: root },
+  stdin: { contents: 'export * from "./src/settings"; export * from "./src/core/graph/settingsPolicy"; export * from "./src/index/style"; export * from "./src/ui/layout"; export * from "./src/ui/PurgeIndexCacheModal"; export { Modal as TestModal, AbstractInputSuggest as TestSuggest } from "obsidian";', resolveDir: root },
   outfile: join(temp, "migration.mjs"), bundle: true, platform: "node", format: "esm",
   plugins: [{ name: "obsidian-boundary-double", setup(builder) {
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "double" }));
     builder.onLoad({ filter: /.*/, namespace: "double" }, () => ({ contents: `
       export class App {}
+      /** Narrow form-shell double: production modal fields, listeners and save callbacks remain real. */
+      class FormElement {
+        constructor(tag = "div", options = {}) {
+          this.tag = tag; this.children = []; this.buttons = []; this.listeners = {}; this.value = options.value ?? "";
+          this.text = options.text ?? ""; this.attrs = {}; this.visible = true;
+          const classes = new Set((options.cls ?? "").split(" ").filter(Boolean));
+          this.classList = { add(...names) { names.forEach(name => classes.add(name)); }, remove(...names) { names.forEach(name => classes.delete(name)); }, contains(name) { return classes.has(name); } };
+          Object.entries(options.attr ?? {}).forEach(([name, value]) => this.setAttribute(name, value));
+        }
+        addClass(name) { this.classList.add(name); }
+        createEl(tag, options) { const child = new FormElement(tag, options); this.appendChild(child); return child; }
+        createDiv(options) { return this.createEl("div", options); }
+        createSpan(options) { return this.createEl("span", options); }
+        appendChild(child) { if (child.parent) child.parent.children = child.parent.children.filter(item => item !== child); this.children.push(child); child.parent = this; }
+        prepend(child) { this.appendChild(child); this.children = [child, ...this.children.filter(item => item !== child)]; }
+        setText(text) { this.text = text; }
+        setAttribute(name, value) { this.attrs[name] = value; if (name === "type") this.type = value; }
+        setCssProps() {}
+        toggle(value) { this.visible = value; }
+        focus() { this.focused = true; }
+        addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+        dispatchEvent(event) { for (const fn of this.listeners[event.type] ?? []) fn(event); return true; }
+        empty() { this.children = []; this.buttons = []; }
+      }
       export class Modal {
-        constructor(app) { this.app = app; this.titleEl = { setText(text) { this.text = text; } }; this.contentEl = { buttons: [], createEl() {}, empty() {} }; }
+        constructor(app) { this.app = app; this.titleEl = new FormElement(); this.contentEl = new FormElement(); this.modalEl = new FormElement(); Modal.latest = this; }
         open() { this.onOpen?.(); }
         close() { this.closed = true; this.onClose?.(); }
       }
@@ -35,14 +59,19 @@ await build({
           this.container.buttons.push(button); cb(button); return this;
         }
       }
-      export class AbstractInputSuggest {}
+      export class AbstractInputSuggest {
+        static instances = [];
+        constructor(app, input) { this.input = input; AbstractInputSuggest.instances.push(this); }
+        setValue(value) { this.input.value = value; }
+        close() { this.closed = true; }
+      }
       export class PluginSettingTab { constructor(app) { this.app = app; this.containerEl = { addClass() {} }; } }
       export const getIcon = () => null; export const getIconIds = () => []; export const getLanguage = () => "en";
     `, loader: "js" }));
   } }],
 });
 const { migrateAndMergeSettings, importExcaliBrainGraphSettings, KplexSettingTab, resolveNodeStyle, resolveLinkStyle, buildScene, PurgeIndexCacheModal,
-  captureSettingsPolicy, classifySettingsChange, encodeIndexSettingsSignature } = await import(pathToFileURL(join(temp, "migration.mjs")));
+  captureSettingsPolicy, classifySettingsChange, encodeIndexSettingsSignature, TestModal, TestSuggest } = await import(pathToFileURL(join(temp, "migration.mjs")));
 const defaults = migrateAndMergeSettings(undefined);
 const migrated = importExcaliBrainGraphSettings(fixture);
 
@@ -330,6 +359,182 @@ test("settings manager exposes imported tag styles without converting their matc
   const manager = flatten(tab.getSettingDefinitions()).find(item => item.name === "Node styles");
   assert.equal(typeof manager.action, "function");
   assert(manager.desc.startsWith("33 custom styles."), "Settings count must include both style families");
+});
+
+
+/** Find the actual production form controls through the narrow native-shell double. */
+function formElements(modal) {
+  const visit = element => [element, ...element.children.flatMap(visit)];
+  return visit(modal.contentEl);
+}
+
+/** Dispatch user-level form events; save callbacks keep their asynchronous production sequencing. */
+async function activate(element, type = "click") {
+  element.dispatchEvent(new Event(type));
+  await new Promise(resolve => setImmediate(resolve));
+}
+
+/** Supply indexed hints and observe appearance-only saves without substituting the production editor. */
+function styleEditorFixture(settings = structuredClone(defaults)) {
+  const saves = [];
+  const plugin = { settings, saveSettings: async (...args) => { saves.push(args); }, index: { allPages: () => [
+    { noteType: "Project", tags: ["#project/active", "project/backlog"] },
+    { noteType: "Person", tags: ["#person"] },
+  ] } };
+  const tab = new KplexSettingTab({}, plugin);
+  tab.update = () => {};
+  return { tab, settings, saves, plugin };
+}
+
+/** Mount the real modal logic with timers isolated to this form-shell test, never native acceptance. */
+function openStyle(tab, kind, name = null) {
+  const priorWindow = globalThis.window;
+  try {
+    globalThis.window = { setTimeout(callback) { callback(); return 0; } };
+    tab.openNodeStyleEditor(kind, name);
+    return TestModal.latest;
+  } finally { globalThis.window = priorWindow; }
+}
+
+test("new node style explicitly selects a tag prefix and preserves the appearance draft while switching", async () => {
+  const { tab, settings, saves } = styleEditorFixture();
+  const modal = openStyle(tab, "property");
+  const elements = formElements(modal);
+  const select = elements.find(element => element.tag === "select");
+  const byLabel = name => elements.find(element => element.attrs["aria-label"] === name);
+  assert.deepEqual(select.children.map(option => [option.value, option.text]), [["property", "Property value"], ["tag", "Tag prefix"]]);
+  assert.equal(select.disabled, false);
+  const name = byLabel("Property value"), icon = byLabel("Lucide icon"), prefix = byLabel("Label prefix");
+  icon.value = "briefcase"; byLabel("Background").value = "#123456"; byLabel("Font size").value = "23";
+  assert.equal(prefix.parent.visible, false);
+  select.value = "tag"; await activate(select, "change");
+  assert.equal(name.attrs["aria-label"], "Tag prefix");
+  assert.equal(name.placeholder, "#project"); assert.equal(prefix.parent.visible, true);
+  prefix.value = "Work ";
+  const suggest = TestSuggest.instances.findLast(instance => instance.input === name);
+  assert(suggest.getSuggestions("").every(item => item.value.startsWith("#") && item.kind !== "property"));
+  const suggested = suggest.getSuggestions("backlog")[0];
+  suggest.selectSuggestion(suggested);
+  assert.equal(name.value, "#project/backlog");
+  select.value = "property"; await activate(select, "change");
+  assert.equal(name.attrs["aria-label"], "Property value");
+  assert(suggest.getSuggestions("").some(item => item.value === "Project" && item.kind === "property"));
+  assert(suggest.getSuggestions("backlog").some(item => item.value === "project/backlog"));
+  select.value = "tag"; await activate(select, "change");
+  assert.equal(prefix.value, "Work "); assert.equal(icon.value, "briefcase");
+  name.value = " ##project/backlog ";
+  await activate(elements.find(element => element.text === "Save"));
+  assert.equal(modal.closed, true);
+  assert.deepEqual(Object.keys(settings.tagNodeStyles), ["#project/backlog"]);
+  assert.deepEqual(settings.tagStyleList, ["#project/backlog"]);
+  assert.deepEqual(settings.noteTypeStyles, {});
+  assert.equal(settings.tagNodeStyles["#project/backlog"].icon, "briefcase");
+  assert.equal(settings.tagNodeStyles["#project/backlog"].prefix, "Work ");
+  assert.equal(settings.tagNodeStyles["#project/backlog"].backgroundColor, "#123456ff");
+  assert.equal(settings.tagNodeStyles["#project/backlog"].fontSize, 23);
+  const effective = resolveNodeStyle({ primaryStyleTag: "#project/backlog/task", styleTags: [], file: { extension: "md" }, noteType: null }, null, "center", settings);
+  assert.equal(effective.icon, "briefcase"); assert.equal(effective.backgroundColor, "#123456ff");
+  assert.equal(suggest.closed, true);
+  assert.deepEqual(saves, [[false]]);
+  assert.match(elements.find(element => element.tag === "p").text, /primary style tag/);
+});
+
+test("empty tag prefixes cannot save and property suggestions retain property normalization", async () => {
+  const { tab, settings, saves } = styleEditorFixture();
+  const tag = openStyle(tab, "tag"); const elements = formElements(tag);
+  const name = elements.find(element => element.attrs["aria-label"] === "Tag prefix");
+  const save = elements.find(element => element.text === "Save");
+  for (const invalid of ["", "  ", "#", " ### "]) {
+    name.value = invalid; await activate(save);
+    assert.equal(tag.closed, undefined); assert.equal(name.classList.contains("is-invalid"), true);
+    assert.equal(saves.length, 0); assert.deepEqual(settings.tagStyleList, []);
+  }
+  name.value = "new/prefix"; await activate(name, "input");
+  assert.equal(name.classList.contains("is-invalid"), false);
+  await activate(save); assert(settings.tagNodeStyles["#new/prefix"]);
+  const property = openStyle(tab, "property"); const propertyElements = formElements(property);
+  const input = propertyElements.find(element => element.attrs["aria-label"] === "Property value");
+  const suggest = TestSuggest.instances.findLast(instance => instance.input === input);
+  suggest.selectSuggestion(suggest.getSuggestions("backlog")[0]);
+  assert.equal(input.value, "project/backlog");
+  await activate(propertyElements.find(element => element.text === "Save"));
+  assert(settings.noteTypeStyles["project/backlog"]);
+  assert.deepEqual(settings.tagStyleList, ["#new/prefix"]);
+  assert.deepEqual(saves, [[false], [false]]);
+});
+
+test("editing imported tag styles retains family, exact unchanged keys, appearance and first-match priority", async () => {
+  const original = structuredClone(migrated);
+  original.tagNodeStyles["old-prefix"] = { prefix: "Legacy ", icon: "box", backgroundColor: "#10203080", fontSize: 19 };
+  original.tagStyleList.splice(2, 0, "old-prefix");
+  original.noteTypeStyles["old-prefix"] = { icon: "user" };
+  const beforeTags = structuredClone(original.tagNodeStyles), beforeOrder = [...original.tagStyleList];
+  const { tab, settings, saves } = styleEditorFixture(original);
+  const modal = openStyle(tab, "tag", "old-prefix"); const elements = formElements(modal);
+  const select = elements.find(element => element.tag === "select");
+  assert.equal(select.disabled, true); assert.equal(select.value, "tag");
+  select.value = "property"; await activate(select, "change");
+  assert.equal(elements.find(element => element.tag === "p").text.includes("primary style tag"), true);
+  await activate(elements.find(element => element.text === "Save"));
+  assert.deepEqual(settings.tagStyleList, beforeOrder);
+  assert.deepEqual(JSON.parse(JSON.stringify(settings.tagNodeStyles)), beforeTags);
+  assert.deepEqual(settings.noteTypeStyles["old-prefix"], { icon: "user" });
+  const renamed = openStyle(tab, "tag", "old-prefix"); const renameElements = formElements(renamed);
+  renameElements.find(element => element.attrs["aria-label"] === "Tag prefix").value = "new-prefix";
+  await activate(renameElements.find(element => element.text === "Save"));
+  assert.deepEqual(settings.tagStyleList, beforeOrder.map(key => key === "old-prefix" ? "#new-prefix" : key));
+  assert.equal(settings.tagNodeStyles["old-prefix"], undefined);
+  assert.equal(settings.tagNodeStyles["#new-prefix"].backgroundColor, "#10203080");
+  const fresh = openStyle(tab, "tag"); const freshElements = formElements(fresh);
+  freshElements.find(element => element.attrs["aria-label"] === "Tag prefix").value = "#fresh";
+  await activate(freshElements.find(element => element.text === "Save"));
+  assert.equal(settings.tagStyleList.at(-1), "#fresh");
+  const remove = openStyle(tab, "tag", "#new-prefix");
+  await activate(formElements(remove).find(element => element.text === "Delete"));
+  assert.deepEqual(settings.tagStyleList, [...beforeOrder.filter(key => key !== "old-prefix"), "#fresh"]);
+  assert.equal(settings.tagNodeStyles["#new-prefix"], undefined);
+  assert.deepEqual(settings.noteTypeStyles["old-prefix"], { icon: "user" });
+  assert.deepEqual(saves, [[false], [false], [false], [false]]);
+});
+
+
+test("unchanged tag edits preserve an inherited label prefix instead of storing an empty override", async () => {
+  const { tab, settings } = styleEditorFixture();
+  const original = { icon: "info", backgroundColor: "#581c87ff", borderColor: "#d8b4feff", textColor: "#ffffffff", strokeWidth: 2 };
+  settings.tagNodeStyles["#without-prefix"] = { ...original };
+  settings.tagStyleList = ["#without-prefix"];
+  const modal = openStyle(tab, "tag", "#without-prefix");
+  await activate(formElements(modal).find(element => element.text === "Save"));
+  assert.deepEqual(JSON.parse(JSON.stringify(settings.tagNodeStyles["#without-prefix"])), original);
+  assert.equal(resolveNodeStyle({ primaryStyleTag: "#without-prefix", styleTags: [], file: { extension: "md" }, noteType: null }, null, "center", settings).prefix, settings.baseNodeStyle.prefix);
+});
+
+test("style callbacks target current settings and existing property edits keep property-value normalization", async () => {
+  const { tab, settings, plugin, saves } = styleEditorFixture();
+  settings.noteTypeStyles["#legacy"] = { icon: "box" };
+  const modal = openStyle(tab, "property", "#legacy");
+  const controls = formElements(modal);
+  assert.equal(controls.find(element => element.tag === "select").disabled, true);
+  const replacement = structuredClone(settings);
+  replacement.tagNodeStyles["#retained"] = { icon: "info" }; replacement.tagStyleList = ["#retained"];
+  plugin.settings = replacement;
+  await activate(controls.find(element => element.text === "Save"));
+  assert.equal(replacement.noteTypeStyles["#legacy"], undefined);
+  assert.equal(replacement.noteTypeStyles.legacy.icon, "box");
+  assert(settings.noteTypeStyles["#legacy"], "Opening snapshot must not become the persistence target");
+  const tag = openStyle(tab, "tag");
+  const tagControls = formElements(tag);
+  tagControls.find(element => element.attrs["aria-label"] === "Tag prefix").value = "fresh";
+  await activate(tagControls.find(element => element.text === "Save"));
+  assert.deepEqual(replacement.tagStyleList, ["#retained", "#fresh"]);
+  assert.deepEqual(settings.tagStyleList, []);
+  const remove = openStyle(tab, "tag", "#fresh");
+  const finalSettings = structuredClone(replacement); plugin.settings = finalSettings;
+  await activate(formElements(remove).find(element => element.text === "Delete"));
+  assert.equal(finalSettings.tagNodeStyles["#fresh"], undefined);
+  assert.deepEqual(finalSettings.tagStyleList, ["#retained"]);
+  assert(replacement.tagNodeStyles["#fresh"]);
+  assert.deepEqual(saves, [[false], [false], [false]]);
 });
 
 

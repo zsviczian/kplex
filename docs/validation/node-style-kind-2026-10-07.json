@@ -1,0 +1,272 @@
+{
+  "date": "2026-10-07",
+  "scope": "Explicit property-value or tag-prefix choice when adding a node style",
+  "base": "4a9bde9",
+  "status": "passed",
+  "cause": "Add style always selected the property-value editor/save destination; tag suggestions intentionally stripped # for property mode. Existing tag styles had a separate edit-only path.",
+  "design": {
+    "creation": "Style type choice: Property value / Tag prefix",
+    "tagInput": "New or explicitly renamed prefixes accept with/without #; save exactly one leading #; empty or bare # rejected",
+    "tagStorage": "Existing tagNodeStyles and tagStyleList; append new prefixes, retain rename priority",
+    "propertyStorage": "Existing noteTypeStyles and property normalization",
+    "edit": "Type fixed; unchanged imported tag spelling/order/alpha retained",
+    "draft": "Icon/colors/font/label prefix retained when switching creation type",
+    "suggestions": "One indexed-page pass prepares both lists; tag mode excludes property values and retains # on selection",
+    "semantics": "Existing primary-style-tag prefix matching and property override precedence unchanged",
+    "schemaChanges": false,
+    "semanticOwnerChanges": false,
+    "c15Started": false
+  },
+  "localization": "Existing strict catalog contract requires every styles.* entry in all bundled locales; add matching keys and remove imported-only wording without changing fallback rules.",
+  "baselineNative": {
+    "vault": "kplex-test-small",
+    "tagStyles": 8,
+    "propertyStyles": 0,
+    "addSelectCount": 0,
+    "addLabels": [
+      "Property value",
+      "Lucide icon",
+      "Background",
+      "Text",
+      "Border",
+      "Font size"
+    ],
+    "firstProbeFailed": "Probe initially used main document instead of owning settings document; final baseline captured real form and closed dialogs."
+  },
+  "source": {
+    "inputs": 278,
+    "sha256": "65d4c667456f8ab87034ae8492e847cd7280eff8281e6f34d80cf61324dc1ea7"
+  },
+  "gitActionsRequested": false,
+  "offlineFocused": {
+    "node": "22.22.2",
+    "tests": 43,
+    "failures": 0,
+    "skips": 0,
+    "realBuildPassed": true,
+    "scannerErrors": 0,
+    "scannerWarnings": 1,
+    "nativeEvidenceClaimed": false
+  },
+  "review": {
+    "owner": "Existing settings modal and style manager",
+    "reusesExistingResolver": true,
+    "allDiffsReviewed": true,
+    "modeSwitchKeepsControls": true,
+    "saveDeleteReacquireSettings": true,
+    "unknownStyleFieldsPreserved": true,
+    "suggestionPopoversClosedOnModalTeardown": true,
+    "existingPropertyNormalizationRetained": true,
+    "transientHandoffPreserved": true
+  },
+  "firstFullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "hash": "185ed88884472e7866dd6c51817cd36e5c6f94d1d9c8f19acf3f0caa4828d7a6",
+    "inputs": 278,
+    "node": "v22.22.2",
+    "checks": {
+      "architecture": 7,
+      "core": 69,
+      "node": 296,
+      "ui": 18,
+      "portableSource": 333,
+      "browser": 410
+    },
+    "artifacts": {
+      "main.js": "8230b08d62cbeb0c3c37a42f18efd9dfcff995ba1c755a26994865da2c9b9467",
+      "styles.css": "d9ca9609bbbd16b60e5338a9c228e7e0f0fca4cf468d09bcfc4e77b649f13e7e",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62"
+    }
+  },
+  "firstNativeAttempt": {
+    "status": "failed",
+    "artifact": "8230b08d62cbeb0c3c37a42f18efd9dfcff995ba1c755a26994865da2c9b9467",
+    "passedScenarios": [
+      {
+        "id": "tag-creation",
+        "passed": true,
+        "draft": {
+          "labels": [
+            "Style type",
+            "Tag prefix",
+            "Label prefix",
+            "Lucide icon",
+            "Background",
+            "Text",
+            "Border",
+            "Font size"
+          ],
+          "icon": "route",
+          "font": "24",
+          "background": "#123456",
+          "type": "tag"
+        },
+        "suggestionRetainsHash": true,
+        "bareHashRejected": true,
+        "persistedDestination": "tagNodeStyles",
+        "appendedPriority": true
+      },
+      {
+        "id": "property-creation",
+        "passed": true,
+        "persistedDestination": "noteTypeStyles",
+        "leadingHashStripped": true,
+        "separateTagRetained": true
+      },
+      {
+        "id": "tag-edit-rename",
+        "passed": true,
+        "typeLocked": true,
+        "leadingHashNormalized": true,
+        "priorityPreserved": true
+      }
+    ],
+    "failure": "Unchanged existing tag save added prefix: empty string where the stored field was absent.",
+    "settingsBytesRestored": true,
+    "enablementBytesPreserved": true,
+    "initialCleanupAuditPassed": false,
+    "modalCleanup": "Immediate retirement audit observed1 editor; subsequent Cancel and independent audit confirmed zero editors/managers/controllers. Final harness waits for actual dialog retirement."
+  },
+  "correction": {
+    "owner": "Existing node-style modal draft serialization",
+    "behavior": "Only add a prefix override if input changed; unchanged absent field remains inherited, existing explicit prefix remains via initial-style spread.",
+    "regression": "Exact serialized equality plus real resolver inheritance for unchanged no-prefix style;21 focused migration/form tests pass.",
+    "independentReview": "Offline reviewer approved read-only; no further edits/checks requested.",
+    "initialFocusedCandidate": "Assigning undefined rather than omitting an absent prefix failed the inheritance regression (20/21); final conditional omission passes21/21."
+  },
+  "finalFullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "hash": "65d4c667456f8ab87034ae8492e847cd7280eff8281e6f34d80cf61324dc1ea7",
+    "inputs": 278,
+    "node": "v22.22.2",
+    "checks": {
+      "architecture": 7,
+      "core": 69,
+      "node": 297,
+      "ui": 18,
+      "portableSource": 333,
+      "browser": 410
+    },
+    "artifacts": {
+      "main.js": "236399f5df626eb52286bbe00ca62107a295b4345b2ef81e8e50e397a206c5cc",
+      "styles.css": "d9ca9609bbbd16b60e5338a9c228e7e0f0fca4cf468d09bcfc4e77b649f13e7e",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62"
+    },
+    "mandatoryScale": {
+      "owners": 20015,
+      "durationMs": 271810.355541,
+      "passed": true
+    },
+    "scanner": {
+      "errors": 0,
+      "warnings": 1,
+      "warning": "Unchanged activeLeaf deprecation"
+    }
+  },
+  "nativeSmoke": {
+    "status": "passed",
+    "host": "1.14.4 (installer 1.14.0)",
+    "sourceMatchedGate": "65d4c667456f8ab87034ae8492e847cd7280eff8281e6f34d80cf61324dc1ea7",
+    "artifacts": {
+      "main.js": "236399f5df626eb52286bbe00ca62107a295b4345b2ef81e8e50e397a206c5cc",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+      "styles.css": "d9ca9609bbbd16b60e5338a9c228e7e0f0fca4cf468d09bcfc4e77b649f13e7e"
+    },
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 117
+      }
+    ]
+  },
+  "finalNative": {
+    "status": "passed",
+    "sourceArtifact": "236399f5df626eb52286bbe00ca62107a295b4345b2ef81e8e50e397a206c5cc",
+    "installedArtifact": "236399f5df626eb52286bbe00ca62107a295b4345b2ef81e8e50e397a206c5cc",
+    "scenarios": [
+      {
+        "id": "tag-creation",
+        "passed": true,
+        "draft": {
+          "labels": [
+            "Style type",
+            "Tag prefix",
+            "Label prefix",
+            "Lucide icon",
+            "Background",
+            "Text",
+            "Border",
+            "Font size"
+          ],
+          "icon": "route",
+          "font": "24",
+          "background": "#123456",
+          "type": "tag"
+        },
+        "suggestionRetainsHash": true,
+        "bareHashRejected": true,
+        "persistedDestination": "tagNodeStyles",
+        "appendedPriority": true
+      },
+      {
+        "id": "property-creation",
+        "passed": true,
+        "persistedDestination": "noteTypeStyles",
+        "leadingHashStripped": true,
+        "separateTagRetained": true
+      },
+      {
+        "id": "tag-edit-rename",
+        "passed": true,
+        "typeLocked": true,
+        "leadingHashNormalized": true,
+        "priorityPreserved": true
+      },
+      {
+        "id": "unchanged-existing-tag",
+        "passed": true,
+        "allOriginalStylesPreserved": true,
+        "originalPriorityPreserved": true
+      }
+    ],
+    "semanticNotifications": 27,
+    "fullBuildCalls": {
+      "rebuild": 0,
+      "progressive": 0,
+      "pluginRebuild": 0
+    },
+    "semanticPolicyUnchanged": true,
+    "notificationInterpretation": "Existing On-demand render-settings refresh recomposes local scopes; observer notifications are not a full-build counter.",
+    "cleanup": {
+      "restored": true,
+      "wrappersRestored": true,
+      "editors": 0,
+      "managers": 0,
+      "controllerRemoved": true,
+      "settingsBytesUnchanged": true,
+      "enablementBytesUnchanged": true
+    }
+  },
+  "secondNativeDiagnosticFailure": {
+    "status": "failed",
+    "functionalScenariosPassed": 4,
+    "cleanupPassed": true,
+    "observedNotifications": 27,
+    "cause": "Temporary diagnostic incorrectly treated every subscribe notification as a full-index rebuild. Existing On-demand render-settings refresh recomposes local scopes.",
+    "correction": "Retained failed observation; read-only source review independently confirmed attribution. Final native diagnostic observes actual rebuild/rebuildProgressively/plugin.rebuildIndex calls and unchanged semantic policy. No production source, regression oracle or bound changed."
+  },
+  "limitations": [
+    "Desktop native functional checks; no physical-mobile touch or performance acceptance claimed.",
+    "Native notifications include existing local graph recomposition; no zero-local-semantic-work claim.",
+    "No production-vault notes/settings touched; test settings/enablement bytes restored exactly.",
+    "Small-vault artifact deployed; changes remain uncommitted."
+  ]
+}

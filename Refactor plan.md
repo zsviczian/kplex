@@ -2572,3 +2572,16 @@ broader few-second startup objective remains open. No validation bound or semant
 - Controlled native predecessor settles correctly, so it is not claimed as persistent failure reproduction. Original live capture and deterministic browser regression supply that evidence. Actual context-menu Rename once remains the prioritized manual check; no physical-device/latency claim. Production vault untouched, no Git action requested, C15–C26 paused. [Report](docs/validation/attachment-rename-render-lifetime-2026-10-07.md) and [evidence](docs/validation/attachment-rename-render-lifetime-2026-10-07.json).
 
 - [x] Maintainer confirms the attachment rename phantom is solved and authorizes committing this verified correction on main. No push or PR requested.
+
+
+### 2026-10-07 — Explicit node-style matching type
+
+- [x] Confirm live Add style is property-only while existing tagNodeStyles entries are editable. Preserve existing property and primary-style-tag prefix semantics.
+- [x] Add Property value / Tag prefix choice for new styles; fixed family on edit. Retain appearance draft when switching, tag suggestions/typed prefixes normalize to one #, reject empty/bare#.
+- [x] Preserve unchanged imported spelling/alpha/order; new tags append, renames keep priority, deletes affect only their family. Reuse existing dictionaries/resolver/presentation save route and collect suggestions in one indexed-page pass.
+- [x] Main reviews offline source/test return and all required locale entries.43 initial focused checks pass; native preservation failure corrected within draft serialization, with21 focused form/migration regressions including real prefix inheritance.
+- [x] Final frozen278-input complete verify/build passes7/69/297/18/333/410 on Node22.22.2, scanner0errors/one unchanged warning; mandatory20,015-owner case passes271.810s. Source `65d4c667…`, main `236399f5…`.
+- [x] Serial source-matched native smoke and real Add/edit/save/reopen checks pass in kplex-test-small on Obsidian1.14.4. Type/draft/suggestions/hash/independent dictionaries/rename priority/imported preservation pass; original settings/enablement bytes restored, all dialogs/controllers/wrappers cleaned up. Final artifact deployed only to disposable small vault.
+- Native-discovered inherited-prefix correction and failed notification attribution are retained in evidence. Existing On-demand local recomposition emits27 notifications; actual full-rebuild calls0 and policy unchanged. No zero-local-work, physical-touch or latency claim.
+
+No new semantic owner, index behavior, schema change or Git action requested; C15–C26 paused. [Report](docs/validation/node-style-kind-2026-10-07.md) and [evidence](docs/validation/node-style-kind-2026-10-07.json) track acceptance and evidence limits.

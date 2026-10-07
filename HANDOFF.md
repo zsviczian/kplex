@@ -16,30 +16,34 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Attachment rename rendering — main validation complete
+# Add node style — accepted, handoff inactive
 
-State: scoped fix reviewed, automated validation passed and maintainer confirms the issue solved;
-no active implementation assignment.
-Repo main/base63c4a623aa83976ec76033fd25dc11ed861e0beb. Maintainer authorizes committing the verified correction on main; no push or PR requested. C15–C26 remain paused.
+Direction/state: main validation accepted the offline implementation and independently corrected
+one native-discovered serialization issue. No next assignment or Git action is authorized.
+Base main4a9bde9; changes remain uncommitted. C15–C26 paused; production vault untouched.
 
-Canonical-one/DOM-two original live failure traced to mutable rename paths colliding as React
-keys across independently memoized scenes. PlexGraph captures scene path/occurrence keys for
-base nodes, expanded strips and child connector namespaces without altering canonical pages,
-semantics, actions, indexing or schemas. Focused regression fails with predecessor/path-only
-candidate and passes with final capture through stale-scene rebuild, handover, collapse and teardown.
+Add style now offers Property value / Tag prefix, preserves appearance draft on switching,
+normalizes new/renamed tag prefixes to exactly one hashtag, and saves each family to its existing
+dictionary. Edit family is fixed; unchanged imported keys/alpha/inheritance/order remain intact.
+No new resolver, index behavior, cache schema, CSS or persisted-key migration.
 
-Main independently reviewed return. Final Node22.22.2 full verify/build passes7/69/292/18/333/410,
-scanner0errors/one unchanged warning; mandatory20,015-owner case passes. Frozen278 inputs
-`86d39d498cde…`; exact main `c08c0cde9310…` passes serial native smoke and real FileManager
-rename/collapse/re-expansion in disposable kplex-test-small. Native predecessor fixture settles
-correctly: persistent failure evidence comes from original live capture and browser schedule.
-Original graph now has one screenshot child and zero duplicate thought paths. Production untouched.
+Main fixed unchanged Save adding an empty label-prefix override: absent unchanged fields remain
+inherited. Exact JSON and real resolver-inheritance regression pass. Failed first native attempt,
+cleanup nuance and second notification-diagnostic failure are retained in feature evidence.
+Read-only offline review independently approved the serialization correction and attribution.
 
-Test fixture/center/save/throttle and exact settings/enablement bytes restored. Initial console
-cleanup failed due CLI console interception; final async captured-original restoration passes,
-zero test globals/fixtures/debugger remain. No native warning-capture or performance claim.
+Final 278-input hash `65d4c667456f8ab87034ae8492e847cd7280eff8281e6f34d80cf61324dc1ea7` passes
+complete npm run verify on Node22.22.2:7/69/297/18/333/410 checks, no browser failures/skips/
+cancellations, scanner0errors/one unchanged warning, real production build. Mandatory20,015-owner
+publication passes271.810s. Exact main.js `236399f5df626eb52286bbe00ca62107a295b4345b2ef81e8e50e397a206c5cc`
+passes serial native smoke and all four actual-form creation/edit/preservation scenarios on
+Obsidian1.14.4 in kplex-test-small. The tested artifact remains deployed there. Exact original
+settings/enablement bytes restored, dialogs/controllers/wrappers removed/restored; no notes edited.
 
-Durable result: [validation report](docs/validation/attachment-rename-render-lifetime-2026-10-07.md),
-[exact evidence](docs/validation/attachment-rename-render-lifetime-2026-10-07.json) and Refactor plan.md.
-Maintainer acceptance closes the reported bug. The documented manual check was actual editor
-image context-menu Rename followed by collapse/re-expand, expecting one moving child. No new touch workflow or physical-device claim.
+Existing On-demand settings refresh recomposes local graph scopes (27 notifications observed).
+Native actual full-index rebuild calls0 and policy unchanged; do not claim zero local graph work.
+Desktop functional acceptance complete; no physical-mobile or performance/paint claim.
+
+Durable progress: [Refactor plan](Refactor%20plan.md).
+Feature [report](docs/validation/node-style-kind-2026-10-07.md) and
+[evidence](docs/validation/node-style-kind-2026-10-07.json) retain exact checks, failures and limits.

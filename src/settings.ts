@@ -5,7 +5,8 @@
  * density from the same saved value. All saves cross the plugin settings-impact classifier; the
  * injected translator owns display copy. Indexing strategy takes effect after restart; persistent
  * cache estimates run only when their settings row is rendered, never during plugin startup.
- * Background throttle changes apply live without reconstructing semantic data.
+ * Background throttle changes apply live without reconstructing semantic data. Style creation selects
+ * property-value or primary-tag-prefix matching without converting existing imported styles.
  */
 import {
   AbstractInputSuggest,
@@ -608,7 +609,13 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
 const csv = (value: string[]) => value.join(", ");
 const fromCsv = (value: string) => value.split(",").map((x) => x.trim()).filter(Boolean);
 const normalizeOntologyStyleKey = (value: string) => value.toLowerCase().replace(/\s+/g, "-").trim();
+/** Retain existing property-value normalization; a tag hint is also a valid property value. */
 const normalizeNodeStyleValue = (value: string) => value.trim().replace(/^#/, "");
+/** Accept typed or suggested tag prefixes with one leading hashtag; empty prefixes cannot match. */
+const normalizeTagStylePrefix = (value: string): string => {
+  const prefix = value.trim().replace(/^#+/, "").trim();
+  return prefix ? `#${prefix}` : "";
+};
 const sixHex = (value?: string, fallback = "#000000") => /^#[0-9a-f]{6}/i.test(value ?? "") ? (value as string).slice(0, 7) : fallback;
 const eightHex = (value: string) => `${value.slice(0, 7)}ff`;
 const canonicalHex = (value: unknown): string | null => {
@@ -627,22 +634,25 @@ function appendIcon(button: HTMLElement, name: string): void {
 }
 
 type OntologyStyleField = { name: string; roles: Role[] };
-type NodeStyleEntry = { name: string; kind: "property" | "tag" };
+type NodeStyleKind = "property" | "tag";
+type NodeStyleEntry = { name: string; kind: NodeStyleKind };
 type NodeStyleValueSuggestion = { value: string; display: string; kind: "property" | "tag" | "configured" };
 
 class NodeStyleValueSuggest extends AbstractInputSuggest<NodeStyleValueSuggestion> {
   private readonly input: HTMLInputElement;
   private readonly translate = createObsidianTranslator();
 
-  constructor(app: App, input: HTMLInputElement, private readonly values: NodeStyleValueSuggestion[]) {
+  /** The current mode supplies suggestions without replacing the focused input or its draft. */
+  constructor(app: App, input: HTMLInputElement, private readonly values: () => NodeStyleValueSuggestion[]) {
     super(app, input);
     this.input = input;
     this.limit = 40;
   }
 
+  /** Search current-mode suggestions case-insensitively while retaining their stored spelling. */
   protected getSuggestions(query: string): NodeStyleValueSuggestion[] {
     const needle = query.trim().replace(/^#/, "").toLowerCase();
-    const ranked = this.values.filter((item) => {
+    const ranked = this.values().filter(/** Match tag text with or without the display hashtag. */ (item) => {
       if (!needle) return true;
       return item.value.toLowerCase().includes(needle) || item.display.toLowerCase().includes(needle);
     });
@@ -660,6 +670,7 @@ class NodeStyleValueSuggest extends AbstractInputSuggest<NodeStyleValueSuggestio
     });
   }
 
+  /** Use the suggestion's already normalized mode-specific value and notify input listeners. */
   selectSuggestion(item: NodeStyleValueSuggestion): void {
     this.setValue(item.value);
     this.input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -780,60 +791,91 @@ const describeNodeStyle = (style: NodeStyle, translate: Translator): string => {
   return parts.length ? parts.join(" · ") : translate("styles.inheritedNodeDefaults");
 };
 
-class NoteTypeStyleModal extends Modal {
+class NodeStyleModal extends Modal {
   private readonly translate = createObsidianTranslator();
+  private valueSuggest?: NodeStyleValueSuggest;
+  private iconSuggest?: LucideIconSuggest;
 
+  /** Edit one fixed style family, or allow an unsaved new style to choose its matching family. */
   constructor(
     app: App,
     private initialName: string | null,
     private initialStyle: NodeStyle,
     private styleProperty: string,
-    private valueSuggestions: NodeStyleValueSuggestion[],
-    private onSave: (name: string, style: NodeStyle, previousName: string | null) => Promise<void>,
+    private valueSuggestions: Record<NodeStyleKind, NodeStyleValueSuggestion[]>,
+    private onSave: (name: string, style: NodeStyle, previousName: string | null, kind: NodeStyleKind) => Promise<void>,
     private onDelete?: (name: string) => Promise<void>,
-    private legacyTag = false,
+    private initialKind: NodeStyleKind = "property",
   ) {
     super(app);
   }
 
-  /** Render the note-type style controls with localized captions and feedback; the native Modal owns its open/close shell. */
+  /** Render both matching modes in one form so switching a new style preserves its appearance draft. */
   onOpen(): void {
     this.titleEl.setText(this.translate(this.initialName ? "styles.editNode" : "styles.addNode"));
     this.modalEl.addClass("kplex-style-editor-modal");
     this.contentEl.addClass("kplex-style-editor");
-    this.contentEl.createEl("p", {
-      text: this.legacyTag
-        ? this.translate("styles.legacyTagHelp")
-        : this.translate("styles.propertyHelp", { property: this.styleProperty || "Note type" }),
-    });
+    const help = this.contentEl.createEl("p");
+    let kind = this.initialKind;
 
     const form = this.contentEl.createDiv({ cls: "kplex-style-form" });
+    /** Keep label and control together and return their row for mode-specific visibility. */
     const field = (label: string, input: HTMLElement) => {
       const row = form.createDiv({ cls: "kplex-style-row" });
-      row.createEl("label", { text: label });
+      const labelEl = row.createEl("label", { text: label });
+      input.setAttribute("aria-label", label);
       row.appendChild(input);
+      return { row, labelEl };
     };
+
+    const typeInput = form.createEl("select");
+    typeInput.createEl("option", { text: this.translate("styles.propertyValue"), value: "property" });
+    typeInput.createEl("option", { text: this.translate("styles.tagPrefix"), value: "tag" });
+    typeInput.value = kind;
+    // Existing styles never change dictionary/matching semantics merely by opening their editor.
+    typeInput.disabled = this.initialName !== null;
+    field(this.translate("styles.type"), typeInput);
 
     const nameInput = form.createEl("input");
     nameInput.type = "text";
     nameInput.value = this.initialName ?? "";
-    nameInput.placeholder = this.translate("styles.propertyValuePlaceholder");
-    field(this.translate(this.legacyTag ? "styles.tagPrefix" : "styles.propertyValue"), nameInput);
-    new NodeStyleValueSuggest(this.app, nameInput, this.valueSuggestions);
+    const nameField = field("", nameInput);
+    const valueSuggest = new NodeStyleValueSuggest(this.app, nameInput,
+      /** Reuse the suggester with the active style family's prepared values. */ () => this.valueSuggestions[kind]);
+    this.valueSuggest = valueSuggest;
 
-    const prefixInput = this.legacyTag ? form.createEl("input") : null;
-    if (prefixInput) {
-      prefixInput.type = "text";
-      prefixInput.value = this.initialStyle.prefix ?? "";
-      field(this.translate("styles.labelPrefix"), prefixInput);
-    }
+    const prefixInput = form.createEl("input");
+    prefixInput.type = "text";
+    prefixInput.value = this.initialStyle.prefix ?? "";
+    const prefixField = field(this.translate("styles.labelPrefix"), prefixInput);
+    /** Refresh matching copy and suggestions without resetting icon, colors, font or label prefix. */
+    const updateKind = () => {
+      help.setText(kind === "tag" ? this.translate("styles.legacyTagHelp")
+        : this.translate("styles.propertyHelp", { property: this.styleProperty || "Note type" }));
+      const label = this.translate(kind === "tag" ? "styles.tagPrefix" : "styles.propertyValue");
+      nameField.labelEl.setText(label);
+      nameInput.setAttribute("aria-label", label);
+      nameInput.placeholder = this.translate(kind === "tag" ? "styles.tagPrefixPlaceholder" : "styles.propertyValuePlaceholder");
+      prefixField.row.toggle(kind === "tag");
+      nameInput.classList.remove("is-invalid");
+    };
+    typeInput.addEventListener("change", /** Change only the new style's matching family. */ () => {
+      if (this.initialName !== null) return;
+      kind = typeInput.value === "tag" ? "tag" : "property";
+      valueSuggest.close();
+      updateKind();
+    });
+    nameInput.addEventListener("input", /** Clear validation feedback when the user corrects a prefix/value. */ () => {
+      nameInput.classList.remove("is-invalid");
+    });
+    updateKind();
 
     const iconInput = form.createEl("input");
     iconInput.type = "text";
     iconInput.value = this.initialStyle.icon ?? "";
     iconInput.placeholder = this.translate("styles.lucidePlaceholder");
     field(this.translate("styles.lucideIcon"), iconInput);
-    new LucideIconSuggest(this.app, iconInput);
+    this.iconSuggest = new LucideIconSuggest(this.app, iconInput);
 
     const background = form.createEl("input");
     background.type = "color";
@@ -862,23 +904,25 @@ class NoteTypeStyleModal extends Modal {
     if (this.initialName && this.onDelete) {
       const remove = actions.createEl("button", { cls: "mod-warning", text: this.translate("common.delete") });
       appendIcon(remove, "trash-2");
-      remove.addEventListener("click", () => {
+      remove.addEventListener("click", /** Delete only the style whose fixed family is being edited. */ () => {
         void this.onDelete!(this.initialName!).then(() => this.close());
       });
     }
     const cancel = actions.createEl("button", { text: this.translate("common.cancel") });
     appendIcon(cancel, "x");
-    cancel.addEventListener("click", () => this.close());
+    cancel.addEventListener("click", /** Discard the unsaved form draft. */ () => this.close());
 
     const save = actions.createEl("button", { cls: "mod-cta", text: this.translate("common.save") });
     appendIcon(save, "check");
-    save.addEventListener("click", () => {
-      const name = this.legacyTag ? nameInput.value.trim() : normalizeNodeStyleValue(nameInput.value);
-      if (!name) {
+    save.addEventListener("click", /** Validate the active matching value and save the unchanged appearance draft. */ () => {
+      const normalized = kind === "tag" ? normalizeTagStylePrefix(nameInput.value) : normalizeNodeStyleValue(nameInput.value);
+      if (!normalized) {
         nameInput.focus();
         nameInput.classList.add("is-invalid");
         return;
       }
+      // Saving appearance alone must not rewrite legacy key spelling or its matching position.
+      const name = kind === "tag" && this.initialName !== null && nameInput.value === this.initialName ? this.initialName : normalized;
       const style: NodeStyle = {
         ...this.initialStyle,
         icon: iconInput.value.trim() || undefined,
@@ -886,14 +930,18 @@ class NoteTypeStyleModal extends Modal {
         textColor: text.value === sixHex(this.initialStyle.textColor, "#ffffff") ? this.initialStyle.textColor : eightHex(text.value),
         borderColor: border.value === sixHex(this.initialStyle.borderColor, "#6f849a") ? this.initialStyle.borderColor : eightHex(border.value),
         fontSize: fontSize.value === String(this.initialStyle.fontSize ?? 18) ? this.initialStyle.fontSize : Math.max(8, Math.min(40, Number(fontSize.value) || 18)),
-        ...(prefixInput ? { prefix: prefixInput.value } : {}),
+        // Keep an absent label prefix inherited unless the user changes the input.
+        ...(kind === "tag" && prefixInput.value !== (this.initialStyle.prefix ?? "") ? { prefix: prefixInput.value } : {}),
       };
-      void this.onSave(name, style, this.initialName).then(() => this.close());
+      void this.onSave(name, style, this.initialName, kind).then(() => this.close());
     });
-    window.setTimeout(() => nameInput.focus(), 0);
+    window.setTimeout(/** Focus the value after the native modal has mounted. */ () => nameInput.focus(), 0);
   }
 
+  /** Close form-owned suggestion popovers before dropping the native modal's form elements. */
   onClose(): void {
+    this.valueSuggest?.close();
+    this.iconSuggest?.close();
     this.contentEl.empty();
   }
 }
@@ -1502,76 +1550,72 @@ export class KplexSettingTab extends PluginSettingTab {
     this.containerEl.addClass("kplex-settings");
   }
 
-  private openNoteTypeStyleEditor(name: string | null, afterChange?: () => void): void {
-    const style = name ? this.kplexPlugin.settings.noteTypeStyles[name] ?? {} : {};
-    new NoteTypeStyleModal(
-      this.app,
-      name,
-      style,
-      this.kplexPlugin.settings.noteTypeField,
+  /** Open a new style with a selectable family, or edit a style without changing its family. */
+  private openNodeStyleEditor(kind: NodeStyleKind, name: string | null, afterChange?: () => void): void {
+    const settings = this.kplexPlugin.settings;
+    const styles = kind === "tag" ? settings.tagNodeStyles : settings.noteTypeStyles;
+    new NodeStyleModal(
+      this.app, name, name ? styles[name] ?? {} : {}, settings.noteTypeField,
       this.nodeStyleValueSuggestions(),
-      async (nextName, nextStyle, previousName) => {
-        const normalizedNext = normalizeNodeStyleValue(nextName);
-        if (previousName && previousName !== normalizedNext) delete this.kplexPlugin.settings.noteTypeStyles[previousName];
-        this.kplexPlugin.settings.noteTypeStyles[normalizedNext] = nextStyle;
+      /** Save to the selected family, retaining existing imported tag order and unrelated styles. */
+      async (nextName, nextStyle, previousName, selectedKind) => {
+        const currentSettings = this.kplexPlugin.settings;
+        const target = selectedKind === "tag" ? currentSettings.tagNodeStyles : currentSettings.noteTypeStyles;
+        const normalizedValue = selectedKind === "tag" ? normalizeTagStylePrefix(nextName) : normalizeNodeStyleValue(nextName);
+        if (!normalizedValue) return;
+        const normalizedNext = selectedKind === "tag" && previousName !== null && nextName === previousName ? previousName : normalizedValue;
+        if (previousName && previousName !== normalizedNext) delete target[previousName];
+        target[normalizedNext] = nextStyle;
+        if (selectedKind === "tag") {
+          // A rename retains first-match priority; a new tag prefix follows existing styles.
+          currentSettings.tagStyleList = currentSettings.tagStyleList.map(/** Preserve each existing priority slot. */ (key) => key === previousName ? normalizedNext : key);
+          if (!currentSettings.tagStyleList.includes(normalizedNext)) currentSettings.tagStyleList.push(normalizedNext);
+        }
         await this.kplexPlugin.saveSettings(false);
         afterChange?.();
         this.update();
       },
+      /** Delete from the fixed edited family without affecting an equally named other-family style. */
       async (removeName) => {
-        delete this.kplexPlugin.settings.noteTypeStyles[removeName];
+        const currentSettings = this.kplexPlugin.settings;
+        const target = kind === "tag" ? currentSettings.tagNodeStyles : currentSettings.noteTypeStyles;
+        delete target[removeName];
+        if (kind === "tag") currentSettings.tagStyleList = currentSettings.tagStyleList.filter(/** Remove only the deleted prefix's matching slots. */ (key) => key !== removeName);
         await this.kplexPlugin.saveSettings(false);
         afterChange?.();
         this.update();
       },
+      kind,
     ).open();
   }
 
-  private openLegacyTagStyleEditor(name: string, afterChange?: () => void): void {
-    new NoteTypeStyleModal(
-      this.app, name, this.kplexPlugin.settings.tagNodeStyles[name] ?? {},
-      this.kplexPlugin.settings.primaryTagField, [],
-      async (nextName, nextStyle, previousName) => {
-        const settings = this.kplexPlugin.settings;
-        if (previousName && previousName !== nextName) delete settings.tagNodeStyles[previousName];
-        settings.tagNodeStyles[nextName] = nextStyle;
-        // Preserve first-match priority when renaming, including overlapping tag prefixes.
-        settings.tagStyleList = settings.tagStyleList.map((key) => key === previousName ? nextName : key);
-        if (!settings.tagStyleList.includes(nextName)) settings.tagStyleList.push(nextName);
-        await this.kplexPlugin.saveSettings(false);
-        afterChange?.();
-        this.update();
-      },
-      async (removeName) => {
-        delete this.kplexPlugin.settings.tagNodeStyles[removeName];
-        this.kplexPlugin.settings.tagStyleList = this.kplexPlugin.settings.tagStyleList.filter((key) => key !== removeName);
-        await this.kplexPlugin.saveSettings(false);
-        afterChange?.();
-        this.update();
-      },
-      true,
-    ).open();
-  }
-
-  private nodeStyleValueSuggestions(): NodeStyleValueSuggestion[] {
-    const values = new Map<string, NodeStyleValueSuggestion>();
-    const put = (value: string, display: string, kind: NodeStyleValueSuggestion["kind"]) => {
-      const normalized = normalizeNodeStyleValue(value);
+  /** Collect both families in one indexed-page pass, without note-body reads or semantic work. */
+  private nodeStyleValueSuggestions(): Record<NodeStyleKind, NodeStyleValueSuggestion[]> {
+    const values: Record<NodeStyleKind, Map<string, NodeStyleValueSuggestion>> = { property: new Map(), tag: new Map() };
+    /** Deduplicate within one family while prioritizing its configured styles over generic tag hints. */
+    const put = (kind: NodeStyleKind, value: string, display: string, source: NodeStyleValueSuggestion["kind"]) => {
+      const normalized = kind === "tag" ? normalizeTagStylePrefix(value) : normalizeNodeStyleValue(value);
       if (!normalized) return;
       const key = normalized.toLowerCase();
-      const current = values.get(key);
-      // Existing configured/property values are more semantically precise than a generic tag hint.
-      if (!current || (current.kind === "tag" && kind !== "tag")) values.set(key, { value: normalized, display, kind });
+      const current = values[kind].get(key);
+      if (!current || (current.kind === "tag" && source !== "tag")) values[kind].set(key, { value: normalized, display, kind: source });
     };
-    for (const name of Object.keys(this.kplexPlugin.settings.noteTypeStyles)) put(name, normalizeNodeStyleValue(name), "configured");
+    for (const name of Object.keys(this.kplexPlugin.settings.noteTypeStyles)) put("property", name, normalizeNodeStyleValue(name), "configured");
+    for (const name of Object.keys(this.kplexPlugin.settings.tagNodeStyles)) put("tag", name, normalizeTagStylePrefix(name), "configured");
     for (const page of this.kplexPlugin.index.allPages()) {
-      if (page.noteType) put(page.noteType, page.noteType, "property");
+      if (page.noteType) put("property", page.noteType, page.noteType, "property");
       for (const tag of page.tags) {
-        const normalized = normalizeNodeStyleValue(tag);
-        if (normalized) put(normalized, `#${normalized}`, "tag");
+        const normalized = normalizeTagStylePrefix(tag);
+        if (normalized) {
+          put("property", tag, normalized, "tag");
+          put("tag", normalized, normalized, "tag");
+        }
       }
     }
-    return [...values.values()].sort((a, b) => a.display.localeCompare(b.display, undefined, { sensitivity: "base" }));
+    /** Present a stable alphabetical list without changing stored tag matching priority. */
+    const sorted = (kind: NodeStyleKind) => [...values[kind].values()].sort(
+      /** Sort only the suggestion display, never the saved tag-style list. */ (a, b) => a.display.localeCompare(b.display, undefined, { sensitivity: "base" }));
+    return { property: sorted("property"), tag: sorted("tag") };
   }
 
   private nodeStyleEntries(): NodeStyleEntry[] {
@@ -1581,15 +1625,16 @@ export class KplexSettingTab extends PluginSettingTab {
     ].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }
 
+  /** Manage both style families through one searchable list and the explicit-family editor. */
   private openNoteTypeStylesManager(): void {
     new NoteTypeStylesManagerModal(
       this.app,
       this.kplexPlugin.settings.noteTypeField,
-      () => this.nodeStyleEntries(),
+      /** Refresh manager entries after a successful style save/delete. */ () => this.nodeStyleEntries(),
+      /** Read the entry's own family even when the other family uses the same name. */
       (entry) => (entry.kind === "tag" ? this.kplexPlugin.settings.tagNodeStyles : this.kplexPlugin.settings.noteTypeStyles)[entry.name] ?? {},
-      (entry, afterChange) => entry?.kind === "tag"
-        ? this.openLegacyTagStyleEditor(entry.name, afterChange)
-        : this.openNoteTypeStyleEditor(entry?.name ?? null, afterChange),
+      /** Existing entries retain their family; Add starts in property mode with a visible choice. */
+      (entry, afterChange) => this.openNodeStyleEditor(entry?.kind ?? "property", entry?.name ?? null, afterChange),
     ).open();
   }
 
