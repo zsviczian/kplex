@@ -557,7 +557,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
       .setIcon("scan-eye")
       .setDisabled(!plugin.hasDocumentSyncTarget())
       .onClick(() => void plugin.showLinkedDocumentLeaf()));
-    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent);
+    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
   };
 
   const toggleExpandedView = async () => {
@@ -584,7 +584,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
       .setIcon("move-vertical")
       .setChecked(areaSettingsMode)
       .onClick(() => setAreaSettingsMode((enabled) => !enabled)));
-    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent);
+    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
   };
 
   const activateSearch = () => setSearchFocusRequest((value) => value + 1);
@@ -702,7 +702,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     for (const [position, label, icon] of options) menu.addItem((item) => item
       .setTitle(label).setIcon(icon).setChecked((sidecarPosition ?? plugin.settings.sidecarPosition) === position)
       .onClick(() => void plugin.moveSidecar(hostLeaf, position, page)));
-    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent);
+    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
   };
 
   void sidecarRevision; // subscription is a render trigger; all state is owned by the plugin.

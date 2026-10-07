@@ -39,26 +39,50 @@ function productionFunction(path, name, dependencies) {
 /** Minimal Markdown-backed graph page retaining exact endpoint paths and canonical identity. */
 function page(path) { return { path, file: { path, extension: "md" }, neighbours: new Map() }; }
 
-/** Native Escape cancellation keeps the host visible; selection and superseded hide callbacks never steal focus. */
-test("shared menu Escape restores its Plex and releases owning-document listeners", async () => {
+/** Native Escape cancellation retains the exact originating Plex, not mutable workspace focus. */
+test("shared menu Escape restores its owning Plex and releases owning-document listeners", async () => {
   const listeners=new Map(),doc={addEventListener:(kind,fn)=>listeners.set(kind,fn),removeEventListener:(kind,fn)=>{if(listeners.get(kind)===fn)listeners.delete(kind);}};
   doc.defaultView=doc;
   doc.setTimeout=setTimeout;doc.clearTimeout=clearTimeout;
   const host={view:{containerEl:{isConnected:true},getViewType:()=>"plex"}},other={view:{getViewType:()=>"image"}};
-  const workspace={activeLeaf:host,setActiveLeaf(leaf){this.activeLeaf=leaf;}};
+  const workspace={focused:other,setActiveLeaf(leaf){this.focused=leaf;}};
+  Object.defineProperty(workspace,"activeLeaf",{get(){throw new Error("Deprecated activeLeaf must not be read");}});
   const context={app:{workspace},activeKplexMenu:null,activeKplexMenuDocument:null,activeKplexMenuLeaf:null,kplexMenuOutsidePointerDown:()=>{}};
-  for(const name of ["dismissKplexMenu","trackKplexMenu","showKplexMenuAtPosition","kplexMenuEscapeKeyDown"])context[name]=productionFunction("src/main.ts",name,{KPLEX_VIEW_TYPE:"plex",KPLEX_SIDEPANEL_VIEW_TYPE:"sidepanel"}).bind(context);
-  const makeMenu=()=>({hidden:0,onHide(fn){this.callback=fn;},hide(){this.hidden++;workspace.activeLeaf=other;this.callback?.();}});
-  const first=makeMenu();first.showAtPosition=function(){this.callback?.();};await context.showKplexMenuAtPosition(first,{x:0,y:0},doc);
+  for(const name of ["dismissKplexMenu","trackKplexMenu","showKplexMenuAtPosition","showKplexMenuAtMouseEvent","kplexMenuEscapeKeyDown"])context[name]=productionFunction("src/main.ts",name,{KPLEX_VIEW_TYPE:"plex",KPLEX_SIDEPANEL_VIEW_TYPE:"sidepanel"}).bind(context);
+  const makeMenu=()=>({hidden:0,onHide(fn){this.callback=fn;},hide(){this.hidden++;workspace.focused=other;this.callback?.();}});
+  const first=makeMenu();first.showAtPosition=function(){this.callback?.();};context.showKplexMenuAtPosition(first,{x:0,y:0},doc,host);
   assert.equal(context.activeKplexMenu,first,"Show's initial hide must not discard the displayed menu lifetime");
+  assert.equal(context.activeKplexMenuLeaf,host,"Explicit menu owner wins even when workspace focus is a different leaf");
   let prevented=0,stopped=0;context.kplexMenuEscapeKeyDown({key:"Escape",preventDefault:()=>prevented++,stopImmediatePropagation:()=>stopped++});
-  assert.equal(workspace.activeLeaf,host);assert.equal(first.hidden,1);assert.equal(listeners.size,0);assert.equal(prevented,1);assert.equal(stopped,1);
-  workspace.activeLeaf=host;const second=makeMenu();await context.trackKplexMenu(second,doc);
+  assert.equal(workspace.focused,host);assert.equal(first.hidden,1);assert.equal(listeners.size,0);assert.equal(prevented,1);assert.equal(stopped,1);
+  const second=makeMenu();context.trackKplexMenu(second,doc,host);
   first.callback();assert.equal(context.activeKplexMenu,second,"Old hide callback cannot dispose a replacement menu");
-  second.hide();assert.equal(workspace.activeLeaf,other,"Native action dismissal must not restore the host");await new Promise(done=>setTimeout(done,5));assert.equal(listeners.size,0);assert.equal(context.activeKplexMenu,null);
-  workspace.activeLeaf=host;const third=makeMenu();await context.trackKplexMenu(third,doc);
+  second.hide();assert.equal(workspace.focused,other,"Native action dismissal must not restore the host");await new Promise(done=>setTimeout(done,5));assert.equal(listeners.size,0);assert.equal(context.activeKplexMenu,null);
+  const third=makeMenu();context.trackKplexMenu(third,doc,host);
   third.hide();context.kplexMenuEscapeKeyDown({key:"Escape",preventDefault:()=>{},stopImmediatePropagation:()=>{}});
-  assert.equal(workspace.activeLeaf,host,"Earlier host hide cannot retire cancellation before our Escape listener");await Promise.resolve();assert.equal(listeners.size,0);
+  assert.equal(workspace.focused,host,"Earlier host hide cannot retire cancellation before our Escape listener");await Promise.resolve();assert.equal(listeners.size,0);
+});
+
+test("menu origin is precise across simultaneous Plex and sidepanel leaves and pop-out documents", () => {
+  const listeners=new Map();
+  const doc={addEventListener:(kind,fn)=>listeners.set(kind,fn),removeEventListener:(kind,fn)=>{if(listeners.get(kind)===fn)listeners.delete(kind);}};
+  doc.defaultView=doc;doc.setTimeout=setTimeout;doc.clearTimeout=clearTimeout;
+  const mainPlex={view:{containerEl:{isConnected:true},getViewType:()=>"plex"}};
+  const sidepanel={view:{containerEl:{isConnected:true},getViewType:()=>"sidepanel"}};
+  const detached={view:{containerEl:{isConnected:false},getViewType:()=>"plex"}};
+  const focused=[];
+  const context={app:{workspace:{getLeaf(){throw new Error("Must not create a leaf");},getMostRecentLeaf(){throw new Error("Must not guess recent focus");},getActiveViewOfType(){throw new Error("Must not guess active view");},setActiveLeaf(leaf,options){focused.push([leaf,options]);}}},activeKplexMenu:null,activeKplexMenuDocument:null,activeKplexMenuLeaf:null,kplexMenuOutsidePointerDown:()=>{}};
+  for(const name of ["dismissKplexMenu","trackKplexMenu","showKplexMenuAtPosition","showKplexMenuAtMouseEvent","kplexMenuEscapeKeyDown"])context[name]=productionFunction("src/main.ts",name,{KPLEX_VIEW_TYPE:"plex",KPLEX_SIDEPANEL_VIEW_TYPE:"sidepanel"}).bind(context);
+  const menu=()=>({onHide(fn){this.callback=fn;},hide(){this.callback?.();},showAtMouseEvent(){},showAtPosition(){}});
+  context.showKplexMenuAtPosition(menu(),{x:10,y:20},doc,mainPlex);
+  context.kplexMenuEscapeKeyDown({key:"Escape",preventDefault(){},stopImmediatePropagation(){}});
+  context.showKplexMenuAtMouseEvent(menu(),{view:{document:doc}},sidepanel);
+  context.kplexMenuEscapeKeyDown({key:"Escape",preventDefault(){},stopImmediatePropagation(){}});
+  assert.deepEqual(focused,[[mainPlex,{focus:true}],[sidepanel,{focus:true}]]);
+  context.showKplexMenuAtPosition(menu(),{x:10,y:20},doc,detached);
+  context.kplexMenuEscapeKeyDown({key:"Escape",preventDefault(){},stopImmediatePropagation(){}});
+  assert.equal(focused.length,2,"Detached graph leaf must not be restored");
+  assert.equal(listeners.size,0,"Cancel and release must clean up listeners in the owning document");
 });
 
 for (const role of ["parent", "child", "left", "right"]) {
@@ -125,7 +149,7 @@ function historyFixture(targetKind="history") {
   }
   const ownerDocument={elementFromPoint:()=>({closest:()=>({dataset:targetKind==="pinned"?{kplexPinnedPath:target.path}:{kplexHistoryPath:target.path}})})};
   const dependencies={Menu,index:{get:path=>path===origin.path?origin:path===target.path?target:undefined,gateNeighbourPaths:(current,gate)=>{assert.equal(current,origin);return blocked.get(gate)??new Set();}},translate:key=>key,hostLeaf:{},clearHoverIntent:()=>{},
-    plugin:{showKplexMenuAtPosition:(menu,coordinates,document)=>{assert.equal(document,ownerDocument);assert.deepEqual(coordinates,{x:30,y:40});menus.push(menu);},openRelationModal:options=>actions.push(options)}};
+    plugin:{showKplexMenuAtPosition:(menu,coordinates,document,leaf)=>{assert.equal(document,ownerDocument);assert.equal(leaf,dependencies.hostLeaf);assert.deepEqual(coordinates,{x:30,y:40});menus.push(menu);},openRelationModal:options=>actions.push(options)}};
   dependencies.relationshipDropRoles=productionFunction("src/ui/PlexGraph.tsx","relationshipDropRoles",dependencies);
   dependencies.historyRelationshipTarget=productionFunction("src/ui/PlexGraph.tsx","historyRelationshipTarget",dependencies);
   dependencies.openHistoryRelationshipMenu=productionFunction("src/ui/PlexGraph.tsx","openHistoryRelationshipMenu",dependencies);

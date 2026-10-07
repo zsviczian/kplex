@@ -3196,12 +3196,12 @@ export default class KplexPlugin extends Plugin {
     menu?.hide();
   }
 
-  /** Track one owner-document menu; cancellation preserves the current Plex and native hide releases listeners. */
-  private trackKplexMenu(menu: Menu, ownerDocument: Document): void {
+  /** Track the originating Plex leaf explicitly: workspace focus may belong to another pane or window. */
+  private trackKplexMenu(menu: Menu, ownerDocument: Document, hostLeaf: WorkspaceLeaf): void {
     this.dismissKplexMenu();
     this.activeKplexMenu = menu;
     this.activeKplexMenuDocument = ownerDocument;
-    this.activeKplexMenuLeaf = this.app.workspace.activeLeaf;
+    this.activeKplexMenuLeaf = hostLeaf;
     ownerDocument.addEventListener("pointerdown", this.kplexMenuOutsidePointerDown, true);
     // Obsidian's document capture scope hides the menu before later document listeners run.
     // Window capture must own cancellation first, or its Escape continues into native tab focus.
@@ -3231,20 +3231,20 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Present the shared tracked menu in the pointer event's owning document. */
-  showKplexMenuAtMouseEvent(menu: Menu, event: MouseEvent): void {
+  showKplexMenuAtMouseEvent(menu: Menu, event: MouseEvent, hostLeaf: WorkspaceLeaf): void {
     const ownerDocument = event.view?.document ?? document;
     this.dismissKplexMenu();
     menu.showAtMouseEvent(event);
     // Native show first resets its prior visibility. Track only the displayed lifetime so that
     // that initial hide cannot retire the new menu's Escape/outside listeners.
-    this.trackKplexMenu(menu, ownerDocument);
+    this.trackKplexMenu(menu, ownerDocument, hostLeaf);
   }
 
   /** Present the shared tracked menu at a control's owner-document coordinates. */
-  showKplexMenuAtPosition(menu: Menu, position: { x: number; y: number }, ownerDocument: Document): void {
+  showKplexMenuAtPosition(menu: Menu, position: { x: number; y: number }, ownerDocument: Document, hostLeaf: WorkspaceLeaf): void {
     this.dismissKplexMenu();
     menu.showAtPosition(position, ownerDocument);
-    this.trackKplexMenu(menu, ownerDocument);
+    this.trackKplexMenu(menu, ownerDocument, hostLeaf);
   }
 
   /** Open the native plugin settings tab, or display localized guidance when the host controller is unavailable. */

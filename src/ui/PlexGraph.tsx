@@ -2546,7 +2546,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
           onCommitted: /** Clear hover affordances once the selected relationship is persisted. */ () => clearHoverIntent(true),
         })));
     }
-    plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, ownerDocument);
+    plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, ownerDocument, hostLeaf);
     return true;
   };
 
@@ -3055,7 +3055,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     }
 
     const doc = viewport.current?.ownerDocument ?? document;
-    plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, doc);
+    plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, doc, hostLeaf);
   };
 
   /** Route node context gestures through the shared host-destination/action policy. */
@@ -3106,7 +3106,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         }).catch(() => openDetails("sources"));
       }));
     const doc = viewport.current?.ownerDocument ?? document;
-    plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, doc);
+    plugin.showKplexMenuAtPosition(menu, { x: clientX, y: clientY }, doc, hostLeaf);
   };
 
   /** Render live counts only for viewport-intersecting regular rows with captured scene keys, retaining transient section gate ownership. */
