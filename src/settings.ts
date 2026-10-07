@@ -792,6 +792,7 @@ const describeNodeStyle = (style: NodeStyle, translate: Translator): string => {
 };
 
 class NodeStyleModal extends Modal {
+  private static nextFormId = 0;
   private readonly translate = createObsidianTranslator();
   private valueSuggest?: NodeStyleValueSuggest;
   private iconSuggest?: LucideIconSuggest;
@@ -815,15 +816,25 @@ class NodeStyleModal extends Modal {
     this.titleEl.setText(this.translate(this.initialName ? "styles.editNode" : "styles.addNode"));
     this.modalEl.addClass("kplex-style-editor-modal");
     this.contentEl.addClass("kplex-style-editor");
-    const help = this.contentEl.createEl("p");
+    const idPrefix = `kplex-node-style-${++NodeStyleModal.nextFormId}`;
+    const help = this.contentEl.createEl("p", { attr: { id: `${idPrefix}-matching-help` } });
+    let fieldIndex = 0;
     let kind = this.initialKind;
 
     const form = this.contentEl.createDiv({ cls: "kplex-style-form" });
-    /** Keep label and control together and return their row for mode-specific visibility. */
-    const field = (label: string, input: HTMLElement) => {
+    /** Associate each native control with its visible label and optional theme-styled explanation. */
+    const field = (label: string, input: HTMLElement, description?: string) => {
       const row = form.createDiv({ cls: "kplex-style-row" });
-      const labelEl = row.createEl("label", { text: label });
+      const info = row.createDiv({ cls: "setting-item-info" });
+      const inputId = `${idPrefix}-${fieldIndex++}`;
+      input.setAttribute("id", inputId);
+      const labelEl = info.createEl("label", { text: label, attr: { for: inputId } });
       input.setAttribute("aria-label", label);
+      if (description) {
+        const descriptionId = `${inputId}-help`;
+        info.createDiv({ text: description, cls: "setting-item-description", attr: { id: descriptionId } });
+        input.setAttribute("aria-describedby", descriptionId);
+      }
       row.appendChild(input);
       return { row, labelEl };
     };
@@ -834,12 +845,13 @@ class NodeStyleModal extends Modal {
     typeInput.value = kind;
     // Existing styles never change dictionary/matching semantics merely by opening their editor.
     typeInput.disabled = this.initialName !== null;
-    field(this.translate("styles.type"), typeInput);
+    field(this.translate("styles.type"), typeInput, this.translate("styles.typeHelp"));
 
     const nameInput = form.createEl("input");
     nameInput.type = "text";
     nameInput.value = this.initialName ?? "";
     const nameField = field("", nameInput);
+    nameInput.setAttribute("aria-describedby", `${idPrefix}-matching-help`);
     const valueSuggest = new NodeStyleValueSuggest(this.app, nameInput,
       /** Reuse the suggester with the active style family's prepared values. */ () => this.valueSuggestions[kind]);
     this.valueSuggest = valueSuggest;
@@ -847,7 +859,7 @@ class NodeStyleModal extends Modal {
     const prefixInput = form.createEl("input");
     prefixInput.type = "text";
     prefixInput.value = this.initialStyle.prefix ?? "";
-    const prefixField = field(this.translate("styles.labelPrefix"), prefixInput);
+    const prefixField = field(this.translate("styles.labelPrefix"), prefixInput, this.translate("styles.labelPrefixHelp"));
     /** Refresh matching copy and suggestions without resetting icon, colors, font or label prefix. */
     const updateKind = () => {
       help.setText(kind === "tag" ? this.translate("styles.legacyTagHelp")
@@ -862,6 +874,9 @@ class NodeStyleModal extends Modal {
     typeInput.addEventListener("change", /** Change only the new style's matching family. */ () => {
       if (this.initialName !== null) return;
       kind = typeInput.value === "tag" ? "tag" : "property";
+      // The control shows the matching family's convention immediately, before Save normalizes it.
+      if (nameInput.value.trim()) nameInput.value = kind === "tag"
+        ? normalizeTagStylePrefix(nameInput.value) : nameInput.value.trim().replace(/^#+/, "");
       valueSuggest.close();
       updateKind();
     });
@@ -874,23 +889,23 @@ class NodeStyleModal extends Modal {
     iconInput.type = "text";
     iconInput.value = this.initialStyle.icon ?? "";
     iconInput.placeholder = this.translate("styles.lucidePlaceholder");
-    field(this.translate("styles.lucideIcon"), iconInput);
+    field(this.translate("styles.lucideIcon"), iconInput, this.translate("styles.lucideHelp"));
     this.iconSuggest = new LucideIconSuggest(this.app, iconInput);
 
     const background = form.createEl("input");
     background.type = "color";
     background.value = sixHex(this.initialStyle.backgroundColor, "#182433");
-    field(this.translate("styles.background"), background);
+    field(this.translate("styles.background"), background, this.translate("styles.backgroundHelp"));
 
     const text = form.createEl("input");
     text.type = "color";
     text.value = sixHex(this.initialStyle.textColor, "#ffffff");
-    field(this.translate("styles.text"), text);
+    field(this.translate("styles.text"), text, this.translate("styles.textHelp"));
 
     const border = form.createEl("input");
     border.type = "color";
     border.value = sixHex(this.initialStyle.borderColor, "#6f849a");
-    field(this.translate("styles.border"), border);
+    field(this.translate("styles.border"), border, this.translate("styles.borderHelp"));
 
     const fontSize = form.createEl("input");
     fontSize.type = "number";
@@ -898,7 +913,7 @@ class NodeStyleModal extends Modal {
     fontSize.max = "40";
     fontSize.step = "1";
     fontSize.value = String(this.initialStyle.fontSize ?? 18);
-    field(this.translate("styles.fontSize"), fontSize);
+    field(this.translate("styles.fontSize"), fontSize, this.translate("styles.fontSizeHelp"));
 
     const actions = this.contentEl.createDiv({ cls: "kplex-style-actions" });
     if (this.initialName && this.onDelete) {

@@ -1232,7 +1232,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       if (settings.allowAutozoom) fit();
       else {
         const el = viewport.current;
-        if (el) applyCamera({ x: el.clientWidth / 2, y: el.clientHeight / 2, scale: 1 });
+        // Recenter navigation while retaining the user's zoom when automatic fitting is disabled.
+        if (el) applyCamera((current) => ({ ...current, x: el.clientWidth / 2, y: el.clientHeight / 2 }));
       }
       flushCameraTransform();
     }

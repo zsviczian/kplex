@@ -115,6 +115,7 @@ function RelatedNoteComposer({
     }
   };
 
+  /** Create through current metadata convergence, then publish the exact saved relationship before closing. */
   const createNew = async (kind: "markdown" | "excalidraw") => {
     if (busy || selectedTarget || webUrl || !nameValidation.valid || nameValidation.existing) return;
     setBusy(true);

@@ -402,13 +402,15 @@ test("new node style explicitly selects a tag prefix and preserves the appearanc
   const elements = formElements(modal);
   const select = elements.find(element => element.tag === "select");
   const byLabel = name => elements.find(element => element.attrs["aria-label"] === name);
-  assert.deepEqual(select.children.map(option => [option.value, option.text]), [["property", "Property value"], ["tag", "Tag prefix"]]);
+  assert.deepEqual(select.children.map(option => [option.value, option.text]), [["property", "Note type"], ["tag", "Tag"]]);
   assert.equal(select.disabled, false);
-  const name = byLabel("Property value"), icon = byLabel("Lucide icon"), prefix = byLabel("Label prefix");
+  const name = byLabel("Note type"), icon = byLabel("Lucide icon"), prefix = byLabel("Label prefix");
   icon.value = "briefcase"; byLabel("Background").value = "#123456"; byLabel("Font size").value = "23";
   assert.equal(prefix.parent.visible, false);
+  name.value = "project/active";
   select.value = "tag"; await activate(select, "change");
-  assert.equal(name.attrs["aria-label"], "Tag prefix");
+  assert.equal(name.value, "#project/active");
+  assert.equal(name.attrs["aria-label"], "Tag");
   assert.equal(name.placeholder, "#project"); assert.equal(prefix.parent.visible, true);
   prefix.value = "Work ";
   const suggest = TestSuggest.instances.findLast(instance => instance.input === name);
@@ -417,10 +419,12 @@ test("new node style explicitly selects a tag prefix and preserves the appearanc
   suggest.selectSuggestion(suggested);
   assert.equal(name.value, "#project/backlog");
   select.value = "property"; await activate(select, "change");
-  assert.equal(name.attrs["aria-label"], "Property value");
+  assert.equal(name.value, "project/backlog");
+  assert.equal(name.attrs["aria-label"], "Note type");
   assert(suggest.getSuggestions("").some(item => item.value === "Project" && item.kind === "property"));
   assert(suggest.getSuggestions("backlog").some(item => item.value === "project/backlog"));
   select.value = "tag"; await activate(select, "change");
+  assert.equal(name.value, "#project/backlog");
   assert.equal(prefix.value, "Work "); assert.equal(icon.value, "briefcase");
   name.value = " ##project/backlog ";
   await activate(elements.find(element => element.text === "Save"));
@@ -439,10 +443,34 @@ test("new node style explicitly selects a tag prefix and preserves the appearanc
   assert.match(elements.find(element => element.tag === "p").text, /primary style tag/);
 });
 
+
+test("style editor controls expose visible linked descriptions and type switches never change existing keys", async () => {
+  const { tab, settings } = styleEditorFixture();
+  const modal = openStyle(tab, "property"); const elements = formElements(modal);
+  for (const control of elements.filter(element => ["input", "select"].includes(element.tag))) {
+    const description = elements.find(element => element.attrs.id === control.attrs["aria-describedby"]);
+    assert(description?.text.trim(), `${control.attrs["aria-label"]} needs a visible accessible description`);
+    assert(elements.some(element => element.tag === "label" && element.attrs.for === control.attrs.id));
+    assert.equal(control.attrs.title, undefined);
+  }
+  const prefix = elements.find(element => element.attrs["aria-label"] === "Label prefix");
+  assert.equal(elements.find(element => element.attrs.id === prefix.attrs["aria-describedby"]).text, "Text placed before the displayed node title.");
+  const type = elements.find(element => element.tag === "select"), name = elements.find(element => element.attrs["aria-label"] === "Note type");
+  name.value = ""; type.value = "tag"; await activate(type, "change"); assert.equal(name.value, "");
+  name.value = "##area"; type.value = "property"; await activate(type, "change"); assert.equal(name.value, "area");
+  type.value = "tag"; await activate(type, "change"); assert.equal(name.value, "#area");
+  settings.tagNodeStyles["legacy-without-hash"] = { icon: "box" }; settings.tagStyleList = ["legacy-without-hash"];
+  const edit = openStyle(tab, "tag", "legacy-without-hash"); const controls = formElements(edit);
+  const locked = controls.find(element => element.tag === "select"); locked.value = "property"; await activate(locked, "change");
+  assert.equal(controls.find(element => element.attrs["aria-label"] === "Tag").value, "legacy-without-hash");
+  await activate(controls.find(element => element.text === "Save"));
+  assert.deepEqual(settings.tagStyleList, ["legacy-without-hash"]);
+});
+
 test("empty tag prefixes cannot save and property suggestions retain property normalization", async () => {
   const { tab, settings, saves } = styleEditorFixture();
   const tag = openStyle(tab, "tag"); const elements = formElements(tag);
-  const name = elements.find(element => element.attrs["aria-label"] === "Tag prefix");
+  const name = elements.find(element => element.attrs["aria-label"] === "Tag");
   const save = elements.find(element => element.text === "Save");
   for (const invalid of ["", "  ", "#", " ### "]) {
     name.value = invalid; await activate(save);
@@ -453,7 +481,7 @@ test("empty tag prefixes cannot save and property suggestions retain property no
   assert.equal(name.classList.contains("is-invalid"), false);
   await activate(save); assert(settings.tagNodeStyles["#new/prefix"]);
   const property = openStyle(tab, "property"); const propertyElements = formElements(property);
-  const input = propertyElements.find(element => element.attrs["aria-label"] === "Property value");
+  const input = propertyElements.find(element => element.attrs["aria-label"] === "Note type");
   const suggest = TestSuggest.instances.findLast(instance => instance.input === input);
   suggest.selectSuggestion(suggest.getSuggestions("backlog")[0]);
   assert.equal(input.value, "project/backlog");
@@ -480,13 +508,13 @@ test("editing imported tag styles retains family, exact unchanged keys, appearan
   assert.deepEqual(JSON.parse(JSON.stringify(settings.tagNodeStyles)), beforeTags);
   assert.deepEqual(settings.noteTypeStyles["old-prefix"], { icon: "user" });
   const renamed = openStyle(tab, "tag", "old-prefix"); const renameElements = formElements(renamed);
-  renameElements.find(element => element.attrs["aria-label"] === "Tag prefix").value = "new-prefix";
+  renameElements.find(element => element.attrs["aria-label"] === "Tag").value = "new-prefix";
   await activate(renameElements.find(element => element.text === "Save"));
   assert.deepEqual(settings.tagStyleList, beforeOrder.map(key => key === "old-prefix" ? "#new-prefix" : key));
   assert.equal(settings.tagNodeStyles["old-prefix"], undefined);
   assert.equal(settings.tagNodeStyles["#new-prefix"].backgroundColor, "#10203080");
   const fresh = openStyle(tab, "tag"); const freshElements = formElements(fresh);
-  freshElements.find(element => element.attrs["aria-label"] === "Tag prefix").value = "#fresh";
+  freshElements.find(element => element.attrs["aria-label"] === "Tag").value = "#fresh";
   await activate(freshElements.find(element => element.text === "Save"));
   assert.equal(settings.tagStyleList.at(-1), "#fresh");
   const remove = openStyle(tab, "tag", "#new-prefix");
@@ -524,7 +552,7 @@ test("style callbacks target current settings and existing property edits keep p
   assert(settings.noteTypeStyles["#legacy"], "Opening snapshot must not become the persistence target");
   const tag = openStyle(tab, "tag");
   const tagControls = formElements(tag);
-  tagControls.find(element => element.attrs["aria-label"] === "Tag prefix").value = "fresh";
+  tagControls.find(element => element.attrs["aria-label"] === "Tag").value = "fresh";
   await activate(tagControls.find(element => element.text === "Save"));
   assert.deepEqual(replacement.tagStyleList, ["#retained", "#fresh"]);
   assert.deepEqual(settings.tagStyleList, []);

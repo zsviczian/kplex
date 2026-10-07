@@ -1,0 +1,998 @@
+{
+  "date": "2026-10-07",
+  "base": "8f0d668",
+  "checkpointCommit": "8f0d668 \u2014 Allow creating node styles for tag prefixes",
+  "status": "passed",
+  "scope": [
+    "Style type matching-input hashtag and visible accessible field guidance",
+    "Retain manual zoom during navigation with autofit off",
+    "Observe freshly created file metadata before preparing and linking exact pair"
+  ],
+  "source": {
+    "inputs": 278,
+    "sha256": "daa4ae2ea8f341a05995d8c413029ac0b8d046f5b90635ec829d0ed4dd0e2ec3"
+  },
+  "baseline": {
+    "mode": "baseline",
+    "scenarios": [
+      {
+        "kind": "markdown",
+        "before": {
+          "pendingStructural": 0,
+          "publication": 142,
+          "source": 20
+        },
+        "fileExists": true,
+        "cachePresent": true,
+        "linked": false,
+        "error": "Relationship data is still being prepared. Try again when indexing finishes.",
+        "stack": "Error: Relationship data is still being prepared. Try again when indexing finishes.\n    at ny.prepareRelationshipMutation (plugin:k-plex:29:122561)\n    at async eval (plugin:k-plex:31:6578)\n    at async th.run (plugin:k-plex:10:59226)\n    at async eval (eval at <anonymous> (app://obsidian.md/app.js:1:1638663), <anonymous>:1:591)",
+        "diagnostics": {
+          "policyRevision": 1,
+          "requested": 0,
+          "prepared": 0,
+          "published": 0,
+          "cancelled": 0,
+          "pending": 0,
+          "dependencyVisits": 0,
+          "fullBuilds": 0,
+          "lastReason": null
+        },
+        "pairResults": [
+          {
+            "outcome": "cancelled",
+            "reason": "cancelled",
+            "runtimeCurrent": false,
+            "hostUnchanged": true,
+            "observationUnchanged": false,
+            "endpoints": [
+              {
+                "identity": true,
+                "cache": true,
+                "mtime": true,
+                "size": true,
+                "event": true
+              },
+              {
+                "identity": true,
+                "cache": false,
+                "mtime": true,
+                "size": true,
+                "event": false
+              }
+            ]
+          }
+        ],
+        "after": {
+          "pendingStructural": 0,
+          "publication": 142,
+          "source": 20
+        },
+        "originLinks": false
+      },
+      {
+        "kind": "excalidraw",
+        "before": {
+          "pendingStructural": 0,
+          "publication": 142,
+          "source": 22
+        },
+        "fileExists": true,
+        "cachePresent": true,
+        "linked": false,
+        "error": "Relationship data is still being prepared. Try again when indexing finishes.",
+        "stack": "Error: Relationship data is still being prepared. Try again when indexing finishes.\n    at ny.prepareRelationshipMutation (plugin:k-plex:29:122561)\n    at async eval (plugin:k-plex:31:6578)\n    at async th.run (plugin:k-plex:10:59226)\n    at async eval (eval at <anonymous> (app://obsidian.md/app.js:1:1638663), <anonymous>:1:593)",
+        "diagnostics": {
+          "policyRevision": 1,
+          "requested": 0,
+          "prepared": 0,
+          "published": 0,
+          "cancelled": 0,
+          "pending": 0,
+          "dependencyVisits": 0,
+          "fullBuilds": 0,
+          "lastReason": null
+        },
+        "pairResults": [
+          {
+            "outcome": "cancelled",
+            "reason": "cancelled",
+            "runtimeCurrent": false,
+            "hostUnchanged": true,
+            "observationUnchanged": false,
+            "endpoints": [
+              {
+                "identity": true,
+                "cache": true,
+                "mtime": true,
+                "size": true,
+                "event": true
+              },
+              {
+                "identity": true,
+                "cache": false,
+                "mtime": true,
+                "size": true,
+                "event": false
+              }
+            ]
+          },
+          {
+            "outcome": "cancelled",
+            "reason": "cancelled",
+            "runtimeCurrent": false,
+            "hostUnchanged": true,
+            "observationUnchanged": true,
+            "endpoints": [
+              {
+                "identity": true,
+                "cache": true,
+                "mtime": true,
+                "size": true,
+                "event": true
+              },
+              {
+                "identity": true,
+                "cache": false,
+                "mtime": true,
+                "size": true,
+                "event": true
+              }
+            ]
+          }
+        ],
+        "after": {
+          "pendingStructural": 0,
+          "publication": 142,
+          "source": 22
+        },
+        "originLinks": false
+      }
+    ],
+    "installed": "236399f5df626eb52286bbe00ca62107a295b4345b2ef81e8e50e397a206c5cc",
+    "built": "236399f5df626eb52286bbe00ca62107a295b4345b2ef81e8e50e397a206c5cc",
+    "baseline": {
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 1,
+        "totalFiles": 73,
+        "label": "Local graph ready"
+      },
+      "autofit": false,
+      "camera": "translate(536px, 345.5px) scale(1)",
+      "excalidraw": true
+    },
+    "cameraBefore": "translate(536px, 345.5px) scale(1.15)",
+    "cameraAfter": "translate(536px, 345.5px) scale(1)",
+    "status": "observed",
+    "cleanup": {
+      "cleaned": true,
+      "folderRemoved": true,
+      "filesRemoved": true,
+      "settingsBytesUnchanged": true,
+      "enabledBytesUnchanged": true,
+      "controllerRemoved": true
+    }
+  },
+  "design": {
+    "style": "Existing NodeStyleModal adds/removes leading hashes only on creation type switch; fixed imported edit family/spelling unaffected. Visible theme-native explanations referenced by aria-describedby; native labels associated by for/id.",
+    "camera": "Existing layout recenter keeps current scale in autofit-off branch; autofit/editor restore paths unchanged.",
+    "creation": "Reuse writeRelationshipMetadata observer for created-note title/alias writes, each before following write; no-op observation for blank md with no configured title/alias. Exact changed-event body/cache/revision before pair capture; same-file/unload cancellation and bounded payload/lifetime cleanup retained.",
+    "semantics": "No GraphIndex/source authority fence removed; pair preparation, persistence and canonical saved publication unchanged. No retry delay grants authority.",
+    "copy": "Actual current host resolves addRelated.createFailed; missing-key hypothesis not reproduced. Genuine saved-but-unobserved creation reports localized note.savedMetadataPending.",
+    "compatibility": "Shared title/alias helpers also serve folder children and ghost materialization; focused real consumer ordering regressions cover them. Modal ts/tsx synchronized. No schema/persisted default/ontology behavior change; C15\u2013C26 paused."
+  },
+  "focused": {
+    "node": "22.22.2",
+    "tests": 85,
+    "failures": 0,
+    "skips": 0,
+    "scannerErrors": 0,
+    "scannerWarnings": 1,
+    "realProvisionalBuild": true
+  },
+  "provisional": {
+    "direct": {
+      "mode": "provisional",
+      "scenarios": [
+        {
+          "kind": "markdown",
+          "before": {
+            "pendingStructural": 0,
+            "publication": 20,
+            "source": 10
+          },
+          "fileExists": true,
+          "cachePresent": true,
+          "linked": true,
+          "targetBound": true,
+          "pairResults": [
+            {
+              "outcome": "ready",
+              "runtimeCurrent": true,
+              "hostUnchanged": true,
+              "observationUnchanged": true,
+              "endpoints": [
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                },
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                }
+              ]
+            },
+            {
+              "outcome": "ready",
+              "runtimeCurrent": true,
+              "hostUnchanged": true,
+              "observationUnchanged": true,
+              "endpoints": [
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                },
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                }
+              ]
+            }
+          ],
+          "after": {
+            "pendingStructural": 0,
+            "publication": 20,
+            "source": 10
+          },
+          "originLinks": true
+        },
+        {
+          "kind": "excalidraw",
+          "before": {
+            "pendingStructural": 0,
+            "publication": 23,
+            "source": 12
+          },
+          "fileExists": true,
+          "cachePresent": true,
+          "linked": true,
+          "targetBound": true,
+          "pairResults": [
+            {
+              "outcome": "ready",
+              "runtimeCurrent": true,
+              "hostUnchanged": true,
+              "observationUnchanged": true,
+              "endpoints": [
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                },
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                }
+              ]
+            },
+            {
+              "outcome": "ready",
+              "runtimeCurrent": true,
+              "hostUnchanged": true,
+              "observationUnchanged": true,
+              "endpoints": [
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                },
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                }
+              ]
+            },
+            {
+              "outcome": "ready",
+              "runtimeCurrent": true,
+              "hostUnchanged": true,
+              "observationUnchanged": true,
+              "endpoints": [
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                },
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                }
+              ]
+            },
+            {
+              "outcome": "ready",
+              "runtimeCurrent": true,
+              "hostUnchanged": true,
+              "observationUnchanged": true,
+              "endpoints": [
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                },
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                }
+              ]
+            },
+            {
+              "outcome": "ready",
+              "runtimeCurrent": true,
+              "hostUnchanged": true,
+              "observationUnchanged": true,
+              "endpoints": [
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                },
+                {
+                  "identity": true,
+                  "cache": true,
+                  "mtime": true,
+                  "size": true,
+                  "event": true
+                }
+              ]
+            }
+          ],
+          "after": {
+            "pendingStructural": 0,
+            "publication": 23,
+            "source": 12
+          },
+          "originLinks": true
+        }
+      ],
+      "installed": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+      "built": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+      "baseline": {
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 1,
+          "totalFiles": 73,
+          "label": "Local graph ready"
+        },
+        "autofit": false,
+        "camera": "translate(536px, 345.5px) scale(1)",
+        "excalidraw": true
+      },
+      "cameraBefore": "translate(536px, 345.5px) scale(1.15)",
+      "cameraAfter": "translate(536px, 345.5px) scale(1.15)",
+      "status": "passed",
+      "cleanup": {
+        "cleaned": true,
+        "folderRemoved": true,
+        "filesRemoved": true,
+        "settingsBytesUnchanged": true,
+        "enabledBytesUnchanged": true,
+        "controllerRemoved": true
+      }
+    },
+    "composer": {
+      "scenarios": [
+        {
+          "kind": "markdown",
+          "committed": 1,
+          "fileExists": true,
+          "targetBound": true,
+          "linked": true,
+          "canonicalEvidence": true,
+          "newNotices": []
+        },
+        {
+          "kind": "excalidraw",
+          "committed": 2,
+          "fileExists": true,
+          "targetBound": true,
+          "linked": true,
+          "canonicalEvidence": true,
+          "newNotices": []
+        },
+        {
+          "kind": "navigation-zoom",
+          "scale": 1.3225,
+          "passed": true
+        },
+        {
+          "kind": "navigation-zoom",
+          "scale": 1.3225,
+          "passed": true
+        }
+      ],
+      "installed": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+      "built": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+      "cameraBefore": "translate(536px, 345.5px) scale(1.3225)",
+      "status": "passed",
+      "cleanup": {
+        "cleaned": true,
+        "folderRemoved": true,
+        "filesRemoved": true,
+        "modalsClosed": true,
+        "settingsBytesUnchanged": true,
+        "enabledBytesUnchanged": true,
+        "controllerRemoved": true
+      }
+    },
+    "style": {
+      "status": "passed",
+      "sourceArtifact": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+      "installedArtifact": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+      "scenarios": [
+        {
+          "id": "tag-creation",
+          "passed": true,
+          "draft": {
+            "labels": [
+              "Style type",
+              "Tag prefix",
+              "Label prefix",
+              "Lucide icon",
+              "Background",
+              "Text",
+              "Border",
+              "Font size"
+            ],
+            "icon": "route",
+            "font": "24",
+            "background": "#123456",
+            "type": "tag"
+          },
+          "suggestionRetainsHash": true,
+          "bareHashRejected": true,
+          "persistedDestination": "tagNodeStyles",
+          "appendedPriority": true
+        },
+        {
+          "id": "property-creation",
+          "passed": true,
+          "persistedDestination": "noteTypeStyles",
+          "leadingHashStripped": true,
+          "separateTagRetained": true
+        },
+        {
+          "id": "tag-edit-rename",
+          "passed": true,
+          "typeLocked": true,
+          "leadingHashNormalized": true,
+          "priorityPreserved": true
+        },
+        {
+          "id": "unchanged-existing-tag",
+          "passed": true,
+          "allOriginalStylesPreserved": true,
+          "originalPriorityPreserved": true
+        }
+      ],
+      "fieldDescriptions": [
+        {
+          "label": "Style type",
+          "description": "Choose matching by a property value or a primary style tag prefix.",
+          "linkedLabel": true,
+          "title": null
+        },
+        {
+          "label": "Property value",
+          "description": "Style notes where \u201cNote type\u201d matches this value. Existing values and vault tags are suggested as you type.",
+          "linkedLabel": true,
+          "title": null
+        },
+        {
+          "label": "Label prefix",
+          "description": "Text placed before the displayed node title.",
+          "linkedLabel": true,
+          "title": null
+        },
+        {
+          "label": "Lucide icon",
+          "description": "Icon name displayed beside the node title, such as book-open.",
+          "linkedLabel": true,
+          "title": null
+        },
+        {
+          "label": "Background",
+          "description": "Fill color of matching nodes.",
+          "linkedLabel": true,
+          "title": null
+        },
+        {
+          "label": "Text",
+          "description": "Color of the node title.",
+          "linkedLabel": true,
+          "title": null
+        },
+        {
+          "label": "Border",
+          "description": "Outline color of matching nodes.",
+          "linkedLabel": true,
+          "title": null
+        },
+        {
+          "label": "Font size",
+          "description": "Label size in pixels before relative node scaling.",
+          "linkedLabel": true,
+          "title": null
+        }
+      ],
+      "typeSwitchNormalization": true,
+      "semanticNotifications": 6,
+      "fullBuildCalls": {
+        "rebuild": 0,
+        "progressive": 0,
+        "pluginRebuild": 0
+      },
+      "semanticPolicyUnchanged": true,
+      "notificationInterpretation": "Existing On-demand render-settings refresh recomposes local scopes; observer notifications are not a full-build counter.",
+      "cleanup": {
+        "restored": true,
+        "wrappersRestored": true,
+        "editors": 0,
+        "managers": 0,
+        "controllerRemoved": true,
+        "settingsBytesUnchanged": true,
+        "enablementBytesUnchanged": true
+      }
+    }
+  },
+  "failedAttempts": [
+    {
+      "kind": "baseline-driver",
+      "failure": "Incorrect JS string quoting before fixture creation; cleanup passed."
+    },
+    {
+      "kind": "baseline-cleanup",
+      "failure": "delete(folder) returned EISDIR; corrected isolated test driver to public delete(folder,true). Independent cleanup removed folder/files/controller and restored live settings; failure retained."
+    },
+    {
+      "kind": "provisional-composer",
+      "report": {
+        "scenarios": [
+          {
+            "kind": "markdown",
+            "committed": 1,
+            "fileExists": true,
+            "targetBound": true,
+            "linked": true,
+            "canonicalEvidence": true,
+            "newNotices": []
+          }
+        ],
+        "installed": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+        "built": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+        "status": "failed",
+        "error": "Error: spawnSync /usr/local/bin/obsidian ETIMEDOUT\n    at ev (file:///private/tmp/kplex-interaction-composer.mjs:4:235)\n    at until (file:///private/tmp/kplex-interaction-composer.mjs:6:109)\n    at async file:///private/tmp/kplex-interaction-composer.mjs:21:3",
+        "cleanup": {
+          "cleaned": true,
+          "folderRemoved": true,
+          "filesRemoved": true,
+          "modalsClosed": true,
+          "settingsBytesUnchanged": true,
+          "enabledBytesUnchanged": true,
+          "controllerRemoved": true
+        }
+      },
+      "interpretation": "Individual CLI timeout while awaiting Excalidraw dialog; cleanup passed. Subsequent direct and actual-form check pass on identical artifact, no production fix inferred from timeout."
+    },
+    {
+      "kind": "first-final-verify",
+      "failure": "Restricted execution killed Chromium startup; Node/architecture/core stages passed but18 UI launch checks failed. Same frozen source rerunning with permitted browser execution; no test oracle/bound changed."
+    },
+    {
+      "kind": "final-native-smoke",
+      "status": "failed",
+      "failure": "Individual CLI process timed out at open-kplex after exact staging; same final artifact subsequently passes focused actual creation/link/camera and repeat smoke after explicit window focus. No bound or source changed.",
+      "installedHashesMatched": true
+    }
+  ],
+  "review": {
+    "mainReviewedAllChanges": true,
+    "existingOwnerReuse": true,
+    "typedInstalledAPIs": true,
+    "localizedNamesAndDescriptions": true,
+    "identityCacheRevisionFencesPreserved": true,
+    "TSDocCallbacksReviewed": true,
+    "noBroadSourceIndexChange": true,
+    "offlineReturn": "Offline role completed85focused checks and scanner; exhausted session capacity before overwriting final handoff. Main reviewed full repository diff directly and owns final acceptance."
+  },
+  "remaining": [],
+  "limitations": [
+    "Native desktop functional assertions are not physical-mobile or actual paint/latency measurements.",
+    "No production-vault notes or settings touched.",
+    "Current native scenarios use local On-demand mode; default semantics and eager startup are unchanged."
+  ],
+  "git": {
+    "priorFixCommitted": true,
+    "pushed": false,
+    "newFixesCommitted": false
+  },
+  "finalFullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "hash": "daa4ae2ea8f341a05995d8c413029ac0b8d046f5b90635ec829d0ed4dd0e2ec3",
+    "inputs": 278,
+    "node": "v22.22.2",
+    "checks": {
+      "architecture": 7,
+      "core": 69,
+      "node": 305,
+      "ui": 18,
+      "portableSource": 333,
+      "browser": 410
+    },
+    "artifacts": {
+      "main.js": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+      "styles.css": "d9ca9609bbbd16b60e5338a9c228e7e0f0fca4cf468d09bcfc4e77b649f13e7e",
+      "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62"
+    },
+    "scale": {
+      "owners": 20015,
+      "passed": true,
+      "durationMs": 275599.971208
+    },
+    "browserDurationMs": 677557.940666
+  },
+  "finalNativeSmoke": {
+    "status": "passed",
+    "version": "1.14.4 (installer 1.14.0)",
+    "source": {
+      "revision": "8f0d668ca60fa6c743f4eb7c7a00d5a43d40e605",
+      "dirty": true,
+      "node": "v22.22.2",
+      "gate": "daa4ae2ea8f341a05995d8c413029ac0b8d046f5b90635ec829d0ed4dd0e2ec3",
+      "verification": "Completed exact npm run verify; native smoke serial after full suite"
+    },
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "d9ca9609bbbd16b60e5338a9c228e7e0f0fca4cf468d09bcfc4e77b649f13e7e"
+      },
+      "pluginVersion": "0.0.5",
+      "stagedHashes": {
+        "main.js": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+        "manifest.json": "e3bb9a35215af97f6a3394cf7fc8f7d2142bae06de94bb112fef5a05819cda62",
+        "styles.css": "d9ca9609bbbd16b60e5338a9c228e7e0f0fca4cf468d09bcfc4e77b649f13e7e"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 52
+      }
+    ]
+  },
+  "finalComposer": {
+    "scenarios": [
+      {
+        "kind": "markdown",
+        "committed": 1,
+        "fileExists": true,
+        "targetBound": true,
+        "linked": true,
+        "canonicalEvidence": true,
+        "newNotices": []
+      },
+      {
+        "kind": "excalidraw",
+        "committed": 2,
+        "fileExists": true,
+        "targetBound": true,
+        "linked": true,
+        "canonicalEvidence": true,
+        "newNotices": []
+      },
+      {
+        "kind": "navigation-zoom",
+        "scale": 1.15,
+        "passed": true
+      },
+      {
+        "kind": "navigation-zoom",
+        "scale": 1.15,
+        "passed": true
+      }
+    ],
+    "installed": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+    "built": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+    "cameraBefore": "translate(536px, 345.5px) scale(1.15)",
+    "status": "passed",
+    "cleanup": {
+      "cleaned": true,
+      "liveSettingsRestored": true,
+      "folderRemoved": true,
+      "filesRemoved": true,
+      "modalsClosed": true,
+      "settingsBytesUnchanged": true,
+      "enabledBytesUnchanged": true,
+      "controllerRemoved": true
+    }
+  },
+  "finalStyle": {
+    "status": "passed",
+    "sourceArtifact": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+    "installedArtifact": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+    "scenarios": [
+      {
+        "id": "tag-creation",
+        "passed": true,
+        "draft": {
+          "labels": [
+            "Style type",
+            "Tag prefix",
+            "Label prefix",
+            "Lucide icon",
+            "Background",
+            "Text",
+            "Border",
+            "Font size"
+          ],
+          "icon": "route",
+          "font": "24",
+          "background": "#123456",
+          "type": "tag"
+        },
+        "suggestionRetainsHash": true,
+        "bareHashRejected": true,
+        "persistedDestination": "tagNodeStyles",
+        "appendedPriority": true
+      },
+      {
+        "id": "property-creation",
+        "passed": true,
+        "persistedDestination": "noteTypeStyles",
+        "leadingHashStripped": true,
+        "separateTagRetained": true
+      },
+      {
+        "id": "tag-edit-rename",
+        "passed": true,
+        "typeLocked": true,
+        "leadingHashNormalized": true,
+        "priorityPreserved": true
+      },
+      {
+        "id": "unchanged-existing-tag",
+        "passed": true,
+        "allOriginalStylesPreserved": true,
+        "originalPriorityPreserved": true
+      }
+    ],
+    "fieldDescriptions": [
+      {
+        "label": "Style type",
+        "description": "Choose matching by a property value or a primary style tag prefix.",
+        "linkedLabel": true,
+        "title": null
+      },
+      {
+        "label": "Property value",
+        "description": "Style notes where \u201cNote type\u201d matches this value. Existing values and vault tags are suggested as you type.",
+        "linkedLabel": true,
+        "title": null
+      },
+      {
+        "label": "Label prefix",
+        "description": "Text placed before the displayed node title.",
+        "linkedLabel": true,
+        "title": null
+      },
+      {
+        "label": "Lucide icon",
+        "description": "Icon name displayed beside the node title, such as book-open.",
+        "linkedLabel": true,
+        "title": null
+      },
+      {
+        "label": "Background",
+        "description": "Fill color of matching nodes.",
+        "linkedLabel": true,
+        "title": null
+      },
+      {
+        "label": "Text",
+        "description": "Color of the node title.",
+        "linkedLabel": true,
+        "title": null
+      },
+      {
+        "label": "Border",
+        "description": "Outline color of matching nodes.",
+        "linkedLabel": true,
+        "title": null
+      },
+      {
+        "label": "Font size",
+        "description": "Label size in pixels before relative node scaling.",
+        "linkedLabel": true,
+        "title": null
+      }
+    ],
+    "formBounds": {
+      "width": 526,
+      "scrollWidth": 526,
+      "descriptionsVisible": true
+    },
+    "typeSwitchNormalization": true,
+    "semanticNotifications": 6,
+    "fullBuildCalls": {
+      "rebuild": 0,
+      "progressive": 0,
+      "pluginRebuild": 0
+    },
+    "semanticPolicyUnchanged": true,
+    "notificationInterpretation": "Existing On-demand render-settings refresh recomposes local scopes; observer notifications are not a full-build counter.",
+    "cleanup": {
+      "restored": true,
+      "wrappersRestored": true,
+      "editors": 0,
+      "managers": 0,
+      "controllerRemoved": true,
+      "settingsBytesUnchanged": true,
+      "enablementBytesUnchanged": true
+    }
+  },
+  "finalBlankCreation": {
+    "mode": "blank-final",
+    "scenarios": [
+      {
+        "kind": "markdown",
+        "before": {
+          "pendingStructural": 0,
+          "publication": 20,
+          "source": 5
+        },
+        "fileExists": true,
+        "cachePresent": true,
+        "linked": true,
+        "targetBound": true,
+        "pairResults": [
+          {
+            "outcome": "ready",
+            "runtimeCurrent": true,
+            "hostUnchanged": true,
+            "observationUnchanged": true,
+            "endpoints": [
+              {
+                "identity": true,
+                "cache": true,
+                "mtime": true,
+                "size": true,
+                "event": true
+              },
+              {
+                "identity": true,
+                "cache": true,
+                "mtime": true,
+                "size": true,
+                "event": true
+              }
+            ]
+          },
+          {
+            "outcome": "ready",
+            "runtimeCurrent": true,
+            "hostUnchanged": true,
+            "observationUnchanged": true,
+            "endpoints": [
+              {
+                "identity": true,
+                "cache": true,
+                "mtime": true,
+                "size": true,
+                "event": true
+              },
+              {
+                "identity": true,
+                "cache": true,
+                "mtime": true,
+                "size": true,
+                "event": true
+              }
+            ]
+          }
+        ],
+        "after": {
+          "pendingStructural": 0,
+          "publication": 20,
+          "source": 5
+        },
+        "originLinks": true
+      }
+    ],
+    "installed": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+    "built": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae",
+    "baseline": {
+      "status": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 1,
+        "totalFiles": 73,
+        "label": "Local graph ready"
+      },
+      "autofit": false,
+      "camera": "translate(536px, 345.5px) scale(1)",
+      "excalidraw": true
+    },
+    "cameraBefore": "translate(536px, 345.5px) scale(1.15)",
+    "cameraAfter": "translate(536px, 345.5px) scale(1.15)",
+    "status": "passed",
+    "cleanup": {
+      "cleaned": true,
+      "liveSettingsRestored": true,
+      "folderRemoved": true,
+      "filesRemoved": true,
+      "settingsBytesUnchanged": true,
+      "enabledBytesUnchanged": true,
+      "controllerRemoved": true
+    }
+  },
+  "finalAudit": {
+    "loaded": true,
+    "liveSettingsRestored": true,
+    "centerRestored": true,
+    "controllersRemoved": true,
+    "pendingWriteObservers": 0,
+    "dialogsClosed": true,
+    "fixturesRemoved": true,
+    "temporaryStylesRemoved": true,
+    "pairWrapperRestored": true,
+    "settingsBytesUnchanged": true,
+    "enabledBytesUnchanged": true,
+    "mainHash": "629d440604288cd6fdb22d7187c1e99895512d01ddc4fe8bf3c1c5f0b93ac3ae"
+  },
+  "manualChecks": "No further manual check required for the scoped desktop fixes; native physical-mobile touch and paint timing are not claimed."
+}

@@ -1,11 +1,23 @@
 /**
- * Runs the production relationship commit and pointer-drop callbacks with bounded host doubles.
+ * Runs the production relationship commit, navigation camera and pointer-drop callbacks with bounded host doubles.
  * Source extraction isolates native shells without replacing the behavior under test.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { build } from "esbuild";
 import test from "node:test";
 import ts from "typescript";
+
+// The real convergence adapter is exercised with host events, not replaced by an immediate success.
+const metadataTemp = mkdtempSync(join(tmpdir(), "kplex-created-metadata-"));
+process.on("exit", () => rmSync(metadataTemp, { recursive: true, force: true }));
+await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export { normalizeFieldName } from "./src/core/contracts/fieldName";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  outfile: join(metadataTemp, "observer.mjs"), bundle: true, platform: "node", format: "esm" });
+const { writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, normalizeFieldName: actualNormalizeFieldName }
+  = await import(pathToFileURL(join(metadataTemp, "observer.mjs")));
 
 /** Compile a production callback/method; class-field arrows capture the supplied owning instance. */
 function productionFunction(path, name, dependencies) {
@@ -505,4 +517,156 @@ test("portaled filter heading preserves form focus while bare Plex space focuses
   down({ target: { closest: () => null } });
   assert.equal(focused, 1, "Bare Plex focus policy remains available");
   assert.equal(dismissed, 2);
+});
+
+
+/** Select the real scene-recenter layout effect, including its navigation/editor preservation guards. */
+function cameraLayoutEffect(dependencies) {
+  const source = ts.createSourceFile("PlexGraph.tsx", readFileSync(new URL("../src/ui/PlexGraph.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let callback;
+  const visit = node => {
+    if (ts.isCallExpression(node) && node.expression.getText(source) === "useLayoutEffect"
+      && node.arguments[0]?.getText(source).includes("const shouldRecenter")) callback = node.arguments[0].getText(source);
+    ts.forEachChild(node, visit);
+  };
+  visit(source); assert(callback, "Real layout effect must own navigation recentering");
+  const output = ts.transpileModule(`const selected = ${callback};`, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
+  return Function(...Object.keys(dependencies), `${output}\nreturn selected;`)(...Object.values(dependencies));
+}
+
+test("navigation with autofit disabled recenters without resetting manual scale", () => {
+  const camera = { x: 63, y: -44, scale: 1.73 }, calls = [];
+  const dependencies = {
+    viewport: { current: { clientWidth: 800, clientHeight: 600, querySelectorAll: () => [], ownerDocument: { defaultView: { matchMedia: () => ({ matches: false }) } } } },
+    sceneMotion: { cancelAll: () => {} }, preserveCameraOnNextLayout: { current: false },
+    centralEditorAvailabilityRef: { current: false }, centralEditorAvailable: false, centralEditorSize: null,
+    centralEditorSizeKeyRef: { current: "" }, previousNodeRects: { current: new Map([["prior", {}]]) },
+    pathChangedThisRender: true, settings: { allowAutozoom: false, animationSpeed: 0 },
+    fit: () => { calls.push("fit"); Object.assign(camera, { scale: 0.4, x: 90, y: 120 }); },
+    applyCamera: update => Object.assign(camera, typeof update === "function" ? update(camera) : update),
+    flushCameraTransform: () => calls.push("flush"), syncCentralEditorOverlay: () => {},
+  };
+  cameraLayoutEffect(dependencies)();
+  assert.deepEqual(camera, { x: 400, y: 300, scale: 1.73 }); assert.deepEqual(calls, ["flush"]);
+  // Enabled autofit still uses the complete graph bounds, while explicit editor restore keeps its camera.
+  dependencies.settings.allowAutozoom = true; dependencies.previousNodeRects.current = new Map([["prior", {}]]);
+  cameraLayoutEffect(dependencies)(); assert.equal(camera.scale, 0.4); assert.deepEqual(calls, ["flush", "fit", "flush"]);
+  Object.assign(camera, { x: 99, y: 88, scale: 2.1 }); dependencies.preserveCameraOnNextLayout.current = true;
+  cameraLayoutEffect(dependencies)(); assert.deepEqual(camera, { x: 99, y: 88, scale: 2.1 });
+  dependencies.settings.allowAutozoom = false; dependencies.pathChangedThisRender = false;
+  dependencies.previousNodeRects.current = new Map([["prior", {}]]); dependencies.preserveCameraOnNextLayout.current = false;
+  cameraLayoutEffect(dependencies)(); assert.deepEqual(camera, { x: 99, y: 88, scale: 2.1 }, "Metadata layout updates retain the full camera");
+});
+
+
+/** Supply real convergence logic with controlled native metadata events and a newly persisted file. */
+function createdMetadataFixture({ extension = "md", displayField = "aliases", initialCache = null } = {}) {
+  const target = page(`Created.${extension}`); target.file.extension = extension;
+  target.file.basename = "Created"; target.file.stat = { mtime: 1, size: 0 };
+  const file = target.file, origin = page("Origin.md"), writes = [], events = [], notices = [];
+  let cache = initialCache, body = "", frontmatter = {}, pairCaptured = false;
+  const host = () => ({ refs: new Set(), on(name, callback) { const ref = { name, callback }; this.refs.add(ref); return ref; }, offref(ref) { this.refs.delete(ref); },
+    emit(name, ...args) { for (const ref of [...this.refs]) if (ref.name === name) ref.callback(...args); } });
+  const metadataCache = Object.assign(host(), { getFileCache: selected => selected === file ? cache : null });
+  const vault = Object.assign(host(), { getFileByPath: path => path === file.path ? file : path === origin.path ? origin.file : null,
+    cachedRead: async selected => { assert.equal(selected, file); return body; } });
+  const context = { app: { vault, metadataCache, fileManager: {
+    getNewFileParent: () => ({ path: "/" }),
+    processFrontMatter: async (selected, mutate) => {
+      assert.equal(selected, file); const next = structuredClone(frontmatter); mutate(next); frontmatter = next;
+      const nextBody = Object.keys(next).length ? JSON.stringify(next) : "";
+      if (nextBody !== body) { file.stat.mtime++; file.stat.size = nextBody.length; body = nextBody; }
+      writes.push(structuredClone(next)); events.push("native-write");
+    },
+  } }, relationshipWriteCancels: new Set(), managedMetadataWrites: new Map(), unloading: false,
+    pruneManagedMetadataWrites: () => {}, configuredDisplayNameField: () => displayField,
+    translator: key => key, validateRelatedNoteName: () => ({ valid: true, existing: null, stem: "Created" }),
+    createNewFileInFolder: async () => file,
+    index: { withForegroundPriority: async work => work(), insertCreatedFile: () => target, get: path => path === target.path ? target : origin },
+    prepareRelationshipMutation: async () => {
+      assert(cache && JSON.stringify(cache.frontmatter) === JSON.stringify(frontmatter), "Exact pair cannot capture a cache preceding creation writes");
+      pairCaptured = true; events.push("capture-pair"); return [origin, target];
+    },
+    writeRelationship: async () => { assert(pairCaptured); events.push("write-relation"); },
+    publishSavedRelationship: async () => events.push("publish-relation"),
+  };
+  for (const method of ["mutateCreatedNodeMetadata", "writeCreatedNodeDisplayName", "writeCreatedNodeAlias", "createNewRelatedFileForOrigin", "linkNewRelatedFile"])
+    context[method] = productionFunction("src/main.ts", method, { writeRelationshipMetadata, normalizeFieldName: actualNormalizeFieldName,
+      Notice: class { constructor(message) { notices.push(message); } } }).bind(context);
+  return { context, file, origin, writes, events, notices, metadataCache, vault,
+    observe() { cache = { frontmatter: structuredClone(frontmatter) }; events.push("cache-body-observed"); metadataCache.emit("changed", file, body, cache); },
+    cancel() { for (const stop of [...context.relationshipWriteCancels]) stop(); },
+    clean() { assert.equal(metadataCache.refs.size, 0); assert.equal(vault.refs.size, 0); assert.equal(context.relationshipWriteCancels.size, 0); },
+  };
+}
+
+/** Advance only explicit promises; no elapsed-time or quiet-window authority enters these tests. */
+const nextCreatedStep = () => new Promise(resolve => setImmediate(resolve));
+
+for (const kind of ["markdown", "excalidraw"]) test(`${kind} gate creation waits for display and alias cache/body observations before exact linking`, async () => {
+  const f = createdMetadataFixture({ displayField: kind === "markdown" ? "aliases" : "Title" });
+  const previousWindow = globalThis.window; globalThis.window = { setTimeout, clearTimeout };
+  let operation;
+  try {
+    let finished = false;
+    operation = f.context.createNewRelatedFileForOrigin(f.origin, "Display title", kind, "User alias").then(file => { finished = true; return file; });
+    await nextCreatedStep(); assert.equal(f.writes.length, 1); assert.equal(finished, false);
+    assert(!f.events.includes("capture-pair")); f.observe(); await nextCreatedStep();
+    assert.equal(f.writes.length, 2); assert.equal(finished, false, "A second alias write must receive its own final cache/body observation");
+    f.observe(); const file = await operation;
+    assert.equal(file, f.file); f.clean();
+    await f.context.linkNewRelatedFile(f.origin, "child", file, "Children", "User alias", "Display title");
+    assert.deepEqual(f.events, ["native-write", "cache-body-observed", "native-write", "cache-body-observed", "capture-pair", "write-relation", "publish-relation"]);
+  } finally { f.cancel(); await operation?.catch(() => {}); globalThis.window = previousWindow; f.clean(); }
+});
+
+test("new blank Markdown waits for its first cache while legacy non-Markdown drawing keeps physical binding", async () => {
+  const previousWindow = globalThis.window; globalThis.window = { setTimeout, clearTimeout };
+  const blank = createdMetadataFixture({ displayField: null }); let operation;
+  try {
+    let finished = false;
+    operation = blank.context.createNewRelatedFileForOrigin(blank.origin, "Blank", "markdown").then(file => { finished = true; return file; });
+    await nextCreatedStep(); assert.equal(blank.writes.length, 1); assert.deepEqual(blank.writes[0], {}); assert.equal(finished, false);
+    blank.observe(); assert.equal(await operation, blank.file); blank.clean();
+    const drawing = createdMetadataFixture({ extension: "excalidraw", displayField: "aliases" });
+    assert.equal(await drawing.context.createNewRelatedFileForOrigin(drawing.origin, "Drawing", "excalidraw", "Alias"), drawing.file);
+    assert.equal(drawing.writes.length, 0); drawing.clean();
+  } finally { blank.cancel(); await operation?.catch(() => {}); globalThis.window = previousWindow; blank.clean(); }
+});
+
+test("created-node presentation writers retain no-op inheritance and reject rename before relationship capture", async () => {
+  const previousWindow = globalThis.window; globalThis.window = { setTimeout, clearTimeout };
+  const f = createdMetadataFixture(); let operation;
+  try {
+    // These same observed writers are used by folder-child and ghost materialization callers.
+    assert.equal(await f.context.writeCreatedNodeAlias(f.file, ""), ""); assert.equal(f.writes.length, 0);
+    operation = f.context.writeCreatedNodeDisplayName(f.file, "Original").catch(error => error);
+    await nextCreatedStep(); f.file.path = "Renamed.md"; f.vault.emit("rename", f.file, "Created.md");
+    const error = await operation; assert(error instanceof ActualSavedPendingError); assert.equal(error.message, "note.savedMetadataPending");
+    assert(!f.events.includes("capture-pair")); f.clean();
+  } finally { f.cancel(); await operation?.catch(() => {}); globalThis.window = previousWindow; f.clean(); }
+});
+
+
+for (const consumer of ["folder", "ghost"]) test(`${consumer} creation also awaits shared display metadata before index materialization`, async () => {
+  const previousWindow = globalThis.window; globalThis.window = { setTimeout, clearTimeout };
+  const f = createdMetadataFixture(); let operation;
+  try {
+    f.context.index.insertCreatedFile = (file, aliases) => { f.events.push(["insert", file.path, aliases]); return page(file.path); };
+    let finished = false;
+    if (consumer === "folder") {
+      const create = productionFunction("src/main.ts", "createNewNodeInFolder", { normalizePath: value => value, normalizeFieldName: actualNormalizeFieldName, Notice: class {} });
+      operation = create.call(f.context, { isFolder: true, path: "folder:Owned" }, "Folder display", "markdown").then(value => { finished = true; return value; });
+    } else {
+      f.context.rememberNewNodeDefaultType = async kind => f.events.push(["default", kind]);
+      f.context.index.renameFile = (oldPath, file) => { f.events.push(["rename", oldPath, file.path]); return true; };
+      f.context.openInDocumentLeaf = async file => f.events.push(["open", file.path]);
+      const materialize = productionFunction("src/main.ts", "materializeGhostPage", {});
+      operation = materialize.call(f.context, { path: "Ghost", name: "Ghost display" }, "Created", "markdown", "").then(value => { finished = true; return value; });
+    }
+    await nextCreatedStep(); assert.equal(finished, false); assert.deepEqual(f.events, ["native-write"]);
+    f.observe(); const result = await operation; assert(result); f.clean();
+    if (consumer === "folder") assert.deepEqual(f.events, ["native-write", "cache-body-observed", ["insert", f.file.path, ["Folder display"]]]);
+    else assert.deepEqual(f.events, ["native-write", "cache-body-observed", ["default", "markdown"], ["rename", "Ghost", f.file.path], ["open", f.file.path]]);
+  } finally { f.cancel(); await operation?.catch(() => {}); globalThis.window = previousWindow; f.clean(); }
 });

@@ -4480,14 +4480,32 @@ export default class KplexPlugin extends Plugin {
     return this.settings.nameFields.split(",").map((field) => field.trim()).find(Boolean) ?? null;
   }
 
-  /** Preserve the freely-entered title in the first field configured to provide node display names. */
+  /**
+   * Observe a newly created file's presentation metadata before exact relationship authority captures
+   * its cache identity. FileManager completion alone does not mean its changed event has arrived.
+   * The established metadata/body observer owns cancellation; no timer grants write authority.
+   */
+  private async mutateCreatedNodeMetadata(file: TFile, fields: ReadonlySet<string>, mutate: (frontmatter: Record<string, unknown>) => void): Promise<void> {
+    const path = file.path;
+    await writeRelationshipMetadata(this.app, file, fields, mutate, {
+      /** Keep this observer alive through creation while allowing plugin unload to cancel it. */
+      own: cancel => { this.relationshipWriteCancels.add(cancel); return () => { this.relationshipWriteCancels.delete(cancel); }; },
+      /** A persisted note can still be waiting for its actual MetadataCache observation. */
+      pending: () => { new Notice(this.translator("note.savedMetadataPending"), 4000); },
+      savedPendingMessage: () => this.translator("note.savedMetadataPending"),
+      /** Creation needs the exact physical file, rather than pair authority that does not exist yet. */
+      current: () => !this.unloading && file.path === path && this.app.vault.getFileByPath(path) === file,
+    });
+  }
+
+  /** Persist the display title and await its current body/cache before a relationship selects this file. */
   private async writeCreatedNodeDisplayName(file: TFile, rawDisplayName: string): Promise<string> {
     const displayName = rawDisplayName;
     const configuredField = this.configuredDisplayNameField();
     if (!displayName.trim() || !configuredField || file.extension !== "md") return "";
     this.pruneManagedMetadataWrites();
     this.managedMetadataWrites.set(file.path, Date.now() + 15000);
-    await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
+    await this.mutateCreatedNodeMetadata(file, new Set([normalizeFieldName(configuredField)]), /** Preserve current field spelling and alias order. */ (frontmatter: Record<string, unknown>) => {
       const normalizedConfigured = normalizeFieldName(configuredField);
       const key = Object.keys(frontmatter).find((candidate) => normalizeFieldName(candidate) === normalizedConfigured) ?? configuredField;
       if (normalizedConfigured === "alias" || normalizedConfigured === "aliases") {
@@ -4503,13 +4521,14 @@ export default class KplexPlugin extends Plugin {
     return displayName;
   }
 
+  /** Persist an additional alias under either accepted alias field spelling and await its observation. */
   private async writeCreatedNodeAlias(file: TFile, rawAlias: string): Promise<string> {
     const alias = rawAlias.trim();
     if (file.extension !== "md") return "";
     if (!alias) return "";
     this.pruneManagedMetadataWrites();
     this.managedMetadataWrites.set(file.path, Date.now() + 15000);
-    await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
+    await this.mutateCreatedNodeMetadata(file, new Set(["alias", "aliases"]), /** Add the requested alias without erasing existing display aliases. */ (frontmatter: Record<string, unknown>) => {
       const key = Object.keys(frontmatter).find((candidate) => {
         const normalized = normalizeFieldName(candidate);
         return normalized === "alias" || normalized === "aliases";
@@ -4556,8 +4575,11 @@ export default class KplexPlugin extends Plugin {
       const configuredFolder = configuredParent.path === "/" ? "" : configuredParent.path;
       const file = await this.createNewFileInFolder(validation.stem, kind, configuredFolder);
       if (!file) return null;
-      await this.writeCreatedNodeDisplayName(file, rawName);
-      await this.writeCreatedNodeAlias(file, rawAlias);
+      const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
+      const alias = await this.writeCreatedNodeAlias(file, rawAlias);
+      // A blank new Markdown file still needs its first actual cache observation before the pair
+      // freezes identity. Reuse the observer for a no-op, rather than a quiet-window timeout.
+      if (file.extension === "md" && !displayName && !alias) await this.mutateCreatedNodeMetadata(file, new Set(), /** Observe creation without adding properties. */ () => {});
       return file;
     });
   }

@@ -2585,3 +2585,29 @@ broader few-second startup objective remains open. No validation bound or semant
 - Native-discovered inherited-prefix correction and failed notification attribution are retained in evidence. Existing On-demand local recomposition emits27 notifications; actual full-rebuild calls0 and policy unchanged. No zero-local-work, physical-touch or latency claim.
 
 No new semantic owner, index behavior, schema change or Git action requested; C15–C26 paused. [Report](docs/validation/node-style-kind-2026-10-07.md) and [evidence](docs/validation/node-style-kind-2026-10-07.json) track acceptance and evidence limits.
+
+
+### 2026-10-07 — Style field guidance, navigation zoom and gate file creation
+
+- [x] Commit verified node-style choice fix on main at8f0d668 as requested; no push.
+- [x] Normalize matching input hashtag on creation type switch; associate visible field explanations through native labels and aria-describedby. Imported fixed edit family preserved.
+- [x] Existing layout recenter retains current zoom with autofit off; enabled fit/editor restoration and metadata-only camera preservation retained.
+- [x] Native baseline reproduces new-target cache identity replacing during exact pair preparation. Reuse existing current metadata/body observer for creation title/alias writes and blank Markdown no-op; preserve identity/revision/pair-write fences. Current host translates error key normally; no speculative fallback change.
+- [x] Independently review complete returned runtime/test/locale diff;85 focused regressions/scanner/build pass. Provisional native real type-button Markdown/Excalidraw creation has canonical evidence and no error notices; actual navigation zoom and field guidance checks pass.
+- [x] Final frozen278-input complete verify/build passes7/69/305/18/333/410 on Node22.22.2; scanner0errors/one unchanged warning, mandatory20,015-owner publication275.600s. Source `daa4ae2e…`, main `629d4406…`; no post-freeze runtime/test changes.
+- [x] Serial final native smoke/form/composer/blank-file checks pass in kplex-test-small on Obsidian1.14.4. Actual type buttons create+link Markdown/Excalidraw with canonical evidence/no errors; zoom1.15 retained through forward/back navigation; hashtag/linked visible field descriptions fit within form; blank no-name-field creation passes.
+- [x] Independent final audit confirms live settings/center, exact settings/enablement bytes, no owned fixtures/styles/controllers/dialogs/wrappers and zero pending metadata-write observers. Verified final build deployed only to small vault. New fixes uncommitted; no additional scoped desktop manual check needed, no physical-touch/paint/performance claim.
+
+New fixes remain uncommitted unless subsequently authorized. C15–C26 paused; production vault untouched.
+
+Evidence: [interaction corrections report](docs/validation/interaction-corrections-2026-10-07.md) and [JSON](docs/validation/interaction-corrections-2026-10-07.json). Failed native CLI/harness and sandbox browser-launch attempts are retained; no production source/test bound changed to relabel them.
+
+
+### 2026-10-07 — Node-style display names
+
+- [x] Display **Tag** and **Note type** in the style-type dropdown and matching field, including accessible names and bundled translations. Keep the separate Label prefix field and its explanation.
+- [x] Retain existing translation keys, stored property/tag style dictionaries and primary-tag prefix matching; no JSON migration or indexing change.
+- [x] All45 focused form/migration, localization and terminology checks pass on Node22.22.2; actual TypeScript/production build passes. Dropdown option and field-label assertions cover both displayed names. Obsidian scanner passes with zero errors and the unchanged activeLeaf deprecation warning.
+- Full verification/performance/native rounds intentionally not repeated for this copy-only change, as requested. Previous full/native acceptance applies to the earlier interaction checkpoint; this later display change has the focused validation above. No commit/push requested.
+
+- [x] Maintainer authorizes committing the completed interaction corrections and display-name update together on main. No push requested.

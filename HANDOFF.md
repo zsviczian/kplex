@@ -16,34 +16,22 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Add node style — accepted, handoff inactive
+# Node-style display names — accepted, handoff inactive
 
-Direction/state: main validation accepted the offline implementation and independently corrected
-one native-discovered serialization issue. No next assignment or Git action is authorized.
-Base main4a9bde9; changes remain uncommitted. C15–C26 paused; production vault untouched.
+Latest maintainer scope: display Tag / Note type in the style-type dropdown and matching
+field. Main applied the narrow catalog/test correction after the prior offline session
+ended; all eight catalogs retain their existing keys. Stored dictionaries, matching
+semantics and JSON compatibility unchanged. Label prefix remains the separate title
+text field with its existing explanation.
 
-Add style now offers Property value / Tag prefix, preserves appearance draft on switching,
-normalizes new/renamed tag prefixes to exactly one hashtag, and saves each family to its existing
-dictionary. Edit family is fixed; unchanged imported keys/alpha/inheritance/order remain intact.
-No new resolver, index behavior, cache schema, CSS or persisted-key migration.
+All45 focused form/migration, localization and terminology checks pass on Node22.22.2;
+actual TypeScript/production build passes. Full performance/native rounds intentionally
+not repeated per maintainer request. Maintainer authorizes committing the completed corrections and display update on main; no push requested.
 
-Main fixed unchanged Save adding an empty label-prefix override: absent unchanged fields remain
-inherited. Exact JSON and real resolver-inheritance regression pass. Failed first native attempt,
-cleanup nuance and second notification-diagnostic failure are retained in feature evidence.
-Read-only offline review independently approved the serialization correction and attribution.
+The earlier three interaction corrections retain their completed full/native acceptance
+in the durable report below. Their frozen-source results are not asserted for this later
+copy-only change. Production vault untouched; C15–C26 remain paused.
 
-Final 278-input hash `65d4c667456f8ab87034ae8492e847cd7280eff8281e6f34d80cf61324dc1ea7` passes
-complete npm run verify on Node22.22.2:7/69/297/18/333/410 checks, no browser failures/skips/
-cancellations, scanner0errors/one unchanged warning, real production build. Mandatory20,015-owner
-publication passes271.810s. Exact main.js `236399f5df626eb52286bbe00ca62107a295b4345b2ef81e8e50e397a206c5cc`
-passes serial native smoke and all four actual-form creation/edit/preservation scenarios on
-Obsidian1.14.4 in kplex-test-small. The tested artifact remains deployed there. Exact original
-settings/enablement bytes restored, dialogs/controllers/wrappers removed/restored; no notes edited.
-
-Existing On-demand settings refresh recomposes local graph scopes (27 notifications observed).
-Native actual full-index rebuild calls0 and policy unchanged; do not claim zero local graph work.
-Desktop functional acceptance complete; no physical-mobile or performance/paint claim.
-
-Durable progress: [Refactor plan](Refactor%20plan.md).
-Feature [report](docs/validation/node-style-kind-2026-10-07.md) and
-[evidence](docs/validation/node-style-kind-2026-10-07.json) retain exact checks, failures and limits.
+[Progress](Refactor%20plan.md),
+[earlier interaction report](docs/validation/interaction-corrections-2026-10-07.md) and
+[evidence](docs/validation/interaction-corrections-2026-10-07.json).

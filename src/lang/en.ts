@@ -77,6 +77,41 @@ export const englishCatalog = {
     context: "K-Plex node style settings and imported style management.",
     params: ["property"],
   },
+  "styles.typeHelp": {
+    message: "Choose matching by a property value or a primary style tag prefix.",
+    context: "Visible and accessible help in the node style editor.",
+    params: [],
+  },
+  "styles.labelPrefixHelp": {
+    message: "Text placed before the displayed node title.",
+    context: "Visible and accessible help in the node style editor.",
+    params: [],
+  },
+  "styles.lucideHelp": {
+    message: "Icon name displayed beside the node title, such as book-open.",
+    context: "Visible and accessible help in the node style editor.",
+    params: [],
+  },
+  "styles.backgroundHelp": {
+    message: "Fill color of matching nodes.",
+    context: "Visible and accessible help in the node style editor.",
+    params: [],
+  },
+  "styles.textHelp": {
+    message: "Color of the node title.",
+    context: "Visible and accessible help in the node style editor.",
+    params: [],
+  },
+  "styles.borderHelp": {
+    message: "Outline color of matching nodes.",
+    context: "Visible and accessible help in the node style editor.",
+    params: [],
+  },
+  "styles.fontSizeHelp": {
+    message: "Label size in pixels before relative node scaling.",
+    context: "Visible and accessible help in the node style editor.",
+    params: [],
+  },
   "styles.type": {
     message: "Style type",
     context: "Choose property-value matching or primary-style-tag-prefix matching for a new style; existing styles retain their type.",
@@ -88,7 +123,7 @@ export const englishCatalog = {
     params: [],
   },
   "styles.tagPrefix": {
-    message: "Tag prefix",
+    message: "Tag",
     context: "K-Plex node style settings and imported style management.",
     params: [],
   },
@@ -103,7 +138,7 @@ export const englishCatalog = {
     params: [],
   },
   "styles.propertyValue": {
-    message: "Property value",
+    message: "Note type",
     context: "K-Plex node style settings and imported style management.",
     params: [],
   },
@@ -329,6 +364,11 @@ export const englishCatalog = {
   "note.validation.enter": {
     message: "Enter a note name.",
     context: "Legacy K-Plex user-facing copy migrated during the full English catalog pass.",
+    params: [],
+  },
+  "note.savedMetadataPending": {
+    message: "Note saved; metadata is still being prepared.",
+    context: "A newly created note is persisted, but its actual current metadata/body observation is pending.",
     params: [],
   },
   "note.validation.type": {
