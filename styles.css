@@ -324,6 +324,19 @@ button.kplex-sidecar-unfold-plex:hover,
 .kplex-thought.is-highlighted { filter: brightness(1.22); box-shadow: 0 0 0 1px rgba(184,222,255,.66), 0 0 18px rgba(112,184,255,.32), 0 5px 18px rgba(0,0,0,.36); z-index: 13; }
 .kplex-thought.is-dimmed { opacity: .24; filter: saturate(.55) brightness(.72); }
 .kplex-thought.is-selected { box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 0 34px rgba(112,184,255,.28), 0 8px 24px rgba(0,0,0,.42); }
+.kplex-thought.is-keyboard-selected,
+.kplex-expanded-mini-thought.is-keyboard-selected {
+  outline: 2px solid var(--interactive-accent);
+}
+.kplex-keyboard-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.kplex-hotkey-setting .setting-item-control { flex-wrap: wrap; }
 .kplex-thought.is-selected.is-highlighted { box-shadow: 0 0 0 2px rgba(255,255,255,.72), 0 0 34px rgba(112,184,255,.42), 0 8px 24px rgba(0,0,0,.42); }
 .kplex-role-center { font-weight: 650; z-index: 14; padding: 8px 13px; }
 .kplex-role-sibling { opacity: .86; }

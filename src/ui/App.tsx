@@ -1,5 +1,5 @@
 /**
- * Host-bound React shell for K-Plex navigation, startup guidance, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects.
+ * Host-bound React shell for K-Plex navigation, startup guidance, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects. Search/Find scopes and hints use persisted internal bindings; each surface releases its own registrations on teardown.
  */
 import {
   useCallback,
@@ -17,7 +17,8 @@ import { FileView, Menu, type TFile, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
-import { isSearchFocusShortcut, isPlexFindShortcut } from "../core/plex/shortcutPresentation";
+import { resolveInternalHotkey } from "../core/plex/internalHotkeys";
+import { registerInternalHotkeys } from "./internalHotkeyScope";
 import type { Translator } from "../lang";
 import { physicalPositionLabel } from "./features/positionPresentation";
 import { searchFieldCopy } from "./features/searchPresentation";
@@ -300,18 +301,27 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     () => plugin.subscribeSearchFocus(hostLeaf, () => setSearchFocusRequest((value) => value + 1)),
     [plugin, hostLeaf],
   );
-  useEffect(/** Route the active native view's Find shortcut before Obsidian's document-level handler. */ () => {
+  useEffect(/** Route this focused surface's configured Search/Find shortcuts before workspace handlers. */ () => {
     const scope = hostLeaf.view.scope;
     if (!scope) return;
-    const handler = scope.register(["Mod"], "f", /** Leave native editor Find intact; otherwise disclose this Plex's field. */ (event) => {
+    const releaseScope = registerInternalHotkeys(scope, plugin.settings.internalHotkeys, ["focusSearch", "focusFind"], /** Leave native editor Find intact; otherwise disclose this Plex's field. */ (event) => {
       const target = event.target as Element | null;
+      const root = rootRef.current;
+      if (event.defaultPrevented || event.isComposing || !target || !root?.contains(target)) return;
+      const action = resolveInternalHotkey(event, plugin.settings.internalHotkeys, environment.keyConvention);
+      if (action !== "focusFind" && action !== "focusSearch") return;
+      if (action === "focusSearch") {
+        event.stopPropagation();
+        setSearchFocusRequest(value => value + 1);
+        return false;
+      }
       if (target?.closest(".kplex-central-editor-content")) return;
       event.stopPropagation();
       setFindFocusRequest((value) => value + 1);
       return false;
     });
-    return /** Unmount/window migration releases only this surface's hotkey registration. */ () => scope.unregister(handler);
-  }, [hostLeaf]);
+    return releaseScope;
+  }, [hostLeaf, plugin, environment.keyConvention, plugin.settings.internalHotkeys]);
 
   useEffect(() => {
     const followFile = (file: TFile | null) => {
@@ -587,12 +597,16 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
   };
 
+  /** Disclose Vault search and request focus without changing the central node. */
   const activateSearch = () => setSearchFocusRequest((value) => value + 1);
-  const searchCopy = searchFieldCopy(translate, environment);
+  const searchCopy = searchFieldCopy(translate, environment, true, plugin.settings.internalHotkeys.focusSearch);
 
+  /** Deliver configured Search/Find keys on sidebar surfaces while preserving native editor Find. */
   const handlePlexKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const find = isPlexFindShortcut(event);
-    if (!find && !isSearchFocusShortcut(event)) return;
+    if (event.defaultPrevented || event.nativeEvent.isComposing) return;
+    const action = resolveInternalHotkey(event, plugin.settings.internalHotkeys, environment.keyConvention);
+    const find = action === "focusFind";
+    if (!find && action !== "focusSearch") return;
     const target = event.target as Element | null;
     // The central editor is a native Obsidian Markdown surface. Do not steal editor shortcuts
     // such as Ctrl/Cmd+F while focus is inside it; the graph search remains available from the

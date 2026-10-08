@@ -12,7 +12,7 @@ type TranslationValue<K extends EnglishKey> = SourceEntry<K> extends { readonly 
   : string;
 
 /** V2 copy ships in English until reviewed translations are supplied; existing keys stay exhaustive. */
-type EnglishFallbackKey = Extract<EnglishKey, `indexing.${string}` | "node.gateLocalCount" | "node.gateCachedCount" | "node.gateHostUnavailable"
+type EnglishFallbackKey = Extract<EnglishKey, `indexing.${string}` | `hotkeys.${string}` | "node.gateLocalCount" | "node.gateCachedCount" | "node.gateHostUnavailable"
   | "filter.sourcePropertyUrl" | "graph.sourcePropertyUrl" | "explain.sourcePropertyUrl"
   | "explain.summarySourcePropertyUrl" | "references.propertyUrl">;
 

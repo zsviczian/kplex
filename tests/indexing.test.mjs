@@ -333,6 +333,8 @@ for (const file of [
   "src/lang/index.ts",
   "src/types.ts",
   "src/core/plex/viewPresentation.ts",
+  "src/core/plex/internalHotkeys.ts",
+  "src/core/plex/shortcutPresentation.ts",
   "src/core/contracts/fieldName.ts",
   "src/core/graph/model.ts",
   "src/core/parser/metadata.ts",
@@ -407,6 +409,7 @@ for (const file of [
   "src/lens/GraphLensSimple.ts",
   "src/lens/SimplePlexFilter.ts",
   "src/ui/PurgeIndexCacheModal.ts",
+  "src/ui/internalHotkeySettings.ts",
   "src/ui/layout.ts",
   "src/ui/components/collectionWindow.ts",
 ]) compile(file);

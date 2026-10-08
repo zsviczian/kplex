@@ -16,6 +16,7 @@ await build({
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "double" }));
     builder.onLoad({ filter: /.*/, namespace: "double" }, () => ({ contents: `
       export class App {} export class Modal {} export class Notice {} export class Setting {} export class AbstractInputSuggest {}
+      export class ExtraButtonComponent {} export class Scope {}
       export class PluginSettingTab {} export const getIcon = () => null; export const getIconIds = () => [];
       export const getLanguage = () => "en"; export const Platform = {};
     `, loader: "js" }));

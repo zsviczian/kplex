@@ -1,5 +1,5 @@
 /**
- * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity.
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity. Normal-mode keyboard selection is view-local; the displayed projection supplies navigation targets and host methods own activation/rename/creation.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent } from "react";
 import { Menu, Platform, type WorkspaceLeaf } from "obsidian";
@@ -28,6 +28,8 @@ import { buildCentralSectionExpansion, canExpandCentralSections, projectCentralS
 import { GraphPredicateEngine, type CompiledGraphPredicate, type GraphPredicateEdgeContext } from "../lens/GraphPredicate";
 import { graphLensEdgeStyle, graphLensNodeStyle, matchesGraphLenses, type CompiledGraphLensSet } from "../lens/GraphLens";
 import type { Translator, PlainTranslationKey } from "../lang";
+import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
+import { usePlexKeyboardNavigation, type PlexKeyboardNode } from "./usePlexKeyboardNavigation";
 
 type Point = { x: number; y: number };
 type HoverState =
@@ -1965,10 +1967,11 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   const finding = !centralEditorMaximized && Boolean(findQuery.trim());
   const findHitKey = JSON.stringify(findPaths);
   /** Reveal a projected hit through its own overflow list and this surface's camera. */
-  const revealFindHit = (path: string): void => {
+  const revealFindHit = (path: string, keyboardId?: string): void => {
     const root = viewport.current;
     if (!root) return;
-    const target = Array.from(root.querySelectorAll<HTMLElement>("[data-kplex-path]")).find((element) => element.dataset.kplexPath === path);
+    const target = Array.from(root.querySelectorAll<HTMLElement>("[data-kplex-path]")).find((element) =>
+      keyboardId ? element.dataset.kplexKeyboardId === keyboardId : element.dataset.kplexPath === path);
     if (!target) return;
     const scroll = target.closest<HTMLElement>(".kplex-zone-scroll, .kplex-expanded-scroll");
     if (scroll) {
@@ -1985,6 +1988,64 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   useEffect(/** Typing/cycling reveals a hit without changing the center or history. */ () => {
     if (!centralEditorMaximized && findPaths.length) revealFindHit(findPaths[((findCursor % findPaths.length) + findPaths.length) % findPaths.length]);
   }, [findQuery, findCursor, findHitKey, centralEditorMaximized]);
+
+  const keyboardNodes = useMemo<PlexKeyboardNode[]>(/** Select displayed rows, retaining overflow positions but excluding filtered-out nodes. */ () => {
+    const nodes: PlexKeyboardNode[] = [];
+    for (const node of scene.nodes) {
+      if (!filterMatchedNodePaths.has(node.page.path)) continue;
+      const zone = zoneForRole(node.role);
+      const panel = zone ? scene.zoneViewports[zone] : undefined;
+      const local = zone ? zoneDisplayLayouts[zone]?.localPositions.get(node.page.path) : undefined;
+      if (panel && !local) continue;
+      const rendered = renderedNodeMap.get(node.page.path) ?? node;
+      const area = zone ? scene.zoneAreas[zone] : undefined;
+      nodes.push({ id: sceneNodeKeys.get(node)!, path: node.page.path, label: node.label, section: zone ?? "center",
+        x: rendered.x, y: rendered.y, sectionX: area ? area.left + area.width / 2 : node.x,
+        sectionY: area ? area.top + area.height / 2 : node.y });
+    }
+    for (const cluster of expandedClusters) for (const child of cluster.children) {
+      const zone = zoneForRole(cluster.parent.role);
+      const area = zone ? scene.zoneAreas[zone] : undefined;
+      nodes.push({ id: child.key, path: child.relation.page.path, label: child.label, section: zone ?? "center",
+        x: cluster.left + child.localX, y: cluster.top + child.localY - cluster.scrollTop,
+        sectionX: area ? area.left + area.width / 2 : cluster.parent.x,
+        sectionY: area ? area.top + area.height / 2 : cluster.parent.y });
+    }
+    return nodes;
+  }, [scene.nodes, scene.zoneViewports, scene.zoneAreas, sceneNodeKeys, filterMatchedNodePaths, zoneDisplayLayouts, expandedClusters, renderedNodeMap]);
+  const keyboardSelection = usePlexKeyboardNavigation({
+    viewport, scope: hostLeaf.view.scope, activePath,
+    normalMode: !settings.embedCentralNode && !areaSettingsMode && !connectDrag && !nodeDrag && !resizingArea && !relationshipUpdating,
+    convention: readObsidianPresentationEnvironment(viewport.current?.ownerDocument.defaultView ?? undefined).keyConvention,
+    nodes: keyboardNodes,
+    readBindings: /** Consult live workflow settings without a semantic or render publication. */ () => plugin.settings.internalHotkeys,
+    reveal: /** Retire pointer hover, then reveal the exact node occurrence in its list and camera. */ node => {
+      clearHoverIntent(true);
+      revealFindHit(node.path, node.id);
+    },
+    activate: /** Enter centers an ordinary node, opens a transient section, or renames a real center. */ node => {
+      const base = scene.nodes.find(candidate => sceneNodeKeys.get(candidate) === node.id);
+      if (base?.role === "center") {
+        if (base.page.file) new RenameNoteModal(plugin, base.page.file).open();
+        return;
+      }
+      if (base?.page.transient?.kind === "section") { void plugin.openSection(base.page); return; }
+      const page = index.get(base?.page.transient?.actualPath ?? node.path);
+      if (page) onActivate(page);
+    },
+    add: /** Match existing gate semantics and composers, including folder-child creation. */ action => {
+      const origin = persistentNeighborhood?.center;
+      if (!origin || origin.isTag) return false;
+      const role: GateRole = action === "addParent" ? "parent" : action === "addChild" ? "child" : action === "addFriend" ? "left" : "right";
+      if (origin.isFolder) {
+        if (role !== "child") return false;
+        plugin.openCreateInFolderModal(origin, hostLeaf);
+      } else {
+        plugin.openRelationModal({ hostLeaf, mode: "create", origin, semanticRole: role });
+      }
+      return true;
+    },
+  });
 
   /** Ordinary scenes acquire cross-links only for clipped visible rows; filtering retains the full-scene edge/count policy. */
   const visibleEdges = useMemo(() => {
@@ -3156,6 +3217,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       } : undefined}
       settings={settings}
       selected={baseNode.page.path === activePath}
+      keyboardId={sceneNodeKeys.get(baseNode)}
+      keyboardSelected={keyboardSelection === sceneNodeKeys.get(baseNode)}
       highlighted={!connectDrag && (finding ? findNodePaths.has(baseNode.page.path) : interaction.nodePaths.has(baseNode.page.path))}
       dimmed={!connectDrag && !finding && hover !== null && !interaction.nodePaths.has(baseNode.page.path)}
       highlightedGates={highlightedGates}
@@ -3319,7 +3382,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
             const text = child.label.length > maxChars ? `${child.label.slice(0, Math.max(1, maxChars - 1))}…` : child.label;
             return <div
               key={child.key}
-              className={`kplex-expanded-mini-thought${cluster.parent.role === "sibling" ? " is-sibling-descendant" : ""}${findNodePaths.has(child.relation.page.path) ? " is-find-match" : ""}`}
+              className={`kplex-expanded-mini-thought${cluster.parent.role === "sibling" ? " is-sibling-descendant" : ""}${findNodePaths.has(child.relation.page.path) ? " is-find-match" : ""}${keyboardSelection === child.key ? " is-keyboard-selected" : ""}`}
+              data-kplex-keyboard-id={child.key}
               data-kplex-path={child.relation.page.path}
               style={{
                 left: child.localX - child.width / 2,
@@ -3446,6 +3510,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     }}
     onContextMenu={(event: MouseEvent<HTMLDivElement>) => event.preventDefault()}
   >
+    <span className="kplex-keyboard-announcement" aria-live="polite" aria-atomic="true">{keyboardSelection
+      ? translate("hotkeys.selection", { label: keyboardNodes.find(node => node.id === keyboardSelection)?.label ?? "" }) : ""}</span>
     {relationshipUpdating && <div className="kplex-relationship-updating" aria-live="polite" aria-busy="true"><ObsidianIcon name="loader-circle" size={16} /><span>{translate("graph.updatingRelationship")}</span></div>}
     <PlexFind query={findQuery} focusRequest={findFocusRequest} visible={!centralEditorMaximized}
       includePath={findIncludePath} onIncludePathChange={/** A new vocabulary starts its own reveal cycle. */ (includePath) => { setFindIncludePath(includePath); setFindCursor(0); }}

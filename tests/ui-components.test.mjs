@@ -1254,7 +1254,7 @@ const interaction = { gates: new Set(), nodePaths: new Set() }, connectDrag = nu
 const globalFiltering = false, filteredGateCounts = new Map(), nodeVisuals = new Map();
 const predicate = null, lenses = { lenses: [] }, predicateEngine = {}, predicateRevision = 0, layoutRevision = 0;
 const graphLensNodeStyle = () => ({});
-const centralEditorCapable = true, finding = false, hover = null, activeNodeFlair = null, findNodePaths = new Set();
+const centralEditorCapable = true, finding = false, hover = null, activeNodeFlair = null, findNodePaths = new Set(), keyboardSelection = null;
 const connectionStateFor = () => "normal", onCentralNodeEditorChange = () => {}, gateKey = (path, gate) => path + ":" + gate;
 const persistentPageFor = (page) => page;
 const activePath = "Editor.md", centralEditorAvailable = true, sectionExpanded = false;
@@ -1814,4 +1814,125 @@ try{
 }
 test("Toolbar consumes spare space and search width before wrapping; labels use two lines",()=>{
  runBrowserDom(responsiveToolbarBrowserEntry(),"Toolbar shrink and two-line label browser behavior passed");
+});
+
+/** Exercise the actual navigation hook in the main document and a second owning realm. */
+function plexKeyboardBrowserEntry() {
+  return `
+import React, {useRef} from "react";
+import {createRoot} from "react-dom/client";
+import {flushSync} from "react-dom";
+import {usePlexKeyboardNavigation} from ${JSON.stringify(join(root, "src/ui/usePlexKeyboardNavigation.ts"))};
+import {sanitizeInternalHotkeys} from ${JSON.stringify(join(root, "src/core/plex/internalHotkeys.ts"))};
+const result=document.querySelector("#result");
+const check=(ok,message)=>{if(!ok)throw new Error(message)};
+const nodes=[{id:"center",section:"center",x:0,y:0,path:"center",label:"Center"},{id:"left",section:"left",x:-200,y:0,path:"left",label:"Left"},
+ {id:"p1",section:"parent",x:-40,y:-200,path:"p1",label:"Parent one"},{id:"p2",section:"parent",x:40,y:-200,path:"p2",label:"Parent two"}];
+try {
+ const frames=[document,(()=>{const f=document.createElement("iframe");document.body.append(f);return f.contentDocument})()];
+ for(const doc of frames){
+  const container=doc.createElement("div");doc.body.append(container);
+  const scope={handlers:[],register(modifiers,key,func){const h={modifiers,key,func};this.handlers.push(h);return h},unregister(h){this.handlers=this.handlers.filter(x=>x!==h)}};
+  let bindings=sanitizeInternalHotkeys(),normalMode=true,activePath="center",projection=nodes,activations=[],reveals=[],adds=[];
+  function Surface(){const viewport=useRef(null);const selected=usePlexKeyboardNavigation({viewport,scope,normalMode,activePath,convention:"macos",readBindings:()=>bindings,nodes:projection,
+   reveal:n=>reveals.push(n.id),activate:n=>activations.push(n.id),add:a=>{adds.push(a);return true}});
+   return React.createElement("div",{className:"kplex-app",tabIndex:-1,"data-selection":selected??""},
+    React.createElement("div",{ref:viewport},React.createElement("input"),React.createElement("button",null,"Control"),React.createElement("div",{className:"kplex-central-editor-content"}),React.createElement("div",{contentEditable:true,suppressContentEditableWarning:true}),React.createElement("span",null,"Node")))}
+  const app=createRoot(container),render=()=>flushSync(()=>app.render(React.createElement(Surface)));render();
+  const el=container.firstElementChild;
+  const key=(target,key,extra={})=>{const event=new doc.defaultView.KeyboardEvent("keydown",{key,bubbles:true,cancelable:true,...extra});flushSync(()=>target.dispatchEvent(event));return event.defaultPrevented};
+  check(scope.handlers.length===13,"wrong native registration inventory");
+  check(key(el,"ArrowUp")&&el.dataset.selection==="center","plain arrow left the center section");
+  check(key(el,"ArrowUp",{altKey:true})&&el.dataset.selection==="p1","section jump did not enter parent area");
+  check(activations.length===0,"arrows changed center before Enter");
+  check(key(el,"ArrowRight")&&el.dataset.selection==="p2","grid arrow did not select adjacent column");
+  check(key(el,"Enter")&&activations.join() ==="p2","Enter did not activate selected occurrence");
+  check(key(el,"ArrowDown",{altKey:true})&&el.dataset.selection==="center","section jump did not return to center");
+  check(key(el,"Enter")&&activations.at(-1)==="center","center Enter did not delegate rename");
+  check(key(el,"ArrowLeft",{metaKey:true})&&adds.join()==="addFriend","Command+Left did not add friend");
+  key(el,"ArrowLeft",{metaKey:true,repeat:true});check(adds.length===1,"held creation shortcut repeated modal");
+  for(const target of el.querySelectorAll("input,button,[contenteditable],.kplex-central-editor-content"))check(!key(target,"ArrowLeft"),"control/editor arrow stolen");
+  check(!key(el,"ArrowLeft",{shiftKey:true}),"extra modifier triggered navigation");
+  check(!key(el,"ArrowLeft",{isComposing:true}),"composition triggered navigation");
+  const outside=doc.createElement("div");doc.body.append(outside);check(!key(outside,"ArrowUp"),"unrelated leaf key stolen");outside.remove();
+  normalMode=false;render();check(!key(el,"ArrowUp")&&!key(el,"ArrowLeft",{metaKey:true})&&!key(el,"Enter"),"editor-node mode consumed a key");
+  normalMode=true;bindings={...bindings,moveLeft:null,moveRight:{key:"j",modifiers:[]}};render();
+  check(scope.handlers.length===12&&!scope.handlers.some(h=>h.key==="ArrowRight"&&h.modifiers.length===0),"old/disabled native registrations leaked");
+  check(!key(el,"ArrowLeft"),"disabled arrow consumed");
+  key(el,"ArrowUp",{altKey:true});check(key(el,"j")&&el.dataset.selection==="p2","remapped chord inactive");
+  projection=nodes.filter(n=>n.id!=="p2");render();check(el.dataset.selection==="","removed selection retained");
+  key(el,"ArrowLeft",{altKey:true});check(el.dataset.selection==="left","section jump after filtering failed");
+  activePath="other-center";render();check(el.dataset.selection==="","center change retained old keyboard selection");
+  activePath="center";render();check(el.dataset.selection==="","returning to an old center resurrected its selection");
+  key(el,"ArrowUp");flushSync(()=>el.dispatchEvent(new doc.defaultView.Event("pointerdown",{bubbles:true})));check(el.dataset.selection==="","pointer did not clear keyboard selection");
+  const before=reveals.length;flushSync(()=>app.unmount());check(scope.handlers.length===0,"scope registrations survived unmount");
+  key(el,"ArrowUp");check(reveals.length===before,"detached listener survived unmount");container.remove();
+ }
+ result.dataset.status="passed";result.textContent="Plex keyboard selection and ownership passed";
+}catch(error){result.dataset.status="failed";result.textContent=error.stack}
+`;
+}
+test("Plex keyboard selection respects mode, controls, settings, projection and owning-realm cleanup",()=>{
+  runBrowserDom(plexKeyboardBrowserEntry(),"Plex keyboard selection and ownership passed");
+});
+
+/** Exercise the native hotkey row with real DOM, preserving the public SDK and keymap boundary. */
+function internalHotkeySettingsBrowserEntry() {
+ return `
+import {createTranslator} from ${JSON.stringify(join(root,"src/lang/index.ts"))};
+import {captureInternalHotkey, internalBindingEvent, INTERNAL_HOTKEY_ACTIONS, INTERNAL_HOTKEY_DEFAULTS, matchesInternalHotkey, sanitizeInternalHotkeys} from ${JSON.stringify(join(root,"src/core/plex/internalHotkeys.ts"))};
+import {formatShortcut} from ${JSON.stringify(join(root,"src/core/plex/shortcutPresentation.ts"))};
+const result=document.querySelector("#result"),check=(ok,message)=>{if(!ok)throw new Error(message)};
+let convention="macos";
+const readObsidianPresentationEnvironment=()=>({keyConvention:convention,inputModes:{keyboard:true}});
+class Scope {register(modifiers,key,handler){this.handler=handler;return {handler}}}
+class ExtraButtonComponent {
+ constructor(container){this.extraSettingsEl=container.createDiv("clickable-icon")}
+ setIcon(icon){this.extraSettingsEl.dataset.icon=icon;return this}
+ setTooltip(label){this.extraSettingsEl.setAttribute("aria-label",label);return this}
+ onClick(callback){this.extraSettingsEl.addEventListener("click",callback);return this}
+}
+${uiDefinitions("src/ui/internalHotkeySettings.ts",["ACTION_LABELS","renderHotkeyRow","internalHotkeySettings"])}
+try {
+ const frame=document.createElement("iframe");document.body.append(frame);
+ for(const [doc,os] of [[document,"macos"],[frame.contentDocument,"windows"]]) {
+  convention=os;
+  const proto=doc.defaultView.HTMLElement.prototype;
+  proto.addClass=function(...classes){this.classList.add(...classes)};
+  proto.removeClass=function(...classes){this.classList.remove(...classes)};
+  proto.createDiv=function(cls){const el=doc.createElement("div");if(cls)el.className=cls;this.append(el);return el};
+  proto.createSpan=function(cls){const el=doc.createElement("span");if(cls)el.className=cls;this.append(el);return el};
+  proto.setAttr=function(name,value){this.setAttribute(name,value)};
+  proto.setText=function(text){this.textContent=text};
+  proto.toggle=function(show){this.style.display=show?"":"none"};
+  proto.toggleClass=function(name,on){this.classList.toggle(name,on)};
+  const translate=createTranslator("en");let bindings=sanitizeInternalHotkeys();
+  const scopes=[],baseScope={name:"Settings"};scopes.push(baseScope);
+  const keymap={pushScope(scope){scopes.push(scope)},popScope(scope){const i=scopes.indexOf(scope);check(i>0,"Recorder popped another scope");scopes.splice(i,1)}};
+  const page=internalHotkeySettings(()=>bindings,(action,binding)=>{bindings={...bindings,[action]:binding}},translate,keymap);
+  const host=doc.body.appendChild(doc.createElement("div")),control=host.createDiv();
+  const row={settingEl:host,controlEl:control,setDesc(text){host.dataset.description=text}};
+  const release=page.items[1].render(row);
+  const plus=control.querySelector(".setting-add-hotkey-button"),remove=control.querySelector(".setting-delete-hotkey"),restore=control.querySelector(".setting-restore-hotkey-button"),pill=control.querySelector(".setting-hotkey");
+  const key=(key,extra={},native=false)=>{const event=new doc.defaultView.KeyboardEvent("keydown",{key,bubbles:true,cancelable:true,...extra});if(native&&scopes.at(-1).handler)scopes.at(-1).handler(event);else plus.dispatchEvent(event);return event};
+  check(pill.textContent==="↓"&&restore.style.display==="none","Default pill/restore state wrong");
+  for(const el of [plus,remove,restore])check(el.getAttribute("role")==="button"&&el.tabIndex===0&&el.getAttribute("aria-label")&&!el.hasAttribute("title"),"Icon accessibility or duplicate tooltip wrong");
+  remove.click();check(bindings.moveDown===null&&pill.parentElement.style.display==="none"&&restore.style.display!=="none","Delete failed to disable the chord");
+  plus.focus();key("Enter");check(scopes.length===2&&plus.getAttribute("aria-pressed")==="true","Keyboard customize did not acquire recorder scope");
+  key("Control",{},true);check(scopes.length===2,"Modifier-only input ended recording");
+  key("j",{code:"KeyJ",metaKey:os==="macos",ctrlKey:os!=="macos"},true);
+  check(bindings.moveDown.key==="j"&&scopes.length===1&&pill.textContent.includes(os==="macos"?"⌘ J":"Control J"),"Native recording/display did not resolve platform modifier");
+  plus.click();key("Escape",{},true);check(scopes.length===1&&bindings.moveDown.key==="j","Escape failed to cancel recording");
+  plus.click();key("ArrowUp",{},true);check(scopes.length===1&&bindings.moveDown.key==="j"&&host.dataset.description.includes("Already assigned"),"Conflict overwrote chord or lost feedback");
+  plus.click();plus.dispatchEvent(new doc.defaultView.FocusEvent("blur"));check(scopes.length===1,"Blur leaked recorder scope");
+  restore.click();check(bindings.moveDown.key==="ArrowDown"&&restore.style.display==="none","Restore failed to return default");
+  plus.click();release();check(scopes.length===1,"Page teardown retained recorder scope");
+  key("j");check(bindings.moveDown.key==="ArrowDown","Detached recorder retained event listener");host.remove();
+ }
+ result.dataset.status="passed";result.textContent="Native hotkey pills and recording lifecycle passed";
+}catch(error){result.dataset.status="failed";result.textContent=error.stack}
+`;
+}
+test("Native hotkey pills support disable, customize, restore, conflicts and recording cleanup",()=>{
+ runBrowserDom(internalHotkeySettingsBrowserEntry(),"Native hotkey pills and recording lifecycle passed");
 });

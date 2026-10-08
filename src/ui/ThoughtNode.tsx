@@ -1,7 +1,8 @@
 /**
  * Plex node and gate presentation with localized accessibility and interaction hints. Uncertified
  * counts display lower bounds; count completeness never grants relationship editing coverage. Physical gate
- * labels are layout copy; semantic roles, coverage and drag effects belong to callers.
+ * labels are layout copy; semantic roles, coverage and drag effects belong to callers. Keyboard selection
+ * is distinct from the central node and uses caller-supplied occurrence identity.
  */
 import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
@@ -20,6 +21,8 @@ export function ThoughtNode({
   node,
   settings,
   selected,
+  keyboardSelected = false,
+  keyboardId,
   highlighted,
   dimmed,
   highlightedGates,
@@ -44,6 +47,8 @@ export function ThoughtNode({
   node: PositionedNode;
   settings: KplexSettings;
   selected: boolean;
+  keyboardSelected?: boolean;
+  keyboardId?: string;
   highlighted: boolean;
   dimmed: boolean;
   highlightedGates: ReadonlySet<GateSide>;
@@ -113,6 +118,7 @@ export function ThoughtNode({
     "kplex-thought",
     `kplex-role-${node.role}`,
     selected ? "is-selected" : "",
+    keyboardSelected ? "is-keyboard-selected" : "",
     highlighted ? "is-highlighted" : "",
     dimmed ? "is-dimmed" : "",
     dragging ? "is-dragging" : "",
@@ -129,6 +135,7 @@ export function ThoughtNode({
     className={classes}
     style={nodeCss}
     data-kplex-path={node.page.path}
+    data-kplex-keyboard-id={keyboardId}
     onPointerDown={(e: ReactPointerEvent<HTMLDivElement>) => { onNodePointerDown(node, e); }}
     onPointerEnter={(e: ReactPointerEvent<HTMLDivElement>) => {
       onHoverNode(node);

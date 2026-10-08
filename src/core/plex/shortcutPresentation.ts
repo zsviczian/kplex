@@ -3,7 +3,7 @@
  */
 import type { KeyConvention, PresentationEnvironment } from "../contracts/presentationEnvironment";
 
-export type ShortcutModifier = "mod" | "alt" | "shift";
+export type ShortcutModifier = "mod" | "alt" | "shift" | "ctrl" | "meta";
 export type ShortcutSpec = Readonly<{
   key: string;
   modifiers?: readonly ShortcutModifier[];
@@ -40,6 +40,8 @@ export type ShortcutPresentationLabels = Readonly<{
 /** Resolve a logical modifier against explicit OS conventions and caller-supplied localized names; unknown conventions cannot invent a key hint. */
 function modifierName(modifier: ShortcutModifier, convention: KeyConvention, labels: ShortcutPresentationLabels): string | null {
   if (modifier === "shift") return labels.shift;
+  if (modifier === "ctrl") return labels.control;
+  if (modifier === "meta") return labels.command;
   if (modifier === "mod") {
     if (convention === "macos" || convention === "ios") return labels.command;
     if (convention === "windows" || convention === "android") return labels.control;
@@ -53,12 +55,14 @@ function modifierName(modifier: ShortcutModifier, convention: KeyConvention, lab
 /**
  * Format a shortcut only when the action is available and a keyboard is confirmed present.
  * Mobile `unknown` keyboard state intentionally yields no hint rather than assuming either state.
+ * Native hotkey pills may request a space separator; ordinary action hints retain plus separators.
  */
 export function formatShortcut(
   shortcut: ShortcutSpec,
   environment: Pick<PresentationEnvironment, "keyConvention" | "inputModes">,
   labels: ShortcutPresentationLabels,
   actionAvailable = true,
+  separator = "+",
 ): string | null {
   if (!actionAvailable || environment.inputModes.keyboard !== true) return null;
   const modifiers: string[] = [];
@@ -68,5 +72,5 @@ export function formatShortcut(
     modifiers.push(name);
   }
   if (environment.keyConvention === "unknown" && modifiers.length) return null;
-  return [...modifiers, shortcut.key.length === 1 ? shortcut.key.toLocaleUpperCase() : shortcut.key].join("+");
+  return [...modifiers, shortcut.key.length === 1 ? shortcut.key.toLocaleUpperCase() : shortcut.key].join(separator);
 }
