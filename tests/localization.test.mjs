@@ -327,8 +327,8 @@ test("representative production consumers use K-Plex command IDs and preserve ex
   assert(main.includes('this.translator("notice.indexedNodes", { count: this.index.size })'));
   assert(app.includes('label={translate("toolbar.navigateBack")}'));
   assert(app.includes('label={translate("toolbar.navigateForward")}'));
-  assert(app.includes("searchFieldCopy(translate, environment)"));
-  assert(app.includes("isSearchFocusShortcut(event)"));
+  assert(app.includes("searchFieldCopy(translate, environment, true, plugin.settings.internalHotkeys.focusSearch)"), "Search hints must reflect the configured binding");
+  assert(app.includes("resolveInternalHotkey(event, plugin.settings.internalHotkeys, environment.keyConvention)"));
   for (const exact of [
     "Open graph",
     "Imported ExcaliBrain settings into K-Plex.",

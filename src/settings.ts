@@ -6,7 +6,8 @@
  * injected translator owns display copy. Indexing strategy takes effect after restart; persistent
  * cache estimates run only when their settings row is rendered, never during plugin startup.
  * Background throttle changes apply live without reconstructing semantic data. Style creation selects
- * property-value or primary-tag-prefix matching without converting existing imported styles.
+ * property-value or primary-tag-prefix matching without converting existing imported styles. Internal
+ * keyboard bindings are additive workflow preferences; recorder controls own only transient capture.
  */
 import {
   AbstractInputSuggest,
@@ -26,6 +27,8 @@ import { createObsidianTranslator } from "./adapters/obsidian/localization";
 import type { Translator, PlainTranslationKey } from "./lang";
 import { PurgeIndexCacheModal } from "./ui/PurgeIndexCacheModal";
 import { sanitizeIndexingThrottle, type IndexingThrottle } from "./index/ForegroundWorkScheduler";
+import { sanitizeInternalHotkeys, type InternalHotkeys } from "./core/plex/internalHotkeys";
+import { internalHotkeySettings } from "./ui/internalHotkeySettings";
 
 export const DEFAULT_LINK_STYLE: LinkStyle = {
   strokeColor: "#696969ff",
@@ -127,6 +130,8 @@ export const DEFAULT_LAYOUT_PROFILES: Record<string, KplexLayoutProfile> = {
 };
 
 export interface KplexSettings {
+  /** Plex-local bindings; null disables an action without affecting Obsidian command hotkeys. */
+  internalHotkeys: InternalHotkeys;
   compactView: boolean;
   /** Vertical density keeps its historical persisted key. */
   compactingFactor: number;
@@ -267,6 +272,7 @@ export interface KplexSettings {
 }
 
 export const DEFAULT_SETTINGS: KplexSettings = {
+  internalHotkeys: sanitizeInternalHotkeys(undefined),
   compactView: false,
   compactingFactor: 2,
   horizontalCompactingFactor: 2,
@@ -600,6 +606,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     startupIndexInfoBubbleSeen: Boolean(old.startupIndexInfoBubbleSeen),
     deletePromptInitialized: Boolean(old.deletePromptInitialized),
     confirmFileDelete: old.confirmFileDelete !== false,
+    internalHotkeys: sanitizeInternalHotkeys(old.internalHotkeys),
     // Keep legacy flags coherent for imported settings and older code paths.
     autoOpenCentralDocument: documentSyncMode !== "off",
     followActiveFile: documentSyncMode !== "off",
@@ -1770,6 +1777,13 @@ export class KplexSettingTab extends PluginSettingTab {
           { name: translate("settings.ui.join.sym.community"), action: () => { window.open("https://community.sketch-your-mind.com", "_blank", "noopener,noreferrer"); } },
         ],
       },
+      internalHotkeySettings(
+        /** Read live choices across rows and mounted views. */ () => this.kplexPlugin.settings.internalHotkeys,
+        /** Persist workflow preferences and refresh scoped hotkeys without semantic invalidation. */ (action, binding) => {
+          this.kplexPlugin.settings.internalHotkeys = { ...this.kplexPlugin.settings.internalHotkeys, [action]: binding };
+          void this.kplexPlugin.saveSettings(false);
+        }, translate, this.app.keymap,
+      ),
       {
         type: "page",
         name: translate("settings.ui.plex.behavior"),

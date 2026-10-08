@@ -22,6 +22,8 @@ await build({
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "double" }));
     builder.onLoad({ filter: /.*/, namespace: "double" }, () => ({ contents: `
       export class App {}
+      export class ExtraButtonComponent {} export class Scope {}
+      export const Platform = {};
       /** Narrow form-shell double: production modal fields, listeners and save callbacks remain real. */
       class FormElement {
         constructor(tag = "div", options = {}) {
