@@ -88,11 +88,32 @@ Keyboard shortcuts while K-Plex has focus:
 - **Up / Down** — move through search results
 - **Enter** — activate the selected result
 - **Escape** — close the result list
-- **F4** — focus Vault search
+- **Alt/Option+/** — focus Vault search
 
-In normal Plex mode, **arrow keys** highlight nodes within an area, and **Alt/Option+arrow** moves to the next area in that direction. Start from the center with **Alt/Option+arrow**. **Enter** brings the highlighted node to the center; on the central node it opens **Rename** when the node has a file. **Ctrl/Cmd+Up / Down / Left / Right** adds a parent, child, friend or challenger to the center. These shortcuts only run while the Plex has focus, with the Editor node turned off. Search fields, editors and dialogs keep their own keys.
+Select the graph itself to use graph shortcuts. **Arrow keys** highlight displayed nodes; **Alt/Option+arrow** jumps to another area. **Cross sections at arrow-key boundaries** lets plain arrows leave an area when its edge is reached. It starts enabled in a new vault and remains off when upgrading existing settings. **Enter** brings a highlighted neighbor to the center; on the central file it opens **Rename**. **Ctrl/Cmd+Up / Down / Left / Right** creates a parent, child, friend or challenger from the Plex center.
 
-Change or disable these shortcuts, Vault search and Find in Plex under **Settings → K-Plex → Internal hotkeys**. Select the **+** icon and press a replacement shortcut, select **×** on a hotkey to disable it, or select the restore icon to return to its default.
+Graph shortcuts work while the graph has focus, including when the Editor node is enabled. Search fields, editors, buttons and dialogs retain their own editing and navigation keys. **Ctrl/Cmd+Shift+G** focuses the graph and **Ctrl/Cmd+Shift+E** focuses its existing embedded or Sidecar editor. **Alt/Option+/** focuses Vault search from the canvas. In an editor, **Ctrl/Cmd+F** remains the editor's Find command.
+
+Type while the graph has focus to select displayed nodes by their labels across all areas. Matching ignores case and uses the exact phrase you type; nodes stay visible. Each added character selects the next match. **Tab** moves to the next match, **Shift+Tab** to the previous one, **Backspace** edits the phrase and **Escape** clears it. This does not change Vault search or the Plex center. A saved custom letter shortcut still runs its assigned action.
+
+Open the **K-Plex command palette** with **Alt/Option+.** on the graph, or use **Alt/Option+?** for a read-only keyboard shortcut reference. The palette provides keyboard routes to node opening, relationship creation and inspection, section folding, pins, history and view controls. Additional graph defaults are:
+
+| Shortcut | Action |
+| --- | --- |
+| **Alt/Option+0** | Select the center |
+| **Alt/Option+R** | Rename the selected node, or the center when nothing is selected |
+| **Ctrl/Cmd+Enter** | Center the selected note and ensure its sidecar is open |
+| **Alt/Option+P** | Pin or unpin the selected node, or the center |
+| **Alt/Option+B** / **Alt/Option+H** | Open the complete pins / history picker |
+| **Backspace** / **Shift+Backspace** | Move back / forward in Plex history when no typing search is active |
+| **Alt/Option+C** | Connect the selected node, or the center, to an existing node |
+| **Alt/Option+M** | Open the selected node's context menu, or the center's |
+
+Manage these choices under **Settings → K-Plex → Actions and shortcuts**. Search by action name or use the keyboard icon to search by a shortcut. The **All**, **Assigned**, **Assigned by me**, **Unassigned** and **Conflicts** filters narrow the list. Add up to four local shortcuts per action, choose character/key or physical key position, and remove or restore bindings. Recording starts with physical matching so Option/Alt combinations work even when they produce accents. Changing the matching mode resumes recording automatically. Changes save immediately. These settings also appear in Obsidian’s settings search. You can turn off character shortcuts while keeping modified chords and arrows. Use **Ctrl/Cmd+Shift+G** to focus the graph and **Ctrl/Cmd+Shift+E** to focus its associated editor. Existing assignments and explicit disables survive upgrades. Reset a saved shortcut to adopt its new default; a new default that conflicts with your assignment stays unbound.
+
+Red shortcut bubbles and the red **Conflicts** filter identify overlaps with another K-Plex action. Conflicting shortcuts stay saved; neither assignment is removed automatically. Names appear beneath each setting: red text identifies other K-Plex actions, and warning-colored text identifies Obsidian commands that also use the shortcut. A globe marks an Obsidian overlap. Ambiguous local shortcuts run neither action until you change or remove an assignment. Physical-key overlaps that depend on your keyboard layout are marked as possible. An Obsidian assignment for the same K-Plex action uses an information icon.
+
+Publication is separate from local shortcuts. Published actions appear in Obsidian's Command Palette and can receive global shortcuts under **Settings → Hotkeys**. Turning publication off leaves the local action available. Existing **Add child**, **Add parent**, **Add friend** and **Add challenger** commands operate on the Plex center even when another note's editor has focus. Actions explicitly named **selected node** require a selected graph node.
 
 Press **Ctrl/Cmd+F**, or select the magnifier in the upper-right corner of the Plex, to **Find in Plex**. This separate field searches displayed node names and ontology labels in the current Plex and reveals matches in scrollable areas. Select its **Include paths** button to also search file paths. Matching a note does not highlight its surrounding links. It has no results dropdown and does not change the central node or navigation history. **Enter** moves to the next match, **Shift+Enter** moves to the previous match, and **Escape** clears and closes Find. Select **Filter matching notes**, beside **Include paths**, to keep nodes whose labels contain the Find text and reflow the layout around the center. The center remains visible. Select the button again to turn it off and restore the previous Quick Filter and layout. Changing the Find text and selecting the button replaces the temporary filter. Manual edits in **Filters and lenses** take ownership of that filter.
 
@@ -102,7 +123,7 @@ Select **Editor node** to expand a file or URL inside the central node. Images f
 
 ## Creating and editing relationships
 
-K-Plex lets you create Parent, Child, Friend and Challenger relationships directly from the Plex. You can start from a gate, use the Command Palette, or use node/connector context menus.
+K-Plex lets you create Parent, Child, Friend, Challenger, Previous and Next relationships directly from the Plex. You can start from a gate, use the Command Palette, or use node/connector context menus.
 
 The relationship dialog provides:
 
@@ -113,10 +134,15 @@ The relationship dialog provides:
 - remembered ontology choices for each relationship type;
 - remembered Markdown/Excalidraw create action, including Ctrl/Cmd+Enter;
 - filename validation and duplicate-name checking;
-- an **Open for editing** toggle for new notes.
+- an **Open for editing** toggle for new notes;
+- explicit completion choices: return, create another, follow or edit;
 - a **Placeholder** action that creates only the unresolved relationship and no file.
 
-Newly created notes and their relationships appear in the Plex immediately instead of waiting for Obsidian's background indexing cycle. Placeholder nodes are stored as name-only unresolved links until they are materialized. If **Open for editing** is enabled, the new note becomes the center and opens in the companion Sidecar in Obsidian's normal Markdown editor, ready for writing.
+The dialog names its captured origin. Navigating the Plex elsewhere while it is open does not change that origin. **Ctrl/Cmd+Enter** submits; **Ctrl/Cmd+Shift+Enter** creates or connects another node while keeping the same origin and ontology. If a suggestion list is open, accept or dismiss that suggestion first.
+
+Choose **Return** to keep the origin and return to the invoking control, **Create another** to clear the name for another entry, **Follow node** to center the result, or **Edit note** to open its supported editor. The default choice honors **Open for editing** for newly created files. Placeholders and URLs can be followed but do not open as editable notes.
+
+Saved notes and relationships update the Plex without waiting for a full indexing cycle. If a save succeeds while the Plex update remains pending, the dialog offers a targeted refresh and prevents duplicate submission. If note creation finishes only partly, use its recovery controls to link or open the file that already exists. Placeholder nodes are stored as name-only unresolved links until they are materialized. With **Use configured behavior** selected and **Open for editing** enabled, the new note becomes the center and opens in the companion Sidecar in Obsidian's normal Markdown editor, ready for writing.
 
 When folder nodes are visible, drag outward from a folder's **Child gate** to create a new Markdown note (or Excalidraw drawing when available) directly in that folder. The folder location itself supplies the file-tree relationship, so K-Plex does not create a separate note-to-note link. Ctrl/Cmd+Enter uses the same remembered Markdown/Excalidraw default as the normal create-child workflow, and folder creation never offers a placeholder because an unresolved placeholder has no physical folder yet. Dropping a regular note gate onto a folder remains available as a secondary file-only shortcut.
 

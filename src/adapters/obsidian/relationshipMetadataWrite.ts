@@ -24,7 +24,10 @@ export function relationshipMetadataPayload(frontmatter: Record<string, unknown>
 }
 
 /** The host distinguishes cancellation after persistence from a write that never happened. */
-export class SavedRelationshipPendingError extends Error {}
+export class SavedRelationshipPendingError extends Error {
+  /** Carry exact notice ownership so a session can retain saved state without repeating a service notice. */
+  constructor(message: string, readonly noticeReported = false) { super(message); }
+}
 
 /** A cancellation registration belongs to the plugin lifetime, never to a detached modal/document. */
 export type RelationshipWriteLifetime = Readonly<{
@@ -49,13 +52,15 @@ export async function writeRelationshipMetadata(app: App, file: TFile, fields: R
   // Reserve the changed-event string, the actual current read and both property observations.
   // File bytes bound UTF-16 conservatively; external growth is checked again before reading.
   if (4 * file.stat.size + 4 * initialPayload.length > SOURCE_DECODE_BUDGET_BYTES) throw new Error("decode-budget");
-  let expected: string | null = null, saved = false, settled = false, checking = false, generation = 0;
+  let expected: string | null = null, saved = false, settled = false, checking = false, generation = 0, noticeReported = false;
   let candidate: { cache: CachedMetadata; data: string } | null = null;
   let timer: number | null = null;
   const refs: Array<readonly ["metadata" | "vault", EventRef]> = [];
   let release = (): void => {};
   let resolve!: () => void, reject!: (error: Error) => void;
   const completion = new Promise<void>((done, fail) => { resolve = done; reject = fail; });
+  /** Only this observed write knows whether its pending notice already reached the user. */
+  const pendingError = (): SavedRelationshipPendingError => new SavedRelationshipPendingError(lifetime.savedPendingMessage(), noticeReported);
   // Cancellation can arrive while processFrontMatter is still awaiting its native write.
   // Retain rejection for the eventual await without an unhandled-rejection event.
   void completion.catch(() => {});
@@ -69,7 +74,7 @@ export async function writeRelationshipMetadata(app: App, file: TFile, fields: R
     if (error) reject(error); else resolve();
   };
   /** Cancellation after persistence must never be presented as an unsaved relationship. */
-  const cancel = (): void => finish(saved ? new SavedRelationshipPendingError(lifetime.savedPendingMessage()) : new Error("cancelled"));
+  const cancel = (): void => finish(saved ? pendingError() : new Error("cancelled"));
   release = lifetime.own(cancel);
   if (settled) { release(); await completion; return; }
   /** Validate one observed cache against the actual current body, then close its physical/event fence. */
@@ -87,11 +92,11 @@ export async function writeRelationshipMetadata(app: App, file: TFile, fields: R
           if (event && event.cache === cache) {
             const revision = { mtime: file.stat.mtime, size: file.stat.size };
             if (2 * event.data.length + 2 * file.stat.size + 2 * (initialPayload.length + expected.length) > SOURCE_DECODE_BUDGET_BYTES) {
-              finish(new SavedRelationshipPendingError(lifetime.savedPendingMessage())); return;
+              finish(pendingError()); return;
             }
             const currentBody = await app.vault.cachedRead(file);
             if (2 * (event.data.length + currentBody.length + initialPayload.length + (expected?.length ?? 0)) > SOURCE_DECODE_BUDGET_BYTES) {
-              finish(new SavedRelationshipPendingError(lifetime.savedPendingMessage())); return;
+              finish(pendingError()); return;
             }
             if (settled) return;
             if (observed === generation && event.data === currentBody && app.vault.getFileByPath(path) === file
@@ -102,13 +107,13 @@ export async function writeRelationshipMetadata(app: App, file: TFile, fields: R
         }
         if (observed === generation) return;
       } while (!settled);
-    } catch { finish(new SavedRelationshipPendingError(lifetime.savedPendingMessage())); }
+    } catch { finish(pendingError()); }
     finally { checking = false; }
   };
   refs.push(["metadata", app.metadataCache.on("changed", (changed, data, cache) => {
     if (changed !== file || changed.path !== path) return;
     if (2 * (data.length + initialPayload.length + (expected?.length ?? 0)) > SOURCE_DECODE_BUDGET_BYTES) {
-      finish(saved ? new SavedRelationshipPendingError(lifetime.savedPendingMessage()) : new Error("decode-budget")); return;
+      finish(saved ? pendingError() : new Error("decode-budget")); return;
     }
     candidate = { data, cache }; generation++; void check();
   })]);
@@ -125,13 +130,13 @@ export async function writeRelationshipMetadata(app: App, file: TFile, fields: R
     });
     saved = true;
     if (!settled) {
-      timer = window.setTimeout(() => { if (!settled) lifetime.pending(); }, 1200);
+      timer = window.setTimeout(() => { if (!settled) { lifetime.pending(); noticeReported = true; } }, 1200);
       void check();
     }
     await completion;
   } catch (error) {
     const failure = saved && !(error instanceof SavedRelationshipPendingError)
-      ? new SavedRelationshipPendingError(lifetime.savedPendingMessage()) : error instanceof Error ? error : new Error(String(error));
+      ? pendingError() : error instanceof Error ? error : new Error(String(error));
     finish(failure); throw failure;
   }
 }

@@ -16,22 +16,10 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Node-style display names — accepted, handoff inactive
+# Inactive — saved visible shortcut conflicts accepted
 
-Latest maintainer scope: display Tag / Note type in the style-type dropdown and matching
-field. Main applied the narrow catalog/test correction after the prior offline session
-ended; all eight catalogs retain their existing keys. Stored dictionaries, matching
-semantics and JSON compatibility unchanged. Label prefix remains the separate title
-text field with its existing explanation.
+Main independently accepted frozen uncommitted follow-up on action-manager/user base3f2d6b0. Explicit overlaps save and retain both assignments; pending Replace/Cancel removed. Native red chips/filter and inline counterpart names distinguish local errors from Obsidian warnings. defaultBindingsVersion:1 preserves current inherited-default overlaps while retaining old one-time migration protection and future raw guards. Canonical ambiguous dispatch consumes and runs neither. Detached recorder layout evidence is session-scoped and retires after removal/edit/teardown.
 
-All45 focused form/migration, localization and terminology checks pass on Node22.22.2;
-actual TypeScript/production build passes. Full performance/native rounds intentionally
-not repeated per maintainer request. Maintainer authorizes committing the completed corrections and display update on main; no push requested.
+Root90focused + full7architecture/69core/416general/20UI/333portable/410Chromium/indexing/scanner0/realtypes/build/exactstage pass. Source308inputsSHAa840e387… unchanged; main6af4c1de…/CSSc5debd74…/manifest19799fff… installedexact. Native1 behavior18 pass but test-only stale remote-geometry cleanup failed; recovered. Driver detaches geometry and native2 reruns18/18 including cleanup. Actual red/visible warnings, inherited default and explicit duplicates after pluginreload, one-sided removal, native ambiguous0prepare, ShiftOptionR and3widths pass.
 
-The earlier three interaction corrections retain their completed full/native acceptance
-in the durable report below. Their frozen-source results are not asserted for this later
-copy-only change. Production vault untouched; C15–C26 remain paused.
-
-[Progress](Refactor%20plan.md),
-[earlier interaction report](docs/validation/interaction-corrections-2026-10-07.md) and
-[evidence](docs/validation/interaction-corrections-2026-10-07.json).
+Audit73notes/zero ownedresources/Settingsclosed/mainrouting/originalgeometry/exactartifacts/drainedqueues. Latest16,881-byte dataSHA05bb26dd…/enablement/hotkeys{} byte-restored/readback; no reloadafterrestore. Awakelease54503 releasedexit130. Durable record: docs/validation/saved-shortcut-conflicts-2026-10-09.md/json and Refactorplan. Physical touch/non-US layout/external CSS scanner and older OS/editor/device limits remain explicit. C15–C26 remain paused. The maintainer now explicitly authorizes commit/push/PR/merge of the accepted work and subsequent PR #82 integration with conflict resolution. Root owns Git publication and combined validation; no release or personal-vault deployment is requested.

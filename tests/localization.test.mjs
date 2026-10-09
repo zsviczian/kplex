@@ -59,6 +59,7 @@ const portableTemp = compileModules([
   ...localizationModulePaths,
   "src/core/contracts/presentationEnvironment.ts",
   "src/core/plex/shortcutPresentation.ts",
+  "src/core/plex/actions.ts",
   "src/core/plex/predicate.ts",
   "src/core/plex/predicateParser.ts",
   "src/ui/features/searchPresentation.ts",
@@ -105,6 +106,23 @@ test("English catalog is strict, typed at source, and remains the fallback", () 
   assert.equal(futureGerman("search.placeholder"), "Suchen…", "missing exact-locale keys must fall back to the base locale");
   assert.equal(futureGerman("command.openGraph"), "Open graph", "missing locale keys must fall back to English");
   assert.equal(localization.createTranslator("zz-ZZ")("command.openGraph"), "Open graph", "unknown locale must fall back to English");
+});
+
+test("every action explains its behavior beyond its label, and help is distinct from commands", () => {
+  const translate = localization.createTranslator("en");
+  const { ACTION_CATALOG } = require(join(portableTemp, "src/core/plex/actions.js"));
+  for (const action of ACTION_CATALOG) {
+    const label = translate(action.labelKey);
+    const description = translate(action.descriptionKey);
+    assert.ok(description.split(/\s+/u).length >= 7, `${action.id} needs a short explanation of its effect`);
+    assert.equal(description.startsWith(`${label}.`), false, `${action.id} must explain more than its label`);
+  }
+  assert.match(translate("actions.graph.focus.description"), /keyboard focus.*arrows/u);
+  assert.match(translate("actions.editor.focus.description"), /keyboard focus.*editor/u);
+  assert.match(translate("actions.node.open.description"), /existing notes.*center.*ensure.*sidecar is open where supported/u);
+  assert.match(translate("actions.actions.open"), /K-Plex command palette/u);
+  assert.match(translate("actions.keyboard.help.description"), /without running commands/u);
+  assert.match(translate("actions.helpDescription"), /Plex is focused/u);
 });
 
 test("bundled locale catalogs are complete and provide translated copy", () => {
@@ -321,14 +339,23 @@ test("representative production consumers use K-Plex command IDs and preserve ex
   const app = readFileSync(join(root, "src/ui/App.tsx"), "utf8");
   const catalog = readFileSync(join(root, "src/lang/en.ts"), "utf8");
 
-  assert(main.includes('id: "kplex-start"'));
-  assert(main.includes('name: this.translator("command.openGraph")'));
+  const actions = require(join(portableTemp, "src/core/plex/actions.js"));
+  const open = actions.ACTION_BY_ID.get("surface.open-tab");
+  assert.equal(open.command.id, "kplex-start");
+  assert.equal(localization.createTranslator("en")(open.labelKey), "Open graph");
+  assert(main.includes("createActionCommandPublisher"), "Native command labels must come from catalog publication");
   assert(main.includes('this.translator("notice.excaliBrainSettingsImported")'));
   assert(main.includes('this.translator("notice.indexedNodes", { count: this.index.size })'));
   assert(app.includes('label={translate("toolbar.navigateBack")}'));
   assert(app.includes('label={translate("toolbar.navigateForward")}'));
-  assert(app.includes("searchFieldCopy(translate, environment, true, plugin.settings.internalHotkeys.focusSearch)"), "Search hints must reflect the configured binding");
-  assert(app.includes("resolveInternalHotkey(event, plugin.settings.internalHotkeys, environment.keyConvention)"));
+  assert(app.includes('effectiveActionBindings(plugin.settings.actionPreferences, "search.focus")'), "Search hints must reflect effective action preferences");
+  assert(app.includes("formatActionBinding"), "Search hints must use platform-aware shared binding presentation");
+  const transport = readFileSync(join(root, "src/ui/usePlexActions.ts"), "utf8");
+  assert(transport.includes("let preferences = plugin.settings.actionPreferences;")
+    && transport.includes("compileActionBindings(preferences, options.convention)")
+    && transport.includes("preferences = plugin.settings.actionPreferences;")
+    && transport.includes("plugin.subscribeActionPreferences(preferencesChanged)"),
+  "Local dispatch must compile the same effective preference owner initially and on committed changes");
   for (const exact of [
     "Open graph",
     "Imported ExcaliBrain settings into K-Plex.",

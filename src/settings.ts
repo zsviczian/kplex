@@ -28,7 +28,8 @@ import type { Translator, PlainTranslationKey } from "./lang";
 import { PurgeIndexCacheModal } from "./ui/PurgeIndexCacheModal";
 import { sanitizeIndexingThrottle, type IndexingThrottle } from "./index/ForegroundWorkScheduler";
 import { sanitizeInternalHotkeys, type InternalHotkeys } from "./core/plex/internalHotkeys";
-import { internalHotkeySettings } from "./ui/internalHotkeySettings";
+import { migrateActionPreferences, type ActionPreferencesV1 } from "./core/plex/actionPreferences";
+import { ActionSettingsController } from "./ui/ActionSettingsController";
 
 export const DEFAULT_LINK_STYLE: LinkStyle = {
   strokeColor: "#696969ff",
@@ -132,6 +133,10 @@ export const DEFAULT_LAYOUT_PROFILES: Record<string, KplexLayoutProfile> = {
 export interface KplexSettings {
   /** Plex-local bindings; null disables an action without affecting Obsidian command hotkeys. */
   internalHotkeys: InternalHotkeys;
+  /** Independent local bindings and desired Obsidian command publication; workflow-only state. */
+  actionPreferences: ActionPreferencesV1;
+  /** Retain a future schema verbatim while this version runs a conservative effective fallback. */
+  actionPreferencesFuture?: unknown;
   compactView: boolean;
   /** Vertical density keeps its historical persisted key. */
   compactingFactor: number;
@@ -273,6 +278,7 @@ export interface KplexSettings {
 
 export const DEFAULT_SETTINGS: KplexSettings = {
   internalHotkeys: sanitizeInternalHotkeys(undefined),
+  actionPreferences: migrateActionPreferences(undefined).preferences,
   compactView: false,
   compactingFactor: 2,
   horizontalCompactingFactor: 2,
@@ -439,6 +445,7 @@ export function importExcaliBrainGraphSettings(raw: unknown, current?: KplexSett
   return migrateAndMergeSettings({
     ...current,
     ...imported,
+    actionPreferences: current?.actionPreferences ?? DEFAULT_SETTINGS.actionPreferences,
     horizontalCompactingFactor: imported.compactingFactor ?? current?.horizontalCompactingFactor,
     hierarchy: {
       ...current?.hierarchy,
@@ -456,7 +463,8 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     excalibrainFilepath?: unknown;
   };
   // Both values belonged to retired render surfaces and carry no K-Plex state.
-  const { maxZoom: _legacyMaxZoom, excalibrainFilepath: _legacyDrawingPath, ...old } = rawSettings;
+  const { maxZoom: _legacyMaxZoom, excalibrainFilepath: _legacyDrawingPath, actionPreferencesFuture: _runtimeFuture, ...old } = rawSettings;
+  const actionPreferences = migrateActionPreferences(raw);
   const hierarchyRaw: Partial<Hierarchy> = old.hierarchy ?? {};
   const hierarchy: Hierarchy = {
     ...DEFAULT_HIERARCHY_DEFINITION,
@@ -607,6 +615,9 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     deletePromptInitialized: Boolean(old.deletePromptInitialized),
     confirmFileDelete: old.confirmFileDelete !== false,
     internalHotkeys: sanitizeInternalHotkeys(old.internalHotkeys),
+    actionPreferences: actionPreferences.preferences,
+    ...(actionPreferences.unsupportedVersion !== undefined
+      ? { actionPreferencesFuture: old.actionPreferences } : {}),
     // Keep legacy flags coherent for imported settings and older code paths.
     autoOpenCentralDocument: documentSyncMode !== "off",
     followActiveFile: documentSyncMode !== "off",
@@ -1567,9 +1578,39 @@ const arrowOptions = (translate: Translator): Record<Arrowhead, string> => ({
 });
 
 export class KplexSettingTab extends PluginSettingTab {
+  private actionSettings: ActionSettingsController | null = null;
+
+  /** Keep shortcut editing in the native settings hierarchy with lazy rendered resource ownership. */
   constructor(app: App, private kplexPlugin: KplexPlugin) {
     super(app, kplexPlugin);
     this.containerEl.addClass("kplex-settings");
+  }
+
+  /** Supply searchable action definitions without mounting listeners while Obsidian indexes settings. */
+  private actionSettingsController(): ActionSettingsController {
+    return this.actionSettings ??= new ActionSettingsController(this.kplexPlugin);
+  }
+
+  /** Release row subscriptions and transient input before navigation, unload or settings teardown. */
+  disposeActionSettings(): void {
+    this.actionSettings?.dispose();
+  }
+
+  /** Native tab switches must not retain an editor or capture handler from the previous page. */
+  override hide(): void {
+    this.disposeActionSettings();
+    super.hide();
+  }
+
+  /** Activate the visible native page entry inside this tab after the host opens its root. */
+  openActionSettingsPage(): boolean {
+    const name = createObsidianTranslator()("actions.settingsTitle");
+    const label = Array.from(this.containerEl.querySelectorAll<HTMLElement>(".setting-item-name"))
+      .find(/** Match the declarative entry without looking through another settings window. */ element => element.textContent === name);
+    const row = label?.closest<HTMLElement>(".setting-item.mod-navigable");
+    if (!row?.isConnected) return false;
+    row.click();
+    return true;
   }
 
   /** Open a new style with a selectable family, or edit a style without changing its family. */
@@ -1777,13 +1818,12 @@ export class KplexSettingTab extends PluginSettingTab {
           { name: translate("settings.ui.join.sym.community"), action: () => { window.open("https://community.sketch-your-mind.com", "_blank", "noopener,noreferrer"); } },
         ],
       },
-      internalHotkeySettings(
-        /** Read live choices across rows and mounted views. */ () => this.kplexPlugin.settings.internalHotkeys,
-        /** Persist workflow preferences and refresh scoped hotkeys without semantic invalidation. */ (action, binding) => {
-          this.kplexPlugin.settings.internalHotkeys = { ...this.kplexPlugin.settings.internalHotkeys, [action]: binding };
-          void this.kplexPlugin.saveSettings(false);
-        }, translate, this.app.keymap,
-      ),
+      {
+        type: "page",
+        name: translate("actions.settingsTitle"),
+        desc: translate("actions.settingsHelp"),
+        items: [this.actionSettingsController().getSettingDefinitions()],
+      },
       {
         type: "page",
         name: translate("settings.ui.plex.behavior"),
