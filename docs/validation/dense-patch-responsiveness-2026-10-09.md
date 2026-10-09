@@ -169,3 +169,32 @@ The maintainer subsequently authorized commit, branch publication/push, PR creat
 then return to updated main. The exact previously tested source remains unchanged. GitHub
 Ubuntu CI results will be recorded in the PR before merge; the earlier local-only limitations
 above describe the investigation checkpoint, not the later authorization status.
+
+
+## GitHub Linux verification result
+
+Published implementation commit: `83b05f9e54f598ceb2c67b6f297f8cb792e7aac7`, PR #104.
+[GitHub Actions run 37975361229](https://github.com/zsviczian/kplex/actions/runs/37975361229)
+ran on Ubuntu 24.04 with Node 22.22.2 and completed with failure after 31 minutes 13 seconds.
+The original indexing fixture/50 ms dense-update guard passed, along with architecture, core,
+scanner, aggregate, UI and portable source lanes. Browser IndexedDB results: 408 passed,
+2 failed, 0 skipped. The final CI build did not run because the browser lane failed; the exact
+runtime source already passed the local full build and native acceptance above.
+
+Remaining failures, with unchanged bounds:
+
+- `tests/on-demand-indexing.test.mjs:667`: dense source patch with active private URL lane
+  recorded a 70.6 ms heartbeat gap against 50 ms.
+- `tests/source-high-degree-publication.test.mjs:196`: the 20,015-owner case reached its
+  large-case deadline during cached publication; full test duration was 841.265 seconds.
+
+These are separate from the original Node fixture failure. No matched Ubuntu baseline was run,
+so this record does not establish whether their cause is existing work, environment or regression.
+The local full/native passes do not erase the CI failures. Thresholds and scheduler budgets remain
+unchanged. The maintainer's authorized merge delivers the reviewed allocation correction, with
+these remaining Linux performance failures explicitly recorded in the PR. Further performance
+investigation is a separate follow-up, not silently included in this publication task.
+
+Downloaded failure evidence: `/private/tmp/kplex-dense-ci-failed.log`; machine-readable result:
+`/private/tmp/kplex-dense-ci-result.json`. Publication-note edits change documentation only;
+verified runtime/test inputs remain identical to the 319-input freeze.

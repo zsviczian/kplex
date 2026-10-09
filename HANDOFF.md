@@ -48,7 +48,11 @@ Durable findings, retained temporary-harness failures, receipt locations and mea
 [validation record](docs/validation/dense-patch-responsiveness-2026-10-09.md) and
 [Refactor plan](Refactor%20plan.md).
 
-Remaining limitation: GitHub Ubuntu CI must verify the published branch. Its original failure
-was not reproduced locally; reduced measured allocation work is not proof that the remote timing
-failure is resolved. Root owns the authorized repository actions and records CI results in the PR.
-No physical-device performance or paint/input latency claim is made.
+GitHub Linux verification is complete for implementation commit `83b05f9`, PR #104, run
+37975361229. The original Node indexing/timer guard passes. Two later browser performance
+checks fail: active private URL lane gap 70.6 ms versus 50 ms, and the 20,015-owner cached
+publication deadline. Browser results: 408 pass, 2 fail, 0 skip; final CI build did not run.
+Local full/build/native acceptance remains valid on the unchanged runtime/test source freeze.
+No matched Ubuntu baseline proves the remaining failures' cause. Root records these limitations
+in the PR and completes the maintainer-authorized merge/main update. No automatic performance
+follow-up or structural refactoring is assigned. No physical-device paint/input claim is made.

@@ -3457,8 +3457,11 @@ Shared-origin/alias costs await measured post-change review; no automatic scope 
   bytes; delayed SHA readback passes. Vault has 73 notes, no owned notes/controllers, and the
   task-owned sleep inhibitor is stopped. Final source freeze, whitespace and diagnostic cleanup
   checks pass. Local checkpoint accepted; implementation remains uncommitted.
-- [ ] Run the exact branch on GitHub Ubuntu CI when publication is authorized. Local evidence
-  supports the correction but does not establish that remote CI failures are resolved.
+- [x] Run the published branch on GitHub Ubuntu CI (PR #104, run 37975361229).
+  Original dense-update indexing guard passes. Browser lane has 408 passes and two performance
+  failures: active private URL lane gap 70.6 ms versus 50 ms, and 20,015-owner cached-publication
+  deadline. Final CI build did not run; exact runtime source passed local full build/native checks.
+  No matched Linux baseline establishes cause. Preserve both failures for a separate follow-up.
 
 See [investigation record](docs/validation/dense-patch-responsiveness-2026-10-09.md).
 No C15–C26, classifier, schema, scheduler or threshold changes. Implementation remains
@@ -3472,3 +3475,11 @@ native checks passed. Physical-device performance is unproven and no touch/UI be
   The exact previously verified 319-input source remains unchanged. GitHub Ubuntu verification
   will run on the published branch with the existing timing guard; its result will be recorded
   in the PR before merging. No release-version change or structural refactoring is included.
+
+
+- 2026-10-09 — PR #104 publication result: original Linux indexing/timer guard passes; full
+  GitHub verification fails two later browser performance checks, explicitly retained in the PR
+  and validation report. No thresholds or implementation were changed after local acceptance.
+  Complete the maintainer-authorized merge with these CI limitations recorded; further Linux
+  performance investigation is a separate task. Documentation-only publication notes do not
+  invalidate the exact previously verified runtime/test freeze.
