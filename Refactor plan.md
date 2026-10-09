@@ -3339,3 +3339,95 @@ Action log — maintainer accepted #34 and authorized commit/publication/push/PR
 issue closure. Proceed from the unchanged accepted source/build/native snapshot. After the
 merge, fetch main and start a separate branch for measured URL-cache reconstruction slowdown
 work. This performance task is authorized; C15–C26 structural refactoring remains paused.
+
+
+### 2026-10-09 — URL-cache reconstruction performance
+
+Publication checkpoint: accepted #34 fix committed as e85c921, pushed and merged through
+PR#95 (https://github.com/zsviczian/kplex/pull/95), merge5916809. #34 closed with evidence
+comment6084478611. Remote CI run37955396345 repeats the existing timer guard failure at58.2ms
+(limit50ms); prior main also failed it. Local full/native acceptance remains passed; no guard
+was relaxed. Local main fetched/fast-forwarded, new branchfix-url-cache-slowdown created.
+Maintainer authorized measured URL slowdown correction separately from the lifetime fix.
+
+Action plan: (1) measure actual URL reconstruction cost on accepted build; (2) select one
+focused correction preserving semantic/publication/lifetime invariants; (3) implement and run
+strict regressions/full build; (4) native equal-input before/after and cleanup; (5) record evidence.
+Initial ETA60–90min. Offline analysis transfer is analysis-only until measured proposal accepted;
+root owns native attribution and independent validation. C15–C26 remain paused.
+
+
+Action log — accepted URL attribution: foreground native1024/2048 identical cached-owner subsets
+restore in9.322/28.396s; actual page reads80.8/170.4ms, compaction input495,227/1,976,155;
+shared contributor iterator685,996/2,620,461. Portable compaction work also quadruples when
+owners double. Alias/scheduler durations overlap; no exclusive attribution by summing them.
+A newly sampled hidden/unfocused native window is a prior elapsed-time confound; foreground
+probe samples all visible/focused with original responsive throttle. Native subset hash/oracle
+is retained for equal-input after. Main index priority lease pauses its background work briefly
+per case (max28.4s), releases between/after; no cache/notes/preferences deletion or changes.
+Approved first correction: bounded exact-child evidence delta adoption ONLY while URL working
+layer remains unpublished, with synchronous publication ownership check. Large/published
+paths retain immutable fork/swap and existing safeguards; no threshold or timing changes.
+Shared-origin/alias costs await measured post-change review; no automatic scope extension.
+
+- 2026-10-09 URL performance first correction reviewed: bounded private evidence-child adoption
+  preserves synchronous URL publication and immutable displayed evidence; ordinary/large patches
+  keep fork/swap. Focused root32/32 and real build pass, offline70/70/types/scanner/architecture pass.
+  Native same-input/same-semantic foreground1024/2048 wall9.322/28.396→7.643/27.265s;
+  compaction visits eliminated, contributor scans unchanged. Full verification pending. This is
+  an intermediate checkpoint, not acceptance of the slowdown fix; next scope must target measured
+  shared-contributor cost. See [URL performance record](docs/validation/url-cache-performance-2026-10-09.md).
+
+- 2026-10-09 URL correction two reviewed: canonical URL-only lazy target/kind queries preserve
+  declaration order/multiplicity and private publication. Root 55 regressions, real build and
+  400 seeded mixed mutations pass; native exact-input/semantic foreground 1,024/2,048 owners
+  improve 9.323/28.396 → 5.589/14.008 seconds. Additional derived URL-store memory is recorded
+  explicitly. Full verification remains pending. Next bounded correction removes measured
+  alias contributor copying/flattening for append-only new owners; C15–C26 remain paused.
+
+- 2026-10-09 URL alias correction frozen/reviewed: private owner deltas remove shared contributor
+  cloning; append-only aggregate membership avoids flattening existing labels. Replacement/removal
+  order, compiler reapplication, snapshot privacy and lifetime fences preserved. Root review added
+  cooperative final many-target derivation using unchanged slice policy. Offline final 86 focused
+  regressions/types/scanner/architecture pass; full root verification/native gates now running.
+  Extra distinct-label membership memory and residual output/page copying are recorded explicitly.
+
+- 2026-10-09 URL return three full verification/native comparison PASS: all required lanes/build/
+  smoke pass; native 1,024/2,048 equal inputs and semantics improve 9.323/28.396 → 4.669/11.302s.
+  Added 4,096-owner scale case shows a residual quadratic key-set construction for boolean URL
+  pruning (iterator-next 414.8→1,747.4ms despite linear yielded records). Fourth bounded correction
+  is a canonical cooperative existence query with URL-only opt-in. No threshold/classifier/schema/
+  adjacency changes; repeated final verification required. Revised remaining ETA 30–40 minutes.
+
+
+- 2026-10-09 URL correction four frozen/reviewed: URL-only pruning uses lazy canonical boolean
+  existence; inherited tombstones and awaited mutation/cancellation fences preserve shared
+  lifetimes. Seven new regressions bring focused checks to 93/93; registered in normal/core lanes.
+  Final 318-input full verification running. Prior full native run restored all 20,015 owners;
+  ordered full-graph SHA captured for exact final comparison. No retained metadata added by this
+  correction. Remaining native lifetime/equality/cleanup gates pending; C15–C26 remain paused.
+
+
+- 2026-10-09 URL final full gate PASS: pinned Node/real scanner/build, architecture7/core86/
+  main487/UI20/source333/browser410 tests with zero failures/skips, native render smoke.
+  Matched native cache subsets preserve input/semantic/settings/foreground/cleanup hashes:
+  1,024 owners9.323→4.616s;2,048 owners28.396→9.924s (~65% faster). Additional4,096 case
+  28.166→23.555s versus third build. Normal large main index completes all20,015 owners;
+  ordered full graph SHA exactly matches. Final real timeout/unload and configuration cleanup
+  still pending. No scheduling/schema/classifier change or structural refactor continuation.
+
+
+- 2026-10-09 URL slowdown delivery accepted locally: all full-suite/build/scanner/native gates
+  PASS on frozen318-input source87dcf44f… and main24e21ab4…. Native20,015-owner ordered
+  URL graph unchanged; both modes preserve real90s fallback and ~1s unload/late-result fences.
+  Both original test-vault workspaces/configuration bytes/window/platform/throttling restored,
+  delayed SHA readback PASS; temporary controllers/hooks and owned sleep inhibitor removed.
+  Implementation remains uncommitted onfix-url-cache-slowdown for maintainer testing. Derived
+  URL lookup memory tradeoff and optional physical-mobile large-cache test documented in
+  [validation record](docs/validation/url-cache-performance-2026-10-09.md). C15–C26 remain paused.
+
+
+- 2026-10-09 — Maintainer authorized committing/publishing the accepted URL slowdown correction,
+  creating and merging its PR, then switching to main and fetching. Exact tested source freeze
+  remains unchanged; full verification and all native acceptance/cleanup receipts remain valid.
+  No new implementation or structural refactoring is included in this publication checkpoint.
