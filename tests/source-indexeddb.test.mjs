@@ -784,3 +784,136 @@ test("real Chromium: host task continuation survives withheld timers and closes 
     })()`),true);
   }finally{await browser.cleanup();}
 });
+
+/** Real-IDB coalescing preserves authority while reducing only an eligible family's fetch transactions. */
+test("single-chunk disk family coalescing preserves bounded validation and selected lifetimes", { timeout: 60000 }, async t => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    await browser.evaluate(initialize);
+    await t.test("four tiny families save four fetch transactions without removing exact-head or lease fences", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('single-chunk-transactions'),r=owner.sources,db=await owner.open();
+        try{
+          equal((await r.replace(await make(r,'Tiny'))).outcome,'activated','Durable tiny source');
+          const before=await r.inspect('Tiny',[]);ok(Object.values(before.head.families).every(f=>f.chunks===1),'All families genuinely eligible');
+          const transaction=r.transaction.bind(r),calls=[];
+          r.transaction=async(...args)=>{calls.push({stores:[...args[1]],mode:args[2]});return transaction(...args);};
+          const result=await r.readSelected('Tiny',()=> 'ready',async reader=>{
+            const counts=[];for(const family of sourceModules.SOURCE_FAMILIES){let count=0;equal(await reader.visit(family,records=>{count+=records.length;return true;}),'ready','Validated '+family);counts.push(count);}return counts;
+          });
+          r.transaction=transaction;
+          equal(result.outcome,'ready','Full selected read closes');equal(result.value,sourceModules.SOURCE_FAMILIES.map(family=>before.head.families[family].records),'Every stored canonical family record consumed');
+          equal(calls.filter(c=>c.mode==='readonly'&&c.stores.join(',')==='sourceChunks,sourcePostings').length,4,'One combined fetch per tiny family');
+          equal(calls.filter(c=>c.stores.length===1&&(c.stores[0]==='sourceChunks'||c.stores[0]==='sourcePostings')).length,0,'Four former extra posting transactions removed');
+          equal(calls.filter(c=>c.mode==='readonly'&&c.stores.join(',')==='sourceHeads').length,6,'Initial, four family and final exact-head checks remain');
+          equal(calls.filter(c=>c.mode==='readwrite'&&c.stores.includes('sourceHeads')&&c.stores.includes('meta')).length,1,'Atomic source pin remains');
+          equal(r.decodeBytes,0,'All decoded data released');equal(r.readers.size,0,'Selected reader expired');
+          equal(await requestValue(db.transaction('meta').objectStore('meta').index('sourceLease').count(['Tiny',before.head.sourceRevision])),0,'Actual leases removed');
+          equal((await r.inspect('Tiny',[])).head,before.head,'Read does not change durable head');return true;
+        }finally{owner.close();}
+      })()`),true);
+    });
+    await t.test("one bounded prefetched page leaves subsequent posting pages and multi-chunk reads unchanged", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('single-chunk-pages'),r=owner.sources;const getAll=IDBObjectStore.prototype.getAll;
+        try{
+          const input=await make(r,'Dates');input.families.resolution=async emit=>{
+            for(let i=0;i<200;i++)if(!await emit({kind:'date-property',fieldName:'Date'+i,normalizedFieldName:'date'+i,rawValue:'2026-10-09',
+              target:{entity:{id:'Daily-'+i,kind:'document',state:'materialized',semanticPath:'Daily-'+i,physicalPath:'Daily-'+i},rawTarget:'Daily-'+i,resolvedBy:'daily-notes'}}))return false;return true;
+          };
+          equal((await r.replace(input)).outcome,'activated','Many two-key resolution facts');
+          const head=(await r.inspect('Dates',[])).head;equal(head.families.resolution.chunks,1,'Single chunk');equal(head.families.resolution.postings,401,'Two postings per fact plus family');
+          const transaction=r.transaction.bind(r),calls=[],ranges=[];
+          r.transaction=async(...args)=>{calls.push([...args[1]]);return transaction(...args);};
+          IDBObjectStore.prototype.getAll=function(range,count){if(this.name==='sourcePostings'){ranges.push([range.lower[3],range.upper[3],count]);ok(count<=256,'Existing record cap');}return getAll.call(this,range,count);};
+          let seen=0;equal(await r.visit('Dates','resolution',records=>{seen+=records.length;return true;}),'ready','All facts authenticated');
+          equal(seen,200,'No fact prefix');equal(ranges,[[0,255,256],[256,400,145]],'Unchanged exact bounded ranges');
+          equal(calls.filter(s=>s.join(',')==='sourceChunks,sourcePostings').length,1,'Only first page coalesced');
+          equal(calls.filter(s=>s.join(',')==='sourcePostings').length,1,'Remaining page still fetched independently');
+          r.transaction=transaction;IDBObjectStore.prototype.getAll=getAll;
+          const many=await make(r,'Many');many.families.metadata=async emit=>{for(let i=0;i<600;i++)if(!await emit({kind:'host-literal',ordinal:i,rawTarget:'Target-'+i}))return false;return true;};
+          equal((await r.replace(many)).outcome,'activated','Multi-chunk owner');const selected=(await r.inspect('Many',[])).head;
+          ok(selected.families.metadata.chunks>1,'Genuine multi-chunk input');calls.length=0;r.transaction=async(...args)=>{calls.push([...args[1]]);return transaction(...args);};
+          seen=0;equal(await r.visit('Many','metadata',records=>{seen+=records.length;return true;}),'ready','Multi-chunk validation');
+          equal(seen,600,'All multi-chunk facts');equal(calls.filter(s=>s.join(',')==='sourceChunks,sourcePostings').length,0,'Multi-chunk fetch ownership unchanged');equal(r.decodeBytes,0,'All reservations released');return true;
+        }finally{IDBObjectStore.prototype.getAll=getAll;owner.close();}
+      })()`),true);
+    });
+    await t.test("corrupt prefetched rows and invalid previews retain exact failure precedence without private output", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('single-chunk-corruption'),r=owner.sources,db=await owner.open();
+        try{
+          for(const fault of ['bad-sha','bad-frame-and-sha','bad-frame','missing-posting','wrong-posting']){
+            equal((await r.replace(await make(r,fault))).outcome,'activated','Seed '+fault);
+            const head=(await r.inspect(fault,[])).head,revision=head.families.metadata.revision,key=[fault,revision,'metadata',0];
+            const chunk=await requestValue(db.transaction('sourceChunks').objectStore('sourceChunks').get(key));
+            if(fault.startsWith('bad-')){
+              const data=fault==='bad-sha'?chunk.data:JSON.stringify([{kind:'unknown'}]);
+              const digest=fault==='bad-frame'?await r.observationDigest(data):'0'.repeat(64);
+              await edit(db,['sourceChunks'],tx=>tx.objectStore('sourceChunks').put({...chunk,data,digest,records:1,bytes:new TextEncoder().encode(data).length}));
+            }else await edit(db,['sourcePostings'],async tx=>{const store=tx.objectStore('sourcePostings');if(fault==='missing-posting')store.delete(key);else{const row=await requestValue(store.get(key));store.put({...row,key:'incorrect'});}});
+            let consumed=0;const result=await r.readSelected(fault,()=> 'ready',async reader=>{await reader.visit('metadata',records=>{consumed+=records.length;return true;});return true;});
+            equal(result.outcome,'invalid-family','Failure is not authority '+fault);equal(result.reason,{'bad-sha':'invalid-chunk','bad-frame-and-sha':'invalid-chunk','bad-frame':'invalid-frame','missing-posting':'missing-posting','wrong-posting':'invalid-posting'}[fault],'Original precise failure '+fault);
+            equal(consumed,0,'No corrupt facts consumed');ok(!('value' in result),'No partial result');equal(r.decodeBytes,0,'Failed preview/validation releases decode memory');
+            equal(await requestValue(db.transaction('meta').objectStore('meta').index('sourceLease').count([fault,head.sourceRevision])),0,'Failure removes actual lease');
+          }return true;
+        }finally{owner.close();}
+      })()`),true);
+    });
+    await t.test("replacement after combined fetch remains private and retains its cleanup lease until terminal exit", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const first=await fresh('single-chunk-replacement'),second=await fresh('single-chunk-replacement'),r=first.sources,other=second.sources,db=await second.open();let release;
+        try{
+          equal((await r.replace(await make(r,'A'))).outcome,'activated','Initial head');const selected=await r.inspect('A',[]);
+          const transaction=r.transaction.bind(r);let signal,paused=false;const reached=new Promise(resolve=>signal=resolve),hold=new Promise(resolve=>release=resolve);
+          r.transaction=async(...args)=>{const value=await transaction(...args);if(!paused&&args[1].join(',')==='sourceChunks,sourcePostings'){paused=true;signal();await hold;}return value;};
+          const task=r.readSelected('A',()=> 'ready',async reader=>{await reader.visit('values',()=>true);return 'no authority';});
+          await reached;ok(r.decodeBytes>0,'Pending prefetched decode stays charged');
+          equal((await other.replace(await make(other,'A',selected.expected,'Field:: [[Replacement]]'))).outcome,'activated','Concurrent durable head changes');
+          equal(await other.cleanupRevision('A',selected.head.sourceRevision),false,'Exact old revision still leased');
+          release();const result=await task;equal(result.outcome,'stale','Late head replacement rejects');ok(!('value' in result),'No stale output');equal(r.decodeBytes,0,'Reservation released');
+          equal(await requestValue(db.transaction('meta').objectStore('meta').index('sourceLease').count(['A',selected.head.sourceRevision])),0,'Lease finally removed');
+          ok(await other.cleanupRevision('A',selected.head.sourceRevision),'Old revision becomes collectible after reader closes');return true;
+        }finally{release?.();first.close();second.close();}
+      })()`),true);
+    });
+    await t.test("native coalesced transaction abort and cancellation release memory and keep the connection healthy", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('single-chunk-abort'),r=owner.sources,db=await owner.open(),getAll=IDBObjectStore.prototype.getAll;
+        try{
+          for(const mode of ['abort','cancel']){
+            equal((await r.replace(await make(r,mode))).outcome,'activated','Seed '+mode);const head=(await r.inspect(mode,[])).head;let active=true,interrupted=false;
+            IDBObjectStore.prototype.getAll=function(...args){const request=getAll.apply(this,args);if(this.name==='sourcePostings'&&!interrupted){interrupted=true;ok(r.decodeBytes>0,'Preview already charged');
+              if(mode==='abort')r.cancelSource(mode);else request.addEventListener('success',()=>{active=false;},{once:true});}return request;};
+            const result=await r.readSelected(mode,()=> 'ready',async reader=>{await reader.visit('metadata',()=>true);return true;},()=>active);
+            IDBObjectStore.prototype.getAll=getAll;equal(interrupted,true,'Actual first posting request interrupted');equal(result.outcome,'cancelled','Interrupted work has no authority');ok(!('value' in result),'No partial result');equal(r.decodeBytes,0,'Aborted transaction releases preview reservation');equal(r.readers.size,0,'Reader expired');
+            equal(await requestValue(db.transaction('meta').objectStore('meta').index('sourceLease').count([mode,head.sourceRevision])),0,'Owned leases removed after interruption');
+            equal((await r.inspect(mode)).reason,'ready','Cancellation does not poison native storage');
+          }return true;
+        }finally{IDBObjectStore.prototype.getAll=getAll;owner.close();}
+      })()`),true);
+    });
+    await t.test("indivisible oversized records retain the decode cap and memory fallback never uses disk prefetch", async () => {
+      assert.equal(await browser.evaluate(`(async()=>{
+        const owner=await fresh('single-chunk-budget'),r=owner.sources,db=await owner.open();
+        try{
+          equal((await r.replace(await make(r,'Oversized'))).outcome,'activated','Seed budget case');const head=(await r.inspect('Oversized',[])).head,key=['Oversized',head.families.metadata.revision,'metadata',0];
+          const raw=await requestValue(db.transaction('sourceChunks').objectStore('sourceChunks').get(key)),data=JSON.stringify([{kind:'alias',value:'x'.repeat(2000000)}]);
+          await edit(db,['sourceChunks'],tx=>tx.objectStore('sourceChunks').put({...raw,data,bytes:new TextEncoder().encode(data).length,digest:'0'.repeat(64),records:1}));
+          equal((await r.inspect('Oversized',['metadata'])).families.metadata,'decode-budget','Existing indivisible decode cap applies before speculative parse');equal(r.decodeBytes,0,'Rejected reserve owns no memory');
+          const mismatched=JSON.stringify([{kind:'alias',value:'x'.repeat(3000000)}]);
+          await edit(db,['sourceChunks'],tx=>tx.objectStore('sourceChunks').put({...raw,data:mismatched,bytes:1,digest:'0'.repeat(64),records:1}));
+          equal((await r.inspect('Oversized',['metadata'])).families.metadata,'decode-budget','Oversized wrong-byte input keeps reserve-before-encoding failure precedence');equal(r.decodeBytes,0,'Wrong-byte rejection owns no decode reservation');
+          const storage=r.storage,prefetch=r.prefetchSingleFamilyChunk;r.storage={open:async()=>null,failed(){throw new Error('No native transaction may run in memory fallback');}};
+          r.prefetchSingleFamilyChunk=()=>{throw new Error('Memory fallback must not prefetch');};
+          try{
+            equal((await r.replace(await make(r,'Memory'))).outcome,'unsaved','Unavailable storage retains bounded fallback');const memory=(await r.inspect('Memory',[])).head;let seen=0;
+            const result=await r.readSelected('Memory',()=> 'ready',async reader=>{for(const family of sourceModules.SOURCE_FAMILIES)equal(await reader.visit(family,records=>{seen+=records.length;return true;}),'ready','Memory '+family);return seen;});
+            equal(result.outcome,'ready','Existing selected memory authority remains');equal(result.value,Object.values(memory.families).reduce((sum,family)=>sum+family.records,0),'All real parser/family memory records');equal(r.decodeBytes,0,'Memory reservations released');
+          }finally{r.storage=storage;r.prefetchSingleFamilyChunk=prefetch;}
+          return true;
+        }finally{owner.close();}
+      })()`),true);
+    });
+  } finally { await browser.cleanup(); }
+});

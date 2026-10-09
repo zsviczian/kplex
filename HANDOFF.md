@@ -18,41 +18,27 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Accepted locally — dense note patch search allocation
+# Inactive — browser indexing performance checkpoint accepted locally
 
-No active offline assignment. Root independently reviewed the frozen return, registered the
-five-test suite, measured the correction and completed full/native verification and cleanup.
-Branch: `fix-dense-patch-responsiveness`, base main
-`79a665afe65d47d981c7ea031355047542fe6ae5`. The maintainer has now authorized
-commit/push/PR/merge and return to updated main.
+Branch `fix-browser-indexing-performance`, base `2a1fbb1`; implementation/tests/docs are uncommitted.
+No offline assignment or process remains active. Root independently reviewed the storage/compiler
+return and scoped source-publication URL task boundary, then completed all required local gates.
 
-`GraphIndex.makeSearchEntry` avoids URL title-cache/signature allocation and empty-alias
-Set/array work while preserving exact vocabulary, title policy, canonical references and
-synchronous atomic publication. Ordinary note title ownership and all cancellation/lifetime
-boundaries remain unchanged. C14 structural refactoring remains paused.
+Final frozen runtime/test inputs319, SHA
+`2931af7a9668103e30c022dd04486a83a23bd977761e085cca8fc3a60d2be122`.
+Full verification passes architecture7/core88/aggregate496/UI20/portable333/browser417, zero
+failures/skips, installed scanner/types/production build and exact-build native render/error smoke.
+Both original performance cases pass locally. Controlled uninstrumented CPU4 gap54.0→35.5 ms;
+native dense active-URL/canonical/search/cancel/retry/alias scenarios pass, maxgap34.9 ms.
+Native cached ontology/inference/image/navigation checks pass without measured reads/parses/
+acquisitions/full builds; warm source head unchanged. Original test-vault settings/workspace/window/
+platform/throttling and configuration bytes restored with delayed SHA verification;73 notes,
+no owned fixtures/controllers/hooks, owned sleep inhibitor stopped.
 
-Full `verify:obsidian` passed on pinned Node 22.22.2 and frozen 319-input source
-`c33593820d50d97395bf6287762e20ce499aee9058c638ee55d5a6b564ec2ff3`.
-Real type/scanner/build and all architecture/core/aggregate/UI/source/browser lanes pass.
-Exact installed `main.js` SHA:
-`cf1c2179626f730491696813da805d279e01c58ca78d44db1eabc8c192c91892`.
-
-Serial local dense-fixture median longest timer gap improves 35.693 → 26.472 ms with the
-unchanged guard. Matched native 20,000-entry helper median improves 8.1 → 1.4 ms, allocating
-zero URL title-cache entries versus 20,000. Exact-build native dense-note publication, canonical
-search/relationships, cancellation, retry and alias updates pass. Original disposable-vault
-state/configuration bytes were restored with delayed SHA readback; no probe notes/controllers
-remain, no native errors were captured, and the sleep inhibitor was stopped.
-
-Durable findings, retained temporary-harness failures, receipt locations and measurement limits:
-[validation record](docs/validation/dense-patch-responsiveness-2026-10-09.md) and
-[Refactor plan](Refactor%20plan.md).
-
-GitHub Linux verification is complete for implementation commit `83b05f9`, PR #104, run
-37975361229. The original Node indexing/timer guard passes. Two later browser performance
-checks fail: active private URL lane gap 70.6 ms versus 50 ms, and the 20,015-owner cached
-publication deadline. Browser results: 408 pass, 2 fail, 0 skip; final CI build did not run.
-Local full/build/native acceptance remains valid on the unchanged runtime/test source freeze.
-No matched Ubuntu baseline proves the remaining failures' cause. Root records these limitations
-in the PR and completes the maintainer-authorized merge/main update. No automatic performance
-follow-up or structural refactoring is assigned. No physical-device paint/input claim is made.
+The actual GitHub Ubuntu run remains unproven. Neither local transaction reduction nor CDP
+throttling establishes that the Linux deadline/timer failures are fixed. Preserve the unchanged
+CI guards and rerun that environment after maintainer-authorized publication. No commit/push/PR/
+merge was requested for this branch. C15–C26 remain paused; no further optimization queued.
+Durable results, failed native-driver setup attempts, risks and receipts are in
+[Refactor plan.md](Refactor%20plan.md) and
+[validation record](docs/validation/browser-indexing-performance-2026-10-09.md).

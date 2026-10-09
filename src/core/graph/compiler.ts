@@ -3,7 +3,8 @@
  * are a finite compatibility output delegated to the shared presentation owner until SI4. Neutral
  * reference reads and configured date assignments use sourcePolicy; only active evidence survives compilation.
  * The node projection reuses that policy/materialization owner without retaining or resolving evidence;
- * its distinct result cannot authorize relationship readiness.
+ * its distinct result cannot authorize relationship readiness. Repeated body URLs reuse node names
+ * and only build alias membership state when the producer supplies an alias vocabulary.
  */
 import { canonicalTagParts } from "./tagPaths";
 import { selectStyleTags, tagDisplayName, unwrapNoteType } from "./presentation";
@@ -607,23 +608,27 @@ export class NormalizedGraphCompiler {
    * Keep lexical URL provenance while materializing the producer's canonical semantic URL. A label
    * equal to the declared lexical URL is a default spelling, not an independent display alias.
    * Pathless producers retain their explicit raw URL fallback; opaque IDs are never interpreted.
+   * Existing source nodes need no fallback-name work; alias membership allocation is confined to
+   * records carrying aliases, with the same bounded cooperative checks for dense vocabularies.
    */
   private async consumeBodyUrl(record: BodyUrlOccurrence): Promise<boolean> {
     if (record.target.resolvedBy !== "url") return false;
-    const source = this.ensureNode(record.source, this.fallbackName(record.source));
+    const source = this.ensureNode(record.source);
     const canonicalUrl = record.target.entity.semanticPath ?? record.target.rawTarget;
     const label = record.label && record.label !== record.target.rawTarget ? record.label : undefined;
     const target = this.ensureNode(record.target.entity, label || canonicalUrl, canonicalUrl);
     if (!source || !target) return false;
     if (label && label !== target.url && !this.urlLabels.has(target.id)) this.urlLabels.set(target.id, label);
     if (label && label !== target.url && !target.aliases.includes(label)) target.aliases.push(label);
-    const retainedAliases = new Set(target.aliases);
-    let processedAliases = 0;
-    for (const alias of record.aliases ?? []) {
-      if (alias && alias !== target.url && alias !== record.target.rawTarget && !retainedAliases.has(alias)) {
-        retainedAliases.add(alias); target.aliases.push(alias);
+    if (record.aliases?.length) {
+      const retainedAliases = new Set(target.aliases);
+      let processedAliases = 0;
+      for (const alias of record.aliases) {
+        if (alias && alias !== target.url && alias !== record.target.rawTarget && !retainedAliases.has(alias)) {
+          retainedAliases.add(alias); target.aliases.push(alias);
+        }
+        if ((++processedAliases & 127) === 0 && !(await this.checkpoint())) return false;
       }
-      if ((++processedAliases & 127) === 0 && !(await this.checkpoint())) return false;
     }
     const preferredLabel = this.urlLabels.get(target.id);
     if (preferredLabel) target.name = preferredLabel;
@@ -649,7 +654,12 @@ export class NormalizedGraphCompiler {
     return true;
   }
 
-  private ensureNode(ref: SourceEntityRef, fallbackName = "", url: string | null = null, requireEntityFact = true): CompiledGraphNode | null {
+  /**
+   * Reuse an opaque identity or create its private node after handling synthetic/path collisions.
+   * An omitted name is derived only for a new node; an explicitly empty name stays empty. Existing
+   * nodes still refresh reference facts and materialized-entity requirements on every occurrence.
+   */
+  private ensureNode(ref: SourceEntityRef, fallbackName?: string, url: string | null = null, requireEntityFact = true): CompiledGraphNode | null {
     let existing = this.nodes.get(ref.id);
     if (existing && this.syntheticNodes.has(ref.id) && existing.semanticPath !== ref.semanticPath) {
       // Producer IDs are opaque and may equal an earlier generated ancestor ID. Relocate only
@@ -703,7 +713,7 @@ export class NormalizedGraphCompiler {
       state: ref.state,
       ...(semanticPath === undefined ? {} : { semanticPath }),
       ...(ref.physicalPath === undefined ? {} : { physicalPath: ref.physicalPath }),
-      name: fallbackName,
+      name: fallbackName ?? this.fallbackName(ref),
       url: url ?? (ref.kind === "url" ? ref.semanticPath ?? null : null),
       semanticMtime: null,
       aliases: [],

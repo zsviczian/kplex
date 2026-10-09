@@ -3483,3 +3483,82 @@ native checks passed. Physical-device performance is unproven and no touch/UI be
   Complete the maintainer-authorized merge with these CI limitations recorded; further Linux
   performance investigation is a separate task. Documentation-only publication notes do not
   invalidate the exact previously verified runtime/test freeze.
+
+
+### 2026-10-09 — Browser indexing performance follow-up
+
+- [x] Baseline both remaining PR #104 failures locally on a new branch; attribute high-degree transaction overhead.
+  The unchanged 20,015-owner case passes locally (122.039 s cached publication); Linux remains a separate environment.
+- [x] Correct and review high-degree cached-publication transaction overhead with original full-size assertions.
+- [x] Finish the active URL-lane task boundary and its regression/slow-CPU checks.
+- [x] Run final full/native acceptance with unchanged bounds after the task-boundary correction.
+- [x] Record results, limitations and cleanup; leave uncommitted for review.
+
+Maintainer explicitly requests investigation/fixes. Base `2a1fbb1`, clean main; branch
+`fix-browser-indexing-performance`. Publication deadline has priority over the 70.6 ms timer gap.
+Initial estimate 60–90 minutes; macOS/Linux runner differences remain an investigation uncertainty.
+No C15–C26 work, threshold relaxation or new Git publication is authorized.
+
+- 2026-10-09 19:35 UTC — Single-chunk disk reads now combine the chunk and first bounded posting page.
+  Independent review preserves head/lease/SHA/frame/posting fences and caught a pre-budget UTF8 allocation,
+  corrected before acceptance. Initial real-IDB suite passes 39 tests; corrected source awaits rerun.
+  Dense profiling disproves the source-publication/first-URL-slice hypothesis in the measured local sample;
+  exact delayed-work attribution and matched after measurements remain pending. No guard changes.
+
+- 2026-10-09 19:43 UTC — Reviewed coalescing passes the actual 20,015-owner case, all original
+  correctness/no-IO/cancellation assertions and the corrected 39-test real-IDB suite. Cached publication
+  is 114.097 s versus 122.039 s in the single local pair; reserved peaks unchanged. The 2,048-owner
+  probe saves exactly 16,380 transactions while all exact-head, lease and digest counts remain.
+  Aligned dense CPU samples identify URL graph preparation/allocation; compiler removes unused alias
+  Sets and repeated source-name formatting, with focused allocation/provenance/fallback regressions.
+  Compiler checks, full verification/native checks and actual Linux acceptance remain pending.
+
+- 2026-10-09 19:50 UTC — First full gate catches unsafe iterator return-value assignment; typed
+  iteration/early break resolves it and clean scanner lint passes. Controlled CPU-throttle4 baseline
+  reproduces a 62.2 ms timer failure containing atomic source publication plus following private URL
+  staging. Allocation-only code passes one such run at 35.5 ms but retains the merged turn. Approved
+  scoped task release only for post-source-publication URL refreshes, with synchronous registration
+  and exact file/event/cancellation fences; no await inside publication or budget/guard changes.
+  Linux acceptance remains separate. Revised remaining estimate 35–50 minutes, including final gates.
+
+
+- 2026-10-09 19:58 UTC — Scoped post-publication URL task release passes independent source review.
+  Instrumented CPU4 case shows the first alias slice separated, but forwarding overhead still
+  causes a 59.1 ms failure. Uninstrumented original CPU4 test fails baseline at 54.0 ms and
+  passes the complete correction at 35.5 ms. Do not broaden publication-order changes to fit
+  instrumentation. Focused cancellation/type/scanner checks and final full/native acceptance
+  remain pending; all original guards remain. Remaining estimate 30–45 minutes.
+
+
+- 2026-10-09 20:00 UTC — Offline return accepted after independent source/test review.
+  Seven URL alias/task-boundary tests, pinned TypeScript and full Obsidian scanner lint pass.
+  Frozen final runtime/test inputs: 319, SHA 2931af7a9668103e30c022dd04486a83a23bd977761e085cca8fc3a60d2be122.
+  Final full verification has started serially; architecture/core/scanner gates pass so far.
+  Native staging is conditional on the complete tests/build passing. No Git publication requested.
+
+
+- 2026-10-09 20:17 UTC — Final full verification passes all suites (browser417 / aggregate496 /
+  portable333 / UI20 / core88 / architecture7), real scanner/types/build and exact-build native smoke.
+  Full20,015-owner cached publication117.331 s, all original memory/semantic/no-IO/cancellation guards.
+  Native five-scenario dense/active-URL/cancel/retry/alias acceptance passes, 34.9 ms heartbeat;
+  original failed manual-acquisition setups retained and explained in the validation report.
+  Native cached-settings checks and exact original vault/workspace restoration remain pending.
+  Linux CI acceptance is unproven; no deadline/timing guard changes or Git publication.
+
+
+- 2026-10-09 20:19 UTC — Exact-build native cached-settings acceptance passes, warm source head
+  preserved and zero measured reads/parses/acquisitions/full rebuilds. Original on-demand mode,
+  effective settings/workspace/window/platform/throttling and exact configuration bytes restored;
+  delayed SHA readback passes,73 notes/no owned notes or controllers. Owned sleep inhibitor stopped.
+  Local checkpoint accepted,319-input source freeze unchanged. Actual GitHub Ubuntu verification
+  remains pending; physical-mobile/paint performance unproven. Highest-value regression coverage
+  is dense native URL edit/cancel/retry and cached ontology flips (passed), followed by unchanged
+  Linux CI after authorized publication. No further refactor/optimization or Git publication queued.
+  See [complete evidence](docs/validation/browser-indexing-performance-2026-10-09.md).
+
+
+- 2026-10-09 — Maintainer authorizes committing/publishing the accepted browser-indexing performance
+  checkpoint, pushing the branch, creating and merging its PR, then switching to main and fetching.
+  The exact319-input runtime/test freeze remains unchanged; prior full/native acceptance still applies.
+  GitHub Ubuntu verification will be checked on the published branch and its outcome recorded.
+  No release-version or structural refactoring change is included in this publication checkpoint.

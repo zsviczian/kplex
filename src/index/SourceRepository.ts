@@ -25,6 +25,8 @@
  * schedule bounded work and never certify a semantic degree, relation or absence.
  * The default host runtime releases CPU slices through event tasks; timed retries remain separate
  * runtime capabilities and injected runtimes retain their existing dispatch contract.
+ * Single-chunk disk families coalesce their first bounded posting page with the chunk fetch;
+ * speculative decode supplies no authority and retains all digest, frame, selection and lease fences.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { estimateReferenceRecordBytes } from "../core/graph/source";
@@ -208,6 +210,13 @@ type SourceWriteLane = {
   pending?: { start: () => Promise<SourceWriteResult>; resolve: (value: SourceWriteResult) => void };
 };
 type StagedSourceChunk = Readonly<{ chunk: SourceChunk; batches: readonly SourcePosting[][]; bytes: number }>;
+/** One speculative disk chunk and at most its first existing bounded posting page. */
+type PrefetchedSourceChunk = Readonly<{
+  raw: unknown;
+  decoded?: readonly StoredSourceFact[];
+  firstPostings?: unknown[];
+  release?: () => void;
+}>;
 type PreparedLocalDependencies = Readonly<{ records: number; digest: string }>;
 
 /** A pinned historical repair read; its pages are never an alternate public discovery route. */
@@ -1229,7 +1238,59 @@ export class NeutralSourceRepository {
     this.decodeBytes += bytes; this.diagnostics.peakDecodeBytes = Math.max(this.diagnostics.peakDecodeBytes, this.decodeBytes);
     return () => { this.decodeBytes -= bytes; };
   }
-  /** Validate one complete immutable family with one decoded chunk at a time and regenerated postings. */
+
+  /**
+   * Fetch one single-chunk disk family and its first existing bounded posting page in one transaction.
+   * The synchronous preview only determines the exact posting range; its decoded records are reused
+   * under the ordinary decode reservation and gain authority only in visitFamily's unchanged checks.
+   * Invalid preview input falls back to normal digest-before-frame failure classification. Remaining
+   * posting pages are never prefetched, and the selected immutable revision remains leased throughout.
+   * @returns A decode lease owned by the caller on success, or an unprepared raw chunk on fallback.
+   * @throws Storage/cancellation failures after releasing any private decode reservation.
+   */
+  private async prefetchSingleFamilyChunk(db: IDBDatabase, view: SourceView, family: SourceFamily,
+    manifest: SourceFamilyManifest, current: () => boolean): Promise<PrefetchedSourceChunk> {
+    let release: (() => void) | undefined;
+    try {
+      return await this.transaction(db, [SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE], "readonly", view.head.sourceId,
+        /** No crypto or task await occurs between the chunk request and its dependent posting request. */
+        async (transaction): Promise<PrefetchedSourceChunk> => {
+          const raw = await unknownValue(transaction.objectStore(SOURCE_CHUNK_STORE).get([view.head.sourceId, manifest.revision, family, 0]));
+          if (!current()) throw new SourceFactError("cancelled", family);
+          if (!validSourceChunk(raw) || raw.sourceId !== view.head.sourceId || raw.revision !== manifest.revision
+            || raw.family !== family || raw.index !== 0 || !raw.final) return { raw };
+          release = this.reserveDecode(raw.data.length * 4 + raw.bytes);
+          let facts: StoredSourceFact[], first: SourcePosting[] | undefined;
+          try {
+            if (encodedBytes(raw.data) !== raw.bytes) throw new SourceFactError("invalid-chunk", family);
+            const decoded: unknown = JSON.parse(raw.data);
+            if (!Array.isArray(decoded) || decoded.length !== raw.records) throw new SourceFactError("invalid-chunk", family);
+            const preview: SourceFrameValidator = new SourceFrameValidator(family);
+            facts = [];
+            for (const record of decoded) { preview.accept(record); facts.push(record); }
+            preview.finish();
+            // Breaking a typed iteration closes the generator without reading its untyped return value.
+            for (const batch of postingBatches(view.head.sourceId, manifest.revision, family, facts, 0)) {
+              first = batch; break;
+            }
+          } catch {
+            release(); release = undefined;
+            return { raw };
+          }
+          // Only the first byte/record-bounded page travels with this chunk. The preview page is
+          // discarded on return; canonical validation regenerates it after the SHA/frame checks.
+          if (!first) return { raw, decoded: facts, release };
+          const lower = first[0], upper = first[first.length - 1];
+          const range = IDBKeyRange.bound([lower.sourceId, lower.revision, lower.family, lower.index],
+            [upper.sourceId, upper.revision, upper.family, upper.index]);
+          const firstPostings = await requestValue<unknown[]>(transaction.objectStore(SOURCE_POSTING_STORE).getAll(range, first.length));
+          if (!current()) throw new SourceFactError("cancelled", family);
+          return { raw, decoded: facts, firstPostings, release };
+        });
+    } catch (error) { release?.(); throw error; }
+  }
+
+  /** Validate one complete immutable family, reusing only one reserved single-chunk disk preview. */
   private async visitFamily(view: SourceView, family: SourceFamily, consume: (records: readonly StoredSourceFact[]) => Promise<boolean> | boolean,
     current: () => boolean, captureChunk?: (chunk: SourceChunk, batches: SourcePosting[][]) => void): Promise<SourceReason> {
     const manifest = view.head.families[family];
@@ -1239,35 +1300,46 @@ export class NeutralSourceRepository {
     try {
       for (let index = 0; index < manifest.chunks; index += 1) {
         if (this.closed || !current()) return "cancelled";
-        let raw: unknown;
-        if (view.memory) raw = view.memory.chunks.get(memoryKey(family, index));
-        else {
-          const db = await this.open(); if (!db || !current()) return "storage-unavailable";
-          raw = await this.transaction(db, [SOURCE_CHUNK_STORE], "readonly", view.head.sourceId,
-            (transaction) => unknownValue(transaction.objectStore(SOURCE_CHUNK_STORE).get([view.head.sourceId, manifest.revision, family, index])));
-        }
-        if (!current()) return "cancelled";
-        if (raw === undefined) return this.fail("missing-chunk", family);
-        if (!validSourceChunk(raw) || raw.sourceId !== view.head.sourceId || raw.revision !== manifest.revision || raw.family !== family
-          || raw.index !== index || raw.final !== (index === manifest.chunks - 1)) return this.fail("invalid-chunk", family);
-        // Two string representations can coexist during JSON.parse; the encoded byte count alone
-        // is not a safe bound for ASCII-heavy or oversized values.
-        const release = this.reserveDecode(raw.data.length * 4 + raw.bytes);
+        let release: (() => void) | undefined;
         try {
-          if (encodedBytes(raw.data) !== raw.bytes || await this.runtime.digest(raw.data) !== raw.digest || !current()) {
+          let raw: unknown;
+          let prefetchedDecoded: readonly StoredSourceFact[] | undefined;
+          let firstPostings: unknown[] | undefined;
+          if (view.memory) raw = view.memory.chunks.get(memoryKey(family, index));
+          else {
+            const db = await this.open(); if (!db || !current()) return "storage-unavailable";
+            if (manifest.chunks === 1) {
+              const prefetched = await this.prefetchSingleFamilyChunk(db, view, family, manifest, current);
+              raw = prefetched.raw; release = prefetched.release;
+              prefetchedDecoded = prefetched.decoded; firstPostings = prefetched.firstPostings;
+            } else raw = await this.transaction(db, [SOURCE_CHUNK_STORE], "readonly", view.head.sourceId,
+              (transaction) => unknownValue(transaction.objectStore(SOURCE_CHUNK_STORE).get([view.head.sourceId, manifest.revision, family, index])));
+          }
+          if (!current()) return "cancelled";
+          if (raw === undefined) return this.fail("missing-chunk", family);
+          if (!validSourceChunk(raw) || raw.sourceId !== view.head.sourceId || raw.revision !== manifest.revision || raw.family !== family
+            || raw.index !== index || raw.final !== (index === manifest.chunks - 1)) return this.fail("invalid-chunk", family);
+          // Two string representations can coexist during JSON.parse; the encoded byte count alone
+          // is not a safe bound for ASCII-heavy or oversized values.
+          release ??= this.reserveDecode(raw.data.length * 4 + raw.bytes);
+          if ((!prefetchedDecoded && encodedBytes(raw.data) !== raw.bytes) || await this.runtime.digest(raw.data) !== raw.digest || !current()) {
             return !current() ? "cancelled" : this.fail("invalid-chunk", family);
           }
-          const decoded: unknown = JSON.parse(raw.data);
+          const decoded: unknown = prefetchedDecoded ?? JSON.parse(raw.data);
           if (!Array.isArray(decoded) || decoded.length !== raw.records) return this.fail("invalid-chunk", family);
           const facts: StoredSourceFact[] = [];
           for (const record of decoded) { validator.accept(record); facts.push(record); }
+          prefetchedDecoded = undefined;
           digest = await this.runtime.digest(digest + raw.digest);
           if (!current()) return "cancelled";
           const capturedPostings: SourcePosting[][] = [];
           for (const batch of postingBatches(view.head.sourceId, manifest.revision, family, facts, postings)) {
             let stored: unknown[];
             if (view.memory) stored = batch.map((posting) => view.memory?.postings.get(memoryKey(family, posting.index)));
-            else {
+            else if (firstPostings) {
+              stored = firstPostings;
+              firstPostings = undefined;
+            } else {
               const db = await this.open(); if (!db || !current()) return "storage-unavailable";
               const first = batch[0], last = batch[batch.length - 1];
               // The primary key orders one immutable family by posting index. Keep the existing
@@ -1294,7 +1366,7 @@ export class NeutralSourceRepository {
           if (!(await consume(facts)) || !current()) return "cancelled";
           captureChunk?.(raw, capturedPostings);
           this.reportCompletedWork(current);
-        } finally { release(); }
+        } finally { release?.(); }
         await this.runtime.yield();
         if (!current()) return "cancelled";
       }
