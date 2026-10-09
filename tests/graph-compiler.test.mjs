@@ -1,6 +1,7 @@
 /**
  * Tests K-Plex normalized-source compilation against the preserved migration golden and opaque
  * identity/revision contracts. Host-free transpiled modules and their temporary outputs are owned by the suite.
+ * URL work-count probes forward real compiler operations and restore their temporary instrumentation.
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -577,4 +578,103 @@ test("canonical URL materialization preserves raw source facts without default-s
   const result = await compileRecords([{ kind: "entity", source, sourceRevision: revision, entity: source, name: "Owner", url: null },
     { ...record, target: { ...record.target, entity: pathless }, label: undefined, aliases: [] }]);
   assert.equal(result.compilation.nodes.get(pathless.id).url, raw);
+});
+
+/** Repeated URLs need neither source-name derivation nor an alias index when no aliases were supplied. */
+test("repeated body URLs allocate alias membership only for populated vocabularies", async () => {
+  const source = { id: core.nodeId("opaque owner"), kind: "document", state: "materialized", semanticPath: "Folder/Owner.md", physicalPath: "Folder/Owner.md" };
+  const target = { id: core.nodeId("opaque URL"), kind: "url", state: "unresolved", semanticPath: "https://obsidian.md" };
+  const revision = core.sourceRevision("url-work:1"), b = boundary("url-work");
+  const compiler = new core.NormalizedGraphCompiler(settings, runtime()), read = compiler.beginRead(b);
+  const originalSet = globalThis.Set, aliasArrays = new WeakSet();
+  const originalEnsureNode = compiler.ensureNode, originalFallbackName = compiler.fallbackName;
+  let aliasIndexes = 0, sourceFallbacks = 0;
+  /** Observe only membership indexes over actual URL alias arrays; all Set behavior is inherited. */
+  class ObservedSet extends originalSet {
+    /** Forward native construction and count the known private alias-array identity. */
+    constructor(values) {
+      super(values);
+      if (values && aliasArrays.has(values)) aliasIndexes++;
+    }
+  }
+  /** Capture actual node arrays after the unchanged identity/materialization operation returns. */
+  compiler.ensureNode = function (...args) {
+    const node = originalEnsureNode.apply(this, args);
+    if (node?.id === target.id) aliasArrays.add(node.aliases);
+    return node;
+  };
+  /** Count source fallback computations while preserving their actual values. */
+  compiler.fallbackName = function (...args) {
+    if (args[0].id === source.id) sourceFallbacks++;
+    return originalFallbackName.apply(this, args);
+  };
+  const entity = { kind: "entity", source, sourceRevision: revision, entity: source, name: "", url: null };
+  const record = { kind: "body-url", source, sourceRevision: revision,
+    target: { entity: target, rawTarget: target.semanticPath, resolvedBy: "url" }, label: "Primary" };
+  const ordinary = Array.from({ length: 600 }, (_, index) => ({ ...record,
+    ...(index % 2 ? { aliases: [] } : {}), provenance: { surface: "body", location: { line: index + 1 } } }));
+  try {
+    globalThis.Set = ObservedSet;
+    const records = [entity, ...ordinary];
+    let sequence = 0;
+    for (let start = 0; start < records.length; start += core.MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH) {
+      assert.equal(await compiler.acceptBatch(read, { boundary: b, sequence: sequence++, final: false,
+        records: records.slice(start, start + core.MAX_NORMALIZED_SOURCE_RECORDS_PER_BATCH) }), true);
+    }
+    assert.equal(sourceFallbacks, 0, "the explicit empty source name never needs a fallback");
+    assert.equal(aliasIndexes, 0, "absent and empty alias vocabularies create no membership index");
+    assert.equal(await compiler.acceptBatch(read, { boundary: b, sequence, final: true, records: [
+      { ...record, label: "Secondary", aliases: ["Third", "Primary", "Third", target.semanticPath],
+        provenance: { surface: "body", location: { line: 601 } } },
+    ] }), true);
+    assert.equal(aliasIndexes, 1, "a supplied vocabulary still receives its exact deduplication index");
+  } finally {
+    globalThis.Set = originalSet;
+    compiler.ensureNode = originalEnsureNode;
+    compiler.fallbackName = originalFallbackName;
+  }
+  assert.equal(compiler.completeRead(read, b), true);
+  const compilation = await compiler.finish();
+  assert.ok(compilation);
+  assert.equal(compilation.nodes.get(source.id).name, "", "explicitly empty entity names remain empty");
+  assert.equal(compilation.nodes.get(target.id).name, "Primary");
+  assert.deepEqual(compilation.nodes.get(target.id).aliases, ["Primary", "Secondary", "Third"]);
+  const declarations = [...compilation.declarations()];
+  assert.equal(declarations.length, 601, "each occurrence keeps independent evidence");
+  assert.deepEqual(declarations.map(item => item.line).sort((a, b) => a - b), Array.from({ length: 601 }, (_, i) => i + 1));
+});
+
+/** Lazy source fallback keeps explicit semantic paths and pathless opaque identities distinct. */
+test("new body URL sources derive a fallback once without interpreting opaque IDs", async () => {
+  for (const [kind, semanticPath, expected] of [
+    ["document", "Folder/Owner.md", "Owner"], ["container", "Folder/Group", "Group"],
+    ["tag", "tag:Group/Leaf", "Leaf"], ["url", "https://obsidian.md/source", "https://obsidian.md/source"],
+    ["document", undefined, ""], ["url", undefined, ""],
+  ]) {
+    const source = { id: core.nodeId(`opaque/${kind}.md`), kind, state: "unresolved",
+      ...(semanticPath === undefined ? {} : { semanticPath }) };
+    const target = { id: core.nodeId("opaque target"), kind: "url", state: "unresolved", semanticPath: "https://obsidian.md/target" };
+    const compiler = new core.NormalizedGraphCompiler(settings, runtime()), b = boundary(`fallback-${kind}-${expected}`);
+    const read = compiler.beginRead(b), revision = core.sourceRevision("fallback:1");
+    const fallback = compiler.fallbackName;
+    let fallbacks = 0;
+    /** Count actual source-name derivations; target names are explicitly producer-derived. */
+    compiler.fallbackName = function (...args) {
+      if (args[0].id === source.id) fallbacks++;
+      return fallback.apply(this, args);
+    };
+    try {
+      assert.equal(await compiler.acceptBatch(read, { boundary: b, sequence: 0, final: true,
+        records: Array.from({ length: 64 }, (_, index) => ({ kind: "body-url", source, sourceRevision: revision,
+          target: { entity: target, rawTarget: "https://Obsidian.md/target", resolvedBy: "url" },
+          provenance: { surface: "body", location: { line: index + 1 } } })) }), true);
+      assert.equal(fallbacks, 1, "only initial source-node creation derives a name");
+    } finally { compiler.fallbackName = fallback; }
+    assert.equal(compiler.completeRead(read, b), true);
+    const compilation = await compiler.finish();
+    assert.ok(compilation);
+    assert.equal(compilation.nodes.get(source.id).name, expected);
+    assert.equal(compilation.nodes.get(source.id).semanticPath, semanticPath);
+    assert.equal([...compilation.declarations()].length, 64);
+  }
 });

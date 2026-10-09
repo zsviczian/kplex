@@ -51,7 +51,8 @@
  * child-delta adoption only into the independent working layer between presentation flushes.
  * URL alias preparation retains only owner deltas; private aggregate label membership accelerates
  * new-owner appends while replacement/removal preserves ordered contributor flattening. Facets
- * share immutable output arrays with working pages and retire on purge/unload.
+ * share immutable output arrays with working pages and retire on purge/unload. URL refreshes
+ * launched by atomic source publication release that host turn before independent preparation.
  */
 import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
@@ -3526,8 +3527,12 @@ export class GraphIndex {
 
   /** Observe content edits independently of host metadata readiness and optional Eager inventory.
    * Explicit calls publish immediately; only the independent inventory supplies `background=true`.
-   * Foreground callers never join this lower-priority lifetime while holding their scheduler lease. */
-  refreshUrlOwner(path: string, changed = true, cachedBody?: ParsedBodyMetadata, acquired?: Readonly<{ body: ParsedBodyMetadata; file: TFile; revision: FileRevision; frontmatter?: Record<string, unknown> }>, background = false): Promise<void> {
+   * Foreground callers never join this lower-priority lifetime while holding their scheduler lease.
+   * Source publications opt into a host-task boundary before URL derivation, retaining synchronous
+   * task registration and native read-count/byte admission. No semantic scheduler lease or IDB
+   * transaction is held at this boundary; exact file/revision/event/lifetime checks fence its resume. */
+  refreshUrlOwner(path: string, changed = true, cachedBody?: ParsedBodyMetadata, acquired?: Readonly<{ body: ParsedBodyMetadata; file: TFile; revision: FileRevision; frontmatter?: Record<string, unknown> }>, background = false,
+    releaseSourcePublicationTurn = false): Promise<void> {
     if (this.diagnosticsClosed || this.persistentCachePurged) return Promise.resolve();
     if (!background) this.foregroundUrlOwners.add(path);
     if (changed) {
@@ -3548,6 +3553,12 @@ export class GraphIndex {
     const task = this.withUrlReadBudget(file, async () => {
       try {
         if (!current()) return;
+        if (releaseSourcePublicationTurn) {
+          // Cached admission and the serial URL predecessor may resolve through microtasks. Release
+          // the completed atomic source turn before adding the first independent URL CPU slice.
+          await yieldToHostTask();
+          if (!current()) return;
+        }
         const hot = this.fieldCache.get(path);
         const body = acquired?.file === file && fileRevisionMatches(file, acquired.revision) ? acquired.body
           : !changed && event === 0 && !this.sourceAcquisition.needsBodyRead(file) && (hot?.mtime === revision.mtime || cachedBody)
@@ -4676,7 +4687,7 @@ export class GraphIndex {
       for (const path of commit.touchedPagePaths) if (this.state.pages.get(path)?.url) this.retiredUrlTargets.delete(path);
       const hot = this.fieldCache.get(commit.sourcePath);
       const acquired = hot?.mtime === file.stat.mtime ? { body: hot.body, file, revision: captureFileRevision(file) } : undefined;
-      void this.refreshUrlOwner(commit.sourcePath, false, undefined, acquired);
+      void this.refreshUrlOwner(commit.sourcePath, false, undefined, acquired, false, true);
     }
     this.synchronizePublishedUrlFacets(commit.touchedPagePaths);
     this.invalidatePatchedPages(commit.touchedPagePaths);
