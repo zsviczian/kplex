@@ -3193,3 +3193,149 @@ commit/push/PR/merge plus issue #81 closure with release target0.1.1. Publicatio
 the accepted unchanged source/build snapshot; no release-version bump is included. Next scope:
 investigate issue #34 on updated main, reproducing both indexing modes and large-vault restart/
 cancellation before any closure; create a fix branch only if a defect is reproduced.
+
+### 2026-10-09 — Issue #34 current-build hydration investigation
+
+Issue #81 published as commit29bcf0e via merged PR#94; issue closed with PR reference and
+release0.1.1 comment after maintainer acceptance. Local main fast-forwarded to2d0ce7b.
+Investigate #34's old indefinitely pending partial hydration on current eager/on-demand modes.
+Required evidence: exact build, large-vault graph/indicator readiness, restart/emulation,
+and cancellation/regression. Only create a fix branch if a defect is reproduced; otherwise
+close with relevant evidence. Current status: URL-cache and finite On-demand restore lifetime
+gaps reproduced, fixed on `fix-startup-cache-stall`, and accepted through full verification plus
+real-time native fault/restart tests. Fix remains uncommitted and #34 open for maintainer review.
+Offline trace/implementation and root native acceptance followed the mixed workflow.
+
+Action log — #34 baseline/deployment: confirmed disposable kplex-test with20,015 Markdown
+files; existing old installation showed advancing cached-note validation, not an idle pending
+restore. Atomically staged accepted main.js85358c635afe393c71225b6b0f544526bfc38fd31ec7c783a4834f3d2860d591
+from the full accepted verify report, backed up exact original configuration/layout/window state.
+Current On-demand run has local baseline and no pending hydration (diagnostics idle); its red
+status is advancing URL discovery. Serial large-vault restart/emulation/cancellation matrix runs.
+No reproduced production defect or fix branch yet. Offline read-only trace found the existing
+90s-inactivity/5s-poll watchdog, seven held-phase tests and authority-observer/late/unload
+regressions. Repeated incomplete-but-active source inventory remains an unproven separate shape;
+no source/scheduling changes are authorized merely by that hypothesis.
+
+Publication CI observation: PR#94 job37937877549 failed the unchanged URL-heavy patch <50ms
+guard at57.7ms, merged-main job37937960456 at53.1ms, single rerun at64.9ms. Prior main8858259
+job37908703105 failed the same guard at63.6ms. Date source review found no new URL-scaled
+scan/allocation/scheduling path; causality is unproven. Local full verify passed and bounds remain
+strict. Remote CI remains failed; no hidden retry or guard weakening is included.
+
+Action log — current large-vault On-demand reached actual green after complete URL discovery,
+with hydration idle/nonpending throughout. Native physical membership check passed all20,015
+Markdown files. Initial harness wrongly required global edit-specific write authority for idle
+local viewing; corrected prerequisite uses actual ready/indicator/local baseline. No product
+change. A subsequent CLI plugin:enable exceeded its30s process cap; follow-up found the loaded
+plugin actively restoring cached URL owners, not pending snapshot hydration. Failed receipt
+retained. Deferred native lifecycle completion keeps individual CLI polls bounded and does not
+alter scheduling/timing guards. Slow but advancing URL cache restore extends investigation;
+redundant warm cycles trimmed while retaining both modes, actual warm restart, rapid emulation,
+held-read supersession/late fencing and existing current-source unload regressions. No reproduction
+of #34 yet; final matrix, representative parity and original-vault restoration remain pending.
+ETA30–45min remaining; no fix branch created.
+
+Action log — #34 reproduction established in unmodified current production methods on Node
+22.22.2: eager/on-demand × held native cache-page acquisition / held publication predecessor
+all remain pending after95s virtual inactivity and after actual destroy. restorePersistedSnapshot
+awaits URL-cache restoration before installing the snapshot watchdog; diagnostics remain idle
+and no timer exists. Releasing I/O causes catalog work after unload (late URL publication itself
+is fenced). Evidence: /private/tmp/kplex-issue34-url-characterization.json and runnable .mjs.
+This is a distinct current lifetime gap, not evidence that advancing native URL work is stalled.
+Created fix-startup-cache-stall at2d0ce7b and assigned narrow cache-wait lifetime implementation
+and actual-method regressions under the mixed-agent workflow. Preserve90s inactivity policy,
+healthy progress and all timing bounds. #34 remains open; native acceptance pending.
+
+Native attempt5 ended on a30s eval CLI deadline during healthy URL restoration (15,458 owners).
+Follow-up found18,359 owners and no pending hydration, with no temporary controllers. This
+failed harness receipt is retained; it does not reproduce stopped renderer/hydration progress.
+
+Action log — secondary #34 current reproduction: after URL restoration completes, On-demand
+readSnapshotCatalog can remain pending past95s inactivity and destroy, with no watchdog.
+The finite catalog/preview path now joins the existing snapshot watchdog. The URL lifetime
+shares one acquisition across requests; public supersession retires only its own wait. Actual
+publication queue/priority leases retire on cache timeout and late work remains fenced.
+Focused18-case verification passed during implementation; final checks remain pending.
+
+Old-build optional representative probe was stopped before installing a native controller.
+Final observation: URL cache/discovery complete20,015/20,015, hydration idle/nonpending,
+terminal Local graph counts unavailable for dense Scale-000000 and associated hub demands.
+This separate host-count-cover limit is preserved as observation, not called stalled hydration
+and not suppressed. Restore original Reference/Note A through native navigation for the finite
+semantic oracle. No new branch acceptance is inferred from these old-build observations.
+
+Action log — reviewed frozen #34 implementation: shared URL restoration gets90s inactivity
+with5s polling and exact cache-publication lease/queue retirement; old public requests cancel
+independently without retiring shared acquisition. On-demand catalog/finite preview reuse the
+existing hydration watchdog. URL page progress fires only after completed acquisition; repeated
+identical alias/compiler prefixes do not renew inactivity. Core/parser/settings/schema and timing
+guards remain unchanged. Root final focused22 cases pass, actual types/touched scanner and
+architecture pass in offline return. Inputs314files freeze50eebfbc74ef376e9cc7ee7e919548883db000815df5767293c3d653ce049218.
+First full lane selectedNode18 in escalated login shell and failed beforebuild/staging; receipt
+retained. Restarted with explicitNode22.22.2 executable and childPATH. Fullbrowser/native pending.
+
+Old large-vault Reference/Note A subsequently reached actual green/localready with20,015 URL
+owners/discoverycomplete. The detached optional parity probe entered after its poller stopped;
+it did not finish, so no representative-parity pass is claimed. Index unloaded and controller
+removed; no wrappers/fixtures were installed by that probe. Original native matrix had already
+verified all20,015 physical files. Separate dense-center count unavailability remains recorded.
+
+
+Action log — #34 exact-build verification passed14:52:49 UTC on pinnedNode22.22.2:
+full architecture/core/scanner/types/build, all410 browser-backed tests and native open smoke.
+Receipt /private/tmp/kplex-issue34-full-verify-2/report.json; main.js7bbcf028ddbcd091ee6292b55e5a43dfb08081b161ae8fc94a3beb79a86933a0.
+Frozen314inputs remain unchanged. Real-time native small-vault URL waits timeout at90,048ms
+(On-demand) and90,116ms (Eager); On-demand catalog at90,039ms. Actual unload settles held
+URL waits in both modes with zero later catalog work; catalog unload settles and late results
+remain fenced. Native purge was not performed; actual-method regressions cover purge/discovery.
+Original native driver failed only after allsix cases, at a CLI call across emulation reload;
+its failed receipt is retained. Independent recovery-2 passes actual mobile/desktop return,
+ready73/73, no captured errors, controller removal and original settings/workspace/dimensions/
+throttling restoration. Delayed raw-configuration SHA readback also passes. No physical-touch
+claim is made. Durable details: docs/validation/issue-34-hydration-investigation-2026-10-09.md.
+
+Large exact-build On-demand reaches local ready during110,576ms of advancing cache work,
+with5,215 restored owners and all20,015 native TFiles present/canonically identical. Actual
+unload settles both public and shared waits, retires old owners and closes the index. Eager
+restart driver then hits its30s CLI response limit while cache advances; failed receipt stays
+failed. A follow-up reads10,177 owners versus7,962 last recorded, so the same run continues
+under bounded read-only reconnect rather than a plugin restart. Final Eager readiness and
+large-vault restoration remain pending; healthy loading duration is outside this lifetime fix.
+
+
+Observation to revisit — extremely slow healthy cached web-link restoration on the20,015-note
+synthetic vault. On-demand5,215 owners/110.576s (~47/s); late Eager~150 owners/15s (~10/s),
+not comparable benchmark runs. Source review identifies per-owner canonical graph patch replay,
+evidence compaction at fork depth8 (visiting/recreating accumulated pair buckets), shared-URL
+origin contributor rescans and alias contributor-map copies. The generator shares48 URLs across
+20,000 notes. These growing-work paths are strong candidates, not exclusive measured attribution
+or proof of slow IndexedDB. Measure phase-specific work/time before a separate optimization;
+retain atomic provenance/publication and priority. Details in the #34 investigation report.
+Current cache eventually reaches20,015 restored/checks with no URL failure; the Eager run then
+advances to metadata/source-authority validation. Healthy duration is not inactivity; no changes
+to that performance path or production thresholds were added in this fix.
+
+
+Action log — #34 final acceptance (2026-10-09,15:47 UTC): the exact-build large Eager run
+finishes metadata/cache/reconciliation/search with visible green ready20,015/20,015 and no
+pending hydration. Hydration outcome complete; source dependency authority present, inventory
+absent, all20,015 physical TFiles present/canonically identical, Reference/Note A search succeeds.
+Finite center role/strength capture retained; no global/cross-mode digest parity is claimed.
+Original large driver CLI timeout remains a failed receipt; independent same-run continuation
+passes with zero further CLI failures. No captured JavaScript errors. Cleanup passes original
+On-demand preferences, workspace/desktop/window/throttling, configuration bytes/existence,
+controller removal and completed enable; test artifacts intentionally remain installed.
+Final delayed configuration/artifact SHA readback and source freeze/diff audit complete this
+checkpoint. Durable report: docs/validation/issue-34-hydration-investigation-2026-10-09.md.
+No prioritized outstanding manual tests required for this async lifetime fix; physical touch,
+actual paint, global semantic parity and exclusive performance attribution are not claimed.
+#34 remains open because a current defect was reproduced; fix is uncommitted on
+fix-startup-cache-stall. No C15–C26/refactor work resumed. Separate healthy URL reconstruction
+cost and dense-center count-cover observations remain recorded for later work.
+
+
+Action log — maintainer accepted #34 and authorized commit/publication/push/PR/merge and
+issue closure. Proceed from the unchanged accepted source/build/native snapshot. After the
+merge, fetch main and start a separate branch for measured URL-cache reconstruction slowdown
+work. This performance task is authorized; C15–C26 structural refactoring remains paused.

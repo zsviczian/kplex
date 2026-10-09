@@ -15,7 +15,9 @@
  * Settings-only maintenance estimates logical payloads through sequential cursors. Purging ends
  * this owner's lifetime before deleting this vault's database; no same-session reopen is allowed.
  * Broad maintenance uses its injected P4 checkpoint; URL-owner restoration supplies a P3 override,
- * while foreground point reads never borrow the lower-priority maintenance checkpoint.
+ * while foreground point reads never borrow the lower-priority maintenance checkpoint. URL-page
+ * progress is reported only after acquisition; the GraphIndex caller owns its bounded wait and
+ * may retire unabortable storage work without allowing a late consumer publication.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
@@ -1171,9 +1173,10 @@ export class KplexIndexedDbCache {
 
   /** Read count/byte-bounded URL-owner pages; consumer work begins after its transaction completes.
    * The operation checkpoint must match its owning lane: a P3 URL restore cannot borrow the
-   * shared P4 maintenance checkpoint, which would wait for its own active P3 owner forever. */
+   * shared P4 maintenance checkpoint, which would wait for its own active P3 owner forever.
+   * Completed page acquisition reports progress outside transactions, never while awaiting I/O. */
   async readUrlOwners(consume: (records: readonly UrlOwnerRecord[]) => Promise<void>, isCurrent: () => boolean,
-    operationCheckpoint: (() => Promise<void>) | undefined = this.backgroundCheckpoint): Promise<boolean> {
+    operationCheckpoint: (() => Promise<void>) | undefined = this.backgroundCheckpoint, onProgress?: () => void): Promise<boolean> {
     const db = await this.open();
     if (!db || !isCurrent()) return false;
     let after: IDBValidKey | undefined;
@@ -1184,6 +1187,7 @@ export class KplexIndexedDbCache {
         if (!isCurrent()) return false;
         const page = await this.readUrlOwnerPage(db, after, countLimit, byteLimit, isCurrent);
         if (!isCurrent()) return false;
+        onProgress?.();
         if (page.values.length) await consume(page.values.filter(validUrlOwner));
         if (page.exhausted) return true;
         if (page.lastKey === undefined) return false;

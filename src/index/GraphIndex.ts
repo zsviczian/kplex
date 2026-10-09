@@ -42,6 +42,9 @@
  * preparation, relinquishing the previous lane so no foreground owner joins its own lower checkpoint.
  * Requested previews, cached preparation and hydration release CPU slices through host event tasks;
  * this owner retains its existing watchdog, delayed persistence and cancellation boundaries.
+ * Shared compact URL-cache restoration has the same inactivity bound and explicit retirement;
+ * cache publications release their queue position/leases while late external work stays fenced.
+ * Public restore requests can supersede their own wait without cancelling shared URL acquisition.
  */
 import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
@@ -239,6 +242,14 @@ const SNAPSHOT_EDIT_IDLE_MS = 5 * 60 * 1000;
 const SNAPSHOT_MAINTENANCE_IDLE_MS = 5 * 60 * 1000;
 const SNAPSHOT_HYDRATION_STALL_MS = 90 * 1000;
 const SNAPSHOT_HYDRATION_WATCHDOG_POLL_MS = 5 * 1000;
+
+/** One shared cache attempt can retire its publications without cancelling independent URL work. */
+type UrlRestoreLifetime = Readonly<{
+  isCurrent: () => boolean;
+  stopped: Promise<void>;
+  progress: () => void;
+  retainWork: (priority: IndexWorkPriority) => () => void;
+}>;
 type SnapshotHydrationPhase =
   | "idle"
   | "metadata"
@@ -328,6 +339,10 @@ export class GraphIndex {
   private urlAliasOwners = new Map<string, Map<string, readonly string[]>>();
   private urlOwnerTargets = new Map<string, Set<string>>();
   private urlRestoreTask: Promise<boolean> | null = null;
+  private cancelUrlRestore: (() => void) | null = null;
+  private cancelSnapshotRestoreWait: (() => void) | null = null;
+  /** Public requests share URL acquisition, but only the newest may enter graph restoration. */
+  private snapshotRestoreRequest = 0;
   private urlOwnerTasks = new Map<string, Promise<void>>();
   /** A foreground event upgrades an already-admitted owner without duplicating its native read. */
   private foregroundUrlOwners = new Set<string>();
@@ -626,6 +641,9 @@ export class GraphIndex {
   async purgePersistentIndexCache(): Promise<boolean> {
     if (this.persistentCachePurged) return this.indexedDb.purgeAndClose();
     this.persistentCachePurged = true;
+    this.snapshotRestoreRequest++;
+    this.cancelSnapshotRestoreWait?.();
+    this.cancelUrlRestore?.();
     this.cancelRebuild();
     this.cancelPendingPersistence();
     this.cancelSnapshotHydration?.();
@@ -3027,11 +3045,53 @@ export class GraphIndex {
       failed: this.urlOwnerFailures.size > 0, restored: this.urlRestoredOwners, reads: this.urlReadOwners, checked: this.urlCheckedOwners, cacheAvailable: this.urlCacheAvailable, cacheWritesFailed: this.urlCacheWritesFailed };
   }
 
-  /** Restore compact physically-current URL owners before any optional whole-graph cache decoding. */
+  /**
+   * Restore compact URL owners under one shared inactivity/cancellation lifetime. Completed pages,
+   * owners and cooperative publication slices keep healthy work alive. Retiring an optional cache
+   * attempt releases startup and its publication queue; independent uncached discovery continues.
+   */
   restoreUrlIndex(): Promise<boolean> {
     if (this.urlRestoreTask) return this.urlRestoreTask;
-    const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged;
-    this.urlRestoreTask = this.indexedDb.readUrlOwners(async records => {
+    if (this.diagnosticsClosed || this.persistentCachePurged) return Promise.resolve(false);
+    let active = true, lastProgressAt = Date.now(), timer: number | null = null;
+    const releases = new Set<() => void>();
+    let resolveStopped!: () => void;
+    const stopped = new Promise<void>(resolve => { resolveStopped = resolve; });
+    const current = (): boolean => active && !this.diagnosticsClosed && !this.persistentCachePurged;
+    /** Retire this attempt once, including leases owned by an unabortable cache publication. */
+    const stop = (): void => {
+      if (!active) return;
+      active = false;
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+      for (const release of [...releases]) release();
+      resolveStopped();
+    };
+    const lifetime: UrlRestoreLifetime = {
+      isCurrent: current, stopped,
+      /** Real completed work advances inactivity; waiting or retrying does not. */
+      progress: (): void => { if (current()) lastProgressAt = Date.now(); },
+      /** Each cache stage releases synchronously on retirement and again safely on completion. */
+      retainWork: (priority): (() => void) => {
+        if (!current()) return () => undefined;
+        const releaseWork = this.workScheduler.begin(priority);
+        const release = (): void => { releases.delete(release); releaseWork(); };
+        releases.add(release);
+        return release;
+      },
+    };
+    /** Poll the existing inactivity interval, without imposing a total-duration deadline. */
+    const check = (): void => {
+      if (!current()) { stop(); return; }
+      if (Date.now() - lastProgressAt >= SNAPSHOT_HYDRATION_STALL_MS) {
+        this.urlCacheAvailable = false;
+        this.recordIndexDiagnostic("restore", "url-cache-stalled");
+        stop();
+      } else timer = window.setTimeout(check, SNAPSHOT_HYDRATION_WATCHDOG_POLL_MS);
+    };
+    this.cancelUrlRestore = stop;
+    timer = window.setTimeout(check, SNAPSHOT_HYDRATION_WATCHDOG_POLL_MS);
+    const reading = this.indexedDb.readUrlOwners(async records => {
       for (const record of records) {
         if (!current()) return;
         const file = this.app.vault.getFileByPath(record.path);
@@ -3039,16 +3099,30 @@ export class GraphIndex {
           || (this.urlOwnerEvents.get(record.path) ?? 0) !== 0) {
           void this.indexedDb.deleteUrlOwner(record.path); continue;
         }
-        await this.publishUrlOwner(file, { urls: record.urls, inlineFieldOccurrences: record.inlineFieldOccurrences, inlineFields: {} }, 0, record.frontmatter, true);
+        await this.publishUrlOwner(file, { urls: record.urls, inlineFieldOccurrences: record.inlineFieldOccurrences, inlineFields: {} }, 0, record.frontmatter, true, lifetime);
+        if (!current()) return;
         if (this.urlOwners.has(record.path)) this.urlRestoredOwners++;
+        lifetime.progress();
       }
-    }, current, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.urlInventory)).then(available => { this.urlCacheAvailable = available; this.flushUrlPublication(); return available; });
+    }, current, () => this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.urlInventory), lifetime.progress).then(available => {
+      if (!current()) return false;
+      this.urlCacheAvailable = available;
+      this.flushUrlPublication();
+      return available;
+    }).catch(() => {
+      if (current()) this.urlCacheAvailable = false;
+      return false;
+    });
+    this.urlRestoreTask = Promise.race([reading, stopped.then(() => false)]).finally(() => {
+      stop();
+      if (this.cancelUrlRestore === stop) this.cancelUrlRestore = null;
+    });
     return this.urlRestoreTask;
   }
 
-  /** Privately replace one owner's search labels without retaining full parsed bodies. */
+  /** Privately replace one owner's search labels; completed slices report cache progress after host yields. */
   private async prepareUrlAliasOwners(owner: string, urls: ParsedBodyMetadata["urls"], current: () => boolean,
-    priority: IndexWorkPriority = INDEX_WORK_PRIORITY.urlInventory): Promise<Map<string, Map<string, readonly string[]>> | null> {
+    priority: IndexWorkPriority = INDEX_WORK_PRIORITY.urlInventory, onProgress?: () => void): Promise<Map<string, Map<string, readonly string[]>> | null> {
     const next = new Map<string, Map<string, readonly string[]>>();
     let sliceStarted = performance.now(), processed = 0;
     /** Alias derivation stays private and respects foreground admission before releasing CPU slices. */
@@ -3056,6 +3130,7 @@ export class GraphIndex {
       if ((++processed & 31) !== 0 || performance.now() - sliceStarted < 6) return current();
       await this.workScheduler.checkpoint(priority);
       await yieldToHostTask();
+      if (current()) onProgress?.();
       sliceStarted = performance.now();
       return current();
     };
@@ -3103,46 +3178,64 @@ export class GraphIndex {
     return result;
   }
 
-  /** Canonically stage one exact URL owner, retrying only changed metadata/policy while native facts stay current. */
-  private publishUrlOwner(file: TFile, body: ParsedBodyMetadata, event: number, cachedFrontmatter?: Record<string, unknown>, background = false): Promise<void> {
+  /** Stage an exact owner; retiring a cache lifetime frees its queue position and fences late work. */
+  private publishUrlOwner(file: TFile, body: ParsedBodyMetadata, event: number, cachedFrontmatter?: Record<string, unknown>, background = false,
+    restore?: UrlRestoreLifetime): Promise<void> {
     const revision = { ...captureFileRevision(file), path: file.path };
-    const alive = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && fileRevisionMatches(file, revision)
+    const alive = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && (!restore || restore.isCurrent()) && fileRevisionMatches(file, revision)
       && this.app.vault.getFileByPath(revision.path) === file && event === (this.urlOwnerEvents.get(revision.path) ?? 0);
     this.urlPendingPublications++;
     const priority = background ? INDEX_WORK_PRIORITY.urlInventory : INDEX_WORK_PRIORITY.visibleNeighborhood;
+    let completedSliceCover = 0;
     // Drain the already-admitted predecessor without a foreground lease. Owning P2 while joining
     // its paused P3 compiler would self-deadlock; only this bounded stage owns the chosen lane.
-    const task = this.urlPublicationLane.catch(() => {}).then(() => this.workScheduler.run(priority, async () => {
-      while (alive()) {
-        const policy = this.semanticPolicyRevision, cache = this.app.metadataCache.getFileCache(file);
-        const current = (): boolean => alive() && policy === this.semanticPolicyRevision
-          && cache === this.app.metadataCache.getFileCache(file);
-        const frontmatter = this.urlFrontmatterProjection(cache?.frontmatter ?? cachedFrontmatter ?? {});
-        const urls = body.urls;
-        if (!urls.length && !body.inlineFieldOccurrences.length && !Object.keys(frontmatter).length && !this.urlState.pages.has(revision.path)) {
-          this.urlOwners.set(revision.path, { file, mtime: revision.mtime, size: revision.size, event });
-          this.urlOwnerBodies.set(revision.path, body); this.urlOwnerFrontmatter.set(revision.path, frontmatter);
-          this.urlMetadataCaches.set(revision.path, cache);
-          if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path);
-          this.queueUrlPublication([revision.path], revision.path, !background); return;
+    const work = this.urlPublicationLane.catch(() => {}).then(async () => {
+      if (!alive()) return;
+      const releaseWork = restore?.retainWork(priority) ?? this.workScheduler.begin(priority);
+      try {
+        while (alive()) {
+          const policy = this.semanticPolicyRevision, cache = this.app.metadataCache.getFileCache(file);
+          const current = (): boolean => alive() && policy === this.semanticPolicyRevision
+            && cache === this.app.metadataCache.getFileCache(file);
+          let completedSlices = 0;
+          /** Retrying the same completed prefix cannot indefinitely renew cache inactivity. */
+          const progress = (): void => {
+            if (restore && current() && ++completedSlices > completedSliceCover) {
+              completedSliceCover = completedSlices;
+              restore.progress();
+            }
+          };
+          const frontmatter = this.urlFrontmatterProjection(cache?.frontmatter ?? cachedFrontmatter ?? {});
+          const urls = body.urls;
+          if (!urls.length && !body.inlineFieldOccurrences.length && !Object.keys(frontmatter).length && !this.urlState.pages.has(revision.path)) {
+            this.urlOwners.set(revision.path, { file, mtime: revision.mtime, size: revision.size, event });
+            this.urlOwnerBodies.set(revision.path, body); this.urlOwnerFrontmatter.set(revision.path, frontmatter);
+            this.urlMetadataCaches.set(revision.path, cache);
+            if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path);
+            this.queueUrlPublication([revision.path], revision.path, !background); return;
+          }
+          const builder = new GraphBuilder(this.plugin, this.app, new Map(), this.metadataParser,
+            this.indexedDb, current, new Map(), undefined, async () => {
+              await this.workScheduler.checkpoint(priority);
+              progress();
+            });
+          const aliases = await this.prepareUrlAliasOwners(revision.path, urls, current, priority, progress);
+          if (!aliases) { if (alive()) continue; return; }
+          const touched = await builder.patchUrlReferences(this.urlState, file, body, (commit, publish) => {
+            publish();
+            this.urlOwners.set(revision.path, { file, mtime: revision.mtime, size: revision.size, event });
+            this.urlOwnerBodies.set(revision.path, body); this.urlOwnerFrontmatter.set(revision.path, frontmatter);
+            this.urlMetadataCaches.set(revision.path, cache);
+            if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path);
+            this.publishUrlAliasOwners(revision.path, aliases);
+            this.queueUrlPublication(commit.touchedPagePaths, revision.path, !background);
+          }, frontmatter);
+          if (touched || current()) return;
+          await this.workScheduler.checkpoint(priority);
         }
-        const builder = new GraphBuilder(this.plugin, this.app, new Map(), this.metadataParser,
-          this.indexedDb, current, new Map(), undefined, () => this.workScheduler.checkpoint(priority));
-        const aliases = await this.prepareUrlAliasOwners(revision.path, urls, current, priority);
-        if (!aliases) { if (alive()) continue; return; }
-        const touched = await builder.patchUrlReferences(this.urlState, file, body, (commit, publish) => {
-          publish();
-          this.urlOwners.set(revision.path, { file, mtime: revision.mtime, size: revision.size, event });
-          this.urlOwnerBodies.set(revision.path, body); this.urlOwnerFrontmatter.set(revision.path, frontmatter);
-          this.urlMetadataCaches.set(revision.path, cache);
-          if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path);
-          this.publishUrlAliasOwners(revision.path, aliases);
-          this.queueUrlPublication(commit.touchedPagePaths, revision.path, !background);
-        }, frontmatter);
-        if (touched || current()) return;
-        await this.workScheduler.checkpoint(priority);
-      }
-    })).finally(() => { this.urlPendingPublications--; });
+      } finally { releaseWork(); }
+    });
+    const task = (restore ? Promise.race([work, restore.stopped]) : work).finally(() => { this.urlPendingPublications--; });
     this.urlPublicationLane = task;
     return task;
   }
@@ -3243,6 +3336,7 @@ export class GraphIndex {
     this.urlDiscoveryRunning = true;
     const task = this.workScheduler.run(INDEX_WORK_PRIORITY.urlInventory, async () => {
       await this.restoreUrlIndex();
+      if (this.diagnosticsClosed || this.persistentCachePurged) return false;
       const files = this.app.vault.getMarkdownFiles();
       this.urlDiscoveryTotal = files.length;
       this.plugin.startupDiagnostics?.mark("url-background-start");
@@ -3457,6 +3551,9 @@ export class GraphIndex {
   }
 
   destroy(): void {
+    this.snapshotRestoreRequest++;
+    this.cancelSnapshotRestoreWait?.();
+    this.cancelUrlRestore?.();
     this.visiblePresentation.clear();
     this.sourceAcquisition.close();
     this.diagnosticsClosed = true;
@@ -4747,12 +4844,21 @@ export class GraphIndex {
   }
 
   /**
-   * Restore the last complete semantic graph before any expensive Markdown parsing. Snapshot v2
-   * is chunked so iOS never has to parse/stringify the entire graph as one enormous temporary
-   * string/object. A v1 file is still accepted once for seamless migration.
+   * Join bounded shared URL restoration before graph acceleration. Superseded public waits settle
+   * immediately without cancelling shared acquisition; unload/purge cannot enter a later catalog
+   * read. The existing graph restore owner retains its separate preview/hydration lifetime.
    */
   async restorePersistedSnapshot(seedPaths: readonly string[] = []): Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> {
-    await this.restoreUrlIndex();
+    this.cancelSnapshotRestoreWait?.();
+    const request = ++this.snapshotRestoreRequest;
+    if (this.diagnosticsClosed || this.persistentCachePurged) return { restored: false, fresh: false, createdAt: null };
+    let cancel!: () => void;
+    const cancelled = new Promise<boolean>(resolve => { cancel = () => resolve(false); });
+    this.cancelSnapshotRestoreWait = cancel;
+    const resumed = await Promise.race([this.restoreUrlIndex().then(() => true), cancelled]).finally(() => {
+      if (this.cancelSnapshotRestoreWait === cancel) this.cancelSnapshotRestoreWait = null;
+    });
+    if (!resumed || this.diagnosticsClosed || this.persistentCachePurged || request !== this.snapshotRestoreRequest) return { restored: false, fresh: false, createdAt: null };
     let arbitration: typeof this.eagerPreviewArbitration = null;
     if (!this.isOnDemandMode()) {
       this.eagerPreviewArbitration?.release();
@@ -4776,31 +4882,64 @@ export class GraphIndex {
     } finally { arbitration?.release(); }
   }
 
-  /** Restore only a finite fresh cached neighborhood; no source inventory or broad hydration follows. */
+  /**
+   * Bound the complete finite catalog/preview attempt with the existing hydration watchdog. No
+   * source inventory or broad hydration follows. Retirement releases preview leases immediately;
+   * late catalog/search callbacks cannot publish or rewrite terminal diagnostics.
+   */
   private async restoreOnDemandPreview(seedPaths: readonly string[]): Promise<{
     restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean;
   }> {
-    const catalog = await this.indexedDb.readSnapshotCatalog();
-    this.rememberSnapshotCatalog(catalog);
-    const meta = catalog.active;
-    const fresh = Boolean(meta && meta.schema >= 3 && meta.vaultSignature === computeVaultSignature(this.app)
-      && compareIndexSettingsSignature(meta.settingsSignature, this.plugin.settings).reason === "compatible");
-    if (!meta || !fresh || this.diagnosticsClosed) return { restored: false, fresh: false, createdAt: meta?.createdAt ?? null };
+    this.cancelSnapshotHydration?.();
     const policy = this.semanticPolicyRevision, source = this.plugin.getIndexSourceRevision();
     const run = ++this.snapshotHydrationRun;
     this.beginSnapshotHydrationDiagnostics(run);
+    let cancelled = false, createdAt: number | null = null;
+    const releases = new Set<() => void>();
+    /** Stop this finite preview's priority ownership without waiting for external reads. */
+    const stop = (): void => { cancelled = true; for (const release of [...releases]) release(); };
+    /** Search/preview stages retain only leases belonging to this exact cancellable attempt. */
+    const retainWork = (priority: IndexWorkPriority): (() => void) => {
+      if (cancelled) return () => undefined;
+      const releaseWork = this.workScheduler.begin(priority);
+      const release = (): void => { releases.delete(release); releaseWork(); };
+      releases.add(release);
+      return release;
+    };
     const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged
-      && run === this.snapshotHydrationRun && policy === this.semanticPolicyRevision
+      && !cancelled && run === this.snapshotHydrationRun && policy === this.semanticPolicyRevision
       && source === this.plugin.getIndexSourceRevision();
-    const restored = await this.publishSnapshotPreview(meta, seedPaths, current);
-    if (restored && current()) {
-      this.onDemandCachedSourceRevision = source;
-      for (const page of this.state.pages.values()) if (page.file) this.snapshotFileRevisions.set(page, captureFileRevision(page.file));
-      for (const path of seedPaths) if (this.state.pages.has(path)) this.onDemandCachedScopes.set(path, this.state);
-    }
-    this.onDemandPartialState = true;
-    this.finishSnapshotHydrationDiagnostics(run, restored ? "complete" : "failed");
-    return { restored, fresh: restored, createdAt: meta.createdAt, ...(restored ? { partial: true } : {}) };
+    const restoring = (async () => {
+      const catalog = await this.indexedDb.readSnapshotCatalog();
+      if (!current()) return { restored: false, fresh: false, createdAt };
+      this.rememberSnapshotCatalog(catalog);
+      const meta = catalog.active;
+      createdAt = meta?.createdAt ?? null;
+      const fresh = Boolean(meta && meta.schema >= 3 && meta.vaultSignature === computeVaultSignature(this.app)
+        && compareIndexSettingsSignature(meta.settingsSignature, this.plugin.settings).reason === "compatible");
+      if (!meta || !fresh) return { restored: false, fresh: false, createdAt };
+      this.setSnapshotHydrationPhase(run, "preview");
+      const restored = await this.publishSnapshotPreview(meta, seedPaths, current, undefined, retainWork);
+      if (!current()) return { restored: false, fresh: false, createdAt };
+      if (restored) {
+        this.onDemandCachedSourceRevision = source;
+        for (const page of this.state.pages.values()) if (page.file) this.snapshotFileRevisions.set(page, captureFileRevision(page.file));
+        for (const path of seedPaths) if (this.state.pages.has(path)) this.onDemandCachedScopes.set(path, this.state);
+      }
+      this.onDemandPartialState = true;
+      return { restored, fresh: restored, createdAt, ...(restored ? { partial: true } : {}) };
+    })().catch(() => ({ restored: false, fresh: false, createdAt })).then(result => {
+      this.finishSnapshotHydrationDiagnostics(run, result.restored ? "complete" : "failed");
+      return result;
+    });
+    const task = this.watchSnapshotHydration(restoring, run, () => createdAt, stop);
+    this.snapshotHydrationTask = task;
+    void task.then(() => {
+      if (this.snapshotHydrationTask !== task) return;
+      this.snapshotHydrationTask = null;
+      this.emit();
+    });
+    return task;
   }
 
   private async cleanupLegacySnapshotFiles(): Promise<void> {
