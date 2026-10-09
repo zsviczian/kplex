@@ -49,12 +49,16 @@ import { installKplexLongPressTooltips } from "./LongPressTooltip";
 type BooleanToolbarSetting = PlexVisibilitySetting | "renderAlias";
 type IndexStatus = ReturnType<KplexPlugin["getIndexStatus"]>;
 
-/** Subscribe a visible K-Plex surface to host-owned index status and catch up once on reveal. */
+/**
+ * Subscribe to host-owned index status, catching changes between render and subscription and on
+ * reveal. Hidden surfaces skip intermediate progress but accept terminal readiness so a transient
+ * native geometry change cannot leave a stale preparation indicator. Release all channels on teardown.
+ */
 function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStatus {
   const [status, setStatus] = useState(() => plugin.getIndexStatus());
   const lastStatusRef = useRef(status);
   useEffect(() => {
-    /** Refresh only when a visible status fact changed; progressive graph publication can be frequent. */
+    /** Publish changed visible status facts or hidden terminal readiness; repeated graph events are no-ops. */
     const refresh = (): void => {
       const next = plugin.getIndexStatus();
       // Terminal readiness must clear a stale indicator even if native leaf geometry has not
