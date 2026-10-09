@@ -1,7 +1,8 @@
 /**
  * Canonical, portable selection of neutral property references. Full compilation and source patches
  * use this same read state BEFORE seeding/materializing any graph entity. It retains only the active
- * value's selected provenance; unconfigured physical URL references remain inferred, while dormant
+ * value's selected provenance; the same normalized assignments take precedence for date properties.
+ * Unconfigured physical URL references remain inferred, while dormant
  * internal references and payload chunks are validated and discarded. No host lookup,
  * Markdown parsing, persistence or publication is performed here.
  */
@@ -102,6 +103,11 @@ export class ReferencePolicySelector {
       image: this.images.has(value.normalizedFieldName)
         && (value.surface === "frontmatter" || value.inlineMapIndex !== undefined),
     };
+  }
+
+  /** Normalize scalar date fields against captured assignments; reference identities stay producer-owned. */
+  assignmentsForField(fieldName: string): readonly ReferenceAssignment[] {
+    return this.assignmentsByField.get(normalizeFieldName(fieldName)) ?? [];
   }
 }
 

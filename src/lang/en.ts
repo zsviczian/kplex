@@ -6,6 +6,8 @@
  * every `{placeholder}` used by the message. Do not put vault/user data into keys.
  */
 export const englishCatalog = {
+  "settings.datePropertyRelations.name": { message: "Default Date role", context: "Declarative relationship behavior fallback for native Date properties linked to daily notes.", params: [] },
+  "settings.datePropertyRelations.description": { message: "Choose the relationship for Date properties without a configured field role. Configured field ontology always takes precedence.", context: "Default Date relationship role; does not change date recognition or daily note formats.", params: [] },
   "actions.blank": { message: "Blank", context: "Native empty shortcut chip, matching Obsidian Hotkeys.", params: [] },
   "actions.saving": { message: "Saving…", context: "Immediate native shortcut preference save.", params: [] },
   "actions.retrySave": { message: "Retry saving", context: "Retry failed workflow preference save without an Apply footer.", params: [] },
@@ -4547,7 +4549,12 @@ export const englishCatalog = {
   },
   "explain.summaryDateProperty": {
     message: "An Obsidian Date property maps to a Daily Notes target and is treated as an inferred outgoing relationship.",
-    context: "Relationship explanation for an Obsidian Date property relation.",
+    context: "Historical relationship explanation for an inferred Obsidian Date property relation.",
+    params: [],
+  },
+  "explain.summaryDatePropertyPolicy": {
+    message: "An Obsidian Date property maps to a Daily Notes target using its configured field role or the default Date role.",
+    context: "Date relationship explanation: configured field ontology wins over the default Date role.",
     params: [],
   },
   "explain.summaryNoActiveEvidence": {

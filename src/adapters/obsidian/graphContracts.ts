@@ -1,13 +1,14 @@
 /**
  * Maps K-Plex host graph/settings facades to narrow portable read contracts. Host page identity
- * stays at this boundary; adapters never reclassify relationships.
+ * stays at this boundary; adapters capture date policy for live and cached compilation without
+ * reclassifying relationships or changing physical source facts.
  */
 import type { KplexSettings } from "../../settings";
 import type { GraphPage } from "../../types";
 import type { GraphSearchRead } from "../../core/graph/read";
 import { nodeId, type GraphNodeKind, type GraphNodeView } from "../../core/graph/model";
 import type { GraphCompilerSettings } from "../../core/graph/compiler";
-import type { SemanticIndexSettings } from "../../core/graph/settings";
+import { sanitizeDatePropertyRelations, type SemanticIndexSettings } from "../../core/graph/settings";
 
 /** Read the explicit host node facets without inferring kind or case rules from its opaque ID. */
 function kindOf(page: GraphPage): GraphNodeKind {
@@ -67,6 +68,7 @@ export function graphCompilerSettingsFromLegacy(settings: KplexSettings): GraphC
     nodeImageProperty: settings.nodeImageProperty,
     inferAllLinksAsFriends: settings.inferAllLinksAsFriends,
     inverseInfer: settings.inverseInfer,
+    datePropertyRelations: sanitizeDatePropertyRelations(settings.datePropertyRelations),
     showFullTagName: settings.showFullTagName,
     tagStyleList: [...settings.tagStyleList],
     maxLabelLength: settings.baseNodeStyle.maxLabelLength ?? 30,
@@ -79,6 +81,7 @@ export function semanticIndexSettingsFromLegacy(settings: KplexSettings): Semant
     hierarchy: settings.hierarchy,
     inferAllLinksAsFriends: settings.inferAllLinksAsFriends,
     inverseInfer: settings.inverseInfer,
+    datePropertyRelations: sanitizeDatePropertyRelations(settings.datePropertyRelations),
     showFullTagName: settings.showFullTagName,
     noteTypeField: settings.noteTypeField,
     primaryTagField: settings.primaryTagField,

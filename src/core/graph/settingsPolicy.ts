@@ -3,7 +3,7 @@
  * allowlisted projections, never entire mutable plugin settings. Encoded values remain private;
  * only built-in key names may cross the diagnostic boundary. Array order/multiplicity is retained for the owning policy.
  */
-import type { SemanticHierarchy } from "./settings";
+import { sanitizeDatePropertyRelations, type DatePropertyRelations, type SemanticHierarchy } from "./settings";
 
 export const HIERARCHY_ROLES = ["hidden", "parents", "children", "leftFriends", "rightFriends", "previous", "next"] as const;
 export const PRESENTATION_KEYS = [
@@ -12,7 +12,7 @@ export const PRESENTATION_KEYS = [
   "attachmentNodeStyle", "folderNodeStyle", "tagNodeStyle", "tagNodeStyles", "noteTypeStyles", "displayAllStylePrefixes",
   "baseLinkStyle", "inferredLinkStyle", "folderLinkStyle", "tagLinkStyle", "hierarchyLinkStyles", "attachmentImageDisplay",
 ] as const;
-const SEMANTIC_KEYS = ["inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty"] as const;
+const SEMANTIC_KEYS = ["inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty", "datePropertyRelations"] as const;
 const VIEW_KEYS = [
   "hierarchy.exclusions", "showFolderNodes", "showTagNodes", "showPageNodes", "showAttachments", "showURLNodes",
   "showVirtualNodes", "showInferredNodes", "renderSiblings", "nodeSortOrder", "graphLenses", "excludeFilepaths",
@@ -32,6 +32,7 @@ export type SettingsPolicyInput = Readonly<{
   hierarchy: SemanticHierarchy;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
+  datePropertyRelations?: DatePropertyRelations;
   thumbnailProperty?: string;
   nodeImageProperty?: string;
   showFullTagName: boolean;
@@ -77,6 +78,7 @@ function semanticValues(settings: SettingsPolicyInput): Record<string, unknown> 
     hierarchy: Object.fromEntries(HIERARCHY_ROLES.map((role) => [role, [...settings.hierarchy[role]]])),
     inferAllLinksAsFriends: settings.inferAllLinksAsFriends,
     inverseInfer: settings.inverseInfer,
+    datePropertyRelations: sanitizeDatePropertyRelations(settings.datePropertyRelations),
     thumbnailProperty: settings.thumbnailProperty ?? "thumbnail",
     nodeImageProperty: settings.nodeImageProperty ?? "node-image",
   };
@@ -122,9 +124,9 @@ export function sanitizeChangedSettingKeys(value: unknown): SettingDiagnosticKey
   return SETTING_DIAGNOSTIC_KEYS.filter((key) => value.includes(key));
 }
 
-/** Write signature format 2 while retaining the existing graph/snapshot schema. */
+/** Write signature format 4 for Date fallback roles; neutral source and snapshot schemas stay intact. */
 export function encodeIndexSettingsSignature(settings: SettingsPolicyInput): string {
-  return JSON.stringify({ schema: 1, signatureVersion: 2, ...semanticValues(settings) });
+  return JSON.stringify({ schema: 1, signatureVersion: 4, ...semanticValues(settings) });
 }
 
 export type SignatureCompatibility = Readonly<{
@@ -141,7 +143,7 @@ function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-/** Compare recognized legacy/current JSON by named policy, never by serialized string equality. */
+/** Recognize old inference/mode signatures as semantic mismatches; only current v4 roles may reuse graphs. */
 export function compareIndexSettingsSignature(raw: unknown, current: SettingsPolicyInput): SignatureCompatibility {
   const unknown: SignatureCompatibility = { compatible: false, reason: "signature-format-unknown", changedKeys: [], presentationChanged: false };
   if (typeof raw !== "string") return unknown;
@@ -149,10 +151,11 @@ export function compareIndexSettingsSignature(raw: unknown, current: SettingsPol
   try { saved = JSON.parse(raw); } catch { return unknown; }
   if (!isRecord(saved) || saved.schema !== 1 || !isRecord(saved.hierarchy)) return unknown;
   const legacy = saved.signatureVersion === undefined;
-  if (!legacy && saved.signatureVersion !== 2) return unknown;
+  if (!legacy && saved.signatureVersion !== 2 && saved.signatureVersion !== 3 && saved.signatureVersion !== 4) return unknown;
   const common = ["schema", "hierarchy", "inferAllLinksAsFriends", "inverseInfer"];
   const legacyFields = ["showFullTagName", "noteTypeField", "primaryTagField", "tagStyleList", "maxLabelLength", "excalibrainFilepath"];
-  const allowed = legacy ? [...common, ...legacyFields] : [...common, "signatureVersion", "thumbnailProperty", "nodeImageProperty"];
+  const allowed = legacy ? [...common, ...legacyFields] : [...common, "signatureVersion", "thumbnailProperty", "nodeImageProperty",
+    ...(saved.signatureVersion === 3 || saved.signatureVersion === 4 ? ["datePropertyRelations"] : [])];
   if (Object.keys(saved).some((key) => !allowed.includes(key))) return unknown;
   const hierarchy = saved.hierarchy;
   if (Object.keys(hierarchy).some((key) => ![...HIERARCHY_ROLES, "exclusions", "friends"].includes(key))) return unknown;
@@ -166,10 +169,15 @@ export function compareIndexSettingsSignature(raw: unknown, current: SettingsPol
       typeof saved.maxLabelLength !== "number" || !Number.isFinite(saved.maxLabelLength) ||
       (saved.excalibrainFilepath !== undefined && typeof saved.excalibrainFilepath !== "string")) return unknown;
   } else if (typeof saved.thumbnailProperty !== "string" || typeof saved.nodeImageProperty !== "string") return unknown;
+  if (saved.signatureVersion === 3 && saved.datePropertyRelations !== "inferred" && saved.datePropertyRelations !== "ontology") return unknown;
+  if (saved.signatureVersion === 4 && saved.datePropertyRelations !== sanitizeDatePropertyRelations(saved.datePropertyRelations)) return unknown;
   const currentPolicy = captureSettingsPolicy(current);
   const oldValues = { ...currentPolicy.values };
   for (const role of HIERARCHY_ROLES) oldValues[`hierarchy.${role}`] = encode(role === "leftFriends" ? hierarchy.leftFriends ?? hierarchy.friends : hierarchy[role]);
-  for (const key of SEMANTIC_KEYS) oldValues[key] = encode(saved[key] ?? (key === "thumbnailProperty" ? "thumbnail" : "node-image"));
+  for (const key of SEMANTIC_KEYS) oldValues[key] = encode(key === "datePropertyRelations"
+    // Historical mode values must stay distinct from every current role, never sanitize to Parent.
+    ? saved.signatureVersion === 4 ? saved[key] : saved.signatureVersion === 3 ? saved[key] : "inferred"
+    : saved[key] ?? (key === "thumbnailProperty" ? "thumbnail" : "node-image"));
   if (legacy) {
     for (const key of ["showFullTagName", "noteTypeField", "primaryTagField", "tagStyleList"] as const) oldValues[key] = encode(saved[key]);
     oldValues["baseNodeStyle.maxLabelLength"] = encode(saved.maxLabelLength);

@@ -103,6 +103,7 @@ test("semantic settings mapper preserves graph values and excludes unrelated hos
   const view = semanticIndexSettingsFromLegacy(settings);
   assert.deepEqual(view, {
     hierarchy: settings.hierarchy, inferAllLinksAsFriends: false, inverseInfer: true,
+    datePropertyRelations: "parent",
     showFullTagName: false, noteTypeField: "Note type",
     primaryTagField: "Tag", tagStyleList: settings.tagStyleList, maxLabelLength: 30,
   });

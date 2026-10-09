@@ -79,7 +79,7 @@ export async function runSettingsIndependence(c) {
       assert.equal(effects.searchTerms, false); assert(effects.changedKeys.includes("tagStyleList"));
       assert.equal(computeIndexSettingsSignature(original), computeIndexSettingsSignature(settings));
       const decoded = JSON.parse(computeIndexSettingsSignature(settings));
-      assert.equal(decoded.signatureVersion, 2); assert(!("noteTypeField" in decoded));
+      assert.equal(decoded.signatureVersion, 4); assert.equal(decoded.datePropertyRelations, "parent"); assert(!("noteTypeField" in decoded));
       assert(!("exclusions" in decoded.hierarchy));
       for (const key of ["inferAllLinksAsFriends", "inverseInfer", "thumbnailProperty", "nodeImageProperty"]) {
         const changed = structuredClone(settings);
@@ -90,12 +90,13 @@ export async function runSettingsIndependence(c) {
       }
       const changed = structuredClone(settings); changed.hierarchy.leftFriends.push("Private field");
       const decision = policy.compareIndexSettingsSignature(legacy(), changed);
-      assert.equal(decision.reason, "semantic-settings-changed"); assert.deepEqual(decision.changedKeys, ["hierarchy.leftFriends"]);
+      assert.equal(decision.reason, "semantic-settings-changed"); assert.deepEqual(decision.changedKeys, ["hierarchy.leftFriends", "datePropertyRelations"]);
     });
     await scenario("recognized old shapes and conservative unknown input", async () => {
       for (const raw of [legacy(), legacy({ excalibrainFilepath: "" }), legacy({ excalibrainFilepath: "Legacy Drawing.md" })]) {
         const compared = policy.compareIndexSettingsSignature(raw, settings);
-        assert.equal(compared.compatible, true); assert.equal(compared.reason, "signature-format-changed");
+        assert.equal(compared.compatible, false); assert.equal(compared.reason, "semantic-settings-changed");
+        assert.deepEqual(compared.changedKeys, ["datePropertyRelations"], "Historical Date inference is not a current six-role graph");
       }
       const before = JSON.stringify(settings);
       for (const raw of [null, "{", "null", "[]", "{}", legacy({ schema: 9 }), legacy({ tagStyleList: [42] }),
@@ -123,7 +124,9 @@ export async function runSettingsIndependence(c) {
         const next = structuredClone(settings);
         Object.assign(next, { showFullTagName: false, noteTypeField: "Palette", primaryTagField: "Theme", tagStyleList: ["#taxonomy", "#body"] });
         next.baseNodeStyle.maxLabelLength = 9;
-        const p = owner(next, legacy(), kind);
+        // Presentation-only hydration needs a semantically current graph. Historical Date
+        // signatures now correctly require reinterpretation and belong to the separate guard.
+        const p = owner(next, warmRecord.meta.settingsSignature, kind);
         let observed = 0;
         p.index.subscribe(() => {
           const page = p.index.get("Note A.md");
@@ -136,7 +139,10 @@ export async function runSettingsIndependence(c) {
           assert.equal(p.index.get("tag:taxonomy/body/leaf").name, "leaf");
           assert(p.index.search("leaf", 30).some((page) => page.path === "tag:taxonomy/body/leaf"));
           assert.equal(p.index.getPresentationStatus(p.index.get("Note A.md")).noteType, "ready");
-          assert(p.index.getIndexDiagnostics().some((entry) => entry.reason === "presentation-settings-adapted"));
+          // Current signatures intentionally omit presentation fields; observable first-publication
+          // facets above prove adaptation without inventing a historical-presentation diagnostic.
+          assert.equal(policy.compareIndexSettingsSignature(warmRecord.meta.settingsSignature, next).presentationChanged, false);
+          assert(!p.index.getIndexDiagnostics().some((entry) => entry.reason === "semantic-settings-changed"));
         });
       } finally { delete fm.Palette; delete fm.Theme; }
     });
@@ -223,15 +229,13 @@ export async function runSettingsIndependence(c) {
       assert.equal((await restore(p)).restored, false); assert.equal(p.index.size, 0);
       assert(p.index.getIndexDiagnostics().some((entry) => entry.reason === "signature-format-unknown"));
     });
-    await scenario("retired exclusion preserves graph and plans only upgrade reconciliation", async () => {
+    await scenario("retired exclusion cannot authorize a historical Date graph without neutral sources", async () => {
       const p = owner(structuredClone(settings), legacy({ excalibrainFilepath: "Note A.md" }));
       const restored = await restore(p);
-      assert.equal(restored.restored, true); assert.equal(restored.fresh, false);
-      assert(p.index.restoredModifiedMarkdownPaths.includes("Note A.md"));
-      assert(p.index.getIndexDiagnostics().some((entry) => entry.reason === "retired-policy-reconcile"));
-      assert(!p.index.getIndexDiagnostics().some((entry) => entry.reason === "semantic-settings-changed"));
-      assert.equal((await p.index.reconcileRestoredSnapshot()).reconciled, true);
-      assert.deepEqual(canonicalGraph(p.index), canonicalGraph(index));
+      assert.equal(restored.restored, false); assert.equal(restored.fresh, false);
+      assert.equal(p.index.size, 0);
+      assert(p.index.getIndexDiagnostics().some((entry) => entry.reason === "semantic-settings-changed"
+        && entry.changedKeys.includes("datePropertyRelations")));
     });
     await scenario("SI2 production fingerprint ignores ontology/image policy and detects dormant references", async () => {
       const file = app.vault.getFileByPath("Note A.md"), original = caches.get(file.path);

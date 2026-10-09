@@ -1,3 +1,9 @@
+/**
+ * Exercises compiled production indexing, persistence, parser, settings and scene workflows against
+ * finite Vault/Obsidian doubles. The archived compatibility oracle remains intact; only approved
+ * product deltas are overlaid explicitly. Temporary emitted modules are retired in cleanup; this
+ * fixture does not substitute for real Obsidian/native or physical-device acceptance.
+ */
 import assert from "node:assert/strict";
 import { legacyGraphCheckpointWriter } from "./support/legacyGraphCheckpointWriter.mjs";
 import { createRequire } from "node:module";
@@ -6,6 +12,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runSettingsIndependence } from "./support/settingsIndependence.mjs";
+import { applyDefaultDateRoleFixture } from "./support/dateRoleFixture.mjs";
 import { canonicalGraph, canonicalNeighborhood, canonicalPair, canonicalScene } from "./support/canonicalGraph.mjs";
 
 const require = createRequire(import.meta.url);
@@ -1604,7 +1611,42 @@ try {
     const node = frozenBaseline.scene.nodes.find(node => node.path === path); assert(node);
     for (const gate of Object.values(node.gateStats)) gate.complete = true;
   }
-  assert.deepEqual(baseline, frozenBaseline);
+  // Default Date roles change four exact pairs. Two real Daily siblings remain through tags;
+  // the unresolved Date-only sibling disappears and the centered sibling strip shifts half a row.
+  applyDefaultDateRoleFixture(frozenBaseline.graph);
+  frozenBaseline.graph.declarations.sort(jsonOrder);
+  const removedDateSibling = "Daily/2026/09/20260920.md";
+  const siblingRows = frozenBaseline.neighborhoods["Note A.md"].siblings;
+  assert.equal(siblingRows.filter(item => item.path === removedDateSibling).length, 1);
+  frozenBaseline.neighborhoods["Note A.md"].siblings = siblingRows.filter(item => item.path !== removedDateSibling);
+  assert.equal(frozenBaseline.scene.nodes.filter(item => item.path === removedDateSibling).length, 1);
+  frozenBaseline.scene.nodes = frozenBaseline.scene.nodes.filter(item => item.path !== removedDateSibling);
+  for (const [path, beforeTop, afterTop, beforeBottom, afterBottom] of [
+    ["Note B.md", 4, 7, 5, 2], ["Note C.md", 5, 6, 1, 0],
+    ["Daily/2026/09/20260918.md", 4, 3, 0, 1], ["Daily/2026/09/20260919.md", 4, 3, 0, 1],
+  ]) {
+    const node = frozenBaseline.scene.nodes.find(item => item.path === path); assert(node);
+    assert.equal(node.gateStats.top.visibleCount, beforeTop); assert.equal(node.gateStats.bottom.visibleCount, beforeBottom);
+    node.gateStats.top = { ...node.gateStats.top, visibleCount: afterTop, hasAny: afterTop > 0 };
+    node.gateStats.bottom = { ...node.gateStats.bottom, visibleCount: afterBottom, hasAny: afterBottom > 0 };
+  }
+  for (const [path, beforeY, afterY] of [
+    ["Daily/2026/09/20260918.md", -170.95, -153.825], ["Daily/2026/09/20260919.md", -136.7, -119.575],
+    ["folder:Daily", -68.2, -85.325], ["Section Tree.md", -33.95, -51.075],
+  ]) {
+    const node = frozenBaseline.scene.nodes.find(item => item.path === path); assert(node);
+    assert.equal(node.y, beforeY); node.y = afterY;
+  }
+  const oldDateSiblingEdges = frozenBaseline.scene.edges.filter(edge => edge.id.startsWith("sibling-parent:Note B.md:Daily/"));
+  assert.equal(oldDateSiblingEdges.length, 3);
+  for (const edge of oldDateSiblingEdges) { assert.equal(edge.role, "child"); assert.equal(edge.relationType, 2); }
+  frozenBaseline.scene.edges = frozenBaseline.scene.edges.filter(edge => !oldDateSiblingEdges.includes(edge));
+  const dateCrossInsertion = frozenBaseline.scene.edges.findIndex(edge => edge.id === "cross:Note B.md:Note C.md:child");
+  assert(dateCrossInsertion >= 0);
+  frozenBaseline.scene.edges.splice(dateCrossInsertion + 1, 0, ...oldDateSiblingEdges.filter(edge => edge.targetPath !== removedDateSibling).map(edge => ({
+    ...edge, id: `cross:Note B.md:${edge.targetPath}:parent`, isCrossLink: true, role: "parent", relationType: 1,
+  })));
+  assert.deepEqual(baseline, frozenBaseline, "Exact compatibility except approved URL and default Date-role deltas");
 
   // A new Markdown file may arrive after the last complete snapshot and before the five-minute
   // edit idle write. Warm startup must reuse that snapshot and ingest only the new source.
@@ -2577,8 +2619,8 @@ try {
     "Daily/2026/09/20260918.md",
     "Daily/2026/09/20260919.md",
     "Daily/2026/09/20260920.md",
-  ]) expectRole("Note B.md", "child", target, RelationType.INFERRED);
-  expectRole("Note C.md", "child", "Daily/2026/10/20261001.md", RelationType.INFERRED);
+  ]) expectRole("Note B.md", "parent", target, RelationType.DEFINED);
+  expectRole("Note C.md", "parent", "Daily/2026/10/20261001.md", RelationType.DEFINED);
   assert(index.get("Daily/2026/09/20260920.md") && !index.get("Daily/2026/09/20260920.md").file);
   assert(index.get("Daily/2026/10/20261001.md") && !index.get("Daily/2026/10/20261001.md").file);
   assert.equal(index.get("2026-09-20"), undefined, "Raw ISO Date property values are not graph filenames");

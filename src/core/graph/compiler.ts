@@ -1,7 +1,7 @@
 /**
  * Portable source-to-evidence compiler. Semantic rules remain canonical here; presentation fields
  * are a finite compatibility output delegated to the shared presentation owner until SI4. Neutral
- * reference reads use sourcePolicy before materialization; only active evidence survives compilation.
+ * reference reads and configured date assignments use sourcePolicy; only active evidence survives compilation.
  * The node projection reuses that policy/materialization owner without retaining or resolving evidence;
  * its distinct result cannot authorize relationship readiness.
  */
@@ -39,6 +39,7 @@ import {
 } from "./evidence";
 import { LinkDirection, RelationType, type SemanticRelation } from "./relations";
 import { resolveEvidenceStoreCooperativeByKey } from "./resolver";
+import { sanitizeDatePropertyRelations, type DatePropertyRelations } from "./settings";
 
 const PATHLESS_KEY_PREFIX = "\u0001kplex-node-id:";
 
@@ -56,6 +57,7 @@ export type GraphCompilerSettings = Readonly<{
   nodeImageProperty?: string;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
+  datePropertyRelations?: DatePropertyRelations;
   showFullTagName: boolean;
   tagStyleList: readonly string[];
   maxLabelLength: number;
@@ -570,6 +572,11 @@ export class NormalizedGraphCompiler {
     return true;
   }
 
+  /**
+   * Interpret cached scalar dates using configured field assignments before the selected fallback
+   * role. Both use explicit frontmatter/hidden precedence and retain scalar date provenance. Keeping the
+   * physical source kind prevents wiki-link mutation paths from treating scalar dates as link lists.
+   */
   private consumeDate(record: DatePropertyOccurrence): boolean {
     if (record.target.resolvedBy !== "daily-notes") return false;
     const source = this.ensureNode(record.source, this.fallbackName(record.source));
@@ -577,7 +584,17 @@ export class NormalizedGraphCompiler {
     const fieldName = record.provenance?.fieldName;
     const rawValue = record.provenance?.rawValue;
     if (!source || !target || !fieldName || typeof rawValue !== "string") return false;
-    this.addEvidence(record, source, target, this.inferredRole(), RelationType.INFERRED, LinkDirection.FROM, {
+    const assignments = this.referenceSelector.assignmentsForField(fieldName);
+    if (assignments.length) {
+      for (const assignment of assignments) {
+        const provenance: EvidenceProvenance = { sourceKind: "date-property",
+          definition: assignment.normalizedFieldName, fieldName: assignment.configuredFieldName, rawValue };
+        if (assignment.role === "hidden") this.addHidden(record, source, target, provenance, assignment);
+        else this.addEvidence(record, source, target, assignment.role, RelationType.DEFINED, LinkDirection.FROM, provenance, assignment);
+      }
+      return true;
+    }
+    this.addEvidence(record, source, target, sanitizeDatePropertyRelations(this.settings.datePropertyRelations), RelationType.DEFINED, LinkDirection.FROM, {
       sourceKind: "date-property",
       definition: record.provenance?.definition ?? fieldName,
       fieldName,
@@ -831,12 +848,15 @@ export class NormalizedGraphCompiler {
 
   /** Retain compact ordering metadata for evidence only until final private reconciliation. */
   private rememberReferenceOrder(id: string, record: SelectedSourceRecord, assignment?: ReferenceAssignment): void {
-    if (record.kind !== "selected-reference" || !assignment) return;
+    if (!assignment || (record.kind !== "selected-reference" && record.kind !== "date-property")) return;
     const sequence = this.declarationSequence(id);
     const sourceOrder = this.referenceSourceOrder.get(record.source.id) ?? sequence;
     this.referenceSourceOrder.set(record.source.id, sourceOrder);
-    this.referenceOrderByEvidenceId.set(id, [sourceOrder, assignment.fieldOrder,
-      record.value.surface === "frontmatter" ? 0 : 1, record.value.ordinal, record.ordinal, assignment.assignmentOrder]);
+    // Date facts retain producer order without inventing a persisted physical-value ordinal.
+    this.referenceOrderByEvidenceId.set(id, record.kind === "date-property"
+      ? [sourceOrder, assignment.fieldOrder, 0, sequence, 0, assignment.assignmentOrder]
+      : [sourceOrder, assignment.fieldOrder,
+        record.value.surface === "frontmatter" ? 0 : 1, record.value.ordinal, record.ordinal, assignment.assignmentOrder]);
   }
 
   /** Evidence IDs are compiler-generated counters, never opaque source/entity identifiers. */
