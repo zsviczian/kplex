@@ -1,0 +1,380 @@
+{
+  "recordedAt": "2026-10-09T06:21:03.365906+00:00",
+  "status": "accepted-local-and-native",
+  "source": {
+    "validatedHead": "f9b62d363854bcb272fab7ce4e57c150846eaadb",
+    "inputCount": 308,
+    "sha256": "ce00951966246786108cf12e0a6874ff6cf0b71aa287167cff00139d26d2cbf4",
+    "commentOnlyCommitDuringVerification": "f9b62d3; frozen inputs unchanged"
+  },
+  "verification": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "startedAt": "2026-10-09T06:05:31.275Z",
+    "source": {
+      "revision": "3d5ec6f8fa6cc7da22108bdbc36a3c934650391f",
+      "dirty": true,
+      "node": "v22.22.2",
+      "os": "darwin 23.5.0"
+    },
+    "target": {
+      "vaultName": "kplex-test-small",
+      "vaultPath": "/Users/zsviczian/Obsidian/kplex-test-small",
+      "configDir": "/Users/zsviczian/Obsidian/kplex-test-small/.obsidian"
+    },
+    "capabilities": {
+      "version": "1.14.4 (installer 1.14.0)",
+      "commands": [
+        "version",
+        "vault",
+        "plugin:disable",
+        "plugin:enable",
+        "commands",
+        "command",
+        "dev:dom",
+        "dev:errors"
+      ]
+    },
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "7af5d2ca439e91c27f9f6365f1b15a544d114dcb7cd25d66bb50886689270313",
+        "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "styles.css": "c5debd74849fdf9a815c5fa61ec4326142413d7f5d3c11ee5e6124a174943bd4"
+      },
+      "pluginVersion": "0.1.0",
+      "stagedHashes": {
+        "main.js": "7af5d2ca439e91c27f9f6365f1b15a544d114dcb7cd25d66bb50886689270313",
+        "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "styles.css": "c5debd74849fdf9a815c5fa61ec4326142413d7f5d3c11ee5e6124a174943bd4"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 251
+      }
+    ],
+    "completedAt": "2026-10-09T06:18:03.900Z"
+  },
+  "checks": {
+    "architecture": 7,
+    "core": 69,
+    "general": 416,
+    "ui": 20,
+    "portableSources": 333,
+    "chromium": 410,
+    "scannerFindings": 0
+  },
+  "native": {
+    "status": "passed",
+    "startedAt": "2026-10-09T06:18:23.271Z",
+    "driverSha256": "a3ad5d6c8ad7a67c8aa27048bb7dd670c89baca31c0ace4c3578fa1b3a392b95",
+    "limitations": [
+      "Native production React with controlled test-only status/visibility/mode reads, not an actual indexing stall or timing benchmark.",
+      "No physical-device touch or real hardware keyboard acceptance."
+    ],
+    "artifacts": {
+      "main.js": "7af5d2ca439e91c27f9f6365f1b15a544d114dcb7cd25d66bb50886689270313",
+      "styles.css": "c5debd74849fdf9a815c5fa61ec4326142413d7f5d3c11ee5e6124a174943bd4",
+      "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c"
+    },
+    "liveReadiness": {
+      "upToDate": true,
+      "phase": "ready",
+      "indexedFiles": 6,
+      "totalFiles": 73,
+      "label": "Local graph ready"
+    },
+    "done": true,
+    "scenarios": [
+      {
+        "id": "mount-effect-race-catches-ready",
+        "status": "passed",
+        "notificationsEmitted": 0,
+        "indicator": "Local graph ready"
+      },
+      {
+        "id": "reveal-catches-preparing",
+        "status": "passed"
+      },
+      {
+        "id": "on-demand-details-hide-whole-vault-ratio",
+        "status": "passed",
+        "text": "Preparing local graph",
+        "ratio": "4 of 73 files indexed."
+      },
+      {
+        "id": "full-index-details-preserve-ratio",
+        "status": "passed",
+        "text": "5 of 73 files indexed.Preparing local graph"
+      },
+      {
+        "id": "hidden-terminal-readiness-clears-stale-status",
+        "status": "passed"
+      },
+      {
+        "id": "hidden-intermediate-progress-skipped",
+        "status": "passed"
+      },
+      {
+        "id": "reveal-after-hidden-progress-catches-current",
+        "status": "passed"
+      }
+    ],
+    "originalStatus": {
+      "upToDate": true,
+      "phase": "ready",
+      "indexedFiles": 6,
+      "totalFiles": 73,
+      "label": "Local graph ready"
+    },
+    "cleanup": {
+      "cleaned": true,
+      "scenarios": [
+        {
+          "id": "mount-effect-race-catches-ready",
+          "status": "passed",
+          "notificationsEmitted": 0,
+          "indicator": "Local graph ready"
+        },
+        {
+          "id": "reveal-catches-preparing",
+          "status": "passed"
+        },
+        {
+          "id": "on-demand-details-hide-whole-vault-ratio",
+          "status": "passed",
+          "text": "Preparing local graph",
+          "ratio": "4 of 73 files indexed."
+        },
+        {
+          "id": "full-index-details-preserve-ratio",
+          "status": "passed",
+          "text": "5 of 73 files indexed.Preparing local graph"
+        },
+        {
+          "id": "hidden-terminal-readiness-clears-stale-status",
+          "status": "passed"
+        },
+        {
+          "id": "hidden-intermediate-progress-skipped",
+          "status": "passed"
+        },
+        {
+          "id": "reveal-after-hidden-progress-catches-current",
+          "status": "passed"
+        }
+      ],
+      "overridesRemaining": 0,
+      "originalStatus": {
+        "upToDate": true,
+        "phase": "ready",
+        "indexedFiles": 6,
+        "totalFiles": 73,
+        "label": "Local graph ready"
+      },
+      "restoredStatus": {
+        "upToDate": false,
+        "phase": "updating",
+        "indexedFiles": 6,
+        "totalFiles": 73,
+        "label": "Preparing local graph"
+      }
+    },
+    "nativeErrors": "No errors captured.",
+    "completedAt": "2026-10-09T06:18:23.702Z"
+  },
+  "nativeDriverSource": "/** Bounded native React status rendering probe; all overrides are test-only and restored. */\nimport {spawnSync} from 'node:child_process';\nimport {readFileSync,writeFileSync,mkdirSync} from 'node:fs';\nimport {createHash} from 'node:crypto';\nimport assert from 'node:assert/strict';\nconst root='/Users/zsviczian/GitHub/kplex',out='/private/tmp/kplex-pr82-native';\nmkdirSync(out,{recursive:false});const driver=readFileSync(new URL(import.meta.url));writeFileSync(out+'/driver-source.mjs',driver);\nconst report={status:'running',startedAt:new Date().toISOString(),driverSha256:createHash('sha256').update(driver).digest('hex'),limitations:['Native production React with controlled test-only status/visibility/mode reads, not an actual indexing stall or timing benchmark.','No physical-device touch or real hardware keyboard acceptance.']};\n/** Run one explicit-vault native call and preserve its actual errors. */\nfunction cli(command,...args){const r=spawnSync('/usr/local/bin/obsidian',['vault=kplex-test-small',command,...args],{encoding:'utf8',timeout:30000,maxBuffer:4*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim();}\n/** Parse a detached response from the native renderer. */\nfunction evaluate(code){return JSON.parse(cli('eval',`code=${code}`).replace(/^=>\\s*/,''));}\nconst delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));\n/** Own exact method descriptors and restore the React view without leaving production hooks. */\nfunction install(){\n const remote=require('@electron/remote'),win=remote.getCurrentWindow(),p=app.plugins.plugins['k-plex'];\n if(!p?.actionManager||window.__kplexStatusProbe)throw Error('Loaded plugin and no controller required');\n if(remote.powerMonitor.getSystemIdleState(10)==='locked')throw Error('Unlocked session required');\n const leaf=app.workspace.getLeavesOfType('k-plex-react-view').find(l=>l.view.contentEl.ownerDocument===document&&p.isKplexLeafVisible(l));\n if(!leaf)throw Error('Visible main-window Plex leaf required');\n const c=window.__kplexStatusProbe={done:false,scenarios:[],originalStatus:p.getIndexStatus(),originalMode:p.index.isOnDemandMode(),listenersBefore:p.indexStatusListeners.size,visibilityBefore:p.kplexVisibilityListeners.size,overrides:[]};\n /** Fail at the actual bounded observation rather than treating a skip as pass. */\n const check=(ok,message)=>{if(!ok)throw Error(message);};\n /** Poll real mounted DOM within the existing local readiness deadline. */\n const until=async(predicate,message,ms=15000)=>{const end=Date.now()+ms;while(!predicate()){check(Date.now()<end,message);await new Promise(r=>window.setTimeout(r,25));}};\n const passed=(id,details={})=>c.scenarios.push({id,status:'passed',...details});\n const indicator=()=>leaf.view.contentEl.querySelector('.kplex-index-status');\n const details=()=>[...document.querySelectorAll('.kplex-index-status-details')].find(e=>e.getClientRects().length);\n /** Retain descriptors so prototype methods are not replaced by permanent own properties. */\n const override=(owner,key,value)=>{c.overrides.push({owner,key,descriptor:Object.getOwnPropertyDescriptor(owner,key)});owner[key]=value;};\n c.cleanup=async()=>{\n  for(const item of c.overrides.splice(0).reverse()){if(item.descriptor)Object.defineProperty(item.owner,item.key,item.descriptor);else delete item.owner[item.key];}\n  leaf.view.renderReact();await leaf.view.waitUntilReady();\n  await until(()=>indicator()?.getAttribute('aria-label')===p.getIndexStatus().label,'Original live status did not restore');\n  await p.actionPreferenceQueue;await p.settingsWriteQueue;\n  check(p.indexStatusListeners.size===c.listenersBefore&&p.kplexVisibilityListeners.size===c.visibilityBefore,'React root replacement leaked status listeners');\n  check(p.index.isOnDemandMode()===c.originalMode,'Original indexing mode read did not restore');\n  c.cleaned=true;\n };\n c.task=(async()=>{\n  remote.app.show();remote.app.focus({steal:true});win.show();win.focus();win.webContents.focus();\n  await until(()=>win.isFocused()&&document.hasFocus()&&!document.hidden,'Native foreground unavailable',5000);\n  check(c.originalStatus.upToDate,'Start from actual local graph readiness');\n  const pending={upToDate:false,phase:'updating',label:'Preparing local graph',indexedFiles:4,totalFiles:73};\n  const ready={...pending,upToDate:true,phase:'ready',label:'Local graph ready'};\n  let current=pending,visible=false,mode=c.originalMode,attachRace=true;\n  const getStatus=p.getIndexStatus,visibility=p.isKplexLeafVisible,subscribe=p.subscribeIndexStatus;\n  override(p,'getIndexStatus',()=>current);\n  override(p,'isKplexLeafVisible',function(target){return target===leaf?visible:visibility.call(this,target);});\n  override(p,'subscribeIndexStatus',function(listener){const release=subscribe.call(this,listener);if(attachRace){attachRace=false;current=ready;c.mountRaceObserved=true;}return release;});\n  override(p.index,'isOnDemandMode',()=>mode);\n  leaf.view.renderReact();await leaf.view.waitUntilReady();\n  await until(()=>indicator()?.classList.contains('is-ready')&&indicator().getAttribute('aria-label')===ready.label,'Mount-to-effect readiness remained stale');\n  check(c.mountRaceObserved,'Controlled readiness transition did not occur at subscription');\n  passed('mount-effect-race-catches-ready',{notificationsEmitted:0,indicator:indicator().getAttribute('aria-label')});\n  visible=true;current=pending;for(const listener of p.kplexVisibilityListeners)listener();\n  await until(()=>indicator()?.classList.contains('is-updating')&&indicator().getAttribute('aria-label')===pending.label,'Reveal did not catch current preparing status');\n  passed('reveal-catches-preparing');\n  const node=indicator();node.focus();await until(()=>details(),'Status details did not open on focus');\n  check(mode===true,'Small disposable vault should use actual on-demand mode');\n  const ratio=p.translator('index.filesIndexed',{indexed:4,total:73});\n  check(!details().textContent.includes(ratio)&&details().textContent.includes(pending.label),'On-demand ratio still shown or label lost');\n  passed('on-demand-details-hide-whole-vault-ratio',{text:details().textContent,ratio});\n  mode=false;current={...pending,indexedFiles:5};for(const listener of p.indexStatusListeners)listener();\n  const eagerRatio=p.translator('index.filesIndexed',{indexed:5,total:73});\n  await until(()=>details()?.textContent.includes(eagerRatio),'Full-index progress ratio disappeared');\n  passed('full-index-details-preserve-ratio',{text:details().textContent});\n  mode=true;visible=false;current=ready;for(const listener of p.indexStatusListeners)listener();\n  await until(()=>indicator()?.classList.contains('is-ready')&&indicator().getAttribute('aria-label')===ready.label,'Hidden geometry prevented terminal readiness');\n  passed('hidden-terminal-readiness-clears-stale-status');\n  current={...pending,label:'Controlled hidden progress'};for(const listener of p.indexStatusListeners)listener();await new Promise(r=>window.setTimeout(r,100));\n  check(indicator().getAttribute('aria-label')===ready.label,'Hidden intermediate progress rerendered');\n  passed('hidden-intermediate-progress-skipped');\n  visible=true;for(const listener of p.kplexVisibilityListeners)listener();\n  await until(()=>indicator()?.getAttribute('aria-label')===current.label,'Revealed status did not catch up');\n  passed('reveal-after-hidden-progress-catches-current');\n })().then(()=>{c.done=true;},error=>{c.error=String(error);c.done=true;});\n return JSON.stringify({installed:true});\n}\nlet installed=false;\ntry{\n assert.equal(cli('vault','info=path').replace(/^path\\s+/,''),'/Users/zsviczian/Obsidian/kplex-test-small');\n report.artifacts={};for(const name of ['main.js','styles.css','manifest.json']){const hash=p=>createHash('sha256').update(readFileSync(p)).digest('hex');report.artifacts[name]=hash(root+'/dist/'+name);assert.equal(hash('/Users/zsviczian/Obsidian/kplex-test-small/.obsidian/plugins/k-plex/'+name),report.artifacts[name]);}\n const readinessDeadline=Date.now()+30000;\n do{report.liveReadiness=evaluate('JSON.stringify(app.plugins.plugins[\"k-plex\"].getIndexStatus())');if(report.liveReadiness.upToDate)break;if(Date.now()>readinessDeadline)throw Error('Actual local graph did not become ready before controlled probe');await delay(500);}while(true);\n cli('dev:errors','clear');evaluate(`(${install.toString()})()`);installed=true;\n let result;const end=Date.now()+60000;\n do{await delay(300);result=evaluate('JSON.stringify({done:window.__kplexStatusProbe.done,error:window.__kplexStatusProbe.error,scenarios:window.__kplexStatusProbe.scenarios,originalStatus:window.__kplexStatusProbe.originalStatus})');if(Date.now()>end)throw Error('Status probe deadline');}while(!result.done);\n Object.assign(report,result);if(result.error)throw Error(result.error);\n report.status='passed';\n}catch(error){report.status='failed';report.error=String(error);}\nfinally{\n if(installed){try{report.cleanup=evaluate('(async()=>{const c=window.__kplexStatusProbe;await c.task;await c.cleanup();const result={cleaned:c.cleaned,scenarios:c.scenarios,overridesRemaining:c.overrides.length,originalStatus:c.originalStatus,restoredStatus:app.plugins.plugins[\"k-plex\"].getIndexStatus()};delete window.__kplexStatusProbe;return JSON.stringify(result)})()');if(!report.cleanup.cleaned)throw Error('Cleanup incomplete');}catch(error){report.status='failed';report.cleanupError=String(error);}}\n try{report.nativeErrors=cli('dev:errors');assert.match(report.nativeErrors,/^No errors captured\\.?$/i);}catch(error){report.status='failed';report.nativeErrorFailure=String(error);}\n report.completedAt=new Date().toISOString();writeFileSync(out+'/report.json',JSON.stringify(report,null,2)+'\\n');console.log(JSON.stringify(report));\n}\nif(report.status!=='passed')process.exitCode=1;\n",
+  "postProbeLiveStatus": {
+    "timestamp": "2026-10-09T06:19:07.821Z",
+    "status": {
+      "upToDate": true,
+      "phase": "ready",
+      "indexedFiles": 6,
+      "totalFiles": 73,
+      "label": "Local graph ready"
+    },
+    "indicators": [
+      {
+        "label": "Local graph ready",
+        "ready": true
+      }
+    ],
+    "controllerPresent": false
+  },
+  "audit": {
+    "timestamp": "2026-10-09T06:18:33.338Z",
+    "state": {
+      "pluginLoaded": true,
+      "queuesDrained": true,
+      "markdownFiles": 73,
+      "ownedFiles": 0,
+      "controllers": [],
+      "dialogs": 0,
+      "sessions": 0,
+      "guards": 0,
+      "settingsRows": 0,
+      "settingsGroups": 0,
+      "recorder": false,
+      "settingsOpen": false,
+      "activeWindowMain": true,
+      "activeDocumentMain": true,
+      "mobile": false,
+      "bounds": {
+        "x": 0,
+        "y": 25,
+        "width": 1440,
+        "height": 875
+      },
+      "minimum": [
+        200,
+        150
+      ]
+    },
+    "artifacts": [
+      {
+        "name": "main.js",
+        "built": "7af5d2ca439e91c27f9f6365f1b15a544d114dcb7cd25d66bb50886689270313",
+        "installed": "7af5d2ca439e91c27f9f6365f1b15a544d114dcb7cd25d66bb50886689270313",
+        "identical": true
+      },
+      {
+        "name": "manifest.json",
+        "built": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "installed": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "identical": true
+      },
+      {
+        "name": "styles.css",
+        "built": "c5debd74849fdf9a815c5fa61ec4326142413d7f5d3c11ee5e6124a174943bd4",
+        "installed": "c5debd74849fdf9a815c5fa61ec4326142413d7f5d3c11ee5e6124a174943bd4",
+        "identical": true
+      }
+    ]
+  },
+  "prestage": {
+    "capturedAt": "2026-10-09T06:18:02.885907+00:00",
+    "configuration": [
+      {
+        "name": "data.json",
+        "existed": true,
+        "bytes": 17104,
+        "sha256": "917529459ca3d7725bff5d521222b9ffbe90c23407c1961b4645349c2ef36d34"
+      },
+      {
+        "name": "community-plugins.json",
+        "existed": true,
+        "bytes": 46,
+        "sha256": "4ac827989c179ea6dba2e5a878462085dc86e40328300b1b018fb91d466cbc35"
+      },
+      {
+        "name": "hotkeys.json",
+        "existed": true,
+        "bytes": 2,
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+      }
+    ],
+    "queueProof": "=> {\"queuesDrained\":true,\"loaded\":true}",
+    "note": "Latest settings immediately before staging unload; no user changes during earlier build are lost."
+  },
+  "restoration": {
+    "restoredAt": "2026-10-09T06:19:07.903525+00:00",
+    "configuration": [
+      {
+        "name": "data.json",
+        "existed": true,
+        "bytes": 17104,
+        "sha256": "917529459ca3d7725bff5d521222b9ffbe90c23407c1961b4645349c2ef36d34",
+        "restored": true
+      },
+      {
+        "name": "community-plugins.json",
+        "existed": true,
+        "bytes": 46,
+        "sha256": "4ac827989c179ea6dba2e5a878462085dc86e40328300b1b018fb91d466cbc35",
+        "restored": true
+      },
+      {
+        "name": "hotkeys.json",
+        "existed": true,
+        "bytes": 2,
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "restored": true
+      }
+    ],
+    "sourceBackup": "/private/tmp/kplex-pr82-prestage",
+    "note": "Run only after native drivers cleanup and both plugin write queues settle; no reload after original byte restoration."
+  },
+  "independentReadback": {
+    "timestamp": "2026-10-09T06:19:07.933999+00:00",
+    "configuration": [
+      {
+        "name": "data.json",
+        "existed": true,
+        "bytes": 17104,
+        "sha256": "917529459ca3d7725bff5d521222b9ffbe90c23407c1961b4645349c2ef36d34",
+        "identical": true
+      },
+      {
+        "name": "community-plugins.json",
+        "existed": true,
+        "bytes": 46,
+        "sha256": "4ac827989c179ea6dba2e5a878462085dc86e40328300b1b018fb91d466cbc35",
+        "identical": true
+      },
+      {
+        "name": "hotkeys.json",
+        "existed": true,
+        "bytes": 2,
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "identical": true
+      }
+    ],
+    "independentReadback": true,
+    "noReloadAfterRestoration": true
+  },
+  "githubCi": {
+    "status": "failed-at-recording",
+    "samples": [
+      {
+        "url": "https://github.com/zsviczian/kplex/actions/runs/37766828736/attempts/1",
+        "status": "failed",
+        "assertion": "URL-heavy post-parse graph patch blocked timers",
+        "observedMs": 56.2,
+        "requiredMsLessThan": 50,
+        "rawLogSha256": "029bc6e585762d52570a09dd639152a274e9bbbd335c67f6222a26c40701f5e9"
+      },
+      {
+        "url": "https://github.com/zsviczian/kplex/actions/runs/37891600709/attempts/1",
+        "status": "failed",
+        "assertion": "URL-heavy post-parse graph patch blocked timers",
+        "observedMs": 60.9,
+        "requiredMsLessThan": 50,
+        "rawLogSha256": "94ff4211c1acfd240ee7d75e6c2b1b59950ebc8c33e3880d9580a052532cd8ed"
+      },
+      {
+        "url": "https://github.com/zsviczian/kplex/actions/runs/37892070364/attempts/1",
+        "status": "failed",
+        "assertion": "URL-heavy post-parse graph patch blocked timers",
+        "observedMs": 65.3,
+        "requiredMsLessThan": 50,
+        "rawLogSha256": "476e04a6a47926e6a13cc8cd1f4dcb55b4e7c08ef30410b87ac7fa284b3c4035"
+      },
+      {
+        "url": "https://github.com/zsviczian/kplex/actions/runs/37892070364/attempts/2",
+        "status": "failed",
+        "assertion": "URL-heavy post-parse graph patch blocked timers",
+        "observedMs": 63.2,
+        "requiredMsLessThan": 50,
+        "rawLogSha256": "c751a15b58ca416192ee21140facfb62e486bb749bee75ddc056b8079ad3d56a"
+      }
+    ],
+    "note": "Unchanged strict wall-clock timing gate. No relaxation, CI bypass setting, scheduler change or measured causal attribution. PR85/main strict reruns were still running when captured."
+  }
+}

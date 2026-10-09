@@ -50,7 +50,71 @@ assert(appSource.includes("onMouseEnter={onHoverStart}") && appSource.includes("
 assert(mainSource.includes('this.translator("index.statusIndexingProgress", { indexed: indexedFiles, total: totalFiles })'), "Progressive indexing status must show localized indexed-file progress");
 assert(mainSource.includes("this.index.indexedMarkdownFileCount()"), "Index status progress must come from published Markdown sources rather than graph node count");
 assert(mainSource.includes("this.settings.startupIndexInfoBubbleSeen = true") && mainSource.includes("void this.saveSettings(false, false)"), "Startup indexing guidance must persist its one-time seen state when claimed");
-assert(appSource.includes('["indexing", "saving-cache", "updating"].includes(indexStatus.phase)') && appSource.includes('translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })') && appSource.includes("indexStatus.label"), "Indexing and checkpoint-saving status details must show indexed-file progress while preserving the phase label");
+assert(appSource.includes('!plugin.index.isOnDemandMode() && ["indexing", "saving-cache", "updating"].includes(indexStatus.phase)')
+  && appSource.includes('translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })')
+  && appSource.includes("indexStatus.label"), "Full-index progress must remain visible, but on-demand mode must not show the misleading published-files/whole-vault ratio");
+// Exercise the production hook's notification/visibility behavior without loading the full Obsidian UI.
+// It previously retained "Preparing local graph" after the host had reached "Local graph ready"
+// when a readiness event arrived before effect subscription or while native leaf geometry was hidden.
+{
+  const start = appSource.indexOf("function useIndexStatus(");
+  const end = appSource.indexOf("/** Show status on hover", start);
+  assert(start !== -1 && end > start, "Locate the mounted index-status subscription hook");
+  const hookJs = ts.transpileModule(appSource.slice(start, end), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+  }).outputText;
+  const pending = { coordinator: new Set(), index: new Set(), presentation: new Set(), visibility: new Set() };
+  const subscribe = (channel) => (listener) => {
+    pending[channel].add(listener);
+    return () => { pending[channel].delete(listener); };
+  };
+  const emit = (channel) => { for (const callback of pending[channel]) callback(); };
+  const preparing = { upToDate: false, phase: "updating", label: "Preparing local graph", indexedFiles: 4, totalFiles: 73 };
+  const ready = { ...preparing, upToDate: true, phase: "ready", label: "Local graph ready" };
+  let live = preparing;
+  let visible = false;
+  let displayed;
+  let commits = 0;
+  let installEffect;
+  const useState = (initial) => {
+    displayed ??= initial();
+    return [displayed, (value) => { displayed = typeof value === "function" ? value(displayed) : value; commits += 1; }];
+  };
+  const useRef = (initial) => ({ current: initial });
+  const useEffect = (effect) => { installEffect = effect; };
+  const useIndexStatusUnderTest = new Function("useState", "useRef", "useEffect", `${hookJs}\nreturn useIndexStatus;`)(useState, useRef, useEffect);
+  const plugin = {
+    getIndexStatus: () => live,
+    isKplexLeafVisible: () => visible,
+    subscribeIndexStatus: subscribe("coordinator"),
+    subscribeKplexVisibility: subscribe("visibility"),
+    index: { subscribe: subscribe("index"), subscribePresentation: subscribe("presentation") },
+  };
+  assert.deepEqual(useIndexStatusUnderTest(plugin, {}), preparing);
+  live = ready; // The initial asynchronous build finishes between render and subscription.
+  const cleanup = installEffect();
+  assert.equal(displayed.label, "Local graph ready", "Mount subscription must catch a completed status without another host notification");
+  assert.equal(commits, 1);
+  live = { ...ready, label: "Loading URL titles" };
+  emit("index");
+  assert.equal(commits, 1, "Hidden ready surfaces must not rerender for frequent optional URL publications");
+  live = preparing;
+  emit("coordinator");
+  assert.equal(commits, 1, "Hidden intermediate progress must stay throttled");
+  visible = true;
+  emit("visibility");
+  assert.equal(displayed.label, "Preparing local graph", "A revealed surface must catch up with current progress");
+  live = ready;
+  visible = false; // Obsidian can temporarily report hidden geometry during a native view transition.
+  emit("coordinator");
+  assert.equal(displayed.label, "Local graph ready", "Terminal readiness must clear stale preparation even when geometry is not settled");
+  emit("presentation");
+  assert.equal(commits, 3, "Identical and hidden ready notifications must not enqueue additional renders");
+  cleanup();
+  for (const [channel, listeners] of Object.entries(pending)) {
+    assert.equal(listeners.size, 0, `Index-status hook must release ${channel} listeners`);
+  }
+}
 assert(infoBubbleSource.includes("onAdvance?: () => void"), "Reusable info bubbles must expose caller-owned sequence advancement for future onboarding/help flows");
 assert(infoBubbleSource.includes("dismissLabel?: string"), "Informational status bubbles must be able to omit an unnecessary action row");
 assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");

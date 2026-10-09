@@ -49,28 +49,37 @@ import { installKplexLongPressTooltips } from "./LongPressTooltip";
 type BooleanToolbarSetting = PlexVisibilitySetting | "renderAlias";
 type IndexStatus = ReturnType<KplexPlugin["getIndexStatus"]>;
 
-/** Subscribe a visible K-Plex surface to host-owned index status and catch up once on reveal. */
+/**
+ * Subscribe to host-owned index status, catching changes between render and subscription and on
+ * reveal. Hidden surfaces skip intermediate progress but accept terminal readiness so a transient
+ * native geometry change cannot leave a stale preparation indicator. Release all channels on teardown.
+ */
 function useIndexStatus(plugin: KplexPlugin, hostLeaf: WorkspaceLeaf): IndexStatus {
   const [status, setStatus] = useState(() => plugin.getIndexStatus());
+  const lastStatusRef = useRef(status);
   useEffect(() => {
-    /** Refresh only when a visible status fact changed; progressive graph publication can be frequent. */
+    /** Publish changed visible status facts or hidden terminal readiness; repeated graph events are no-ops. */
     const refresh = (): void => {
-      if (!plugin.isKplexLeafVisible(hostLeaf)) return;
       const next = plugin.getIndexStatus();
-      setStatus((current) => (
-        current.upToDate === next.upToDate
-        && current.phase === next.phase
-        && current.label === next.label
-        && current.indexedFiles === next.indexedFiles
-        && current.totalFiles === next.totalFiles
-          ? current
-          : next
-      ));
+      // Terminal readiness must clear a stale indicator even if native leaf geometry has not
+      // settled yet. Skip intermediate hidden-view progress to avoid background render churn.
+      const visible = plugin.isKplexLeafVisible(hostLeaf);
+      if (!visible && (!next.upToDate || lastStatusRef.current.upToDate)) return;
+      const previous = lastStatusRef.current;
+      if (previous.upToDate === next.upToDate
+        && previous.phase === next.phase
+        && previous.label === next.label
+        && previous.indexedFiles === next.indexedFiles
+        && previous.totalFiles === next.totalFiles) return;
+      lastStatusRef.current = next;
+      setStatus(next);
     };
     const releaseCoordinator = plugin.subscribeIndexStatus(refresh);
     const releaseIndex = plugin.index.subscribe(refresh);
     const releasePresentation = plugin.index.subscribePresentation(refresh);
     const releaseVisibility = plugin.subscribeKplexVisibility(refresh);
+    // Close the render-to-effect race: the index may finish before these listeners attach.
+    refresh();
     return () => {
       releaseCoordinator();
       releaseIndex();
@@ -417,7 +426,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
   const indexStatusInfoOpen = indexStatusInfoMode !== "closed";
   const indexStatusMessage = <div className="kplex-index-status-details">
-    {["indexing", "saving-cache", "updating"].includes(indexStatus.phase) &&
+    {!plugin.index.isOnDemandMode() && ["indexing", "saving-cache", "updating"].includes(indexStatus.phase) &&
       <div>{translate("index.filesIndexed", { indexed: indexStatus.indexedFiles, total: indexStatus.totalFiles })}</div>
     }
     <div>{indexStatus.label}</div>
