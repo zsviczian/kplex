@@ -6,7 +6,8 @@
  * workspace root/container, insert one leaf, and detach that leaf on teardown. Keep every use of
  * that host-specific seam in this adapter so the React graph only deals with a small controller.
  */
-import { FileView, Platform, WorkspaceLeaf, WorkspaceSplit, type App, type TFile, type Workspace } from "obsidian";
+import { FileView, Platform, WorkspaceLeaf, WorkspaceSplit, type App, type Scope, type TFile, type Workspace } from "obsidian";
+import { focusEmbeddedMarkdownView, registerEmbeddedMarkdownFocus, registerEmbeddedMarkdownFocusTarget } from "./embeddedMarkdownFocus";
 import {
   hasMinimumExcalidrawIntegrationVersion,
   MINIMUM_EXCALIDRAW_INTEGRATION_VERSION,
@@ -16,6 +17,16 @@ export type EmbeddedMarkdownMode = "preview" | "source";
 export type EmbeddedDocumentView = "markdown" | "excalidraw";
 
 const embeddedMarkdownLeaves = new WeakSet<WorkspaceLeaf>();
+const embeddedScopeOwners = new WeakMap<Element, () => Scope | null>();
+
+/** Read the actual native view Scope owning a focused embedded element without exposing its leaf. */
+export function getEmbeddedMarkdownScope(element: Element | null): Scope | null {
+  for (let current = element; current; current = current.parentElement) {
+    const read = embeddedScopeOwners.get(current);
+    if (read) return read();
+  }
+  return null;
+}
 
 /** True only for native leaves owned by the central-node editor rather than the workspace tree. */
 export function isEmbeddedMarkdownLeaf(leaf: WorkspaceLeaf | null | undefined): boolean {
@@ -30,6 +41,7 @@ export interface EmbeddedMarkdownLeafController {
   isExcalidrawFile(): boolean;
   toggleExcalidrawView(mode: EmbeddedMarkdownMode): Promise<EmbeddedDocumentView | null>;
   activate(): void;
+  focus(): boolean;
   resize(): void;
   dispose(): void;
 }
@@ -236,6 +248,7 @@ export function mountEmbeddedMarkdownLeaf(
   split.containerEl.classList.remove("workspace-split");
   embeddedMarkdownLeaves.add(leaf);
   let disposed = false;
+  embeddedScopeOwners.set(mountEl, /** Native view replacements retain the mount but change its actual parent Scope. */ () => disposed ? null : leaf.view.scope ?? null);
   let currentFile: TFile | null = null;
   let openSequence = 0;
   let documentViewTransitionDepth = 0;
@@ -381,6 +394,10 @@ export function mountEmbeddedMarkdownLeaf(
     // retain native Markdown command routing through the embedded leaf.
     app.workspace.setActiveLeaf(activateHostLeafOnInteraction ? hostLeaf : leaf, { focus: false });
   };
+  const releaseFocus = registerEmbeddedMarkdownFocus(mountEl, activateInteractionLeaf, /** Native command ownership belongs only to this live embedded controller. */ () => !disposed);
+  /** Resolve the current native view at invocation, so Markdown/drawing replacement never retains a stale representation. */
+  const focus = (): boolean => focusEmbeddedMarkdownView(mountEl, leaf.view, activateInteractionLeaf);
+  const releaseFocusTarget = registerEmbeddedMarkdownFocusTarget(mountEl, focus, /** Disposed controllers cannot participate in action focus. */ () => !disposed);
 
   // Excalidraw marks every ancestor on the active view path with `excalidraw-visible` while its
   // fullscreen manager is active. Once the synthetic split no longer terminates that walk, the
@@ -815,10 +832,17 @@ export function mountEmbeddedMarkdownLeaf(
     isExcalidrawFile,
     toggleExcalidrawView,
     activate: activateInteractionLeaf,
+    focus: /** Apply the same exact document/lifetime fences to controller and action callers. */ () => {
+      if (disposed || !mountEl.isConnected || mountEl.ownerDocument !== viewWindow.document || !viewWindow.document.hasFocus()) return false;
+      return focus();
+    },
     resize,
     dispose() {
       if (disposed) return;
       disposed = true;
+      releaseFocus();
+      releaseFocusTarget();
+      embeddedScopeOwners.delete(mountEl);
       openSequence += 1;
       fullscreenObserver?.disconnect();
       documentViewObserver.disconnect();

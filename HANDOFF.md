@@ -16,22 +16,12 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Node-style display names — accepted, handoff inactive
+# Awaiting host — final recorder polish native checks
 
-Latest maintainer scope: display Tag / Note type in the style-type dropdown and matching
-field. Main applied the narrow catalog/test correction after the prior offline session
-ended; all eight catalogs retain their existing keys. Stored dictionaries, matching
-semantics and JSON compatibility unchanged. Label prefix remains the separate title
-text field with its existing explanation.
+Software is frozen and fully verified:306inputsSHAdcecfc7ab203aa9c74f4d15b1df86114443e4e9e964fdde621d773e629926ff7. Full7architecture/69core/405Node/20UI/333portable/410Chromium, real types, scanner0, production build and exact staging pass. Focused69+14 pass. See docs/validation/recorder-polish-2026-10-08.md/json and Refactor plan. Branch action-manager, base67ee400b…, prior dirty work preserved; no commit/release authority.
 
-All45 focused form/migration, localization and terminology checks pass on Node22.22.2;
-actual TypeScript/production build passes. Full performance/native rounds intentionally
-not repeated per maintainer request. Maintainer authorizes committing the completed corrections and display update on main; no push requested.
+Mac locked again. Native1 created no fixtures and completed no scenarios. CUA getApp accessibility timed out. One serial passive read (owned poll paused/resumed) proves idle=locked/focus=false. The old failure snapshot raised TypeError on an absent hostLeaf and hid the primary failure; driver now records primary failure first and captures optional state, syntax checked. This driver-only change is outside source freeze, no rebuild required. Cancelled native1 final cleanup removes controller; audit0resources/73notes/queuesdrained/exactartifacts. Existing unowned Settings window remains open intentionally. Exact latest pre-stage settings16,181bytesSHA8f1d61e2…/enablement/hotkeyabsence restored and independentreadback21:31:04UTC matches. No reload; awakePID51589 released. Native driver session34591 ended1; no live native process or controller remains.
 
-The earlier three interaction corrections retain their completed full/native acceptance
-in the durable report below. Their frozen-source results are not asserted for this later
-copy-only change. Production vault untouched; C15–C26 remain paused.
+Next root action after user unlock: reacquire native automation documentation/state; fresh backup of current configuration, temporary awake lease; serial fresh primary native2 on same exact artifacts with KPLEX_ACTION_NATIVE_OS_KEYS=true and KPLEX_ACTION_RECORDER_OS_KEYS=true. Serve five guarded OS requests from fresh report/AX (one recorder ShiftOptionR, four editor clipboard/select/copy/undo). Native recorder form geometry1200/900/390, dropdown auto-focus/sequential modifiers both modes, synthetic Dead protocol and badge symmetry are added. Raw native1 `/private/tmp/kplex-recorder-polish-native-1/report.json`; new driver hash in pending report. Then device3 emulation, final audit, both queues drained, newest original bytes restored/readback, release lease. Preserve strict error/15s behavior gates; initial locked native window is not plugin failure. No native acceptance yet. Expected3–5min once tools/host responsive.
 
-[Progress](Refactor%20plan.md),
-[earlier interaction report](docs/validation/interaction-corrections-2026-10-07.md) and
-[evidence](docs/validation/interaction-corrections-2026-10-07.json).
+Avoid rerunning old /private/tmp finalization helper unchanged: it assumes native1 passed. Update native report path and newest backup before final acceptance. C15–C26 paused; indexing4/73 and PR82 remain separate. Pending user unlock request offers unlocked-ready or finish-with-native-pending; no answer has arrived.

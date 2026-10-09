@@ -14,9 +14,9 @@ import ts from "typescript";
 // The real convergence adapter is exercised with host events, not replaced by an immediate success.
 const metadataTemp = mkdtempSync(join(tmpdir(), "kplex-created-metadata-"));
 process.on("exit", () => rmSync(metadataTemp, { recursive: true, force: true }));
-await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export { normalizeFieldName } from "./src/core/contracts/fieldName";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export { normalizeFieldName } from "./src/core/contracts/fieldName"; export { captureSurfaceContinuation } from "./src/ui/surfaceContinuation";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   outfile: join(metadataTemp, "observer.mjs"), bundle: true, platform: "node", format: "esm" });
-const { writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, normalizeFieldName: actualNormalizeFieldName }
+const { writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, normalizeFieldName: actualNormalizeFieldName, captureSurfaceContinuation }
   = await import(pathToFileURL(join(metadataTemp, "observer.mjs")));
 
 /** Compile a production callback/method; class-field arrows capture the supplied owning instance. */
@@ -88,8 +88,9 @@ test("menu origin is precise across simultaneous Plex and sidepanel leaves and p
 for (const role of ["parent", "child", "left", "right"]) {
   test(`existing-target ${role} Link prepares the exact pair and awaits saved canonical publication`, async () => {
     const staleOrigin = page("Origin.md"), staleTarget = page("Target.md"), origin = page(staleOrigin.path), target = page(staleTarget.path);
+    staleOrigin.file = origin.file; staleTarget.file = target.file;
     const frontmatter = {}, events = [];
-    const context = { translator: key => key, index: {
+    const context = { app: { vault: { getFileByPath: path => path === origin.path ? origin.file : path === target.path ? target.file : null } }, translator: key => key, index: {
       withForegroundPriority: async work => work(),
       prepareRelationshipPair: async (...paths) => { events.push(["prepare", ...paths]); return true; },
       isSemanticWriteReady: () => true, get: path => path === origin.path ? origin : target,
@@ -109,34 +110,37 @@ for (const role of ["parent", "child", "left", "right"]) {
 
 test("existing-target Link refuses unavailable exact pair authority before any write", async () => {
   const origin = page("Origin.md"), target = page("Target.md");
-  const context = { translator: key => key, index: { withForegroundPriority: async work => work(), prepareRelationshipPair: async () => false },
+  const context = { app: { vault: { getFileByPath: path => path === origin.path ? origin.file : path === target.path ? target.file : null } }, translator: key => key, index: { withForegroundPriority: async work => work(), prepareRelationshipPair: async () => false },
     writeRelationship: () => assert.fail("An unready pair must not mutate the vault"),
     prepareRelationshipMutation: productionFunction("src/main.ts", "prepareRelationshipMutation", {}) };
   const commit = productionFunction("src/main.ts", "createRelationToPage", { Notice: class {} });
   await assert.rejects(commit.call(context, origin, "child", target, "children"), /relation.preparingRelationship/);
 });
 
-/** The actual UI catches keep saved outcomes truthful and never announce an early commit. */
+/** Actual UI catches report saved commitment without closing or retrying a pending write. */
 for (const shell of ["composer", "details"]) {
-  test(`saved pending ${shell} notice preserves its message and leaves the dialog uncommitted`, async () => {
+  test(`saved pending ${shell} notice preserves saved commitment without closing`, async () => {
     class SavedRelationshipPendingError extends Error {}
+    class PartialRelatedFileError extends Error {}
     const notices = [], commits = [], error = new SavedRelationshipPendingError("Saved; graph pending");
+    const target = page("Target.md");
     const Notice = class { constructor(message) { notices.push(message); } };
     if (shell === "composer") {
-      const link = productionFunction("src/ui/NewRelatedNoteModal.ts", "linkExisting", {
-        Notice, SavedRelationshipPendingError, busy: false, selectedTarget: page("Target.md"), origin: page("Origin.md"), role: "child",
-        prepareField: async () => "Children", setBusy: () => {}, onCommitted: () => commits.push("committed"), onClose: () => commits.push("closed"),
-        plugin: { translator: key => key, createRelationToPage: async () => { throw error; } },
+      const report = productionFunction("src/ui/NewRelatedNoteModal.ts", "reportFailure", {
+        Notice, SavedRelationshipPendingError, PartialRelatedFileError,
+        session: { isSessionOpen: () => true },
+        setSavedPending: () => {}, setPartialFile: () => {}, onCommitted: result => commits.push(result),
+        plugin: { index: { get: () => undefined } },
       });
-      await link();
+      report(error, target);
     } else {
-      const confirm = productionFunction("src/ui/RelationModal.ts", "confirm", { Notice, SavedRelationshipPendingError });
-      await confirm.call({ busy: false, canSave: () => true, updateSaveButton: () => {}, close: () => commits.push("closed"),
-        semanticRole: "child", selectedField: "Children", options: { mode: "relink", fixedTarget: page("Target.md"), origin: page("Origin.md"), onCommitted: () => commits.push("committed") },
+      const confirm = productionFunction("src/ui/RelationModal.ts", "confirm", { Notice, SavedRelationshipPendingError, refreshCapturedPage: (_plugin, value) => value });
+      await confirm.call({ opened: true, busy: false, canSave: () => true, updateSaveButton: () => {}, close: () => commits.push("closed"),
+        semanticRole: "child", selectedField: "Children", options: { mode: "relink", fixedTarget: target, origin: page("Origin.md"), onCommitted: result => commits.push(result) },
         plugin: { translator: key => key, relinkCentralNeighbour: async () => { throw error; } },
       });
     }
-    assert.deepEqual(notices, [error.message]); assert.deepEqual(commits, []);
+    assert.deepEqual(notices, [error.message]); assert.deepEqual(commits, [{ state: "saved-pending", page: target }]);
   });
 }
 
@@ -148,8 +152,9 @@ function historyFixture(targetKind="history") {
     addItem(configure){const item={setTitle(value){this.title=value;return this;},setIcon(){return this;},onClick(callback){this.click=callback;return this;}};configure(item);this.items.push(item);return this;}
   }
   const ownerDocument={elementFromPoint:()=>({closest:()=>({dataset:targetKind==="pinned"?{kplexPinnedPath:target.path}:{kplexHistoryPath:target.path}})})};
-  const dependencies={Menu,index:{get:path=>path===origin.path?origin:path===target.path?target:undefined,gateNeighbourPaths:(current,gate)=>{assert.equal(current,origin);return blocked.get(gate)??new Set();}},translate:key=>key,hostLeaf:{},clearHoverIntent:()=>{},
-    plugin:{showKplexMenuAtPosition:(menu,coordinates,document,leaf)=>{assert.equal(document,ownerDocument);assert.equal(leaf,dependencies.hostLeaf);assert.deepEqual(coordinates,{x:30,y:40});menus.push(menu);},openRelationModal:options=>actions.push(options)}};
+  const snapshot={mounted:true,interactionRevision:1,center:{identity:origin.path}};
+  const dependencies={Menu,captureSurfaceContinuation,viewport:{current:{isConnected:true,ownerDocument}},actionSurfaceId:"history-fixture",index:{get:path=>path===origin.path?origin:path===target.path?target:undefined,gateNeighbourPaths:(current,gate)=>{assert.equal(current,origin);return blocked.get(gate)??new Set();}},translate:key=>key,hostLeaf:{},clearHoverIntent:()=>{},
+    plugin:{actionManager:{readSnapshot:()=>snapshot},showKplexMenuAtPosition:(menu,coordinates,document,leaf)=>{assert.equal(document,ownerDocument);assert.equal(leaf,dependencies.hostLeaf);assert.deepEqual(coordinates,{x:30,y:40});menus.push(menu);},openRelationModal:options=>actions.push(options)}};
   dependencies.relationshipDropRoles=productionFunction("src/ui/PlexGraph.tsx","relationshipDropRoles",dependencies);
   dependencies.historyRelationshipTarget=productionFunction("src/ui/PlexGraph.tsx","historyRelationshipTarget",dependencies);
   dependencies.openHistoryRelationshipMenu=productionFunction("src/ui/PlexGraph.tsx","openHistoryRelationshipMenu",dependencies);
@@ -534,7 +539,7 @@ test("visible metadata preview captures the event's new source revision", async 
 test("portaled filter heading preserves form focus while bare Plex space focuses the shell", () => {
   let focused = 0, dismissed = 0;
   const down = productionFunction("src/ui/App.tsx", "handlePlexPointerDown", {
-    plugin: { dismissKplexMenu: () => dismissed++ }, rootRef: { current: { focus: () => focused++ } },
+    graphActionPorts: { current: { clearSelection() {} } }, plugin: { dismissKplexMenu: () => dismissed++ }, rootRef: { current: { focus: () => focused++ } },
   });
   down({ target: { closest: selector => selector.includes(".kplex-filter-panel") ? {} : null } });
   assert.equal(focused, 0, "Portal capture must not steal the filter input's focus before dragging");

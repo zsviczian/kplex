@@ -13,8 +13,9 @@ await build({ stdin: { contents: 'export * from "./src/core/plex/internalHotkeys
   plugins: [{ name: "host-types-only", setup(builder) {
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "stub" }));
     builder.onLoad({ filter: /.*/, namespace: "stub" }, () => ({ contents: `
-      export class App {} export class Modal {} export class Notice {} export class AbstractInputSuggest {} export class Setting {}
+      export class App {} export class ButtonComponent {} export class Modal {} export class Notice {} export class AbstractInputSuggest {} export class Setting {}
       export class ExtraButtonComponent {} export class Scope {}
+      export class SearchComponent {} export const setIcon = () => {}; export const setTooltip = () => {};
       export class PluginSettingTab {} export const getIcon = () => null; export const getIconIds = () => [];
       export const getLanguage = () => "en"; export const Platform = {};
     `, loader: "js" }));

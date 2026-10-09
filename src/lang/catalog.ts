@@ -11,9 +11,9 @@ type TranslationValue<K extends EnglishKey> = SourceEntry<K> extends { readonly 
   ? Readonly<Record<string, string>>
   : string;
 
-/** V2 copy ships in English until reviewed translations are supplied; existing keys stay exhaustive. */
-type EnglishFallbackKey = Extract<EnglishKey, `indexing.${string}` | `hotkeys.${string}` | "node.gateLocalCount" | "node.gateCachedCount" | "node.gateHostUnavailable"
-  | "filter.sourcePropertyUrl" | "graph.sourcePropertyUrl" | "explain.sourcePropertyUrl"
+/** New V2 and action-manager copy ships in English until reviewed translations are supplied; existing keys stay exhaustive. */
+type EnglishFallbackKey = Extract<EnglishKey, `indexing.${string}` | `hotkeys.${string}` | `actions.${string}` | `addRelated.completion.${string}` | "addRelated.endpointChanged" | "addRelated.partialCreation" | "addRelated.originTitle" | "addRelated.completionMode" | "addRelated.savedPending" | "addRelated.refreshSaved" | "addRelated.recoverFile" | "addRelated.linkCreatedFile" | "addRelated.openCreatedFile" | "addRelated.closedBeforeLink" | "node.gateLocalCount" | "node.gateCachedCount" | "node.gateHostUnavailable"
+  | "filter.sourcePropertyUrl" | "graph.sourcePropertyUrl" | "graph.typeSelectionStatus" | "graph.typeSelectionCount" | "explain.sourcePropertyUrl"
   | "explain.summarySourcePropertyUrl" | "references.propertyUrl">;
 
 /** Existing translations remain required; approved new V2 keys may use the source English entry. */

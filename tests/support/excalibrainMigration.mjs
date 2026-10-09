@@ -15,7 +15,7 @@ const graphValueKeys = [
 
 /** Plugin workflow settings are not part of legacy graph compatibility. */
 export const localPreferenceKeys = [
-  "navigationHistory", "lastActivePath", "pinnedNodes", "documentSyncMode", "followActiveFile",
+  "internalHotkeys", "actionPreferences", "navigationHistory", "lastActivePath", "pinnedNodes", "documentSyncMode", "followActiveFile",
   "autoOpenCentralDocument", "toggleEmbedTogglesAutoOpen", "indexUpdateInterval", "nodeTitleScript",
   "allowOntologySuggester", "ontologySuggesterParentTrigger", "ontologySuggesterChildTrigger",
   "ontologySuggesterLeftFriendTrigger", "ontologySuggesterRightFriendTrigger", "ontologySuggesterPreviousTrigger",

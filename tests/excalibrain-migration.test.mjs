@@ -16,7 +16,7 @@ const fixture = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-m
 const temp = mkdtempSync(join(tmpdir(), "kplex-migration-"));
 process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
 await build({
-  stdin: { contents: 'export * from "./src/settings"; export * from "./src/core/graph/settingsPolicy"; export * from "./src/index/style"; export * from "./src/ui/layout"; export * from "./src/ui/PurgeIndexCacheModal"; export { Modal as TestModal, AbstractInputSuggest as TestSuggest } from "obsidian";', resolveDir: root },
+  stdin: { contents: 'export * from "./src/settings"; export * from "./src/core/graph/settingsPolicy"; export * from "./src/index/style"; export * from "./src/ui/layout"; export * from "./src/ui/PurgeIndexCacheModal"; export { Modal as TestModal, AbstractInputSuggest as TestSuggest } from "obsidian"; export { createObsidianTranslator } from "./src/adapters/obsidian/localization";', resolveDir: root },
   outfile: join(temp, "migration.mjs"), bundle: true, platform: "node", format: "esm",
   plugins: [{ name: "obsidian-boundary-double", setup(builder) {
     builder.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian", namespace: "double" }));
@@ -48,7 +48,7 @@ await build({
         dispatchEvent(event) { for (const fn of this.listeners[event.type] ?? []) fn(event); return true; }
         empty() { this.children = []; this.buttons = []; }
       }
-      export class Modal {
+      export class ButtonComponent {} export class Modal {
         constructor(app) { this.app = app; this.titleEl = new FormElement(); this.contentEl = new FormElement(); this.modalEl = new FormElement(); Modal.latest = this; }
         open() { this.onOpen?.(); }
         close() { this.closed = true; this.onClose?.(); }
@@ -67,13 +67,14 @@ await build({
         setValue(value) { this.input.value = value; }
         close() { this.closed = true; }
       }
+      export class SearchComponent {} export const setIcon = () => {}; export const setTooltip = () => {};
       export class PluginSettingTab { constructor(app) { this.app = app; this.containerEl = { addClass() {} }; } }
       export const getIcon = () => null; export const getIconIds = () => []; export const getLanguage = () => "en";
     `, loader: "js" }));
   } }],
 });
 const { migrateAndMergeSettings, importExcaliBrainGraphSettings, KplexSettingTab, resolveNodeStyle, resolveLinkStyle, buildScene, PurgeIndexCacheModal,
-  captureSettingsPolicy, classifySettingsChange, encodeIndexSettingsSignature, TestModal, TestSuggest } = await import(pathToFileURL(join(temp, "migration.mjs")));
+  captureSettingsPolicy, classifySettingsChange, encodeIndexSettingsSignature, TestModal, TestSuggest, createObsidianTranslator } = await import(pathToFileURL(join(temp, "migration.mjs")));
 const defaults = migrateAndMergeSettings(undefined);
 const migrated = importExcaliBrainGraphSettings(fixture);
 
@@ -116,6 +117,7 @@ test("background throttle settings use declarative localized controls and save w
   const saves = [];
   const plugin = { settings: structuredClone(defaults), saveSettings: async (...args) => { saves.push(args); },
     index: { unassignedOntologyFields: () => [], allPages: () => [] } };
+  plugin.translator = createObsidianTranslator();
   const tab = new KplexSettingTab({}, plugin);
   const page = tab.getSettingDefinitions().find(item => item.name === "Indexing config");
   const row = page.items.flatMap(group => group.items ?? []).find(item => item.control?.key === "indexingThrottle");
@@ -152,6 +154,7 @@ test("indexing settings persist without rebuilding and cache estimation is lazy 
       },
     },
   };
+  plugin.translator = createObsidianTranslator();
   const tab = new KplexSettingTab({}, plugin);
   const definitions = tab.getSettingDefinitions();
   const indexingPage = definitions.find(item => item.name === "Indexing config");
@@ -347,6 +350,7 @@ test("settings manager exposes imported tag styles without converting their matc
   const settings = structuredClone(migrated);
   settings.noteTypeStyles = { "#person": { icon: "user" } };
   const plugin = { settings, index: { unassignedOntologyFields: () => [], allPages: () => [] } };
+  plugin.translator = createObsidianTranslator();
   const tab = new KplexSettingTab({}, plugin);
   const entries = tab.nodeStyleEntries();
   assert.equal(entries.length, 33);
@@ -383,6 +387,7 @@ function styleEditorFixture(settings = structuredClone(defaults)) {
     { noteType: "Project", tags: ["#project/active", "project/backlog"] },
     { noteType: "Person", tags: ["#person"] },
   ] } };
+  plugin.translator = createObsidianTranslator();
   const tab = new KplexSettingTab({}, plugin);
   tab.update = () => {};
   return { tab, settings, saves, plugin };

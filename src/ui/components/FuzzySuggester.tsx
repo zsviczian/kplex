@@ -41,6 +41,10 @@ export type FuzzySuggesterProps<T> = {
   portalSelector?: string;
   appTopbarSelector?: string;
   maxFloatingHeight?: number;
+  /** Ephemeral caller identity for associating a portaled result list with its owning interaction session. */
+  resultsOwnerId?: string;
+  /** Composer submit keys accept the selected suggestion before invoking their parent form. */
+  preferSuggestionOnModifiedEnter?: boolean;
   resultPrefix?: (value: T) => ReactNode;
   onEnterWithoutResult?: () => void;
   onCtrlEnter?: () => void;
@@ -121,6 +125,8 @@ export function FuzzySuggester<T>({
   portalSelector,
   appTopbarSelector,
   maxFloatingHeight = 440,
+  resultsOwnerId,
+  preferSuggestionOnModifiedEnter = false,
   resultPrefix,
   onEnterWithoutResult,
   onCtrlEnter,
@@ -328,7 +334,9 @@ export function FuzzySuggester<T>({
     container.querySelector<HTMLElement>(`[data-kplex-fuzzy-index="${clampedSelectedIndex}"]`)?.scrollIntoView({ block: "nearest" });
   }, [clampedSelectedIndex, visibleResults.length]);
 
+  /** Preserve IME/widget ownership; one Enter accepts a suggestion or submits, never both. */
   const onKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing || event.key === "Dead" || event.getModifierState("AltGraph")) return;
     if (event.key === "Escape") {
       if (visibleResults.length) {
         event.preventDefault();
@@ -347,13 +355,23 @@ export function FuzzySuggester<T>({
       setSelectedIndex((current) => Math.max(0, current - 1));
       return;
     }
-    if (event.key === "Enter" && event.nativeEvent.isComposing) return;
+    if (event.key === "Enter" && event.repeat) {
+      event.preventDefault(); event.stopPropagation(); return;
+    }
+    if (event.key === "Enter" && visibleResults.length && (!(event.ctrlKey || event.metaKey) || preferSuggestionOnModifiedEnter)) {
+      event.preventDefault(); event.stopPropagation();
+      const selected = visibleResults[clampedSelectedIndex];
+      if (selected) choose(selected);
+      return;
+    }
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && onCtrlEnter) {
       event.preventDefault();
       event.stopPropagation();
       onCtrlEnter();
       return;
     }
+    // A parent native composer may own modified submit; pass it through when this widget has no callback.
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !onCtrlEnter) return;
     if (event.key === "Enter") {
       event.preventDefault();
       const selected = visibleResults[clampedSelectedIndex];
@@ -363,7 +381,7 @@ export function FuzzySuggester<T>({
   };
 
   const list = focused && visibleResults.length > 0
-    ? <div ref={resultsRef} className={`kplex-search-results${floating ? " kplex-fuzzy-floating-results" : " kplex-fuzzy-inline-results"}`} style={floating ? overlayStyle ?? undefined : undefined}>
+    ? <div ref={resultsRef} data-fuzzy-owner={resultsOwnerId} className={`kplex-search-results${floating ? " kplex-fuzzy-floating-results" : " kplex-fuzzy-inline-results"}`} style={floating ? overlayStyle ?? undefined : undefined}>
       {visibleResults.map((item, resultIndex) => {
         const label = getLabel(item);
         const detail = getDetail?.(item);

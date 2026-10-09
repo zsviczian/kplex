@@ -324,9 +324,14 @@ button.kplex-sidecar-unfold-plex:hover,
 .kplex-thought.is-highlighted { filter: brightness(1.22); box-shadow: 0 0 0 1px rgba(184,222,255,.66), 0 0 18px rgba(112,184,255,.32), 0 5px 18px rgba(0,0,0,.36); z-index: 13; }
 .kplex-thought.is-dimmed { opacity: .24; filter: saturate(.55) brightness(.72); }
 .kplex-thought.is-selected { box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 0 34px rgba(112,184,255,.28), 0 8px 24px rgba(0,0,0,.42); }
+/* A crisp outer ring plus a broad theme-accent halo keeps arrow-key selection distinct. */
 .kplex-thought.is-keyboard-selected,
-.kplex-expanded-mini-thought.is-keyboard-selected {
-  outline: 2px solid var(--interactive-accent);
+.kplex-expanded-mini-thought.is-keyboard-selected,
+.kplex-thought.is-selected.is-keyboard-selected,
+.kplex-plex.is-section-expanded .kplex-thought.is-selected.is-keyboard-selected {
+  outline: 3px solid var(--interactive-accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--background-primary), 0 0 0 6px var(--interactive-accent), 0 0 28px 6px var(--interactive-accent);
 }
 .kplex-keyboard-announcement {
   position: absolute;
@@ -3302,6 +3307,28 @@ button.kplex-style-manager-row { height: fit-content; }
   border-radius: 7px;
   padding: 3px 5px;
 }
+/* Typing selects displayed occurrences without creating another search field or taking pointer focus. */
+.kplex-type-selection {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  max-width: calc(100% - 56px);
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 7px;
+  color: var(--text-normal);
+  background: var(--background-primary);
+  font-size: var(--font-ui-small);
+  pointer-events: none;
+}
+.kplex-type-selection-query { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.kplex-type-selection-count { flex: 0 0 auto; white-space: nowrap; color: var(--text-muted); }
 .kplex-plex.is-finding .kplex-thought.is-highlighted,
 .kplex-expanded-mini-thought.is-find-match {
   box-shadow: 0 0 0 2px var(--interactive-accent);
@@ -3420,3 +3447,56 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-wrap-label-control { width: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
 .kplex-wrap-label-caption { display: block; width: 100%; line-height: 1.4; text-align: center; white-space: normal; overflow-wrap: anywhere; }
 .kplex-wrap-label-control input { margin: 0; }
+
+/* Declarative shortcut rows stay within the native Settings page and global search results. */
+.kplex-action-setting .setting-item-control { flex-wrap: wrap; gap: 6px; }
+.kplex-action-setting button.setting-hotkey { border: 0; box-shadow: none; height: auto; min-height: 0; }
+.kplex-action-setting button.setting-add-hotkey-button { border: 0; box-shadow: none; background-color: transparent; }
+.kplex-action-setting .clickable-icon.is-active { color: var(--interactive-accent); }
+.kplex-action-settings-header .setting-item-info { display: none; }
+.kplex-action-settings-header .setting-item-control { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; }
+.kplex-action-settings-header .search-input-container { width: 100%; }
+.kplex-action-settings-header input { padding-right: 64px; }
+.kplex-action-settings-header [data-kplex-action-control="search-hotkey"] { position: absolute; right: 28px; top: 3px; bottom: 3px; }
+.kplex-action-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.kplex-action-filters .filter-pill { border-radius: 16px; padding: 3px 10px; background-color: transparent; border: 1px solid var(--background-modifier-border); box-shadow: none; }
+.kplex-action-filters .filter-pill.is-active { color: var(--text-on-accent); background-color: var(--interactive-accent); }
+.kplex-action-filtered { display: none; }
+.kplex-action-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.kplex-action-status { color: var(--text-muted); font-size: var(--font-ui-small); overflow-wrap: anywhere; }
+
+/* Native suggestion themes supply row typography and surfaces; these rules keep both columns bounded. */
+.kplex-action-suggestion { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.kplex-action-suggestion .suggestion-content { flex: 1 1 auto; min-width: 0; }
+.kplex-action-suggestion .suggestion-title,
+.kplex-action-suggestion .suggestion-note { white-space: normal; overflow-wrap: anywhere; }
+.kplex-action-suggestion .suggestion-aux { flex: 0 1 auto; min-width: 0; max-width: 45%; }
+.kplex-action-suggestion .setting-command-hotkeys { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; min-width: 0; max-width: 100%; }
+.kplex-action-suggestion .suggestion-hotkey { margin: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+
+/* The shortcut reference owns one result scroller while its explanation, search and footer stay fixed. */
+.kplex-keyboard-help { display: flex; flex-direction: column; max-height: 80vh; }
+.kplex-keyboard-help .modal-content { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.kplex-keyboard-help-header { display: flex; flex-direction: column; flex: 0 0 auto; gap: 12px; padding-bottom: 12px; }
+.kplex-keyboard-help-header p { margin: 0; color: var(--text-muted); font-size: var(--font-ui-small); }
+.kplex-keyboard-help-header .search-input-container { width: 100%; }
+.kplex-keyboard-help-results { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.kplex-keyboard-help-footer { flex: 0 0 auto; padding-top: 12px; }
+.kplex-keyboard-help-footer .setting-item { padding: 0; border-top: 0; }
+@media (max-width: 600px) {
+  .kplex-action-setting { flex-wrap: wrap; gap: 8px; }
+  .kplex-action-setting .setting-item-control { justify-content: flex-start; }
+}
+
+/* The recorder reuses native settings and modal buttons; only its capture region needs structure. */
+.kplex-shortcut-recording-description { color: var(--text-muted); font-size: var(--font-ui-small); }
+.kplex-shortcut-matching { gap: 12px; padding-top: 0; border-top: 0; }
+.kplex-shortcut-recording-area { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 88px; padding: 24px 16px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); background-color: var(--background-secondary); }
+.kplex-shortcut-recording-area:focus { border-color: var(--interactive-accent); outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+.kplex-shortcut-recording-hint { color: var(--text-muted); font-size: var(--font-ui-small); text-align: center; }
+.kplex-shortcut-recorder .modal-button-container { flex-wrap: wrap; }
+@media (max-width: 600px) {
+  .kplex-shortcut-matching { flex-wrap: wrap; }
+  .kplex-shortcut-matching .setting-item-control { justify-content: flex-start; }
+  .kplex-shortcut-matching select { max-width: 100%; }
+}
