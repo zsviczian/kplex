@@ -650,3 +650,16 @@ Fullscreen is desktop-only and covers the owning Obsidian viewport; it does not 
 or browser fullscreen. Tablet/phone emulation checks Zen geometry and this availability
 constraint. Physical-device touch, screen readers and paint latency remain separate manual
 checks. A failed cleanup or an installed/build hash mismatch invalidates acceptance.
+
+### Native long-paste regression
+
+After the full `verify:obsidian` lane stages the exact build, run
+`npm run verify:obsidian:large-paste` with the same explicit disposable small-vault variables
+and a fresh `KPLEX_HOST_REPORT_DIR`. Keep Obsidian unlocked and close Settings before the run.
+The driver uses native Electron paste into its own Markdown editor, checks the editor model,
+registered ontology-suggester calls and renderer heartbeat while Plex is hidden and visible,
+then checks typing, saved text and plugin reload. It restores clipboard, workspace and
+configuration bytes and removes its note, wrappers and controller independently of success.
+Set `KPLEX_LARGE_PASTE_INPUT` to a local diagnostic Markdown file to reproduce a supplied
+paragraph; its content is not written to the report or committed as a fixture. This desktop
+check does not prove physical-device behavior, actual paint timing or full application restart.

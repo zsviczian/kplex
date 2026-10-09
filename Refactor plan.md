@@ -2931,3 +2931,50 @@ Action log — full gate passed: freeze310SHAaa344052… passes7architecture/69c
 Action log — pending-native handoff is safe: independent audit verifies73notes,0ownedcontrollers/dialogs/sessions/guards/overlays, originaldesktop/mainwindow/document and1440×875geometry/minimum200×150, exact installedartifacts. Fresh pre-staging settings17,104bytesSHA91752945…/enablement/hotkeys independently match original bytes, no reload afterreadback. [Validation report](docs/validation/fullscreen-zen-2026-10-09.md) retains native acceptance as pending unlock; expected remaining5–10min after unlock. Changes remainuncommitted on fullscreen-mode.
 
 Action log — maintainer acceptance/publication authorized: user reports the fullscreen/Zen feature works as expected and requests commit, push, PR, merge and main synchronization before issue#2. Accept delivery on that report plus the passing full gate/native render smoke; retain the locked automated display-suite attempt and unspecified platform/lifecycle/physical-device coverage as limits. No runtime changes after freeze. Issue#2 is next and has no new publication authorization yet.
+
+### 2026-10-09 — Issue #2: freezes after pasting long text (in progress)
+
+Fullscreen/Zen commit ecdb67a is published and merged via PR#86 at25ba53ee300dd9cbe8c48ecba4e1381f993dc445. Local main switched/fetched/fast-forwarded cleanly before creating fix/large-paste-freeze. User next requests resolving issue#2; no new publication authorization.
+
+- [x] Read issue/comments and preserve the exact public reproduction text locally, outside source.
+- [x] Reproduce the actual native owner stall and distinguish enabled/disabled behavior; real editor paste/reload remains pending.
+- [x] Establish the global ontology editor owner, apply a narrow correction and synthetic regression.
+- [x] Independently review and pass full verification, production build and exact native render smoke.
+- [ ] Complete real native paste/save/typing/autocomplete/plugin-reload acceptance after unlock and closing Settings.
+- [x] Verify cleanup and original pre-staging configuration restoration after the prerequisite-stopped attempt.
+
+Action log — investigation start: repeated freezes after pasting a long transcript are reported even with Plex hidden; restart responds normally once note is persisted. Mandatory offline trace analysis prepared while root captures native facts. Initial ETA60–90min; cause/reproduction remains unproven. Existing P15 strict timer gate stays unchanged, C15–C26 paused.
+
+Action log — issue #2 causal correction reviewed: the globally enabled ontology editor suggester
+ran unanchored greedy-prefix regexes on every editor update; doubling no-trigger prose grew
+time about fourfold. Actual native owner measured 133.3ms / 371.3ms for2k /4k, versus0ms
+at measured resolution disabled with31.5k. Canonical transcript parsing took2.4–2.5ms.
+The existing owner now performs bounded literal matching without changing trigger/query/insert
+semantics or parser/index scheduling. Offline18/18 affected tests and3/3 final owner tests,
+actual types/lint passed; root independently reviewed the production and test diff. Full gate
+started against freeze7b3454f2ee1b61dc334b768a4de7cc6d882461254c173b7a6a761a01d566f7ae
+(311inputs). Native paste/save/reload is pending an unlocked session with Settings closed.
+[Evidence and remaining gates](docs/validation/large-paste-freeze-2026-10-09.md) separate owner
+measurements from editor acceptance. PR#86 CI retry retained a64.8ms failure of the unchanged
+50ms URL-heavy timer assertion; no timing bound was relaxed. ETA15–25min plus availability.
+
+Action log — issue #2 full validation completed; native paste remains pending: full
+verify:obsidian passed on Node22.22.2 at08:03:51UTC with7architecture/69core/424general/20UI/
+333portable-source/410Chromium tests plus indexing fixtures/lint/actualtypes/build and exact
+native render smoke. Freeze311 inputs7b3454f2… unchanged; installed main0496ad5f… matches
+verified build. Corrected actual registered native-owner probe handled the exact30,687-character
+paragraph in0.1ms (old4k371.3ms); enablement synchronously restored with no editor/files/clipboard
+changes. The real paste driver stopped at locked-session/Settings prerequisite before any
+scenario. Do not treat these owner timings as real editor paste/save acceptance. Independent
+cleanup/audit confirms73notes,0ownedresources, original layout/desktop/geometry and fresh
+pre-staging configuration byte restoration (data17,104bytes91752945…).
+[Detailed evidence and remaining risk](docs/validation/large-paste-freeze-2026-10-09.md).
+Only the native acceptance run remains: estimated5–10min after unlock/Settings close.
+No issue#2 commit/push/PR/merge action yet; maintainer's publication authority applied to#83.
+
+Action log — issue #2 publication authorized: maintainer requests commit/push/PR/merge while
+keeping original issue open until reporter testing and confirmation, then issue#81 on a new
+branch. Prior full verification/freeze remain unchanged. Session is now unlocked but unowned
+Settings remains open; native paste scenarios remain unrun and explicitly documented.
+Publication proceeds under this instruction with reporter acceptance retained as pending.
+PR text must use a reference to#2, never an automatic closing keyword.

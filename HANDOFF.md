@@ -16,10 +16,37 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Accepted — fullscreen/Zen publication
+# Root review — issue #2 native acceptance pending
 
-Root independently reviewed issue#83 implementation on fullscreen-mode based at d137338. Full mandatory verification/build/exact staging and native render smoke pass at310-input freezeSHAaa344052491dd1944e2bb3c537090fa9215b1407bf7b75d62ec28b1f4ee17383; no production edits after freeze. Initial extracted camera fixture corrected without weaker assertions; root46/46 relationship tests pass.
+Current branch `fix/large-paste-freeze`, based on synced main `25ba53ee300dd9cbe8c48ecba4e1381f993dc445`.
+Fullscreen/Zen was committed/pushed/PR#86 squash-merged before this issue. Changes for issue#2
+are now authorized for commit/push/PR/merge, with original issue#2 left open for reporter confirmation. C15–C26 remain paused.
 
-The maintainer now reports successful testing (“It works as expected”) and explicitly authorizes commit/push/PR/merge/main synchronization. Dedicated display-driver attempt1 stopped at the locked-session prerequisite before scenarios; do not claim those cases passed. Independent final audit confirms73notes/0ownedresources/originalgeometry/desktop mode/exactartifacts and original fresh pre-staging configuration bytes. Docs/validation/fullscreen-zen-2026-10-09.md and Refactor plan.md retain this evidence/limitation distinction.
+The offline ontology-owner matcher/test correction was independently reviewed. The full
+verify:obsidian gate passed on pinned Node22.22.2, including actual types/lint/build, complete
+portable/browser tests and exact native graph render smoke. Freeze311-input SHA256
+7b3454f2ee1b61dc334b768a4de7cc6d882461254c173b7a6a761a01d566f7ae unchanged.
+Installed main.js0496ad5f… matches dist. Canonical parser/index/scheduler are unchanged.
 
-Root owns publication, then issue#2 investigation. No further offline edits authorized to this feature; C15–C26 remain paused.
+The native owner probe measured the supplied30,687-character paragraph at0.1ms; original
+4k cost371.3ms. No editor, clipboard or files were changed by that probe. Real paste driver
+failed the locked-session/Settings prerequisite before any scenario. Native acceptance is
+pending an unlocked session with Settings closed; async readiness question is pending.
+
+Next: run verify:obsidian:large-paste with explicit kplex-test-small target, actual CLI, a fresh
+report directory and optional local /private/tmp/kplex-issue2-transcript.md input. Verify hidden
+source/Live Preview, visible Plex, repeated paste, following typing, configured parent/inline
+suggestion replacement, exact saved text and plugin reload. No public transcript is committed.
+No app restart/physical-device/paint guarantee is claimed. Native driver itself remains
+scenario-unvalidated until this gate runs. Full verification need only be repeated if relevant
+production/test/build inputs change; a native-driver-only repair needs its own exact rerun.
+
+Pre-staging backup /private/tmp/kplex-issue2-prestage-1 captured fresh configuration after
+queues drained. Original bytes restored and independently read back, with no later reload.
+Final audit:73notes,0owned resources, original workspace branches/desktop/window geometry;
+Settings stayed open. A later native run must preserve its fresh current baseline and restore
+original pre-staging bytes only after all cleanup/write queues settle.
+
+Durable evidence and failure limits: docs/validation/large-paste-freeze-2026-10-09.md and
+Refactor plan.md. PR#86 CI strict unchanged URL-heavy timer failed56.8ms then64.8ms; local
+full gates passed. No timer limit was weakened. Stop at accepted issue scope; no broad refactor.
