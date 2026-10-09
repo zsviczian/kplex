@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
@@ -17,15 +16,23 @@ import { FileView, Menu, type TFile, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { GraphPage } from "../types";
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
-import { resolveInternalHotkey } from "../core/plex/internalHotkeys";
-import { registerInternalHotkeys } from "./internalHotkeyScope";
+import { type ActionContext } from "../application/ActionManager";
+import { type ActionId, type ActionOutcome, type NodeRef } from "../core/plex/actions";
+import { actionNodeRef, resolveActionPage } from "../adapters/obsidian/actionNode";
+import { ActionMenuModal } from "./ActionMenuModal";
+import { KeyboardHelpModal } from "./KeyboardHelpModal";
+import { ActionTargetPicker, type ActionPickerItem } from "./ActionTargetPicker";
+import { usePlexActions, type GraphActionPorts, type SurfaceActionImplementations } from "./usePlexActions";
 import type { Translator } from "../lang";
 import { physicalPositionLabel } from "./features/positionPresentation";
-import { searchFieldCopy } from "./features/searchPresentation";
+import { effectiveActionBindings } from "../core/plex/actionPreferences";
+import { formatActionBinding } from "./actionPresentation";
+import { surfaceAction } from "./surfaceActionImplementation";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdownMode, SidecarPosition } from "../settings";
 import { SearchBox } from "./features/SearchBox";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
+import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
 import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
 import { ActionButton } from "./components/ActionButton";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
@@ -151,14 +158,22 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
 }
 
 /** Compose the native K-Plex toolbar, filters and scene with injected localization and environment facts; host effects remain plugin-owned. */
-export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: {
+export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady }: {
   plugin: KplexPlugin;
   surface: KplexViewSurface;
   hostLeaf: WorkspaceLeaf;
   translate: Translator;
   environment: PresentationEnvironment;
+  onReady?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const graphActionPorts = useRef<GraphActionPorts | null>(null);
+  const actionDialogs = useRef(new Set<{ close(): void }>());
+  const dialogSerial = useRef(0);
+  useEffect(/** Retire captured modal actions before a migrated/unmounted surface can receive work. */ () => () => {
+    for (const dialog of actionDialogs.current) dialog.close();
+    actionDialogs.current.clear();
+  }, []);
   const indexStatusRef = useRef<HTMLButtonElement>(null);
   const indexStatus = useIndexStatus(plugin, hostLeaf);
   const [showStartupIndexBubble, setShowStartupIndexBubble] = useState(false);
@@ -218,7 +233,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
   );
   const [historyCursor, setHistoryCursor] = useState(() => Math.max(0, plugin.settings.navigationHistory.length - 1));
 
-  const activate = useCallback((target: GraphPage, record = true) => {
+  /** Center an exact page; sidecar-open commands defer document synchronization to their owned open. */
+  const activate = useCallback((target: GraphPage, record = true, syncDocuments = true) => {
     // Any newer explicit navigation supersedes a note waiting for partial indexing.
     pendingFileExplorerDropRef.current = null;
     activePathRef.current = target.path;
@@ -231,8 +247,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
       setHistoryCursor(next.length - 1);
     }
     void plugin.saveSettings(false, false);
-    void plugin.syncPageToDocumentLeaf(target);
-    void plugin.syncSidecarToPage(hostLeaf, target);
+    if (syncDocuments) {
+      void plugin.syncPageToDocumentLeaf(target);
+      void plugin.syncSidecarToPage(hostLeaf, target);
+    }
   }, [plugin, hostLeaf]);
 
   /** Complete a queued File Explorer note drop as soon as partial indexing publishes that note. */
@@ -306,27 +324,6 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     () => plugin.subscribeSearchFocus(hostLeaf, () => setSearchFocusRequest((value) => value + 1)),
     [plugin, hostLeaf],
   );
-  useEffect(/** Route this focused surface's configured Search/Find shortcuts before workspace handlers. */ () => {
-    const scope = hostLeaf.view.scope;
-    if (!scope) return;
-    const releaseScope = registerInternalHotkeys(scope, plugin.settings.internalHotkeys, ["focusSearch", "focusFind"], /** Leave native editor Find intact; otherwise disclose this Plex's field. */ (event) => {
-      const target = event.target as Element | null;
-      const root = rootRef.current;
-      if (event.defaultPrevented || event.isComposing || !target || !root?.contains(target)) return;
-      const action = resolveInternalHotkey(event, plugin.settings.internalHotkeys, environment.keyConvention);
-      if (action !== "focusFind" && action !== "focusSearch") return;
-      if (action === "focusSearch") {
-        event.stopPropagation();
-        setSearchFocusRequest(value => value + 1);
-        return false;
-      }
-      if (target?.closest(".kplex-central-editor-content")) return;
-      event.stopPropagation();
-      setFindFocusRequest((value) => value + 1);
-      return false;
-    });
-    return releaseScope;
-  }, [hostLeaf, plugin, environment.keyConvention, plugin.settings.internalHotkeys]);
 
   useEffect(() => {
     const followFile = (file: TFile | null) => {
@@ -469,8 +466,14 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
   }, [page?.path, activePath, plugin]);
 
   /** Open the target through the host while preserving this surface's document for external-link routing. */
+  /** Center the accepted existing note and ensure its managed sidecar is open without toggling it. */
+  const centerAndOpenSidecar = useCallback((target: GraphPage) => {
+    activate(target, true, false);
+    return plugin.openSidecar(hostLeaf, target);
+  }, [activate, plugin, hostLeaf]);
+
   const open = useCallback((target: GraphPage) => {
-    void plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument);
+    return plugin.openPage(target, hostLeaf.view.containerEl.ownerDocument);
   }, [plugin, hostLeaf]);
 
   const updateGraphLenses = useCallback((next: GraphLensDefinition[]) => {
@@ -535,7 +538,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     forceRender((value) => value + 1);
   };
 
-  const showDocumentSyncMenu = (event: MouseEvent<HTMLButtonElement>) => {
+  const showDocumentSyncMenu = (event?: MouseEvent<HTMLButtonElement>) => {
     const menu = new Menu();
     const current = plugin.getDocumentSyncMode();
 
@@ -572,7 +575,12 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
       .setIcon("scan-eye")
       .setDisabled(!plugin.hasDocumentSyncTarget())
       .onClick(() => void plugin.showLinkedDocumentLeaf()));
-    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
+    if (event) plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
+    else {
+      const root = rootRef.current;
+      const bounds = root?.getBoundingClientRect();
+      if (root && bounds) plugin.showKplexMenuAtPosition(menu, { x: bounds.left + 40, y: bounds.top + 40 }, root.ownerDocument, hostLeaf);
+    }
   };
 
   const toggleExpandedView = async () => {
@@ -588,7 +596,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
   };
 
   /** Open the owning-window native settings menu; area editing remains transient to this surface. */
-  const showSettingsMenu = (event: MouseEvent<HTMLButtonElement>) => {
+  const showSettingsMenu = (event?: MouseEvent<HTMLButtonElement>) => {
     const menu = new Menu();
     menu.addItem((item) => item
       .setTitle(translate("app.pluginSettings"))
@@ -598,30 +606,20 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
       .setTitle(translate("app.areaSettings"))
       .setIcon("move-vertical")
       .setChecked(areaSettingsMode)
-      .onClick(() => setAreaSettingsMode((enabled) => !enabled)));
-    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
+      .onClick(() => runAction("view.areas.toggle")));
+    if (event) plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
+    else {
+      const root = rootRef.current;
+      const bounds = root?.getBoundingClientRect();
+      if (root && bounds) plugin.showKplexMenuAtPosition(menu, { x: bounds.left + 40, y: bounds.top + 40 }, root.ownerDocument, hostLeaf);
+    }
   };
 
   /** Disclose Vault search and request focus without changing the central node. */
   const activateSearch = () => setSearchFocusRequest((value) => value + 1);
-  const searchCopy = searchFieldCopy(translate, environment, true, plugin.settings.internalHotkeys.focusSearch);
-
-  /** Deliver configured Search/Find keys on sidebar surfaces while preserving native editor Find. */
-  const handlePlexKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.defaultPrevented || event.nativeEvent.isComposing) return;
-    const action = resolveInternalHotkey(event, plugin.settings.internalHotkeys, environment.keyConvention);
-    const find = action === "focusFind";
-    if (!find && action !== "focusSearch") return;
-    const target = event.target as Element | null;
-    // The central editor is a native Obsidian Markdown surface. Do not steal editor shortcuts
-    // such as Ctrl/Cmd+F while focus is inside it; the graph search remains available from the
-    // toolbar after the editor has been enabled.
-    if (find && target?.closest(".kplex-central-editor-content")) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if (find) setFindFocusRequest((value) => value + 1);
-    else activateSearch();
-  };
+  const searchHint = effectiveActionBindings(plugin.settings.actionPreferences, "search.focus")
+    .map(binding => formatActionBinding(binding, environment, translate)).filter(Boolean).join(" / ");
+  const searchCopy = { placeholder: searchHint ? translate("search.placeholderWithShortcut", { shortcut: searchHint }) : translate("search.placeholder"), ariaLabel: translate("search.ariaLabel") };
 
   /** Focus bare Plex space while preserving controls and portaled filter-header drag focus. */
   const handlePlexPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -629,6 +627,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     const target = event.target as Element | null;
     // React portal capture still reaches this shell before the header's native drag listener.
     if (target?.closest(".kplex-central-editor-content, .kplex-filter-panel, input, textarea, select, button, a, [contenteditable='true'], [role='button']")) return;
+    graphActionPorts.current?.clearSelection?.();
     rootRef.current?.focus({ preventScroll: true });
   };
 
@@ -653,7 +652,151 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     pendingFileExplorerDropRef.current = file;
   };
 
+  /** Explicit graph focus reveals its captured native tab; other foreground actions reveal when invoked as published commands. */
+  const uiAction = (execute: Parameters<typeof surfaceAction>[0], available?: Parameters<typeof surfaceAction>[1]) => surfaceAction(
+    /** A fresh generation check after native reveal prevents late focus theft during migration/close. */ async context => {
+      if (context.request.id === "graph.focus" || context.request.source === "obsidian-command" && ["actions.open", "keyboard.help", "editor.focus", "search.focus", "find.focus"].includes(context.request.id)) {
+        if (!await plugin.revealActionSurface(actions.surfaceId) || context.generation === undefined || !plugin.isActionSurfaceCurrent(actions.surfaceId, context.generation)) return { status: "cancelled" };
+      }
+      return execute(context);
+    }, available);
+  /** Resolve exactly the accepted node; pin/history actions never choose another row after filtering. */
+  const actionPage = (context: ActionContext): GraphPage | null => context.target.kind === "node"
+    ? resolveActionPage(plugin.index, context.target.node) : null;
+  /** Open a finite pins/history list without materializing missing files or compressing saved slots. */
+  const openSavedPicker = (kind: "pins" | "history"): ActionOutcome => {
+    const paths = [...(kind === "pins" ? plugin.settings.pinnedNodes : plugin.settings.navigationHistory)];
+    const items: ActionPickerItem<NodeRef | null>[] = paths.map(/** Retain unavailable saved rows explicitly. */ path => {
+      const target = plugin.index.get(path);
+      return { label: target ? plugin.index.titleFor(target) : translate("actions.missingTarget", { path }),
+        detail: path, disabled: !target, value: target ? actionNodeRef(target) : null };
+    });
+    const sessionId = `${actions.surfaceId}:picker:${++dialogSerial.current}`;
+    const picker = new ActionTargetPicker(plugin.app, items, translate(kind === "pins" ? "actions.pinsPlaceholder" : "actions.historyPlaceholder"),
+      /** Dispatch the captured target only after manager identity and surface checks. */ target => {
+        if (target) actions.dispatch({ id: "node.activate", source: "local-menu", target: { kind: "explicit", node: target } });
+      }, /** Release exclusivity and callback ownership on every modal exit. */ () => {
+        actionDialogs.current.delete(picker); plugin.actionManager.closeSession(sessionId);
+      });
+    actionDialogs.current.add(picker); picker.open();
+    return { status: "opened", sessionId };
+  };
+  /** Capture selected-or-center before native modal focus replaces the launching region. */
+  const openLocalActions = (help: boolean): ActionOutcome => {
+    if (help) {
+      const sessionId = `${actions.surfaceId}:help:${++dialogSerial.current}`;
+      const modal = new KeyboardHelpModal(plugin, /** Native close retires the reference without executing a listed action. */ () => {
+        actionDialogs.current.delete(modal); plugin.actionManager.closeSession(sessionId);
+      });
+      actionDialogs.current.add(modal); modal.open();
+      return { status: "opened", sessionId };
+    }
+    const snapshot = actions.readSnapshot();
+    /** Detach target identity from canonical pages, whose native file can change while the menu is open. */
+    const capture = (target: GraphPage | undefined) => target ? { file: target.file, reference: actionNodeRef(target) } : null;
+    const capturedCenter = capture(page);
+    const capturedSelected = snapshot.selected;
+    const selectedPage = capture(capturedSelected ? plugin.index.get(capturedSelected.node.identity) : undefined);
+    const sessionId = `${actions.surfaceId}:menu:${++dialogSerial.current}`;
+    const modal = new ActionMenuModal(plugin, plugin.actionManager, actions.surfaceId,
+      /** Follow same-file rename, refuse deletion/replacement, and preserve strict selected occurrence. */ () => {
+        /** Reacquire one captured node without ever falling back to another note at the old path. */
+        const refresh = (captured: ReturnType<typeof capture>): ReturnType<typeof actionNodeRef> | null => {
+          if (!captured) return null;
+          const file = captured.file;
+          if (file && plugin.app.vault.getFileByPath(file.path) !== file) return null;
+          const current = file ? plugin.index.get(file.path) : resolveActionPage(plugin.index, captured.reference);
+          return current && (!file || current.file === file) ? actionNodeRef(current) : null;
+        };
+        const currentSelection = graphActionPorts.current?.readSelected();
+        const selectedNode = capturedSelected?.node.kind === "section" ? capturedSelected.node : refresh(selectedPage);
+        const selected = capturedSelected && selectedNode && currentSelection?.occurrenceId === capturedSelected.occurrenceId
+          ? { node: selectedNode, occurrenceId: capturedSelected.occurrenceId } : null;
+        return { center: refresh(capturedCenter), selected };
+      },
+      /** Retire modal leases independently of target validity or successful execution. */ () => {
+        actionDialogs.current.delete(modal); plugin.actionManager.closeSession(sessionId);
+      });
+    actionDialogs.current.add(modal); modal.open();
+    return { status: "opened", sessionId };
+  };
+  /** Focus the existing filter/lens control through its native disclosure and focus behavior. */
+  const openFilterControl = (): void => {
+    const trigger = rootRef.current?.querySelector<HTMLButtonElement>(".kplex-filter-trigger");
+    if (!trigger) return;
+    if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
+    trigger.focus();
+  };
+  const appImplementations: SurfaceActionImplementations = {
+    "actions.open": uiAction(/** Show actions for this surface's captured context. */ () => openLocalActions(false)),
+    "keyboard.help": uiAction(/** Help derives from the effective catalog/preferences. */ () => openLocalActions(true)),
+    "graph.focus": uiAction(/** Explicit focus never follows an unrelated native editor file. */ () => rootRef.current?.focus({ preventScroll: true })),
+    "editor.focus": uiAction(/** Delegate to the exact native representation; a visible wrapper alone never proves that focus transferred. */ () => {
+      const mount = rootRef.current?.querySelector<HTMLElement>(".kplex-central-editor-leaf-host");
+      if (mount) return focusEmbeddedMarkdown(mount) ? undefined : { status: "unavailable", reasonKey: "actions.unavailable" };
+      const frame = rootRef.current?.querySelector<HTMLElement>(".kplex-central-editor-content .kplex-embedded-web-frame");
+      if (frame?.getClientRects().length) {
+        frame.focus({ preventScroll: true });
+        if (frame.ownerDocument.activeElement === frame) return;
+      }
+      return plugin.focusAssociatedEditor(hostLeaf) ? undefined : { status: "unavailable", reasonKey: "actions.unavailable" };
+    }, /** No hidden editor creation is part of focus availability. */ () => Boolean(rootRef.current?.querySelector(".kplex-central-editor-content")) || plugin.hasAssociatedEditor(hostLeaf)),
+    "search.focus": uiAction(/** Disclose Vault search without retargeting the shared center. */ () => activateSearch()),
+    "find.focus": uiAction(/** Disclose only this Plex's Find field. */ () => setFindFocusRequest(value => value + 1)),
+    "history.back": uiAction(/** Boundary traversal stays a bounded existing-history operation. */ () => goHistory(-1)),
+    "history.forward": uiAction(/** Traverse the existing history cursor without acquiring missing files. */ () => goHistory(1)),
+    "history.open": uiAction(/** Include all saved history, beyond the footer's visible subset. */ () => openSavedPicker("history")),
+    "pins.open": uiAction(/** Preserve saved order and unavailable rows in the complete searchable pins picker. */ () => openSavedPicker("pins")),
+    "view.aliases.toggle": uiAction(/** Reuse the current toolbar's presentation-only mutation. */ () => toggleToolbarSetting("renderAlias")),
+    "view.depth.toggle": uiAction(/** Reuse the established projection depth setting. */ () => toggleExpandedView()),
+    "view.connectors.toggle": uiAction(/** Camera and connector appearance remain presentation-only. */ () => toggleConnectorStyle()),
+    "view.areas.toggle": uiAction(/** Area editing mode remains transient and surface-local. */ () => setAreaSettingsMode(value => !value)),
+    "view.center-editor.toggle": uiAction(/** Existing embedded editor capability and cleanup remain graph-owned. */ () => setCentralNodeEditorEnabled(!plugin.settings.embedCentralNode)),
+    "view.sync.choose": uiAction(/** Open the same keyboard-accessible native sync menu. */ () => showDocumentSyncMenu()),
+    "view.sidecar.toggle": uiAction(/** Toggle only the managed companion for this owning leaf. */ () => page ? plugin.toggleSidecar(hostLeaf, page) : undefined, () => surface !== "sidepanel" && Boolean(page)),
+    "view.sidecar.detach": uiAction(/** Detach the existing companion without selecting a different native leaf. */ () => plugin.detachSidecar(hostLeaf), () => surface !== "sidepanel" && plugin.isSidecarOpen(hostLeaf)),
+    "view.sidecar.collapse-plex": uiAction(/** Reuse the existing host fold control. */ () => plugin.collapsePlexForSidecar(hostLeaf), () => surface !== "sidepanel" && plugin.isSidecarOpen(hostLeaf)),
+    "view.sidecar.position": uiAction(/** Explicit choices and keyboard menu share the same host move implementation. */ context => {
+      if (context.request.id === "view.sidecar.position" && context.request.args?.position && page) return plugin.moveSidecar(hostLeaf, context.request.args.position, page);
+      showSidecarMoveMenu();
+      return;
+    }, () => surface !== "sidepanel" && Boolean(page)),
+  };
+  for (const id of ["view.filters.open", "view.lens.choose", "view.sort.choose", "view.visibility.open"] as const) {
+    appImplementations[id] = uiAction(openFilterControl);
+  }
+  for (const id of ["pin.toggle", "pin.add", "pin.remove"] as const) {
+    appImplementations[id] = {
+      availability: /** Pinning supports current materialized semantic nodes, without a graph scan. */ context => actionPage(context)
+        ? { state: "enabled" } : { state: "disabled", reasonKey: "actions.target-unavailable" },
+      execute: /** Add/remove are idempotent; stale remove requests cannot toggle a pin back on. */ async context => {
+        const target = actionPage(context);
+        if (!target) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
+        const pinned = plugin.isPinned(target.path);
+        if (id === "pin.toggle" || id === "pin.add" && !pinned || id === "pin.remove" && pinned) await plugin.togglePinned(target.path);
+        forceRender(value => value + 1);
+        return { status: "completed" };
+      },
+    };
+  }
+  for (const slot of [1, 2, 3, 4, 5, 6, 7, 8, 9] as const) {
+    appImplementations[`pin.open-slot.${slot}`] = uiAction(/** Slot resolution precedes hydration filtering, so missing earlier entries do not shift meanings. */ () => {
+      const path = plugin.settings.pinnedNodes[slot - 1];
+      const target = path ? plugin.index.get(path) : undefined;
+      if (target) activate(target);
+    }, /** Missing slots stay unavailable rather than redirecting to a neighboring pin. */ () => Boolean(plugin.index.get(plugin.settings.pinnedNodes[slot - 1] ?? "")));
+  }
+  const actions = usePlexActions({ plugin, hostLeaf, root: rootRef, convention: environment.keyConvention,
+    center: page, graph: graphActionPorts, implementations: appImplementations, mounted: hasPage,
+    historyBack: historyCursor > 0, historyForward: historyCursor < plugin.settings.navigationHistory.length - 1, onReady });
+  /** Forward intentional toolbar/control actions with explicit owning surface. */
+  const runAction = (id: ActionId): void => actions.dispatch({ id, source: "toolbar" });
+
   if (!page) return <div
+    ref={rootRef}
+    tabIndex={0}
+    role="region"
+    aria-label={translate("view.displayName")}
     className="kplex-app kplex-empty"
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
@@ -711,17 +854,21 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
   const profileSurface: KplexViewSurface = condensedBySidecar ? "sidepanel" : surface;
   const viewSettings = plugin.getViewSettings(profileSurface);
 
-  const unpin = async (path: string) => { if (plugin.isPinned(path)) await plugin.togglePinned(path); forceRender((value) => value + 1); };
 
-  const showSidecarMoveMenu = (event: MouseEvent<HTMLButtonElement>) => {
+  const showSidecarMoveMenu = (event?: MouseEvent<HTMLButtonElement>) => {
     const menu = new Menu();
     const options: Array<[SidecarPosition, string, string]> = [
       ["right", translate("position.right"), "panel-right"], ["left", translate("position.left"), "panel-left"], ["above", translate("position.above"), "panel-top"], ["below", translate("position.below"), "panel-bottom"],
     ];
     for (const [position, label, icon] of options) menu.addItem((item) => item
       .setTitle(label).setIcon(icon).setChecked((sidecarPosition ?? plugin.settings.sidecarPosition) === position)
-      .onClick(() => void plugin.moveSidecar(hostLeaf, position, page)));
-    plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
+      .onClick(/** Position choices dispatch the same typed intent as a configured shortcut. */ () => actions.dispatch({ id: "view.sidecar.position", source: "context-menu", args: { position } })));
+    if (event) plugin.showKplexMenuAtMouseEvent(menu, event.nativeEvent, hostLeaf);
+    else {
+      const root = rootRef.current;
+      const bounds = root?.getBoundingClientRect();
+      if (root && bounds) plugin.showKplexMenuAtPosition(menu, { x: bounds.left + 40, y: bounds.top + 40 }, root.ownerDocument, hostLeaf);
+    }
   };
 
   void sidecarRevision; // subscription is a render trigger; all state is owned by the plugin.
@@ -730,8 +877,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
     ref={rootRef}
     className={`kplex-app kplex-surface-${surface}${condensedBySidecar ? " is-sidecar-condensed" : ""}`}
     data-kplex-tooltip-scope
-    tabIndex={-1}
-    onKeyDownCapture={handlePlexKeyDown}
+    tabIndex={0}
+    role="region"
+    aria-label={translate("view.displayName")}
     onPointerDownCapture={handlePlexPointerDown}
     onDragOver={handlePlexDragOver}
     onDrop={handlePlexDrop}
@@ -764,13 +912,13 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
           <ActionButton
             label={translate("toolbar.navigateBack")}
             icon={<ObsidianIcon name="arrow-big-left" size={17} />}
-            onClick={() => goHistory(-1)}
+            onClick={() => runAction("history.back")}
             disabled={historyCursor <= 0}
           />
           <ActionButton
             label={translate("toolbar.navigateForward")}
             icon={<ObsidianIcon name="arrow-big-right" size={17} />}
-            onClick={() => goHistory(1)}
+            onClick={() => runAction("history.forward")}
             disabled={historyCursor >= plugin.settings.navigationHistory.length - 1}
           />
           <SearchBox
@@ -822,17 +970,17 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
             <button
               className={`kplex-icon-button${syncMode !== "off" && syncTargetAvailable ? " is-on" : ""}`}
               aria-label={translate("app.syncActions", { status: syncTitle })}
-              onClick={showDocumentSyncMenu}
+              onClick={() => runAction("view.sync.choose")}
             ><ObsidianIcon name={syncIcon} size={17} /></button>
             <ToolButton
               icon="type"
               title={translate(plugin.settings.renderAlias ? "app.displayAliasesOn" : "app.displayAliasesOff")}
               on={plugin.settings.renderAlias}
-              onClick={() => void toggleToolbarSetting("renderAlias")}
+              onClick={() => runAction("view.aliases.toggle")}
             />
             <span className="kplex-toolbar-divider" />
-            <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => void toggleExpandedView()} />
-            <ToolButton icon="spline" title={translate(plugin.settings.connectorStyle === "bezier" ? "app.useStraightConnectors" : "app.useCurvedConnectors")} on={plugin.settings.connectorStyle === "bezier"} onClick={() => void toggleConnectorStyle()} />
+            <ToolButton icon={plugin.settings.graphDepth === 2 ? "list-chevrons-down-up" : "list-chevrons-up-down"} title={translate(plugin.settings.graphDepth === 2 ? "app.singleLevelView" : "app.expandedView")} on={plugin.settings.graphDepth === 2} onClick={() => runAction("view.depth.toggle")} />
+            <ToolButton icon="spline" title={translate(plugin.settings.connectorStyle === "bezier" ? "app.useStraightConnectors" : "app.useCurvedConnectors")} on={plugin.settings.connectorStyle === "bezier"} onClick={() => runAction("view.connectors.toggle")} />
             <ToolButton icon="settings" title={translate("app.settingsMenu")} on={areaSettingsMode} onClick={showSettingsMenu} />
           </div>
         </header>
@@ -841,8 +989,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
           {pinnedPages.map((pinned) => {
             const title = plugin.index.titleFor(pinned);
             return <div key={pinned.path} className={`kplex-pinned-chip${pinned.path === page.path ? " is-active" : ""}`}>
-              <button className="kplex-pinned-open" data-kplex-pinned-path={pinned.path} title={`${title}\n${pinned.path}`} onClick={() => activate(pinned)}><ObsidianIcon name="pin" size={12} /><span>{title}</span></button>
-              <button className="kplex-pinned-remove" aria-label={translate("app.unpinNode", { title })} onClick={() => void unpin(pinned.path)}><ObsidianIcon name="x" size={11} /></button>
+              <button className="kplex-pinned-open" data-kplex-pinned-path={pinned.path} title={`${title}\n${pinned.path}`} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name="pin" size={12} /><span>{title}</span></button>
+              <button className="kplex-pinned-remove" aria-label={translate("app.unpinNode", { title })} onClick={() => actions.dispatch({ id: "pin.remove", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name="x" size={11} /></button>
             </div>;
           })}
         </div>}
@@ -855,17 +1003,18 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
           <div className="kplex-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="kplex-zone-label zone-child">{translate("app.zoneChildren")}</div>
           <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
-          semanticRevision={plugin.index.getSemanticRevision()} onActivate={activate} onOpen={open} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
+          actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId}
+          semanticRevision={plugin.index.getSemanticRevision()} onActivate={activate} onOpen={open} onOpenInSidecar={centerAndOpenSidecar} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
           onApplyFindFilter={applyFindFilter} appliedFindFilterQuery={findFilterOwner?.query ?? null} onClearFindFilter={clearFindFilter} />
         </section>
       </main>
 
       {sidecarAvailable && <div className={`kplex-sidecar-controls is-${sidecarEdgePosition}${sidecarOpen ? " is-open" : " is-closed"}`} aria-label={translate("app.sidecarControls")}>
-        <button type="button" className="kplex-sidecar-primary" aria-pressed={sidecarOpen} aria-label={sidecarOpen ? translate("app.closeSidecar") : translate("app.openSidecarAt", { position: physicalPositionLabel(sidecarEdgePosition, translate) })} onClick={() => void plugin.toggleSidecar(hostLeaf, page)}><ObsidianIcon name={sidecarOpen ? closeSidecarIcon : openSidecarIcon} size={16} /></button>
+        <button type="button" className="kplex-sidecar-primary" aria-pressed={sidecarOpen} aria-label={sidecarOpen ? translate("app.closeSidecar") : translate("app.openSidecarAt", { position: physicalPositionLabel(sidecarEdgePosition, translate) })} onClick={() => runAction("view.sidecar.toggle")}><ObsidianIcon name={sidecarOpen ? closeSidecarIcon : openSidecarIcon} size={16} /></button>
         {sidecarOpen && <>
-          <button aria-label={translate("app.foldForSidecar")} onClick={() => void plugin.collapsePlexForSidecar(hostLeaf)}><ObsidianIcon name={foldPlexIcon} size={15} /></button>
-          <button aria-label={translate("app.moveSidecar")} onClick={showSidecarMoveMenu}><ObsidianIcon name="move" size={15} /></button>
-          <button aria-label={translate("app.detachSidecar")} onClick={() => void plugin.detachSidecar(hostLeaf)}><ObsidianIcon name="unlink" size={15} /></button>
+          <button aria-label={translate("app.foldForSidecar")} onClick={() => runAction("view.sidecar.collapse-plex")}><ObsidianIcon name={foldPlexIcon} size={15} /></button>
+          <button aria-label={translate("app.moveSidecar")} onClick={() => runAction("view.sidecar.position")}><ObsidianIcon name="move" size={15} /></button>
+          <button aria-label={translate("app.detachSidecar")} onClick={() => runAction("view.sidecar.detach")}><ObsidianIcon name="unlink" size={15} /></button>
         </>}
       </div>}
 
@@ -876,7 +1025,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment }: 
             const item = plugin.index.get(path);
             if (!item) return null;
             const title = plugin.index.titleFor(item);
-            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} title={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => activate(item)}><span className="kplex-history-text">{title}</span></button>;
+            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} title={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(item) } })}><span className="kplex-history-text">{title}</span></button>;
           })}
         </div>
       </footer>

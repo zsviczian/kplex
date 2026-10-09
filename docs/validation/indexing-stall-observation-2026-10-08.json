@@ -1,0 +1,391 @@
+{
+  "schemaVersion": 1,
+  "status": "deferred-investigation",
+  "recordedAt": "2026-10-08T10:23:40.403809+00:00",
+  "request": "Investigate and preserve observations; do not fix indexing during action-manager delivery.",
+  "reportedSymptom": "kplex-test-small repeatedly remains at 4 of 73 files indexed for many minutes; duration reported by maintainer, not measured.",
+  "source": {
+    "branch": "action-manager",
+    "baseRevision": "67ee400b56c7706d795412d6f6631b365d15c394",
+    "runtimeMainSha256": "42ca6596da16d8e40a9e8bc0adfcf7feacb5af4eb37a91e3f6782dcb3ec3c169",
+    "obsidian": "1.14.4 (installer 1.14.0)",
+    "vault": "kplex-test-small"
+  },
+  "passiveCapture": {
+    "elapsedSeconds": 52.789,
+    "snapshots": [
+      {
+        "timestamp": "2026-10-08T10:18:42.807Z",
+        "testPhase": "native driver idle after actions10 cleanup",
+        "ownedFixtureCount": 0,
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 4,
+          "totalFiles": 73,
+          "label": "Local graph ready"
+        },
+        "visibleProgress": [
+          {
+            "label": "Preparing local graph",
+            "text": ""
+          }
+        ],
+        "scheduler": {
+          "active": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "waiting": 0,
+          "pauses": 167,
+          "pausesByLane": [
+            0,
+            0,
+            158,
+            9,
+            0
+          ],
+          "idleWindows": 5,
+          "pacing": false,
+          "throttle": "responsive"
+        },
+        "source": {
+          "formatVersion": 1,
+          "databaseVersion": 9,
+          "factFormatVersion": 1,
+          "factCompilerVersion": 1,
+          "bodyParserVersion": 3,
+          "resolutionVersion": 1,
+          "storage": "available",
+          "activated": 0,
+          "unsaved": 0,
+          "empty": 0,
+          "chunksWritten": 24,
+          "bytesWritten": 462,
+          "familiesReused": 0,
+          "readFailures": 12,
+          "sequenceMin": 2996,
+          "sequenceMax": 3006,
+          "peakDecodeBytes": 26273,
+          "lastReason": "activated",
+          "familyFailures": {
+            "values": 0,
+            "body-urls": 0,
+            "metadata": 0,
+            "resolution": 0
+          }
+        },
+        "sourceCounters": {
+          "checked": 54,
+          "reusedBodies": 4,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 6,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "hydration": {
+          "run": 0,
+          "phase": "idle",
+          "lastActivePhase": "idle",
+          "startedAt": null,
+          "phaseStartedAt": null,
+          "lastProgressAt": null,
+          "pages": 0,
+          "relations": 0,
+          "evidence": 0,
+          "outcome": "idle"
+        },
+        "url": {
+          "processed": 73,
+          "total": 73,
+          "complete": true,
+          "active": false,
+          "failed": false,
+          "restored": 73,
+          "reads": 25,
+          "checked": 73,
+          "cacheAvailable": true,
+          "cacheWritesFailed": 0
+        },
+        "flags": {
+          "onDemand": true,
+          "localBaseline": true,
+          "physicalBaseline": false,
+          "fullSnapshot": false,
+          "sourceStartup": false,
+          "pendingSemantic": false,
+          "activeSemantic": false,
+          "pendingSearch": false
+        },
+        "failure": {
+          "semantic": null,
+          "search": null
+        },
+        "host": {
+          "initialComplete": true,
+          "indexDirty": false,
+          "rebuildTask": false,
+          "rebuildTimer": false,
+          "initialTask": true,
+          "layoutReady": true,
+          "metadataStabilized": false,
+          "openViews": 1
+        },
+        "acquisition": {
+          "enabled": false,
+          "requested": true,
+          "inventory": false,
+          "timer": false,
+          "pollTimer": false,
+          "dependencyReady": false,
+          "resolutionBackpressure": false,
+          "knownImpactTasks": 0,
+          "pendingKnownFiles": 24,
+          "pendingResolutionKeys": 105
+        },
+        "foreground": {
+          "hidden": false,
+          "focused": true,
+          "idle": "idle"
+        }
+      },
+      {
+        "timestamp": "2026-10-08T10:19:35.596Z",
+        "testPhase": "native driver idle after actions10 cleanup",
+        "ownedFixtureCount": 0,
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 4,
+          "totalFiles": 73,
+          "label": "Local graph ready"
+        },
+        "visibleProgress": [
+          {
+            "label": "Preparing local graph",
+            "text": ""
+          }
+        ],
+        "scheduler": {
+          "active": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "waiting": 0,
+          "pauses": 167,
+          "pausesByLane": [
+            0,
+            0,
+            158,
+            9,
+            0
+          ],
+          "idleWindows": 5,
+          "pacing": false,
+          "throttle": "responsive"
+        },
+        "source": {
+          "formatVersion": 1,
+          "databaseVersion": 9,
+          "factFormatVersion": 1,
+          "factCompilerVersion": 1,
+          "bodyParserVersion": 3,
+          "resolutionVersion": 1,
+          "storage": "available",
+          "activated": 0,
+          "unsaved": 0,
+          "empty": 0,
+          "chunksWritten": 24,
+          "bytesWritten": 462,
+          "familiesReused": 0,
+          "readFailures": 12,
+          "sequenceMin": 2996,
+          "sequenceMax": 3006,
+          "peakDecodeBytes": 26273,
+          "lastReason": "activated",
+          "familyFailures": {
+            "values": 0,
+            "body-urls": 0,
+            "metadata": 0,
+            "resolution": 0
+          }
+        },
+        "sourceCounters": {
+          "checked": 54,
+          "reusedBodies": 4,
+          "legacyBodies": 0,
+          "vaultReads": 0,
+          "parses": 0,
+          "repaired": 6,
+          "resolutionRefreshes": 0,
+          "pendingMetadata": 0,
+          "failures": 0
+        },
+        "hydration": {
+          "run": 0,
+          "phase": "idle",
+          "lastActivePhase": "idle",
+          "startedAt": null,
+          "phaseStartedAt": null,
+          "lastProgressAt": null,
+          "pages": 0,
+          "relations": 0,
+          "evidence": 0,
+          "outcome": "idle"
+        },
+        "url": {
+          "processed": 73,
+          "total": 73,
+          "complete": true,
+          "active": false,
+          "failed": false,
+          "restored": 73,
+          "reads": 25,
+          "checked": 73,
+          "cacheAvailable": true,
+          "cacheWritesFailed": 0
+        },
+        "flags": {
+          "onDemand": true,
+          "localBaseline": true,
+          "physicalBaseline": false,
+          "fullSnapshot": false,
+          "sourceStartup": false,
+          "pendingSemantic": false,
+          "activeSemantic": false,
+          "pendingSearch": false
+        },
+        "failure": {
+          "semantic": null,
+          "search": null
+        },
+        "host": {
+          "initialComplete": true,
+          "indexDirty": false,
+          "rebuildTask": false,
+          "rebuildTimer": false,
+          "initialTask": true,
+          "layoutReady": true,
+          "metadataStabilized": false,
+          "openViews": 1
+        },
+        "acquisition": {
+          "enabled": false,
+          "requested": true,
+          "inventory": false,
+          "timer": false,
+          "pollTimer": false,
+          "dependencyReady": false,
+          "resolutionBackpressure": false,
+          "knownImpactTasks": 0,
+          "pendingKnownFiles": 24,
+          "pendingResolutionKeys": 105
+        },
+        "foreground": {
+          "hidden": false,
+          "focused": true,
+          "idle": "locked"
+        }
+      }
+    ],
+    "counterDeltas": {
+      "checked": 0,
+      "reusedBodies": 0,
+      "legacyBodies": 0,
+      "vaultReads": 0,
+      "parses": 0,
+      "repaired": 0,
+      "resolutionRefreshes": 0,
+      "pendingMetadata": 0,
+      "failures": 0
+    }
+  },
+  "visibleIndicatorCapture": {
+    "timestamp": "2026-10-08T10:20:07.799Z",
+    "ownedFixtureCount": 0,
+    "status": {
+      "upToDate": true,
+      "phase": "ready",
+      "indexedFiles": 4,
+      "totalFiles": 73,
+      "label": "Local graph ready"
+    },
+    "mountedRoots": [
+      {
+        "position": 0,
+        "connected": true,
+        "indexingState": [
+          {
+            "selector": "kplex-index-status is-updating",
+            "label": "Preparing local graph",
+            "text": ""
+          }
+        ]
+      }
+    ],
+    "floatingIndexDetails": []
+  },
+  "facts": [
+    "No owned action-test fixtures were present during captures; baseline total was 73 Markdown files.",
+    "Both getters reported ready/upToDate true/Local graph ready and indexedFiles4/totalFiles73 in on-demand mode.",
+    "Scheduler active lanes and waiting count were zero; source counters had zero delta over52.789seconds; hydration idle and URL title summary complete73of73.",
+    "The one mounted native indicator retained class is-updating and aria-label Preparing local graph, differing from the current getter.",
+    "No progress details popover was mounted, so the reported literal4of73 text was not independently reproduced in that passive DOM capture.",
+    "Source inventory was disabled with requested=true, no inventory/timers, dependencyReady=false, pendingKnownFiles24 and pendingResolutionKeys105.",
+    "The second snapshot reported OS idle state locked while DOM/native focus flags remained true; the first snapshot idle and focused. These are distinct observations.",
+    "Cumulative storage readFailures12 and acquisition failures0 are different counters; neither changed during the interval.",
+    "At12:26:37.287Z on frozen7 main0956217d91b7\u2026, recovery.done=true/error=null and Local graph ready4/73 coexist with primaryReady/hydrated/semanticDependencies=false and no pending/active hydration, semantic preparation or build; zero owned UX fixtures. Exact main-agent read-only packet retained separately."
+  ],
+  "interpretation": "A stale indicator/local-only count presentation is supported by the getter-versus-DOM mismatch. This does not yet establish the cause of the missing status notification or explain the inventory/dependency flags. No actively blocked scheduler was observed during the interval.",
+  "nextInvestigation": [
+    "Trace status notification/publication to the mounted indicator while preserving on-demand semantics; compare getter and consumer state at every phase transition.",
+    "Explain source inventory enabled=false/requested=true and dependencyReady=false against startup lifetime/finally ownership, including initialTask retained and metadataStabilized=false.",
+    "Only if a future capture shows active stalled work, identify the precise highest-priority await/pause owner; distinguish this from expected local-only indexing and stale counters.",
+    "Resolve strict existing-UX full-snapshot readiness only in a separately authorized indexing checkpoint. Its bounded diagnostic canceled before fixtures; no full UX pass or relaxed readiness requirement claimed."
+  ],
+  "changes": "None to indexing, scheduling, hydration, cache, throttling or production diagnostics.",
+  "updatedAt": "2026-10-08T12:28:54.619006+00:00",
+  "laterReadOnlyObservations": [
+    {
+      "timestamp": "2026-10-08T12:26:37.287Z",
+      "captureOwner": "main validation agent",
+      "captureMethod": "Native CLI read-only getter packet; exact supplied tool output retained in conversation, no local raw packet path.",
+      "artifactMainSha256": "0956217d91b7b82ece1c8eff60a98c715a642586eb3ccb09fd27460564178edd",
+      "packet": {
+        "recovery": {
+          "done": true,
+          "error": null
+        },
+        "primaryReady": false,
+        "hydrated": false,
+        "pendingHydration": false,
+        "pendingSemantic": false,
+        "activeSemantic": false,
+        "building": false,
+        "sourceBackedStartup": false,
+        "semanticDependencies": false,
+        "status": {
+          "upToDate": true,
+          "phase": "ready",
+          "indexedFiles": 4,
+          "totalFiles": 73,
+          "label": "Local graph ready"
+        },
+        "owned": 0,
+        "throttling": false
+      },
+      "context": "Existing UX diagnostic waits for strict full-snapshot readiness; canceled before fixture creation at12:26:58 rather than waiting its long timeout.",
+      "throttlingBoundary": "Existing UX script preserves original backgroundThrottling=true, changes it to false for its probe, and restores it during cleanup. Action-specific native lane retains its existing throttling.",
+      "interpretation": "Local-ready4/73 with recovery.done and no active/pending hydration, semantic preparation or build does not satisfy strict full-snapshot UX readiness. No causal diagnosis or indexing fix."
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
+import { buildSync } from "esbuild";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
@@ -79,32 +80,46 @@ function terminologyViolations(source, filename) {
   return violations;
 }
 
-/** Run the actual literal command registrations from onload, without starting the host lifecycle. */
+/** Bundle the actual catalog, manager and public publisher; only native effects are explicit doubles. */
+const actionRuntimeSource = buildSync({ stdin: {
+  contents: 'export * from "./src/core/plex/actions"; export * from "./src/core/plex/actionPreferences"; export * from "./src/application/ActionManager"; export * from "./src/adapters/obsidian/actionCommands"; export * from "./src/adapters/obsidian/actionNode"; export * from "./src/core/plex/viewPresentation";',
+  resolveDir: root,
+}, bundle: true, write: false, format: "cjs", platform: "node" }).outputFiles[0].text;
+
+/** Run actual initialization without starting lifecycle, indexing, React or native workspace effects. */
 function registerPluginCommands(plugin, device) {
+  // The native command boundary resolves public active view classes even for ownerless commands.
+  // Represent that API explicitly; a missing host method is not a legitimate unavailable action.
+  class KplexView {} class KplexSidepanelView {}
+  const ownerWindow = {};
+  plugin.app.workspace.getActiveViewOfType ??= () => null;
   const filename = join(root, "src/main.ts");
   const source = readFileSync(filename, "utf8");
   const file = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true);
   const pluginClass = file.statements.find(ts.isClassDeclaration);
-  const onload = pluginClass.members.find((member) => member.name?.getText(file) === "onload");
-  assert(onload?.body, "Plugin onload implementation is missing");
-  const statements = onload.body.statements.filter((statement) => {
-    if (!ts.isExpressionStatement(statement) || !ts.isCallExpression(statement.expression)) return false;
-    const call = statement.expression;
-    return call.expression.getText(file) === "this.addCommand";
-  });
-  assert(statements.length >= 3, "Canonical commands must be registered directly through Obsidian");
-  const result = ts.transpileModule(statements.map((statement) => statement.getText(file)).join("\n"), {
+  const initialize = pluginClass.members.find((member) => member.name?.getText(file) === "initializeActions");
+  assert(initialize?.body, "Plugin action assembly is missing");
+  const result = ts.transpileModule(`function initializeActions() ${initialize.body.getText(file)}`, {
     fileName: filename,
     reportDiagnostics: true,
     compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.CommonJS, strict: true },
   });
   assert.deepEqual((result.diagnostics ?? []).filter((item) => item.category === ts.DiagnosticCategory.Error), []);
-  runInNewContext(`(function () { ${result.outputText} }).call(plugin)`, {
-    plugin,
-    readObsidianPresentationEnvironment: () => ({ device }),
-    isGraphTabCommandAvailable: (environment) => environment.device !== "phone",
-    isPopoutCommandAvailable: (environment) => environment.device === "desktop",
+  const module = {exports: {}};
+  runInNewContext(actionRuntimeSource, {module, exports: module.exports});
+  const api = module.exports;
+  plugin.settings = {lastActivePath: "", actionPreferences: api.migrateActionPreferences({}).preferences};
+  plugin.actionSurfaceHosts = new Map(); plugin.actionEditors = new Map(); plugin.actionDialogs = new Map(); plugin.actionInvocationSequence = 0;
+  plugin.actionWindowId = () => "main";
+  plugin.index = {get: () => null};
+  runInNewContext(`${result.outputText}\ninitializeActions.call(plugin);`, {
+    ...api, plugin, KplexView, KplexSidepanelView, window: {activeWindow: ownerWindow},
+    translateActionText: (_translate, key) => key,
+    readObsidianPresentationEnvironment: () => ({device, hostActions: {graphTab: device !== "phone", popout: device === "desktop", sidepanel: true}}),
+    Notice: class { constructor(message) { throw new Error(`Unexpected notice: ${message}`); } },
+    console,
   });
+  return {...api, KplexView, KplexSidepanelView, ownerWindow};
 }
 
 test("runtime names are K-Plex except explicitly inventoried migration tokens", () => {
@@ -175,7 +190,7 @@ test("canonical view symbols preserve existing serialized workspace and plugin i
   }
 });
 
-test("commands are registered once with canonical IDs and unchanged availability/callbacks", () => {
+test("commands are registered once with canonical IDs and unchanged availability/callbacks", async () => {
   const main = readFileSync(join(root, "src/main.ts"), "utf8");
   assert.doesNotMatch(main, /legacyCommands|registerMigratedCommand|command\.legacyShortcut/);
   const retired = join(root, "src/adapters/obsidian/legacyCommands.ts");
@@ -189,20 +204,36 @@ test("commands are registered once with canonical IDs and unchanged availability
   for (const device of ["desktop", "tablet", "phone"]) {
     const commands = [];
     const activations = [];
+    const nativeDialogs = [];
     let activeFile = null;
     const plugin = {
       addCommand(command) { commands.push(command); return command; },
+      removeCommand() { throw new Error("Initialization must not remove commands"); },
       translator: (key) => key,
       activateView: () => activations.push("open"),
       rebuildIndex: (force) => activations.push(["rebuild", force]),
       activateViewInPopout: () => activations.push("popout"),
       activateSidepanel: () => activations.push("sidepanel"),
       focusInKplex: (path) => activations.push(["focus", path]),
-      app: { workspace: { getActiveFile: () => activeFile } },
+      fieldAtEditorCursor: (editor) => editor.field ?? null,
+      openAddToOntologyModal(field, _onSaved, onClosed) {
+        activations.push(["ontology", "select", field]);
+        let closed = false;
+        const dialog = {close() {if (closed) return; closed = true; onClosed?.();}};
+        nativeDialogs.push(dialog);
+        return dialog;
+      },
+      assignFieldToOntology: (field, role) => activations.push(["ontology", role, field]),
+      app: { workspace: { getActiveFile: () => activeFile, getMostRecentLeaf: () => null } },
     };
     registerPluginCommands(plugin, device);
     assert.equal(new Set(commands.map((command) => command.id)).size, commands.length);
     assert(commands.every((command) => command.id.startsWith("kplex-")));
+    assert.equal(commands.length, 29, "22 preserved commands and seven new defaults must publish");
+    plugin.actionPublisher.sync(plugin.settings.actionPreferences);
+    assert.equal(commands.length, 29, "Repeated reconciliation must not duplicate stable IDs");
+    assert.equal(commands.filter(command => typeof command.editorCheckCallback === "function").length, 9);
+    assert(commands.every(command => command.hotkeys === undefined), "Local defaults must not become global host hotkeys");
     const byId = (id) => {
       const matches = commands.filter((command) => command.id === id);
       assert.equal(matches.length, 1, `${id} must have exactly one registration`);
@@ -218,9 +249,13 @@ test("commands are registered once with canonical IDs and unchanged availability
     assert.equal(popout.checkCallback(true), device === "desktop");
     assert.equal(popout.checkCallback(false), device === "desktop");
     assert.deepEqual(activations.splice(0), device === "desktop" ? ["popout"] : []);
-    byId("kplex-open-sidepanel").callback();
+    assert.equal(byId("kplex-open-sidepanel").checkCallback(true), true);
+    assert.deepEqual(activations, []);
+    assert.equal(byId("kplex-open-sidepanel").checkCallback(false), true);
     assert.deepEqual(activations.splice(0), ["sidepanel"]);
-    byId("kplex-rebuild-index").callback();
+    assert.equal(byId("kplex-rebuild-index").checkCallback(true), true);
+    assert.deepEqual(activations, []);
+    assert.equal(byId("kplex-rebuild-index").checkCallback(false), true);
     assert.deepEqual(activations.splice(0), [["rebuild", true]]);
     const focus = byId("kplex-focus-active-note");
     assert.equal(focus.checkCallback(true), false);
@@ -231,5 +266,77 @@ test("commands are registered once with canonical IDs and unchanged availability
     assert.deepEqual(activations, []);
     assert.equal(focus.checkCallback(false), true);
     assert.deepEqual(activations, [["focus", "Current.md"]]);
+    activations.length = 0;
+    for (const role of ["select", "parent", "child", "left", "right", "previous", "next", "hidden", "excluded"]) {
+      const command = byId(`kplex-ontology-${role}`), editor = {field: "related"};
+      assert.equal(command.editorCheckCallback(true, {}, {}), false);
+      assert.equal(command.editorCheckCallback(false, {}, {}), false);
+      assert.equal(command.editorCheckCallback(true, editor, {}), true);
+      assert.deepEqual(activations, [], "Editor availability cannot assign or open a selector");
+      assert.equal(plugin.actionEditors.size, 0, "Checking must release the supplied native editor");
+      assert.equal(command.editorCheckCallback(false, editor, {}), true);
+      assert.deepEqual(activations.splice(0), [["ontology", role, "related"]]);
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(plugin.actionEditors.size, 0, "Execution must release the native editor after settlement");
+      if (role === "select") {
+        assert.equal(plugin.actionDialogs.size, 1, "The host must own the opened ontology selector");
+        assert.equal(command.editorCheckCallback(true, editor, {}), false, "A live selector session must prevent duplicate launch");
+        assert.equal(plugin.actionEditors.size, 0, "Busy checking must still release its temporary editor");
+        assert.deepEqual(activations, []);
+        nativeDialogs.at(-1).close();
+        assert.equal(plugin.actionDialogs.size, 0, "Native close must release host dialog ownership");
+        assert.equal(command.editorCheckCallback(true, editor, {}), true, "Native close must also release the manager session guard");
+        assert.equal(plugin.actionEditors.size, 0);
+      }
+    }
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(plugin.actionEditors.size, 0, "Execution must release native editors after settlement");
+    plugin.actionManager.dispose();
   }
+});
+
+test("selected creation commands check their selected endpoint independently of a folder Plex center", () => {
+  const commands = [], roles = ["parent", "child", "left", "right", "previous", "next"];
+  let centerChecks = 0;
+  const nativeFile = {path: "Selected.md", extension: "md"};
+  const file = {path: nativeFile.path, file: nativeFile, isFolder: false, isTag: false, url: null};
+  const folder = {path: "Folder", file: null, isFolder: true, isTag: false, url: null};
+  const pages = new Map([[file.path, file], [folder.path, folder]]);
+  const plugin = {
+    addCommand(command) {commands.push(command); return command;},
+    removeCommand() {throw new Error("Enabling selected publication must retain existing commands");},
+    translator: key => key,
+    commandCentralPage() {centerChecks++; return null;},
+    app: {workspace: {getMostRecentLeaf: () => null}, vault: {getFileByPath: path => path === nativeFile.path ? nativeFile : null}},
+  };
+  const api = registerPluginCommands(plugin, "desktop");
+  const activeView = new api.KplexSidepanelView(), activeLeaf = {view: activeView};
+  activeView.leaf = activeLeaf;
+  activeView.containerEl = {ownerDocument: {defaultView: api.ownerWindow}};
+  plugin.app.workspace.getActiveViewOfType = type => activeView instanceof type ? activeView : null;
+  plugin.actionSurfaceHosts.set("graph", {leaf: activeLeaf, generation: 1});
+  plugin.settings.lastActivePath = folder.path; plugin.index.get = path => pages.get(path);
+  let selected = file;
+  plugin.actionManager.registerSurface({id: "graph", generation: 1, readSnapshot: () => ({
+    mounted: true, visible: true, windowId: "main", center: api.actionNodeRef(folder),
+    selected: selected ? {node: api.actionNodeRef(selected), occurrenceId: "selected-occurrence"} : null,
+    focusRegion: "graph", commandFocusRegion: "graph", interactionRevision: 1,
+  })});
+  const publishedCommands = Object.fromEntries(roles.map(role => [`relationship.create-selected.${role}`, true]));
+  assert.equal(plugin.actionPublisher.sync({...plugin.settings.actionPreferences, publishedCommands}).failures.length, 0);
+  const commandFor = id => commands.find(command => command.id === api.ACTION_BY_ID.get(id).command.id);
+  for (const role of roles) assert.equal(commandFor(`relationship.create-selected.${role}`).checkCallback(true), true,
+    `Selected Markdown ${role} creation must remain available with a folder center`);
+  assert.equal(centerChecks, 0, "Selected actions must not inherit the legacy shared-center predicate");
+  assert.equal(commandFor("relationship.create-center.child").checkCallback(true), false,
+    "The preserved legacy global Add child command still excludes folder centers");
+  selected = folder;
+  for (const role of roles) assert.equal(commandFor(`relationship.create-selected.${role}`).checkCallback(true), role === "child",
+    "Only selected folder-child creation may use the existing physical-folder factory");
+  selected = null;
+  for (const role of roles) assert.equal(commandFor(`relationship.create-selected.${role}`).checkCallback(true), false,
+    "Selected commands must not fall back to the center after selection disappears");
+  assert.equal(plugin.actionDialogs.size, 0, "Checking must not open a native composer or create a file");
+  assert.equal(plugin.actionEditors.size, 0);
+  plugin.actionManager.dispose();
 });

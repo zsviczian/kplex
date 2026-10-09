@@ -17,6 +17,7 @@ abstract class BaseKplexView extends ItemView {
   private root: Root | null = null;
   private windowMigrationCleanup: (() => void) | null = null;
   private ready = false;
+  private renderGeneration = 0;
   private readyResolvers: Array<() => void> = [];
 
   /** Bind the native leaf, inherited hotkey scope and K-Plex owner; React owns surface handlers. */
@@ -47,6 +48,8 @@ abstract class BaseKplexView extends ItemView {
 
   /** Replace the React root in this owning document, releasing any previous root and listeners. */
   protected renderReact(): void {
+    this.ready = false;
+    const generation = ++this.renderGeneration;
     this.root?.unmount();
     this.root = createRoot(this.contentEl);
     this.root.render(<KplexApp
@@ -55,6 +58,9 @@ abstract class BaseKplexView extends ItemView {
       hostLeaf={this.leaf}
       translate={this.plugin.translator}
       environment={readObsidianPresentationEnvironment(this.contentEl.ownerDocument.defaultView ?? undefined)}
+      onReady={/** Readiness belongs to the current mounted action/focus adapter, including migration. */ () => {
+        if (generation === this.renderGeneration && this.root) this.markReady();
+      }}
     />);
   }
 
@@ -68,7 +74,6 @@ abstract class BaseKplexView extends ItemView {
       this.windowMigrationCleanup = this.containerEl.onWindowMigrated(() => this.renderReact());
     }
     this.renderReact();
-    this.markReady();
     // View construction/reveal must never wait for a potentially long initial index. On mobile,
     // awaiting the build here makes the sidepanel appear not to open at all and can keep
     // setViewState() pending long enough for the WebView to look hung. Render the indexing state
@@ -80,6 +85,7 @@ abstract class BaseKplexView extends ItemView {
   async onClose(): Promise<void> {
     this.windowMigrationCleanup?.();
     this.windowMigrationCleanup = null;
+    this.renderGeneration++;
     this.root?.unmount();
     this.root = null;
     this.ready = false;

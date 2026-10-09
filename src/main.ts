@@ -7,7 +7,7 @@ import { GraphIndex } from "./index/GraphIndex";
 import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
 import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelView } from "./ui/KplexView";
 import { RelationModal, type RelationModalOptions } from "./ui/RelationModal";
-import { NewRelatedNoteModal } from "./ui/NewRelatedNoteModal";
+import { NewRelatedNoteModal, type RelatedNoteInvocation } from "./ui/NewRelatedNoteModal";
 import { CreateFolderNoteModal } from "./ui/CreateFolderNoteModal";
 import { MaterializeGhostModal, type GhostMaterializationKind, type GhostMaterializationLocation } from "./ui/MaterializeGhostModal";
 import { DeleteNodeConfirmationModal, RemainingNodeReferencesModal, type RemainingNodeReference } from "./ui/DeleteNodeModal";
@@ -30,6 +30,13 @@ import { StartupDiagnostics } from "./adapters/obsidian/startupDiagnostics";
 import { writeRelationshipMetadata, SavedRelationshipPendingError } from "./adapters/obsidian/relationshipMetadataWrite";
 import { perfNow } from "./util/perf";
 import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
+import { PartialRelatedFileError } from "./adapters/obsidian/relatedFileOutcome";
+import { ActionManager, type ActionContext, type ActionImplementations } from "./application/ActionManager";
+import { ACTION_BY_ID, ACTION_RELATION_ROLES, type ActionId, type ActionOutcome, type Availability } from "./core/plex/actions";
+import { compileActionBindings, migrateActionPreferences, sanitizeActionPreferences, type ActionPreferencesV1 } from "./core/plex/actionPreferences";
+import { createActionCommandPublisher, type ActionCommandPublisher } from "./adapters/obsidian/actionCommands";
+import { actionNodeRef, resolveActionPage } from "./adapters/obsidian/actionNode";
+import { translateActionText } from "./ui/actionPresentation";
 
 type LoadAwareView = FileView & { _loaded?: boolean };
 
@@ -50,6 +57,9 @@ export type RelationshipSourceSection = {
   sourceKind: RelationEvidence["sourceKind"];
 };
 
+/** A writing adapter signals commitment only after the existing canonical pair publication. */
+export type RelationshipWriteResult = { state: "saved-published"; page: GraphPage } | { state: "unavailable" };
+
 const isUnknownRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -65,6 +75,24 @@ type RecentIndexedNavigationTarget = {
 export default class KplexPlugin extends Plugin {
   settings: KplexSettings = DEFAULT_SETTINGS;
   index!: GraphIndex;
+  /** Shared action engine; React surface ports retain their own state and owning document. */
+  actionManager!: ActionManager;
+  private actionPublisher: ActionCommandPublisher | null = null;
+  private readonly actionPreferenceListeners = new Set<() => void>();
+  private readonly actionSurfaceHosts = new Map<string, { generation: number; leaf: WorkspaceLeaf }>();
+  private readonly actionWindows = new WeakMap<Window, string>();
+  private actionWindowSequence = 0;
+  private actionInvocationSequence = 0;
+  private readonly actionEditors = new Map<string, Editor>();
+  private readonly actionDialogs = new Map<{ close(): void }, { surfaceId?: string; generation?: number }>();
+  /** The host owns Settings navigation; the tab owns rendered shortcut controls and cleanup. */
+  private settingsTab: KplexSettingTab | null = null;
+  private actionPreferenceQueue: Promise<void> = Promise.resolve();
+  private settingsWriteQueue: Promise<void> = Promise.resolve();
+  /** A future version remains intact on disk; editing its conservative fallback is disabled. */
+  actionPreferenceUnsupportedVersion: number | undefined;
+  actionPreferenceMigrationSkipped: readonly ActionId[] = [];
+  actionPreferenceMigrationIssueCount = 0;
   private savedSettingsPolicy: SettingsPolicy | null = null;
   translator: Translator = createTranslator("en");
   private rebuildTimer: number | null = null;
@@ -191,10 +219,18 @@ export default class KplexPlugin extends Plugin {
       ownRecord?.noteTypeField
     );
     this.settings = migrateAndMergeSettings(ownData);
+    const actionMigration = migrateActionPreferences(ownData, readObsidianPresentationEnvironment().keyConvention);
+    this.settings.actionPreferences = actionMigration.preferences;
+    this.actionPreferenceUnsupportedVersion = actionMigration.unsupportedVersion;
+    this.actionPreferenceMigrationSkipped = actionMigration.skippedDefaults;
+    this.actionPreferenceMigrationIssueCount = actionMigration.issues.length;
     this.savedSettingsPolicy = captureSettingsPolicy(this.settings);
-    if (alreadyKplex && !ownRecord?.kplexInitialized) {
+    const initializedChanged = alreadyKplex && !ownRecord?.kplexInitialized;
+    if (initializedChanged) {
       this.settings.kplexInitialized = true;
-      await this.saveData(this.settings);
+    }
+    if (initializedChanged || actionMigration.migrated) {
+      await this.persistSettingsSnapshot();
     }
 
     this.startupDiagnostics.mark("settings-loaded");
@@ -216,88 +252,12 @@ export default class KplexPlugin extends Plugin {
     this.registerView(KPLEX_SIDEPANEL_VIEW_TYPE, (leaf: WorkspaceLeaf) => new KplexSidepanelView(leaf, this));
     this.registerHoverLinkSource(KPLEX_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
     this.registerHoverLinkSource(KPLEX_SIDEPANEL_VIEW_TYPE, { display: "K-Plex", defaultMod: false });
-    this.addSettingTab(new KplexSettingTab(this.app, this));
+    this.settingsTab = new KplexSettingTab(this.app, this);
+    this.addSettingTab(this.settingsTab);
     this.registerEditorSuggest(new OntologySuggester(this));
     this.addRibbonIcon("brain-circuit", this.translator("ribbon.open"), () => void this.activateView());
 
-    // Register canonical K-Plex commands and expose actions that
-    // make sense for the current form factor. Phones use the sidepanel as their primary K-Plex
-    // surface; tablets can choose between a normal tab and the sidepanel; pop-out windows are
-    // desktop-only. Obsidian evaluates checkCallback while building the command palette, so a
-    // false result keeps unavailable actions out of the list instead of merely disabling them.
-    this.addCommand({
-      id: "kplex-start",
-      name: this.translator("command.openGraph"),
-      checkCallback: (checking) => {
-        if (!isGraphTabCommandAvailable(readObsidianPresentationEnvironment())) return false;
-        if (!checking) void this.activateView();
-        return true;
-      },
-    });
-    this.addCommand({ id: "kplex-rebuild-index", name: this.translator("command.rebuildIndex"), callback: () => void this.rebuildIndex(true) });
-    this.addCommand({
-      id: "kplex-copy-index-diagnostics",
-      name: this.translator("command.copyIndexDiagnostics"),
-      callback: () => void this.copyIndexDiagnostics(),
-    });
-    this.addCommand({
-      id: "kplex-open-popout",
-      name: this.translator("command.openPopout"),
-      checkCallback: (checking) => {
-        if (!isPopoutCommandAvailable(readObsidianPresentationEnvironment())) return false;
-        if (!checking) void this.activateViewInPopout();
-        return true;
-      },
-    });
-    this.addCommand({ id: "kplex-open-sidepanel", name: this.translator("command.openSidepanel"), callback: () => void this.activateSidepanel() });
-    this.addCommand({
-      id: "kplex-search",
-      name: this.translator("command.search"),
-      checkCallback: (checking) => {
-        const leaf = this.searchTargetLeaf();
-        if (!leaf) return false;
-        if (!checking) this.requestSearchFocus(leaf);
-        return true;
-      },
-    });
-    const addRelationshipCommand = (id: string, name: string, role: GateRole) => this.addCommand({
-      id,
-      name,
-      checkCallback: (checking) => {
-        const origin = this.commandCentralPage();
-        if (!origin) return false;
-        if (!checking) new NewRelatedNoteModal(this, origin, role).open();
-        return true;
-      },
-    });
-    addRelationshipCommand("kplex-add-child", this.translator("command.addChild"), "child");
-    addRelationshipCommand("kplex-add-parent", this.translator("command.addParent"), "parent");
-    addRelationshipCommand("kplex-add-friend", this.translator("command.addFriend"), "left");
-    addRelationshipCommand("kplex-add-challenger", this.translator("command.addChallenger"), "right");
-    this.addCommand({
-      id: "kplex-sync-tab-from-plex",
-      name: this.translator("command.syncRecentTabFromNode"),
-      callback: () => {
-        const page = this.index.get(this.settings.lastActivePath);
-        if (page) void this.syncMostRecentTabWithKplex(page);
-      },
-    });
-    this.addCommand({
-      id: "kplex-sync-plex-from-tab",
-      name: this.translator("command.syncNodeFromRecentTab"),
-      callback: () => void this.syncKplexWithMostRecentTab(),
-    });
-    this.registerOntologyCommands();
-    this.addCommand({
-      id: "kplex-focus-active-note",
-      name: this.translator("command.focusActiveNote"),
-      checkCallback: (checking: boolean) => {
-        const file = this.app.workspace.getActiveFile();
-        if (!file) return false;
-        if (!checking) void this.focusInKplex(file.path);
-        return true;
-      }
-    });
+    this.initializeActions();
 
     this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
       // Capture every actual leaf activation in sequence. Do not decide here whether the leaf is a
@@ -502,11 +462,22 @@ export default class KplexPlugin extends Plugin {
     return this.initialIndexComplete;
   }
 
+  /** Release action publications, surface registrations and host resources before index teardown. */
   onunload(): void {
+    this.unloading = true;
+    this.settingsTab?.disposeActionSettings();
+    this.settingsTab = null;
+    for (const dialog of this.actionDialogs.keys()) dialog.close();
+    this.actionDialogs.clear();
+    this.actionPublisher?.dispose();
+    this.actionPublisher = null;
+    this.actionManager?.dispose();
+    this.actionPreferenceListeners.clear();
+    this.actionSurfaceHosts.clear();
+    this.actionEditors.clear();
     for (const cancel of this.relationshipWriteCancels) cancel();
     this.relationshipWriteCancels.clear();
     this.startupDiagnostics.dispose();
-    this.unloading = true;
     this.dismissKplexMenu();
     if (this.rebuildTimer !== null) window.clearTimeout(this.rebuildTimer);
     if (this.startupInitializationTimer !== null) window.clearTimeout(this.startupInitializationTimer);
@@ -1340,11 +1311,278 @@ export default class KplexPlugin extends Plugin {
     }
   }
 
+  /** Preserve the legacy command-center policy independently of editor focus and node selection. */
   private commandCentralPage(): GraphPage | null {
     if (this.openKplexViews <= 0) return null;
     const page = this.index.get(this.settings.lastActivePath);
     if (!page || page.isFolder || page.isTag) return null;
     return page;
+  }
+
+  /** Assign an ephemeral window identity used only for action routing, never persisted settings. */
+  actionWindowId(ownerWindow: Window | null | undefined = window.activeWindow ?? window): string {
+    const owner = ownerWindow ?? window.activeWindow ?? window;
+    let id = this.actionWindows.get(owner);
+    if (!id) { id = `window-${++this.actionWindowSequence}`; this.actionWindows.set(owner, id); }
+    return id;
+  }
+
+  /** Associate one React generation with its native leaf; stale cleanup cannot erase a successor. */
+  registerActionSurfaceHost(id: string, generation: number, leaf: WorkspaceLeaf): () => void {
+    const registration = { generation, leaf };
+    this.actionSurfaceHosts.set(id, registration);
+    return /** Release only this owning React generation's native association. */ () => {
+      if (this.actionSurfaceHosts.get(id) === registration) this.actionSurfaceHosts.delete(id);
+      for (const [dialog, owner] of this.actionDialogs) {
+        if (owner.surfaceId === id && owner.generation === generation) dialog.close();
+      }
+    };
+  }
+
+  /** Find the native host selected by the action resolver without choosing an unrelated view. */
+  actionHostLeaf(id?: string): WorkspaceLeaf | undefined {
+    return id ? this.actionSurfaceHosts.get(id)?.leaf : undefined;
+  }
+
+  /** Fence delayed UI completion against close or migration while retaining a captured origin. */
+  isActionSurfaceCurrent(id: string, generation: number): boolean {
+    return !this.unloading && this.actionSurfaceHosts.get(id)?.generation === generation
+      && this.actionManager.readSnapshot(id)?.mounted === true;
+  }
+
+  /** Subscribe presentation only; action preference changes never notify the semantic index. */
+  subscribeActionPreferences(listener: () => void): () => void {
+    this.actionPreferenceListeners.add(listener);
+    return /** Release exactly this subscriber on surface/settings teardown. */ () => { this.actionPreferenceListeners.delete(listener); };
+  }
+
+  /** Report actual native registration independently of the persisted desired publication choice. */
+  isActionPublished(id: ActionId): boolean {
+    const command = ACTION_BY_ID.get(id)?.command;
+    return Boolean(command && this.actionPublisher?.registeredIds().includes(command.id));
+  }
+
+  /** Serialize valid workflow preferences including overlaps; failed storage never installs a draft or touches indexing. */
+  updateActionPreferences(next: ActionPreferencesV1): Promise<void> {
+    const convention = readObsidianPresentationEnvironment(window.activeWindow ?? window).keyConvention;
+    const validated = sanitizeActionPreferences(next, false, convention, true);
+    // Explicit edits retain both local assignments and inherited defaults. Migration-only safety
+    // must never silently rewrite this draft; the runtime compiler rejects ambiguous dispatch.
+    if (this.settings.actionPreferencesFuture !== undefined) return Promise.reject(new Error(this.translator("actions.newerPreferences")));
+    if (validated.issues.length) return Promise.reject(new Error(this.translator("actions.invalidPreferences")));
+    const compiled = compileActionBindings(validated.preferences, convention);
+    if (compiled.issues.length) return Promise.reject(new Error(this.translator("actions.invalidPreferences")));
+    const draft = validated.preferences;
+    /** Apply only the last committed state; queued updates retain submission order. */
+    const apply = async (): Promise<void> => {
+      if (this.unloading) throw new Error(this.translator("actions.surface-unavailable"));
+      await this.enqueueSettingsWrite(/** Commit preference memory before releasing the common persistence queue. */ async () => {
+        await this.saveData(this.settingsSnapshotForPersistence(draft));
+        if (!this.unloading) this.settings.actionPreferences = draft;
+      });
+      if (this.unloading) return;
+      this.actionPreferenceMigrationSkipped = [];
+      this.actionPreferenceMigrationIssueCount = 0;
+      const publication = this.actionPublisher?.sync(draft);
+      for (const listener of this.actionPreferenceListeners) listener();
+      if (publication?.failures.length) {
+        console.error("K-Plex action publication failed", publication.failures);
+        throw new Error(this.translator("actions.publicationFailed"));
+      }
+    };
+    const result = this.actionPreferenceQueue.then(apply);
+    this.actionPreferenceQueue = result.catch(/** A failed draft does not poison later explicit retries. */ () => undefined);
+    return result;
+  }
+
+  /** Queue settings disk writes without allowing an older pending save to overwrite new actions. */
+  private enqueueSettingsWrite(write: () => Promise<void>): Promise<void> {
+    const result = this.settingsWriteQueue.then(write);
+    this.settingsWriteQueue = result.catch(/** The caller reports its failure; subsequent saves remain possible. */ () => undefined);
+    return result;
+  }
+
+  /** Omit runtime recovery markers while retaining the actual future schema in its original field. */
+  private settingsSnapshotForPersistence(actionPreferences: unknown): Record<string, unknown> {
+    const { actionPreferencesFuture: _runtimeFuture, ...settings } = this.settings;
+    return { ...settings, actionPreferences };
+  }
+
+  /** Persist live settings at the queued boundary, preserving an unsupported future schema verbatim. */
+  private persistSettingsSnapshot(): Promise<void> {
+    return this.enqueueSettingsWrite(/** Capture after earlier workflow saves have actually committed. */ () => this.saveData(
+      this.settingsSnapshotForPersistence(this.settings.actionPreferencesFuture ?? this.settings.actionPreferences),
+    ));
+  }
+
+  /** Navigate to the declarative shortcut page, including when optional commands are unpublished. */
+  openActionSettings(): boolean {
+    // This is the same guarded, unpublished Settings bridge as openSettings(). The installed
+    // host's openPagePath preserves an already-open page instead of resetting its input state.
+    type SettingsController = {
+      open?: () => void;
+      openPagePath?: (tabId: string, pagePath: string[]) => unknown;
+    };
+    const controller = (this.app as unknown as { setting?: SettingsController }).setting;
+    if (controller?.open && controller.openPagePath) {
+      controller.open();
+      if (controller.openPagePath(this.manifest.id, [this.translator("actions.settingsTitle")])) return true;
+    }
+    this.openSettings();
+    return this.settingsTab?.openActionSettingsPage() ?? false;
+  }
+
+  /** Reveal only the chosen native surface and wait for its current action registration. */
+  async revealActionSurface(id: string): Promise<boolean> {
+    const host = this.actionSurfaceHosts.get(id);
+    if (!host || this.unloading) return false;
+    await this.app.workspace.revealLeaf(host.leaf);
+    const view = host.leaf.view;
+    if (view instanceof KplexView || view instanceof KplexSidepanelView) await view.waitUntilReady();
+    return this.isActionSurfaceCurrent(id, host.generation);
+  }
+
+  /** Keep the optional host settings bridge isolated; never inspect or rewrite native hotkey data. */
+  openHotkeySettings(): void {
+    type SettingsController = { open?: () => void; openTabById?: (id: string) => void };
+    const controller = (this.app as unknown as { setting?: SettingsController }).setting;
+    if (controller?.open && controller.openTabById) { controller.open(); controller.openTabById("hotkeys"); return; }
+    new Notice(this.translator("actions.hostHotkeyGuidance"));
+  }
+
+  /** Assemble narrow existing operations and publish stable command metadata once per lifetime. */
+  private initializeActions(): void {
+    const implementations: ActionImplementations = {};
+    const enabled: Availability = { state: "enabled" };
+    /** Reacquire one captured reference; this check performs no source acquisition. */
+    const pageFor = (context: ActionContext): GraphPage | null => context.target.kind === "node"
+      ? resolveActionPage(this.index, context.target.node) : null;
+    /** Attach an existing operation without moving its behavior into catalog metadata. */
+    const operation = (id: ActionId, execute: (context: ActionContext) => ActionOutcome | Promise<ActionOutcome>,
+      availability: (context: ActionContext) => Availability = () => enabled,
+    ): void => { implementations[id] = { availability, execute }; };
+    /** Wrap a non-writing legacy host operation with one completion/error owner. */
+    const completed = (run: () => void | Promise<unknown>): (() => Promise<ActionOutcome>) =>
+      async () => { await run(); return { status: "completed" }; };
+    operation("surface.open-tab", completed(() => this.activateView()),
+      /** Preserve device-specific command visibility. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
+    operation("surface.open-popout", completed(() => this.activateViewInPopout()),
+      /** Phone/tablet surfaces do not publish an available desktop popout operation. */ () => isPopoutCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
+    operation("surface.open-sidepanel", completed(() => this.activateSidepanel()));
+    operation("index.rebuild", completed(() => this.rebuildIndex(true)));
+    operation("index.copy-diagnostics", completed(() => this.copyIndexDiagnostics()));
+    operation("actions.configure", /** Native Settings owns the page lifetime; navigation creates no detached dialog session. */ () => this.openActionSettings()
+      ? { status: "completed" } : { status: "unavailable", reasonKey: "actions.unavailable" });
+    operation("search.focus", /** Legacy fallback covers readiness before a surface port is registered. */ context => {
+      return this.requestSearchFocus(this.actionHostLeaf(context.surfaceId)) ? { status: "completed" }
+        : { status: "unavailable", reasonKey: "actions.surface-unavailable" };
+    }, /** No composer, focus or scanning during command checking. */ () => this.searchTargetLeaf() ? enabled : { state: "disabled", reasonKey: "actions.surface-unavailable" });
+    operation("document.sync-from-center", /** Use the captured Plex center instead of the editor's note. */ async context => {
+      const page = pageFor(context);
+      if (!page) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
+      await this.syncMostRecentTabWithKplex(page); return { status: "completed" };
+    });
+    operation("center.sync-from-document", completed(() => this.syncKplexWithMostRecentTab()));
+    operation("center.focus-active-note", /** This explicitly document-oriented command preserves its distinct target policy. */ async () => {
+      const file = this.app.workspace.getActiveFile();
+      if (!file) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
+      await this.focusInKplex(file.path); return { status: "completed" };
+    }, /** Read the public active-file fact without transferring focus. */ () => this.app.workspace.getActiveFile() ? enabled : { state: "disabled", reasonKey: "actions.target-unavailable" });
+    for (const role of ACTION_RELATION_ROLES) for (const family of ["center", "selected"] as const) {
+      operation(`relationship.create-${family}.${role}`, /** Freeze resolved origin and transfer exclusivity to the existing composer. */ context => {
+        const origin = pageFor(context);
+        if (!origin) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
+        const sessionId = `composer-${++this.actionInvocationSequence}`;
+        const hostLeaf = this.actionHostLeaf(context.surfaceId);
+        const invocation: RelatedNoteInvocation = {
+          continuation: context.request.args && "continuation" in context.request.args ? context.request.args.continuation : undefined,
+          /** Closing/migrating a graph retires late navigation without changing committed disk work. */
+          current: () => !this.unloading && (!context.surfaceId || context.generation === undefined
+            || this.isActionSurfaceCurrent(context.surfaceId, context.generation)),
+          /** Explicit follow returns to the same graph rather than an arbitrary active leaf. */
+          focusGraph: () => { if (context.surfaceId) void this.actionManager.dispatch({ id: "graph.focus", source: "internal", surfaceId: context.surfaceId }); },
+          /** Release the manager's modal session without deregistering the owning surface. */
+          onClosed: () => { this.actionDialogs.delete(dialog); this.actionManager.closeSession(sessionId); },
+        };
+        const dialog = origin.isFolder
+          ? new CreateFolderNoteModal(this, origin, hostLeaf, invocation)
+          : new NewRelatedNoteModal(this, origin, role, undefined, hostLeaf, undefined, invocation);
+        this.actionDialogs.set(dialog, { surfaceId: context.surfaceId, generation: context.generation });
+        try { dialog.open(); } catch (error) { dialog.close(); this.actionDialogs.delete(dialog); throw error; }
+        return { status: "opened", sessionId };
+      }, /** Preserve legacy global center exclusions; selected/local capability is explicit. */ context => {
+        const origin = pageFor(context);
+        return origin && !origin.isTag && (!origin.isFolder || role === "child" && (family === "selected" || context.request.source !== "obsidian-command"))
+          && (family !== "center" || context.request.source !== "obsidian-command" || this.commandCentralPage() !== null)
+          ? enabled : { state: "disabled", reasonKey: "actions.target-unavailable" };
+      });
+    }
+    const ontologyRoles = ["select", "parent", "child", "left", "right", "previous", "next", "hidden", "excluded"] as const;
+    for (const role of ontologyRoles) operation(`ontology.assign.${role}`, /** Consume the supplied native editor, never a graph node or stale field string. */ async context => {
+      const editor = context.target.kind === "editor-field" ? this.actionEditors.get(context.target.editorInvocationId) : undefined;
+      const field = editor ? this.fieldAtEditorCursor(editor) : null;
+      if (!field) return { status: "unavailable", reasonKey: "actions.editor-unavailable" };
+      if (role === "select") {
+        const sessionId = `ontology-${++this.actionInvocationSequence}`;
+        const dialog = this.openAddToOntologyModal(field, undefined, /** Release only this native selector session. */ () => {
+          if (dialog) this.actionDialogs.delete(dialog);
+          this.actionManager.closeSession(sessionId);
+        });
+        if (!dialog) return { status: "unavailable", reasonKey: "actions.editor-unavailable" };
+        this.actionDialogs.set(dialog, {});
+        return { status: "opened", sessionId };
+      }
+      await this.assignFieldToOntology(field, role);
+      return { status: "completed" };
+    }, /** Checking cannot assign a field, save settings or open the selector. */ context => {
+      const editor = context.target.kind === "editor-field" ? this.actionEditors.get(context.target.editorInvocationId) : undefined;
+      return editor && this.fieldAtEditorCursor(editor) ? enabled : { state: "disabled", reasonKey: "actions.editor-unavailable" };
+    });
+    this.actionManager = new ActionManager({
+      implementations,
+      /** Prefer actual owning graph/native view, including sidebar palette launches; shared-center commands retain their distinct target. */
+      readCommandContext: request => {
+        const owner = window.activeWindow ?? window;
+        const active = this.app.workspace.getActiveViewOfType(KplexView)?.leaf
+          ?? this.app.workspace.getActiveViewOfType(KplexSidepanelView)?.leaf;
+        const recent = this.app.workspace.getMostRecentLeaf();
+        const surfaces = [...this.actionSurfaceHosts].filter(([, value]) => value.leaf.view.containerEl.ownerDocument.defaultView === owner);
+        // Native getMostRecentLeaf excludes left/right sidebars. Actual graph DOM focus outranks
+        // an ancestor's native association; while a palette owns DOM focus, its active view remains.
+        const associated = surfaces.find(/** A retired or hidden graph cannot override actual native ownership. */ ([id]) => {
+          const snapshot = this.actionManager.readSnapshot(id);
+          return snapshot?.mounted && snapshot.visible && snapshot.focusRegion === "graph";
+        })?.[0]
+          ?? surfaces.find(([, value]) => value.leaf === active)?.[0]
+          ?? surfaces.find(([, value]) => value.leaf === recent)?.[0];
+        const shared = this.index.get(this.settings.lastActivePath);
+        return { sharedCenter: shared ? actionNodeRef(shared) : null,
+          windowId: request.windowId ?? this.actionWindowId(owner), preferredSurfaceId: associated,
+          focusRegion: associated ? (this.actionManager.readSnapshot(associated)?.commandFocusRegion ?? this.actionManager.readSnapshot(associated)?.focusRegion) : "external" };
+      },
+      /** Transient occurrences are revalidated by their owning surface, persisted pages by exact lookup. */
+      validateNode: node => {
+        if (node.kind === "section") return true;
+        const page = resolveActionPage(this.index, node);
+        return Boolean(page && (!page.file || this.app.vault.getFileByPath(page.file.path) === page.file));
+      },
+      /** Existing services own expected notices; unexpected thrown failures have one localized owner. */
+      onError: error => { console.error("K-Plex action failed", error); new Notice(this.translator("actions.failed")); },
+    });
+    this.actionPublisher = createActionCommandPublisher({ host: this, manager: this.actionManager,
+      /** Catalog strings cross into typed localization only through the checked assembly helper. */
+      translate: key => translateActionText(this.translator, key),
+      /** An editor token is an ephemeral host capability released after checking or execution. */
+      makeRequest: (id, editor) => {
+        if (!editor) return { id, source: "obsidian-command" };
+        const token = `editor-${++this.actionInvocationSequence}`; this.actionEditors.set(token, editor);
+        return { id, source: "obsidian-command", target: { kind: "editor-field", editorInvocationId: token } };
+      },
+      /** Never retain editor objects in preferences or after an invocation promise settles. */
+      releaseRequest: request => { if (request.target?.kind === "editor-field") this.actionEditors.delete(request.target.editorInvocationId); },
+    });
+    const publication = this.actionPublisher.sync(this.settings.actionPreferences);
+    if (publication.failures.length) { console.error("K-Plex action registration failed", publication.failures); new Notice(this.translator("actions.publicationFailed")); }
   }
 
   /**
@@ -1358,7 +1596,7 @@ export default class KplexPlugin extends Plugin {
     const effects = classifySettingsChange(this.savedSettingsPolicy ?? next, next);
     this.savedSettingsPolicy = next;
     if (effects.semanticInvalidation) this.index.invalidateSemanticPolicy();
-    await this.saveData(this.settings);
+    await this.persistSettingsSnapshot();
     if (this.unloading) return;
     await this.index.refreshPresentationSettings();
     if (effects.semanticInvalidation) await this.index.refreshSemanticSettings();
@@ -2467,6 +2705,21 @@ export default class KplexPlugin extends Plugin {
     return managed && this.adjacentPosition(hostLeaf, managed) ? managed : null;
   }
 
+  /** Report an existing editor associated with this surface without creating or adopting a leaf. */
+  hasAssociatedEditor(hostLeaf: WorkspaceLeaf): boolean {
+    return this.availableSidecarLeaf(hostLeaf) !== null;
+  }
+
+  /** Focus only this surface's managed companion; an unrelated document tab is never a fallback. */
+  focusAssociatedEditor(hostLeaf: WorkspaceLeaf): boolean {
+    const leaf = this.availableSidecarLeaf(hostLeaf);
+    if (!leaf) return false;
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
+    if (leaf.view instanceof MarkdownView) leaf.view.editor.focus();
+    else leaf.view.containerEl.focus();
+    return true;
+  }
+
   getSidecarPosition(hostLeaf: WorkspaceLeaf): SidecarPosition | null {
     if (hostLeaf.view.getViewType() === KPLEX_SIDEPANEL_VIEW_TYPE) return null;
     const collapsed = this.collapsedPlexHosts.get(hostLeaf);
@@ -3037,14 +3290,18 @@ export default class KplexPlugin extends Plugin {
     this.index.notify();
   }
 
-  openNoteTypeModal(page: GraphPage): void {
-    if (!page.file || page.file.extension !== "md") return;
-    new NoteTypeModal(this, page.file, page.noteType).open();
+  /** Open the existing note-type editor and expose only its lifecycle handle to the surface owner. */
+  openNoteTypeModal(page: GraphPage, onClosed?: () => void): NoteTypeModal | null {
+    if (!page.file || page.file.extension !== "md") return null;
+    const modal = new NoteTypeModal(this, page.file, page.noteType, onClosed);
+    modal.open(); return modal;
   }
 
-  openAddToOntologyModal(field: string, onSaved?: () => void): void {
-    if (!field.trim()) return;
-    new AddToOntologyModal(this, field.trim(), onSaved).open();
+  /** Open the native field selector and expose its close boundary to an optional action session. */
+  openAddToOntologyModal(field: string, onSaved?: () => void, onClosed?: () => void): AddToOntologyModal | null {
+    if (!field.trim()) return null;
+    const dialog = new AddToOntologyModal(this, field.trim(), onSaved, onClosed);
+    dialog.open(); return dialog;
   }
 
   async assignFieldToOntology(field: string, role: OntologyAssignmentRole): Promise<void> {
@@ -3101,36 +3358,6 @@ export default class KplexPlugin extends Plugin {
         .setIcon("network")
         .onClick(() => this.openAddToOntologyModal(field)));
     }));
-  }
-
-  /** Register stable ontology command IDs and localized names; callbacks operate on the field at the editor cursor. */
-  private registerOntologyCommands(): void {
-    const roles: Array<[string, string, OntologyAssignmentRole | "select"]> = [
-      ["kplex-ontology-select", this.translator("command.ontologySelect"), "select"],
-      ["kplex-ontology-parent", this.translator("command.ontologyParent"), "parent"],
-      ["kplex-ontology-child", this.translator("command.ontologyChild"), "child"],
-      ["kplex-ontology-left", this.translator("command.ontologyFriend"), "left"],
-      ["kplex-ontology-right", this.translator("command.ontologyChallenger"), "right"],
-      ["kplex-ontology-previous", this.translator("command.ontologyPrevious"), "previous"],
-      ["kplex-ontology-next", this.translator("command.ontologyNext"), "next"],
-      ["kplex-ontology-hidden", this.translator("command.ontologyHidden"), "hidden"],
-      ["kplex-ontology-excluded", this.translator("command.ontologyExcluded"), "excluded"],
-    ];
-    for (const [id, name, role] of roles) {
-      this.addCommand({
-        id,
-        name,
-        editorCheckCallback: (checking: boolean, editor: Editor) => {
-          const field = this.fieldAtEditorCursor(editor);
-          if (!field) return false;
-          if (!checking) {
-            if (role === "select") this.openAddToOntologyModal(field);
-            else void this.assignFieldToOntology(field, role);
-          }
-          return true;
-        },
-      });
-    }
   }
 
   private async refreshBookmarkedEntryPoints(): Promise<void> {
@@ -3263,12 +3490,13 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** All creation gestures share the React composer, including preselected gate/history endpoints. */
-  openRelationModal(options: RelationModalOptions): void {
+  openRelationModal(options: RelationModalOptions): NewRelatedNoteModal | RelationModal {
     if (options.mode === "create") {
-      new NewRelatedNoteModal(this, options.origin, options.semanticRole, options.onCommitted, options.hostLeaf, options.fixedTarget).open();
-      return;
+      const modal = new NewRelatedNoteModal(this, options.origin, options.semanticRole, options.onCommitted, options.hostLeaf, options.fixedTarget, options.invocation);
+      modal.open(); return modal;
     }
-    new RelationModal(this, options).open();
+    const modal = new RelationModal(this, options);
+    modal.open(); return modal;
   }
 
   triggerHoverPreview(page: GraphPage, targetEl: HTMLElement, event: MouseEvent | PointerEvent, sourcePath = ""): void {
@@ -3532,6 +3760,7 @@ export default class KplexPlugin extends Plugin {
 
   /** Own the exact metadata/body observer; pending status is localized and never closes the composer early. */
   private async mutateRelationshipMetadata(file: TFile, fields: ReadonlySet<string>, mutate: (frontmatter: Record<string, unknown>) => void, targetPath: string): Promise<void> {
+    const targetIdentity = this.app.vault.getFileByPath(targetPath);
     await writeRelationshipMetadata(this.app, file, fields, mutate, {
       /** Release this bounded observer independently of modal lifetime. */
       own: cancel => { this.relationshipWriteCancels.add(cancel); return () => { this.relationshipWriteCancels.delete(cancel); }; },
@@ -3539,16 +3768,34 @@ export default class KplexPlugin extends Plugin {
       pending: () => { new Notice(this.translator("relation.savedUpdatePending"), 4000); },
       savedPendingMessage: () => this.translator("relation.savedUpdatePending"),
       /** Recheck exact pair authority after FileManager's awaited read and before any mutation. */
-      current: () => !this.unloading && this.index.isSemanticWriteReady(file.path, targetPath),
+      current: () => !this.unloading && this.app.vault.getFileByPath(file.path) === file
+        && this.app.vault.getFileByPath(targetIdentity?.path ?? targetPath) === targetIdentity
+        && this.index.isSemanticWriteReady(file.path, targetIdentity?.path ?? targetPath),
       preparingMessage: () => this.translator("relation.preparingRelationship"),
     });
   }
 
   /** Prepare only this editable pair and reacquire pages before the first persistence effect. */
-  private async prepareRelationshipMutation(sourcePath: string, targetPath: string): Promise<readonly [GraphPage, GraphPage]> {
-    if (!(await this.index.prepareRelationshipPair(sourcePath, targetPath))) throw new Error(this.translator("relation.preparingRelationship"));
+  private async prepareRelationshipMutation(sourcePath: string, targetPath: string,
+    expectedSource: TFile | null = this.app.vault.getFileByPath(sourcePath),
+    expectedTarget: TFile | null = this.app.vault.getFileByPath(targetPath),
+  ): Promise<readonly [GraphPage, GraphPage]> {
+    // A path can be reused while a composer or pair acquisition is awaiting. File identity is
+    // bounded to this operation; the same renamed TFile follows its current physical path.
+    sourcePath = expectedSource?.path ?? sourcePath;
+    targetPath = expectedTarget?.path ?? targetPath;
+    /** The same renamed file survives; path reuse by a replacement never does. */
+    const current = (): boolean => !this.unloading
+      && this.app.vault.getFileByPath(expectedSource?.path ?? sourcePath) === expectedSource
+      && this.app.vault.getFileByPath(expectedTarget?.path ?? targetPath) === expectedTarget;
+    if (!current() || !(await this.index.prepareRelationshipPair(sourcePath, targetPath)) || !current()) {
+      throw new Error(this.translator("relation.preparingRelationship"));
+    }
+    sourcePath = expectedSource?.path ?? sourcePath;
+    targetPath = expectedTarget?.path ?? targetPath;
     const source = this.index.get(sourcePath), target = this.index.get(targetPath);
-    if (!source || !target || !this.index.isSemanticWriteReady(sourcePath, targetPath)) throw new Error(this.translator("relation.preparingRelationship"));
+    if (!source || !target || source.file !== expectedSource || target.file !== expectedTarget
+      || !this.index.isSemanticWriteReady(sourcePath, targetPath)) throw new Error(this.translator("relation.preparingRelationship"));
     return [source, target];
   }
 
@@ -3645,33 +3892,32 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Create a relationship from a physical gate using the existing semantic-role and endpoint policy; localize user-visible validation. */
-  async createRelationFromGate(origin: GraphPage, semanticRole: GateRole, selectedFile: TFile, selectedField: string): Promise<void> {
+  async createRelationFromGate(origin: GraphPage, semanticRole: GateRole, selectedFile: TFile, selectedField: string): Promise<RelationshipWriteResult> {
     const selectedPage = this.index.get(selectedFile.path);
     if (!selectedPage) {
       new Notice(this.translator("notice.selectedNoteNotIndexed"), 2200);
-      return;
+      return { state: "unavailable" };
     }
-    await this.createRelationToPage(origin, semanticRole, selectedPage, selectedField);
+    return this.createRelationToPage(origin, semanticRole, selectedPage, selectedField);
   }
 
   /** Persist an existing-target relationship under exact current pair authority, then await canonical saved publication. */
-  async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string): Promise<void> {
+  async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string): Promise<RelationshipWriteResult> {
     return this.index.withForegroundPriority(async () => {
       const originPath = origin.path;
       const targetPath = target.path;
-      if (originPath === targetPath) return;
-      [origin, target] = await this.prepareRelationshipMutation(originPath, targetPath);
+      if (originPath === targetPath) return { state: "unavailable" };
+      [origin, target] = await this.prepareRelationshipMutation(originPath, targetPath, origin.file, target.file);
       const gate = semanticRole === "parent" ? "top" : semanticRole === "child" ? "bottom" : semanticRole === "left" || semanticRole === "previous" ? "left" : "right";
       if (this.index.gateNeighbourPaths(origin, gate).has(target.path)) {
         new Notice(this.translator("notice.alreadyConnected"), 1800);
-        return;
+        return { state: "unavailable" };
       }
 
       // A target connected through another gate remains a valid drag target. Treat that gesture
       // as a relink so the new YAML relationship becomes authoritative over any stale body link.
       if (this.index.isConnected(origin, target.path)) {
-        await this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
-        return;
+        return this.relinkCentralNeighbour(origin, target, semanticRole, selectedField, origin.neighbours.get(target.path)?.direction ?? null);
       }
 
       if (origin.file?.extension === "md") {
@@ -3683,8 +3929,9 @@ export default class KplexPlugin extends Plugin {
         await this.publishSavedRelationship(target.path, origin.path);
       } else {
         new Notice(this.translator("notice.dragOriginRequiresMarkdownTarget"), 2800);
-        return;
+        return { state: "unavailable" };
       }
+      return { state: "saved-published", page: this.index.get(target.path) ?? target };
     });
   }
 
@@ -3695,14 +3942,14 @@ export default class KplexPlugin extends Plugin {
     semanticRole: RelationshipRole,
     selectedField: string,
     storagePathOverride: string | null = null,
-  ): Promise<void> {
+  ): Promise<RelationshipWriteResult> {
     return this.index.withForegroundPriority(async () => {
-      [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path);
+      [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path, center.file, neighbour.file);
       const centerFile = center.file?.extension === "md" ? center.file : null;
       const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
       if (!centerFile && !neighbourFile) {
         new Notice(this.translator("notice.relationshipNeedsMarkdown"), 2600);
-        return;
+        return { state: "unavailable" };
       }
 
       const candidates = this.index.relationshipStorageCandidates(center.path, neighbour.path);
@@ -3726,6 +3973,7 @@ export default class KplexPlugin extends Plugin {
         await this.addRelationshipOntology(neighbourFile, center, inverseField);
         await this.publishSavedRelationship(center.path, neighbour.path);
       }
+      return { state: "saved-published", page: this.index.get(neighbour.path) ?? neighbour };
     });
   }
 
@@ -3737,14 +3985,14 @@ export default class KplexPlugin extends Plugin {
     selectedField: string,
     existingDirection: LinkDirection | null = null,
     storagePathOverride: string | null = null,
-  ): Promise<void> {
+  ): Promise<RelationshipWriteResult> {
     return this.index.withForegroundPriority(async () => {
-      [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path);
+      [center, neighbour] = await this.prepareRelationshipMutation(center.path, neighbour.path, center.file, neighbour.file);
       const centerFile = center.file?.extension === "md" ? center.file : null;
       const neighbourFile = neighbour.file?.extension === "md" ? neighbour.file : null;
       if (!centerFile && !neighbourFile) {
         new Notice(this.translator("notice.relationshipNeedsMarkdown"), 2600);
-        return;
+        return { state: "unavailable" };
       }
 
       const inverseField = this.inverseOntologyField(selectedField, semanticRole);
@@ -3786,6 +4034,7 @@ export default class KplexPlugin extends Plugin {
         await this.writeRelationship(neighbourFile, center, inverseField);
         await this.publishSavedRelationship(center.path, neighbour.path);
       }
+      return { state: "saved-published", page: this.index.get(neighbour.path) ?? neighbour };
     });
   }
 
@@ -3991,10 +4240,18 @@ export default class KplexPlugin extends Plugin {
     this.settings.navigationHistory = this.settings.navigationHistory.filter((candidate) => candidate !== path);
   }
 
-  async deleteNode(page: GraphPage, hostLeaf?: WorkspaceLeaf, wasCenter = false): Promise<void> {
+  /** Confirm once, fence captured native identity, then report the existing deletion workflow commitment. */
+  async deleteNode(page: GraphPage, hostLeaf?: WorkspaceLeaf, wasCenter = false): Promise<ActionOutcome> {
     const target = this.index.get(page.path);
-    if (!target || target.isFolder || target.isTag || target.url || (target.file && target.file.extension !== "md")) return;
-    if (!(await this.confirmDeleteNode(target))) return;
+    if (!target || target.isFolder || target.isTag || target.url || (target.file && target.file.extension !== "md")) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
+    const capturedFile = target.file;
+    const captured = actionNodeRef(target);
+    if (!(await this.confirmDeleteNode(target))) return { status: "cancelled" };
+    if (resolveActionPage(this.index, captured) !== target || target.file !== capturedFile
+      || capturedFile && this.app.vault.getFileByPath(capturedFile.path) !== capturedFile) {
+      new Notice(this.translator("addRelated.endpointChanged"));
+      return { status: "unavailable", reasonKey: "actions.target-unavailable" };
+    }
 
     const path = target.path;
     if (target.file) {
@@ -4021,7 +4278,7 @@ export default class KplexPlugin extends Plugin {
     await this.saveSettings(false, false);
 
     const ghost = this.index.get(path);
-    if (!ghost) return;
+    if (!ghost) return { status: "committed", affected: [captured] };
     const { remaining } = await this.removePropertyReferencesToNode(ghost);
 
     if (remaining.length) {
@@ -4031,12 +4288,13 @@ export default class KplexPlugin extends Plugin {
         remaining,
         (reference) => this.openRelationshipEvidenceLocation({ path: reference.path, line: reference.line }, hostLeaf),
       ).open();
-      return;
+      return { status: "committed", affected: [captured] };
     }
 
     // Remaining references are handled above. Once they are gone, remove the dematerialized graph
     // endpoint when nothing else still references it; focus/history have already moved away.
-    if (!(await this.index.removeVirtualPageIfUnreferencedFromSources(path))) return;
+    await this.index.removeVirtualPageIfUnreferencedFromSources(path);
+    return { status: "committed", affected: [captured] };
   }
 
   private async frontmatterPropertyLineRange(file: TFile, fieldName: string): Promise<{ start: number; end: number } | null> {
@@ -4084,14 +4342,22 @@ export default class KplexPlugin extends Plugin {
   /** Recheck canonical exact pair evidence before offering destructive provenance-specific unlink. */
   async directFrontmatterUnlinkCandidate(evidenceItems: readonly RelationEvidence[]): Promise<RelationEvidence | null> {
     const first = evidenceItems[0];
-    if (!first || !(await this.index.prepareRelationshipPair(first.sourcePath, first.targetPath))) return null;
+    if (!first) return null;
+    const sourceIdentity = this.app.vault.getFileByPath(first.sourcePath);
+    const targetIdentity = this.app.vault.getFileByPath(first.targetPath);
+    const storageIdentity = this.app.vault.getFileByPath(first.declaredByPath);
+    /** Delayed provenance reads cannot authorize a replacement at the same physical path. */
+    const current = (): boolean => this.app.vault.getFileByPath(first.sourcePath) === sourceIdentity
+      && this.app.vault.getFileByPath(first.targetPath) === targetIdentity
+      && this.app.vault.getFileByPath(first.declaredByPath) === storageIdentity;
+    if (!(await this.index.prepareRelationshipPair(first.sourcePath, first.targetPath)) || !current()) return null;
     evidenceItems = this.index.evidenceBetween(first.sourcePath, first.targetPath);
     const frontmatter = evidenceItems.filter((item) => item.sourceKind === "frontmatter-ontology");
     if (frontmatter.length !== 1) return null;
     const candidate = frontmatter[0];
     if (!candidate.fieldName) return null;
 
-    const storage = this.app.vault.getAbstractFileByPath(candidate.declaredByPath);
+    const storage = this.app.vault.getFileByPath(candidate.declaredByPath);
     if (!(storage instanceof TFile) || storage.extension !== "md") return null;
     const propertyRange = await this.frontmatterPropertyLineRange(storage, candidate.fieldName);
     if (!propertyRange) return null;
@@ -4116,14 +4382,16 @@ export default class KplexPlugin extends Plugin {
       }
       if (!(await this.frontmatterPropertyContainsTarget(storage, propertyRange, candidate.declaredTargetPath))) return null;
     }
-    return candidate;
+    return current() ? candidate : null;
   }
 
+  /** Remove only the reauthorized declaration captured before awaiting exact pair readiness. */
   async unlinkFrontmatterEvidence(evidence: RelationEvidence): Promise<boolean> {
     return this.index.withForegroundPriority(async () => {
       if (evidence.sourceKind !== "frontmatter-ontology" || !evidence.fieldName) return false;
       const storage = this.app.vault.getFileByPath(evidence.declaredByPath);
-      const [, target] = await this.prepareRelationshipMutation(evidence.declaredByPath, evidence.declaredTargetPath);
+      const targetIdentity = this.app.vault.getFileByPath(evidence.declaredTargetPath);
+      const [, target] = await this.prepareRelationshipMutation(evidence.declaredByPath, evidence.declaredTargetPath, storage, targetIdentity);
       if (!storage || storage.extension !== "md" || !target) return false;
       // Raw payloads contain the whole property. Another target's legitimate edit may change that
       // payload without changing this exact declaration; owner/target/field/role/direction must match.
@@ -4349,9 +4617,11 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Create the requested physical note in its target folder and localize user-visible errors without changing vault path semantics. */
-  private async createNewFileInFolder(leafName: string, kind: GhostMaterializationKind, configuredFolder: string): Promise<TFile | null> {
+  private async createNewFileInFolder(leafName: string, kind: GhostMaterializationKind, configuredFolder: string, parentCurrent?: () => boolean): Promise<TFile | null> {
     const normalizedFolder = configuredFolder ? normalizePath(configuredFolder) : "";
+    if (parentCurrent && !parentCurrent()) throw new Error(this.translator("addRelated.endpointChanged"));
     await this.ensureFolderPath(normalizedFolder);
+    if (parentCurrent && !parentCurrent()) throw new Error(this.translator("addRelated.endpointChanged"));
 
     const proposedName = `${leafName}.md`;
     const destination = normalizePath(normalizedFolder ? `${normalizedFolder}/${proposedName}` : proposedName);
@@ -4444,7 +4714,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Create and materialize a folder child using the existing optimistic/index reconciliation workflow and localized feedback. */
-  async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind): Promise<GraphPage | null> {
+  async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind, capturedFolder?: TFolder): Promise<GraphPage | null> {
     return this.index.withForegroundPriority(async () => {
       if (!folder.isFolder) return null;
       const validation = this.validateRelatedNoteName(rawName);
@@ -4462,7 +4732,12 @@ export default class KplexPlugin extends Plugin {
         : folder.path.startsWith("folder:")
           ? normalizePath(folder.path.slice("folder:".length))
           : "";
-      const file = await this.createNewFileInFolder(validation.stem, kind, folderPath);
+      const currentFolderPath = capturedFolder?.path ?? folderPath;
+      /** Check again inside queued work and after the shared file creator's awaited folder check. */
+      const current = (): boolean => !this.unloading && (!capturedFolder ||
+        (capturedFolder === this.app.vault.getRoot() ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(capturedFolder.path)) === capturedFolder);
+      if (!current()) throw new Error(this.translator("addRelated.endpointChanged"));
+      const file = await this.createNewFileInFolder(validation.stem, kind, currentFolderPath === "/" ? "" : currentFolderPath, current);
       if (!file) return null;
       const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
       const displayField = this.configuredDisplayNameField();
@@ -4575,18 +4850,31 @@ export default class KplexPlugin extends Plugin {
       const configuredFolder = configuredParent.path === "/" ? "" : configuredParent.path;
       const file = await this.createNewFileInFolder(validation.stem, kind, configuredFolder);
       if (!file) return null;
-      const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
-      const alias = await this.writeCreatedNodeAlias(file, rawAlias);
-      // A blank new Markdown file still needs its first actual cache observation before the pair
-      // freezes identity. Reuse the observer for a no-op, rather than a quiet-window timeout.
-      if (file.extension === "md" && !displayName && !alias) await this.mutateCreatedNodeMetadata(file, new Set(), /** Observe creation without adding properties. */ () => {});
-      return file;
+      try {
+        const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
+        const alias = await this.writeCreatedNodeAlias(file, rawAlias);
+        // A blank new Markdown file still needs its first actual cache observation before the pair
+        // freezes identity. Reuse the observer for a no-op, rather than a quiet-window timeout.
+        if (file.extension === "md" && !displayName && !alias) await this.mutateCreatedNodeMetadata(file, new Set(), /** Observe creation without adding properties. */ () => {});
+        return file;
+      } catch (error) {
+        // The file is already durable. Retain its identity for recovery instead of suggesting
+        // that the whole create operation can safely be retried with the same filename.
+        throw new PartialRelatedFileError(file, error);
+      }
     });
   }
 
   /** Bind a newly created file, then complete its relationship through current canonical pair publication. */
-  async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = "", rawDisplayName = ""): Promise<GraphPage> {
+  async linkNewRelatedFile(origin: GraphPage, semanticRole: RelationshipRole, file: TFile, selectedField: string, rawAlias = "", rawDisplayName = "", recoverMetadata = false): Promise<GraphPage> {
     return this.index.withForegroundPriority(async () => {
+      if (this.app.vault.getFileByPath(file.path) !== file) throw new Error(this.translator("addRelated.endpointChanged"));
+      // Recovery reuses this exact durable file, completing idempotent presentation writes that
+      // may have failed after creation. It never repeats physical file creation.
+      if (recoverMetadata) {
+        await this.writeCreatedNodeDisplayName(file, rawDisplayName);
+        await this.writeCreatedNodeAlias(file, rawAlias);
+      }
       // Retain the existing minimal physical node insertion. Relationship authority belongs to the
       // exact bound pair; a creation event does not require the origin's entire neighborhood again.
       const alias = rawAlias.trim();
@@ -4597,7 +4885,7 @@ export default class KplexPlugin extends Plugin {
         ? [displayName, alias].filter(Boolean)
         : alias ? [alias] : [];
       let target = this.index.insertCreatedFile(file, aliases);
-      [origin, target] = await this.prepareRelationshipMutation(origin.path, target.path);
+      [origin, target] = await this.prepareRelationshipMutation(origin.path, target.path, origin.file, file);
       if (origin.file?.extension === "md") {
         await this.writeRelationship(origin.file, target, selectedField);
         await this.publishSavedRelationship(origin.path, target.path);
@@ -4679,8 +4967,8 @@ export default class KplexPlugin extends Plugin {
       const path = this.placeholderPath(validation.stem);
       const existing = this.index.get(path);
       if (existing) {
-        await this.createRelationToPage(origin, semanticRole, existing, selectedField);
-        return existing;
+        const result = await this.createRelationToPage(origin, semanticRole, existing, selectedField);
+        return result.state === "saved-published" ? result.page : null;
       }
 
       // Write the unresolved wiki link first. Only publish the virtual page after the vault write
@@ -4700,18 +4988,23 @@ export default class KplexPlugin extends Plugin {
     });
   }
 
+  /** Apply explicit creation navigation only while its originating invocation remains current. */
   async finishNewRelatedNode(
     page: GraphPage,
     hostLeaf: WorkspaceLeaf | undefined,
     openForEditing: boolean,
+    stillValid: () => boolean = () => true,
   ): Promise<void> {
+    if (this.unloading || !stillValid()) return;
     this.notifyNavigation(page.path);
     if (!openForEditing || !page.file) return;
     const host = hostLeaf && hostLeaf.view.getViewType() !== KPLEX_SIDEPANEL_VIEW_TYPE
       ? hostLeaf
       : this.app.workspace.getLeavesOfType(KPLEX_VIEW_TYPE)[0];
     if (host) {
+      if (!stillValid()) return;
       await this.openMarkdownInSidecar(host, page.file, 0, true);
+      if (!this.unloading && stillValid()) this.focusAssociatedEditor(host);
       return;
     }
     await this.openInDocumentLeaf(page.file);

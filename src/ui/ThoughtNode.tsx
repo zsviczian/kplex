@@ -136,6 +136,7 @@ export function ThoughtNode({
     style={nodeCss}
     data-kplex-path={node.page.path}
     data-kplex-keyboard-id={keyboardId}
+    aria-current={keyboardSelected ? "true" : undefined}
     onPointerDown={(e: ReactPointerEvent<HTMLDivElement>) => { onNodePointerDown(node, e); }}
     onPointerEnter={(e: ReactPointerEvent<HTMLDivElement>) => {
       onHoverNode(node);

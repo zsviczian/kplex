@@ -1,14 +1,19 @@
 /**
  * Native Obsidian dialog for editing the note-type property. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
-import { Modal, Setting, type TFile } from "obsidian";
+import { Modal, Notice, Setting, type TFile } from "obsidian";
 import type KplexPlugin from "../main";
 
 export class NoteTypeModal extends Modal {
-  constructor(private plugin: KplexPlugin, private file: TFile, private currentValue: string | null) { super(plugin.app); }
+  private opened = false;
+  private busy = false;
+
+  /** Capture the original native file and return close ownership to its originating action session. */
+  constructor(private plugin: KplexPlugin, private file: TFile, private currentValue: string | null, private onClosed?: () => void) { super(plugin.app); }
 
   /** Render the note-type property editor with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
+    this.opened = true;
     this.titleEl.setText(this.plugin.translator("noteType.title"));
     let value = this.currentValue ?? "";
     const known = new Set<string>();
@@ -27,15 +32,33 @@ export class NoteTypeModal extends Modal {
       .addButton((button) => button.setButtonText(this.plugin.translator("common.cancel")).onClick(() => this.close()));
   }
 
+  /** Serialize the existing property writer; a delayed modal never edits a replacement at the same path. */
   private async save(value: string): Promise<void> {
-    const key = this.plugin.settings.noteTypeField;
-    await this.plugin.app.fileManager.processFrontMatter(this.file, (fm: Record<string, unknown>) => {
-      if (value) fm[key] = value;
-      else delete fm[key];
-    });
-    await this.plugin.rebuildIndex(false, true, "note-type");
-    this.close();
+    if (!this.opened || this.busy) return;
+    if (this.plugin.app.vault.getFileByPath(this.file.path) !== this.file) {
+      new Notice(this.plugin.translator("addRelated.endpointChanged")); return;
+    }
+    this.busy = true;
+    try {
+      const key = this.plugin.settings.noteTypeField;
+      await this.plugin.app.fileManager.processFrontMatter(this.file, /** Recheck identity at the native mutation callback. */ (fm: Record<string, unknown>) => {
+        if (this.plugin.app.vault.getFileByPath(this.file.path) !== this.file) throw new Error(this.plugin.translator("addRelated.endpointChanged"));
+        if (value) fm[key] = value;
+        else delete fm[key];
+      });
+      await this.plugin.rebuildIndex(false, true, "note-type");
+      if (this.opened) this.close();
+    } catch {
+      new Notice(this.plugin.translator("actions.failed"));
+    } finally {
+      this.busy = false;
+    }
   }
 
-  onClose(): void { this.contentEl.empty(); }
+  /** Release the action's modal guard exactly once and retire detached Save/Clear controls. */
+  onClose(): void {
+    if (!this.opened) return;
+    this.opened = false; this.contentEl.empty();
+    const onClosed = this.onClosed; this.onClosed = undefined; onClosed?.();
+  }
 }

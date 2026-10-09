@@ -1111,14 +1111,15 @@ try {
 function relatedComposerBrowserEntry() {
   const source = ts.createSourceFile("NewRelatedNoteModal.ts", readFileSync(join(root, "src/ui/NewRelatedNoteModal.ts"), "utf8"), ts.ScriptTarget.Latest, true);
   const functions = source.statements.filter((statement) => ts.isFunctionDeclaration(statement)
-    && ["RelatedNoteComposer", "isNoteTarget"].includes(statement.name?.text)).map((statement) => statement.getText(source)).join("\n");
+    && ["RelatedNoteComposer", "isNoteTarget", "captureRelatedEndpoint", "refreshCapturedPage"].includes(statement.name?.text)).map((statement) => statement.getText(source)).join("\n");
   const production = ts.transpileModule(functions, { compilerOptions: { target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.None } }).outputText;
   return `
-import React, { createElement, useEffect, useMemo, useState } from "react";
+import React, { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { FuzzySuggester } from ${JSON.stringify(join(root, "src/ui/components/FuzzySuggester.tsx"))};
 import { SavedRelationshipPendingError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relationshipMetadataWrite.ts"))};
+import { PartialRelatedFileError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relatedFileOutcome.ts"))};
 const FuzzySearchInput = (props) => createElement(FuzzySuggester, { ...props, icon: null });
 const ObsidianIcon = ({ name }) => createElement("span", null, name);
 const fuzzyFilterStrings = (values, query, limit) => values.filter((value) => !query || value.includes(query)).slice(0, limit);
@@ -1133,20 +1134,22 @@ ${production}
  };
  try {
   const host = document.createElement("div"); document.body.append(host);
-  const origin = { path: "Origin.md", file: { extension: "md" } }; const target = { path: "Target.md", file: { extension: "md" } };
-  const intents = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
+  const origin = { path: "Origin.md", file: { path: "Origin.md", extension: "md" } }; const target = { path: "Target.md", file: { path: "Target.md", extension: "md" } };
+  const intents = [], outcomes = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
+  const session = { continuation: "return", suggestionOwnerId: "composer-browser-fixture", isSessionOpen: () => true, canComplete: () => true, setWriting: () => {}, registerSubmit: () => () => {}, focusName: () => host.querySelector("input")?.focus(), closeForCompletion: () => { closes++; }, finishCompletion: () => {}, focusGraph: () => {} };
   const plugin = {
+   app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file } },
    settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown" },
    translator: (key) => key, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
    ontologyFieldsForRole: () => ["children", "review", "example"],
    validateRelatedNoteName: () => ({ valid: true, existing: false, stem: "Target" }),
-   index: { search: () => [target], titleFor: (page) => page.path },
+   index: { search: () => [target], titleFor: (page) => page.path, get: path => [origin, target].find(page => page.path === path), prepareRelationshipPair: async () => true },
    rememberRelationshipOntology: async (_role, field) => field,
-   createRelationToPage: async (...args) => { if (savedPending) throw new SavedRelationshipPendingError("Saved; graph pending"); if (rejectCommit) throw new Error("not ready"); intents.push(args); },
+   createRelationToPage: async (...args) => { if (savedPending) throw new SavedRelationshipPendingError("Saved; graph pending"); if (rejectCommit) throw new Error("not ready"); intents.push(args); return { state: "saved-published", page: target }; },
    requestNodeFlair: () => {},
   };
   const root = createRoot(host);
-  flushSync(() => root.render(createElement(RelatedNoteComposer, { plugin, origin, initialRole: "child", onCommitted: () => { commits += 1; }, onClose: () => { closes += 1; } })));
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { plugin, origin, session, initialRole: "child", onCommitted: outcome => { commits += 1; outcomes.push(outcome); }, onClose: () => { closes += 1; } })));
   const input = host.querySelector(".kplex-add-related-note-search input");
   flushSync(() => input.focus()); flushSync(() => type(input, "Target"));
   let list = document.body.querySelector(".kplex-fuzzy-floating-results");
@@ -1165,18 +1168,28 @@ ${production}
   check(commits === 0 && closes === 0 && notices.length === 1, "failed existing-target write falsely committed or closed composer");
   rejectCommit = false; savedPending = true;
   flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
-  check(commits === 0 && closes === 0 && notices.at(-1) === "Saved; graph pending", "saved-pending outcome was wrapped as an unsaved failure or closed the composer");
+  check(commits === 1 && outcomes[0].state === "saved-pending" && closes === 0 && notices.at(-1) === "Saved; graph pending", "saved-pending outcome lost its committed state or closed the composer");
   savedPending = false;
   flushSync(() => link.click()); await new Promise((resolve) => setTimeout(resolve, 0));
-  check(intents.length === 1 && intents[0][0] === origin && intents[0][1] === "child" && intents[0][2] === target && intents[0][3] === "review", "existing Link lost ontology, endpoint or role");
-  check(commits === 1 && closes === 1, "successful explicit Link did not commit/close once");
+  check(intents.length === 0 && commits === 1 && link.disabled, "saved-pending state allowed an automatic mutation retry");
+  const refresh = [...host.querySelectorAll("button")].find(button => button.textContent === "addRelated.refreshSaved");
+  flushSync(() => refresh.focus()); flushSync(() => refresh.click()); await new Promise((resolve) => setTimeout(resolve, 0));
+  for (let attempt = 0; attempt < 30 && host.querySelector(".kplex-add-related-note-search input").value !== ""; attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+  flushSync(() => {}); const refreshedInput = host.querySelector(".kplex-add-related-note-search input");
+  check(!refreshedInput.disabled && refreshedInput.value === "", "explicit refresh did not release saved-pending input");
+  flushSync(() => refreshedInput.blur()); flushSync(() => refreshedInput.focus()); flushSync(() => type(refreshedInput, "Target"));
+  const refreshedResult = document.body.querySelector(".kplex-fuzzy-floating-results button");
+  check(refreshedResult, "deliberate target selection after refresh did not reopen results"); flushSync(() => refreshedResult.click());
+  flushSync(() => host.querySelector(".kplex-add-related-link-button").click()); await new Promise((resolve) => setTimeout(resolve, 0));
+  check(intents.length === 1 && intents[0][0].file === origin.file && intents[0][1] === "child" && intents[0][2].file === target.file && intents[0][3] === "review", "explicit Link lost captured ontology, endpoint identity or role");
+  check(commits === 2 && outcomes.at(-1).state === "saved-published" && closes === 1, "successful explicit Link did not commit/close once");
   // History/menu fixed targets must enter the same composer with an immediately retained Link action.
   rejectCommit = false; commits = 0; closes = 0; intents.length = 0;
-  flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "fixed-target", plugin, origin, initialRole: "right", fixedTarget: target, onCommitted: () => { commits += 1; }, onClose: () => { closes += 1; } })));
+  flushSync(() => root.render(createElement(RelatedNoteComposer, { key: "fixed-target", plugin, origin, session, initialRole: "right", fixedTarget: target, onCommitted: () => { commits += 1; }, onClose: () => { closes += 1; } })));
   check(host.querySelector(".kplex-add-related-note-search input").value === "Target.md", "fixed history target did not initialize the existing selection");
   flushSync(() => host.querySelector(".kplex-add-related-link-button").click());
   await new Promise((resolve) => setTimeout(resolve, 0));
-  check(intents.length === 1 && intents[0][1] === "right" && intents[0][2] === target && commits === 1 && closes === 1, "history fixed target did not commit through the shared Link action");
+  check(intents.length === 1 && intents[0][1] === "right" && intents[0][2].file === target.file && commits === 1 && closes === 1, "history fixed target did not commit through the shared Link action");
   flushSync(() => root.unmount());
   check(!document.body.querySelector(".kplex-fuzzy-floating-results"), "composer list survived unmount");
   result.dataset.status = "passed"; result.textContent = "Related composer browser behavior passed";
@@ -1449,15 +1462,18 @@ function externalAndPinnedDropBrowserEntry() {
     "externalFileDropTarget", "dragExternalFileOver", "leaveExternalFile", "dropExternalFile", "semanticRoleForPosition", "relationshipDropArea", "up"]);
   return `
 import {getDraggedFile} from ${JSON.stringify(join(root,"src/adapters/obsidian/fileExplorerDrag.ts"))};
+import {captureSurfaceContinuation} from ${JSON.stringify(join(root,"src/ui/surfaceContinuation.ts"))};
 const check=(ok,message)=>{if(!ok)throw new Error(message)},result=document.querySelector("#result");
 try {
  const origin={path:"Origin.md",file:{extension:"md"}},target={path:"Dropped.md",file:{extension:"md"}};
  const pages=new Map([[origin.path,origin],[target.path,target]]),filePaths=new Set([origin.path,target.path]),blocked=new Map();
  const index={get:path=>pages.get(path),gateNeighbourPaths:(page,gate)=>blocked.get(gate)||new Set()};
- const calls=[],navigated=[],hostLeaf={id:"owning-leaf"};let shown=null;
+ const calls=[],navigated=[],hostLeaf={id:"owning-leaf"},actionSurfaceId="drop-fixture";
+ const snapshot={mounted:true,interactionRevision:1,center:{identity:origin.path}};let shown=null,hoverCleared=0;
  const plugin={app:{dragManager:{draggable:{type:"file",file:{path:target.path}}},vault:{getFileByPath:path=>filePaths.has(path)?{path}:null}},
+  actionManager:{readSnapshot:()=>({...snapshot,center:{...snapshot.center}})},
   openRelationModal:options=>calls.push(options),showKplexMenuAtPosition:(menu,point,doc)=>{shown={menu,point,doc}}};
- const translate=key=>key,clearHoverIntent=()=>{},onActivate=page=>navigated.push(page);
+ const translate=key=>key,clearHoverIntent=()=>hoverCleared++,onActivate=page=>navigated.push(page);
  class Menu {items=[];addItem(build){const item={setTitle(value){this.title=value;return this},setIcon(){return this},onClick(value){this.run=value;return this}};build(item);this.items.push(item)}}
  const surface=document.body.appendChild(document.createElement("div"));surface.style.cssText="position:absolute;left:0;top:0;width:900px;height:650px";
  const viewport={current:surface},camera={current:{x:0,y:0,scale:1}},neighborhood={center:origin},historyDragHover={current:null};
@@ -1478,6 +1494,8 @@ try {
   leaveExternalFile(event(x+1,y+1));check(externalDropZone===role,"child-to-child leave blinked preview");
   dropExternalFile(e);check(externalDropZone===null,"drop retained area preview");const call=calls.at(-1);check(call.origin===origin&&call.fixedTarget===target&&call.semanticRole===role&&call.hostLeaf===hostLeaf,"rendered semantic area role lost: "+role);
  }
+ const completion=calls.at(-1).onCommitted;completion({state:"saved-published",page:target});check(hoverCleared===1,"current drop continuation did not clean its hover");
+ snapshot.interactionRevision++;completion({state:"saved-published",page:target});check(hoverCleared===1,"late durable drop completion changed a newer graph interaction");
  dragExternalFileOver(event(310,70));leaveExternalFile(event(901,70));check(externalDropZone===null,"outside leave retained preview");
  dragExternalFileOver(event(310,70));dragExternalFileOver(event(90,90));check(externalDropZone==="center"&&relationshipDropArea()==="center","center navigation did not preview its target");
  dragExternalFileOver(event(650,350));check(externalDropZone==="center","background navigation fallback did not preview the center");
@@ -1816,14 +1834,13 @@ test("Toolbar consumes spare space and search width before wrapping; labels use 
  runBrowserDom(responsiveToolbarBrowserEntry(),"Toolbar shrink and two-line label browser behavior passed");
 });
 
-/** Exercise the actual navigation hook in the main document and a second owning realm. */
+/** Exercise the selection-only owner in two realms; shared Scope/DOM delivery is covered by action-surface-ui. */
 function plexKeyboardBrowserEntry() {
   return `
-import React, {useRef} from "react";
+import React from "react";
 import {createRoot} from "react-dom/client";
 import {flushSync} from "react-dom";
 import {usePlexKeyboardNavigation} from ${JSON.stringify(join(root, "src/ui/usePlexKeyboardNavigation.ts"))};
-import {sanitizeInternalHotkeys} from ${JSON.stringify(join(root, "src/core/plex/internalHotkeys.ts"))};
 const result=document.querySelector("#result");
 const check=(ok,message)=>{if(!ok)throw new Error(message)};
 const nodes=[{id:"center",section:"center",x:0,y:0,path:"center",label:"Center"},{id:"left",section:"left",x:-200,y:0,path:"left",label:"Left"},
@@ -1832,47 +1849,32 @@ try {
  const frames=[document,(()=>{const f=document.createElement("iframe");document.body.append(f);return f.contentDocument})()];
  for(const doc of frames){
   const container=doc.createElement("div");doc.body.append(container);
-  const scope={handlers:[],register(modifiers,key,func){const h={modifiers,key,func};this.handlers.push(h);return h},unregister(h){this.handlers=this.handlers.filter(x=>x!==h)}};
-  let bindings=sanitizeInternalHotkeys(),normalMode=true,activePath="center",projection=nodes,activations=[],reveals=[],adds=[];
-  function Surface(){const viewport=useRef(null);const selected=usePlexKeyboardNavigation({viewport,scope,normalMode,activePath,convention:"macos",readBindings:()=>bindings,nodes:projection,
-   reveal:n=>reveals.push(n.id),activate:n=>activations.push(n.id),add:a=>{adds.push(a);return true}});
-   return React.createElement("div",{className:"kplex-app",tabIndex:-1,"data-selection":selected??""},
-    React.createElement("div",{ref:viewport},React.createElement("input"),React.createElement("button",null,"Control"),React.createElement("div",{className:"kplex-central-editor-content"}),React.createElement("div",{contentEditable:true,suppressContentEditableWarning:true}),React.createElement("span",null,"Node")))}
+  let normalMode=true,crossSections=false,activePath="center",projection=nodes,reveals=[],selection;
+  function Surface(){selection=usePlexKeyboardNavigation({normalMode,activePath,crossSections,nodes:projection,reveal:n=>reveals.push(n.id)});
+   return React.createElement("div",{className:"kplex-app",tabIndex:0,"data-selection":selection.selectedId??""})}
   const app=createRoot(container),render=()=>flushSync(()=>app.render(React.createElement(Surface)));render();
   const el=container.firstElementChild;
-  const key=(target,key,extra={})=>{const event=new doc.defaultView.KeyboardEvent("keydown",{key,bubbles:true,cancelable:true,...extra});flushSync(()=>target.dispatchEvent(event));return event.defaultPrevented};
-  check(scope.handlers.length===13,"wrong native registration inventory");
-  check(key(el,"ArrowUp")&&el.dataset.selection==="center","plain arrow left the center section");
-  check(key(el,"ArrowUp",{altKey:true})&&el.dataset.selection==="p1","section jump did not enter parent area");
-  check(activations.length===0,"arrows changed center before Enter");
-  check(key(el,"ArrowRight")&&el.dataset.selection==="p2","grid arrow did not select adjacent column");
-  check(key(el,"Enter")&&activations.join() ==="p2","Enter did not activate selected occurrence");
-  check(key(el,"ArrowDown",{altKey:true})&&el.dataset.selection==="center","section jump did not return to center");
-  check(key(el,"Enter")&&activations.at(-1)==="center","center Enter did not delegate rename");
-  check(key(el,"ArrowLeft",{metaKey:true})&&adds.join()==="addFriend","Command+Left did not add friend");
-  key(el,"ArrowLeft",{metaKey:true,repeat:true});check(adds.length===1,"held creation shortcut repeated modal");
-  for(const target of el.querySelectorAll("input,button,[contenteditable],.kplex-central-editor-content"))check(!key(target,"ArrowLeft"),"control/editor arrow stolen");
-  check(!key(el,"ArrowLeft",{shiftKey:true}),"extra modifier triggered navigation");
-  check(!key(el,"ArrowLeft",{isComposing:true}),"composition triggered navigation");
-  const outside=doc.createElement("div");doc.body.append(outside);check(!key(outside,"ArrowUp"),"unrelated leaf key stolen");outside.remove();
-  normalMode=false;render();check(!key(el,"ArrowUp")&&!key(el,"ArrowLeft",{metaKey:true})&&!key(el,"Enter"),"editor-node mode consumed a key");
-  normalMode=true;bindings={...bindings,moveLeft:null,moveRight:{key:"j",modifiers:[]}};render();
-  check(scope.handlers.length===12&&!scope.handlers.some(h=>h.key==="ArrowRight"&&h.modifiers.length===0),"old/disabled native registrations leaked");
-  check(!key(el,"ArrowLeft"),"disabled arrow consumed");
-  key(el,"ArrowUp",{altKey:true});check(key(el,"j")&&el.dataset.selection==="p2","remapped chord inactive");
+  const move=(direction,section=false)=>flushSync(()=>selection.move(direction,section));
+  move("up");check(el.dataset.selection==="center","plain movement left the center section");
+  move("up",true);check(el.dataset.selection==="p1","section jump did not enter parent area");
+  move("right");check(el.dataset.selection==="p2","grid movement did not select adjacent column");
+  move("down",true);check(el.dataset.selection==="center","section jump did not return to center");
+  crossSections=true;render();move("up");check(el.dataset.selection==="p1","opted-in boundary movement did not enter parent area");
+  normalMode=false;render();check(selection.readSelected()===null&&el.dataset.selection==="","inactive graph retained selection");
+  normalMode=true;render();check(selection.readSelected()===null,"mode restore resurrected retired selection");
+  move("up",true);move("right");check(el.dataset.selection==="p2","selection after mode restoration failed");
   projection=nodes.filter(n=>n.id!=="p2");render();check(el.dataset.selection==="","removed selection retained");
-  key(el,"ArrowLeft",{altKey:true});check(el.dataset.selection==="left","section jump after filtering failed");
+  move("left",true);check(el.dataset.selection==="left","section jump after filtering failed");
   activePath="other-center";render();check(el.dataset.selection==="","center change retained old keyboard selection");
   activePath="center";render();check(el.dataset.selection==="","returning to an old center resurrected its selection");
-  key(el,"ArrowUp");flushSync(()=>el.dispatchEvent(new doc.defaultView.Event("pointerdown",{bubbles:true})));check(el.dataset.selection==="","pointer did not clear keyboard selection");
-  const before=reveals.length;flushSync(()=>app.unmount());check(scope.handlers.length===0,"scope registrations survived unmount");
-  key(el,"ArrowUp");check(reveals.length===before,"detached listener survived unmount");container.remove();
+  move("up");flushSync(()=>selection.select(null));check(el.dataset.selection==="","explicit pointer selection retirement failed");
+  flushSync(()=>app.unmount());container.remove();
  }
  result.dataset.status="passed";result.textContent="Plex keyboard selection and ownership passed";
 }catch(error){result.dataset.status="failed";result.textContent=error.stack}
 `;
 }
-test("Plex keyboard selection respects mode, controls, settings, projection and owning-realm cleanup",()=>{
+test("Plex selection controller preserves mode, section policy, projection and owning-realm cleanup",()=>{
   runBrowserDom(plexKeyboardBrowserEntry(),"Plex keyboard selection and ownership passed");
 });
 

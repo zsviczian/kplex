@@ -118,8 +118,8 @@ assert(appSource.includes('!plugin.index.isOnDemandMode() && ["indexing", "savin
 assert(infoBubbleSource.includes("onAdvance?: () => void"), "Reusable info bubbles must expose caller-owned sequence advancement for future onboarding/help flows");
 assert(infoBubbleSource.includes("dismissLabel?: string"), "Informational status bubbles must be able to omit an unnecessary action row");
 assert(newRelatedSource.includes('"aria-label": plugin.translator("addRelated.createPlaceholder")'), "Create-related UI must offer a localized placeholder-only action");
-assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(origin, role"), "Placeholder action must create only a relationship-backed virtual node");
-assert(newRelatedSource.includes("void createNew(defaultCreateType)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
+assert(newRelatedSource.includes("plugin.createPlaceholderRelatedPage(refreshCapturedPage(plugin, origin), role"), "Placeholder action must create only a relationship-backed virtual node");
+assert(newRelatedSource.includes("void createNew(kind ?? defaultCreateType, intent)"), "Ctrl/Cmd+Enter must keep using the shared Markdown/Excalidraw default rather than the placeholder action");
 assert(newRelatedSource.includes('if (environment.device === "desktop")'), "Add-related drag affordance must stay desktop-only so phone/tablet modal policy remains unchanged");
 assert(newRelatedSource.includes("enableDraggableDialog({ modalEl: this.modalEl, handleEl: this.titleEl })"), "Add-related must drag through the native modal title shell rather than portable form content");
 assert(newRelatedSource.includes("this.releaseDesktopDrag?.()"), "Add-related modal close must release draggable shell resources");
@@ -299,7 +299,7 @@ assert(appSource.includes("plugin.resolveNavigationFallbackPath(activePath)"), "
 assert(mainSource.includes("this.settings.navigationHistory.length - 1"), "Navigation fallback must walk history newest-to-oldest");
 assert(!appSource.includes("plugin.app.vault.getMarkdownFiles()[0]?.path"), "Startup must not choose an arbitrary first Markdown note when navigation history is exhausted");
 assert(plexGraphSource.includes('setTitle(translate(persistent.file ? "graph.deleteNote" : "graph.deletePlaceholder"))'), "Every Markdown/placeholder node context menu must expose localized deletion copy");
-assert(plexGraphSource.includes("plugin.deleteNode(persistent, hostLeaf, isCenter)"), "Node deletion must tell the workflow whether the deleted node is the active center");
+assert(plexGraphSource.includes("plugin.deleteNode(page, hostLeaf, page.path === activePath)"), "Node deletion must tell the workflow whether the deleted node is the active center");
 assert(mainSource.includes("this.removeFromNavigationHistory(path)"), "Every deleted node must be removed from navigation history immediately");
 assert(mainSource.includes("const fallback = this.deletionFallbackPath(path)"), "Deleting the active center must choose its replacement from remaining navigation history");
 assert(mainSource.includes('return this.index.get("folder:/")?.path ?? null'), "Delete navigation must fall back to the vault root when no valid history entry remains");
@@ -326,7 +326,7 @@ assert(newRelatedSource.includes('className: "kplex-add-related-control-row"'), 
 assert(newRelatedSource.includes('className: "kplex-add-related-compose-row"'), "Name search and create/link actions must share the second row");
 assert(newRelatedSource.indexOf("controlRow,") < newRelatedSource.indexOf("composeRow,"), "Relationship controls must render above the focused name row");
 assert(newRelatedSource.includes('className: "kplex-create-alias-input"'), "Create-related UI must provide an optional alias field");
-assert(newRelatedSource.includes("plugin.createWebLinkRelatedPage(origin, role, webUrl, alias, field)"), "Create-related UI must recognize and persist web-link relationships");
+assert(newRelatedSource.includes("plugin.createWebLinkRelatedPage(refreshCapturedPage(plugin, origin), role, webUrl, alias, field)"), "Create-related UI must recognize and persist web-link relationships");
 assert(mainSource.includes('const reference = alias ? `[${escapedAlias}](${url})` : url'), "Web-link aliases must be stored as Markdown link labels in document properties");
 assert(mainSource.includes('frontmatter[key] = [...aliases, alias]'), "New-note aliases must be written through Obsidian frontmatter");
 assert(appSource.includes("plugin.isManagedCreatedFile(trackedFile)"), "A selected optimistic note must survive an older in-flight index publication");
@@ -427,6 +427,7 @@ for (const file of [
   "src/adapters/obsidian/adjacentFileLeaf.ts",
   "src/adapters/obsidian/excalidrawIntegrationVersion.ts",
   "src/adapters/obsidian/embeddedMarkdownLeaf.ts",
+  "src/adapters/obsidian/embeddedMarkdownFocus.ts",
   "src/adapters/obsidian/externalUrl.ts",
   "src/adapters/obsidian/indexDiagnosticsReport.ts",
   "src/adapters/obsidian/predicateContracts.ts",
@@ -474,6 +475,13 @@ for (const file of [
   "src/lens/SimplePlexFilter.ts",
   "src/ui/PurgeIndexCacheModal.ts",
   "src/ui/internalHotkeySettings.ts",
+  "src/core/plex/actions.ts",
+  "src/core/plex/actionPreferences.ts",
+  "src/application/ActionManager.ts",
+  "src/adapters/obsidian/actionCommands.ts",
+  "src/adapters/obsidian/actionNode.ts",
+  "src/adapters/obsidian/relatedFileOutcome.ts",
+  "src/ui/actionPresentation.ts",
   "src/ui/layout.ts",
   "src/ui/components/collectionWindow.ts",
 ]) compile(file);
@@ -602,6 +610,7 @@ for (const [path, name] of [
   ["src/editor/OntologySuggester.js", "OntologySuggester"],
   ["src/ui/AddToOntologyModal.js", "AddToOntologyModal"],
   ["src/ui/NoteTypeModal.js", "NoteTypeModal"],
+  ["src/ui/ActionSettingsController.js", "ActionSettingsController"],
 ]) writeRuntimeStub(path, `exports.${name} = class {};`);
 writeRuntimeStub("src/ui/DeleteNodeModal.js", `exports.DeleteNodeConfirmationModal = class {}; exports.RemainingNodeReferencesModal = class {};`);
 writeRuntimeStub("src/ui/viewProfile.js", `

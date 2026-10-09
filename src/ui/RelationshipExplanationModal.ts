@@ -78,10 +78,9 @@ function evidenceDescription(decision: EvidenceDecision, translate: Translator):
   return pieces.join(" · ");
 }
 
+/** Only explicit four-gate roles are supported by the current relink shell; sequence roles stay semantic. */
 function gateRoleForDisplayRole(role: Role): GateRole | null {
   if (role === "parent" || role === "child" || role === "left" || role === "right") return role;
-  if (role === "previous") return "left";
-  if (role === "next") return "right";
   return null;
 }
 
@@ -123,6 +122,7 @@ function renderDecisionEvaluations(parent: HTMLElement, decisions: readonly Evid
 export class RelationshipExplanationModal extends Modal {
   private closed = false;
 
+  /** Capture one pair explanation and optional native-dialog lease; source reads are cancelled on close. */
   constructor(
     private plugin: KplexPlugin,
     private explanation: RelationshipExplanation,
@@ -134,6 +134,7 @@ export class RelationshipExplanationModal extends Modal {
       hostLeaf?: WorkspaceLeaf;
       initialFocus?: "why" | "sources";
     },
+    private onClosed: () => void = () => {},
   ) {
     super(plugin.app);
   }
@@ -364,8 +365,12 @@ export class RelationshipExplanationModal extends Modal {
     });
   }
 
+  /** Retire pending evidence UI and release the originating surface session exactly once. */
   onClose(): void {
+    if (this.closed) return;
     this.closed = true;
+    this.onClosed();
+    this.onClosed = () => {};
     this.contentEl.empty();
   }
 }

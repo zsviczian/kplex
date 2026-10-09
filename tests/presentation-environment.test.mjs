@@ -38,6 +38,24 @@ function compilePureModule(relativePath) {
   return { temp, exports: require(outputPath) };
 }
 
+/** Execute the actual nested production arrow while making only its enclosing host capabilities explicit. */
+function productionArrow(relativePath, name, dependencies) {
+  const source = readFileSync(join(root, relativePath), "utf8");
+  const file = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let declaration;
+  /** Locate the named production declaration without reconstructing its behavior in the test. */
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(file) === name) declaration = node;
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  assert(declaration?.initializer, `Missing production arrow ${name}`);
+  const transpiled = ts.transpileModule(`const production = ${declaration.initializer.getText(file)};`, {
+    compilerOptions: {target: ts.ScriptTarget.ES2021, module: ts.ModuleKind.CommonJS},
+  }).outputText;
+  return new Function(...Object.keys(dependencies), `${transpiled}\nreturn production;`)(...Object.values(dependencies));
+}
+
 const compiled = compilePureModule("src/core/plex/viewPresentation.ts");
 const presentation = compiled.exports;
 process.on("exit", () => rmSync(compiled.temp, { recursive: true, force: true }));
@@ -351,12 +369,21 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
   assert(settingsSource.includes("old.layoutProfiles?.[key]"), "profile migration must continue reading the same stored keys");
 
   const mainSource = readFileSync(join(root, "src/main.ts"), "utf8");
-  assert(mainSource.includes('id: "kplex-start"'));
-  assert(mainSource.includes('id: "kplex-open-popout"'));
-  assert(mainSource.includes('id: "kplex-open-sidepanel"'));
+  const catalogModule = compilePureModule("src/core/plex/actions.ts");
+  try {
+    for (const [action, stableId] of [["surface.open-tab", "kplex-start"], ["surface.open-popout", "kplex-open-popout"], ["surface.open-sidepanel", "kplex-open-sidepanel"]]) {
+      const metadata = catalogModule.exports.ACTION_BY_ID.get(action);
+      assert.equal(metadata.command.id, stableId);
+      assert.equal(metadata.command.kind, "ordinary");
+      assert.equal(metadata.command.defaultPublished, true);
+    }
+  } finally { rmSync(catalogModule.temp, {recursive: true, force: true}); }
+  assert(mainSource.includes("this.initializeActions()"), "Lifecycle must compose catalog registrations");
   assert(mainSource.includes("primaryOpenSurface(environment, this.settings.startInPopout)"));
-  assert(mainSource.includes("isGraphTabCommandAvailable(readObsidianPresentationEnvironment())"));
-  assert(mainSource.includes("isPopoutCommandAvailable(readObsidianPresentationEnvironment())"));
+  assert.match(mainSource, /operation\("surface\.open-tab",[\s\S]*?isGraphTabCommandAvailable\(readObsidianPresentationEnvironment\(window\.activeWindow \?\? window\)\)/,
+    "Registered graph-tab checking must use the current invocation window's shared device policy");
+  assert.match(mainSource, /operation\("surface\.open-popout",[\s\S]*?isPopoutCommandAvailable\(readObsidianPresentationEnvironment\(window\.activeWindow \?\? window\)\)/,
+    "Registered popout checking must use the current invocation window's shared device policy");
   assert(mainSource.includes("async openFileInNewTab(file: TFile)"));
   assert(mainSource.includes('getLeaf("tab")'), "node Open menu must create an explicit new tab");
   assert(mainSource.includes("async openFileInAdjacentPane(file: TFile, hostLeaf: WorkspaceLeaf)"));
@@ -367,7 +394,36 @@ test("persisted layout keys and node-open leaf modes remain stable with canonica
   const plexSource = readFileSync(join(root, "src/ui/PlexGraph.tsx"), "utf8");
   assert(plexSource.includes('translate("graph.openMenu")'), "node context menu must expose the localized Open submenu");
   assert(plexSource.includes('addNativeSubmenu(menu, translate("graph.openMenu")'));
-  assert(plexSource.includes('plugin.openFileInAdjacentPane(persistentFile, hostLeaf)'));
+  const nodeModule = compilePureModule("src/adapters/obsidian/actionNode.ts");
+  try {
+    const items = new Map(), requests = [], originalFile = {path: "Original.md", extension: "md"};
+    const page = {path: originalFile.path, file: originalFile, isFolder: false, isTag: false, url: null};
+    const captured = nodeModule.exports.actionNodeRef(page);
+    class MenuDouble {
+      addItem(build) {
+        const item = {setTitle(value) {this.label = value; return this;}, setIcon() {return this;}, onClick(callback) {items.set(this.label, callback); return this;}};
+        build(item); return this;
+      }
+      addSeparator() {return this;}
+    }
+    const showMenu = productionArrow("src/ui/PlexGraph.tsx", "showNodeContextMenuAt", {
+      touchDoubleTap: {current: {reset() {}}}, persistentPageFor: () => page,
+      neighborhood: null, activePath: "Other.md", canExpandCentralSections: () => false,
+      Menu: MenuDouble, actionNodeRef: nodeModule.exports.actionNodeRef, actionSurfaceId: "owning-surface", sceneNodeKeys: new Map(),
+      plugin: {getFileOpenMenuState: () => ({focusOpenTab: true, adjacentPane: true, popoutWindow: false}), isPinned: () => false,
+        actionManager: {dispatch: request => {requests.push(request); return Promise.resolve({status: "completed"});}}, showKplexMenuAtPosition() {}},
+      addNativeSubmenu: (menu, _title, _icon, populate) => populate(menu), translate: key => key,
+      viewport: {current: {ownerDocument: {}}}, hostLeaf: {},
+    });
+    showMenu({page, role: "child"}, 10, 20, "captured-occurrence");
+    assert(items.has("graph.focusOpenTab")); assert(items.has("graph.openNewTab")); assert(items.has("graph.openAdjacentPane"));
+    assert(!items.has("graph.openPopoutWindow"), "Unavailable popout destination remains absent");
+    page.path = "Changed.md"; page.file = {path: "Changed.md", extension: "md"};
+    items.get("graph.openAdjacentPane")();
+    assert.deepEqual(requests, [{id: "node.open.split", source: "context-menu", surfaceId: "owning-surface", target: {kind: "explicit", node: captured, occurrenceId: "captured-occurrence"}}],
+      "Choosing the native menu must retain launch-time file identity and occurrence through shared dispatch");
+  } finally { rmSync(nodeModule.temp, {recursive: true, force: true}); }
+  assert(plexSource.includes('if (destination === "split") return plugin.openFileInAdjacentPane(page.file, hostLeaf)'), "Shared split implementation must retain the exact owning native pane operation");
   assert(plexSource.includes("openState.focusOpenTab"), "focus-open action must remain conditional on an already-open file leaf");
   assert(plexSource.includes("openState.adjacentPane"), "adjacent-pane action must follow presentation availability");
   assert(plexSource.includes("openState.popoutWindow"), "pop-out action must follow presentation availability");
