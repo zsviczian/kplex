@@ -1,6 +1,6 @@
 /**
  * Native Obsidian view shells, active-view hotkey scopes and React-root lifecycle for K-Plex
- * surfaces. React registers/unregisters scoped actions with its owning surface. View registration
+ * surfaces. The view owns reversible session display leases and restores them before close/unload or cross-document adoption. React registers/unregisters scoped actions with its owning surface. View registration
  * IDs stay stable; display titles use the plugin translator.
  */
 import { ItemView, Scope, WorkspaceLeaf } from "obsidian";
@@ -9,6 +9,7 @@ import type KplexPlugin from "../main";
 import type { KplexViewSurface } from "../settings";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
 import { KplexApp } from "./App";
+import { KplexDisplayModes, registerDisplayModeUnload } from "./KplexDisplayModes";
 
 export const KPLEX_VIEW_TYPE = "k-plex-react-view";
 export const KPLEX_SIDEPANEL_VIEW_TYPE = "k-plex-sidepanel-view";
@@ -19,6 +20,8 @@ abstract class BaseKplexView extends ItemView {
   private ready = false;
   private renderGeneration = 0;
   private readyResolvers: Array<() => void> = [];
+  private displayModes: KplexDisplayModes | null = null;
+  private releaseDisplayLifecycle: (() => void) | null = null;
 
   /** Bind the native leaf, inherited hotkey scope and K-Plex owner; React owns surface handlers. */
   constructor(leaf: WorkspaceLeaf, protected plugin: KplexPlugin) {
@@ -58,6 +61,7 @@ abstract class BaseKplexView extends ItemView {
       hostLeaf={this.leaf}
       translate={this.plugin.translator}
       environment={readObsidianPresentationEnvironment(this.contentEl.ownerDocument.defaultView ?? undefined)}
+      displayModes={this.displayModes!}
       onReady={/** Readiness belongs to the current mounted action/focus adapter, including migration. */ () => {
         if (generation === this.renderGeneration && this.root) this.markReady();
       }}
@@ -70,8 +74,24 @@ abstract class BaseKplexView extends ItemView {
     this.contentEl.empty();
     this.contentEl.addClass("kplex-view-host");
     this.contentEl.toggleClass("kplex-sidepanel-host", this.getSurface() === "sidepanel");
+    this.displayModes = new KplexDisplayModes(this.contentEl, readObsidianPresentationEnvironment(this.contentEl.ownerDocument.defaultView ?? undefined).device === "desktop");
+    const workspace = this.app.workspace;
+    this.releaseDisplayLifecycle = registerDisplayModeUnload(this.plugin, this.displayModes);
+    const activeRef = this.app.workspace.on("active-leaf-change", /** A different native pane exits fullscreen; embedded content in this view retains its owner. */ leaf => {
+      if (leaf !== this.leaf && (!leaf || !this.contentEl.contains(leaf.view.containerEl))) this.displayModes?.exitFullscreen(false);
+    });
+    const layoutRef = this.app.workspace.on("layout-change", /** Native layout destruction must never leave an orphaned fullscreen host. */ () => {
+      if (!this.containerEl.isConnected) this.displayModes?.exitFullscreen(false);
+    });
+    this.displayModes.ownCleanup(/** Remove exact workspace subscriptions on either view close or plugin unload. */ () => {
+      workspace.offref(activeRef); workspace.offref(layoutRef);
+    });
     if (typeof this.containerEl.onWindowMigrated === "function") {
-      this.windowMigrationCleanup = this.containerEl.onWindowMigrated(() => this.renderReact());
+      this.windowMigrationCleanup = this.containerEl.onWindowMigrated(/** Unmount in the source realm before restoring an overlay host into its adopted native parent. */ () => {
+        this.root?.unmount(); this.root = null;
+        this.displayModes?.exitFullscreen();
+        this.renderReact();
+      });
     }
     this.renderReact();
     // View construction/reveal must never wait for a potentially long initial index. On mobile,
@@ -83,6 +103,8 @@ abstract class BaseKplexView extends ItemView {
 
   /** Release window hooks, React resources and pending waiters before native view teardown. */
   async onClose(): Promise<void> {
+    this.displayModes?.dispose(); this.displayModes = null;
+    this.releaseDisplayLifecycle?.(); this.releaseDisplayLifecycle = null;
     this.windowMigrationCleanup?.();
     this.windowMigrationCleanup = null;
     this.renderGeneration++;

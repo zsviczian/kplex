@@ -1,5 +1,5 @@
 /**
- * Host-bound React shell for K-Plex navigation, startup guidance, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects. Search/Find scopes and hints use persisted internal bindings; each surface releases its own registrations on teardown.
+ * Host-bound React shell for K-Plex navigation, startup guidance, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects. The native view owns session display modes; React projects Zen chrome and supplies exact camera-resize preparation without replacing its root. Search/Find scopes and hints use effective action bindings; each surface releases its own registrations on teardown.
  */
 import {
   useCallback,
@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type DragEvent as ReactDragEvent,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -24,6 +25,7 @@ import { KeyboardHelpModal } from "./KeyboardHelpModal";
 import { ActionTargetPicker, type ActionPickerItem } from "./ActionTargetPicker";
 import { usePlexActions, type GraphActionPorts, type SurfaceActionImplementations } from "./usePlexActions";
 import type { Translator } from "../lang";
+import type { KplexDisplayModes } from "./KplexDisplayModes";
 import { physicalPositionLabel } from "./features/positionPresentation";
 import { effectiveActionBindings } from "../core/plex/actionPreferences";
 import { formatActionBinding } from "./actionPresentation";
@@ -162,16 +164,19 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
 }
 
 /** Compose the native K-Plex toolbar, filters and scene with injected localization and environment facts; host effects remain plugin-owned. */
-export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady }: {
+export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady, displayModes }: {
   plugin: KplexPlugin;
   surface: KplexViewSurface;
   hostLeaf: WorkspaceLeaf;
   translate: Translator;
   environment: PresentationEnvironment;
   onReady?: () => void;
+  displayModes: KplexDisplayModes;
 }) {
+  const displayState = useSyncExternalStore(displayModes.subscribe, displayModes.getSnapshot);
   const rootRef = useRef<HTMLDivElement>(null);
   const graphActionPorts = useRef<GraphActionPorts | null>(null);
+  useEffect(/** Camera preparation must precede native overlay movement and React toolbar visibility changes. */ () => displayModes.onBeforeResize(/** Prepare only the currently mounted graph generation. */ () => graphActionPorts.current?.prepareDisplayResize?.()), [displayModes]);
   const actionDialogs = useRef(new Set<{ close(): void }>());
   const dialogSerial = useRef(0);
   useEffect(/** Retire captured modal actions before a migrated/unmounted surface can receive work. */ () => () => {
@@ -440,15 +445,19 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     return installKplexLongPressTooltips(el.ownerDocument);
   }, [hasPage]);
 
-  useEffect(() => {
+  useEffect(/** Measure the original pane profile through the current rendering document’s observer. */ () => {
     const el = rootRef.current;
     if (!el) return;
-    const update = () => setHostWidth(el.getBoundingClientRect().width);
+    type ResizeWindow = Window & { ResizeObserver: typeof ResizeObserver };
+    const owningWindow = (el.ownerDocument.defaultView ?? window) as ResizeWindow;
+    const update = /** Fullscreen coverage must not switch the original pane’s condensed scene profile. */ (): void => {
+      if (!displayModes.getSnapshot().fullscreen) setHostWidth(el.getBoundingClientRect().width);
+    };
     update();
-    const observer = new ResizeObserver(update);
+    const observer = new owningWindow.ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasPage]);
+  }, [hasPage, displayModes]);
 
   useEffect(() => {
     if (!page) return;
@@ -726,6 +735,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   };
   /** Focus the existing filter/lens control through its native disclosure and focus behavior. */
   const openFilterControl = (): void => {
+    if (displayModes.getSnapshot().zen) displayModes.toggleZen();
     const trigger = rootRef.current?.querySelector<HTMLButtonElement>(".kplex-filter-trigger");
     if (!trigger) return;
     if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
@@ -745,13 +755,21 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       }
       return plugin.focusAssociatedEditor(hostLeaf) ? undefined : { status: "unavailable", reasonKey: "actions.unavailable" };
     }, /** No hidden editor creation is part of focus availability. */ () => Boolean(rootRef.current?.querySelector(".kplex-central-editor-content")) || plugin.hasAssociatedEditor(hostLeaf)),
-    "search.focus": uiAction(/** Disclose Vault search without retargeting the shared center. */ () => activateSearch()),
-    "find.focus": uiAction(/** Disclose only this Plex's Find field. */ () => setFindFocusRequest(value => value + 1)),
+    "search.focus": uiAction(/** Reveal the toolbar before requesting native search focus, without retargeting the center. */ () => {
+      if (displayModes.getSnapshot().zen) displayModes.toggleZen();
+      activateSearch();
+    }),
+    "find.focus": uiAction(/** Reveal Zen-hidden Find before requesting this Plex’s field focus. */ () => {
+      if (displayModes.getSnapshot().zen) displayModes.toggleZen();
+      setFindFocusRequest(value => value + 1);
+    }),
     "history.back": uiAction(/** Boundary traversal stays a bounded existing-history operation. */ () => goHistory(-1)),
     "history.forward": uiAction(/** Traverse the existing history cursor without acquiring missing files. */ () => goHistory(1)),
     "history.open": uiAction(/** Include all saved history, beyond the footer's visible subset. */ () => openSavedPicker("history")),
     "pins.open": uiAction(/** Preserve saved order and unavailable rows in the complete searchable pins picker. */ () => openSavedPicker("pins")),
     "view.aliases.toggle": uiAction(/** Reuse the current toolbar's presentation-only mutation. */ () => toggleToolbarSetting("renderAlias")),
+    "view.fullscreen.toggle": uiAction(/** The view owns reversible native DOM placement, never workspace split changes. */ () => displayModes.toggleFullscreen(), () => displayModes.fullscreenAvailable),
+    "view.zen.toggle": uiAction(/** Independent session chrome visibility never changes persisted settings. */ () => displayModes.toggleZen()),
     "view.depth.toggle": uiAction(/** Reuse the established projection depth setting. */ () => toggleExpandedView()),
     "view.connectors.toggle": uiAction(/** Camera and connector appearance remain presentation-only. */ () => toggleConnectorStyle()),
     "view.areas.toggle": uiAction(/** Area editing mode remains transient and surface-local. */ () => setAreaSettingsMode(value => !value)),
@@ -790,8 +808,28 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       if (target) activate(target);
     }, /** Missing slots stay unavailable rather than redirecting to a neighboring pin. */ () => Boolean(plugin.index.get(plugin.settings.pinnedNodes[slot - 1] ?? "")));
   }
+  const sidecarAvailable = surface !== "sidepanel";
+  const sidecarPosition = sidecarAvailable ? plugin.getSidecarPosition(hostLeaf) : null;
+  const sidecarOpen = Boolean(sidecarPosition);
+  const sidecarEdgePosition = sidecarPosition ?? plugin.settings.sidecarPosition;
+  const foldPlexIcon = sidecarEdgePosition === "left" ? "panel-right-close"
+    : sidecarEdgePosition === "above" ? "panel-bottom-close"
+      : sidecarEdgePosition === "below" ? "panel-top-close"
+        : "panel-left-close";
+  const closeSidecarIcon = sidecarEdgePosition === "left" ? "panel-left-close"
+    : sidecarEdgePosition === "above" ? "panel-top-close"
+      : sidecarEdgePosition === "below" ? "panel-bottom-close"
+        : "panel-right-close";
+  const openSidecarIcon = sidecarEdgePosition === "left" ? "panel-left-open"
+    : sidecarEdgePosition === "above" ? "panel-top-open"
+      : sidecarEdgePosition === "below" ? "panel-bottom-open"
+        : "panel-right-open";
+  const condensedBySidecar = sidecarAvailable && sidecarOpen && hostWidth > 0 && hostWidth <= plugin.settings.sidecarCondensedBreakpoint;
+  const profileSurface: KplexViewSurface = condensedBySidecar ? "sidepanel" : surface;
+  const viewSettings = useMemo(/** Display-mode-only renders retain the current scene settings identity; real settings/index changes still refresh it. */ () => plugin.getViewSettings(profileSurface), [plugin, profileSurface, renderRevision]);
   const actions = usePlexActions({ plugin, hostLeaf, root: rootRef, convention: environment.keyConvention,
     center: page, graph: graphActionPorts, implementations: appImplementations, mounted: hasPage,
+    readEscapeAction: /** Only the keyboard owner invokes this after graph transient interactions have declined. */ () => displayModes.getSnapshot().zen ? "view.zen.toggle" : displayModes.getSnapshot().fullscreen ? "view.fullscreen.toggle" : null,
     historyBack: historyCursor > 0, historyForward: historyCursor < plugin.settings.navigationHistory.length - 1, onReady });
   /** Forward intentional toolbar/control actions with explicit owning surface. */
   const runAction = (id: ActionId): void => actions.dispatch({ id, source: "toolbar" });
@@ -838,25 +876,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   const pinnedPages = plugin.settings.pinnedNodes
     .map((path) => plugin.index.get(path))
     .filter((item): item is GraphPage => Boolean(item));
-  const sidecarAvailable = surface !== "sidepanel";
-  const sidecarPosition = sidecarAvailable ? plugin.getSidecarPosition(hostLeaf) : null;
-  const sidecarOpen = Boolean(sidecarPosition);
-  const sidecarEdgePosition = sidecarPosition ?? plugin.settings.sidecarPosition;
-  const foldPlexIcon = sidecarEdgePosition === "left" ? "panel-right-close"
-    : sidecarEdgePosition === "above" ? "panel-bottom-close"
-      : sidecarEdgePosition === "below" ? "panel-top-close"
-        : "panel-left-close";
-  const closeSidecarIcon = sidecarEdgePosition === "left" ? "panel-left-close"
-    : sidecarEdgePosition === "above" ? "panel-top-close"
-      : sidecarEdgePosition === "below" ? "panel-bottom-close"
-        : "panel-right-close";
-  const openSidecarIcon = sidecarEdgePosition === "left" ? "panel-left-open"
-    : sidecarEdgePosition === "above" ? "panel-top-open"
-      : sidecarEdgePosition === "below" ? "panel-bottom-open"
-        : "panel-right-open";
-  const condensedBySidecar = sidecarAvailable && sidecarOpen && hostWidth > 0 && hostWidth <= plugin.settings.sidecarCondensedBreakpoint;
-  const profileSurface: KplexViewSurface = condensedBySidecar ? "sidepanel" : surface;
-  const viewSettings = plugin.getViewSettings(profileSurface);
+
 
 
   const showSidecarMoveMenu = (event?: MouseEvent<HTMLButtonElement>) => {
@@ -879,7 +899,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
   return <div
     ref={rootRef}
-    className={`kplex-app kplex-surface-${surface}${condensedBySidecar ? " is-sidecar-condensed" : ""}`}
+    className={`kplex-app kplex-surface-${surface}${condensedBySidecar ? " is-sidecar-condensed" : ""}${displayState.zen ? " is-zen" : ""}`}
     data-kplex-tooltip-scope
     tabIndex={0}
     role="region"
@@ -1007,7 +1027,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           <div className="kplex-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="kplex-zone-label zone-child">{translate("app.zoneChildren")}</div>
           <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
-          actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId}
+          actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId} displayState={displayState} fullscreenAvailable={displayModes.fullscreenAvailable && environment.device === "desktop"}
           semanticRevision={plugin.index.getSemanticRevision()} onActivate={activate} onOpen={open} onOpenInSidecar={centerAndOpenSidecar} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
           onApplyFindFilter={applyFindFilter} appliedFindFilterQuery={findFilterOwner?.query ?? null} onClearFindFilter={clearFindFilter} />
         </section>

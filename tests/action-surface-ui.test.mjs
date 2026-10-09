@@ -580,3 +580,27 @@ test("selection crosses only opted-in boundaries and permanently retires filtere
     assert.deepEqual(result, { preserved: true, crossed: true, within: true, filtered: true, notResurrected: true, inactive: true, retiredMode: true });
   } finally { await browser.cleanup(); }
 });
+
+test('display Escape yields to graph queries, native shells and fields, then exits Zen before fullscreen exactly once',async()=>{
+  const browser=await chromiumHarness(await bundle());
+  try {
+    const result=await browser.evaluate(`(async()=>{
+      const{createElement:h,useRef,createRoot,flushSync,usePlexActions,ActionManager,migrateActionPreferences,Scope,surfaceAction}=sourceModules;
+      window.testNotices=[];const parent=new Scope(),stack=[],listeners=new Set(),hosts=new Map();const state={zen:true,fullscreen:true};let query=true,queries=0,zenExits=0,fullExits=0,custom=0;
+      const previousHasFocus=document.hasFocus;document.hasFocus=()=>true;
+      const manager=new ActionManager({readCommandContext:()=>({sharedCenter:null})}),plugin={app:{scope:parent,keymap:{pushScope:scope=>stack.push(scope),popScope:scope=>{const index=stack.indexOf(scope);if(index>=0)stack.splice(index,1)}}},actionManager:manager,settings:{actionPreferences:migrateActionPreferences(null,'windows').preferences},translator:key=>key,actionWindowId:()=>"main",isKplexLeafVisible:()=>true,hasAssociatedEditor:()=>false,registerActionSurfaceHost:(id,generation)=>{hosts.set(id,generation);return()=>hosts.delete(id)},subscribeActionPreferences:fn=>{listeners.add(fn);return()=>listeners.delete(fn)},subscribeKplexVisibility:()=>()=>{}};
+      const center={path:'Center',file:null,url:null},leaf={view:{scope:parent}};
+      function Harness(){const root=useRef(null),graph=useRef({normalMode:true,readSelected:()=>null,implementations:{},handleSessionKey:event=>{if(query&&event.key==='Escape'){query=false;queries++;return true}return false}});usePlexActions({plugin,hostLeaf:leaf,root,graph,convention:'windows',center,mounted:true,historyBack:false,historyForward:false,readEscapeAction:()=>state.zen?'view.zen.toggle':state.fullscreen?'view.fullscreen.toggle':null,implementations:{'view.zen.toggle':surfaceAction(()=>{state.zen=false;zenExits++}),'view.fullscreen.toggle':surfaceAction(()=>{state.fullscreen=false;fullExits++}),'graph.focus':surfaceAction(()=>custom++)}});return h('div',{id:'display-plex',ref:root,tabIndex:0},h('input',{id:'display-find',className:'kplex-find'}))}
+      const mount=document.createElement('div');document.body.append(mount);const reactRoot=createRoot(mount);flushSync(()=>reactRoot.render(h(Harness)));const root=mount.querySelector('#display-plex');root.focus();
+      const send=(target=root,extra={})=>{const event=new KeyboardEvent('keydown',{key:'Escape',code:'Escape',bubbles:true,cancelable:true,...extra});Object.defineProperty(event,'target',{value:target});const scope=stack.at(-1);scope?.handleKey(event);target.dispatchEvent(event);scope?.handleKey(event);return event};const settle=async()=>{await Promise.resolve();await Promise.resolve()};
+      const first=send();await settle();const queryFirst=first.defaultPrevented&&queries===1&&zenExits===0&&fullExits===0;
+      const native=document.createElement('div');native.className='menu';native.textContent='Native menu';document.body.append(native);const menu=send();await settle();native.remove();const nativePriority=!menu.defaultPrevented&&zenExits===0;
+      const field=mount.querySelector('input');field.focus();const editing=send(field);await settle();root.focus();const fieldPriority=!editing.defaultPrevented&&zenExits===0;
+      const zen=send();await settle();const zenFirst=zen.defaultPrevented&&zenExits===1&&fullExits===0&&state.fullscreen;
+      const full=send();await settle();const fullscreenNext=full.defaultPrevented&&fullExits===1&&!state.fullscreen;const none=send();await settle();const declines=!none.defaultPrevented;
+      state.zen=true;plugin.settings.actionPreferences.localBindings['graph.focus']=[{match:'key',value:'Escape',modifiers:[]}];for(const fn of listeners)fn();send();await settle();const explicitPriority=custom===1&&zenExits===1&&state.zen;
+      flushSync(()=>reactRoot.unmount());manager.dispose();document.hasFocus=previousHasFocus;mount.remove();return{queryFirst,nativePriority,fieldPriority,zenFirst,fullscreenNext,declines,explicitPriority,cleanup:stack.length===0&&listeners.size===0&&hosts.size===0};
+    })()`);
+    assert.deepEqual(result,Object.fromEntries(Object.keys(result).map(key=>[key,true])));
+  } finally {await browser.cleanup();}
+});
