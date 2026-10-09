@@ -237,6 +237,19 @@ test("v1 load skips conflicting inherited defaults but keeps explicit imported a
   assert.deepEqual(imported.localBindings["node.open"], [{match: "key", value: "p", modifiers: ["alt"]}]);
 });
 
+test("explicit saves opt into retained default overlaps while old loads migrate once and future generations remain guarded", () => {
+  const raw={version:1,localBindings:{'pin.toggle':[{match:'code',value:'KeyR',modifiers:['alt']}]},publishedCommands:{}};
+  const before=structuredClone(raw),legacy=api.sanitizeActionPreferences(raw,false,'windows');
+  assert(legacy.skippedDefaults.includes('node.rename'));assert.deepEqual(legacy.preferences.localBindings['node.rename'],[]);
+  const saved=api.sanitizeActionPreferences(raw,false,'windows',true);
+  assert.equal(saved.preferences.defaultBindingsVersion,1);assert.deepEqual(saved.skippedDefaults,[]);assert.equal(saved.preferences.localBindings['node.rename'],undefined);
+  const reload=api.sanitizeActionPreferences(saved.preferences,false,'windows');
+  assert.deepEqual(reload.preferences,saved.preferences);assert.deepEqual(reload.skippedDefaults,[]);
+  assert.equal(api.compileActionBindings(reload.preferences,'windows').resolve(event('r',{code:'KeyR',altKey:true}),'graph').state,'ambiguous');
+  const future={...before,defaultBindingsVersion:2},futureBefore=structuredClone(future),unsupported=api.sanitizeActionPreferences(future,false,'windows');
+  assert.equal(unsupported.unsupportedVersion,2);assert.deepEqual(future,futureBefore);assert.deepEqual(raw,before);
+});
+
 test("partial public registration failure reports actual state and stable-ID retry without duplicate success", () => {
   const counts = new Map(); let fail = true;
   const app = manager();

@@ -1362,16 +1362,16 @@ export default class KplexPlugin extends Plugin {
     return Boolean(command && this.actionPublisher?.registeredIds().includes(command.id));
   }
 
-  /** Serialize workflow preferences; failed storage never installs a draft or touches indexing. */
+  /** Serialize valid workflow preferences including overlaps; failed storage never installs a draft or touches indexing. */
   updateActionPreferences(next: ActionPreferencesV1): Promise<void> {
     const convention = readObsidianPresentationEnvironment(window.activeWindow ?? window).keyConvention;
-    const validated = sanitizeActionPreferences(next, false, convention);
-    // Migration may omit conflicting new defaults. An explicit settings edit must resolve them
-    // in its draft, rather than silently accepting a different shortcut configuration.
-    const compiled = compileActionBindings(next, convention);
+    const validated = sanitizeActionPreferences(next, false, convention, true);
+    // Explicit edits retain both local assignments and inherited defaults. Migration-only safety
+    // must never silently rewrite this draft; the runtime compiler rejects ambiguous dispatch.
     if (this.settings.actionPreferencesFuture !== undefined) return Promise.reject(new Error(this.translator("actions.newerPreferences")));
-    if (validated.issues.length || compiled.issues.length) return Promise.reject(new Error(this.translator("actions.invalidPreferences")));
-    if (compiled.conflicts.length) return Promise.reject(new Error(this.translator("actions.bindingConflict")));
+    if (validated.issues.length) return Promise.reject(new Error(this.translator("actions.invalidPreferences")));
+    const compiled = compileActionBindings(validated.preferences, convention);
+    if (compiled.issues.length) return Promise.reject(new Error(this.translator("actions.invalidPreferences")));
     const draft = validated.preferences;
     /** Apply only the last committed state; queued updates retain submission order. */
     const apply = async (): Promise<void> => {

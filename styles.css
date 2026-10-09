@@ -333,12 +333,13 @@ button.kplex-sidecar-unfold-plex:hover,
   outline-offset: 3px;
   box-shadow: 0 0 0 3px var(--background-primary), 0 0 0 6px var(--interactive-accent), 0 0 28px 6px var(--interactive-accent);
 }
+/* Legacy rectangular clipping preserves live announcements without newer clip-path support. */
 .kplex-keyboard-announcement {
   position: absolute;
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip-path: inset(50%);
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
 .kplex-hotkey-setting .setting-item-control { flex-wrap: wrap; }
@@ -3500,3 +3501,21 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   .kplex-shortcut-matching .setting-item-control { justify-content: flex-start; }
   .kplex-shortcut-matching select { max-width: 100%; }
 }
+
+/* Local ambiguity inherits native red; global assignments remain a distinct advisory marker. */
+.kplex-action-setting .kplex-action-local-conflict,
+.kplex-action-setting .kplex-action-global-warning,
+.kplex-action-setting .kplex-action-global-self { display: inline-flex; align-items: center; }
+.kplex-action-setting .kplex-action-global-warning { color: var(--text-warning); }
+.kplex-action-setting .kplex-action-global-self { color: var(--text-muted); }
+.kplex-action-setting .kplex-action-local-conflict svg,
+.kplex-action-setting .kplex-action-global-warning svg,
+.kplex-action-setting .kplex-action-global-self svg { width: 14px; height: 14px; }
+
+/* Saved overlaps are visible without hover; selected conflict filtering retains its error color. */
+.kplex-action-diagnostics { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; font-size: var(--font-ui-small); overflow-wrap: anywhere; }
+.kplex-action-diagnostic-error { color: var(--text-error); }
+.kplex-action-diagnostic-warning { color: var(--text-warning); }
+.kplex-action-diagnostic-info { color: var(--text-muted); }
+.kplex-action-filters .kplex-action-conflicts-filter { color: var(--text-error); border-color: var(--text-error); }
+.kplex-action-filters .kplex-action-conflicts-filter.is-active { color: var(--text-on-accent); background-color: var(--background-modifier-error); border-color: var(--background-modifier-error); }

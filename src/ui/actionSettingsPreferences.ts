@@ -36,5 +36,5 @@ export function stageActionBinding(preferences: ActionPreferencesV1, action: Act
   if (current.length >= 4) return null;
   if (current.some(/** Duplicate pills carry no additional executable intent. */ saved => JSON.stringify(saved) === JSON.stringify(binding))) return { draft, conflicts: [] };
   draft.localBindings[action] = [...current, binding];
-  return { draft, conflicts: compileActionBindings(draft, convention).conflicts.filter(/** Only collisions affected by this changed action block this staging choice. */ conflict => conflict.first === action || conflict.second === action) };
+  return { draft, conflicts: compileActionBindings(draft, convention).conflicts.filter(/** Report collisions affected by this change without replacing or blocking either assignment. */ conflict => conflict.first === action || conflict.second === action) };
 }

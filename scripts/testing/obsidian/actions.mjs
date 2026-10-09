@@ -1027,7 +1027,8 @@ function nativeActionProbe(publishableActions, nativeOSKeys, diagnosticH13Only, 
         } else await trustedKey("r",["alt","shift"],settingsOwner,settingsDocument,"KeyR");
         const receipt={...c.lastTrustedKey};
         await until(()=>!captureArea(),"Shift+Option+R did not finish native recorder");
-        await until(()=>p.settings.actionPreferences.localBindings["pin.toggle"]?.some(binding=>binding.match===mode&&binding.modifiers.includes("alt")&&binding.modifiers.includes("shift")&&binding.value===(mode==="code"?"KeyR":receipt.key)),"Native Shift+Option chord was not saved with selected matching semantics");
+        // Logical single characters are normalized by captureActionBinding; Shift remains in the modifier mask.
+        await until(()=>p.settings.actionPreferences.localBindings["pin.toggle"]?.some(binding=>binding.match===mode&&binding.modifiers.includes("alt")&&binding.modifiers.includes("shift")&&binding.value===(mode==="code"?"KeyR":receipt.key.length===1?receipt.key.toLowerCase():receipt.key)),"Native Shift+Option chord was not saved with selected matching semantics");
         (c.recorderPolishProof??=[]).push({mode,autoResumed:true,modifierOnlyIgnored:true,event:receipt,nativeForm:true});
         await p.updateActionPreferences(JSON.parse(livePreferences));
       }

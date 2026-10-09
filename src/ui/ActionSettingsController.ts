@@ -1,25 +1,28 @@
 /**
  * Native declarative action settings. Every catalog row is independently searchable by Obsidian;
  * local filters affect only its original settings group. Edits cross the serialized workflow save
- * immediately, while rejected/colliding edits retain an explicit recovery choice. Render callbacks
+ * immediately, preserving overlapping assignments with inline diagnostics and failure recovery. Render callbacks
  * own exact subscriptions and recorder lifetimes, including standalone global-search results.
  * Hotkey search and recorded collision checks compare detached key/code facts from one press while
- * saved bindings retain the user's explicitly selected logical or physical matching mode.
+ * saved bindings retain the user's explicitly selected logical or physical matching mode. Persistent
+ * chip diagnostics combine canonical local conflicts and read-only host advisories once per refresh.
  */
 import { setIcon, setTooltip, type Setting, type SettingDefinitionGroup, type SettingDefinitionRender, type ToggleComponent, SearchComponent } from "obsidian";
 import type KplexPlugin from "../main";
 import { ACTION_BY_ID, ACTION_CATALOG, type ActionId, type ActionMetadata } from "../core/plex/actions";
-import { ACTION_BINDING_DEFAULTS, actionBindingContexts, compileActionBindings, effectiveActionBindings, isActionPublished, matchesActionBinding, physicalBindingKeycap, type ActionPreferencesV1, type LocalBinding } from "../core/plex/actionPreferences";
+import { ACTION_BINDING_DEFAULTS, actionBindingContexts, compileActionBindings, effectiveActionBindings, isActionPublished, matchesActionBinding, physicalBindingKeycap, type ActionPreferencesV1, type BindingConflict, type LocalBinding } from "../core/plex/actionPreferences";
 import type { KeyConvention } from "../core/contracts/presentationEnvironment";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
 import { formatActionBinding, translateActionText } from "./actionPresentation";
 import { actionPreferenceChanged, cloneActionPreferenceDraft, stageActionBinding } from "./actionSettingsPreferences";
+import { readObsidianActionHotkeys, subscribeObsidianActionHotkeys, type NativeHotkeySnapshot } from "../adapters/obsidian/actionHotkeys";
+import { actionBindingIdentity, collectActionShortcutConflicts, type ShortcutDiagnostic, type ShortcutDiagnosticSnapshot } from "./actionShortcutConflicts";
 import { ShortcutRecorder } from "./ShortcutRecorder";
 
-type ActionFilter = "all" | "assigned" | "custom" | "unassigned";
+type ActionFilter = "all" | "assigned" | "custom" | "unassigned" | "conflicts";
 type PreferenceEdit = (preferences: ActionPreferencesV1) => void | boolean;
 type RowOwner = { setting: Setting; action?: ActionMetadata; refresh: () => void; release: () => void };
-type GroupOwner = { live: boolean; search?: SearchComponent; root?: HTMLElement; query: string; chord?: LocalBinding; capturedChords?: readonly LocalBinding[]; filter: ActionFilter; rows: Set<RowOwner>; release: (() => void)[]; refresh: () => void };
+type GroupOwner = { live: boolean; search?: SearchComponent; root?: HTMLElement; query: string; chord?: LocalBinding; capturedChords?: readonly LocalBinding[]; filter: ActionFilter; conflictPill?: HTMLElement; nativeStatus?: HTMLElement; rows: Set<RowOwner>; release: (() => void)[]; refresh: () => void };
 
 /** Adopted native Settings elements retain their creating realm even after ownerDocument changes. */
 function isElementTarget(target: EventTarget | null): target is Element {
@@ -39,14 +42,23 @@ export function actionMatchesShortcut(bindings: readonly LocalBinding[], chord: 
  * Identify contextual collisions proven by one recorder press, including Option glyphs whose code
  * cannot be inferred from their text. Compiler layout projections remain separate and conservative.
  * Effective bindings and their canonical focus contexts preserve character opt-out and editor policy.
+ * Evidence expires with this controller; no keyboard-layout correspondence is inferred on reload.
  */
 function recordedActionConflicts(preferences: ActionPreferencesV1, action: ActionId, binding: LocalBinding,
   captured: readonly LocalBinding[] | undefined, convention: KeyConvention,
-): ActionId[] {
+): BindingConflict[] {
   const metadata = ACTION_BY_ID.get(action);
   if (!metadata || !captured?.length || !effectiveActionBindings(preferences, action).some(/** An opted-out proposed text chord has no runtime collision. */ saved => actionMatchesShortcut([saved], binding, convention))) return [];
   const contexts = actionBindingContexts(metadata, binding);
-  return ACTION_CATALOG.filter(/** Only another action executable in the same focus region can conflict with this captured press. */ other => other.id !== action && effectiveActionBindings(preferences, other.id).some(/** Exact logical/physical captured alternatives prove equivalence without inventing a keyboard layout. */ saved => actionBindingContexts(other, saved).some(/** Disjoint editor/widget routes may safely reuse a chord. */ context => contexts.includes(context)) && captured.some(/** Keep each alternative's matching mode explicit. */ chord => actionMatchesShortcut([saved], chord, convention)))).map(/** Pending choices retain only bounded stable action identities. */ other => other.id);
+  const conflicts: BindingConflict[] = [];
+  for (const other of ACTION_CATALOG) {
+    if (other.id === action) continue;
+    for (const saved of effectiveActionBindings(preferences, other.id)) {
+      const shared = actionBindingContexts(other, saved).filter(/** Only simultaneously executable routes create a local conflict. */ context => contexts.includes(context));
+      if (shared.length && captured.some(/** Detached facts prove equivalence without inferring a glyph's physical position. */ chord => actionMatchesShortcut([saved], chord, convention))) conflicts.push({first: action, second: other.id, binding, secondBinding: saved, contexts: shared, kind: "collision"});
+    }
+  }
+  return conflicts;
 }
 
 /** Own rendered native rows, never a separate settings window or an unapplied full-settings draft. */
@@ -54,6 +66,11 @@ export class ActionSettingsController {
   private rows = new Set<RowOwner>();
   private groups = new Set<GroupOwner>();
   private releasePreferences: (() => void) | null = null;
+  private releaseNativeHotkeys: (() => void) | null = null;
+  private nativeHotkeys: NativeHotkeySnapshot = {available: false, complete: false, commands: []};
+  private diagnostics = new Map<KeyConvention, ShortcutDiagnosticSnapshot>();
+  private nativeRefreshTimers = new Set<() => void>();
+  private focusOwners = new Map<Window, { count: number; release: () => void }>();
   private recorder: ShortcutRecorder | null = null;
   private recorderOwner: RowOwner | GroupOwner | null = null;
   private listeners = new Map<HTMLElement, (() => void)[]>();
@@ -61,7 +78,8 @@ export class ActionSettingsController {
   private epoch = 0;
   private notices = new Map<string, string>();
   private retries = new Map<string, PreferenceEdit>();
-  private pending: { action: ActionId; binding: LocalBinding; captured?: readonly LocalBinding[]; others: readonly ActionId[] } | null = null;
+  /** Exact key/code evidence is session-only; removal or controller teardown retires it. */
+  private capturedAliases = new Map<string, {action: ActionId; binding: LocalBinding; captured: readonly LocalBinding[]}>();
 
   /** Construction/indexing reads finite metadata only; native resources are acquired during render. */
   constructor(private plugin: KplexPlugin) {}
@@ -72,14 +90,78 @@ export class ActionSettingsController {
   /** Acquire one subscription for any combination of local rows and global Settings search results. */
   private activate(): void {
     if (this.releasePreferences) return;
-    this.releasePreferences = this.plugin.subscribeActionPreferences(/** External saved changes invalidate unaccepted collision choices and refresh live row controls. */ () => {
-      if (!this.saving) this.pending = null;
+    this.readDiagnostics();
+    this.releaseNativeHotkeys = subscribeObsidianActionHotkeys(this.plugin.app, /** Native assignments affect diagnostics only, never saved local choices. */ () => this.scheduleNativeRefresh());
+    this.releasePreferences = this.plugin.subscribeActionPreferences(/** External saved edits retire stale event evidence and refresh live controls. */ () => {
+      if (!this.saving) this.pruneCapturedAliases();
       this.refresh();
     });
   }
 
+  /** Cancel exact owning-window timers; native file refresh is bounded and never becomes background polling. */
+  private clearNativeRefreshTimers(): void { for (const release of this.nativeRefreshTimers) release(); this.nativeRefreshTimers.clear(); }
+
+  /**
+   * Native hotkey reload is debounced/asynchronous. Recheck three bounded times after raw changes;
+   * focus/page reopening provide later freshness without assuming any delay guarantees host completion.
+   */
+  private scheduleNativeRefresh(): void {
+    this.clearNativeRefreshTimers();
+    if (!this.rows.size) return;
+    this.refresh();
+    const ownerWindow = [...this.rows].find(/** Use a live native row's actual document, including popouts. */ row => row.setting.settingEl.isConnected)?.setting.settingEl.ownerDocument.defaultView;
+    if (!ownerWindow) return;
+    for (const delay of [250, 1000, 3000]) {
+      let release: () => void;
+      const timer = ownerWindow.setTimeout(/** Detached native snapshots are refreshed only while this controller still owns rows. */ () => {
+        this.nativeRefreshTimers.delete(release);
+        if (this.rows.size) this.refresh();
+      }, delay);
+      release = /** Cancel on the exact window that acquired this bounded retry. */ () => ownerWindow.clearTimeout(timer);
+      this.nativeRefreshTimers.add(release);
+    }
+  }
+
+  /** Acquire detached native assignments once and invalidate platform-specific canonical projections. */
+  private readDiagnostics(): void { this.nativeHotkeys = readObsidianActionHotkeys(this.plugin.app); this.diagnostics.clear(); }
+
+  /** Lazily compile each actually rendered platform once per refresh, sharing the snapshot across rows. */
+  private diagnosticsFor(convention: KeyConvention): ShortcutDiagnosticSnapshot {
+    let snapshot = this.diagnostics.get(convention);
+    if (!snapshot) { const preferences = this.plugin.settings.actionPreferences;
+      const captured = [...this.capturedAliases.values()].flatMap(/** Session facts remain active only while their exact originating chord is effective. */ alias => recordedActionConflicts(preferences, alias.action, alias.binding, alias.captured, convention));
+      snapshot = collectActionShortcutConflicts(preferences, convention, this.nativeHotkeys, captured); this.diagnostics.set(convention, snapshot); }
+    return snapshot;
+  }
+
+  /** Own one focus listener per actual rendering window; migration/release retire the old window exactly. */
+  private ownFocus(setting: Setting): () => void {
+    let ownedWindow: Window | null = null;
+    const releaseWindow = /** Reference counting preserves other standalone native search rows in this window. */ (): void => {
+      if (!ownedWindow) return;
+      const owner = this.focusOwners.get(ownedWindow);
+      if (owner && --owner.count === 0) { owner.release(); this.focusOwners.delete(ownedWindow); }
+      ownedWindow = null;
+    };
+    const wire = /** Obsidian can migrate a detached settings row to a popout window after rendering. */ (): void => {
+      const next = setting.settingEl.ownerDocument.defaultView;
+      if (next === ownedWindow) return;
+      releaseWindow(); ownedWindow = next;
+      if (!next) return;
+      const existing = this.focusOwners.get(next);
+      if (existing) { existing.count++; return; }
+      const focus = /** Native hotkey settings may change while this plugin's page is unfocused. */ (): void => { if (this.rows.size) this.refresh(); };
+      next.addEventListener("focus", focus);
+      this.focusOwners.set(next, {count: 1, release: /** Remove the callback from its actual acquisition window. */ () => next.removeEventListener("focus", focus)});
+    };
+    wire();
+    const releaseMigration = typeof setting.settingEl.onWindowMigrated === "function" ? setting.settingEl.onWindowMigrated(wire) : null;
+    return /** Closing this row releases its window lease and exact migration listener. */ () => { releaseMigration?.(); releaseWindow(); };
+  }
+
   /** Refresh controls in place so native search result rows keep their original Setting ownership. */
   private refresh(): void {
+    this.readDiagnostics();
     for (const row of this.rows) {
       const document = row.setting.settingEl.ownerDocument, active = document.activeElement;
       const focused = document.hasFocus();
@@ -87,7 +169,7 @@ export class ActionSettingsController {
       row.refresh();
       if (control && focused && active && !active.isConnected) {
         const replacement = Array.from(row.setting.controlEl.querySelectorAll<HTMLButtonElement>("button")).find(button => button.getAttribute("data-kplex-action-control") === control && button.getAttribute("data-kplex-action-disabled") !== "true");
-        // A save subscriber may refresh before the pending guard is released; preserve focus while that guard rejects repeat edits.
+        // A save subscriber may refresh before the persistence guard is released; preserve focus while it rejects repeat edits.
         if (replacement && this.saving) { replacement.disabled = false; replacement.setAttr("aria-disabled", "true"); }
         replacement?.focus();
       }
@@ -122,19 +204,24 @@ export class ActionSettingsController {
     group.live = false;
     for (const release of group.release) release(); group.release = [];
     if (this.recorderOwner === group) { this.recorder?.close(); this.recorder = null; this.recorderOwner = null; }
-    group.search = undefined; group.root = undefined; this.groups.delete(group);
+    group.search = undefined; group.root = undefined; group.conflictPill = undefined; group.nativeStatus = undefined; this.groups.delete(group);
+  }
+
+  /** Retire event evidence when its exact originating binding has been removed or edited. */
+  private pruneCapturedAliases(): void {
+    for (const [token, alias] of this.capturedAliases) if (!(this.plugin.settings.actionPreferences.localBindings[alias.action] ?? ACTION_BINDING_DEFAULTS[alias.action] ?? []).some(/** Only the identical saved chord can retain a recorder's detached layout evidence. */ binding => actionBindingIdentity(binding) === actionBindingIdentity(alias.binding))) this.capturedAliases.delete(token);
   }
 
   /** Save one explicit edit against fresh preferences; failures expose retry without claiming installation. */
   private async save(key: string, edit: PreferenceEdit, ownerDocument?: Document): Promise<void> {
-    if (!this.rows.size || this.saving || this.unsupported() || this.pending) return;
+    if (!this.rows.size || this.saving || this.unsupported()) return;
     const epoch = this.epoch;
     const draft = cloneActionPreferenceDraft(this.plugin.settings.actionPreferences);
     if (edit(draft) === false) { this.refresh(); return; }
     const environment = readObsidianPresentationEnvironment(ownerDocument?.defaultView ?? undefined);
     const compiled = compileActionBindings(draft, environment.keyConvention);
-    if (compiled.conflicts.length || compiled.issues.length) {
-      this.notices.set(key, this.plugin.translator("actions.resolveConflicts")); this.refresh(); return;
+    if (compiled.issues.length) {
+      this.notices.set(key, this.plugin.translator("actions.invalidPreferences")); this.refresh(); return;
     }
     this.saving = true; this.notices.set(key, this.plugin.translator("actions.saving")); this.retries.delete(key); this.refresh();
     try {
@@ -145,7 +232,11 @@ export class ActionSettingsController {
       if (!this.rows.size || epoch !== this.epoch) return;
       this.notices.set(key, this.plugin.translator("actions.saveFailed", { error: error instanceof Error ? error.message : String(error) }));
       this.retries.set(key, edit);
-    } finally { this.saving = false; if (this.rows.size) this.refresh(); }
+    } finally {
+      this.saving = false;
+      this.pruneCapturedAliases();
+      if (this.rows.size) this.refresh();
+    }
   }
 
   /** Create native icon affordances with one accessible tooltip and an exact render-owned callback. */
@@ -167,84 +258,58 @@ export class ActionSettingsController {
     this.recorder.open();
   }
 
-  /** Propose compiler or captured-event collisions before saving; persist only the selected recording mode. */
+  /** Save the selected mode immediately; retain detached event evidence without replacing another assignment. */
   private chooseBinding(action: ActionId, binding: LocalBinding, ownerDocument: Document, captured?: readonly LocalBinding[]): void {
     if (this.saving || this.unsupported()) return;
     const environment = readObsidianPresentationEnvironment(ownerDocument.defaultView ?? undefined);
-    const staged = stageActionBinding(this.plugin.settings.actionPreferences, action, binding, environment.keyConvention);
-    if (!staged) { this.notices.set(action, this.plugin.translator("actions.bindingLimit")); this.refresh(); return; }
-    const others = [...new Set([...staged.conflicts.map(/** Explain both endpoints of a proposed overlap. */ conflict => conflict.first === action ? conflict.second : conflict.first), ...recordedActionConflicts(staged.draft, action, binding, captured, environment.keyConvention)])];
-    if (others.length) {
-      this.pending = { action, binding, captured, others };
-      this.refresh(); return;
-    }
-    void this.save(action, /** Rebase the add intent on fresh saved chords, including an explicit retry after failure. */ draft => {
-      const fresh = stageActionBinding(draft, action, binding, environment.keyConvention);
-      if (!fresh) { this.notices.set(action, this.plugin.translator("actions.bindingLimit")); return false; }
-      const others = [...new Set([...fresh.conflicts.map(/** Rebase only conflicts affected by this proposal. */ conflict => conflict.first === action ? conflict.second : conflict.first), ...recordedActionConflicts(fresh.draft, action, binding, captured, environment.keyConvention)])];
-      if (others.length) {
-        this.pending = { action, binding, captured, others };
-        return false;
-      }
-      draft.localBindings[action] = fresh.draft.localBindings[action];
+    void this.save(action, /** Rebase only this addition on current saved chords; overlaps are diagnostic rather than blocking. */ draft => {
+      const staged = stageActionBinding(draft, action, binding, environment.keyConvention);
+      if (!staged) { this.notices.set(action, this.plugin.translator("actions.bindingLimit")); return false; }
+      draft.localBindings[action] = staged.draft.localBindings[action];
+      if (captured?.length) this.capturedAliases.set(JSON.stringify([action, binding]), {action, binding, captured});
       return true;
     }, ownerDocument);
   }
 
-  /** Resolve only explicitly accepted contextual overlaps; retained capture facts also fence replacement retries. */
-  private replaceConflicts(ownerDocument: Document): void {
-    const pending = this.pending;
-    if (!pending || this.saving || this.unsupported()) return;
-    this.pending = null;
-    void this.save(pending.action, /** Recompute each other action's overlapping subset against fresh persisted preferences. */ draft => {
-      for (const other of pending.others) {
-        const bindings = draft.localBindings[other] ?? ACTION_BINDING_DEFAULTS[other] ?? [];
-        draft.localBindings[other] = bindings.filter(/** A compiler collision with this proposal identifies exactly the chord being replaced. */ binding => {
-          const probe = cloneActionPreferenceDraft(draft); probe.localBindings[other] = [binding]; probe.localBindings[pending.action] = [pending.binding];
-          const environment = readObsidianPresentationEnvironment(ownerDocument.defaultView ?? undefined);
-          return !compileActionBindings(probe, environment.keyConvention).conflicts.some(/** Other imported collisions are not part of this replacement. */ conflict => conflict.first === other && conflict.second === pending.action || conflict.second === other && conflict.first === pending.action)
-            && !recordedActionConflicts(probe, pending.action, pending.binding, pending.captured, environment.keyConvention).includes(other);
-        });
-      }
-      const environment = readObsidianPresentationEnvironment(ownerDocument.defaultView ?? undefined);
-      const staged = stageActionBinding(draft, pending.action, pending.binding, environment.keyConvention);
-      if (!staged) { this.notices.set(pending.action, this.plugin.translator("actions.bindingLimit")); return false; }
-      const others = [...new Set([...staged.conflicts.map(/** A new conflict requires another explicit replacement decision. */ conflict => conflict.first === pending.action ? conflict.second : conflict.first), ...recordedActionConflicts(staged.draft, pending.action, pending.binding, pending.captured, environment.keyConvention)])];
-      if (others.length) { this.pending = {...pending, others: [...new Set([...pending.others, ...others])]}; return false; }
-      draft.localBindings[pending.action] = staged.draft.localBindings[pending.action];
-      return true;
-    }, ownerDocument);
-  }
-
-  /** Render status/retry/collision choices beside the action that owns them, without nested Settings rows. */
+  /** Render persistence status and explicit failed-save retry beside the action that owns them, without nested Settings rows. */
   private renderStatus(parent: HTMLElement, key: string): void {
     const message = this.unsupported() ? this.plugin.translator("actions.unsupportedPreferences") : this.notices.get(key);
     if (message) parent.createDiv({ cls: "kplex-action-status", text: message, attr: { role: "status", "aria-live": "polite" } });
     const retry = this.retries.get(key);
     if (retry) this.icon(parent, "refresh-cw", this.plugin.translator("actions.retrySave"), /** Retry rebases this exact operation on the latest saved preferences. */ () => { void this.save(key, retry, parent.ownerDocument); }, this.saving || this.unsupported());
-    if (this.pending?.action !== key) return;
-    for (const other of this.pending.others) {
-      const action = ACTION_BY_ID.get(other);
-      if (action) parent.createDiv({ cls: "kplex-action-status mod-warning", text: this.plugin.translator("actions.conflictsWithAction", { action: translateActionText(this.plugin.translator, action.labelKey) }) });
+  }
+
+  /** Explain independent chip diagnostics without conflating local conflicts, layout suggestions or own commands. */
+  private diagnosticLabels(diagnostic: ShortcutDiagnostic | undefined): string[] {
+    if (!diagnostic) return [];
+    const translate = this.plugin.translator, labels: string[] = [];
+    for (const possible of [false, true]) {
+      const actions = diagnostic.local.filter(/** Exact and layout-dependent local overlaps have distinct wording. */ item => item.possible === possible)
+        .map(/** Translate stable catalog identities at presentation time. */ item => translateActionText(translate, ACTION_BY_ID.get(item.action)!.labelKey));
+      if (actions.length) labels.push(translate(possible ? "actions.localLayoutOverlap" : "actions.localConflict", {actions: actions.join(", ")}));
     }
-    const replace = parent.createEl("button", { text: this.plugin.translator("actions.replaceConflicts"), attr: { type: "button" } });
-    this.listen(replace, /** Collision replacement is a separate explicit user choice. */ () => this.replaceConflicts(parent.ownerDocument));
-    const cancel = parent.createEl("button", { text: this.plugin.translator("common.cancel"), attr: { type: "button" } });
-    this.listen(cancel, /** Discard only the unaccepted chord. */ () => { this.pending = null; this.refresh(); });
+    for (const self of [false, true]) for (const possible of [false, true]) {
+      const commands = diagnostic.obsidian.filter(/** Same-action publication is informational, never a conflict warning. */ item => item.self === self && item.possible === possible).map(/** Native command names are detached host data, not localized product literals. */ item => item.name);
+      if (commands.length) labels.push(translate(self ? "actions.globalSelfAssignment" : possible ? "actions.globalLayoutOverlap" : "actions.globalOverlap", {commands: commands.join(", ")}));
+    }
+    return labels;
   }
 
   /** Attach an independently owned row; native teardown and controller disposal are both idempotent. */
   private own(setting: Setting, group: GroupOwner, action: ActionMetadata | undefined, render: () => void): () => void {
     this.activate();
+    const releaseFocus = this.ownFocus(setting);
     const row: RowOwner = { setting, action, refresh: render, release: /** Native row cleanup retires recorder input before unregistering this owner. */ () => {
       if (!this.rows.delete(row)) return;
+      releaseFocus();
       const local = group.rows.delete(row);
       if (local && !group.rows.size) this.releaseGroup(group);
       this.clearControls(setting.controlEl);
       const feedback = setting.infoEl.querySelector<HTMLElement>(".kplex-action-feedback");
       if (feedback) this.clearControls(feedback);
+      setting.infoEl.querySelector(".kplex-action-diagnostics")?.remove();
       if (this.recorderOwner === row) { this.recorder?.close(); this.recorder = null; this.recorderOwner = null; }
-      if (!this.rows.size) { this.epoch++; this.releasePreferences?.(); this.releasePreferences = null; this.pending = null; }
+      if (!this.rows.size) { this.epoch++; this.releasePreferences?.(); this.releasePreferences = null; this.releaseNativeHotkeys?.(); this.releaseNativeHotkeys = null; this.clearNativeRefreshTimers(); this.capturedAliases.clear(); }
     } };
     this.rows.add(row);
     // Global Settings search constructs its own groups without the original local search header.
@@ -264,6 +329,7 @@ export class ActionSettingsController {
         const description = translateActionText(translate, action.descriptionKey).trim().replace(/[.!?]$/, "").toLocaleLowerCase();
         if (description === label) setting.setDesc("");
         const status = setting.infoEl.createDiv({ cls: "kplex-action-feedback" });
+        const diagnosticStatus = setting.infoEl.createDiv({cls: "kplex-action-diagnostics"});
         let previous = "";
         const render = /** Saved changes update controls in place without reconstructing native result rows. */ (): void => {
           this.clearControls(status);
@@ -271,21 +337,41 @@ export class ActionSettingsController {
           const preferences = this.plugin.settings.actionPreferences;
           const bindings = preferences.localBindings[action.id] ?? ACTION_BINDING_DEFAULTS[action.id] ?? [];
           const environment = readObsidianPresentationEnvironment(setting.settingEl.ownerDocument.defaultView ?? undefined);
-          const disabled = this.saving || this.unsupported() || Boolean(this.pending);
-          const fingerprint = JSON.stringify([bindings, preferences.publishedCommands[action.id], preferences.localBindings[action.id] !== undefined]);
+          const disabled = this.saving || this.unsupported();
+          const diagnostics = this.diagnosticsFor(environment.keyConvention).get(action.id);
+          diagnosticStatus.empty();
+          for (const binding of bindings) {
+            const diagnostic = diagnostics?.get(actionBindingIdentity(binding));
+            if (!diagnostic) continue;
+            const text = formatActionBinding(binding, environment, translate, true) ?? binding.value;
+            for (const label of this.diagnosticLabels({...diagnostic, obsidian: []})) diagnosticStatus.createDiv({cls: "kplex-action-diagnostic-error", text: translate("actions.bindingDiagnostic", {binding: text, message: label})});
+            for (const self of [false, true]) for (const label of this.diagnosticLabels({local: [], obsidian: diagnostic.obsidian.filter(/** Self-publication stays neutral while external assignments remain visible warnings. */ item => item.self === self)})) diagnosticStatus.createDiv({cls: self ? "kplex-action-diagnostic-info" : "kplex-action-diagnostic-warning", text: translate("actions.bindingDiagnostic", {binding: text, message: label})});
+          }
+          const fingerprint = JSON.stringify([bindings, [...(diagnostics ?? [])], environment.keyConvention, preferences.publishedCommands[action.id], preferences.localBindings[action.id] !== undefined]);
           if (fingerprint === previous) { this.disableControls(setting.controlEl, disabled); this.renderStatus(status, action.id); return; }
           previous = fingerprint; this.clearControls(setting.controlEl);
           const pills = setting.controlEl.createDiv({ cls: "setting-command-hotkeys" });
           for (const binding of bindings) {
             const text = formatActionBinding(binding, environment, translate, true) ?? binding.value;
             const pill = pills.createEl("button", { cls: "setting-hotkey", text, attr: { type: "button", "aria-label": translate("actions.removeBinding", { binding: text }) } });
-            pill.disabled = disabled; setTooltip(pill, translate("actions.removeBinding", { binding: text }));
+            pill.disabled = disabled;
+            const diagnostic = diagnostics?.get(actionBindingIdentity(binding));
+            const labels = [translate("actions.removeBinding", {binding: text}), ...this.diagnosticLabels(diagnostic)];
+            pill.setAttr("aria-label", labels.join(" ")); setTooltip(pill, labels.join("\n"));
+            pill.toggleClass("has-conflict", Boolean(diagnostic?.local.length));
+            pill.toggleClass("kplex-action-global-overlap", Boolean(diagnostic?.obsidian.some(/** Same-action publication is informational rather than an advisory warning. */ item => !item.self)));
+            if (diagnostic?.local.length) setIcon(pill.createSpan({cls: "kplex-action-local-conflict"}), "alert-circle");
+            if (diagnostic?.obsidian.length) {
+              const advisory = diagnostic.obsidian.some(/** Same-action publication is informational rather than an advisory warning. */ item => !item.self);
+              const indicator = pill.createSpan({cls: advisory ? "kplex-action-global-warning" : "kplex-action-global-self"});
+              setIcon(indicator, advisory ? "globe" : "info");
+            }
             pill.setAttr("data-kplex-action-control", `remove:${JSON.stringify(binding)}`);
             setIcon(pill.createSpan({ cls: "setting-hotkey-icon setting-delete-hotkey" }), "x");
             this.listen(pill, /** Remove the captured chord from fresh saved keys, preserving unrelated changes on retry. */ () => { if (!pill.disabled && this.rows.size) void this.save(action.id, draft => { const current = draft.localBindings[action.id] ?? ACTION_BINDING_DEFAULTS[action.id] ?? []; draft.localBindings[action.id] = current.filter(saved => JSON.stringify(saved) !== JSON.stringify(binding)); }, setting.settingEl.ownerDocument); });
           }
           if (!bindings.length) pills.createSpan({ cls: "setting-hotkey mod-empty", text: translate("actions.blank") });
-          const add = this.icon(setting.controlEl, "plus-circle", translate("actions.addBinding"), /** The recorder only returns a proposal to this row's collision policy. */ () => {
+          const add = this.icon(setting.controlEl, "plus-circle", translate("actions.addBinding"), /** Record one explicit addition while retaining the other saved assignments. */ () => {
             const row = [...this.rows].find(candidate => candidate.setting === setting);
             if (row) this.record(row, /** Carry exact event evidence for collisions while saving only the explicitly chosen matching mode. */ (binding, captured) => this.chooseBinding(action.id, binding, setting.settingEl.ownerDocument, captured));
           }, disabled || bindings.length >= 4);
@@ -308,6 +394,7 @@ export class ActionSettingsController {
   /** Native group search and pills only filter their original DOM rows, never global search metadata. */
   getSettingDefinitions(): SettingDefinitionGroup<never> {
     const translate = this.plugin.translator;
+    this.readDiagnostics();
     const group: GroupOwner = { live: true, query: "", filter: "all", rows: new Set(), release: [], refresh: /** Reconcile finite catalog rows only while their native group still exists. */ () => {
       for (const row of group.rows) {
         const action = row.action;
@@ -316,9 +403,15 @@ export class ActionSettingsController {
         const environment = readObsidianPresentationEnvironment(row.setting.settingEl.ownerDocument.defaultView ?? undefined);
         const text = `${translateActionText(translate, action.labelKey)} ${translateActionText(translate, action.descriptionKey)} ${action.id} ${bindings.map(binding => formatActionBinding(binding, environment, translate, true) ?? binding.value).join(" ")}`.toLocaleLowerCase();
         const match = (!group.query || text.includes(group.query.toLocaleLowerCase())) && (!group.chord || (group.capturedChords ?? [group.chord]).some(/** A search press can describe both logical and physical saved chords without conflating either mode. */ chord => actionMatchesShortcut(bindings, chord, environment.keyConvention)))
-          && (group.filter === "all" || group.filter === "assigned" && bindings.length > 0 || group.filter === "unassigned" && !bindings.length || group.filter === "custom" && preferences.localBindings[action.id] !== undefined && bindings.length > 0 && actionPreferenceChanged(preferences, action));
+          && (group.filter === "all" || group.filter === "assigned" && bindings.length > 0 || group.filter === "unassigned" && !bindings.length || group.filter === "custom" && preferences.localBindings[action.id] !== undefined && bindings.length > 0 && actionPreferenceChanged(preferences, action) || group.filter === "conflicts" && [...(this.diagnosticsFor(environment.keyConvention).get(action.id)?.values() ?? [])].some(/** Include only active local conflicts or external native assignment advisories. */ diagnostic => diagnostic.local.length || diagnostic.obsidian.some(/** Same-action publication is informational rather than an advisory warning. */ item => !item.self)));
         row.setting.settingEl.toggleClass("kplex-action-filtered", !match);
       }
+      if (group.conflictPill) {
+        const environment = readObsidianPresentationEnvironment(group.conflictPill.ownerDocument.defaultView ?? undefined);
+        const count = [...this.diagnosticsFor(environment.keyConvention).values()].filter(/** The native filter count covers actions, excluding neutral same-action publication. */ bindings => [...bindings.values()].some(/** Include only active local conflicts or external native assignment advisories. */ diagnostic => diagnostic.local.length || diagnostic.obsidian.some(/** Same-action publication is informational rather than an advisory warning. */ item => !item.self))).length;
+        group.conflictPill.setText(translate("actions.filter.conflictCount", {count}));
+      }
+      if (group.nativeStatus) group.nativeStatus.setText(this.nativeHotkeys.available && this.nativeHotkeys.complete ? "" : translate(this.nativeHotkeys.available ? "actions.globalHotkeysPartial" : "actions.globalHotkeysUnavailable"));
     } };
     return { type: "group", heading: "", cls: "kplex-action-settings",
       items: [
@@ -333,8 +426,9 @@ export class ActionSettingsController {
         search.setPlaceholder(translate("actions.searchPlaceholder")).onChange(value => { if (!group.live || group.search !== search || !search.inputEl.isConnected) return; group.query = value.trim(); group.chord = undefined; group.capturedChords = undefined; group.refresh(); });
         const filters = setting.controlEl.createDiv({ cls: "kplex-action-filters" });
         
-        for (const filter of ["all", "assigned", "custom", "unassigned"] as const) {
-          const pill = filters.createEl("button", { cls: "filter-pill", text: translate(`actions.filter.${filter}`), attr: { type: "button", "aria-pressed": String(filter === group.filter), "data-kplex-action-filter": filter } });
+        for (const filter of ["all", "assigned", "custom", "unassigned", "conflicts"] as const) {
+          const pill = filters.createEl("button", { cls: "filter-pill", text: filter === "conflicts" ? translate("actions.filter.conflictCount", {count: 0}) : translate(`actions.filter.${filter}`), attr: { type: "button", "aria-pressed": String(filter === group.filter), "data-kplex-action-filter": filter } });
+          if (filter === "conflicts") { group.conflictPill = pill; pill.addClass("kplex-action-conflicts-filter"); }
           pill.toggleClass("is-active", filter === group.filter);
           const click = /** Change native group presentation without affecting the declarative definitions. */ (): void => {
             if (!group.live || group.search !== search || !search.inputEl.isConnected) return; group.filter = filter;
@@ -343,6 +437,7 @@ export class ActionSettingsController {
           };
           pill.addEventListener("click", click); group.release.push(() => pill.removeEventListener("click", click));
         }
+        group.nativeStatus = setting.controlEl.createDiv({cls: "kplex-action-status"});
         const keyboard = this.icon(search.inputEl.parentElement ?? setting.controlEl, "keyboard", translate("actions.searchByHotkey"), /** Capture a search chord without changing any preference. */ () => {
           if (!group.live || group.search !== search || !search.inputEl.isConnected) return;
           this.record(group, /** Searching a key press uses detached alternatives; it never changes preferences or the recorder's selected save mode. */ (binding, captured) => {
@@ -401,7 +496,7 @@ export class ActionSettingsController {
                   if ([...this.rows].some(row => row.setting === setting)) void this.save(key, draft => { draft[key] = value; }, setting.settingEl.ownerDocument);
                 });
               });
-              toggle?.setValue(this.plugin.settings.actionPreferences[key]).setDisabled(this.saving || this.unsupported() || Boolean(this.pending));
+              toggle?.setValue(this.plugin.settings.actionPreferences[key]).setDisabled(this.saving || this.unsupported());
               this.renderStatus(status, key);
             };
             return this.own(setting, group, undefined, render);
@@ -418,6 +513,6 @@ export class ActionSettingsController {
     for (const group of this.groups) this.releaseGroup(group);
     this.groups.clear();
     for (const row of [...this.rows]) row.release();
-    this.releasePreferences?.(); this.releasePreferences = null; this.pending = null; this.notices.clear(); this.retries.clear();
+    this.releasePreferences?.(); this.releasePreferences = null; this.releaseNativeHotkeys?.(); this.releaseNativeHotkeys = null; this.clearNativeRefreshTimers(); this.diagnostics.clear(); this.capturedAliases.clear(); this.notices.clear(); this.retries.clear();
   }
 }

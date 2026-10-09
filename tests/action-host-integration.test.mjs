@@ -117,10 +117,33 @@ test('unsupported future schema remains verbatim and cannot be edited', async ()
   assert.equal(writes.length, 1);
 });
 
-test('explicit contextual conflict refuses save before publication or disk work', async () => {
-  const current = host(async () => assert.fail('Conflicting draft must not save'));
-  const next = draft(current); next.localBindings['pin.toggle'] = [{ match: 'key', value: 'r', modifiers: ['alt'] }];
-  await assert.rejects(current.updateActionPreferences(next), /actions.bindingConflict/);
+test('explicit overlap with inherited defaults saves both and survives marked reload and unrelated edits', async () => {
+  const writes=[],current=host(async data=>writes.push(structuredClone(data)));
+  const next=draft(current);delete next.defaultBindingsVersion;next.localBindings['pin.toggle']=[{match:'code',value:'KeyR',modifiers:['alt']}];
+  await current.updateActionPreferences(next);
+  assert.equal(writes.length,1);assert.equal(current.settings.actionPreferences.defaultBindingsVersion,1);
+  assert.equal(current.settings.actionPreferences.localBindings['node.rename'],undefined,'Inherited default is retained rather than disabled');
+  const reloaded=contracts.migrateActionPreferences(writes[0]).preferences;
+  assert.equal(contracts.compileActionBindings(reloaded,'windows').resolve({key:'r',code:'KeyR',altKey:true,ctrlKey:false,metaKey:false,shiftKey:false},'graph').state,'ambiguous');
+  assert.equal(reloaded.localBindings['node.rename'],undefined);
+  const unrelated=structuredClone(reloaded);unrelated.crossSectionAtBoundary=!unrelated.crossSectionAtBoundary;await current.updateActionPreferences(unrelated);
+  assert.equal(current.settings.actionPreferences.localBindings['node.rename'],undefined);
+  assert.deepEqual(current.settings.actionPreferences.localBindings['pin.toggle'],next.localBindings['pin.toggle']);
+  const disabled=draft(current);disabled.localBindings['node.rename']=[];await current.updateActionPreferences(disabled);
+  assert.equal(contracts.compileActionBindings(current.settings.actionPreferences,'windows').resolve({key:'r',code:'KeyR',altKey:true,ctrlKey:false,metaKey:false,shiftKey:false},'graph').state,'matched');
+  const reset=draft(current);delete reset.localBindings['node.rename'];await current.updateActionPreferences(reset);
+  const resetReload=contracts.migrateActionPreferences(writes.at(-1)).preferences;
+  assert.equal(resetReload.localBindings['node.rename'],undefined,'Reset restores the inherited shortcut without removing its saved counterpart');
+  assert.deepEqual(resetReload.localBindings['pin.toggle'],next.localBindings['pin.toggle']);
+  assert.equal(contracts.compileActionBindings(resetReload,'windows').resolve({key:'r',code:'KeyR',altKey:true,ctrlKey:false,metaKey:false,shiftKey:false},'graph').state,'ambiguous');
+});
+
+test('malformed and future-generation workflow preferences reject before persistence or publication', async () => {
+  const writes=[],current=host(async data=>writes.push(data));
+  const invalid=draft(current);invalid.localBindings['pin.toggle']=[{match:'code',value:'UnknownCode',modifiers:['alt']}];
+  await assert.rejects(current.updateActionPreferences(invalid),/actions.invalidPreferences/);
+  const future=draft(current);future.defaultBindingsVersion=2;await assert.rejects(current.updateActionPreferences(future),/actions.invalidPreferences/);
+  assert.equal(writes.length,0);
 });
 
 test('host file incarnation rejects delayed delete/recreate despite identical path and kind', () => {

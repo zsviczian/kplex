@@ -1,0 +1,564 @@
+{
+  "status": "passed",
+  "baseRevision": "3f2d6b05a0bbc8b33c84bf7ee8c55a2afe26def7",
+  "sourceFreeze": "9deea8f310c3a24d20841a92f8c75929bab16644064c8ec369d01d9a5c9955af",
+  "frozenInputCount": 308,
+  "fullVerification": {
+    "status": "passed",
+    "sourceFreeze": "8ad9ceaef3b517311a93a24c7b37866f2bd0c1efeb31c7ff9defd9ad5ceeca4e",
+    "counts": {
+      "architecture": 7,
+      "core": 69,
+      "node": 411,
+      "ui": 20,
+      "portableSources": 333,
+      "chromium": 410
+    },
+    "log": "/private/tmp/kplex-conflicts-final-verify-1.log",
+    "nativeStage": {
+      "schemaVersion": 1,
+      "status": "passed",
+      "startedAt": "2026-10-09T04:28:09.629Z",
+      "source": {
+        "revision": "3f2d6b05a0bbc8b33c84bf7ee8c55a2afe26def7",
+        "dirty": true,
+        "node": "v22.22.2",
+        "os": "darwin 23.5.0"
+      },
+      "target": {
+        "vaultName": "kplex-test-small",
+        "vaultPath": "/Users/zsviczian/Obsidian/kplex-test-small",
+        "configDir": "/Users/zsviczian/Obsidian/kplex-test-small/.obsidian"
+      },
+      "capabilities": {
+        "version": "1.14.4 (installer 1.14.0)",
+        "commands": [
+          "version",
+          "vault",
+          "plugin:disable",
+          "plugin:enable",
+          "commands",
+          "command",
+          "dev:dom",
+          "dev:errors"
+        ]
+      },
+      "artifacts": {
+        "sourceHashes": {
+          "main.js": "cd454b443fb13024fcfaa4013140e2b098af5232cca07ca4ffade87ed2b76d67",
+          "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+          "styles.css": "f98baf118cb29e97609182869a8751a518c9d1951e369616db1134256766dafd"
+        },
+        "pluginVersion": "0.1.0",
+        "stagedHashes": {
+          "main.js": "cd454b443fb13024fcfaa4013140e2b098af5232cca07ca4ffade87ed2b76d67",
+          "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+          "styles.css": "f98baf118cb29e97609182869a8751a518c9d1951e369616db1134256766dafd"
+        }
+      },
+      "scenarios": [
+        {
+          "id": "open-kplex",
+          "status": "passed",
+          "assertions": [
+            "plugin command registered",
+            "rendered .kplex-app contains K-Plex",
+            "no captured JavaScript errors"
+          ],
+          "elapsedMs": 236
+        }
+      ],
+      "completedAt": "2026-10-09T04:40:33.022Z"
+    },
+    "attribution": "Completed before two bounded diagnostics corrections. Source/indexing unchanged afterward; affected tests, architecture, full scanner, real types and build rerun."
+  },
+  "finalAffectedVerification": {
+    "focusedPassed": 77,
+    "architecturePassed": 7,
+    "scannerErrors": 0,
+    "scannerWarnings": 0,
+    "actualInstalledTypes": "passed",
+    "productionBuild": "passed",
+    "log": "/private/tmp/kplex-conflicts-final-correction-2.log",
+    "corrections": [
+      "Project native shifted punctuation using the base keycap, keeping Shift in the modifier mask.",
+      "Exclude validated reserved native Tab chords from comparable assignments without a false incomplete warning."
+    ]
+  },
+  "finalStage": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "startedAt": "2026-10-09T04:47:12.276Z",
+    "source": {
+      "revision": "3f2d6b05a0bbc8b33c84bf7ee8c55a2afe26def7",
+      "dirty": true,
+      "node": "v22.22.2",
+      "sourceFreeze": "9deea8f310c3a24d20841a92f8c75929bab16644064c8ec369d01d9a5c9955af",
+      "verification": "Full verify passed before two bounded diagnostic fixes; final77 affected tests, architecture7, full official scanner and real types/production build pass. Source/indexing regressions unchanged."
+    },
+    "target": {
+      "vaultName": "kplex-test-small",
+      "vaultPath": "/Users/zsviczian/Obsidian/kplex-test-small",
+      "configDir": "/Users/zsviczian/Obsidian/kplex-test-small/.obsidian"
+    },
+    "capabilities": {
+      "version": "1.14.4 (installer 1.14.0)",
+      "commands": [
+        "version",
+        "vault",
+        "plugin:disable",
+        "plugin:enable",
+        "commands",
+        "command",
+        "dev:dom",
+        "dev:errors"
+      ]
+    },
+    "artifacts": {
+      "sourceHashes": {
+        "main.js": "331f02fa240c8fc7c8814e1df15fb42cc0cd7080e2393febef5c3d336629ce95",
+        "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "styles.css": "f98baf118cb29e97609182869a8751a518c9d1951e369616db1134256766dafd"
+      },
+      "pluginVersion": "0.1.0",
+      "stagedHashes": {
+        "main.js": "331f02fa240c8fc7c8814e1df15fb42cc0cd7080e2393febef5c3d336629ce95",
+        "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "styles.css": "f98baf118cb29e97609182869a8751a518c9d1951e369616db1134256766dafd"
+      }
+    },
+    "scenarios": [
+      {
+        "id": "open-kplex",
+        "status": "passed",
+        "assertions": [
+          "plugin command registered",
+          "rendered .kplex-app contains K-Plex",
+          "no captured JavaScript errors"
+        ],
+        "elapsedMs": 214
+      }
+    ],
+    "completedAt": "2026-10-09T04:47:13.773Z"
+  },
+  "nativeAttempts": [
+    {
+      "status": "failed",
+      "startedAt": "2026-10-09T04:48:02.499Z",
+      "artifacts": {
+        "main.js": "331f02fa240c8fc7c8814e1df15fb42cc0cd7080e2393febef5c3d336629ce95",
+        "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "styles.css": "f98baf118cb29e97609182869a8751a518c9d1951e369616db1134256766dafd"
+      },
+      "limitations": [
+        "Native DOM and Electron input; no physical keyboard, screen reader, touch or mobile WebView acceptance.",
+        "Local collision fixture is a temporary in-memory ambiguous preference; ordinary saves correctly refuse ambiguities.",
+        "Native raw refresh retries are best-effort; focus/page reopening reacquire later state."
+      ],
+      "progress": {
+        "done": true,
+        "error": "Error: Native base punctuation advisory missed shifted physical Slash",
+        "scenarios": [
+          {
+            "id": "combined-distinct-chips",
+            "status": "passed",
+            "foreground": "rgb(255, 255, 255)",
+            "background": "rgb(233, 49, 71)",
+            "tooltip": "Remove \u2318 \u21e7 F11\nK-Plex shortcut conflict: Rename selected node or center.\nAlso assigned in Obsidian: K-Plex: Native conflict acceptance probe. Local shortcuts can still be saved."
+          },
+          {
+            "id": "conflict-filter",
+            "status": "passed",
+            "text": "Conflicts (4)"
+          },
+          {
+            "id": "local-resolution-preserves-native-advisory",
+            "status": "passed"
+          },
+          {
+            "id": "native-advisory-save-allowed",
+            "status": "passed"
+          },
+          {
+            "id": "native-explicit-disable-raw-refresh",
+            "status": "passed",
+            "elapsedMs": 6.099999904632568
+          },
+          {
+            "id": "native-default-restoration-raw-refresh",
+            "status": "passed",
+            "elapsedMs": 3.5
+          }
+        ]
+      },
+      "error": "Error: Error: Native base punctuation advisory missed shifted physical Slash",
+      "cleaned": true,
+      "nativeErrors": "No errors captured.",
+      "completedAt": "2026-10-09T04:48:18.346Z"
+    },
+    {
+      "status": "failed",
+      "startedAt": "2026-10-09T04:49:36.056Z",
+      "artifacts": {
+        "main.js": "331f02fa240c8fc7c8814e1df15fb42cc0cd7080e2393febef5c3d336629ce95",
+        "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "styles.css": "f98baf118cb29e97609182869a8751a518c9d1951e369616db1134256766dafd"
+      },
+      "limitations": [
+        "Native DOM and Electron input; no physical keyboard, screen reader, touch or mobile WebView acceptance.",
+        "Local collision fixture is a temporary in-memory ambiguous preference; ordinary saves correctly refuse ambiguities.",
+        "Native raw refresh retries are best-effort; focus/page reopening reacquire later state."
+      ],
+      "progress": {
+        "done": true,
+        "error": "Error: Recorded matching mode/modifiers lost",
+        "scenarios": [
+          {
+            "id": "combined-distinct-chips",
+            "status": "passed",
+            "foreground": "rgb(255, 255, 255)",
+            "background": "rgb(233, 49, 71)",
+            "tooltip": "Remove \u2318 \u21e7 F11\nK-Plex shortcut conflict: Rename selected node or center.\nAlso assigned in Obsidian: K-Plex: Native conflict acceptance probe. Local shortcuts can still be saved."
+          },
+          {
+            "id": "conflict-filter",
+            "status": "passed",
+            "text": "Conflicts (4)"
+          },
+          {
+            "id": "local-resolution-preserves-native-advisory",
+            "status": "passed"
+          },
+          {
+            "id": "native-advisory-save-allowed",
+            "status": "passed"
+          },
+          {
+            "id": "native-explicit-disable-raw-refresh",
+            "status": "passed",
+            "elapsedMs": 61.09999990463257
+          },
+          {
+            "id": "native-default-restoration-raw-refresh",
+            "status": "passed",
+            "elapsedMs": 4.600000023841858
+          },
+          {
+            "id": "native-shifted-base-punctuation",
+            "status": "passed",
+            "elapsedMs": 3.700000047683716,
+            "tooltip": "Remove \u2325 \u21e7 ?\nPossible keyboard-layout overlap with Obsidian: K-Plex: Native conflict acceptance probe. Local shortcuts can still be saved."
+          },
+          {
+            "id": "native-recorder-mode-code",
+            "status": "passed",
+            "transport": "Electron_sendInputEvent",
+            "autoResumed": true,
+            "receipts": [
+              {
+                "key": "Shift",
+                "code": "ShiftLeft",
+                "alt": false,
+                "shift": true,
+                "trusted": true
+              },
+              {
+                "key": "Alt",
+                "code": "AltLeft",
+                "alt": true,
+                "shift": true,
+                "trusted": true
+              },
+              {
+                "key": "R",
+                "code": "KeyR",
+                "alt": true,
+                "shift": true,
+                "trusted": true
+              }
+            ]
+          }
+        ]
+      },
+      "error": "Error: Error: Recorded matching mode/modifiers lost",
+      "cleaned": true,
+      "nativeErrors": "No errors captured.",
+      "completedAt": "2026-10-09T04:49:37.267Z"
+    },
+    {
+      "driverSha256": "209e5e599ad5a3ace1441506cb2555f493f93d10dd160098c9655b42d6e35842",
+      "status": "passed",
+      "startedAt": "2026-10-09T04:51:39.223Z",
+      "artifacts": {
+        "main.js": "331f02fa240c8fc7c8814e1df15fb42cc0cd7080e2393febef5c3d336629ce95",
+        "manifest.json": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "styles.css": "f98baf118cb29e97609182869a8751a518c9d1951e369616db1134256766dafd"
+      },
+      "limitations": [
+        "Native DOM and Electron input; no physical keyboard, screen reader, touch or mobile WebView acceptance.",
+        "Local collision fixture is a temporary in-memory ambiguous preference; ordinary saves correctly refuse ambiguities.",
+        "Native raw refresh retries are best-effort; focus/page reopening reacquire later state."
+      ],
+      "progress": {
+        "done": true,
+        "scenarios": [
+          {
+            "id": "combined-distinct-chips",
+            "status": "passed",
+            "foreground": "rgb(255, 255, 255)",
+            "background": "rgb(233, 49, 71)",
+            "tooltip": "Remove \u2318 \u21e7 F11\nK-Plex shortcut conflict: Rename selected node or center.\nAlso assigned in Obsidian: K-Plex: Native conflict acceptance probe. Local shortcuts can still be saved."
+          },
+          {
+            "id": "conflict-filter",
+            "status": "passed",
+            "text": "Conflicts (4)"
+          },
+          {
+            "id": "local-resolution-preserves-native-advisory",
+            "status": "passed"
+          },
+          {
+            "id": "native-advisory-save-allowed",
+            "status": "passed"
+          },
+          {
+            "id": "native-explicit-disable-raw-refresh",
+            "status": "passed",
+            "elapsedMs": 63.60000002384186
+          },
+          {
+            "id": "native-default-restoration-raw-refresh",
+            "status": "passed",
+            "elapsedMs": 4
+          },
+          {
+            "id": "native-shifted-base-punctuation",
+            "status": "passed",
+            "elapsedMs": 307.59999990463257,
+            "tooltip": "Remove \u2325 \u21e7 ?\nPossible keyboard-layout overlap with Obsidian: K-Plex: Native conflict acceptance probe. Local shortcuts can still be saved."
+          },
+          {
+            "id": "native-recorder-mode-code",
+            "status": "passed",
+            "transport": "Electron_sendInputEvent",
+            "autoResumed": true,
+            "receipts": [
+              {
+                "key": "Shift",
+                "code": "ShiftLeft",
+                "alt": false,
+                "shift": true,
+                "trusted": true
+              },
+              {
+                "key": "Alt",
+                "code": "AltLeft",
+                "alt": true,
+                "shift": true,
+                "trusted": true
+              },
+              {
+                "key": "R",
+                "code": "KeyR",
+                "alt": true,
+                "shift": true,
+                "trusted": true
+              }
+            ]
+          },
+          {
+            "id": "native-recorder-mode-key",
+            "status": "passed",
+            "transport": "Electron_sendInputEvent",
+            "autoResumed": true,
+            "receipts": [
+              {
+                "key": "Shift",
+                "code": "ShiftLeft",
+                "alt": false,
+                "shift": true,
+                "trusted": true
+              },
+              {
+                "key": "Alt",
+                "code": "AltLeft",
+                "alt": true,
+                "shift": true,
+                "trusted": true
+              },
+              {
+                "key": "R",
+                "code": "KeyR",
+                "alt": true,
+                "shift": true,
+                "trusted": true
+              }
+            ]
+          },
+          {
+            "id": "native-conflict-layout-1200",
+            "status": "passed",
+            "viewport": [
+              1200,
+              875
+            ]
+          },
+          {
+            "id": "native-conflict-layout-900",
+            "status": "passed",
+            "viewport": [
+              900,
+              875
+            ]
+          },
+          {
+            "id": "native-conflict-layout-390",
+            "status": "passed",
+            "viewport": [
+              390,
+              875
+            ]
+          }
+        ]
+      },
+      "cleaned": true,
+      "nativeErrors": "No errors captured.",
+      "completedAt": "2026-10-09T04:51:41.074Z"
+    }
+  ],
+  "nativeScenariosPassed": 12,
+  "audit": {
+    "timestamp": "2026-10-09T04:52:56.560Z",
+    "state": {
+      "pluginLoaded": true,
+      "queuesDrained": true,
+      "markdownFiles": 73,
+      "ownedFiles": 0,
+      "controllers": [],
+      "dialogs": 0,
+      "sessions": 0,
+      "guards": 0,
+      "settingsRows": 0,
+      "settingsGroups": 0,
+      "recorder": false,
+      "settingsOpen": false,
+      "activeWindowMain": true,
+      "activeDocumentMain": true,
+      "mobile": false,
+      "bounds": {
+        "x": 0,
+        "y": 25,
+        "width": 1440,
+        "height": 875
+      },
+      "minimum": [
+        200,
+        150
+      ]
+    },
+    "artifacts": [
+      {
+        "name": "main.js",
+        "built": "331f02fa240c8fc7c8814e1df15fb42cc0cd7080e2393febef5c3d336629ce95",
+        "installed": "331f02fa240c8fc7c8814e1df15fb42cc0cd7080e2393febef5c3d336629ce95",
+        "identical": true
+      },
+      {
+        "name": "manifest.json",
+        "built": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "installed": "19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c",
+        "identical": true
+      },
+      {
+        "name": "styles.css",
+        "built": "f98baf118cb29e97609182869a8751a518c9d1951e369616db1134256766dafd",
+        "installed": "f98baf118cb29e97609182869a8751a518c9d1951e369616db1134256766dafd",
+        "identical": true
+      }
+    ]
+  },
+  "restoration": {
+    "restoredAt": "2026-10-09T04:52:58.575813+00:00",
+    "configuration": [
+      {
+        "name": "data.json",
+        "existed": true,
+        "bytes": 16686,
+        "sha256": "dfca70bfc0228443096e8495e51e8c4d26961807364bfd8de078ae630c6b3fa6",
+        "restored": true
+      },
+      {
+        "name": "community-plugins.json",
+        "existed": true,
+        "bytes": 46,
+        "sha256": "4ac827989c179ea6dba2e5a878462085dc86e40328300b1b018fb91d466cbc35",
+        "restored": true
+      },
+      {
+        "name": "hotkeys.json",
+        "existed": true,
+        "bytes": 2,
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "restored": true
+      }
+    ],
+    "sourceBackup": "/private/tmp/kplex-conflicts-final-prestage",
+    "note": "Run only after native drivers cleanup and both plugin write queues settle; no reload after original byte restoration."
+  },
+  "independentReadback": {
+    "timestamp": "2026-10-09T04:56:31.738027+00:00",
+    "configuration": [
+      {
+        "name": "data.json",
+        "existed": true,
+        "bytes": 16686,
+        "sha256": "dfca70bfc0228443096e8495e51e8c4d26961807364bfd8de078ae630c6b3fa6",
+        "identical": true
+      },
+      {
+        "name": "community-plugins.json",
+        "existed": true,
+        "bytes": 46,
+        "sha256": "4ac827989c179ea6dba2e5a878462085dc86e40328300b1b018fb91d466cbc35",
+        "identical": true
+      },
+      {
+        "name": "hotkeys.json",
+        "existed": true,
+        "bytes": 2,
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "identical": true
+      }
+    ],
+    "independentReadback": true,
+    "noReloadAfterRestoration": true
+  },
+  "trackedPrimaryDriverSha256": "da88569811ffcc23b2ffba5dab6ed1e521db149cbc13b4d92eaf0886c337f518",
+  "limits": [
+    "Native successful run uses Electron trusted key delivery, not OS_CUA or physical keyboard input.",
+    "Three widths are desktop native Settings layout checks, not mobile emulation or physical touch.",
+    "Live announcement clipping/tree attributes checked; no physical screen-reader acceptance.",
+    "External whole-artifact CSS CodeScanner not rerun locally; flagged property removed without suppressions.",
+    "Prior OS editor/OS_CUA recorder checks retain independent pending attribution."
+  ],
+  "finalPassiveSnapshot": {
+    "available": true,
+    "complete": true,
+    "nativeAssignedCommands": 42,
+    "rows": 0,
+    "groups": 0,
+    "timers": 0,
+    "focusOwners": 0,
+    "subscription": false,
+    "ownedNativeCommands": 0,
+    "ownedNativeHotkeys": 0,
+    "liveAnnouncement": {
+      "ariaLive": "polite",
+      "clip": "rect(0px, 0px, 0px, 0px)",
+      "clipPath": "none",
+      "display": "block",
+      "visibility": "visible"
+    }
+  }
+}

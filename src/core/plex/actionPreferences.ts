@@ -8,10 +8,11 @@ import type { ShortcutModifier } from "./shortcutPresentation";
 import { INTERNAL_HOTKEY_ACTIONS, sanitizeInternalHotkeys, type InternalHotkeyAction } from "./internalHotkeys";
 import { ACTION_BY_ID, ACTION_CATALOG, type ActionId, type ActionMetadata, type FocusRegion } from "./actions";
 export type LocalBinding = Readonly<{match: "key" | "code"; value: string; modifiers: readonly ShortcutModifier[]}>;
-export type ActionPreferencesV1 = {version: 1; localBindings: Record<string, readonly LocalBinding[]>; publishedCommands: Record<string, boolean>; characterShortcutsEnabled: boolean; crossSectionAtBoundary: boolean; legacyUnknown?: Record<string, unknown>};
+export type ActionPreferencesV1 = {version: 1; defaultBindingsVersion?: number; localBindings: Record<string, readonly LocalBinding[]>; publishedCommands: Record<string, boolean>; characterShortcutsEnabled: boolean; crossSectionAtBoundary: boolean; legacyUnknown?: Record<string, unknown>};
 export type ActionKeyEvent = Readonly<{key: string; code?: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; isComposing?: boolean; altGraph?: boolean; repeat?: boolean}>;
 export type ActionBindingResolution = Readonly<{state: "none"} | {state: "matched"; id: ActionId} | {state: "ambiguous"; ids: readonly ActionId[]}>;
-export type BindingConflict = Readonly<{first: ActionId; second: ActionId; binding: LocalBinding; contexts: readonly FocusRegion[]; kind: "collision" | "possible-layout-overlap"}>;
+/** Canonical contextual overlap with exact chords at both endpoints for per-shortcut diagnostics. */
+export type BindingConflict = Readonly<{first: ActionId; second: ActionId; binding: LocalBinding; secondBinding: LocalBinding; contexts: readonly FocusRegion[]; kind: "collision" | "possible-layout-overlap"}>;
 export type PreferenceIssue = Readonly<{actionId?: string; reason: "invalid-binding" | "too-many-bindings" | "too-many-entries" | "unsupported-version"}>;
 export type PreferenceResult = Readonly<{preferences: ActionPreferencesV1; issues: readonly PreferenceIssue[]; skippedDefaults: readonly ActionId[]; migrated: boolean; unsupportedVersion?: number}>;
 const MODIFIERS: readonly ShortcutModifier[] = ["mod", "ctrl", "meta", "alt", "shift"];
@@ -99,7 +100,7 @@ export function matchesActionBinding(event: ActionKeyEvent, binding: LocalBindin
   if (mask === null || mask !== [event.ctrlKey, event.metaKey, event.altKey, event.shiftKey].map(/** Encode event flags in the compiler's canonical order. */ enabled => enabled ? "1" : "0").join("")) return false;
   return normalizedValue(binding.match === "code" ? event.code ?? "" : event.key) === normalizedValue(binding.value);
 }
-/** Compile bounded chord/context lookup; ambiguous imported mappings execute neither action. */
+/** Compile bounded chord/context lookup and both conflict endpoints; saved or imported ambiguity executes neither action. */
 export function compileActionBindings(preferences: ActionPreferencesV1, convention: KeyConvention): Readonly<{conflicts: readonly BindingConflict[]; issues: readonly PreferenceIssue[]; match: (event: ActionKeyEvent, context: FocusRegion) => ActionId | null; resolve: (event: ActionKeyEvent, context: FocusRegion) => ActionBindingResolution}> {
   const lookup = new Map<string, Set<ActionId>>(), entries: {id: ActionId; binding: LocalBinding; mask: string; contexts: readonly FocusRegion[]}[] = [], issues: PreferenceIssue[] = [], conflicts: BindingConflict[] = [];
   for (const action of ACTION_CATALOG) for (const binding of effectiveActionBindings(preferences, action.id)) {
@@ -121,7 +122,7 @@ export function compileActionBindings(preferences: ActionPreferencesV1, conventi
     if (!contexts.length) continue;
     const same = a.binding.match === b.binding.match && normalizedValue(a.binding.value) === normalizedValue(b.binding.value);
     const overlap = a.binding.match !== b.binding.match && (a.binding.match === "code" ? physicalCharacter(a.binding) === normalizedValue(b.binding.value) : physicalCharacter(b.binding) === normalizedValue(a.binding.value));
-    if (same || overlap) conflicts.push({first: a.id, second: b.id, binding: a.binding, contexts, kind: same ? "collision" : "possible-layout-overlap"});
+    if (same || overlap) conflicts.push({first: a.id, second: b.id, binding: a.binding, secondBinding: b.binding, contexts, kind: same ? "collision" : "possible-layout-overlap"});
   }
   /** Reject IME/AltGraph input; modified dead characters resolve only explicitly physical bindings. */
   const resolve = (event: ActionKeyEvent, context: FocusRegion): ActionBindingResolution => {
@@ -135,8 +136,12 @@ export function compileActionBindings(preferences: ActionPreferencesV1, conventi
   const match = (event: ActionKeyEvent, context: FocusRegion): ActionId | null => { const result = resolve(event, context); return result.state === "matched" ? result.id : null; };
   return {conflicts, issues, match, resolve};
 }
-/** Sanitize v1 without interpreting unknown actions as runnable or restoring explicit disablement. */
-export function sanitizeActionPreferences(raw: unknown, fresh = false, convention: KeyConvention = "windows"): PreferenceResult {
+/**
+ * Validate v1 and preserve current-generation overlaps. Unmarked legacy loads apply one-time default
+ * migration safety; explicit saves opt out immediately, including an unmarked live draft. The marker
+ * is workflow metadata, not executable state, and future generations remain protected from rewriting.
+ */
+export function sanitizeActionPreferences(raw: unknown, fresh = false, convention: KeyConvention = "windows", preserveDefaultConflicts = false): PreferenceResult {
   const saved = record(raw), localBindings: Record<string, readonly LocalBinding[]> = {}, publishedCommands: Record<string, boolean> = {}, issues: PreferenceIssue[] = [];
   for (const [id, value] of Object.entries(record(saved.localBindings)).slice(0, 256)) {
     if (id.length > 128 || ["__proto__", "prototype", "constructor"].includes(id)) { issues.push({reason: "too-many-entries"}); continue; }
@@ -145,10 +150,11 @@ export function sanitizeActionPreferences(raw: unknown, fresh = false, conventio
   }
   if (Object.keys(record(saved.localBindings)).length > 256) issues.push({reason: "too-many-entries"});
   for (const [id, value] of Object.entries(record(saved.publishedCommands)).slice(0, 256)) if (id.length <= 128 && !["__proto__", "prototype", "constructor"].includes(id) && typeof value === "boolean") publishedCommands[id] = value;
-  const preferences: ActionPreferencesV1 = {version: 1, localBindings, publishedCommands, characterShortcutsEnabled: saved.characterShortcutsEnabled !== false, crossSectionAtBoundary: typeof saved.crossSectionAtBoundary === "boolean" ? saved.crossSectionAtBoundary : fresh, ...(saved.legacyUnknown ? {legacyUnknown: boundedUnknown(record(saved.legacyUnknown))} : {})};
-  const unsupportedVersion = typeof saved.version === "number" && saved.version !== 1 ? saved.version : undefined;
+  const preferences: ActionPreferencesV1 = {version: 1, defaultBindingsVersion: 1, localBindings, publishedCommands, characterShortcutsEnabled: saved.characterShortcutsEnabled !== false, crossSectionAtBoundary: typeof saved.crossSectionAtBoundary === "boolean" ? saved.crossSectionAtBoundary : fresh, ...(saved.legacyUnknown ? {legacyUnknown: boundedUnknown(record(saved.legacyUnknown))} : {})};
+  const unsupportedVersion = typeof saved.version === "number" && saved.version !== 1 ? saved.version
+    : typeof saved.defaultBindingsVersion === "number" && saved.defaultBindingsVersion > 1 ? saved.defaultBindingsVersion : undefined;
   if (unsupportedVersion !== undefined) issues.push({reason: "unsupported-version"});
-  const skippedDefaults = skipDefaultConflicts(preferences, convention);
+  const skippedDefaults = preserveDefaultConflicts || saved.defaultBindingsVersion === 1 ? [] : skipDefaultConflicts(preferences, convention);
   return {preferences, issues, skippedDefaults, migrated: false, ...(unsupportedVersion === undefined ? {} : {unsupportedVersion})};
 }
 /** Preserve bounded JSON compatibility facts only, excluding functions and oversized data. */
@@ -179,7 +185,7 @@ function boundedJsonValue(value: unknown, depth = 0, budget = {remaining: 1024})
 export function migrateActionPreferences(rawPersistedSettings: unknown, convention: KeyConvention = "windows"): PreferenceResult {
   const saved = record(rawPersistedSettings), fresh = rawPersistedSettings === undefined || rawPersistedSettings === null;
   if (record(saved.actionPreferences).version !== undefined) return sanitizeActionPreferences(saved.actionPreferences, fresh, convention);
-  const preferences: ActionPreferencesV1 = {version: 1, localBindings: {}, publishedCommands: {}, characterShortcutsEnabled: true, crossSectionAtBoundary: fresh};
+  const preferences: ActionPreferencesV1 = {version: 1, defaultBindingsVersion: 1, localBindings: {}, publishedCommands: {}, characterShortcutsEnabled: true, crossSectionAtBoundary: fresh};
   if (!fresh) {
     const legacy = sanitizeInternalHotkeys(saved.internalHotkeys);
     for (const id of INTERNAL_HOTKEY_ACTIONS) {
@@ -192,7 +198,7 @@ export function migrateActionPreferences(rawPersistedSettings: unknown, conventi
   const skippedDefaults = skipDefaultConflicts(preferences, convention);
   return {preferences, issues: [], skippedDefaults, migrated: true};
 }
-/** Keep explicit known mappings authoritative when newly inherited defaults overlap their modes. */
+/** One-time legacy migration protects explicit mappings from newly introduced inherited defaults. */
 function skipDefaultConflicts(preferences: ActionPreferencesV1, convention: KeyConvention): ActionId[] {
   const skipped: ActionId[] = [];
   if (!Object.keys(preferences.localBindings).length) return skipped;

@@ -15,3 +15,5 @@ The cancelled run created no fixtures. Its final cleanup removed the controller;
 Pending after unlock: native modifier/mode-change capture, one OS_CUA ShiftOptionR recorder chord, native1200/900/390 form geometry/badge symmetry, existing four OS editor chords and responsive device emulation. Fresh native attempts must preserve current user configuration again, clean up and independently read it back. Expected remaining time is about3–5min once native automation is responsive; no native pass is claimed here.
 
 Indexing4/73 evidence remains deferred; PR82 is separate. C15–C26 stay paused. Changes are uncommitted; no merge, release or personal-vault deployment.
+
+Follow-up9October: [conflict acceptance](action-shortcut-conflicts-2026-10-09.md) successfully exercises native Electron Shift/Option/R in both matching modes with automatic dropdown refocus, zero errors and exact restoration. This resolves that native protocol subset. Its layout checks cover the conflict settings group, not the earlier recorder-form/badge geometry; the OS_CUA/editor/device/screen-reader limits above are not silently converted into passes.
