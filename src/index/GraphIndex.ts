@@ -10,7 +10,9 @@
  * and publication boundaries rather than each normalized host-link record.
  * This owner coordinates snapshot restoration/persistence, search and
  * presentation caches, atomic per-file publication and source-backed startup adoption; builders stage
- * semantics privately. With durable neutral sources, available preview scopes prepare before optional
+ * semantics privately. URL search terms use their current labels directly, avoiding title-cache
+ * allocation during dense atomic commits while retaining ordinary note display-name policy.
+ * With durable neutral sources, available preview scopes prepare before optional
  * full snapshot hydration. After cache loss, the same compiler restores complete node vocabulary
  * without relationships, independently of display-only controls, and finite changed-owner incidence
  * closes shared synthetic lifetimes. Physical filenames remain searchable during bounded previews;
@@ -5510,9 +5512,20 @@ export class GraphIndex {
 } finally { releaseWork(); }
   }
 
-  /** Build search terms against a proposed policy without mutating pages or live title caches. */
+  /**
+   * Build search terms for current pages or a proposed presentation policy without changing pages.
+   * URL titles are their labels, so they bypass ordinary note title-cache/signature allocation.
+   * Explicit policy preparation uses the supplied name; current-policy lookup retains the page's
+   * actual title even when an alternate name was supplied. Alternate vocabulary deduplicates exact
+   * strings before lowercasing, preserving case-variant order and existing ranking inputs. Current
+   * ordinary-note lookup still warms its established title cache; proposed-policy lookup does not.
+   */
   private makeSearchEntry(page: GraphPage, settings?: KplexSettings, name = page.name, aliases: readonly string[] = page.aliases): SearchEntry {
-    const title = settings ? this.displayNameFromConfiguredFields(page, settings) ?? name : this.titleFor(page);
+    const title = page.url ? settings ? name : page.name
+      : settings ? this.displayNameFromConfiguredFields(page, settings) ?? name : this.titleFor(page);
+    if (!aliases.length && name === title) {
+      return { page, name: title.toLowerCase(), aliases: [], path: page.path.toLowerCase() };
+    }
     const alternateNames = new Set([name, ...aliases]);
     alternateNames.delete(title);
     return {
