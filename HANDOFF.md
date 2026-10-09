@@ -16,16 +16,37 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Inactive — issue #81 default Date role accepted
 
-No active assignment. Uncommitted changes remain on `date-property-relations`.
-Offline source/test return was independently reviewed and corrected by the main agent.
-Production and portable tests, full Node 22.22.2 verification/build, native loading smoke and
-24 Date-role scenarios in each of on-demand/eager modes passed. Exact built artifacts are staged
-in the disposable `kplex-test-small` vault; original settings/configuration/layout restored.
+# Inactive — issue #34 startup cache lifetime fix accepted
 
-Durable behavior, hashes, failures, acceptance receipts, limitations and reporter checks are in
-[the validation record](docs/validation/date-property-relations-2026-10-09.md) and
-[Refactor plan.md](Refactor%20plan.md). Historical timeout observations remain unresolved;
-no indexing fix is included. Maintainer confirmed native behavior and authorized publication/issue closure for #81.
-C15–C26 remain paused. This inactive body does not authorize further work.
+Branch `fix-startup-cache-stall`, base `2d0ce7b`. The reproduced URL-cache and finite
+On-demand catalog/preview lifetime gaps are fixed. The maintainer authorized commit/push/PR/merge and #34 closure. No offline assignment or
+refactor checkpoint is active. The next authorized task is a separate URL performance fix.
+
+The date feature was published through merged [PR #94](https://github.com/zsviczian/kplex/pull/94),
+and #81 closed with the requested release 0.1.1/PR comment. No release-version bump was made.
+
+Main independently reviewed the lifetime/publication/progress contracts and accepted the
+unchanged source freeze of 314 inputs, SHA256
+`50eebfbc74ef376e9cc7ee7e919548883db000815df5767293c3d653ce049218`.
+Node 22.22.2 full verification/build/staging passes, including all 410 browser-backed tests and
+actual Obsidian types/scanner. Focused 46 cases pass (22 lifetime, 17 scheduler, 7 architecture).
+Exact main.js SHA256 `7bbcf028ddbcd091ee6292b55e5a43dfb08081b161ae8fc94a3beb79a86933a0`.
+
+Six real-time small-vault native timeout/unload cases pass, late results remain fenced, and
+independent emulation/desktop recovery reaches ready 73/73. Original driver/recovery failures
+are retained rather than relabeled. Large On-demand healthy progress exceeds 90 seconds and
+actual unload settles shared/public waits. Same-build Eager restart finishes with visible
+ready 20,015/20,015, completed hydration, full canonical physical membership and search. Its
+original CLI timeout receipt remains failed; independent same-run continuation passes.
+
+Both vaults' configuration bytes/existence, preferences, workspace, dimensions, throttling and
+desktop state are restored, with controllers removed. Tested artifacts remain installed.
+No required manual tests remain for this async lifetime change. Physical-device touch/paint,
+exclusive performance attribution and global cross-mode semantic parity are not claimed.
+
+Accepted evidence and limitations belong to
+[the durable investigation](docs/validation/issue-34-hydration-investigation-2026-10-09.md)
+and [Refactor plan.md](Refactor%20plan.md). Healthy URL reconstruction cost, dense-center
+count-cover limits and existing remote CI timing-guard failures remain separately documented.
+Do not weaken timing bounds or automatically pursue a performance optimization/C15–C26.
