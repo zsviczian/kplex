@@ -3431,3 +3431,44 @@ Shared-origin/alias costs await measured post-change review; no automatic scope 
   creating and merging its PR, then switching to main and fetching. Exact tested source freeze
   remains unchanged; full verification and all native acceptance/cleanup receipts remain valid.
   No new implementation or structural refactoring is included in this publication checkpoint.
+
+
+### 2026-10-09 — Dense note patch responsiveness
+
+- [x] Investigate PR #102's recurring 63.1/62.5 ms heartbeat gaps against the unchanged
+  50 ms guard. Create `fix-dense-patch-responsiveness` from main `79a665a`.
+  Local macOS baseline passes; Ubuntu CI failure is not reproduced locally.
+- [x] Trace avoidable synchronous publication cost: 25–26 ms total, including approximately
+  16 ms building search entries for 20,000 URL/origin endpoints.
+- [x] Remove unnecessary URL title-cache/signature and empty-alias temporary allocations.
+  Preserve exact search vocabulary/title policy, canonical page identity, ordinary note title
+  ownership and synchronous atomic publication. Add five independent oracle/work-count tests.
+- [x] Independently review the source/test return. Three serial measurements show median
+  longest gap 35.693 → 26.472 ms, publication 25.496 → 16.809 ms and search 16.176 → 7.526 ms.
+  All retain and pass the existing timing and semantic assertions.
+- [x] Full verification on pinned Node 22.22.2 passes: architecture 7, core 86, aggregate 492,
+  UI 20, portable source 333 and browser IndexedDB 410 tests; real types/scanner/build and
+  exact-build native registration/render/error smoke pass. Frozen 319-input source is unchanged.
+- [x] Matched native 20,000-entry helper comparison preserves inputs, vocabulary and canonical
+  references: median 8.1 → 1.4 ms, title-cache entries 20,000 → 0. Native dense-note publication,
+  cancellation, retry and alias-update scenarios pass; largest heartbeat gap 28.4 ms.
+  Temporary harness failures are retained and explained in the validation record.
+- [x] Restore original effective settings/workspace/window/platform/throttling and configuration
+  bytes; delayed SHA readback passes. Vault has 73 notes, no owned notes/controllers, and the
+  task-owned sleep inhibitor is stopped. Final source freeze, whitespace and diagnostic cleanup
+  checks pass. Local checkpoint accepted; implementation remains uncommitted.
+- [ ] Run the exact branch on GitHub Ubuntu CI when publication is authorized. Local evidence
+  supports the correction but does not establish that remote CI failures are resolved.
+
+See [investigation record](docs/validation/dense-patch-responsiveness-2026-10-09.md).
+No C15–C26, classifier, schema, scheduler or threshold changes. Implementation remains
+uncommitted; no new Git publication was requested. Highest-value risk coverage is URL search
+labels/aliases and explicit ordinary-note display policies after a dense source update; automated
+native checks passed. Physical-device performance is unproven and no touch/UI behavior changed.
+
+
+- 2026-10-09 — Maintainer authorized committing/publishing the accepted dense-patch correction,
+  pushing the branch, creating and merging its PR, then switching to main and fetching.
+  The exact previously verified 319-input source remains unchanged. GitHub Ubuntu verification
+  will run on the published branch with the existing timing guard; its result will be recorded
+  in the PR before merging. No release-version change or structural refactoring is included.

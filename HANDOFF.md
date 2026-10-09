@@ -15,18 +15,40 @@ Return uncommitted changes and actual results for main-agent review unless the m
 Obsidian is the production host; preserve the established portable semantic, identity/source, publication/revision, localization and environment boundaries.
 
 
+
 ---
 
-# No active transfer — URL slowdown accepted locally
+# Accepted locally — dense note patch search allocation
 
-Root reviewed the four bounded corrections and completed the full required checks, production
-build, exact native subset comparison, complete20,015-owner ordered graph equivalence, real
-90-second timeout/unload regressions in both modes and original test-vault cleanup.
-Final source freeze87dcf44fa7022a982d40ff60c9109c49f2c54f6bfa2cab855918ddde674dfc04;
-main24e21ab49242b700125cae6367207d2edab8bcbe113b5287acb3cd184f00d032.
-No pending offline work or native test controllers. Durable evidence/limitations live in
-`docs/validation/url-cache-performance-2026-10-09.md` and `Refactor plan.md`.
+No active offline assignment. Root independently reviewed the frozen return, registered the
+five-test suite, measured the correction and completed full/native verification and cleanup.
+Branch: `fix-dense-patch-responsiveness`, base main
+`79a665afe65d47d981c7ea031355047542fe6ae5`. The maintainer has now authorized
+commit/push/PR/merge and return to updated main.
 
-PR95 merged and issue34 closed before this branch. The maintainer authorized URL
-correction commit/publication/PR/merge from `fix-url-cache-slowdown`, then switching/fetching main.
-C14 accepted; structural refactoring remains paused. No schema/settings/priority/threshold change.
+`GraphIndex.makeSearchEntry` avoids URL title-cache/signature allocation and empty-alias
+Set/array work while preserving exact vocabulary, title policy, canonical references and
+synchronous atomic publication. Ordinary note title ownership and all cancellation/lifetime
+boundaries remain unchanged. C14 structural refactoring remains paused.
+
+Full `verify:obsidian` passed on pinned Node 22.22.2 and frozen 319-input source
+`c33593820d50d97395bf6287762e20ce499aee9058c638ee55d5a6b564ec2ff3`.
+Real type/scanner/build and all architecture/core/aggregate/UI/source/browser lanes pass.
+Exact installed `main.js` SHA:
+`cf1c2179626f730491696813da805d279e01c58ca78d44db1eabc8c192c91892`.
+
+Serial local dense-fixture median longest timer gap improves 35.693 → 26.472 ms with the
+unchanged guard. Matched native 20,000-entry helper median improves 8.1 → 1.4 ms, allocating
+zero URL title-cache entries versus 20,000. Exact-build native dense-note publication, canonical
+search/relationships, cancellation, retry and alias updates pass. Original disposable-vault
+state/configuration bytes were restored with delayed SHA readback; no probe notes/controllers
+remain, no native errors were captured, and the sleep inhibitor was stopped.
+
+Durable findings, retained temporary-harness failures, receipt locations and measurement limits:
+[validation record](docs/validation/dense-patch-responsiveness-2026-10-09.md) and
+[Refactor plan](Refactor%20plan.md).
+
+Remaining limitation: GitHub Ubuntu CI must verify the published branch. Its original failure
+was not reproduced locally; reduced measured allocation work is not proof that the remote timing
+failure is resolved. Root owns the authorized repository actions and records CI results in the PR.
+No physical-device performance or paint/input latency claim is made.
