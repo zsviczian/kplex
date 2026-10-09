@@ -3519,3 +3519,17 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-action-diagnostic-info { color: var(--text-muted); }
 .kplex-action-filters .kplex-action-conflicts-filter { color: var(--text-error); border-color: var(--text-error); }
 .kplex-action-filters .kplex-action-conflicts-filter.is-active { color: var(--text-on-accent); background-color: var(--background-modifier-error); border-color: var(--background-modifier-error); }
+
+/* One owning-document fullscreen lease covers workspace chrome below native popovers/dialogs. */
+.kplex-fullscreen-anchor { display: none; }
+.kplex-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--layer-popover, 30) - 1);
+  overflow: hidden;
+  background-color: var(--background-primary);
+}
+.kplex-fullscreen-overlay > .kplex-view-host { padding: 0; }
+.kplex-app.is-zen > .kplex-main-column { grid-template-rows: minmax(0, 1fr); }
+.kplex-app.is-zen > .kplex-main-column > .kplex-top-stack,
+.kplex-app.is-zen > .kplex-main-column > .kplex-history-bar { display: none; }

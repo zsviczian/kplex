@@ -16,8 +16,10 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Accepted/inactive — PR #82 integration
+# Accepted — fullscreen/Zen publication
 
-Root merged Action Manager PR#85 into main0c79af2, fetched/fast-forwarded localmain and cleanly merged it into PR82 indexing-status-stuck. Offline/root independent review finds no material status-hook defect; touched documentation now explains hidden terminal readiness. Runtime headf9b62d3/freeze308SHAce009519… passes full7architecture/69core/416general/20UI/333portable/410Chromium/scanner0/types/build/exactstage. Native seven controlled production-React readiness/visibility/mode cases pass, exact original descriptors/subscription counts restore and controller retires. Actualpost-probe ready6/73 matchesDOM.
+Root independently reviewed issue#83 implementation on fullscreen-mode based at d137338. Full mandatory verification/build/exact staging and native render smoke pass at310-input freezeSHAaa344052491dd1944e2bb3c537090fa9215b1407bf7b75d62ec28b1f4ee17383; no production edits after freeze. Initial extracted camera fixture corrected without weaker assertions; root46/46 relationship tests pass.
 
-Audit73notes/0ownedresources/closedSettings/originaldesktopgeometry/exactartifacts/drainedqueues. Fresh17,104-byte dataSHA91752945…/enablement/hotkeys{} restored/readback; no subsequentreload. Durable report docs/validation/indexing-status-integration-2026-10-09.md/json + Refactorplan. CI unchangedP15 wall-clock bound failures56.2/60.9/65.3/63.2ms against<50ms remain recorded as a separate follow-up; no new queued work or measured cause found, no gate relaxation. Root has explicit authority to commit/push/merge82 and synchronize main; no new assignment, structuralrefactor, release or personal-vault deployment.
+The maintainer now reports successful testing (“It works as expected”) and explicitly authorizes commit/push/PR/merge/main synchronization. Dedicated display-driver attempt1 stopped at the locked-session prerequisite before scenarios; do not claim those cases passed. Independent final audit confirms73notes/0ownedresources/originalgeometry/desktop mode/exactartifacts and original fresh pre-staging configuration bytes. Docs/validation/fullscreen-zen-2026-10-09.md and Refactor plan.md retain this evidence/limitation distinction.
+
+Root owns publication, then issue#2 investigation. No further offline edits authorized to this feature; C15–C26 remain paused.

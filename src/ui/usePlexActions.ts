@@ -26,6 +26,7 @@ export interface GraphActionPorts {
   readSelected: () => { node: NodeRef; occurrenceId: string } | null;
   normalMode: boolean;
   clearSelection?: () => void;
+  prepareDisplayResize?: () => void;
   handleSessionKey?: (event: KeyboardEvent, matchedAction: ActionId | null) => boolean;
 }
 let surfaceCounter = 0;
@@ -35,7 +36,7 @@ export function usePlexActions(options: {
   plugin: KplexPlugin; hostLeaf: WorkspaceLeaf; root: RefObject<HTMLDivElement | null>;
   convention: KeyConvention; center: GraphPage | undefined; graph: RefObject<GraphActionPorts | null>;
   implementations: SurfaceActionImplementations; historyBack: boolean; historyForward: boolean;
-  mounted: boolean; onReady?: () => void;
+  mounted: boolean; onReady?: () => void; readEscapeAction?: () => ActionId | null;
 }): { surfaceId: string; dispatch: (request: ActionRequest) => void; readSnapshot: () => SurfaceSnapshot } {
   const [surfaceId] = useState(/** IDs are opaque and do not depend on undocumented workspace leaf IDs. */ () => `kplex-surface-${++surfaceCounter}`);
   const current = useRef(options);
@@ -164,8 +165,14 @@ export function usePlexActions(options: {
       if (region === "graph" && latest.graph.current?.handleSessionKey?.(event, match.state === "matched" ? match.id : null)) {
         acceptPlexKeyEvent(event); return false;
       }
-      if (match.state !== "matched") return;
-      const id = match.id;
+      // Display recovery is subordinate to query/connection handling, custom shortcuts and
+      // native fields/menus/dialogs. Only a bare, unclaimed graph Escape can exit a mode.
+      const displayEscape = match.state === "none" && region === "graph" && event.key === "Escape"
+        && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && latest.graph.current?.normalMode
+        && !Array.from(root.ownerDocument.querySelectorAll<HTMLElement>(".menu, .modal-container, .prompt")).some(/** Native shells retain their own Escape while displayed in the owning window. */ element => element.getClientRects().length > 0)
+        ? latest.readEscapeAction?.() : null;
+      const id = match.state === "matched" ? match.id : displayEscape;
+      if (!id) return;
       if (!id || region === "graph" && latest.graph.current?.normalMode === false) return;
       const prepared = plugin.actionManager.prepare({ id, source: "local-hotkey", surfaceId });
       if (prepared.state !== "accepted") {

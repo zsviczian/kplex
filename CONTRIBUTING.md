@@ -635,3 +635,18 @@ source closure. It owns one fixture folder, removes wrappers/controller/notes, a
 settings and enabled-list bytes. Measurements are inclusive native API/DOM completion, not actual
 paint, trusted pointer latency or physical-mobile acceptance. An unsuccessful cleanup is a failed run.
 The report refuses installed/build hash mismatches.
+
+### Fullscreen and Zen acceptance
+
+After `npm run verify:obsidian` stages the exact build, run
+`npm run verify:obsidian:display-modes` with the same explicit disposable
+`kplex-test-small` vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. Keep Obsidian
+unlocked and run native drivers serially. The driver checks all four mode combinations
+with open/closed sidebars, retained graph/camera/selection/history, Escape priority, native
+palette stacking, active-leaf changes, two-way popout migration, view close and plugin reload.
+It restores the original workspace, dimensions, emulation state and configuration bytes.
+
+Fullscreen is desktop-only and covers the owning Obsidian viewport; it does not invoke OS
+or browser fullscreen. Tablet/phone emulation checks Zen geometry and this availability
+constraint. Physical-device touch, screen readers and paint latency remain separate manual
+checks. A failed cleanup or an installed/build hash mismatch invalidates acceptance.

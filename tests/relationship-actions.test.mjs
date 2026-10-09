@@ -567,7 +567,7 @@ test("navigation with autofit disabled recenters without resetting manual scale"
   const camera = { x: 63, y: -44, scale: 1.73 }, calls = [];
   const dependencies = {
     viewport: { current: { clientWidth: 800, clientHeight: 600, querySelectorAll: () => [], ownerDocument: { defaultView: { matchMedia: () => ({ matches: false }) } } } },
-    sceneMotion: { cancelAll: () => {} }, preserveCameraOnNextLayout: { current: false },
+    sceneMotion: { cancelAll: () => {} }, preserveCameraOnNextLayout: { current: false }, displayResizeLayout: { current: false },
     centralEditorAvailabilityRef: { current: false }, centralEditorAvailable: false, centralEditorSize: null,
     centralEditorSizeKeyRef: { current: "" }, previousNodeRects: { current: new Map([["prior", {}]]) },
     pathChangedThisRender: true, settings: { allowAutozoom: false, animationSpeed: 0 },

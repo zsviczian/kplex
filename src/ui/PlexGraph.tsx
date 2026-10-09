@@ -1,5 +1,5 @@
 /**
- * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity. Normal-mode keyboard and exact-phrase typing selection are view-local; the displayed occurrence projection supplies all candidates and the shared selection owner reveals them without changing the center, filters or native search. Host methods own activation/rename/creation.
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. View-owned display transitions retain camera coordinates and scene settings; ordinary pane resizes keep their existing autozoom policy. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity. Normal-mode keyboard and exact-phrase typing selection are view-local; the displayed occurrence projection supplies all candidates and the shared selection owner reveals them without changing the center, filters or native search. Host methods own activation/rename/creation.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent, type RefObject } from "react";
 import { Menu, Notice, Platform, type WorkspaceLeaf } from "obsidian";
@@ -7,6 +7,7 @@ import { addNativeSubmenu } from "../adapters/obsidian/nativeSubmenu";
 import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
 import { urlEmbed } from "./features/urlEmbed";
 import type KplexPlugin from "../main";
+import type { KplexDisplayModeState } from "./KplexDisplayModes";
 import type { GraphIndex } from "../index/GraphIndex";
 import type { KplexLayoutProfile, KplexSettings, KplexViewSurface, SidecarMarkdownMode } from "../settings";
 import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle, NodeVisual, PositionedEdge, PositionedNode, Role, ScrollZone } from "../types";
@@ -687,7 +688,7 @@ function Edge({
 }
 
 /** Compose the deterministic Plex scene and interaction handlers, using localized UI copy without rebuilding semantic state for presentation changes. */
-export function PlexGraph({ plugin, index, settings: viewSettings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, semanticRevision, findFocusRequest, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId }: {
+export function PlexGraph({ plugin, index, settings: viewSettings, surface, hostLeaf, predicate, lenses, filterLayoutMode, predicateRevision, showCrossLinks, activePath, renderRevision, semanticRevision, findFocusRequest, areaSettingsMode, onAreaSettingsModeChange, onApplyFindFilter, appliedFindFilterQuery, onClearFindFilter, onActivate, onOpen, onOpenInSidecar, onCentralNodeEditorChange, onCentralNodeModeChange, actionPorts, actionSurfaceId, displayState, fullscreenAvailable }: {
   plugin: KplexPlugin;
   index: GraphIndex;
   settings: KplexSettings;
@@ -714,6 +715,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   onCentralNodeModeChange: (mode: SidecarMarkdownMode) => void;
   actionPorts: RefObject<GraphActionPorts | null>;
   actionSurfaceId: string;
+  displayState: KplexDisplayModeState;
+  fullscreenAvailable: boolean;
 }) {
   const translate = plugin.translator;
   const [findQuery, setFindQuery] = useState("");
@@ -951,6 +954,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   const touchDoubleTap = useRef(new DoubleTapGesture());
   const layoutSaveTimer = useRef<number | null>(null);
   const preserveCameraOnNextLayout = useRef(false);
+  const displayResizePending = useRef(false);
+  const displayResizeLayout = useRef(false);
+  const measuredViewport = useRef({ width: 0, height: 0 });
   const suppressAutoFitUntil = useRef(0);
   const updateSectionFolds = (updater: (current: Set<string>) => Set<string>): void => {
     // Folding is an outline operation, not navigation. Preserve the user's exact viewport while
@@ -1211,9 +1217,10 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     onCentralNodeEditorChange(false);
   };
 
-  useLayoutEffect(() => {
+  useLayoutEffect(/** Explicit editor maximization owns its camera; display-only resizing preserves the existing coordinates. */ () => {
     const el = viewport.current;
     if (!el) return;
+    if (displayResizePending.current || displayResizeLayout.current) return;
     if (centralEditorMaximized && centralEditorAvailable) {
       applyCamera({ x: el.clientWidth / 2, y: el.clientHeight / 2, scale: 1 });
       flushCameraTransform();
@@ -1274,7 +1281,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
 
     const speed = Math.max(0, Math.min(2, settings.animationSpeed));
     const reduceMotion = root.ownerDocument.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    if (speed > 0 && !reduceMotion && !areaResizeDrag.current && !nodeDrag && !connectDrag && Date.now() >= suppressLayoutMotionUntil.current) {
+    if (speed > 0 && !reduceMotion && !displayResizeLayout.current && !areaResizeDrag.current && !nodeDrag && !connectDrag && Date.now() >= suppressLayoutMotionUntil.current) {
       // At 1x, shared thoughts migrate for ~520ms so their old→new position is legible without
       // making navigation feel delayed. The newly selected center moves more briskly (~300ms),
       // while genuinely new thoughts enter over ~390ms. The slider is a speed multiplier.
@@ -1314,8 +1321,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     centralEditorAvailabilityRef.current = centralEditorAvailable;
     centralEditorSizeKeyRef.current = editorSizeKey;
     preserveCameraOnNextLayout.current = false;
+    displayResizeLayout.current = false;
     syncCentralEditorOverlay();
-  }, [sceneLayoutKey, settings.animationSpeed, nodeDrag?.path, connectDrag?.originPath, sceneMotion]);
+  }, [sceneLayoutKey, settings.animationSpeed, nodeDrag?.path, connectDrag?.originPath, sceneMotion, viewportSize.width, viewportSize.height, displayState.revision]);
 
   const fit = () => {
     const el = viewport.current;
@@ -1541,20 +1549,22 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     if (!el) return;
     type WindowWithResizeObserver = Window & { ResizeObserver: typeof ResizeObserver };
     const owningWindow = (el.ownerDocument.defaultView ?? window) as WindowWithResizeObserver;
-    const updateViewport = (): void => {
-      setViewportSize((current) => {
-        const width = el.clientWidth;
-        const height = el.clientHeight;
-        return current.width === width && current.height === height ? current : { width, height };
-      });
-      if (centralEditorMaximized || Date.now() < suppressAutoFitUntil.current) return;
+    const updateViewport = /** Distinguish one deliberate display transition from ordinary native pane resizing. */ (): void => {
+      const width = el.clientWidth, height = el.clientHeight;
+      const preserveDisplayCamera = displayResizePending.current;
+      displayResizePending.current = false;
+      if (measuredViewport.current.width === width && measuredViewport.current.height === height) return;
+      measuredViewport.current = { width, height };
+      if (preserveDisplayCamera) { preserveCameraOnNextLayout.current = true; displayResizeLayout.current = true; }
+      setViewportSize({ width, height });
+      if (preserveDisplayCamera || centralEditorMaximized || Date.now() < suppressAutoFitUntil.current) return;
       if (settings.allowAutozoom) fit();
     };
     updateViewport();
     const observer = new owningWindow.ResizeObserver(updateViewport);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [settings.allowAutozoom, centralEditorMaximized]);
+  }, [settings.allowAutozoom, centralEditorMaximized, displayState.revision]);
 
   useEffect(() => {
     const el = viewport.current;
@@ -3224,6 +3234,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   }
   actionPorts.current = {
     implementations: graphImplementations,
+    prepareDisplayResize: /** Keep exact zoom/pan across toolbar/overlay resizing, including viewport-dependent central editors. */ () => {
+      displayResizePending.current = true; displayResizeLayout.current = true; preserveCameraOnNextLayout.current = true;
+    },
     clearSelection: /** Pointer graph gestures retire typing and highlighting without affecting native controls. */ () => { typeSelection.clear(); selection.select(null); },
     normalMode: !areaSettingsMode && !connectDrag && !nodeDrag && !resizingArea && !relationshipUpdating,
     readSelected: /** Validate exact selected occurrence against this render before exposing its semantic reference. */ () => {
@@ -3810,7 +3823,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       ? translate("hotkeys.selection", { label: keyboardNodes.find(node => node.id === keyboardSelection)?.label ?? "" }) : ""}</span>
     <PlexTypeSelectionStatus query={typeSelection.query} count={typeSelection.count} index={typeSelection.index} translate={translate} />
     {relationshipUpdating && <div className="kplex-relationship-updating" aria-live="polite" aria-busy="true"><ObsidianIcon name="loader-circle" size={16} /><span>{translate("graph.updatingRelationship")}</span></div>}
-    <PlexFind query={findQuery} focusRequest={findFocusRequest} visible={!centralEditorMaximized}
+    <PlexFind query={findQuery} focusRequest={findFocusRequest} visible={!centralEditorMaximized && !displayState.zen}
       includePath={findIncludePath} onIncludePathChange={/** A new vocabulary starts its own reveal cycle. */ (includePath) => { setFindIncludePath(includePath); setFindCursor(0); }}
       pathIcon={<ObsidianIcon name="folder-kanban" size={15} />} pathLabel={translate("find.includePath")}
       onApplyFilter={onApplyFindFilter} filterIcon={<ObsidianIcon name="list-filter" size={15} />} filterLabel={translate("find.applyFilter")}
@@ -4006,6 +4019,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       <button aria-label={translate("graph.zoomIn")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); void plugin.actionManager.dispatch({ id: "view.zoom-in", source: "toolbar", surfaceId: actionSurfaceId }); }}><ObsidianIcon name="zoom-in" size={16} /></button>
       <button aria-label={translate("graph.zoomOut")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); void plugin.actionManager.dispatch({ id: "view.zoom-out", source: "toolbar", surfaceId: actionSurfaceId }); }}><ObsidianIcon name="zoom-out" size={16} /></button>
       <button aria-label={translate("graph.fitGraph")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); void plugin.actionManager.dispatch({ id: "view.fit", source: "toolbar", surfaceId: actionSurfaceId }); }}><ObsidianIcon name="focus" size={16} /></button>
+      {fullscreenAvailable && <button type="button" data-kplex-display-control="fullscreen" aria-pressed={displayState.fullscreen} aria-label={translate(displayState.fullscreen ? "actions.exitFullscreen" : "actions.enterFullscreen")} onClick={/** Dispatch the view-owned fullscreen action through the unified manager. */ event => { event.stopPropagation(); void plugin.actionManager.dispatch({ id: "view.fullscreen.toggle", source: "toolbar", surfaceId: actionSurfaceId }); }}><ObsidianIcon name={displayState.fullscreen ? "minimize" : "maximize"} size={16} /></button>}
+      <button type="button" data-kplex-display-control="zen" aria-pressed={displayState.zen} aria-label={translate(displayState.zen ? "actions.exitZen" : "actions.enterZen")} onClick={/** Zen remains independent from native viewport coverage. */ event => { event.stopPropagation(); void plugin.actionManager.dispatch({ id: "view.zen.toggle", source: "toolbar", surfaceId: actionSurfaceId }); }}><ObsidianIcon name={displayState.zen ? "shrink" : "expand"} size={16} /></button>
     </div>
   </div>;
 }

@@ -75,6 +75,14 @@ On phones, K-Plex opens naturally in the side panel. Tablets can use either a no
 
 K-Plex uses positional animation when navigating: notes that exist in both scenes visibly move to their new location, while new notes enter from the direction of their relationship. Animation speed can be changed in **Settings → K-Plex → Plex behavior**, including turning it off completely.
 
+### Fullscreen and Zen mode
+
+Use **Maximize** beside **Fit to screen** to cover the Obsidian workspace with K-Plex on desktop. **Minimize** restores the original pane and surrounding workspace. This stays inside Obsidian’s window.
+
+Use **Expand** to enter **Zen mode**, hiding K-Plex’s top toolbar, pins and bottom history. **Shrink** restores them. Zen mode also works on tablets and phones. Both modes are independent, and the bottom-right graph controls remain available. They preserve zoom, pan and selection; use **Fit to screen** when you want to reframe the graph.
+
+An unclaimed **Escape** with the graph focused exits Zen first, then fullscreen. Search queries, connection sessions and native editors, menus and dialogs retain their own Escape behavior. Fullscreen exits when you switch to another native pane or close the view. These modes last only for the current view session.
+
 ### Search, history and pins
 
 The toolbar search box searches the whole Vault, including orphan attachments, Canvas files and indexed URLs. It matches display names, file names, aliases, paths and URL substrings using fuzzy matching. Exact and prefix matches rank above looser matches.
