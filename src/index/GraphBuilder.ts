@@ -8,6 +8,11 @@
  * discovery uses canonical source patches in an independent graph without unrelated document relationships.
  * Compiler and collector CPU slices dispatch host event tasks, then retain the existing caller-owned
  * cancellation and optional foreground-priority checkpoints before continuing private preparation.
+ * URL-only commits may adopt bounded evidence deltas only after their caller confirms exclusive
+ * private ownership at the synchronous commit; ordinary/published/large evidence keeps fork/swap.
+ * Only independent URL-owner staging activates canonical target/kind facts; ordinary Markdown
+ * reconciliation keeps its existing iteration and never creates a whole-graph derived index.
+ * URL-only pruning uses canonical lazy existence; ordinary Markdown retains its ordered iterator.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { Platform, TFile, type App } from "obsidian";
@@ -20,7 +25,7 @@ import { sourceFingerprint, sourceFingerprintCooperative, type SourceFingerprint
 import { MetadataParseCancelledError, type MetadataParser } from "./MetadataParser";
 import type { ObsidianSourceAcquisition } from "../adapters/obsidian/sourceAcquisition";
 import type { KplexIndexedDbCache } from "./IndexedDbCache";
-import type { EvidenceProvenance, EvidenceSourceKind } from "./RelationEvidence";
+import type { EvidenceProvenance, EvidenceSourceKind, RelationEvidenceStore } from "./RelationEvidence";
 import { resolveEvidencePair } from "./RelationResolver";
 import { createGraphState, getGraphPage, type GraphState } from "./GraphState";
 import { perfNow } from "../util/perf";
@@ -83,6 +88,11 @@ type FileRevision = {
   sourceRevision?: number;
 };
 
+/** These original declaration kinds alone sustain the existing URL-origin lifetime policy. */
+const URL_ORIGIN_REFERENCE_KINDS: ReadonlySet<EvidenceSourceKind> = new Set([
+  "body-url", "property-url", "frontmatter-ontology", "inline-ontology",
+]);
+
 const FILE_OWNED_EVIDENCE = new Set<EvidenceSourceKind>([
   "obsidian-link",
   "unresolved-link",
@@ -96,6 +106,8 @@ const FILE_OWNED_EVIDENCE = new Set<EvidenceSourceKind>([
 /** Small copy-on-write map used only while staging one incremental file patch. Reads fall through
  * to the published map; writes/deletes stay private until commit. */
 const MAX_PATCH_OVERLAY_DEPTH = 8;
+/** Existing synchronous map-publication scale also bounds private evidence bucket replay. */
+const MAX_SYNCHRONOUS_PATCH_CHANGES = 1024;
 
 class PatchOverlayMap<K, V> extends Map<K, V> {
   private readonly local = new Map<K, V>();
@@ -345,8 +357,10 @@ export class GraphBuilder {
 
   /** Publish a fully staged file patch. All expensive parsing/evidence/resolution work happens in
    * the private overlay first; this short final section only preserves existing GraphPage identity
-   * and swaps the evidence transaction. */
-  private commitPatchState(live: GraphState, staged: GraphState): void {
+   * and swaps the evidence transaction. URL-only callers may confirm exclusive evidence ownership
+   * here, after all awaits; bounded child adoption never mutates a retained published generation. */
+  private commitPatchState(live: GraphState, staged: GraphState,
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean): void {
     const pages = staged.pages as PatchOverlayMap<string, GraphPage>;
     const lowercase = staged.lowercasePathMap as PatchOverlayMap<string, string>;
     const fields = staged.discoveredFields as PatchOverlayMap<string, { name: string; count: number }>;
@@ -364,7 +378,7 @@ export class GraphBuilder {
       pages.set(path, publishedPage);
     }
 
-    const bulkPublish = pages.changeCount() + lowercase.changeCount() + fields.changeCount() > 1024;
+    const bulkPublish = pages.changeCount() + lowercase.changeCount() + fields.changeCount() > MAX_SYNCHRONOUS_PATCH_CHANGES;
     if (bulkPublish) {
       live.pages = pages.seal();
       live.lowercasePathMap = lowercase.seal();
@@ -377,7 +391,8 @@ export class GraphBuilder {
       for (const key of fields.removedKeys()) live.discoveredFields.delete(key);
       for (const [key, value] of fields.localEntries()) live.discoveredFields.set(key, value);
     }
-    live.evidence = staged.evidence;
+    if (!canAdoptEvidence?.(live.evidence)
+      || !live.evidence.adoptPrivateFork(staged.evidence, MAX_SYNCHRONOUS_PATCH_CHANGES)) live.evidence = staged.evidence;
   }
 
   private materializePreparedNode(state: GraphState, node: CompiledGraphNode): boolean {
@@ -509,32 +524,47 @@ export class GraphBuilder {
     return this.isCurrent();
   }
 
+  /**
+   * Reconcile origins with one shared URL policy. Only the isolated URL-owner lane opts into lazy
+   * private derived facts; ordinary Markdown edits retain their existing scan without activating a
+   * whole-graph index. Both paths preserve all origins and the exact four supporting source kinds.
+   */
   private async reconcilePreparedUrlOriginsCooperative(
     state: GraphState,
     candidatePaths: Iterable<string>,
     desiredOrigins: ReadonlyMap<string, string>,
     affected: Set<string>,
+    selectiveFacts = false,
   ): Promise<boolean> {
+    if (selectiveFacts && !(await state.evidence.ensureDeclaredTargetIndexCooperative(["url-origin"], () => this.yieldToHost()))) return false;
     let processed = 0;
     for (const urlPath of new Set(candidatePaths)) {
       if (!/^https?:\/\//i.test(urlPath)) continue;
       let referenceCount = 0;
       const existingOrigins: string[] = [];
-      for (const item of state.evidence.declarationsTouchingIterator(urlPath)) {
-        if (item.declaredTargetPath === urlPath && (item.sourceKind === "body-url" || item.sourceKind === "property-url"
-          || item.sourceKind === "frontmatter-ontology" || item.sourceKind === "inline-ontology")) referenceCount += 1;
-        if (item.sourceKind === "url-origin" && item.declaredTargetPath === urlPath) existingOrigins.push(item.declaredByPath);
-        processed += 1;
-        if ((processed & 127) === 0 && !(await this.yieldToHost())) return false;
+      if (selectiveFacts) {
+        for (const kind of URL_ORIGIN_REFERENCE_KINDS) referenceCount += state.evidence.declaredTargetCount(urlPath, kind);
+        if (!(await state.evidence.visitDeclaredTargetKindCooperative(urlPath, "url-origin",
+          /** Retain every original origin in canonical order, including foreign and duplicate declarations. */
+          (item) => { existingOrigins.push(item.declaredByPath); }, () => this.yieldToHost()))) return false;
+      } else {
+        for (const item of state.evidence.declarationsTouchingIterator(urlPath)) {
+          if (item.declaredTargetPath === urlPath && URL_ORIGIN_REFERENCE_KINDS.has(item.sourceKind)) referenceCount++;
+          if (item.sourceKind === "url-origin" && item.declaredTargetPath === urlPath) existingOrigins.push(item.declaredByPath);
+          processed++;
+          if ((processed & 127) === 0 && !(await this.yieldToHost())) return false;
+        }
       }
+      /** Remove exactly original origin declarations; indexed preparation opens only selected buckets. */
+      const removeOrigins = (): Promise<number | null> => selectiveFacts
+        ? state.evidence.removeDeclaredTargetKindCooperative(urlPath, "url-origin", () => this.yieldToHost())
+        : state.evidence.removeDeclarationsTouchingCooperative(urlPath,
+          /** Native Markdown fallback retains the same target/kind predicate. */
+          item => item.sourceKind === "url-origin" && item.declaredTargetPath === urlPath, () => this.yieldToHost());
       let desiredOrigin: string | undefined;
       if (!referenceCount) {
         if (existingOrigins.length) {
-          const removed = await state.evidence.removeDeclarationsTouchingCooperative(
-            urlPath,
-            (item) => item.sourceKind === "url-origin" && item.declaredTargetPath === urlPath,
-            () => this.yieldToHost(),
-          );
+          const removed = await removeOrigins();
           if (removed === null) return false;
         }
       } else {
@@ -547,11 +577,7 @@ export class GraphBuilder {
           if (derivedOrigin && derivedOrigin !== urlPath) return false;
         } else {
           if (existingOrigins.length !== 1 || existingOrigins[0] !== desiredOrigin) {
-            const removed = await state.evidence.removeDeclarationsTouchingCooperative(
-              urlPath,
-              (item) => item.sourceKind === "url-origin" && item.declaredTargetPath === urlPath,
-              () => this.yieldToHost(),
-            );
+            const removed = await removeOrigins();
             if (removed === null) return false;
             const originPage = state.pages.get(desiredOrigin);
             const urlPage = state.pages.get(urlPath);
@@ -660,9 +686,12 @@ export class GraphBuilder {
    * patch preparer and origin-lifetime reconciliation are shared with ordinary Markdown patches;
    * existing inline/property grammar is restricted to external targets; unrelated note relations and source inventory are not acquired here.
    * Private copy-on-write staging is committed only after exact native file/lifetime checks.
+   * Optional evidence adoption is authorized only by a live privacy check during that commit.
+   * This isolated lane opts into cooperatively activated target/kind facts before origin reconciliation.
    * @returns Paths affected by the synchronous publication, or null after supersession.
    */
-  async patchUrlReferences(state: GraphState, file: TFile, body: ParsedBodyMetadata, publisher: PatchFilePublisher, cachedFrontmatter?: Record<string, unknown>): Promise<Set<string> | null> {
+  async patchUrlReferences(state: GraphState, file: TFile, body: ParsedBodyMetadata, publisher: PatchFilePublisher, cachedFrontmatter?: Record<string, unknown>,
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean): Promise<Set<string> | null> {
     const revision = this.captureFileRevision(file), sourcePath = revision.path;
     if (!this.isCurrent() || !(await this.compactPublishedPatchLayers(state))) return null;
     const staged = this.createPatchState(state, true);
@@ -699,20 +728,25 @@ export class GraphBuilder {
     const origins = new Map<string, string>();
     if (!(await this.applyPreparedSourcePatch(staged, sourcePath, result.patch, affected, origins, "patch"))) return null;
     for (const path of affected) if (staged.pages.get(path)?.url) urls.add(path);
-    if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, origins, affected))) return null;
+    if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, origins, affected, true))) return null;
     for (const path of affected) if (path !== sourcePath) {
       this.resolvePatchEvidencePair(staged, sourcePath, path);
       this.resolvePatchEvidencePair(staged, path, sourcePath);
     }
-    if (!(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected))) return null;
+    if (!(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected, false, true))) return null;
     if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) return null;
     // No await below: URL source evidence, incidence and shared origin lifetimes publish together.
-    this.publishUrlPatch(state, staged, sourcePath, affected, publisher);
+    this.publishUrlPatch(state, staged, sourcePath, affected, publisher, canAdoptEvidence);
     return affected;
   }
 
-  /** Retire a removed URL-only source privately, preserving origins referenced by surviving owners. */
-  async removeUrlOwner(state: GraphState, path: string, publisher: PatchFilePublisher): Promise<Set<string> | null> {
+  /**
+   * Retire a URL owner privately while preserving shared origins and remaining contributors.
+   * The optional privacy capability is checked only during the synchronous evidence commit.
+   * Selective canonical facts activate only on its private URL-only staging generation.
+   */
+  async removeUrlOwner(state: GraphState, path: string, publisher: PatchFilePublisher,
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean): Promise<Set<string> | null> {
     if (!(await this.compactPublishedPatchLayers(state))) return null;
     const staged = this.createPatchState(state, true), affected = new Set<string>([path]), urls = new Set<string>();
     for (const item of staged.evidence.declarationsTouchingIterator(path)) {
@@ -724,20 +758,21 @@ export class GraphBuilder {
       item => item.declaredByPath === path && FILE_OWNED_EVIDENCE.has(item.sourceKind), () => this.yieldToHost()) === null) return null;
     staged.pages.delete(path); staged.lowercasePathMap.delete(path.toLowerCase());
     for (const target of affected) if (target !== path) staged.pages.get(target)?.neighbours.delete(path);
-    if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, new Map(), affected))
-      || !(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected)) || !this.isCurrent()) return null;
-    this.publishUrlPatch(state, staged, path, affected, publisher);
+    if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, new Map(), affected, true))
+      || !(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected, false, true)) || !this.isCurrent()) return null;
+    this.publishUrlPatch(state, staged, path, affected, publisher, canAdoptEvidence);
     return affected;
   }
 
-  /** Enforce the existing exactly-once synchronous publisher contract for URL-only source commits. */
-  private publishUrlPatch(live: GraphState, staged: GraphState, sourcePath: string, affected: Set<string>, publisher: PatchFilePublisher): void {
+  /** Enforce exactly-once URL publication; caller privacy is evaluated within the synchronous commit. */
+  private publishUrlPatch(live: GraphState, staged: GraphState, sourcePath: string, affected: Set<string>, publisher: PatchFilePublisher,
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean): void {
     let accepting = true, published = false;
     try {
       publisher({ sourcePath, touchedPagePaths: affected, semanticChanged: true }, /** Commit only during the publisher call. */
         () => {
           if (!accepting || published) throw new Error("URL publisher callback expired or already used");
-          published = true; this.commitPatchState(live, staged);
+          published = true; this.commitPatchState(live, staged, canAdoptEvidence);
         });
     } finally { accepting = false; }
     if (!published) throw new Error("URL publisher did not publish synchronously");
@@ -1698,12 +1733,17 @@ export class GraphBuilder {
     return this.isCurrent();
   }
 
-  /** Remove old URL candidates only after the same source-local shared-lifetime check. */
+  /**
+   * Remove old URL candidates after the same canonical shared-lifetime existence rule. Independent
+   * URL-owner staging opts into lazy cooperative existence, avoiding whole-degree key unions.
+   * Ordinary Markdown/source-baseline pruning retains its existing ordered-iterator fallback.
+   */
   private async pruneUnusedUrlNodesCooperative(
     state: GraphState,
     candidatePaths: Iterable<string>,
     affected: Set<string>,
     sourceNodeBaseline = false,
+    lazyExistence = false,
   ): Promise<boolean> {
     const children = new Set<string>();
     const origins = new Set<string>();
@@ -1722,11 +1762,16 @@ export class GraphBuilder {
       if ((processed & 127) === 0 && !(await this.yieldToHost())) return false;
     }
 
+    /** A cancelled existence scan cannot be mistaken for an unused page or leave private preparation accepted. */
     const removeIfUnused = async (path: string): Promise<boolean> => {
       const page = state.pages.get(path);
       let hasEvidence = false;
       if (page?.url && !page.file) {
-        hasEvidence = !state.evidence.declarationsTouchingIterator(path).next().done;
+        if (lazyExistence) {
+          const found = await state.evidence.hasDeclarationsTouchingCooperative(path, () => this.yieldToHost());
+          if (found === null) return false;
+          hasEvidence = found;
+        } else hasEvidence = !state.evidence.declarationsTouchingIterator(path).next().done;
       }
       if (page?.url && !page.file && !hasEvidence && sourceNodeBaseline) {
         const retained = await this.retainSourceNode(page);

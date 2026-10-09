@@ -45,6 +45,11 @@
  * Shared compact URL-cache restoration has the same inactivity bound and explicit retirement;
  * cache publications release their queue position/leases while late external work stays fenced.
  * Public restore requests can supersede their own wait without cancelling shared URL acquisition.
+ * URL evidence remains immutable once displayed; a live synchronous privacy check permits bounded
+ * child-delta adoption only into the independent working layer between presentation flushes.
+ * URL alias preparation retains only owner deltas; private aggregate label membership accelerates
+ * new-owner appends while replacement/removal preserves ordered contributor flattening. Facets
+ * share immutable output arrays with working pages and retire on purge/unload.
  */
 import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
@@ -250,6 +255,15 @@ type UrlRestoreLifetime = Readonly<{
   progress: () => void;
   retainWork: (priority: IndexWorkPriority) => () => void;
 }>;
+/** Aggregate aliases are authoritative independently of compiler-mutated staged page facets. */
+type UrlAliasFacet = Readonly<{ aliases: string[]; labels: Set<string> }>;
+/** One private owner delta: null removes it; append facets exist only for a genuinely new owner. */
+type PreparedUrlAliasTarget = Readonly<{
+  labels: readonly string[] | null;
+  appendedLabels?: readonly string[];
+  appendAliases?: string[];
+}>;
+
 type SnapshotHydrationPhase =
   | "idle"
   | "metadata"
@@ -337,6 +351,8 @@ export class GraphIndex {
   private urlOwners = new Map<string, Readonly<{ file: TFile; mtime: number; size: number; event: number }>>();
   private urlOwnerEvents = new Map<string, number>();
   private urlAliasOwners = new Map<string, Map<string, readonly string[]>>();
+  /** Unique aggregate labels accelerate new-owner append; compiler aliases are never the authority. */
+  private urlAliasFacets = new Map<string, UrlAliasFacet>();
   private urlOwnerTargets = new Map<string, Set<string>>();
   private urlRestoreTask: Promise<boolean> | null = null;
   private cancelUrlRestore: (() => void) | null = null;
@@ -637,7 +653,10 @@ export class GraphIndex {
   /** Estimate only this plugin's persistent payload; invoked by the settings page, never startup. */
   estimatePersistentIndexBytes(): Promise<number | null> { return this.indexedDb.estimateStoredBytes(); }
 
-  /** Stop source, graph and cache work before deleting disposable index storage; restart is required. */
+  /**
+   * Stop source, graph and cache work before deleting disposable index storage; restart is required.
+   * Retire aggregate alias membership immediately so cancelled preparation cannot retain or rebuild it.
+   */
   async purgePersistentIndexCache(): Promise<boolean> {
     if (this.persistentCachePurged) return this.indexedDb.purgeAndClose();
     this.persistentCachePurged = true;
@@ -650,6 +669,7 @@ export class GraphIndex {
     this.snapshotHydrationRun += 1;
     this.sourceAcquisition.close();
     this.onDemandIndexed.clear();
+    this.urlAliasFacets.clear();
     return this.indexedDb.purgeAndClose();
   }
 
@@ -3120,10 +3140,17 @@ export class GraphIndex {
     return this.urlRestoreTask;
   }
 
-  /** Privately replace one owner's search labels; completed slices report cache progress after host yields. */
+  /**
+   * Privately prepare only this owner's target/label delta, never copying shared contributor maps.
+   * New owners append distinct labels to authoritative aggregate facets; replacements retain the
+   * existing ordered flatten fallback at commit. Preparation changes neither contributors, facets
+   * nor graph pages. The existing per-target/reference slice admission and progress policy remains.
+   */
   private async prepareUrlAliasOwners(owner: string, urls: ParsedBodyMetadata["urls"], current: () => boolean,
-    priority: IndexWorkPriority = INDEX_WORK_PRIORITY.urlInventory, onProgress?: () => void): Promise<Map<string, Map<string, readonly string[]>> | null> {
-    const next = new Map<string, Map<string, readonly string[]>>();
+    priority: IndexWorkPriority = INDEX_WORK_PRIORITY.urlInventory, onProgress?: () => void): Promise<Map<string, PreparedUrlAliasTarget> | null> {
+    const next = new Map<string, PreparedUrlAliasTarget>();
+    const ownerLabels = new Map<string, Set<string>>();
+    const previousTargets = this.urlOwnerTargets.get(owner);
     let sliceStarted = performance.now(), processed = 0;
     /** Alias derivation stays private and respects foreground admission before releasing CPU slices. */
     const checkpoint = async (): Promise<boolean> => {
@@ -3136,29 +3163,64 @@ export class GraphIndex {
     };
     await this.workScheduler.checkpoint(priority);
     if (!current()) return null;
-    for (const target of this.urlOwnerTargets.get(owner) ?? []) {
-      const contributors = new Map(this.urlAliasOwners.get(target)); contributors.delete(owner); next.set(target, contributors);
+    for (const target of previousTargets ?? []) {
+      next.set(target, { labels: null });
       if (!(await checkpoint())) return null;
     }
     for (const reference of urls) {
       const target = canonicalWebUrl(reference.url);
-      const contributors = next.get(target) ?? new Map(this.urlAliasOwners.get(target));
-      contributors.set(owner, [...new Set([...(contributors.get(owner) ?? []), ...(reference.label ? [reference.label] : []), ...(reference.aliases ?? [])])]);
-      next.set(target, contributors);
+      const labels = ownerLabels.get(target) ?? new Set<string>();
+      if (reference.label) labels.add(reference.label);
+      for (const alias of reference.aliases ?? []) labels.add(alias);
+      ownerLabels.set(target, labels);
       if (!(await checkpoint())) return null;
     }
-    return next;
+    for (const [target, labels] of ownerLabels) {
+      const ownLabels = [...labels];
+      if (previousTargets?.size) next.set(target, { labels: ownLabels });
+      else {
+        const facet = this.urlAliasFacets.get(target);
+        const appendedLabels = ownLabels.filter(/** Only new unique labels extend the authoritative ordered aggregate. */
+          label => !facet?.labels.has(label));
+        const appendAliases = appendedLabels.length ? [...(facet?.aliases ?? []), ...appendedLabels] : facet?.aliases ?? [];
+        next.set(target, { labels: ownLabels, appendedLabels, appendAliases });
+      }
+      // Materializing many target facets is new preparation work, so it participates in the same
+      // per-record slice checks without changing admission, time thresholds or watchdog policy.
+      if (!(await checkpoint())) return null;
+    }
+    return current() ? next : null;
   }
 
-  /** Publish already prepared search facets with the URL evidence commit; removed owners lose their labels. */
-  private publishUrlAliasOwners(owner: string, prepared: Map<string, Map<string, readonly string[]>>): void {
+  /**
+   * Apply private owner deltas synchronously with canonical URL evidence publication. Internal
+   * contributor maps can mutate here; displayed pages/evidence remain separately immutable.
+   * A replacement deletes then reinserts the owner, preserving legacy winner/order behavior.
+   * Append-only owners never enumerate old contributors; no-new-label appends retain the exact
+   * authoritative alias array even if the compiler just replaced a staged page's aliases.
+   */
+  private publishUrlAliasOwners(owner: string, prepared: Map<string, PreparedUrlAliasTarget>): void {
     const targets = new Set<string>();
-    for (const [target, contributors] of prepared) {
-      if (contributors.has(owner)) targets.add(target);
+    for (const [target, delta] of prepared) {
+      const contributors = this.urlAliasOwners.get(target) ?? new Map<string, readonly string[]>();
+      contributors.delete(owner);
+      if (delta.labels !== null) { contributors.set(owner, delta.labels); targets.add(target); }
       if (contributors.size) this.urlAliasOwners.set(target, contributors); else this.urlAliasOwners.delete(target);
+      let facet: UrlAliasFacet;
+      if (delta.appendAliases) {
+        const labels = this.urlAliasFacets.get(target)?.labels ?? new Set<string>();
+        // This private membership set has no published reader. Preserve its identity without an
+        // O(all labels) clone; the ordered output array was prepared without mutating prior facets.
+        for (const label of delta.appendedLabels ?? []) labels.add(label);
+        facet = { aliases: delta.appendAliases, labels };
+      } else {
+        const labels = new Set([...contributors.values()].flat());
+        facet = { aliases: [...labels], labels };
+      }
+      if (contributors.size) this.urlAliasFacets.set(target, facet); else this.urlAliasFacets.delete(target);
       const page = this.urlState.pages.get(target);
       if (!page?.url) continue;
-      page.aliases = [...new Set([...contributors.values()].flat())];
+      page.aliases = facet.aliases;
       page.name = page.aliases[0] ?? page.url;
     }
     if (targets.size) this.urlOwnerTargets.set(owner, targets); else this.urlOwnerTargets.delete(owner);
@@ -3178,7 +3240,11 @@ export class GraphIndex {
     return result;
   }
 
-  /** Stage an exact owner; retiring a cache lifetime frees its queue position and fences late work. */
+  /**
+   * Stage an exact owner; retiring a cache lifetime frees its queue position and fences late work.
+   * Evidence admission reads the current published generation at synchronous commit, so a flush
+   * during preparation cannot turn a retained snapshot into a mutable working layer.
+   */
   private publishUrlOwner(file: TFile, body: ParsedBodyMetadata, event: number, cachedFrontmatter?: Record<string, unknown>, background = false,
     restore?: UrlRestoreLifetime): Promise<void> {
     const revision = { ...captureFileRevision(file), path: file.path };
@@ -3229,7 +3295,8 @@ export class GraphIndex {
             if (!cache && Object.keys(frontmatter).length) this.urlCachedMetadataOwners.add(revision.path); else this.urlCachedMetadataOwners.delete(revision.path);
             this.publishUrlAliasOwners(revision.path, aliases);
             this.queueUrlPublication(commit.touchedPagePaths, revision.path, !background);
-          }, frontmatter);
+          }, frontmatter, /** Only the current unpublished URL layer is exclusively writable at commit. */
+          evidence => evidence !== this.publishedUrlState.evidence);
           if (touched || current()) return;
           await this.workScheduler.checkpoint(priority);
         }
@@ -3510,7 +3577,10 @@ export class GraphIndex {
     return task;
   }
 
-  /** Remove deleted/renamed URL owner incidence through the canonical resolver, retaining shared URL targets. */
+  /**
+   * Remove deleted/renamed URL incidence canonically, retaining shared targets and origin lifetimes.
+   * Its synchronous commit may consume a bounded private delta, never a displayed generation.
+   */
   private retireUrlOwner(path: string): Promise<void> {
     this.urlPendingPublications++;
     const task = this.urlPublicationLane.catch(() => {}).then(() => this.workScheduler.run(INDEX_WORK_PRIORITY.visibleNeighborhood, async () => {
@@ -3521,7 +3591,8 @@ export class GraphIndex {
       if (!aliases) return;
       await builder.removeUrlOwner(this.urlState, path, (commit, publish) => {
         publish(); this.urlOwnerFailures.delete(path); this.urlOwners.delete(path); this.urlOwnerBodies.delete(path); this.urlOwnerFrontmatter.delete(path); this.urlMetadataCaches.delete(path); this.urlCachedMetadataOwners.delete(path); this.publishUrlAliasOwners(path, aliases); this.queueUrlPublication(commit.touchedPagePaths, path, true);
-      });
+      }, /** A flush during preparation must force immutable fork/swap publication. */
+      evidence => evidence !== this.publishedUrlState.evidence);
     })).finally(() => {
       this.urlPendingPublications--;
       if (!this.diagnosticsClosed && !this.persistentCachePurged && !this.urlDiscoveryRunning
@@ -3550,6 +3621,10 @@ export class GraphIndex {
     this.snapshotPersistGeneration += 1;
   }
 
+  /**
+   * Retire all repository lifetimes and release graph/search/body/aggregate-alias ownership now.
+   * Published snapshots remain untouched; late cancelled continuations cannot republish their data.
+   */
   destroy(): void {
     this.snapshotRestoreRequest++;
     this.cancelSnapshotRestoreWait?.();
@@ -3606,7 +3681,7 @@ export class GraphIndex {
     this.urlState = createGraphState(); this.publishedUrlState = createGraphState(); this.publishedUrlOwners.clear();
     this.urlOwners.clear(); this.urlOwnerEvents.clear(); this.urlOwnerBodies.clear(); this.urlOwnerFrontmatter.clear();
     this.urlMetadataCaches.clear(); this.urlCachedMetadataOwners.clear(); this.urlOwnerFailures.clear();
-    this.urlAliasOwners.clear(); this.urlOwnerTargets.clear(); this.urlSearchEntries.clear(); this.retiredUrlTargets.clear();
+    this.urlAliasOwners.clear(); this.urlAliasFacets.clear(); this.urlOwnerTargets.clear(); this.urlSearchEntries.clear(); this.retiredUrlTargets.clear();
     this.urlOwnerTasks.clear(); this.urlCacheWrites.clear(); this.foregroundUrlOwners.clear();
     for (const waiter of this.urlReadWaiters.splice(0)) waiter.ready(false);
     this.searchEntries = [];
