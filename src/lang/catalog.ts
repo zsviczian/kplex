@@ -14,9 +14,9 @@ type TranslationValue<K extends EnglishKey> = SourceEntry<K> extends { readonly 
 /** New V2 and action-manager copy ships in English until reviewed translations are supplied; existing keys stay exhaustive. */
 type EnglishFallbackKey = Extract<EnglishKey, `indexing.${string}` | `hotkeys.${string}` | `actions.${string}` | `addRelated.completion.${string}` | "addRelated.endpointChanged" | "addRelated.partialCreation" | "addRelated.originTitle" | "addRelated.completionMode" | "addRelated.savedPending" | "addRelated.refreshSaved" | "addRelated.recoverFile" | "addRelated.linkCreatedFile" | "addRelated.openCreatedFile" | "addRelated.closedBeforeLink" | "node.gateLocalCount" | "node.gateCachedCount" | "node.gateHostUnavailable"
   | "filter.sourcePropertyUrl" | "graph.sourcePropertyUrl" | "graph.typeSelectionStatus" | "graph.typeSelectionCount" | "explain.sourcePropertyUrl"
-  | "explain.summarySourcePropertyUrl" | "references.propertyUrl">;
+  | "explain.summarySourcePropertyUrl" | "references.propertyUrl" | "explain.summaryDatePropertyPolicy" | `settings.datePropertyRelations.${string}`>;
 
-/** Existing translations remain required; approved new V2 keys may use the source English entry. */
+/** Existing translations remain required; approved new action/date-policy keys may use source English. */
 export type LocaleTranslationMap = {
   readonly [K in Exclude<EnglishKey, EnglishFallbackKey>]: TranslationValue<K>;
 } & { readonly [K in EnglishFallbackKey]?: TranslationValue<K> };

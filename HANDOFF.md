@@ -16,37 +16,16 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Root review — issue #2 native acceptance pending
+# Inactive — issue #81 default Date role accepted
 
-Current branch `fix/large-paste-freeze`, based on synced main `25ba53ee300dd9cbe8c48ecba4e1381f993dc445`.
-Fullscreen/Zen was committed/pushed/PR#86 squash-merged before this issue. Changes for issue#2
-are now authorized for commit/push/PR/merge, with original issue#2 left open for reporter confirmation. C15–C26 remain paused.
+No active assignment. Uncommitted changes remain on `date-property-relations`.
+Offline source/test return was independently reviewed and corrected by the main agent.
+Production and portable tests, full Node 22.22.2 verification/build, native loading smoke and
+24 Date-role scenarios in each of on-demand/eager modes passed. Exact built artifacts are staged
+in the disposable `kplex-test-small` vault; original settings/configuration/layout restored.
 
-The offline ontology-owner matcher/test correction was independently reviewed. The full
-verify:obsidian gate passed on pinned Node22.22.2, including actual types/lint/build, complete
-portable/browser tests and exact native graph render smoke. Freeze311-input SHA256
-7b3454f2ee1b61dc334b768a4de7cc6d882461254c173b7a6a761a01d566f7ae unchanged.
-Installed main.js0496ad5f… matches dist. Canonical parser/index/scheduler are unchanged.
-
-The native owner probe measured the supplied30,687-character paragraph at0.1ms; original
-4k cost371.3ms. No editor, clipboard or files were changed by that probe. Real paste driver
-failed the locked-session/Settings prerequisite before any scenario. Native acceptance is
-pending an unlocked session with Settings closed; async readiness question is pending.
-
-Next: run verify:obsidian:large-paste with explicit kplex-test-small target, actual CLI, a fresh
-report directory and optional local /private/tmp/kplex-issue2-transcript.md input. Verify hidden
-source/Live Preview, visible Plex, repeated paste, following typing, configured parent/inline
-suggestion replacement, exact saved text and plugin reload. No public transcript is committed.
-No app restart/physical-device/paint guarantee is claimed. Native driver itself remains
-scenario-unvalidated until this gate runs. Full verification need only be repeated if relevant
-production/test/build inputs change; a native-driver-only repair needs its own exact rerun.
-
-Pre-staging backup /private/tmp/kplex-issue2-prestage-1 captured fresh configuration after
-queues drained. Original bytes restored and independently read back, with no later reload.
-Final audit:73notes,0owned resources, original workspace branches/desktop/window geometry;
-Settings stayed open. A later native run must preserve its fresh current baseline and restore
-original pre-staging bytes only after all cleanup/write queues settle.
-
-Durable evidence and failure limits: docs/validation/large-paste-freeze-2026-10-09.md and
-Refactor plan.md. PR#86 CI strict unchanged URL-heavy timer failed56.8ms then64.8ms; local
-full gates passed. No timer limit was weakened. Stop at accepted issue scope; no broad refactor.
+Durable behavior, hashes, failures, acceptance receipts, limitations and reporter checks are in
+[the validation record](docs/validation/date-property-relations-2026-10-09.md) and
+[Refactor plan.md](Refactor%20plan.md). Historical timeout observations remain unresolved;
+no indexing fix is included. Maintainer confirmed native behavior and authorized publication/issue closure for #81.
+C15–C26 remain paused. This inactive body does not authorize further work.

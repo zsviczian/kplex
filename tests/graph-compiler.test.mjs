@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadPortableModules } from "./support/portableTypeScript.mjs";
 import { neutralizeLegacyReferenceFixtures } from "./support/referenceCandidateFixture.mjs";
 import { produceNormalizedFixtureRecords } from "./support/normalizedSourceFixture.mjs";
+import { applyDefaultDateRoleFixture } from "./support/dateRoleFixture.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const loaded = loadPortableModules(['src/core/graph/compiler.ts', 'src/core/graph/model.ts', 'src/core/graph/source.ts', 'src/core/graph/relations.ts', 'src/core/graph/evidence.ts']);
@@ -163,17 +164,19 @@ test("portable full compiler matches the frozen pre-move compatibility graph sem
   const expectedPages = [...baseline.pages]
     .map((page) => ({ ...page, relations: [...page.relations].sort((left, right) => left.targetPath.localeCompare(right.targetPath)) }))
     .sort((left, right) => left.path.localeCompare(right.path));
-  // URL aliases are the one deliberate product change: every explicit link label is searchable.
-  // Preserve the frozen oracle for all other page fields, relation flags and provenance.
+  // Deliberate product changes: every URL alias is searchable, and unconfigured scalar Dates
+  // default to a DEFINED Parent. Preserve the frozen oracle for all non-Date relationships.
   for (const page of expectedPages) if (page.url) {
     page.aliases = [...new Set(records.filter(record => record.kind === "body-url"
       && record.target.entity.semanticPath === page.url && record.label && record.label !== page.url).map(record => record.label))];
   }
-  assert.deepEqual(actualPages, expectedPages, "full compiler remains frozen-baseline compatible except explicitly preserved URL aliases");
+  const expectedEvidence = structuredClone(baseline.declarations);
+  applyDefaultDateRoleFixture({ pages: expectedPages, declarations: expectedEvidence });
+  assert.deepEqual(actualPages, expectedPages, "frozen-baseline compatibility except approved URL aliases and default Date role");
 
   const actualDeclarations = stableSort([...compilation.declarations()].map(semanticDeclaration));
-  const expectedDeclarations = stableSort(baseline.declarations.map(semanticDeclaration));
-  assert.deepEqual(actualDeclarations, expectedDeclarations, "all declaration families, multiplicity and semantic provenance must match the pre-move oracle");
+  const expectedDeclarations = stableSort(expectedEvidence.map(semanticDeclaration));
+  assert.deepEqual(actualDeclarations, expectedDeclarations, "declaration multiplicity/provenance stays frozen except approved Date role/type");
   assert.equal(compilation.legacyEvidence()?.declarationCount, baseline.declarations.length);
 });
 

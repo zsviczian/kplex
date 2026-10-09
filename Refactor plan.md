@@ -2978,3 +2978,218 @@ branch. Prior full verification/freeze remain unchanged. Session is now unlocked
 Settings remains open; native paste scenarios remain unrun and explicitly documented.
 Publication proceeds under this instruction with reporter acceptance retained as pending.
 PR text must use a reference to#2, never an automatic closing keyword.
+
+Action log — issue #2 published: commit4106926 pushed and squash-merged as
+[PR#87](https://github.com/zsviczian/kplex/pull/87) at8858259907303d323451a6818cc5f60c81aa2e49.
+Verified original issue#2 remains OPEN for reporter confirmation. Main fetched/fast-forwarded
+cleanly; created date-property-relations from that exact base for issue#81.
+
+### 2026-10-09 — Issue #81: interim date property modes (superseded by default-role clarification)
+
+Requested: a scalar date property mapped to a daily note should optionally follow the field's
+configured ontology role (Date as parent; working on can remain friend). Current date facts use
+normal inferred roles, so a reverse daily-note body link can resolve the pair as bidirectional
+inference/friend. Preserve existing behavior by default; add a searchable declarative choice
+between normal inference and field ontology, with unconfigured fields using normal inference.
+Extend the shared compiler/reference-policy/settings-effects owners, not the date acquisition
+grammar or stored neutral facts. C15–C26 remain paused.
+
+- [x] Read issue/comments; publish prior task and sync clean main/new branch.
+- [x] Implement the date policy, settings/default validation, localized declarative UI and regressions.
+- [x] Independently review full/patch/cached-replay parity and invalidation without body reparse.
+- [x] Run full verification and exact on-demand date-role/settings/reload checks; restore test state.
+- [x] Verify prepared eager policy changes use cached facts with zero source calls/full builds.
+- [ ] Complete eager-mode reload acceptance; native CLI deadline remains unresolved.
+
+Initial ETA45–70min. No commit/PR/merge authority for issue#81 has been requested yet.
+
+Action log — published issue#2 CI result retained: PR#87 verify job37908658713 failed
+the existing URL-heavy post-parse50ms timer guard at68.6ms. Local exact full verification
+passed; strict guard unchanged. This is a known independent timing failure, not issue#81
+acceptance or a reason to change parser/index/scheduler timing bounds.
+
+Action log — issue#81 source review accepted: the canonical selector supplies configured date roles
+only in opt-in ontology mode. Scalar dates retain raw provenance and use existing explicit
+frontmatter/hidden precedence over reciprocal body links. Ordinary reference identities remain
+producer-owned; default inference and unconfigured dates are unchanged. Signature v3 recognizes
+v2/unversioned history as inferred without changing physical cache schemas. Offline101 focused
+checks/types/lint/architecture passed; root reviewed production/contract diffs independently.
+Full verification and exact native role/reload/no-reread acceptance remain pending.
+
+Action log — first issue#81 full gate stopped before build/native staging: a manual
+presentation-environment transpile fixture omitted settings.ts after settingsPolicy gained its
+runtime sanitizer dependency. Full report retains413 general checks (412passed plus the failed
+fixture process); no feature/native pass is claimed. Offline return assigned to repair finite
+fixture module inventories and rerun affected tests without changing assertions.
+
+Action log — fixture dependency correction accepted: presentation transpile inventory now
+emits the real settings.ts dependency. Additional80 affected checks passed; root independently
+reviewed the one-line inventory repair. Full verification restarted on frozen312-input
+SHA88a237f4745f16670352cea999fd10ff62d52b762eb56e8c4a9f4fd460062f92.
+No production change or weakened assertion was required.
+
+Action log — independent review found and blocked an unsafe provenance shortcut before staging:
+configured scalar dates labeled frontmatter-ontology became eligible for direct wiki-link relink;
+that writer recognizes links, not scalar dates, and could append a wiki link to a Date field.
+The second full run was intentionally stopped and is not acceptance. Corrective handoff keeps
+date-property provenance and includes DEFINED dates in canonical explicit frontmatter precedence;
+this also preserves Date source filters/explanations. No date-writing feature is being added.
+Root native driver will assert actual Date provenance and refusal by the direct unlink owner.
+
+Action log — final provenance/localization correction reviewed: configured dates remain
+date-property evidence with DEFINED/hidden roles. Canonical explicit frontmatter precedence
+now includes DEFINED dates; existing direct wiki-link relink/unlink filters decline scalar
+dates. A regression executes the actual consumer filter expressions against compiled Date
+and ordinary wikilink evidence. New generic Date explanation uses a separate English fallback
+key so historical translations retain their original meaning. Final106 affected checks and
+actual/core types, touched lint, architecture83roots/164files/0violations passed offline.
+Root independently reviewed correction/fixtures; full gate starts against312 frozen inputs
+SHAaf6a187b1073f7879857bf7c0ad20a93c03638f837e80048377d99d5896e6581.
+Remaining ETA15–25min; native role/settings/reload/cleanup acceptance is still pending.
+
+Action log — final full gate passed at09:43:06UTC on Node22.22.2: architecture7/core69/
+general429/UI20/portable-source333/Chromium410 checks plus production indexing fixtures,
+official lint, actual Obsidian types and production build. Frozen312 inputsaf6a187b… remain
+unchanged. Installed main20f883b6992c8ce92f3157647cab4998fdc6e8265aa485f58ec95cbd9b7a2189
+/CSS05c59fe6…/manifest19799fff… match build hashes and pass native render smoke. Latest
+pre-staging settings/configuration were captured immediately before unload, after queues
+drained. Native Date role/settings/reload/no-reread scenarios are now running; no pass claimed yet.
+ETA5–10min including cleanup/audit.
+
+Action log — native harness iterations retained: attempt1 required disabled global source
+inventory in the on-demand vault and ran no Date assertions; cleanup's empty-folder delete
+needed force=true. Root completed cleanup independently and restored configuration bytes.
+Attempt2 proved default/Parent/Child/revert/unconfigured behavior but incorrectly expected
+Hidden to affect both endpoints; canonical Hidden applies only from the declaring note.
+Attempt3 passed all policy cases but its reload loop repeatedly refreshed broader local work;
+acceptance now awaits requested fixture scopes, distinct from unrelated renderer gate work.
+These are harness corrections, not production fixes or passes of the failed attempts.
+
+Action log — exact native on-demand acceptance passed9scenarios at09:56:56UTC: registered
+declarative dropdown, six policy/configuration transitions, Date provenance/direct-unlink
+refusal and persisted Parent/Child roles after plugin reload. Working-on Friend remained
+unchanged. Measured3Vault readcalls/0parses/79acquisition calls/0full-build delta across
+policy changes; no universal zero-work claim for this requested-owner mode. Cleanup restores
+73notes/originallayout/desktop/Settings-open state,0ownedobservers/demands/controllers and
+configuration bytes, with no captured errors. Separate prepared eager-cache gate is now running.
+
+Action log — extra eager acceptance results retained: eager attempt1 passed six Date policy
+transitions with0read/parse/acquisition calls but observed the full-build counter change;
+cause was not established. Eager attempt2 timed out90seconds waiting for fixture coordinator
+idle before Date assertions; its report did not identify which flag remained pending. Eager
+attempt3 reached ready76/76 (initial complete, no build/rebuild/timer/dirty flag), then passed
+six policy transitions plus scalar-Date unlink refusal with0reads/0parses/0acquisitions/
+0full-build delta. The subsequent reload sequence hit the30-second native CLI process
+deadline. Full eager driver/reload is pending, not passed. All three runs cleaned their fixtures,
+observers, demands, mode/layout/configuration and controller with no captured JavaScript errors.
+No production indexing/scheduling fix was introduced. These observations may help investigate
+startup coordination later, but do not prove a relationship to the reported4-of73 symptom.
+
+Action log — final driver/on-demand return and cleanup accepted at10:12UTC: nine scenarios
+passed again on final driver3af40a98… with3reads/0parses/74acquisitions/0full-build delta.
+Frozen312 production/test/build inputs remainaf6a187b… and the full gate remains valid.
+Independent audit confirmed73originalMarkdown notes,0ownedfiles/controllers/dialogs/sessions/
+guards/settingsrows/groups/recorders/overlays, original desktop main document/window and
+Settings-open state,1440×875bounds/minimum200×150, exact installed/build artifact hashes
+and drained settings queues. Restored pre-staging configuration bytes after ownership cleanup;
+independent delayed readback follows, without plugin reload. Durable feature decisions/results
+and the pending eager reload are in
+[the issue#81 validation record](docs/validation/date-property-relations-2026-10-09.md).
+Implementation is uncommitted on date-property-relations; C15–C26 stay paused. Issue#2 remains
+open after merged PR#87 until reporter confirmation. Remaining documentation/readback ETA2–3min.
+
+Action log — final delayed configuration readback passed at10:13:14UTC: data.json,
+community-plugins.json and hotkeys.json remained byte-identical to the pre-staging backup;
+no reload followed raw restoration. Bounded offline lifecycle review found no harness await
+spanning reload commands and no source evidence of a Date-specific unload deadlock:
+unload cancels work synchronously and does not await snapshot persistence. The failed report
+cannot identify which reload CLI command stalled; current diagnostics name CLI failures.
+Underlying cause and complete eager reload acceptance remain explicitly pending. Date feature
+implementation/full gate/on-demand native acceptance are delivered; no further indexing
+fix or #81 publication is included in this task.
+
+### 2026-10-09 — Issue #81 clarification: default role for unconfigured Date fields
+
+User clarified that Date fields must always honor configured ontology. The requested setting
+chooses the fallback role for unconfigured Date fields: Parent, Friend, Child, Challenger,
+Previous or Next. The earlier inferred/ontology switch did not provide this default-role control
+and is superseded. Initial default Parent follows issue#81's daily-note/meeting direction.
+Interim source/build/native results above remain historical evidence only; they do not establish
+acceptance for the corrected behavior. No production indexing fix is part of this correction.
+
+- [x] Replace two-mode control and compiler policy; configured fields always win.
+- [x] Test six default roles/inverse views, precedence and full/patch/cached replay.
+- [x] Review settings migration/signature invalidation and real types/lint/architecture.
+- [x] Run full build and corrected exact native acceptance; restore test configuration.
+
+ETA30–45min including full verification. Offline return owns production/portable tests;
+root owns native driver, durable documentation, independent review and native acceptance.
+No #81 publication authority yet; C15–C26 remain paused.
+
+Action log — clarified Date source return reviewed: six fallback roles with Parent default;
+configured Date ontology always applies. All roles retain date-property/scalar provenance and
+existing writer refusal; conflicting separate explicit properties retain canonical reconciliation.
+Signature v4 forces historical v3/v2/unversioned graphs to reinterpret Date semantics, retaining
+neutral facts. Offline109 affected checks and80 consumer checks, real installed/core types,
+touched lint and architecture83roots/164files/0violations passed. Root review corrected Date-only
+explanation reason to configured/default Date copy while preserving higher hidden/suppression/
+conflict reasons. Archived fixture is unchanged; shared bounded overlay asserts four Date
+pairs/declarations and inverse views, one removed Date-only virtual sibling, affected gate
+counts/centered sibling positions and two explicit cross edges replacing three sibling edges.
+Root actual fixture now verifies the corresponding current-signature presentation contract,
+with first-publication facets/search and zero-semantic-work guards retained. Full and native
+acceptance of this corrected source remain pending; earlier interim passes do not apply.
+
+Action log — clarified source frozen/full gate started: root legacy indexing fixture passed
+24 production settings scenarios and all parser/index/cache/scene/creation/provenance assertions.
+No timing guard was changed. Full verification now runs against313 frozen inputs
+SHA738d71b1f8e99adf227c525bc19921b9b55e98f087aa974677dcd29789bcfb62.
+The stage wrapper captures current configuration after both live write queues settle immediately
+before the eventual plugin unload, protecting preferences changed during the long build.
+Corrected exact native all-role/override/reload acceptance and final restoration remain pending.
+ETA15–20min including the full build and native cleanup.
+
+Action log — clarified full gate attempt1 stopped before build/staging: architecture7/core69,
+legacy indexing/settings scenarios, actual lint and general432/UI20 checks passed. Portable
+source lane332/333 passed; one existing direct-neighbor phase fixture still expected an
+unconfigured scalar Date in the generic Child gate. The requested Parent default correctly
+places it in Parent. Test-only correction retains property/Date/body-URL phase ordering and
+adds explicit default Parent versus selected Child coverage; no production or timing change.
+Failed report/log retained, no test-vault configuration changed by this attempt. Full gate
+will restart on updated frozen test inputs, with native acceptance still pending.
+
+Action log — direct-neighbor Date fixture correction reviewed: default Parent and selected
+Child both preserve physical property→Date→body-URL encounter order; full/cached snapshots
+assert exact role gates and DEFINED scalar Date evidence.99 affected source/order/acquisition
+checks passed. No production or timing changes. Full gate restarted on313 frozen inputs
+SHAe00a2496e4ae0141d8e5510f932073d5322d93255ec569cd209cb2b62f0fbf49.
+Browser/source Date expectations were audited without further fixture changes. Exact native
+all-role/override/reload checks, configuration restoration and final audit remain pending.
+
+Action log — corrected default Date-role implementation accepted: full gate passed12:36:49UTC
+on the unchanged313-input freeze e00a2496e4ae0141d8e5510f932073d5322d93255ec569cd209cb2b62f0fbf49.
+Architecture7/core69/general432/UI20/source333/browser410, real indexing/settings fixtures,
+official lint, actual installed types and production build/native loading smoke passed.
+Exact staged build85358c635afe393c71225b6b0f544526bfc38fd31ec7c783a4834f3d2860d591
+passed24 native scenarios in each mode, including all six defaults/inverses, configured-role
+precedence/Hidden, scalar writer refusal, declarative registration and plugin reload persistence.
+On-demand policy measurement3reads/0parses/341acquisitions/0full builds; eager0 in all four.
+Native CLI lifecycle calls15–93ms, no captured errors. Earlier timeouts remain unresolved
+observations, not a fixed scheduler defect; no indexing fix is included.
+
+Final native cleanup restored on-demand mode, exact original workspace layout,73 Markdown
+files, open native Settings, desktop mode and original window bounds/minimum. Zero owned
+fixtures/controllers/observers/demands or action/settings/fullscreen resources remained.
+An audit's initial main-document focus assumption was rejected by the actual active native
+Settings document; read-only ownership inspection and corrected audit passed without forcing
+focus. Four original configuration paths restored byte-for-byte after queues drained; delayed
+independent readback passed, with no reload afterward. Full receipts, hashes, limitations and
+two prioritized reporter checks are in docs/validation/date-property-relations-2026-10-09.md.
+Implementation complete and staged for testing; remains uncommitted with no #81 publication
+requested. C15–C26 remain paused. Remaining implementation tasks: none.
+
+Action log — maintainer confirmed corrected Date-role behavior works as expected and authorized
+commit/push/PR/merge plus issue #81 closure with release target0.1.1. Publication proceeds from
+the accepted unchanged source/build snapshot; no release-version bump is included. Next scope:
+investigate issue #34 on updated main, reproducing both indexing modes and large-vault restart/
+cancellation before any closure; create a fix branch only if a defect is reproduced.

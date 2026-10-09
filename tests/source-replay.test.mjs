@@ -5,6 +5,8 @@ import { readFile } from "node:fs/promises";
 import { M, replayFixture, settings, presentation, runtime, policy, hostOracle, semanticView, collect } from "./support/cachedSourceFixture.mjs";
 import { titleFixture } from "./support/urlTitleFixture.mjs";
 import { centerGateSettings, currentNeighborhoodView, fullCenterIndex } from "./support/requestedCenterGateFixture.mjs";
+import { loadPortableModules } from "./support/portableTypeScript.mjs";
+const { exports: { RelationType } } = loadPortableModules(["src/core/graph/relations.ts"]);
 
 /** Persist all neutral facts once; policies must never go through this helper. */
 async function acquire(f, ids) {
@@ -44,6 +46,8 @@ test("live full compiler equals validated source-owner replay across ontology/im
       { ...settings, hierarchy: { ...settings.hierarchy, leftFriends: [], rightFriends: ["Friends", "Opposes"] } },
       { ...settings, nodeImageProperty: "Image", thumbnailProperty: "Image" },
       { ...settings, inferAllLinksAsFriends: true, inverseInfer: true },
+      { ...settings, datePropertyRelations: "left", hierarchy: { ...settings.hierarchy, parents: ["Parent", "When"] } },
+      { ...settings, datePropertyRelations: "left", hierarchy: { ...settings.hierarchy, hidden: ["Hidden", "When"] } },
     ];
     const oracles = [];
     for (const variant of variants) oracles.push(await hostOracle(f, ids, variant));
@@ -240,6 +244,7 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
     const semantic = { ...structuredClone(settings), indexingMode: "eager", thumbnailProperty: "Thumbnail", nodeImageProperty: "OtherImage" };
     const compilerPolicy = host => ({ hierarchy: structuredClone(host.hierarchy), thumbnailProperty: host.thumbnailProperty,
       nodeImageProperty: host.nodeImageProperty, inferAllLinksAsFriends: host.inferAllLinksAsFriends,
+      datePropertyRelations: host.datePropertyRelations,
       inverseInfer: host.inverseInfer, showFullTagName: host.showFullTagName, tagStyleList: [...host.tagStyleList],
       maxLabelLength: host.baseNodeStyle?.maxLabelLength ?? host.maxLabelLength ?? 30 });
     const presentationPolicy = host => ({ noteTypeField: host.noteTypeField, primaryTagField: host.primaryTagField });
@@ -416,6 +421,23 @@ test("production GraphIndex semantic refresh matches fresh full oracle from sour
       index.plugin.settings.inferAllLinksAsFriends = true;
       index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
       await assertOracle("forward inference toggle");
+
+      index.plugin.settings.hierarchy.parents = [...index.plugin.settings.hierarchy.parents, "When"];
+      index.plugin.settings.datePropertyRelations = "left";
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("configured date ontology from cached facts");
+      const dateRelation = index.get("A.md").neighbours.get("Daily/2026-09-29.md");
+      assert.equal(M.classifyRelation(dateRelation, "parent", true), RelationType.DEFINED);
+      index.plugin.settings.datePropertyRelations = "right";
+      index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+      await assertOracle("configured date role remains above a changed fallback");
+      index.plugin.settings.hierarchy.parents = index.plugin.settings.hierarchy.parents.filter(field => field !== "When");
+      for (const role of ["parent", "child", "left", "right", "previous", "next"]) {
+        index.plugin.settings.datePropertyRelations = role;
+        index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();
+        await assertOracle(`default Date ${role} from cached facts`);
+        assert.equal(M.classifyRelation(index.get("A.md").neighbours.get("Daily/2026-09-29.md"), role, true), RelationType.DEFINED);
+      }
 
       index.plugin.settings.inverseInfer = true;
       index.invalidateSemanticPolicy(); await index.refreshSemanticSettings();

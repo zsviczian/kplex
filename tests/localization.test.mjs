@@ -446,6 +446,11 @@ test("semantic relationship reasons preserve accepted explanation wording at the
   const accepted = JSON.parse(readFileSync(join(root, "tests/fixtures/l01-relationship-summaries.json"), "utf8"));
   const translate = localization.createTranslator("en");
   for (const [code, sentence] of Object.entries(accepted)) assert.equal(relationshipSummaryLabel(code, translate), sentence, code);
+  for (const language of ["de", "es", "fr", "ja", "nl", "ru", "zh-TW"]) {
+    const localized = localization.createTranslator(language);
+    assert.equal(relationshipSummaryLabel("date-property", localized), accepted["date-property"],
+      `${language} uses generic date-policy English until this new key is translated`);
+  }
   assert.equal(suppressionReasonLabel("frontmatter-overrides-body-ontology", translate),
     "Conflicting body ontology is overridden by frontmatter ontology for this note pair.");
 });

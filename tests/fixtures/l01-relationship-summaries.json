@@ -2,7 +2,7 @@
   "ontology-precedence": "Frontmatter ontology takes precedence over conflicting body ontology; the overridden body evidence is retained for explanation.",
   "bidirectional-inferred": "Ordinary links provide evidence in both directions, so the pair resolves to an inferred friend relationship.",
   "hidden": "The relationship is indexed but hidden from this source note's visible neighbourhood.",
-  "date-property": "An Obsidian Date property maps to a Daily Notes target and is treated as an inferred outgoing relationship.",
+  "date-property": "An Obsidian Date property maps to a Daily Notes target using its configured field role or the default Date role.",
   "source:body-url": "The visible relationship is derived from body URL evidence.",
   "defined-ontology": "Defined ontology determines the visible relationship; inferred link evidence remains recorded but does not override it.",
   "source:obsidian-link": "The visible relationship is derived from resolved note link evidence.",

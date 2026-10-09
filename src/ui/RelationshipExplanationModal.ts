@@ -1,5 +1,7 @@
 /**
- * Native Connection details dialog over pair-scoped semantic explanations and provenance. This host UI formats stable reason codes and offers additive ontology/source navigation actions.
+ * Native Connection details dialog over pair-scoped semantic explanations and provenance. This host UI
+ * formats stable reason codes, including configured/default Date roles, and offers additive ontology/source
+ * navigation actions. Native modal closure owns its lifetime; scalar dates remain date sources.
  */
 import { Modal, setIcon, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
@@ -36,7 +38,7 @@ const SOURCE_LABEL: Record<EvidenceSourceKind, PlainTranslationKey> = {
 function relationTypeLabel(type: RelationType, translate: Translator): string {
   return translate(type === RelationType.DEFINED ? "graph.relationDefined" : "graph.relationInferred");
 }
-/** Translate every stable relationship summary code at the presentation boundary; core emits no display sentence. */
+/** Translate stable semantic reasons; Date copy describes configured/default roles without changing historical locale keys. */
 function relationshipSummaryLabel(summary: RelationshipSummary, translate: Translator): string {
   switch (summary) {
     case "hidden": return translate("explain.summaryHidden");
@@ -44,7 +46,7 @@ function relationshipSummaryLabel(summary: RelationshipSummary, translate: Trans
     case "conflicting-defined-roles": return translate("explain.summaryConflictingDefinedRoles");
     case "bidirectional-inferred": return translate("explain.summaryBidirectionalInferred");
     case "defined-ontology": return translate("explain.summaryDefinedOntology");
-    case "date-property": return translate("explain.summaryDateProperty");
+    case "date-property": return translate("explain.summaryDatePropertyPolicy");
     case "no-active-evidence": return translate("explain.summaryNoActiveEvidence");
     case "transient-section": return translate("explain.summaryTransientSection");
     case "source:frontmatter-ontology": return translate("explain.summarySourceFrontmatterOntology");

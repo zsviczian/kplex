@@ -5,6 +5,8 @@
  * density from the same saved value. All saves cross the plugin settings-impact classifier; the
  * injected translator owns display copy. Indexing strategy takes effect after restart; persistent
  * cache estimates run only when their settings row is rendered, never during plugin startup.
+ * Date fallback roles reinterpret cached facts through the semantic settings owner; absent/interim
+ * preferences use Parent and foreign imports cannot overwrite the local default role.
  * Background throttle changes apply live without reconstructing semantic data. Style creation selects
  * property-value or primary-tag-prefix matching without converting existing imported styles. Internal
  * keyboard bindings are additive workflow preferences; recorder controls own only transient capture.
@@ -30,6 +32,7 @@ import { sanitizeIndexingThrottle, type IndexingThrottle } from "./index/Foregro
 import { sanitizeInternalHotkeys, type InternalHotkeys } from "./core/plex/internalHotkeys";
 import { migrateActionPreferences, type ActionPreferencesV1 } from "./core/plex/actionPreferences";
 import { ActionSettingsController } from "./ui/ActionSettingsController";
+import { sanitizeDatePropertyRelations, type DatePropertyRelations } from "./core/graph/settings";
 
 export const DEFAULT_LINK_STYLE: LinkStyle = {
   strokeColor: "#696969ff",
@@ -153,6 +156,8 @@ export interface KplexSettings {
   hierarchy: Hierarchy;
   inferAllLinksAsFriends: boolean;
   inverseInfer: boolean;
+  /** Fallback native Date role; configured field ontology always takes precedence. */
+  datePropertyRelations: DatePropertyRelations;
   inverseArrowDirection: boolean;
   renderAlias: boolean;
   /** Ordered comma-separated frontmatter fields used as display-name fallbacks. */
@@ -290,6 +295,7 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   hierarchy: DEFAULT_HIERARCHY_DEFINITION,
   inferAllLinksAsFriends: false,
   inverseInfer: false,
+  datePropertyRelations: "parent",
   inverseArrowDirection: true,
   renderAlias: true,
   nameFields: "aliases",
@@ -538,6 +544,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     indexingMode: old.indexingMode === "eager" ? "eager" : "on-demand",
     urlIndexingMode: "background",
     indexingThrottle: sanitizeIndexingThrottle(old.indexingThrottle),
+    datePropertyRelations: sanitizeDatePropertyRelations(old.datePropertyRelations),
     hierarchy,
     baseNodeStyle: { ...DEFAULT_NODE_STYLE, ...(old.baseNodeStyle ?? {}) },
     baseLinkStyle: { ...DEFAULT_LINK_STYLE, ...(old.baseLinkStyle ?? {}) },
@@ -1896,6 +1903,11 @@ export class KplexSettingTab extends PluginSettingTab {
             items: [
               { name: translate("settings.ui.infer.normal.links.as.friends"), control: { type: "toggle", key: "inferAllLinksAsFriends" } },
               { name: translate("settings.ui.inverse.inferred.parent.child.direction"), control: { type: "toggle", key: "inverseInfer" } },
+              { name: translate("settings.datePropertyRelations.name"), desc: translate("settings.datePropertyRelations.description"),
+                control: { type: "dropdown", key: "datePropertyRelations", defaultValue: "parent", options: {
+                  parent: translate("role.parent"), left: translate("role.friend"), child: translate("role.child"),
+                  right: translate("role.challenger"), previous: translate("role.previous"), next: translate("role.next"),
+                } } },
               { name: translate("settings.ui.reverse.displayed.arrow.direction"), desc: translate("settings.ui.reverse.the.displayed.link.arrow.direction.without.chang"), control: { type: "toggle", key: "inverseArrowDirection" } },
             ]
           },

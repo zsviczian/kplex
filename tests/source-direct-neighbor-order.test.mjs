@@ -16,7 +16,7 @@ import { fullTitleIndex } from "./support/selectedTitleFixture.mjs";
 import { fullCenterIndex, centerGateSettings } from "./support/requestedCenterGateFixture.mjs";
 import { guardDegreeReuse } from "./support/candidateDegreeFixture.mjs";
 
-const { exports: { LinkDirection } } = loadPortableModules(["src/core/graph/relations.ts"]);
+const { exports: { LinkDirection, RelationType } } = loadPortableModules(["src/core/graph/relations.ts"]);
 
 const roles = ["parent", "child", "left", "right", "previous", "next"];
 const orders = ["name-asc", "name-desc", "modified-asc", "modified-desc", "created-asc", "created-desc", "connections-asc", "connections-desc"];
@@ -449,17 +449,27 @@ for (const activateDormant of [false, true]) {
 test("one Markdown owner's references, Dates and body URLs retain their separate original phases",
   /** Date normalization and URL emission stay with their actual production collectors and parser. */
   async () => {
-    const result = await compareOrder(
-      /** A property wins the first pair, then Date, then first-retained body URLs in parser order. */
-      f => {
-        f.add("Center.md", "[B](https://example.com/b) [A](https://example.com/a)\n[Again](https://example.com/b)",
-          { When: "2026-09-30", Children: "[[A]]" });
-        f.add("A.md", ""); resolveFiles(f); f.app.dateFields.add("When");
-      });
-    const expected = entityIdOrder(["A.md", "Daily/2026-09-30.md", "https://example.com/b", "https://example.com/a"]);
-    for (const snapshot of [result.full, result.cached]) {
-      assert.deepEqual(snapshot.views.child, expected);
-      assert.equal(snapshot.decisions.get("https://example.com/b").length, 1, "The canonical parser retains the first raw URL occurrence");
+    for (const fallback of [undefined, "child"]) {
+      const result = await compareOrder(
+        /** A property wins the first pair, then Date, then first-retained body URLs in parser order. */
+        f => {
+          f.add("Center.md", "[B](https://example.com/b) [A](https://example.com/a)\n[Again](https://example.com/b)",
+            { When: "2026-09-30", Children: "[[A]]" });
+          f.add("A.md", ""); resolveFiles(f); f.app.dateFields.add("When");
+        }, { semantic: fallback ? { ...settings, datePropertyRelations: fallback } : settings });
+      const datePath = "Daily/2026-09-30.md";
+      const physicalOrder = ["A.md", datePath, "https://example.com/b", "https://example.com/a"];
+      const expected = entityIdOrder(physicalOrder.filter(path => fallback || path !== datePath));
+      for (const snapshot of [result.full, result.cached]) {
+        assert.deepEqual(snapshot.views.child, expected);
+        assert.deepEqual(snapshot.views.parent, fallback ? [] : [datePath], "Default Date Parent is separate from the ordinary outgoing Child gate");
+        assert.deepEqual(rawPaths(snapshot).filter(path => physicalOrder.includes(path)), physicalOrder,
+          "Physical reference, Date and body-URL phases remain independent of the selected Date gate");
+        const date = snapshot.decisions.get(datePath).find(item => item.evidence.sourceKind === "date-property");
+        assert.equal(date.evidence.declaredRole, fallback ?? "parent");
+        assert.equal(date.evidence.relationType, RelationType.DEFINED, "Date roles are explicit despite generic link inference");
+        assert.equal(snapshot.decisions.get("https://example.com/b").length, 1, "The canonical parser retains the first raw URL occurrence");
+      }
     }
   });
 

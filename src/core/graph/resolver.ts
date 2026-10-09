@@ -1,5 +1,7 @@
 /**
- * Portable relationship reconciliation and explanations derived from source evidence. Semantic roles and reason codes remain independent of layout, host APIs and language.
+ * Portable relationship reconciliation and explanations derived from source evidence. Date-only
+ * definitions retain their Date reason instead of implying configured wiki-link ontology. Semantic
+ * roles and reason codes remain independent of layout, host APIs and language.
  */
 import { RelationType, type ResolverTarget, type Role, type SemanticRelation } from "./relations";
 import {
@@ -223,7 +225,7 @@ export async function resolveEvidenceStoreCooperative<TPage extends ResolverTarg
 }
 
 
-/** Describe the reconciled pair using stable reason codes and active/suppressed evidence. Display wording is deliberately supplied outside the semantic core. */
+/** Describe the reconciled pair with stable reasons; Date-only definitions keep Date provenance while higher-priority conflict/suppression reasons remain authoritative. */
 export function explainResolvedRelationship<TPage extends ResolverTarget<TPage>>(
   source: TPage,
   target: TPage,
@@ -257,6 +259,9 @@ export function explainResolvedRelationship<TPage extends ResolverTarget<TPage>>
     reason = "conflicting-defined-roles";
   } else if (roles.some((item) => item.role === "left" && item.relationType === RelationType.INFERRED) && ordinaryDirections.length >= 2) {
     reason = "bidirectional-inferred";
+  } else if (active.some((item) => item.evidence.sourceKind === "date-property")
+    && active.every((item) => item.evidence.relationType !== RelationType.DEFINED || item.evidence.sourceKind === "date-property")) {
+    reason = "date-property";
   } else if (roles.some((item) => item.relationType === RelationType.DEFINED)) {
     reason = "defined-ontology";
   } else if (active.some((item) => item.evidence.sourceKind === "date-property")) {

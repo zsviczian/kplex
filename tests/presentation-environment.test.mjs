@@ -497,7 +497,7 @@ test("URL expansion normalizes videos, preserves private Vimeo tokens and reject
 function compileGraphPresentation() {
   const temp = mkdtempSync(join(tmpdir(), "kplex-graph-presentation-"));
   for (const relative of ["src/index/GraphPresentation.ts", "src/adapters/obsidian/yieldToHostTask.ts",
-    "src/core/contracts/fieldName.ts", "src/core/graph/presentation.ts", "src/core/graph/settingsPolicy.ts"]) {
+    "src/core/contracts/fieldName.ts", "src/core/graph/presentation.ts", "src/core/graph/settings.ts", "src/core/graph/settingsPolicy.ts"]) {
     const output = join(temp, relative.replace(/\.ts$/, ".js"));
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, ts.transpileModule(readFileSync(join(root, relative), "utf8"), {

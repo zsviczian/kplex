@@ -1,5 +1,7 @@
 /**
- * Portable evidence storage and ontology precedence. Decisions carry stable suppression codes; callers own localized explanations, cooperative scheduling and publication.
+ * Portable evidence storage and ontology precedence. Defined scalar dates retain their physical
+ * source kind while sharing explicit frontmatter authority. Decisions carry stable suppression codes;
+ * callers own localized explanations, cooperative scheduling and publication.
  */
 import { LinkDirection, RelationType, type Role, type SemanticRelation } from "./relations";
 
@@ -489,8 +491,8 @@ export class RelationEvidenceStore {
 }
 
 /**
- * K-Plex's deliberate compatibility deviation: frontmatter ontology wins when body ontology on
- * the same declaring note conflicts for the same target. Importantly, body evidence is retained
+ * K-Plex's deliberate compatibility deviation: explicit frontmatter ontology, including configured
+ * DEFINED configured/fallback dates, wins when body ontology conflicts for the same target. Body evidence is retained
  * and merely marked suppressed; it is never discarded from the evidence store.
  */
 export function applyOntologyPrecedence(evidence: RelationEvidence[]): EvidenceDecision[] {
@@ -501,7 +503,8 @@ export function applyOntologyPrecedence(evidence: RelationEvidence[]): EvidenceD
   // perspective, so this also works when the YAML declaration lives in the opposite note.
   const frontmatterRoles = new Set<EvidenceRole>();
   for (const item of evidence) {
-    if (item.sourceKind === "frontmatter-ontology" && item.relationType === RelationType.DEFINED) frontmatterRoles.add(item.role);
+    if ((item.sourceKind === "frontmatter-ontology" || item.sourceKind === "date-property")
+      && item.relationType === RelationType.DEFINED) frontmatterRoles.add(item.role);
   }
 
   return evidence.map((item) => {
