@@ -1,4 +1,4 @@
-/** Real Chromium runner for production TypeScript modules. Explicit host stubs do not emulate IDB. */
+/** Real Chromium runner for production TypeScript modules. Explicit host stubs do not emulate IDB. The test-only command capability delivers trusted CDP input to native controls; it shares the existing browser lifetime and deadlines. */
 import { createRequire } from "node:module";
 import { mkdtemp, readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -124,5 +124,5 @@ export async function chromiumHarness(bundle) {
     }
   }
   try { await start(); } catch (error) { await stop(); server.close(); await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); throw error; }
-  return { evaluate, restart: async () => { await stop(); await start(); }, cleanup: async () => { await stop(); server.close(); await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); } };
+  return { evaluate, command: call, restart: async () => { await stop(); await start(); }, cleanup: async () => { await stop(); server.close(); await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); } };
 }

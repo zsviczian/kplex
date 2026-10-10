@@ -774,6 +774,10 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
 {
   const context = {
     app: {},
+    // Explicit native opens retire passive completion through the actual production helper.
+    sidecarLeaves: new Map(),
+    passiveSidecarSyncRequests: new WeakMap(),
+    retirePassiveSidecarRequestsForLeaf: KplexPlugin.prototype.retirePassiveSidecarRequestsForLeaf,
     settings: { sidecarLastUrl: "", sidecarLastFilePath: "Existing.md" },
     translator: () => "Web Viewer unavailable",
   };

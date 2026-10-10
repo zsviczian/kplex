@@ -242,7 +242,11 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   );
   const [historyCursor, setHistoryCursor] = useState(() => Math.max(0, plugin.settings.navigationHistory.length - 1));
 
-  /** Center an exact page; sidecar-open commands defer document synchronization to their owned open. */
+  /**
+   * Center an exact page; sidecar-open commands defer document synchronization to their owned open.
+   * Passive follow keeps companion propagation: each host destination independently skips an
+   * exact same-file observation, while other linked destinations still receive genuine navigation.
+   */
   const activate = useCallback((target: GraphPage, record = true, syncDocuments = true) => {
     // Any newer explicit navigation supersedes a note waiting for partial indexing.
     pendingFileExplorerDropRef.current = null;
@@ -335,6 +339,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   );
 
   useEffect(() => {
+    /** Observe an eligible external document; native destinations own same-file no-op decisions. */
     const followFile = (file: TFile | null) => {
       if (!plugin.isKplexLeafVisible(hostLeaf)) return;
       const activeView = plugin.app.workspace.getActiveViewOfType(FileView);

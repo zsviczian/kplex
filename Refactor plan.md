@@ -3786,3 +3786,81 @@ locks, continue portable work without awaiting maintainer intervention or bypass
   aggregate/UI file execution to match existing browser-source lane; preserve coverage/deadlines,
   no retry/skip/production scheduling change. Focused Node22.22.2 Chromium55/55 PASS. Full Linux
   recheck pending; evidence in five-issue validation report. Temporary handoff remains excluded.
+
+- 2026-10-10 — Interaction correctness baseline on `fix/interaction-correctness-2026-10-10`,
+  starting from merged PR #108, `80f73619a68e634698f404ea8c61a58f276c0fbe`.
+  The only initial untracked file was the temporary assignment, excluded from Git delivery.
+  Scope: #106 native touch controls; #28 semantic filtered gate counts; #24/#51 linked and
+  embedded Excalidraw representation. Node 22.22.2 / npm 10.9.7 architecture 7/core 88,
+  scanner and actual typed build passed. Obsidian 1.14.4 / Excalidraw 2.28.1.
+  Native before-patch evidence proves drawing-to-Markdown echo in recent/pinned/Sidecar;
+  original fixture D right reproduces 3/1 with cross-links in Keep/Reflow, without acquisition.
+  Immediate range gestures work in desktop emulation but escape into native host bubbles;
+  the reported physical mobile delay remains unverified. Fixtures and native configuration restored.
+
+- 2026-10-10 — Interaction implementation and independent review checkpoint.
+  Native ranges retain browser defaults through local passive touch containment; pane-fit controls
+  stack above the disclosure. Cached all-role endpoint membership and exact-target deduplication
+  replace physical-route filtered numerators. Passive native destinations are same-file idempotent;
+  embedded initial Markdown respects `excalidraw-open-md` separately from drawing capability.
+  Focused portable 36/36 and browser 4/4 passed. Initial full UI failure was an obsolete empty-Map
+  fixture, updated to the absent-projection null contract without changing rename assertions.
+  Full verification then passed architecture 7/core 88/aggregate 555/UI 25/portable sources 333/
+  browser sources 428, real build and exact-build native smoke, in 805.109 seconds.
+  Continued production-method review reproduced a pending passive preview overwriting an explicit
+  same-file Go-to-source action. Explicit operations now retire only their exact managed destination's
+  completion lease; passive duplicate observations retain normal completion. New race/explicit-route
+  tests pass. The URL test fixture was updated to supply the real production retirement helper.
+  Final verification and dedicated native candidate acceptance are pending; earlier full pass predates
+  this correction. Durable evidence: `docs/validation/interaction-correctness-2026-10-10.md`.
+  No GitHub mutation or commit; C15–C26 remain paused. Physical mobile and Windows are separate checks.
+
+- 2026-10-10 — Native interaction acceptance/review checkpoint.
+  B passed 6/6 on the read-only original fixture: right 1/1 with cross-links, 0/1 without,
+  left 2/2 and 1/2 in Keep/Reflow; revisions/acquisition unchanged and all source wrappers zero.
+  A passed eight trusted immediate/hold thumb/track gestures, fresh-session persistence and seven
+  actual pane fits, including short panes, native scrolling and hit tests. Physical touch remains
+  pending. The emulated native drawer remains display:none after the last-Sidepanel cleanup plus
+  plugin-only reload despite expanded state; fresh mobile chrome is used for persistence testing.
+  Preserve this host-lifecycle observation for separate investigation; no production drawer workaround.
+  C passed 18/18 actual native representation/command/trusted-shortcut/default/toggle/source scenarios.
+  Its different-file scenario exposed duplicate pending opens before native file publication; sharing
+  pending same-target leases corrects configured mode completion. Added late-publication and rejected-
+  open retry regressions. Source 926f9d2b (22 changed code/test/driver/package/style inputs) is frozen
+  for final full verification. All test-owned resources/configuration restored after native probes.
+  Pending: final full check, exact-build A/B repeat, existing UX/action lanes, final records. No commit
+  or GitHub mutation; C15–C26 paused, excluded assignment document remains untracked.
+
+- 2026-10-10 — Interaction correctness completed and independently reviewed on
+  `fix/interaction-correctness-2026-10-10` (base PR108/80f7361); 29 uncommitted delivery files.
+  Final scanner/real typed build/full verify/native smoke PASS 791.329s: architecture7/core88/
+  aggregate559/UI25/portable sources333/browser sources428, zero failures/skips.
+  Wide native comparison caught a stacked icon's inherited horizontal flex basis increasing height
+  from28 to30; scoped shell selector corrected it. Independent Chromium fail-before/pass-after
+  sizing assertion retained; all four trusted touch/layout cases pass. Final installed main90a641a8,
+  styles58d48002; source freeze1f72953d, final delivery7b2c09f4.
+  Final native UX56/56, original-fixture gates6/6, touch/persistence/seven actual pane fits,
+  Excalidraw18/18, action workflows8/8 and emulated settings3/3 PASS. Existing UX fixtures now
+  establish shared-default inheritance, optimistic owned endpoints, bounded current source patches,
+  owned/restored sidebar geometry and area-only row scrolling. Count assertions distinguish local
+  on-demand uncertified coverage from requested-scope parent incidence/candidate proof; no fake
+  authority, deadline weakening or production indexing/Canvas change. One lost read-only CLI progress
+  receipt recovered through the existing bounded retry; no mutation replay.
+  Final audit restores76 files/74 Markdown, original desktop1440x875 bounds, profile49/230/10.2,
+  configuration bytes and all owned controllers/dialogs/wrappers/hotkeys/debugger/leaves. No captured
+  JS errors or active test resource. Physical Android/iOS and Windows remain brief maintainer checks;
+  plugin-only last-Sidepanel emulated drawer reopening remains a bounded future observation.
+  Full evidence/file inventory/manual checks: docs/validation/interaction-correctness-2026-10-10.md.
+  No commit/push/PR/merge/release/issue closure; temporary assignment stays untracked/excluded.
+  C14 accepted, C15–C26 paused; source formats, ontology, scheduler and routing preserved.
+
+### 2026-10-10 — Typography controls use the stacked arrangement at every pane width
+
+- Completed the requested styling follow-up on `fix/interaction-correctness-2026-10-10`: font size, label length and node width cards span their existing typography column, followed by a horizontal wrap-label card. Density/column controls, disclosure/zoom, persisted values and runtime logic retain their owners and behavior. C14 accepted; C15–C26 paused.
+- Actual Chromium touch/layout tests 4/4 PASS (11.854 s), including full-width card alignment and checkbox placement at wide, narrow and short sizes. Initial sandbox loopback EPERM was an environment restriction; authorized run passed. Official Obsidian lint and the actual installed-type production build PASS. Exact-build staging/native smoke PASS; native touch/reload/geometry/cleanup PASS (15.837 s). Receipts: `/private/tmp/kplex-typography-stack-stage-2026-10-10/report.json` and `/private/tmp/kplex-typography-stack-native-2026-10-10/report.json`.
+- Main.js remains `90a641a8f21dad9bb9d321c2cdec57f0ee4454420c52a663789cb8cf1cfadc31`; current built/installed stylesheet `da87b7b3a35522dedd63eb021f51e8458a389608dd5e5ccfd3fcb8036323506a`. Delivery source identity `85cb352300a92ed6b5e59f75c4349db6a208e8b7d8332ec9bfbde91e7411cc31`; ledger `/private/tmp/kplex-typography-stack-delivery-source-ledger-2026-10-10.json`. Prior full-suite evidence is historical; the unrelated full suite was not repeated for this stylesheet-only follow-up.
+- Manual recommendation: confirm the typography section visually matches Image 1 on desktop; physical Android/iOS acceptance and the named drawer-reopening observation remain pending from the parent batch. No commit/publication; temporary assignment document remains untracked and excluded.
+
+### 2026-10-10 — Maintainer acceptance and publication authorization
+
+The maintainer confirmed testing of the interaction-correctness fixes and typography follow-up, and authorized commit/push, PR creation and merge, issue closure for #24/#28/#51/#106 with the PR reference, and switching/fetching local main. Publish the verified delivery on `fix/interaction-correctness-2026-10-10`; exclude the untracked temporary `docs/KPLEX_NEXT_BATCH_INTERACTION_CORRECTNESS_ENRICHED_2026-10-10.md`. Automated evidence and physical-device limits remain recorded in `docs/validation/interaction-correctness-2026-10-10.md`; maintainer acceptance is not represented as an invented target-device measurement. No plugin-version bump or tagged release.

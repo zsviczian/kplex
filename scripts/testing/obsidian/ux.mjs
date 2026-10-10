@@ -106,7 +106,7 @@ const nativeController = `(()=>{
   if(window.${controller})throw new Error("UX controller already exists");
   const p=app.plugins.plugins["k-plex"], remote=require("@electron/remote"), win=remote.getCurrentWindow();
   const c=window.${controller}={p,settings:JSON.parse(JSON.stringify(p.settings)),owned:[],leaf:null,done:false,error:null,
-    bounds:win.getBounds(),throttling:win.webContents.getBackgroundThrottling(),folder:${JSON.stringify(folder)},
+    bounds:win.getBounds(),throttling:win.webContents.getBackgroundThrottling(),sidebars:{left:app.workspace.leftSplit.collapsed,right:app.workspace.rightSplit.collapsed},folder:${JSON.stringify(folder)},
     denseTarget:${JSON.stringify(process.env.KPLEX_UX_DENSE_TARGET || null)},scenarios:[],notices:[]};
   // Track actual persistence promises so native view teardown cannot race original-byte restoration.
   c.settingsWrites=new Set();c.settingsWriteErrors=[];
@@ -181,6 +181,10 @@ const nativeController = `(()=>{
     win.webContents.sendInputEvent({type:"mouseDown",x,y,button:"left",clickCount:1});
     win.webContents.sendInputEvent({type:"mouseUp",x,y,button:"left",clickCount:1});await c.frames()};
   remote.app.focus({steal:true});win.show();win.focus();win.webContents.setBackgroundThrottling(false);
+  // Own the fixture's available pane geometry rather than inheriting sidebars restored by a
+  // preceding device run. Retain the established window size for native Canvas resize checks;
+  // finally restores both original sidebar states and exact native window bounds.
+  app.workspace.leftSplit.collapse();app.workspace.rightSplit.collapse();
   win.setContentSize(1200,900);
   return JSON.stringify(true);
 })()`;
@@ -284,6 +288,9 @@ const labelLayoutAcceptanceScenarios = `
   p.settings.graphDepth=1;p.settings.layoutProfiles={...p.settings.layoutProfiles,"desktop:leaf":{...p.settings.layoutProfiles["desktop:leaf"],parentColumns:2,childColumns:2}};
   // The two-line sample needs a fixed font: a saved 8px base can fit this title on one line.
   // The driver's original settings snapshot restores the caller's typography after the fixture.
+  // These are shared-default controls. A saved Desktop override intentionally wins over them;
+  // start this owned fixture in inheritance mode, preserving all width/wrap assertions below.
+  await p.resetTypographyOverride("desktop");
   await tab.setControlValue("baseFontSize",12.4);
   await tab.setControlValue("baseNodeStyle.maxLabelLength",120);await tab.setControlValue("baseNodeStyle.maxWidth",800);await tab.setControlValue("centralNodeStyle.maxWidth",1000);
   await c.go(c.labelCenter);
@@ -856,6 +863,8 @@ const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(
   c.check(c.settingsWriteErrors.length===0,"Fixture settings write failed: "+JSON.stringify(c.settingsWriteErrors));
   c.restoreSettingsWrites();
   if(c.settings.lastActivePath&&c.p.index.get(c.settings.lastActivePath))c.p.notifyNavigation(c.settings.lastActivePath);
+  for(const [side,collapsed]of Object.entries(c.sidebars)){const split=side==="left"?app.workspace.leftSplit:app.workspace.rightSplit;collapsed?split.collapse():split.expand()}
+  c.check(app.workspace.leftSplit.collapsed===c.sidebars.left&&app.workspace.rightSplit.collapsed===c.sidebars.right,"Original native sidebar states did not restore");
   const win=require("@electron/remote").getCurrentWindow();win.setBounds(c.bounds);win.webContents.setBackgroundThrottling(c.throttling);
   c.done=true;
 })().catch(e=>{c.error=e.stack;c.done=true});return JSON.stringify(true)})()`;
@@ -1057,6 +1066,7 @@ try {
   await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "UX scenarios timed out", 300_000);
   report.scenarios = evaluate(`JSON.stringify(window.${controller}.scenarios)`);
   report.fixtureReadiness=evaluate(`JSON.stringify(window.${controller}.fixtureReadiness)`);
+  report.enhancementPatchAttempts=evaluate(`JSON.stringify(window.${controller}.enhancementPatchAttempts??[])`);
   const errors = cli("dev:errors");
   assert(!errors || /^No errors captured\.?$/i.test(errors), errors);
   report.errors = errors;report.status = "passed";
@@ -1069,7 +1079,7 @@ try {
       center:r?c.center():c.p.settings.lastActivePath,status:c.p.getIndexStatus(),activeClass:document.activeElement?.className,
       findOpen:r?.querySelector(".kplex-find button")?.getAttribute("aria-expanded"),
       findValue:r?.querySelector(".kplex-find-input")?.value,matchLabel:r?.querySelector(".kplex-find-count")?.textContent,fixtureAliases:c.fixtureAliases,
-      pairTrace:c.pairTrace,notices:c.notices,linkDisabled:document.querySelector(".kplex-add-related-link-button")?.disabled,relationshipWrites:c.p.relationshipWriteCancels.size,sourceDiagnostics:c.p.index.getSourceRepositoryDiagnostics(),highlightedNodes:r?.querySelectorAll(".kplex-thought.is-highlighted").length,resize:c.lastResize,imagePaint:c.lastImagePaint,canvasResize:c.lastCanvasResize,gate:c.lastGate,bodyDrag:c.lastBodyDrag,dragEvents:c.dragEvents,lastClick:c.lastClick,lastHover:c.lastHover,lastKey:c.lastKey,
+      enhancementPatchAttempts:c.enhancementPatchAttempts,pairTrace:c.pairTrace,notices:c.notices,linkDisabled:document.querySelector(".kplex-add-related-link-button")?.disabled,relationshipWrites:c.p.relationshipWriteCancels.size,sourceDiagnostics:c.p.index.getSourceRepositoryDiagnostics(),highlightedNodes:r?.querySelectorAll(".kplex-thought.is-highlighted").length,resize:c.lastResize,imagePaint:c.lastImagePaint,canvasResize:c.lastCanvasResize,gate:c.lastGate,bodyDrag:c.lastBodyDrag,dragEvents:c.dragEvents,lastClick:c.lastClick,lastHover:c.lastHover,lastKey:c.lastKey,
       vaultInput:r?.querySelector(".kplex-search")?.value,vaultResults:r?.querySelector(".kplex-search-results")?.textContent,
       popoutRootConnected:c.popoutRootForFind?.isConnected,
       popoutRootCurrent:c.popoutRootForFind===c.popoutLeaf?.view.contentEl.querySelector(".kplex-app"),
