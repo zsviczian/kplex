@@ -1,5 +1,5 @@
 /**
- * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. View-owned display transitions retain camera coordinates and scene settings; ordinary pane resizes keep their existing autozoom policy. Global typography drafts survive host publication and save after input settles. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity. Normal-mode keyboard and exact-phrase typing selection are view-local; the displayed occurrence projection supplies all candidates and the shared selection owner reveals them without changing the center, filters or native search. Host methods own activation/rename/creation.
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. View-owned display transitions retain camera coordinates and scene settings; ordinary pane resizes keep their existing autozoom policy. Device typography stages scalar live preferences and persists after input settles; unmount flushes storage without replaying stale overrides. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity. Normal-mode keyboard and exact-phrase typing selection are view-local; the displayed occurrence projection supplies all candidates and the shared selection owner reveals them without changing the center, filters or native search. Host methods own activation/rename/creation.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent, type RefObject } from "react";
 import { Menu, Notice, Platform, type WorkspaceLeaf } from "obsidian";
@@ -13,6 +13,7 @@ import type { KplexLayoutProfile, KplexSettings, KplexViewSurface, SidecarMarkdo
 import type { GateRole, GateSide, GraphPage, Neighbour, Neighborhood, NodeStyle, NodeVisual, PositionedEdge, PositionedNode, Role, ScrollZone } from "../types";
 import { LinkDirection, RelationType } from "../types";
 import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle } from "../index/style";
+import { TYPOGRAPHY_FIELDS, TYPOGRAPHY_LIMITS, type TypographyValues } from "../core/plex/typographyPreferences";
 import { buildScene, buildSectionExpandedScene, appendVisibleCrossLinks, projectNodeCounts, rowIntersectsViewport, effectiveLabelLimit, expandedChildReserve, expandedNodeWidth, expandedMiniLayout, horizontalDensity, layoutColumns, spacingPolicy, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
 import { LayoutSlider } from "./components/LayoutSlider";
 import { ElementMotion } from "./components/ElementMotion";
@@ -725,13 +726,13 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
   const [layoutControlsOpen, setLayoutControlsOpen] = useState(false);
   const [layoutOverrides, setLayoutOverrides] = useState<Partial<KplexLayoutProfile>>({});
   const layoutDraft = useRef<KplexLayoutProfile | null>(null);
-  const [typographyOverrides, setTypographyOverrides] = useState<Partial<Pick<KplexSettings, "baseFontSize" | "baseNodeStyle" | "wrapNodeLabels">>>({});
-  const typographyDraft = useRef<typeof typographyOverrides | null>(null);
+  const typographyDraft = useRef<object | null>(null);
+  const typographyDevice = plugin.getTypographyDevice();
   const typographySave = useRef<{ id: number; window: Window } | null>(null);
   const [areaHeightOverrides, setAreaHeightOverrides] = useState<Partial<Record<AreaHeightKey, number>>>({});
   // App receives fresh prepared facades during unrelated renders. Explicit drafts survive those
   // publications; mutating one temporary facade would discard slow slider changes mid-gesture.
-  const settings = useMemo(() => Object.assign(withAreaHeightOverrides(viewSettings, areaHeightOverrides), layoutOverrides, typographyOverrides), [viewSettings, areaHeightOverrides, layoutOverrides, typographyOverrides]);
+  const settings = useMemo(() => Object.assign(withAreaHeightOverrides(viewSettings, areaHeightOverrides), layoutOverrides), [viewSettings, areaHeightOverrides, layoutOverrides]);
   const predicateEngine = useMemo(() => new GraphPredicateEngine(plugin.app), [plugin]);
   useEffect(() => index.acquireSemanticDemand(activePath), [index, activePath]);
   // getNeighborhood() performs relationship classification/filtering. Keep it stable during local
@@ -1635,7 +1636,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     // its settings and must not start a second persistence operation while this view retires.
     if (typographySave.current) {
       typographySave.current.window.clearTimeout(typographySave.current.id);
-      void plugin.saveSettings(false);
+      void plugin.persistTypographySettings();
     }
     typographySave.current = null;
     typographyDraft.current = null;
@@ -1888,7 +1889,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
           edge: { role: relation.role, relationType: relation.relationType, definition: relation.typeDefinition, linkDirection: relation.linkDirection, sourcePath: baseNode.page.path, targetPath: relation.page.path },
         });
         const style = { ...baseStyle, ...lensStyle };
-        const maxChars = Math.min(22, effectiveLabelLimit(settings, style.maxLabelLength ?? 30));
+        const maxChars = Math.min(22, effectiveLabelLimit(style.maxLabelLength ?? 30));
         const shownChars = Math.min(label.length, maxChars);
         const nodeWidth = Math.max(64 * miniScale, Math.min(cellWidth - columnGap, (34 + shownChars * 3.8) * miniScale));
         return {
@@ -3672,7 +3673,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       >
         <div className="kplex-expanded-content" style={{ height: cluster.contentHeight }}>
           {cluster.children.map((child) => {
-            const maxChars = Math.min(22, effectiveLabelLimit(settings, child.style.maxLabelLength ?? 30));
+            const maxChars = Math.min(22, effectiveLabelLimit(child.style.maxLabelLength ?? 30));
             const text = child.label.length > maxChars ? `${child.label.slice(0, Math.max(1, maxChars - 1))}…` : child.label;
             return <div
               key={child.key}
@@ -3726,12 +3727,17 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     setLayoutRevision((revision) => revision + 1);
     scheduleLayoutSave();
   };
-  /** Keep label controls responsive during publication and save their global appearance settings after input settles. */
-  const changeTypography = (patch: Partial<Pick<KplexSettings, "baseFontSize" | "baseNodeStyle" | "wrapNodeLabels">>): void => {
-    const draft = { ...typographyDraft.current, ...patch };
+  /** Report each scalar's inheritance separately from its effective displayed value. */
+  const typographyHint = (field: keyof TypographyValues, help: string): string => {
+    const customized = Object.keys(plugin.settings.typographyProfiles[typographyDevice] ?? {}).includes(field);
+    return `${help} ${translate(customized ? "typography.customized" : "typography.inherited")}`;
+  };
+
+  /** Stage scalar values in the captured device record and debounce storage only; late saves never replay overrides after reset. */
+  const changeTypography = (patch: Partial<TypographyValues>): void => {
+    const draft = {};
     typographyDraft.current = draft;
-    Object.assign(plugin.settings, patch);
-    setTypographyOverrides(draft);
+    plugin.stageTypographyOverride(typographyDevice, patch);
     suppressLayoutMotionUntil.current = Date.now() + 800;
     suppressAutoFitUntil.current = Date.now() + 1200;
     sceneMotion.cancelAll();
@@ -3739,12 +3745,10 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     setLayoutRevision((revision) => revision + 1);
     if (typographySave.current) typographySave.current.window.clearTimeout(typographySave.current.id);
     const ownerWindow = viewport.current?.ownerDocument.defaultView ?? window;
-    const id = ownerWindow.setTimeout(/** Save the latest labels without retiring a newer interleaved font/width/wrap draft. */ () => {
+    const id = ownerWindow.setTimeout(/** Persist latest live preferences once, including intervening reset or edits from another surface. */ () => {
       typographySave.current = null;
-      void plugin.saveSettings(false).then(/** Inherit the saved global settings only after this exact draft commits. */ () => {
-        if (typographyDraft.current !== draft) return;
-        typographyDraft.current = null;
-        setTypographyOverrides({});
+      void plugin.persistTypographySettings().then(/** Retire only a successfully saved exact input token; failed storage leaves the latest live edit available for retry. */ saved => {
+        if (saved && typographyDraft.current === draft) typographyDraft.current = null;
       });
     }, 180);
     typographySave.current = { id, window: ownerWindow };
@@ -3995,22 +3999,41 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
           icon={<ObsidianIcon name="columns-3" size={11} />} value={layoutColumns(settings, "child")} displayValue={String(layoutColumns(settings, "child"))}
           min={1} max={7} step={1} onChange={/** Persist the exact child grid width. */ (value) => changeLayoutValue("childColumns", value)} />
       </div>
+      <div className="kplex-typography-group">
+      <div className="kplex-typography-scope">
+        <span>{translate("typography.scopeHint", { device: translate(`typography.${typographyDevice}`),
+          state: translate(TYPOGRAPHY_FIELDS.some(/** A value equal to the shared default still counts as explicit customization. */ field => Object.prototype.hasOwnProperty.call(plugin.settings.typographyProfiles[typographyDevice] ?? {}, field)) ? "typography.customizedShort" : "typography.inheritedShort") })}</span>
+        <button aria-label={translate("typography.resetAll")} onClick={/** Reset invalidates only device values; pending storage can never resurrect a prior input. */ () => {
+          if (typographySave.current) typographySave.current.window.clearTimeout(typographySave.current.id);
+          typographySave.current = null; typographyDraft.current = null;
+          suppressLayoutMotionUntil.current = Date.now() + 800;
+          suppressAutoFitUntil.current = Date.now() + 1200;
+          sceneMotion.cancelAll(); preserveCameraOnNextLayout.current = true;
+          void plugin.resetTypographyOverride(typographyDevice);
+        }}><ObsidianIcon name="rotate-ccw" size={11} /></button>
+      </div>
       <div className="kplex-typography-controls">
         <div className="kplex-density-axes">
         <LayoutSlider label={translate("graph.baseFontSize")} caption={translate("graph.baseFontSizeShort")}
-          hint={translate("settings.ui.base.font.size.help")} icon={<ObsidianIcon name="type" size={11} />}
-          value={settings.baseFontSize} displayValue={settings.baseFontSize.toFixed(1)} min={8} max={28} step={0.2}
-          onChange={/** Scale label typography globally while keeping style proportions. */ (value) => changeTypography({ baseFontSize: value })} />
+          hint={typographyHint("baseFontSize", translate("settings.ui.base.font.size.help"))} icon={<ObsidianIcon name="type" size={11} />}
+          value={settings.baseFontSize} displayValue={settings.baseFontSize.toFixed(1)} min={TYPOGRAPHY_LIMITS.baseFontSize.min} max={TYPOGRAPHY_LIMITS.baseFontSize.max} step={TYPOGRAPHY_LIMITS.baseFontSize.step}
+          onChange={/** Scale this device typography while keeping style proportions. */ (value) => changeTypography({ baseFontSize: value })} />
+        <LayoutSlider label={translate("settings.ui.max.label.length")} caption={translate("typography.labelLengthShort")}
+          hint={typographyHint("maxLabelLength", translate("settings.ui.max.label.length.help"))} icon={<ObsidianIcon name="text" size={11} />}
+          value={settings.baseNodeStyle.maxLabelLength ?? 30} displayValue={String(settings.baseNodeStyle.maxLabelLength ?? 30)}
+          min={TYPOGRAPHY_LIMITS.maxLabelLength.min} max={TYPOGRAPHY_LIMITS.maxLabelLength.max} step={TYPOGRAPHY_LIMITS.maxLabelLength.step}
+          onChange={/** Change the device character budget independently of either density axis. */ value => changeTypography({ maxLabelLength: value })} />
         <LayoutSlider label={translate("settings.ui.maximum.node.width")} caption={translate("graph.maximumNodeWidthShort")}
-          hint={translate("settings.ui.maximum.node.width.help")} icon={<ObsidianIcon name="between-horizontal-start" size={11} />}
-          value={settings.baseNodeStyle.maxWidth ?? 286} displayValue={String(settings.baseNodeStyle.maxWidth ?? 286)} min={160} max={800} step={10}
-          onChange={/** Reuse the existing regular-node maximum without changing explicit style overrides. */ (value) => changeTypography({ baseNodeStyle: { ...plugin.settings.baseNodeStyle, maxWidth: value } })} />
+          hint={typographyHint("maxWidth", translate("typography.deviceWidthHelp"))} icon={<ObsidianIcon name="between-horizontal-start" size={11} />}
+          value={settings.baseNodeStyle.maxWidth ?? 286} displayValue={String(settings.baseNodeStyle.maxWidth ?? 286)} min={TYPOGRAPHY_LIMITS.maxWidth.min} max={TYPOGRAPHY_LIMITS.maxWidth.max} step={TYPOGRAPHY_LIMITS.maxWidth.step}
+          onChange={/** Override this device regular-node width before explicit style precedence. */ (value) => changeTypography({ maxWidth: value })} />
         </div>
-        <label className="kplex-density-control kplex-wrap-label-control">
+        <label className="kplex-density-control kplex-wrap-label-control" title={typographyHint("wrapNodeLabels", translate("settings.ui.wrap.node.labels.help"))}>
           <input type="checkbox" checked={settings.wrapNodeLabels} aria-label={translate("settings.ui.wrap.node.labels")}
-            onChange={/** Share the plugin's existing fixed two-line label setting. */ (event) => changeTypography({ wrapNodeLabels: event.currentTarget.checked })} />
+            onChange={/** Set this device fixed two-line label setting. */ (event) => changeTypography({ wrapNodeLabels: event.currentTarget.checked })} />
           <span className="kplex-wrap-label-caption">{translate("settings.ui.wrap.node.labels")}</span>
         </label>
+      </div>
       </div>
       </>}
     </div>

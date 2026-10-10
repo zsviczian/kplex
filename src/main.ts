@@ -15,11 +15,13 @@ import { LinkDirection, type GateRole, type GraphPage, type RelationshipRole } f
 import { OntologySuggester } from "./editor/OntologySuggester";
 import { isWebViewerAvailable, openExternalUrl } from "./adapters/obsidian/externalUrl";
 import { normalizeFieldName, parseBodyMetadata } from "./core/parser/metadata";
-import { extractLinksFromValue } from "./index/fieldParser";
+import { extractLinksFromValue, iterateResolvedLinksFromValue } from "./index/fieldParser";
 import type { RelationEvidence } from "./index/RelationEvidence";
 import { AddToOntologyModal, type OntologyAssignmentRole } from "./ui/AddToOntologyModal";
 import { NoteTypeModal } from "./ui/NoteTypeModal";
 import { activeLayoutProfile, effectiveViewSettings, layoutProfileKey } from "./ui/viewProfile";
+import { mergeTypographyOverride, resetTypographyOverride as resetDeviceTypography, type TypographyField, type TypographyValues } from "./core/plex/typographyPreferences";
+import { persistedLayoutDeviceClass, type PersistedLayoutDeviceClass } from "./core/plex/viewPresentation";
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
 import { createObsidianTranslator } from "./adapters/obsidian/localization";
 import { createTranslator, type Translator } from "./lang";
@@ -27,11 +29,13 @@ import { isGraphTabCommandAvailable, isPopoutCommandAvailable, primaryOpenSurfac
 import { createAdjacentFileLeaf } from "./adapters/obsidian/adjacentFileLeaf";
 import { isEmbeddedMarkdownLeaf } from "./adapters/obsidian/embeddedMarkdownLeaf";
 import { StartupDiagnostics } from "./adapters/obsidian/startupDiagnostics";
-import { writeRelationshipMetadata, SavedRelationshipPendingError } from "./adapters/obsidian/relationshipMetadataWrite";
+import { writeRelationshipMetadata, SavedRelationshipPendingError, relationshipMetadataPayload } from "./adapters/obsidian/relationshipMetadataWrite";
+import { SOURCE_DECODE_BUDGET_BYTES } from "./index/SourceFacts";
 import { perfNow } from "./util/perf";
 import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
 import { PartialRelatedFileError } from "./adapters/obsidian/relatedFileOutcome";
 import { ActionManager, type ActionContext, type ActionImplementations } from "./application/ActionManager";
+import { frontmatterDeclarationKey } from "./application/frontmatterUnlink";
 import { ACTION_BY_ID, ACTION_RELATION_ROLES, type ActionId, type ActionOutcome, type Availability } from "./core/plex/actions";
 import { compileActionBindings, migrateActionPreferences, sanitizeActionPreferences, type ActionPreferencesV1 } from "./core/plex/actionPreferences";
 import { createActionCommandPublisher, type ActionCommandPublisher } from "./adapters/obsidian/actionCommands";
@@ -56,6 +60,18 @@ export type RelationshipSourceSection = {
   text: string;
   sourceKind: RelationEvidence["sourceKind"];
 };
+
+/** Confirmation authority for one physical property; replacement files never inherit approval. */
+export type FrontmatterUnlinkExpectation = Readonly<{
+  storage: TFile;
+  target: TFile | null;
+  storagePath: string;
+  targetPath: string;
+  fieldKey: string;
+  declarationKey: string;
+  viewSourcePath: string;
+  viewTargetPath: string;
+}>;
 
 /** A writing adapter signals commitment only after the existing canonical pair publication. */
 export type RelationshipWriteResult = { state: "saved-published"; page: GraphPage } | { state: "unavailable" };
@@ -1600,11 +1616,12 @@ export default class KplexPlugin extends Plugin {
     if (this.unloading) return;
     await this.index.refreshPresentationSettings();
     if (effects.semanticInvalidation) await this.index.refreshSemanticSettings();
-    // Visibility can expand an existing requested scope; cosmetic changes reuse its coverage.
-    else if (effects.render) await this.index.refreshSemanticSettings();
+    // Device typography changes reuse the existing graph and cannot expand a requested scope.
+    // Preserve the legacy refresh for all other render changes, including mixed writes.
+    else if (effects.render && !effects.typographyOnly) await this.index.refreshSemanticSettings();
     // Workflow-only callers can still request their historical view notification. Changed settings
     // use the separate presentation channel and never pretend relationship evidence changed.
-    if (!effects.render && notifyIndex) this.index.notifyPresentation();
+    if ((!effects.render || effects.typographyOnly) && notifyIndex) this.index.notifyPresentation();
   }
 
   private isDocumentLeafCandidate(leaf: WorkspaceLeaf | null): leaf is WorkspaceLeaf {
@@ -3267,6 +3284,41 @@ export default class KplexPlugin extends Plugin {
     return effectiveViewSettings(this.index.withPreparedPresentationSettings(this.settings), surface, readObsidianPresentationEnvironment());
   }
 
+  /** Capture the host device, independent of viewport width or selected Plex surface. */
+  getTypographyDevice(): PersistedLayoutDeviceClass {
+    return persistedLayoutDeviceClass(readObsidianPresentationEnvironment().device);
+  }
+
+  /** Stage only validated scalar device edits synchronously; the originating control owns its storage debounce. */
+  stageTypographyOverride(device: PersistedLayoutDeviceClass, patch: Partial<TypographyValues>): void {
+    this.settings.typographyProfiles = mergeTypographyOverride(this.settings.typographyProfiles, device, patch);
+    this.index.notifyPresentation();
+  }
+
+  /** Persist latest staged preferences and surface storage failure without discarding the user's live edits. */
+  async persistTypographySettings(): Promise<boolean> {
+    try {
+      await this.saveSettings(false);
+      return true;
+    } catch (error) {
+      new Notice(this.translator("actions.saveFailed", { error: String(error) }));
+      return false;
+    }
+  }
+
+  /** Native Settings edits use the same device writer and canonical serialized persistence path. */
+  async updateTypographyOverride(device: PersistedLayoutDeviceClass, patch: Partial<TypographyValues>): Promise<void> {
+    this.stageTypographyOverride(device, patch);
+    await this.persistTypographySettings();
+  }
+
+  /** Reset supported device fields to inheritance; a late preview save can persist but never recreate deleted overrides. */
+  async resetTypographyOverride(device: PersistedLayoutDeviceClass, field?: TypographyField): Promise<void> {
+    this.settings.typographyProfiles = resetDeviceTypography(this.settings.typographyProfiles, device, field);
+    this.index.notifyPresentation();
+    await this.persistTypographySettings();
+  }
+
   getActiveLayoutProfile(surface: KplexViewSurface): KplexLayoutProfile {
     return activeLayoutProfile(this.settings, surface, readObsidianPresentationEnvironment());
   }
@@ -3694,31 +3746,63 @@ export default class KplexPlugin extends Plugin {
     return `[[${page.path}]]`;
   }
 
+  /** Compare unresolved note spelling without guessing a basename or collapsing distinct file identities. */
   private normalizedNoteReferenceMatches(rawPath: string, targetPath: string): boolean {
-    const reference = normalizePath(rawPath.split("#", 1)[0].trim()).replace(/\.md$/i, "").toLocaleLowerCase();
-    const target = normalizePath(targetPath).replace(/\.md$/i, "").toLocaleLowerCase();
+    const reference = normalizePath(rawPath.split("#", 1)[0].trim()).replace(/\.md$/i, "");
+    const target = normalizePath(targetPath).replace(/\.md$/i, "");
     if (!reference || !target) return false;
-    if (reference === target) return true;
-    return !reference.includes("/") && reference === (target.split("/").pop() ?? target);
+    return reference === target;
   }
 
+  /** Resolved references use exact canonical paths; only an unresolved target allows extension normalization. */
   private valueContainsTarget(value: unknown, storageFile: TFile, target: GraphPage): boolean {
     const references = extractLinksFromValue(this.app, value, storageFile);
-    if (target.url !== null) return references.some((path) => path === target.url);
-    return references.some((path) => this.normalizedNoteReferenceMatches(path, target.path));
+    return references.some(/** Host resolution supplies case-sensitive identities, never guessed basenames. */ path => this.referenceMatchesTarget(path, target));
   }
 
+  /** Share exact canonical matching between membership and token-preservation validation. */
+  private referenceMatchesTarget(path: string, target: GraphPage): boolean {
+    if (target.url !== null) return path === target.url;
+    return target.file ? path === target.path : this.normalizedNoteReferenceMatches(path, target.path);
+  }
+
+  /** Count every unrelated canonical reference occurrence through the shared parser/host resolver. */
+  private nonTargetReferenceCounts(value: unknown, storageFile: TFile, target: GraphPage): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const path of iterateResolvedLinksFromValue(this.app, value, storageFile)) {
+      if (!this.referenceMatchesTarget(path, target)) counts.set(path, (counts.get(path) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  /** Remove recognized matching link tokens, refusing grammar that cannot be transformed completely. */
   private stripTargetFromScalar(value: string, storageFile: TFile, target: GraphPage): string | null {
     if (!this.valueContainsTarget(value, storageFile, target)) return value;
     const tokens = /(\[\[[^\]]+\]\]|\[[^\]]*\]\([^)]+\)|https?:\/\/[^\s,;]+)/gi;
-    const stripped = value.replace(tokens, (token) => this.valueContainsTarget(token, storageFile, target) ? "" : token)
+    const stripped = value.replace(tokens, /** A token may be removed only when all its references are the approved target. */ (token) => {
+      if (!this.valueContainsTarget(token, storageFile, target)) return token;
+      // A broad lexical token may enclose another reference. Never consume an unrelated link as
+      // collateral damage; this grammar needs source editing rather than a guessed rewrite.
+      if (extractLinksFromValue(this.app, token, storageFile).some(/** Reject collateral removal of another canonical target. */ path => !this.referenceMatchesTarget(path, target))) {
+        throw new Error(this.translator("explain.removeUnsupported"));
+      }
+      return "";
+    })
       .replace(/\s*[,;]\s*[,;]+/g, ", ")
       .replace(/^\s*[,;]\s*|\s*[,;]\s*$/g, "")
       .trim();
+    if (stripped === value || this.valueContainsTarget(stripped, storageFile, target)) throw new Error(this.translator("explain.removeUnsupported"));
+    const before = this.nonTargetReferenceCounts(value, storageFile, target);
+    const after = this.nonTargetReferenceCounts(stripped, storageFile, target);
+    if (before.size !== after.size || [...before].some(/** Every unrelated occurrence must survive transformation. */ ([path, count]) => after.get(path) !== count)) {
+      throw new Error(this.translator("explain.removeUnsupported"));
+    }
     return stripped || null;
   }
 
+  /** Remove all matching references inside one selected property while preserving unrelated nested values. */
   private removeTargetFromValue(value: unknown, storageFile: TFile, target: GraphPage): unknown {
+    if (!this.valueContainsTarget(value, storageFile, target)) return value;
     if (Array.isArray(value)) {
       const kept: unknown[] = [];
       for (const item of value) {
@@ -3732,7 +3816,8 @@ export default class KplexPlugin extends Plugin {
       const kept: Record<string, unknown> = {};
       for (const [key, item] of Object.entries(value)) {
         const next = this.removeTargetFromValue(item, storageFile, target);
-        if (next !== undefined) kept[key] = next;
+        // YAML keys are data, including "__proto__"; assignment must not invoke a prototype setter.
+        if (next !== undefined) Object.defineProperty(kept, key, { value: next, enumerable: true, writable: true, configurable: true });
       }
       return Object.keys(kept).length ? kept : undefined;
     }
@@ -3759,7 +3844,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Own the exact metadata/body observer; pending status is localized and never closes the composer early. */
-  private async mutateRelationshipMetadata(file: TFile, fields: ReadonlySet<string>, mutate: (frontmatter: Record<string, unknown>) => void, targetPath: string): Promise<void> {
+  private async mutateRelationshipMetadata(file: TFile, fields: ReadonlySet<string>, mutate: (frontmatter: Record<string, unknown>) => void, targetPath: string, beforeMutation?: () => boolean): Promise<void> {
     const targetIdentity = this.app.vault.getFileByPath(targetPath);
     await writeRelationshipMetadata(this.app, file, fields, mutate, {
       /** Release this bounded observer independently of modal lifetime. */
@@ -3770,7 +3855,8 @@ export default class KplexPlugin extends Plugin {
       /** Recheck exact pair authority after FileManager's awaited read and before any mutation. */
       current: () => !this.unloading && this.app.vault.getFileByPath(file.path) === file
         && this.app.vault.getFileByPath(targetIdentity?.path ?? targetPath) === targetIdentity
-        && this.index.isSemanticWriteReady(file.path, targetIdentity?.path ?? targetPath),
+        && this.index.isSemanticWriteReady(file.path, targetIdentity?.path ?? targetPath)
+        && beforeMutation?.() !== false,
       preparingMessage: () => this.translator("relation.preparingRelationship"),
     });
   }
@@ -4385,38 +4471,80 @@ export default class KplexPlugin extends Plugin {
     return current() ? candidate : null;
   }
 
-  /** Remove only the reauthorized declaration captured before awaiting exact pair readiness. */
-  async unlinkFrontmatterEvidence(evidence: RelationEvidence): Promise<boolean> {
-    return this.index.withForegroundPriority(async () => {
-      if (evidence.sourceKind !== "frontmatter-ontology" || !evidence.fieldName) return false;
-      const storage = this.app.vault.getFileByPath(evidence.declaredByPath);
-      const targetIdentity = this.app.vault.getFileByPath(evidence.declaredTargetPath);
+  /** Capture a supported exact property and both native identities before displaying confirmation. */
+  captureFrontmatterUnlinkExpectation(evidence: RelationEvidence): FrontmatterUnlinkExpectation | null {
+    const declarationKey = frontmatterDeclarationKey(evidence);
+    if (declarationKey === null || !evidence.fieldName) return null;
+    const storage = this.app.vault.getFileByPath(evidence.declaredByPath);
+    const target = this.index.get(evidence.declaredTargetPath);
+    if (!storage || storage.extension !== "md" || !target || target.isFolder || target.isTag) return null;
+    const frontmatter: unknown = this.app.metadataCache.getFileCache(storage)?.frontmatter;
+    if (!isUnknownRecord(frontmatter)) return null;
+    const keys = Object.keys(frontmatter).filter(
+      /** Multiple normalized YAML keys are ambiguous and cannot be silently collapsed. */
+      key => normalizeFieldName(key) === normalizeFieldName(evidence.fieldName!));
+    if (keys.length !== 1) return null;
+    // Dry-run eligibility must honor the existing writer's admission bound before parsing or
+    // copying values. This is the same inequality, not a new edit limit or a successful-write gate.
+    try {
+      const payload = relationshipMetadataPayload(frontmatter, new Set([normalizeFieldName(evidence.fieldName)]));
+      if (4 * storage.stat.size + 4 * payload.length > SOURCE_DECODE_BUDGET_BYTES) return null;
+    } catch { return null; }
+    const value = frontmatter[keys[0]];
+    if (!this.valueContainsTarget(value, storage, target)) return null;
+    try { this.removeTargetFromValue(value, storage, target); } catch { return null; }
+    return { storage, target: this.app.vault.getFileByPath(evidence.declaredTargetPath),
+      storagePath: evidence.declaredByPath, targetPath: evidence.declaredTargetPath, fieldKey: keys[0], declarationKey,
+      viewSourcePath: evidence.sourcePath, viewTargetPath: evidence.targetPath };
+  }
+
+  /**
+   * Remove one reauthorized declaration. A details confirmation supplies pre-approval identities and
+   * a mounted-generation guard; once the native mutation starts its publication is plugin-owned.
+   */
+  async unlinkFrontmatterEvidence(evidence: RelationEvidence, expectation?: FrontmatterUnlinkExpectation, beforeMutation?: () => boolean): Promise<boolean> {
+    // Capture outside priority acquisition too: that acquisition may await and paths can be reused.
+    const approved = expectation ?? this.captureFrontmatterUnlinkExpectation(evidence);
+    if (!approved) return false;
+    /** A rename requires a fresh displayed declaration; replacement and stale UI cannot authorize this write. */
+    const current = (): boolean => beforeMutation?.() !== false
+      && approved.storage.path === approved.storagePath && (!approved.target || approved.target.path === approved.targetPath)
+      && approved.storagePath === evidence.declaredByPath && approved.targetPath === evidence.declaredTargetPath
+      && approved.viewSourcePath === evidence.sourcePath && approved.viewTargetPath === evidence.targetPath
+      && approved.declarationKey === frontmatterDeclarationKey(evidence)
+      && this.app.vault.getFileByPath(approved.storagePath) === approved.storage
+      && this.app.vault.getFileByPath(approved.targetPath) === approved.target;
+    return this.index.withForegroundPriority(/** Own exact pair readiness and canonical publication without tying saved work to a modal. */ async () => {
+      if (!current() || evidence.sourceKind !== "frontmatter-ontology" || !evidence.fieldName) return false;
+      const storage = approved.storage;
+      const targetIdentity = approved.target;
       const [, target] = await this.prepareRelationshipMutation(evidence.declaredByPath, evidence.declaredTargetPath, storage, targetIdentity);
-      if (!storage || storage.extension !== "md" || !target) return false;
+      if (!current() || storage.extension !== "md" || !target) return false;
       // Raw payloads contain the whole property. Another target's legitimate edit may change that
       // payload without changing this exact declaration; owner/target/field/role/direction must match.
-      const currentEvidence = this.index.evidenceBetween(storage.path, target.path).find(
-        /** Reauthorize the semantic declaration, never its attempt-local evidence ID or old payload. */
-        item => item.sourceKind === "frontmatter-ontology" && item.declaredByPath === evidence.declaredByPath
-          && item.declaredTargetPath === evidence.declaredTargetPath && item.declaredRole === evidence.declaredRole
-          && item.direction === evidence.direction && normalizeFieldName(item.fieldName ?? "") === normalizeFieldName(evidence.fieldName!));
-      if (!currentEvidence) return false;
+      /** Reauthorize the canonical declaration again inside the awaited native read callback. */
+      // Reverse views invert direction without changing the physical declaring note. Reauthorize
+      // in the approved view orientation so its direction remains an exact part of the tuple.
+      const currentDeclaration = (): boolean => this.index.evidenceBetween(approved.viewSourcePath, approved.viewTargetPath).some(
+        /** Attempt-local IDs and mutable raw property payloads are not approval coordinates. */
+        item => frontmatterDeclarationKey(item) === approved.declarationKey);
+      if (!currentDeclaration()) return false;
 
       this.pruneManagedMetadataWrites();
       this.managedMetadataWrites.set(storage.path, Date.now() + 15000);
       let changed = false;
       const wanted = normalizeFieldName(evidence.fieldName);
-      await this.mutateRelationshipMetadata(storage, new Set([wanted]), (frontmatter: Record<string, unknown>) => {
-        for (const key of Object.keys(frontmatter)) {
-          if (normalizeFieldName(key) !== wanted) continue;
-          if (!this.valueContainsTarget(frontmatter[key], storage, target)) continue;
-          const next = this.removeTargetFromValue(frontmatter[key], storage, target);
-          if (next === undefined) delete frontmatter[key];
-          else frontmatter[key] = next;
-          changed = true;
-          break;
-        }
-      }, target.path);
+      await this.mutateRelationshipMetadata(storage, new Set([wanted]), /** Native reread validates the exact approved field before assigning a privately transformed value. */ (frontmatter: Record<string, unknown>) => {
+        const keys = Object.keys(frontmatter).filter(/** Native read may reveal new key ambiguity after approval. */ key => normalizeFieldName(key) === wanted);
+        if (!current() || !currentDeclaration() || keys.length !== 1 || keys[0] !== approved.fieldKey) throw new Error(this.translator("explain.removeSourceChanged"));
+        const key = keys[0], value = frontmatter[key];
+        if (!this.valueContainsTarget(value, storage, target)) throw new Error(this.translator("explain.removeSourceChanged"));
+        const next = this.removeTargetFromValue(value, storage, target);
+        if (this.valueContainsTarget(next, storage, target)) throw new Error(this.translator("explain.removeUnsupported"));
+        if (next === undefined) delete frontmatter[key];
+        else frontmatter[key] = next;
+        changed = true;
+      }, target.path, current);
 
       if (!changed) return false;
       await this.publishSavedRelationship(storage.path, target.path);

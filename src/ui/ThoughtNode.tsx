@@ -2,7 +2,8 @@
  * Plex node and gate presentation with localized accessibility and interaction hints. Uncertified
  * counts display lower bounds; count completeness never grants relationship editing coverage. Physical gate
  * labels are layout copy; semantic roles, coverage and drag effects belong to callers. Keyboard selection
- * is distinct from the central node and uses caller-supplied occurrence identity.
+ * is distinct from the central node and uses caller-supplied occurrence identity. Visible text shares
+ * the density-independent geometry limit, preserving prefixes, ellipsis and center allowance.
  */
 import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
@@ -86,7 +87,7 @@ export function ThoughtNode({
   const strokeStyle = style.strokeStyle === "dashed" ? "dashed" : style.strokeStyle === "dotted" ? "dotted" : "solid";
   const prefix = style.prefix ?? "";
   const label = `${prefix}${node.label}`;
-  const max = effectiveLabelLimit(settings, style.maxLabelLength ?? 30, node.role === "center");
+  const max = effectiveLabelLimit(style.maxLabelLength ?? 30, node.role === "center");
   const display = label.length > max ? `${label.slice(0, Math.max(1, max - 1))}…` : label;
   const click = (e: MouseEvent) => { e.stopPropagation(); onActivate(node); };
   const fill = alphaHexToCss(style.backgroundColor, "rgba(0,0,0,.42)");

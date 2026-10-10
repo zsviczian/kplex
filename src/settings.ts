@@ -1,7 +1,7 @@
 /**
  * Obsidian settings persistence, bounded legacy graph import, declarative controls and style/ontology
  * managers. Foreign imports cannot change plugin workflow preferences; own persisted K-Plex keys
- * remain stable. Per-surface density preserves the legacy vertical key and migrates horizontal
+ * remain stable. Sparse device typography inherits shared defaults and native scope-qualified rows never write on initial render. Per-surface density preserves the legacy vertical key and migrates horizontal
  * density from the same saved value. All saves cross the plugin settings-impact classifier; the
  * injected translator owns display copy. Indexing strategy takes effect after restart; persistent
  * cache estimates run only when their settings row is rendered, never during plugin startup.
@@ -20,6 +20,7 @@ import {
   getIcon,
   getIconIds,
   type SettingDefinitionItem,
+  type Setting,
 } from "obsidian";
 import type KplexPlugin from "./main";
 import type { Arrowhead, Hierarchy, LinkStyle, NodeStyle, Role } from "./types";
@@ -33,6 +34,8 @@ import { sanitizeInternalHotkeys, type InternalHotkeys } from "./core/plex/inter
 import { migrateActionPreferences, type ActionPreferencesV1 } from "./core/plex/actionPreferences";
 import { ActionSettingsController } from "./ui/ActionSettingsController";
 import { sanitizeDatePropertyRelations, type DatePropertyRelations } from "./core/graph/settings";
+import { effectiveTypography, sanitizeTypographyProfiles, sanitizeTypographyValue, TYPOGRAPHY_FIELDS, TYPOGRAPHY_LIMITS, type TypographyProfiles, type TypographyField } from "./core/plex/typographyPreferences";
+import type { PersistedLayoutDeviceClass } from "./core/plex/viewPresentation";
 
 export const DEFAULT_LINK_STYLE: LinkStyle = {
   strokeColor: "#696969ff",
@@ -179,6 +182,8 @@ export interface KplexSettings {
   wrapNodeLabels: boolean;
   /** Base regular-node label size in pixels; role and explicit style proportions are preserved. */
   baseFontSize: number;
+  /** Sparse device overrides inherit the shared typography defaults until explicitly customized. */
+  typographyProfiles: TypographyProfiles;
   showFullTagName: boolean;
   maxItemCount: number;
   renderSiblings: boolean;
@@ -313,6 +318,7 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   showPageNodes: true,
   showNeighborCount: true,
   wrapNodeLabels: false,
+  typographyProfiles: {},
   baseFontSize: 12.4,
   showFullTagName: false,
   maxItemCount: 100,
@@ -589,6 +595,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     lastActivePath: String(old.lastActivePath ?? ""),
     pinnedNodes: Array.isArray(old.pinnedNodes) ? old.pinnedNodes.filter((value): value is string => typeof value === "string") : [],
     layoutProfiles: migratedProfiles,
+    typographyProfiles: sanitizeTypographyProfiles(old.typographyProfiles),
     mouseInteractionMode: old.mouseInteractionMode === "legacy" || old.mouseInteractionMode === "middle-only" ? old.mouseInteractionMode : "smart",
     // ExcaliBrain persisted `embedCentralNode` for its own center presentation. K-Plex's native
     // embedded editor is a different, explicitly opt-in surface, so legacy imports must start
@@ -1541,6 +1548,7 @@ class LegacySettingsImportModal extends Modal {
 
 type DeclarativeSettingKey =
   | keyof KplexSettings
+  | `typography.${PersistedLayoutDeviceClass}.${TypographyField}`
   | "hierarchy.parents"
   | "hierarchy.children"
   | "hierarchy.leftFriends"
@@ -2011,12 +2019,19 @@ export class KplexSettingTab extends PluginSettingTab {
             items: [
               {
                 type: "group",
+                heading: translate("typography.sharedDefaults"),
+                items: [
+                  { name: translate("typography.deviceField", { device: translate("typography.sharedDefaults"), field: translate("settings.ui.base.font.size") }), desc: translate("settings.ui.base.font.size.help"), control: { type: "slider", key: "baseFontSize", ...TYPOGRAPHY_LIMITS.baseFontSize } },
+                  { name: translate("typography.deviceField", { device: translate("typography.sharedDefaults"), field: translate("settings.ui.max.label.length") }), desc: translate("settings.ui.max.label.length.help"), control: { type: "slider", key: "baseNodeStyle.maxLabelLength", ...TYPOGRAPHY_LIMITS.maxLabelLength } },
+                  { name: translate("typography.deviceField", { device: translate("typography.sharedDefaults"), field: translate("settings.ui.wrap.node.labels") }), desc: translate("settings.ui.wrap.node.labels.help"), control: { type: "toggle", key: "wrapNodeLabels" } },
+                  { name: translate("typography.deviceField", { device: translate("typography.sharedDefaults"), field: translate("settings.ui.maximum.node.width") }), desc: translate("settings.ui.maximum.node.width.help"), control: { type: "slider", key: "baseNodeStyle.maxWidth", ...TYPOGRAPHY_LIMITS.maxWidth } },
+                ],
+              },
+              ...this.typographyDefinitions(),
+              {
+                type: "group",
                 heading: translate("settings.ui.node.appearance"),
                 items: [
-                  { name: translate("settings.ui.base.font.size"), desc: translate("settings.ui.base.font.size.help"), control: { type: "slider", key: "baseFontSize", min: 8, max: 28, step: 0.2 } },
-                  { name: translate("settings.ui.max.label.length"), desc: translate("settings.ui.max.label.length.help"), control: { type: "slider", key: "baseNodeStyle.maxLabelLength", min: 8, max: 120, step: 1 } },
-                  { name: translate("settings.ui.wrap.node.labels"), desc: translate("settings.ui.wrap.node.labels.help"), control: { type: "toggle", key: "wrapNodeLabels" } },
-                  { name: translate("settings.ui.maximum.node.width"), desc: translate("settings.ui.maximum.node.width.help"), control: { type: "slider", key: "baseNodeStyle.maxWidth", min: 160, max: 800, step: 10 } },
                   { name: translate("settings.ui.maximum.central.node.width"), desc: translate("settings.ui.maximum.central.node.width.help"), control: { type: "slider", key: "centralNodeStyle.maxWidth", min: 180, max: 1000, step: 10 } },
                   { name: translate("settings.ui.gate.radius"), desc: translate("settings.ui.radius.of.the.relationship.gates.around.nodes.in.pixels"), control: { type: "slider", key: "baseNodeStyle.gateRadius", min: 2, max: 8, step: 0.5 } },
                   { name: translate("settings.ui.style.property"), desc: translate("settings.ui.a.yaml.or.dataview.style.property.whose.value.can.select"), control: { type: "text", key: "noteTypeField" } },
@@ -2187,7 +2202,74 @@ export class KplexSettingTab extends PluginSettingTab {
     ];
   }
 
+  /** Parse permanently scope-qualified device control keys; global-search rows never depend on a selected editor scope. */
+  private typographyKey(key: string): { device: PersistedLayoutDeviceClass; field: TypographyField } | undefined {
+    const parts = key.split(".");
+    const device = parts[1];
+    const field = parts[2];
+    if (parts.length !== 3 || parts[0] !== "typography" || (device !== "desktop" && device !== "tablet" && device !== "mobile")) return;
+    if (field !== "baseFontSize" && field !== "maxLabelLength" && field !== "maxWidth" && field !== "wrapNodeLabels") return;
+    return { device, field };
+  }
+
+  /** Native device sections render only their own rows, preserve inherited values and release presentation subscriptions on teardown. */
+  private typographyDefinitions(): SettingDefinitionItem<DeclarativeSettingKey>[] {
+    const translate = this.kplexPlugin.translator;
+    const names = {
+      baseFontSize: translate("settings.ui.base.font.size"), maxLabelLength: translate("settings.ui.max.label.length"),
+      maxWidth: translate("settings.ui.maximum.node.width"), wrapNodeLabels: translate("settings.ui.wrap.node.labels"),
+    };
+    return (["desktop", "tablet", "mobile"] as const).map(/** Capture each device once for normal pages, global search and multiple settings windows. */ device => ({
+      type: "page", name: translate("typography.deviceTitle", { device: translate(`typography.${device}`) }),
+      desc: translate("typography.deviceHelp"),
+      items: [
+        ...TYPOGRAPHY_FIELDS.map(/** Expose a scope-qualified searchable scalar row with explicit inheritance and selective reset. */ field => ({
+          name: translate("typography.deviceField", { device: translate(`typography.${device}`), field: names[field] }),
+          desc: translate(field === "maxWidth" ? "typography.deviceWidthHelp" : "typography.deviceHelp"),
+          render: /** Mount native controls without first-render writes, and update same-scope peers after live edits/reset. */ (setting: Setting) => {
+            const key = `typography.${device}.${field}`;
+            let refreshControl: () => void;
+            if (field === "wrapNodeLabels") {
+              setting.addToggle(/** Set the initial inherited value before installing the user-change callback. */ toggle => {
+                toggle.setValue(Boolean(this.getControlValue(key))).onChange(/** Route only actual user input to the shared scalar device writer. */ value => { void this.setControlValue(key, value); });
+                refreshControl = /** Synchronize a mounted toggle without invoking its change handler. */ () => { toggle.setValue(Boolean(this.getControlValue(key))); };
+              });
+            } else {
+              const limits = TYPOGRAPHY_LIMITS[field];
+              setting.addSlider(/** Reuse canonical shared/device bounds and native slider affordances. */ slider => {
+                slider.setLimits(limits.min, limits.max, limits.step).setValue(Number(this.getControlValue(key))).setDynamicTooltip()
+                  .onChange(/** Persist this captured device rather than a mutable active settings scope. */ value => { void this.setControlValue(key, value); });
+                refreshControl = /** Keep mounted rows current when another surface changes this device. */ () => { slider.setValue(Number(this.getControlValue(key))); };
+              });
+            }
+            setting.addExtraButton(/** Delete only this supported override, preserving the other values/devices. */ button => {
+              button.setIcon("rotate-ccw").setTooltip(translate("typography.resetField"))
+                .onClick(/** Restore inheritance through canonical persistence. */ () => { void this.kplexPlugin.resetTypographyOverride(device, field); });
+            });
+            /** Explain state independently of the displayed number, including equal-to-default customization. */
+            const refresh = (): void => {
+              const customized = Object.keys(this.kplexPlugin.settings.typographyProfiles[device] ?? {}).includes(field);
+              setting.setDesc(`${field === "maxWidth" ? `${translate("typography.deviceWidthHelp")} ` : ""}${translate(customized ? "typography.customized" : "typography.inherited")}`);
+              refreshControl?.();
+            };
+            refresh();
+            return this.kplexPlugin.index.subscribePresentation(refresh);
+          },
+        })),
+        { name: translate("typography.deviceReset", { device: translate(`typography.${device}`) }),
+          desc: translate("typography.resetHelp"), action: /** Clear only this device's typography fields. */ () => { void this.kplexPlugin.resetTypographyOverride(device); } },
+      ],
+    }));
+  }
+
+  /** Read shared controls or device overrides without turning an inherited value into a saved customization. */
   getControlValue(key: string): unknown {
+    const typography = this.typographyKey(key);
+    if (typography) {
+      const settings = this.kplexPlugin.settings;
+      return effectiveTypography({ baseFontSize: settings.baseFontSize, maxLabelLength: settings.baseNodeStyle.maxLabelLength ?? 30,
+        maxWidth: settings.baseNodeStyle.maxWidth ?? 286, wrapNodeLabels: settings.wrapNodeLabels }, settings.typographyProfiles[typography.device])[typography.field];
+    }
     const hierarchyKey = HIERARCHY_KEY_MAP[key];
     if (hierarchyKey) return csv(this.kplexPlugin.settings.hierarchy[hierarchyKey]);
     if (key === "excludeFilepathsCsv") return csv(this.kplexPlugin.settings.excludeFilepaths);
@@ -2209,6 +2291,12 @@ export class KplexSettingTab extends PluginSettingTab {
 
   /** Apply every declarative control through the plugin's shared settings-impact classifier. */
   async setControlValue(key: string, value: unknown): Promise<void> {
+    const typography = this.typographyKey(key);
+    if (typography) {
+      const scalar = sanitizeTypographyValue(typography.field, value);
+      if (scalar !== undefined) await this.kplexPlugin.updateTypographyOverride(typography.device, { [typography.field]: scalar });
+      return;
+    }
     if (key === "indexingThrottle") {
       this.kplexPlugin.settings.indexingThrottle = sanitizeIndexingThrottle(value);
       // The scheduler reads this preference live; saving must not invalidate semantic caches.

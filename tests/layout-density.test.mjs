@@ -33,6 +33,20 @@ function neighborhood(count = 12) {
   return { center: page("Center"), parents: list("P", count), children: list("C", count), leftFriends: list("L", 7), rightFriends: list("R", 7), siblings: list("S", 7) };
 }
 const index = { titleFor: p => p.name, neighbourCount: () => 0, gateStats: () => ({}), neighbours: () => [], visibleRelationshipsWithin: () => [] };
+
+test("active device width reaches actual center layout without changing shared styles or other devices", () => {
+  const settings = geometry.migrateAndMergeSettings({ typographyProfiles: { desktop: { maxWidth: 800, maxLabelLength: 120 } },
+    centralNodeStyle: { maxWidth: 390 } });
+  const n = neighborhood(2); n.center.name = "A long central label ".repeat(6);
+  const scene = device => geometry.buildScene(n, index, geometry.effectiveViewSettings(settings, "leaf", { device }), false);
+  assert.equal(scene("desktop").nodes.find(node => node.role === "center").width, 800);
+  settings.typographyProfiles.desktop.maxWidth = 320;
+  assert.equal(scene("desktop").nodes.find(node => node.role === "center").width, 320);
+  assert.equal(scene("tablet").nodes.find(node => node.role === "center").width, 390);
+  settings.typographyProfiles.desktop = { maxLabelLength: 120 };
+  assert.equal(scene("desktop").nodes.find(node => node.role === "center").width, 390);
+  assert.equal(settings.centralNodeStyle.maxWidth, 390);
+});
 /** Compare physical whitespace rather than merely checking a different geometry snapshot. */
 function gap(a, b, axis) { return Math.abs(a[axis] - b[axis]) - (a[axis === "x" ? "width" : "height"] + b[axis === "x" ? "width" : "height"]) / 2; }
 /** Reject intersecting thought/expanded-box rectangles with a small floating-point tolerance. */
@@ -97,7 +111,7 @@ test("normal compact-off equal-axis layout retains established default physical 
   assert(Math.abs(scene.nodes.find(n => n.role === "left").x + 228.375) < 1e-8);
 });
 
-test("horizontal density changes columns and labels while vertical density changes rows", () => {
+test("horizontal density changes columns while labels retain a density-independent budget and vertical density changes rows", () => {
   const scene = settings => geometry.buildScene(sparse(), index, settings, false);
   const looseH = scene({ ...defaults, horizontalCompactingFactor: 1 });
   const denseH = scene({ ...defaults, horizontalCompactingFactor: 4 });
@@ -106,8 +120,13 @@ test("horizontal density changes columns and labels while vertical density chang
   const firstChild = s => s.nodes.find(n => n.role === "child");
   assert.equal(firstChild(looseH).y, firstChild(denseH).y); assert(firstChild(looseH).x < firstChild(denseH).x);
   assert.equal(firstChild(looseV).x, firstChild(denseV).x); assert(firstChild(looseV).y > firstChild(denseV).y);
-  assert.equal(geometry.effectiveLabelLimit({ ...defaults, compactingFactor: 4 }, 60), geometry.effectiveLabelLimit(defaults, 60));
-  assert(geometry.effectiveLabelLimit({ ...defaults, horizontalCompactingFactor: 4 }, 60) < geometry.effectiveLabelLimit(defaults, 60));
+  for (const configured of [1, 8, 30, 60, 120, 160]) {
+    assert.equal(geometry.effectiveLabelLimit(configured), Math.max(8, configured));
+    assert.equal(geometry.effectiveLabelLimit(configured, true), Math.max(18, Math.max(8, configured) + 8));
+  }
+  const long = sparse(); long.children[0].page.name = "A".repeat(120);
+  const labelWidths = [0.75, 1, 2, 4].map(horizontalCompactingFactor => geometry.buildScene(long, index, { ...defaults, horizontalCompactingFactor }, false).nodes.find(n => n.role === "child").width);
+  assert(labelWidths.every(width => width === labelWidths[0]), "Density must not alter long-label measurement");
 });
 
 test("compact view tightens ordinary gaps and minimum link length changes measurable whitespace", () => {

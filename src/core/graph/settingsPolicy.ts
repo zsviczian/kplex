@@ -19,7 +19,7 @@ const VIEW_KEYS = [
   "backgroundColor", "connectorStyle", "graphDepth", "compactingFactor", "horizontalCompactingFactor", "compactView", "maxItemCount",
   "minLinkLength", "inverseArrowDirection", "showNeighborCount", "wrapNodeLabels", "baseFontSize", "siblingRelativeSize", "crossLinkOpacity",
   "applyPowerFilter", "parentColumns", "childColumns", "friendMaxHeight", "siblingMaxHeight", "parentMaxHeight",
-  "childMaxHeight", "animationSpeed", "layoutProfiles", "allowAutozoom", "embedCentralNode", "centerEmbedWidth", "centerEmbedHeight",
+  "childMaxHeight", "animationSpeed", "layoutProfiles", "typographyProfiles", "allowAutozoom", "embedCentralNode", "centerEmbedWidth", "centerEmbedHeight",
 ] as const;
 export const SETTING_DIAGNOSTIC_KEYS = [
   ...HIERARCHY_ROLES.map((role) => `hierarchy.${role}` as const), ...SEMANTIC_KEYS,
@@ -52,6 +52,8 @@ export type SettingsEffects = Readonly<{
   searchTerms: boolean;
   nodeVisuals: boolean;
   render: boolean;
+  /** Device typography changes require rendering, without expanding or recanonicalizing a scope. */
+  typographyOnly: boolean;
   changedKeys: readonly SettingDiagnosticKey[];
 }>;
 
@@ -109,6 +111,7 @@ function effectsForKeys(changedKeys: readonly SettingDiagnosticKey[]): SettingsE
     searchTerms: has("showFullTagName", "renderAlias", "nameFields", "nodeTitleScript"),
     nodeVisuals: has("thumbnailProperty", "nodeImageProperty", "attachmentImageDisplay"),
     render: changedKeys.length > 0,
+    typographyOnly: changedKeys.length === 1 && changedKeys[0] === "typographyProfiles",
     changedKeys,
   };
 }

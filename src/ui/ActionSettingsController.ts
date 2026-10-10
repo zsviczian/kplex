@@ -6,6 +6,8 @@
  * Hotkey search and recorded collision checks compare detached key/code facts from one press while
  * saved bindings retain the user's explicitly selected logical or physical matching mode. Persistent
  * chip diagnostics combine canonical local conflicts and read-only host advisories once per refresh.
+ * Row-local scope and separately observed command registration/assignment facts also survive native
+ * global Settings search and update independently of local collision fingerprints.
  */
 import { setIcon, setTooltip, type Setting, type SettingDefinitionGroup, type SettingDefinitionRender, type ToggleComponent, SearchComponent } from "obsidian";
 import type KplexPlugin from "../main";
@@ -67,7 +69,7 @@ export class ActionSettingsController {
   private groups = new Set<GroupOwner>();
   private releasePreferences: (() => void) | null = null;
   private releaseNativeHotkeys: (() => void) | null = null;
-  private nativeHotkeys: NativeHotkeySnapshot = {available: false, complete: false, commands: []};
+  private nativeHotkeys: NativeHotkeySnapshot = {available: false, complete: false, commands: [], assignments: []};
   private diagnostics = new Map<KeyConvention, ShortcutDiagnosticSnapshot>();
   private nativeRefreshTimers = new Set<() => void>();
   private focusOwners = new Map<Window, { count: number; release: () => void }>();
@@ -123,7 +125,10 @@ export class ActionSettingsController {
   }
 
   /** Acquire detached native assignments once and invalidate platform-specific canonical projections. */
-  private readDiagnostics(): void { this.nativeHotkeys = readObsidianActionHotkeys(this.plugin.app); this.diagnostics.clear(); }
+  private readDiagnostics(): void {
+    const commandIds = ACTION_CATALOG.flatMap(/** Exact host registry IDs differ from stable action IDs. */ action => action.command ? [`${this.plugin.manifest.id}:${action.command.id}`] : []);
+    this.nativeHotkeys = readObsidianActionHotkeys(this.plugin.app, commandIds); this.diagnostics.clear();
+  }
 
   /** Lazily compile each actually rendered platform once per refresh, sharing the snapshot across rows. */
   private diagnosticsFor(convention: KeyConvention): ShortcutDiagnosticSnapshot {
@@ -308,6 +313,8 @@ export class ActionSettingsController {
       const feedback = setting.infoEl.querySelector<HTMLElement>(".kplex-action-feedback");
       if (feedback) this.clearControls(feedback);
       setting.infoEl.querySelector(".kplex-action-diagnostics")?.remove();
+      setting.infoEl.querySelector(".kplex-action-scope")?.remove();
+      setting.infoEl.querySelector(".kplex-action-publication-state")?.remove();
       if (this.recorderOwner === row) { this.recorder?.close(); this.recorder = null; this.recorderOwner = null; }
       if (!this.rows.size) { this.epoch++; this.releasePreferences?.(); this.releasePreferences = null; this.releaseNativeHotkeys?.(); this.releaseNativeHotkeys = null; this.clearNativeRefreshTimers(); this.capturedAliases.clear(); }
     } };
@@ -328,16 +335,33 @@ export class ActionSettingsController {
         const label = translateActionText(translate, action.labelKey).trim().replace(/[.!?]$/, "").toLocaleLowerCase();
         const description = translateActionText(translate, action.descriptionKey).trim().replace(/[.!?]$/, "").toLocaleLowerCase();
         if (description === label) setting.setDesc("");
+        const scope = setting.infoEl.createDiv({cls: "kplex-action-scope"});
+        const publicationStatus = setting.infoEl.createDiv({cls: "kplex-action-publication-state", attr: {role: "status", "aria-live": "polite"}});
         const status = setting.infoEl.createDiv({ cls: "kplex-action-feedback" });
         const diagnosticStatus = setting.infoEl.createDiv({cls: "kplex-action-diagnostics"});
         let previous = "";
         const render = /** Saved changes update controls in place without reconstructing native result rows. */ (): void => {
           this.clearControls(status);
           if (action.id.startsWith("composer.")) { status.setText(translate("actions.fixedProtocol")); return; }
+          scope.setText(translate("actions.localScopeHint"));
           const preferences = this.plugin.settings.actionPreferences;
           const bindings = preferences.localBindings[action.id] ?? ACTION_BINDING_DEFAULTS[action.id] ?? [];
           const environment = readObsidianPresentationEnvironment(setting.settingEl.ownerDocument.defaultView ?? undefined);
           const disabled = this.saving || this.unsupported();
+          const actualPublished = action.command ? this.plugin.isActionPublished(action.id) : false;
+          if (action.command) {
+            const desiredPublished = isActionPublished(preferences, action.id);
+            const assignment = this.nativeHotkeys.assignments.find(/** Native assignments use the manifest-prefixed command ID, never the localized label. */ fact => fact.id === `${this.plugin.manifest.id}:${action.command?.id}`);
+            const registration = translate(actualPublished ? "actions.actualPublished" : desiredPublished ? "actions.registrationPending" : "actions.actualUnpublished");
+            let assignmentText = translate("actions.globalAssignmentUnknown");
+            if (assignment?.presence === "assigned") {
+              const chords = assignment.bindingsComplete ? assignment.bindings.map(/** Only safely comparable complete native chords use the local formatter. */ binding => formatActionBinding(binding, environment, translate, true) ?? binding.value).join(", ") : "";
+              assignmentText = chords ? translate("actions.globalAssignmentChords", {bindings: chords}) : translate("actions.globalAssignmentPresent");
+            } else if (assignment?.presence === "unassigned") assignmentText = translate("actions.globalAssignmentAbsent");
+            const message = `${registration} · ${assignmentText}${!actualPublished && assignment?.presence === "assigned" ? ` ${translate("actions.savedAssignmentUnavailable")}` : ""}`;
+            if (publicationStatus.textContent !== message) publicationStatus.setText(message);
+            publicationStatus.toggleClass("kplex-action-diagnostic-warning", desiredPublished && !actualPublished);
+          }
           const diagnostics = this.diagnosticsFor(environment.keyConvention).get(action.id);
           diagnosticStatus.empty();
           for (const binding of bindings) {
@@ -347,10 +371,10 @@ export class ActionSettingsController {
             for (const label of this.diagnosticLabels({...diagnostic, obsidian: []})) diagnosticStatus.createDiv({cls: "kplex-action-diagnostic-error", text: translate("actions.bindingDiagnostic", {binding: text, message: label})});
             for (const self of [false, true]) for (const label of this.diagnosticLabels({local: [], obsidian: diagnostic.obsidian.filter(/** Self-publication stays neutral while external assignments remain visible warnings. */ item => item.self === self)})) diagnosticStatus.createDiv({cls: self ? "kplex-action-diagnostic-info" : "kplex-action-diagnostic-warning", text: translate("actions.bindingDiagnostic", {binding: text, message: label})});
           }
-          const fingerprint = JSON.stringify([bindings, [...(diagnostics ?? [])], environment.keyConvention, preferences.publishedCommands[action.id], preferences.localBindings[action.id] !== undefined]);
+          const fingerprint = JSON.stringify([bindings, [...(diagnostics ?? [])], environment.keyConvention, preferences.publishedCommands[action.id], actualPublished, preferences.localBindings[action.id] !== undefined]);
           if (fingerprint === previous) { this.disableControls(setting.controlEl, disabled); this.renderStatus(status, action.id); return; }
           previous = fingerprint; this.clearControls(setting.controlEl);
-          const pills = setting.controlEl.createDiv({ cls: "setting-command-hotkeys" });
+          const pills = setting.controlEl.createDiv({ cls: "setting-command-hotkeys", attr: {role: "group", "aria-label": translate("actions.localShortcuts")} });
           for (const binding of bindings) {
             const text = formatActionBinding(binding, environment, translate, true) ?? binding.value;
             const pill = pills.createEl("button", { cls: "setting-hotkey", text, attr: { type: "button", "aria-label": translate("actions.removeBinding", { binding: text }) } });

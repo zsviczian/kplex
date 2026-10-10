@@ -131,11 +131,11 @@ function startNativeProbe(token, width, height, catalogActionIds) {
     };
     const top=shape(); content.scrollTop=content.scrollHeight; const bottom=shape(); content.scrollTop=0; c.geometry={top,bottom};
     for(const geometry of [top,bottom]) {check(geometry.horizontalFit,"Native inline Actions page exceeded its horizontal bounds");check(geometry.controls.length>0&&geometry.controls.every(control=>control.inside&&control.name&&control.noDuplicateTitle),"A visible native manager control clipped horizontally or lost its label");}
-    check(search?.getAttribute("aria-label")&&group.querySelectorAll("button[data-kplex-action-filter]").length===4,"Native search/filter affordances missing");
+    check(search?.getAttribute("aria-label")&&group.querySelectorAll("button[data-kplex-action-filter]").length===5,"Native search/filter affordances missing");
     const setInput=value=>{Object.getOwnPropertyDescriptor(viewWindow.HTMLInputElement.prototype,"value").set.call(search,value);search.dispatchEvent(new viewWindow.Event("input",{bubbles:true}));};
     setInput(p.translator("actions.pin.toggle"));check(visibleRows().some(row=>row.dataset.actionId==="pin.toggle")&&visibleRows().length<initialRows,"Native local search did not narrow catalog");
     const searchedRows=visibleRows().map(row=>row.dataset.actionId);setInput("");const filters=[];
-    for(const value of ["all","assigned","custom","unassigned"]){const pill=group.querySelector('button[data-kplex-action-filter="'+value+'"]');pill.click();check(pill.getAttribute("aria-pressed")==="true","Native filter pill did not retain its chosen state");filters.push({value,visibleRows:visibleRows().length});}
+    for(const value of ["all","assigned","custom","unassigned","conflicts"]){const pill=group.querySelector('button[data-kplex-action-filter="'+value+'"]');pill.click();check(pill.getAttribute("aria-pressed")==="true","Native filter pill did not retain its chosen state");filters.push({value,visibleRows:visibleRows().length});}
     group.querySelector('button[data-kplex-action-filter="all"]').click();
     check(group.querySelector('[data-action-id="relationship.create-center.child"] button[aria-label="'+p.translator(p.isActionPublished("relationship.create-center.child")?"actions.unpublishCommand":"actions.publishCommand")+'"]'),"Native command publication affordance missing");
     check(JSON.stringify(p.settings)===snapshots.settings,"Filtering changed live preferences");

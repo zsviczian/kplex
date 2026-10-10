@@ -1,11 +1,25 @@
 /** On-demand lifecycle and semantics through production owners and real Chromium IndexedDB. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import ts from 'typescript';
 import { contributorBrowserBundle, contributorBrowserInitialize } from './support/contributorBrowserFixture.mjs';
 import { chromiumHarness } from './support/browserTypeScript.mjs';
 import { centerGateSettings } from './support/requestedCenterGateFixture.mjs';
 
-const bundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphBuilder.ts', 'src/index/IndexSnapshot.ts']);
+const bundle = await contributorBrowserBundle(['src/index/GraphIndex.ts', 'src/index/GraphBuilder.ts', 'src/index/IndexSnapshot.ts',
+  'src/core/graph/settingsPolicy.ts', 'src/core/plex/typographyPreferences.ts']);
+
+/** Keep the actual settings classifier, save queue and typography writers without plugin startup. */
+function typographyHostSource() {
+  const file=ts.createSourceFile('main.ts',readFileSync('src/main.ts','utf8'),ts.ScriptTarget.Latest,true);
+  const names=new Set(['saveSettings','enqueueSettingsWrite','settingsSnapshotForPersistence','persistSettingsSnapshot',
+    'stageTypographyOverride','persistTypographySettings','updateTypographyOverride','resetTypographyOverride']);
+  const methods=[];
+  const visit=node=>{if(ts.isMethodDeclaration(node)&&names.has(node.name.getText(file)))methods.push(node.getText(file));ts.forEachChild(node,visit);};
+  visit(file);assert.equal(methods.length,names.size);
+  return ts.transpileModule('class TypographyHost {'+methods.join('\n')+'}',{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+}
 const initialize = `(() => {
   window.onDemandFixture = async(name, overrides={}) => {
     const f=await fixture(name);f.app.vault.getName=()=>name;
@@ -22,8 +36,70 @@ const initialize = `(() => {
     return {f,index,settings,marks,parses,get inventoryStarts(){return inventoryStarts;},bump(){revision++;},close(){index.destroy();f.close();}};
   };
   window.settleDemand=async(index)=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()]);};
+  window.typographyHost=o=>{
+    const {captureSettingsPolicy,classifySettingsChange,mergeTypographyOverride,resetTypographyOverride:resetDeviceTypography}=sourceModules;
+    class Notice {constructor(message){throw new Error('Unexpected settings failure: '+message);}}
+    ${typographyHostSource()}
+    const host=new TypographyHost();host.settings=o.settings;host.index=o.index;host.settingsWriteQueue=Promise.resolve();
+    host.savedSettingsPolicy=captureSettingsPolicy(o.settings);host.unloading=false;host.translator=key=>key;
+    host.saveData=async data=>localStorage.setItem('typography-settings',JSON.stringify(data));
+    return host;
+  };
   return true;
 })()`;
+
+test('actual typography saves and resets retain on-demand authority with zero source work; mixed overlapping saves still recanonicalize', async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('v2-demand-typography',{typographyProfiles:{},baseFontSize:12.4,wrapNodeLabels:true});
+  const {f,index}=o;let release,releaseStorage;const restores=[];
+  try{
+    f.add('A.md','',{Parent:'[[B]]'});f.add('B.md','');f.app.metadataCache.resolvedLinks={'A.md':{'B.md':1}};
+    ok(await index.initializeOnDemandBaseline(),'Baseline');release=index.acquireSemanticDemand('A.md');await settleDemand(index);
+    ok(await index.prepareRelationshipPair('A.md','B.md'),'Real selected pair prepared');await index.sourceAcquisition.repository.flush();
+    ok(index.isSemanticWriteReady('A.md','B.md'),'Exact authority established without global inventory');
+    const host=typographyHost(o),work={reads:0,parses:0,acquisitions:0,publications:0};
+    const observe=(owner,name,counter)=>{const original=owner[name];owner[name]=function(...args){work[counter]++;return original.apply(this,args);};restores.push(()=>owner[name]=original);};
+    observe(f.app.vault,'read','reads');observe(f.app.vault,'cachedRead','reads');observe(index.sourceAcquisition,'parse','parses');observe(index.sourceAcquisition,'acquire','acquisitions');
+    restores.push(index.subscribe(()=>work.publications++));
+    const publication=index.publicationRevision,policy=index.semanticPolicyRevision,token=index.onDemandIndexed.get('A.md'),parseCount=o.parses.length;
+    let presentations=0;restores.push(index.subscribePresentation(()=>presentations++));
+    await index.withForegroundPriority(async()=>{
+      let timer;
+      try{await Promise.race([(async()=>{
+        await host.updateTypographyOverride('desktop',{baseFontSize:18,maxLabelLength:120,wrapNodeLabels:false});
+        equal(JSON.parse(localStorage.getItem('typography-settings')).typographyProfiles.desktop.wrapNodeLabels,false,'Actual queued persistence retains false');
+        await host.resetTypographyOverride('desktop','maxLabelLength');await host.resetTypographyOverride('desktop');
+        equal(JSON.parse(localStorage.getItem('typography-settings')).typographyProfiles,{},'Actual queued reset persists inheritance');
+        // Direct map replacement/import callers need the presentation notification too.
+        host.settings.typographyProfiles={tablet:{maxWidth:500}};await host.saveSettings(false);
+      })(),new Promise((_,reject)=>timer=setTimeout(()=>reject(new Error('Typography save awaited lower-priority semantic work')),3000))]);}
+      finally{clearTimeout(timer);}
+    });
+    equal(work,{reads:0,parses:0,acquisitions:0,publications:0},'Device save/reset performs no Markdown/source or semantic publication work');
+    equal(o.parses.length,parseCount,'The actual metadata parser is not invoked');
+    equal(index.publicationRevision,publication,'Canonical publication retained');equal(index.semanticPolicyRevision,policy,'Semantic policy retained');
+    ok(index.onDemandIndexed.get('A.md')===token,'Existing demanded scope token retained');ok(index.isSemanticWriteReady('A.md','B.md'),'Exact selected-pair authority retained');
+    ok(presentations>=4,'Actual save/reset/direct writers notify mounted presentation consumers');
+    restores.splice(0).reverse().forEach(restore=>restore());
+
+    // An earlier typography save cannot swallow a simultaneous semantic edit while storage waits.
+    let entered;const storing=new Promise(resolve=>entered=resolve),hold=new Promise(resolve=>releaseStorage=resolve),saveData=host.saveData;let first=true;
+    host.saveData=async data=>{if(first){first=false;entered();await hold;}await saveData(data);};
+    host.stageTypographyOverride('mobile',{maxLabelLength:60});const early=host.saveSettings(false);await storing;
+    host.settings.hierarchy.parents=[];host.settings.hierarchy.leftFriends=['Parent'];host.stageTypographyOverride('mobile',{maxWidth:450});
+    const mixed=host.saveSettings(false);equal(index.semanticPolicyRevision,policy+1,'Mixed semantic edit invalidates before queued persistence');
+    releaseStorage();await Promise.all([early,mixed]);await settleDemand(index);
+    ok(index.state.pages.get('A.md').neighbours.get('B.md').isLeftFriend,'Actual mixed save recanonicalizes the published relationship');
+    ok(!index.isSemanticWriteReady('A.md','B.md'),'Old exact-pair authority is revoked by the semantic edit');
+    // Existing pair projections remain visible until exact re-preparation. Require current real
+    // pair authority before comparing the public composed neighborhood under the new policy.
+    ok(await index.prepareRelationshipPair('A.md','B.md'),'Mixed save exact pair prepares under current policy');
+    ok(index.isSemanticWriteReady('A.md','B.md'),'New pair has genuine current authority');
+    equal(index.getNeighborhood('A.md').parents.length,0,'Previous role retired by actual mixed save');
+    equal(index.getNeighborhood('A.md').leftFriends.map(x=>x.page.path),['B.md'],'Real requested graph recanonicalized for mixed save');
+    equal(JSON.parse(localStorage.getItem('typography-settings')).typographyProfiles.mobile,{maxLabelLength:60,maxWidth:450},'Overlapping queue persists latest scalar state');
+    equal(o.inventoryStarts,0,'No global inventory introduced');return true;
+  }finally{releaseStorage?.();restores.reverse().forEach(restore=>restore());release?.();o.close();}
+})()`));
 
 /** The browser deadline reports a missing closure instead of accepting eventual global readiness. */
 async function scenario(code) {

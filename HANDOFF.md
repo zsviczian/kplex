@@ -18,27 +18,32 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Inactive — browser indexing performance checkpoint accepted locally
+# Completed — shared local Find/navigation highlight
 
-Branch `fix-browser-indexing-performance`, base `2a1fbb1`; implementation/tests/docs are uncommitted.
-No offline assignment or process remains active. Root independently reviewed the storage/compiler
-return and scoped source-publication URL task boundary, then completed all required local gates.
+**Publication approved:** The maintainer reports all tests passed and authorizes commit, push, PR, merge and closure of #96, #97, #98, #99 and #101. Earlier automated Clipboard/Canvas observations remain historical evidence; this is maintainer acceptance of the batch. Copy-link preferences remain future issue #107.
 
-Final frozen runtime/test inputs319, SHA
-`2931af7a9668103e30c022dd04486a83a23bd977761e085cca8fc3a60d2be122`.
-Full verification passes architecture7/core88/aggregate496/UI20/portable333/browser417, zero
-failures/skips, installed scanner/types/production build and exact-build native render/error smoke.
-Both original performance cases pass locally. Controlled uninstrumented CPU4 gap54.0→35.5 ms;
-native dense active-URL/canonical/search/cancel/retry/alias scenarios pass, maxgap34.9 ms.
-Native cached ontology/inference/image/navigation checks pass without measured reads/parses/
-acquisitions/full builds; warm source head unchanged. Original test-vault settings/workspace/window/
-platform/throttling and configuration bytes restored with delayed SHA verification;73 notes,
-no owned fixtures/controllers/hooks, owned sleep inhibitor stopped.
+The maintainer confirms both device Node width and Windows fullscreen + Zen + maximized-editor
+controls pass manual testing. Actual Markdown editor text copy/paste is also confirmed. These are
+accepted manual results; the separately recorded physical-mobile and Canvas zoom observations remain.
 
-The actual GitHub Ubuntu run remains unproven. Neither local transaction reduction nor CDP
-throttling establishes that the Linux deadline/timer failures are fixed. Preserve the unchanged
-CI guards and rerun that environment after maintainer-authorized publication. No commit/push/PR/
-merge was requested for this branch. C15–C26 remain paused; no further optimization queued.
-Durable results, failed native-driver setup attempts, risks and receipts are in
-[Refactor plan.md](Refactor%20plan.md) and
-[validation record](docs/validation/browser-indexing-performance-2026-10-09.md).
+Top-right local Find now uses the same theme-accent outline and broad halo as arrow/Option-arrow
+navigation and Plex typing selection. One shared CSS rule covers regular, center, section-center and
+expanded nodes, after earlier center/selection styling. Search matching, keyboard selection state,
+input focus and ARIA remain distinct and unchanged; clearing a match removes its halo.
+
+This follow-up changes only styles.css among325 verification inputs. Frozen source SHA-256
+`bec4f9be1011b57971eb91070f02b5167ca5439783bb0eb60c49017d086c166f`; installed styles.css `d5b3973600b9a082e600e7fcdb5b17284838bd82bd8e2bf949f01fdc9b77df73`.
+JavaScript/manifest hashes are unchanged from the prior full verified build (main3875ea11). For this
+CSS-only correction, scanner,26 existing UI/display Chromium checks and production typecheck/build
+PASS. Exact bounded-verified build is staged using the standard native runner; rendered smoke and
+owning-document style comparison4/4 PASS, no captured JavaScript errors. The style comparison uses
+removed offscreen clones, not physical-device/paint validation; no query, preferences or focus edits.
+Earlier full verify697.969s/native display12/12 results remain historical for source2e3ba2e5; semantic
+suites were not repeated for CSS alone. Full commands and receipts are in the validation report.
+
+Reviewed publication branch: five-issue-ux-package, base595a625. Pre-publication48-file diff ledger:
+`/private/tmp/kplex-search-highlight-final-diff-2026-10-10.json`. Commit/push/PR/merge and the five implementation issue closures are authorized; no release,
+version change or structural refactor is included. Copy-link preferences remain future issue107.
+
+Evidence: docs/validation/five-issue-ux-package-2026-10-09.md.
+The temporary implementation handoff is intentionally excluded from the commit.

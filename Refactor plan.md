@@ -3562,3 +3562,227 @@ No C15–C26 work, threshold relaxation or new Git publication is authorized.
   The exact319-input runtime/test freeze remains unchanged; prior full/native acceptance still applies.
   GitHub Ubuntu verification will be checked on the published branch and its outcome recorded.
   No release-version or structural refactoring change is included in this publication checkpoint.
+
+
+- 2026-10-09 20:55 UTC — PR #105 merged as595a625 after Ubuntu run37986897203 passes all
+  full checks: architecture7/core88/aggregate496/UI20/portable333/browser417, zero failures/skips,
+  scanner/types/production build. Both prior Linux performance failures pass with unchanged guards;
+  20,015-owner cached publication413.898 s, whole case738.738 s versus840 s deadline.
+  Original implementation commit13ea37b; exact locally verified319-input runtime/test freeze unchanged.
+  Maintainer then authorizes autonomous five-issue implementation from the new handoff. File-only
+  stash8340592 is popped after main fetch/fast-forward; branch five-issue-ux-package from595a625.
+  Original handoff SHA b762800e75d512fafc464f29f964d3122e8be18698979829d38886d0986f8c04 preserved.
+
+### 2026-10-09 — Autonomous five-issue UX package (#96/#97/#98/#99/#101)
+
+- [x] Read current instructions, full handoff/issues, source owners and open PR overlap; confirm baseline.
+- [x] #97: distinguish local shortcuts, command registration and native assignment truthfully.
+- [x] #98/#99: establish sparse device typography model, view resolver, canonical writer and controls.
+- [x] #98/#99: complete native scoped settings/reset, density-independent labels and lifecycle tests; host acceptance below.
+- [x] #96: fullscreen Windows chrome safe area and per-entry resource lifetime; browser checks pass, native acceptance below.
+- [x] #101: confirmed source-specific frontmatter removal, canonical safety and refresh lifecycle; native acceptance below.
+- [x] Integrated independent review, final full/build/scanner and applicable exact-build native outcomes recorded; broad failures retained.
+- [x] Cleanup, resolved implementation handoff/local diff and morning report with device/native limitations.
+
+Starting branch five-issue-ux-package, base595a625c7fa7e3d7523642da867de5367fdbb6d4; only incoming
+untracked handoff before plan edits. Node22.22.2, installed dependencies/real Chromium available;
+macOS Obsidian1.14.4 in explicit kplex-test-small (73 notes, loaded, unlocked, no controllers).
+No overlapping open PR beyond now-merged105. Mac titlebar containers mod-left/mod-right exist
+but both have zero geometry; frame-right-space0px/header-height40px. This is not Windows evidence.
+Initial parallel forecast8–12h after merge (~07:00–11:00 BudapestOct10), revise with actual evidence.
+No commits/pushes/PRs/merges/releases for this new package; return local uncommitted diff.
+C15–C26 stay paused. Real Windows/physical-device acceptance remains pending; if native session
+locks, continue portable work without awaiting maintainer intervention or bypassing the lock.
+
+- 2026-10-09 21:06 UTC — Three offline production drafts integrated. Focused action/fullscreen
+  browser checks pass40/40 in9.998s; typography model/host/row/debounce checks pass8 and layout21.
+  Independent review corrects strict no-param translation, computed warning color, hidden native
+  controls, competing removal controls, stale modal generations and canonical non-target reference
+  preservation. Seven bundled locale catalogs extended. Final writer/IDB, full/scanner/build and
+  exact-build native acceptance remain pending; no Windows/device claim or Git publication.
+
+- 2026-10-09 21:16 UTC — Offline returns independently reviewed and integrated. Final focused
+  action/display cases pass40/40 (9.783s), typography model8/layout21 plus actual rendered long-label
+  case1 pass. Selected removal final modal/inverse/budget cases11/11 (11.667s); earlier affected
+  writer/modal18/18 pass and all44 preexisting writer cases pass. Inverse-view approval uses the
+  displayed orientation while retaining exact direction; safe preview uses the existing decode
+  admission bound. Full run passes architecture7/core88/scanner, then finds missing new modules
+  in the indexing fixture's explicit compile list; added real production helpers, no behavior stubs
+  or assertions weakened. Full retry and native acceptance pending. Revised forecast3–5h remaining
+  (~02:00–04:00 BudapestOct10), chiefly serial native verification and any findings.
+
+- 2026-10-09 21:24 UTC — Final integrated retry passes architecture7/core88/scanner, aggregate516,
+  UI21 and portable-source333, all zero failures/skips. Actual-IDB browser suite is progressing
+  through dense contributor acquisition; no production or threshold changes. Three migration
+  doubles now carry the real manifest ID; focused22/22 pass. Runtime/test325-input freeze1002eea7
+  remains unchanged. Native emulation drivers corrected to seven rails/five filters and extended
+  with temporary, synchronously restored device-typography sentinels across all three surfaces.
+  Revised remaining forecast2–4h (~01:30–03:30 BudapestOct10); full browser/build, serial native
+  acceptance, exact restoration and final handoff remain. Windows/physical devices still pending.
+
+- 2026-10-09 21:43 UTC — Full frozen verification/build/scanner and native smoke pass at21:32
+  (architecture7/core88/aggregate516/UI21/portable333/browser427, zero failures/skips);
+  source325-input freeze1002eea7 unchanged. Native action workflows pass8 scenarios including
+  confirmed source-specific removal/preservation/cancellation and owned-sidecar navigation.
+  Native UX full-snapshot prerequisite is incompatible with existing on-demand mode; controlled
+  driver cancellation performs normal successful cleanup, offline trace corrects genuine
+  distinct-pair prerequisites without touching production indexing. Native actions H29 reveals
+  original saved Alt+Slash sidecar/search collision in fixture; display resize preservation
+  assertion also under trace. No native acceptance claimed for those failed runs. Date regression
+  runs serially; remaining forecast1–2h (~00:45–01:45 BudapestOct10). Windows/device pending.
+
+- 2026-10-09 21:52 UTC — Exact-build native Date-property regression24 scenarios and
+  desktop/tablet/phone action-settings layout3 scenarios pass with normal restoration. Fullscreen/Zen
+  lane passes12 scenarios,16 exact camera/selection/history/center comparisons, both native popout
+  migrations and close/unload/reload; original failures traced to pre-animation-frame zoom snapshot.
+  Device-only UX obsolete global authority wait cancelled with separately verified owned fixture
+  recovery and exact original-state restoration; no false native acceptance. New readiness uses
+  actual distinct pair authority. Broader UX passes first3 pointer/style/area scenarios, then
+  reaches old synthetic F4 driver focus/transport prerequisite; guards preserved and native input
+  adaptation underway. Actions publication/assignment assertions pass; workflow whole snapshot
+  corrected for explicit-default publication persistence. Runtime freeze1002eea7 unchanged.
+  Remaining forecast45–90min (~00:40–01:25 BudapestOct10); code complete, acceptance/return ongoing.
+
+- 2026-10-09 22:06 UTC — Device-only UX passes6 desktop/tablet/phone emulation scenarios on
+  exact build, with actual temporary-device typography projection and seven reachable controls.
+  Actions H18/H28 new publication/assignment assertions pass; the whole actions lane fails H13
+  raw Electron clipboard delivery, also identically outside K-Plex with trusted/unconsumed Meta+V
+  and zero graph preparations. Actual OS clipboard accelerator validation remains pending;
+  unattended OS flags stay false. Desktop UX6 passes19 scenarios then encounters a driver URL
+  raw-case versus canonical-path comparison; normal cleanup passes. Production325-input freeze
+  and artifact hashes unchanged; fixture-only corrections continue before final restoration.
+
+- 2026-10-09 22:13 UTC — Desktop UX7 passes39 scenarios, then a real #99 save-path issue
+  is demonstrated: typography render-only saves still request on-demand semantic refresh. The native
+  zero-source-work measurement's P0 lease parks that refresh's P2 task. Canonical classifier/save
+  correction is required, retaining all mixed-change effects and existing guards. Production freeze
+  will change; full verification/build and exact-build native acceptance must be repeated. Controlled
+  cancellation retires callbacks/tasks/writes and removes all owned fixtures; normal driver cleanup
+  fails, independently recorded recovery passes, original configuration/plugin state restored.
+  Revised remaining forecast45–75min (~01:00–01:30 BudapestOct10); no Git publication.
+
+- 2026-10-09 22:18 UTC — Narrow #99 correction independently reviewed: canonical classifier
+  names only isolated typographyProfiles changes, save path skips semantic refresh for that case
+  and notifies rendering; mixed and legacy changes preserve all prior effects. Pure30/30 and
+  real Chromium on-demand regression1/1 pass; full on-demand file63/63 passes48.423s. Zero reads/
+  metadata parses/source acquisitions/semantic publications and existing scope/pair authority
+  are asserted across actual queued updates/reset; overlapping ontology save still invalidates
+  and recanonicalizes, requiring real current pair preparation. New325-input freeze05e32578
+  starts full verification/build/native smoke. Independent UX7 original-state restoration passes
+  delayed bytes/workspace/live settings/window geometry, with73 notes/no controller.
+
+
+- 2026-10-09 22:42 UTC — Fresh final full verification passes755.243s on325-input freeze05e32578:
+  architecture7/core88/aggregate516/UI21/portable333/browser428, zero failures/cancellations/skips,
+  scanner/installed types/real build/rendered native smoke. Final maincf434e5b matches staged build.
+  Repeated exact-build workflows8/Date24/display12/action-device3/device-onlyUX6 scenarios pass.
+  Display retains16 exact comparisons and both native popout migrations. Actions6 passes14 preceding
+  scenarios including newpublication/assignment assertions, then whole lane fails existingH13 raw
+  Electron clipboard transport; no OS-input wait enabled, actualmacOS accelerator remains pending.
+  BroadUX8/9/10 fixture failures retained: resize samples before actuallayout, then stable top-image
+  corner darkening near toolbar shadow on very small image. Assertions stay strict; genuine native
+  editor Maximize/Restore prerequisite is under final test. Production freeze unchanged.
+
+
+- 2026-10-09 22:50 UTC — Five-issue package complete as local uncommitted return,48 files/no deletions,
+  base595a625 branchfive-issue-ux-package, sourcefreeze05e32578, finalnative-driverfreezeef1bf663.
+  Exact-build scoped native label/layout/typography6 scenarios PASS45.837s, actual font/width/wrap
+  geometry and Settings/persistence/reset, no pending-debounce resurrection, zero reads/parses/
+  acquisitions/semantic publications, no fullbuild/publication revision delta; normal cleanup/noJSerrors.
+  Full nativeUX14 remains FAILED at connected Canvas shrink131.234×107.469→102.556×84.377 while
+  outeroverlay grows145.234×121.469→181.875×152.117, despite5s settle. Unresolved observation retained,
+  no baseline attribution or unrelated production fix; scoped PASS is explicitly scoped. Actions6
+  wholelane remains FAILEDH13 with actualOSclipboard pending. All unattended inputflagsfalse.
+  Independent final restoration PASS22:49:28–22:49:32 verifies exact delayed original configuration
+  bytes, migrated liveemptymap, workspace/1440×875geometry/minimum/throttling,73notes/zero controllers.
+  Task-owned sleepinhibitor83984 stopped after exact command/starttime identity; all drivers exited.
+  Resolved implementationhandoff/HANDOFF/report retain full/focused/native evidence and three manual
+  priorities: actualWindowsDPI/fullscreen, physicaltablet/phone typography/touch, Macclipboard/Canvas.
+  Status: implemented; Windows/device validation pending. No newGitpublication/release/issueclosure,
+  no structuralrefactor or furtheragentassignment queued.
+
+
+- 2026-10-10 — Maintainer confirms actual Windows fullscreen fix works as expected. This is a
+  physical Windows acceptance report; specific OS/build/frame/DPI combinations were not supplied,
+  so no detailed scaling-matrix claim is added. Physical mobile typography/touch remains pending.
+  Current kplex-test-small center label contains full text but overflows CSS (201px scroll width vs
+  193px client width) with Desktop label120/width800. Its separate center maximum is390; actual
+  short-node width remains below that cap. Primary defect is the regular-font width estimate used
+  for the larger, heavier center label. Corrected center-only estimate uses rendered font proportions;
+  regular nodes and all explicit width/style precedence stay unchanged. Actual ThoughtNode/CSS/icon
+  Chromium regression passes1/1 across fonts13/20/28 and densities0.75/2/4, model/layout29/29 pass;
+  fullverify/build/exact-native smoke underway. Previous05e32578 source/build receipt is historical.
+  Created issue107 for making existing node.copy-link obey Obsidian Markdown/wikilink and shortest/
+  relative/full-path preferences, including destination context; no copy-link implementation or PR.
+
+
+- 2026-10-10 — Center-label follow-up delivered on existing uncommitted branch.
+  Source325-input freeze044b5bbc, mainc48ff52c, styles/manifest unchanged. Full verify:obsidian PASS
+  689.456s, architecture7/core88/aggregate516/UI21/portable333/browser428, zero failures/skips,
+  scanner/installedtypes/build/native smoke. Focused actualCSS/icon browser1/1 and model29/29 PASS.
+  Read-only live GraphLensesarelocal label scroll/client201/201 vs prior201/193; no clipping,
+  actualnode298.339px with center cap390 still honored. Desktop label120/width800 remain intact,
+  73notes/no controllers. No fixture/settings/input mutation; only exact bundle staging. Windows
+  fullscreen confirmed by maintainer; unspecified DPI variants not fabricated. Copy-link behavior
+  issue107 created/open, existing action's full-path wikilink documented; no featurecode/PR.
+  Earlier fullnativeClipboard/Canvas failures remain historical/not rerun for center-only correction.
+
+
+- 2026-10-10 — Maintainer review follow-up: device Node width now affects center and surrounding
+  nodes, preserving separate shared center width on reset and later tag/note-type style precedence.
+  Real center layout800→320, other device/reset390 covered; central style cache handles in-place/
+  replacement edits and deletion of equal-to-base width. Existing Windows fullscreen native-control
+  lease survives Zen's hidden toolbar; maximized-editor toolbar consumes the same measured inset
+  without changing editor/graph geometry. Focused models31/31 and initial integrated36/36 PASS;
+  frozen source48b9e099 undergoing full verification. User confirms actual Markdown editor copy/paste
+  and earlier Windows main toolbar fix. Newly reported Windows Zen/maximized-editor case awaits
+  Windows confirmation; physical mobile and separate Canvas zoom observation remain pending.
+  No semantic/scheduler/parser/schema work or Git publication; C15–C26 remain paused.
+
+
+- 2026-10-10 — Width/editor follow-up delivered locally, source2e3ba2e5/main3875ea11/styles22793011,
+  same48-file package/base/branch, no deletion or Git publication. Full verify:obsidian PASS697.969s,
+  architecture7/core88/aggregate519/UI21/portable333/browser428, zero failures/skips; scanner/types/
+  build/exact-native smoke PASS. Localization/model50/50 and installed typecheck PASS. Initial full
+  attempts stopped before staging at Object.assign any overload then locale string-map format;
+  both corrected and preserved in validation report. Exact-build native display12/12 PASS10.293s,
+  16 resize comparisons, both popout migrations, tablet900×875/phone390×844 Zen and fullscreen refusal.
+  Cleanup restores workspace/device/bounds/configuration bytes,74 notes/no controllers/overlays/
+  wrappers/noJSerrors. Read-only user-state receipt: Desktop width230/label49/font10.2, effective
+  center/base230 vs shared center390, rendered center230; long label remains capped as intended.
+  Current user-created note/preferences retained; sleep inhibitor auto-exited. User confirms actual
+  Markdown text copy/paste and earlier main toolbar Windows fix. New Windows Zen/maximized-editor
+  controls require actual Windows confirmation; physical mobile and separate Canvas zoom remain pending.
+  Final source/diff ledgers and detailed report updated. C15–C26 remain paused; no further assignment.
+
+
+- 2026-10-10 — Maintainer confirms Node width and actual Windows fullscreen+Zen+maximized-editor
+  controls PASS manual testing. Earlier pending Windows editor case is accepted; actual Markdown
+  editor copy/paste previously accepted. Added small CSS-only follow-up: local Find uses exactly the
+  navigation/typing-selection theme-accent ring and halo, shared across regular/center/section/expanded
+  nodes. Match classes, query/focus, ARIA and selection behavior remain distinct/unchanged.
+  Frozen325-input sourcebec4f9be differs from prior2e3ba2e5 only in styles.css; main3875ea11/manifest
+  unchanged, stylesd5b39736. Scanner PASS, existing UI/display Chromium26/26 PASS35.428s, installed
+  types/production build PASS. Standard exact-build native staging/rendered smoke PASS; offscreen
+  owning-document style comparison4/4 PASS, match removal clears halo, noJSerrors, no live state edits.
+  Prior full semantic/native display run retained as historical; not repeated for CSS alone. Final48-file
+  local diff ledger and current handoff/report updated; no deletion/Git publication/version change.
+  Physical mobile and separate Canvas zoom observation remain pending; copy-link preferences issue107
+  remains future work. C15–C26 paused, no further assignment or active test resource.
+
+
+- 2026-10-10 — Maintainer reports all tests passed and accepts the five-issue batch for publication.
+  Authorized commit/push/PR/merge, closure of #96/#97/#98/#99/#101, then switch/fetch main.
+  Reviewed package matches final48-file ledgera1f37f43, sourcebec4f9be; runtime unchanged since
+  scanner/UI/build/native acceptance. Historical automated observations stay recorded; issue107
+  remains future copy-link work. Publication-only documentation checkpoint; no new runtime edits.
+
+- 2026-10-10 — Publication scope correction: maintainer excludes the temporary
+  docs/KPLEX_IMPLEMENTATION_HANDOFF.md from commit. Preserve it locally; publish the self-contained
+  validation report and47 other reviewed files, with no links requiring the temporary document.
+
+- 2026-10-10 — PR108 initial Linux verify failed3 of519 aggregate cases during simultaneous
+  Chromium startups, before product assertions; all remaining516 passed. Serialize browser-bearing
+  aggregate/UI file execution to match existing browser-source lane; preserve coverage/deadlines,
+  no retry/skip/production scheduling change. Focused Node22.22.2 Chromium55/55 PASS. Full Linux
+  recheck pending; evidence in five-issue validation report. Temporary handoff remains excluded.

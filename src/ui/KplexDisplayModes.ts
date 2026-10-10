@@ -4,8 +4,10 @@
  * One document owner and an exact window pagehide lease prevent cross-view interference; close,
  * plugin unload and migration restore owned DOM and retire callbacks. No workspace layout writes,
  * persisted settings, browser fullscreen API or semantic/index operations cross this host boundary.
+ * Windows toolbar geometry owns a separate per-entry chrome lease, retired on every fullscreen exit.
  */
 import type { Component } from "obsidian";
+import { leaseFullscreenChrome } from "../adapters/obsidian/fullscreenChrome";
 export type KplexDisplayModeState = Readonly<{ fullscreen: boolean; zen: boolean; revision: number }>;
 const fullscreenOwners = new WeakMap<Document, KplexDisplayModes>();
 
@@ -25,6 +27,7 @@ export class KplexDisplayModes {
   private anchor: HTMLElement | null = null;
   private parent: HTMLElement | null = null;
   private releaseWindow: (() => void) | null = null;
+  private releaseChrome: (() => void) | null = null;
   private disposed = false;
   private lifecycleCleanup = new Set<() => void>();
 
@@ -61,7 +64,7 @@ export class KplexDisplayModes {
     if (this.disposed) return;
     this.prepare(); this.publish(this.state.fullscreen, !this.state.zen);
   }
-  /** Move the same React host into a viewport overlay, retaining its exact restoration position. */
+  /** Move the same React host into its viewport overlay and acquire entry-scoped Windows chrome facts. */
   toggleFullscreen(): void {
     if (this.state.fullscreen) { this.exitFullscreen(); return; }
     if (this.disposed || !this.fullscreenAvailable || !this.content.isConnected || !this.content.parentElement) return;
@@ -75,6 +78,7 @@ export class KplexDisplayModes {
     const focused = document.activeElement;
     this.overlay.appendChild(this.content);
     fullscreenOwners.set(document, this);
+    this.releaseChrome = leaseFullscreenChrome(this.overlay, /** Toolbar wrapping uses the same camera-preservation boundary as native movement. */ () => this.prepare());
     const ownerWindow = document.defaultView;
     if (ownerWindow) {
       const exit = /** Restore the content before its owning window is retired without stealing native focus. */ (): void => this.exitFullscreen(false);
@@ -84,11 +88,12 @@ export class KplexDisplayModes {
     this.publish(true);
     this.restoreFocus(focused);
   }
-  /** Restore the original position, including an adopted migration anchor; native pane changes may decline focus restoration. */
+  /** Retire chrome observations before restoring the original/adopted anchor; native pane changes may decline focus. */
   exitFullscreen(restoreFocus = true): void {
     if (!this.overlay) return;
     this.prepare();
     const document = this.overlay.ownerDocument, focused = this.content.ownerDocument.activeElement;
+    this.releaseChrome?.(); this.releaseChrome = null;
     this.releaseWindow?.(); this.releaseWindow = null;
     if (this.anchor?.parentElement) this.anchor.parentElement.insertBefore(this.content, this.anchor);
     else if (this.parent) this.parent.appendChild(this.content);
