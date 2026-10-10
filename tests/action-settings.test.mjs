@@ -201,14 +201,14 @@ async function settingsBrowser(keyConvention = "windows") {
     export class SearchComponent{constructor(parent){this.inputEl=parent.createDiv({cls:'search-input-container'}).createEl('input')}setPlaceholder(value){this.inputEl.placeholder=value;return this}onChange(fn){this.inputEl.addEventListener('input',()=>fn(this.inputEl.value));return this}setValue(value){this.inputEl.value=value;return this}}
     export class Setting{constructor(parent){this.components=[];this.settingEl=parent.createDiv({cls:'setting-item'});this.infoEl=this.settingEl.createDiv({cls:'setting-item-info'});this.nameEl=this.infoEl.createDiv({cls:'setting-item-name'});this.descEl=this.infoEl.createDiv({cls:'setting-item-description'});this.controlEl=this.settingEl.createDiv({cls:'setting-item-control'})}setClass(value){this.settingEl.classList.add(value);return this}setName(value){this.nameEl.textContent=value;return this}setDesc(value){this.description=value;this.descEl.textContent=value;return this}addDropdown(cb){const selectEl=this.controlEl.createEl('select');const component={selectEl,addOption(value,text){const option=selectEl.createEl('option',{text});option.value=value;return this},setValue(value){selectEl.value=value;return this},getValue(){return selectEl.value}};this.components.push(component);cb(component);return this}addToggle(cb){const input=this.controlEl.createEl('input');input.type='checkbox';let changeCallback;const component={setValue(v){if(input.checked!==v){input.checked=v;changeCallback?.(v)}return this},setDisabled(v){input.disabled=v;return this},onChange(fn){changeCallback=fn;input.addEventListener('change',()=>fn(input.checked));return this}};this.components.push(component);cb(component);return this}}
   `;
-  const built = await build({ stdin: { contents: `export {ActionSettingsController,actionMatchesShortcut} from './src/ui/ActionSettingsController'; export {ACTION_CATALOG,ACTION_BY_ID} from './src/core/plex/actions'; export {migrateActionPreferences,ACTION_BINDING_DEFAULTS} from './src/core/plex/actionPreferences'; export {englishCatalog} from './src/lang/en'; export {Setting} from 'obsidian'; export {readObsidianActionHotkeys} from './src/adapters/obsidian/actionHotkeys';`, resolveDir: fileURLToPath(new URL("..", import.meta.url)) }, bundle: true, write: false, platform: "browser", format: "iife", globalName: "sourceModules", plugins: [{ name: "native-setting-shell", setup(builder) { builder.onResolve({filter:/^obsidian$/},()=>({path:"host",namespace:"host"})); builder.onLoad({filter:/.*/,namespace:"host"},()=>({contents:host,loader:"js"})); } }] });
+  const built = await build({ stdin: { contents: `export {ActionSettingsController,actionMatchesShortcut} from './src/ui/ActionSettingsController'; export {ACTION_CATALOG,ACTION_BY_ID} from './src/core/plex/actions'; export {migrateActionPreferences,ACTION_BINDING_DEFAULTS} from './src/core/plex/actionPreferences'; export {englishCatalog} from './src/lang/en'; export {createTranslator} from './src/lang'; export {Setting} from 'obsidian'; export {readObsidianActionHotkeys} from './src/adapters/obsidian/actionHotkeys';`, resolveDir: fileURLToPath(new URL("..", import.meta.url)) }, bundle: true, write: false, platform: "browser", format: "iife", globalName: "sourceModules", plugins: [{ name: "native-setting-shell", setup(builder) { builder.onResolve({filter:/^obsidian$/},()=>({path:"host",namespace:"host"})); builder.onLoad({filter:/.*/,namespace:"host"},()=>({contents:host,loader:"js"})); } }] });
   const browser = await chromiumHarness(built.outputFiles[0].text);
   await browser.evaluate(`(()=>{
     window.settingMigrations=new Map();window.settingMigrationCallbacks=new Map();const p=HTMLElement.prototype;p.onWindowMigrated=function(callback){const callbacks=settingMigrationCallbacks.get(this)??new Set();callbacks.add(callback);settingMigrationCallbacks.set(this,callbacks);settingMigrations.set(this,(...args)=>{for(const fn of callbacks)fn(...args)});return()=>{callbacks.delete(callback);if(!callbacks.size){settingMigrations.delete(this);settingMigrationCallbacks.delete(this)}}};
     p.setAttr=function(k,v){this.setAttribute(k,v)};p.addClass=function(...names){this.classList.add(...names)};p.toggleClass=function(name,on){this.classList.toggle(name,on)};p.empty=function(){this.replaceChildren()};p.setText=function(text){this.textContent=text};
     p.createEl=function(tag,options={}){const el=this.ownerDocument.createElement(tag);if(options.cls)el.className=options.cls;if(options.text)el.textContent=options.text;for(const[k,v]of Object.entries(options.attr??{}))el.setAttribute(k,v);this.append(el);return el};p.createDiv=function(options){return this.createEl('div',options)};p.createSpan=function(options){return this.createEl('span',options)};
-    const {ActionSettingsController,migrateActionPreferences,englishCatalog,Setting}=sourceModules;
-    window.makeSettings=()=>{const listeners=new Set(),calls=[];const nativeListeners=new Set(),customHotkeys={},defaultHotkeys={},nativeCommands={},nativeReads={custom:0,defaults:0};const app={vault:{configDir:'.obsidian',on(name,callback){const ref={name,callback};nativeListeners.add(ref);return ref},offref(ref){nativeListeners.delete(ref)}},hotkeyManager:{getHotkeys(id){nativeReads.custom++;return customHotkeys[id]},getDefaultHotkeys(id){nativeReads.defaults++;return defaultHotkeys[id]}},commands:{commands:nativeCommands}};const plugin={app,settings:{actionPreferences:migrateActionPreferences(null,${JSON.stringify(keyConvention)}).preferences},translator:(key,args={})=>englishCatalog[key].message.replace(/\\{([^}]+)\\}/g,(_,name)=>String(args[name])),subscribeActionPreferences(fn){listeners.add(fn);return()=>listeners.delete(fn)},async updateActionPreferences(value){calls.push(value);this.settings.actionPreferences=value;for(const fn of listeners)fn()}};
+    const {ActionSettingsController,migrateActionPreferences,Setting,createTranslator}=sourceModules;
+    window.makeSettings=()=>{const listeners=new Set(),calls=[];const nativeListeners=new Set(),customHotkeys={},defaultHotkeys={},nativeCommands={},nativeReads={custom:0,defaults:0};const app={vault:{configDir:'.obsidian',on(name,callback){const ref={name,callback};nativeListeners.add(ref);return ref},offref(ref){nativeListeners.delete(ref)}},hotkeyManager:{getHotkeys(id){nativeReads.custom++;return customHotkeys[id]},getDefaultHotkeys(id){nativeReads.defaults++;return defaultHotkeys[id]}},commands:{commands:nativeCommands}};const plugin={app,manifest:{id:'k-plex'},registration:new Map(),isActionPublished(id){return this.registration.get(id)??true},settings:{actionPreferences:migrateActionPreferences(null,${JSON.stringify(keyConvention)}).preferences},translator:createTranslator('en'),subscribeActionPreferences(fn){listeners.add(fn);return()=>listeners.delete(fn)},async updateActionPreferences(value){calls.push(value);this.settings.actionPreferences=value;for(const [id,published]of Object.entries(value.publishedCommands))this.registration.set(id,published);for(const fn of listeners)fn()}};
       const controller=new ActionSettingsController(plugin),definition=controller.getSettingDefinitions();const page=document.body.createDiv({cls:'kplex-action-settings'}),list=page.createDiv();
       const rows=[],releases=[];for(const item of definition.items){const setting=new Setting(list);rows.push(setting);releases.push(item.render(setting,{listEl:list}))}const input=page.querySelector('[data-kplex-action-search]'),header=page.querySelector('.kplex-action-settings-header');return{controller,plugin,definition,page,list,header,input,listeners,calls,rows,releases,nativeListeners,customHotkeys,defaultHotkeys,nativeCommands,nativeReads};};
   })()`);
@@ -450,7 +450,7 @@ test("native assignment snapshots inherit defaults, preserve explicit disables a
   assert.deepEqual(snapshot.commands[0].bindings, [{match: "key", value: "f", modifiers: ["mod"]}]);
   overrides.custom[0].key = "changed"; overrides.custom[0].modifiers.push("Shift");
   assert.deepEqual(snapshot.commands[1].bindings, [{match: "key", value: "x", modifiers: ["alt"]}]);
-  assert.deepEqual(contracts.readObsidianActionHotkeys({}), {available: false, complete: false, commands: []});
+  assert.deepEqual(contracts.readObsidianActionHotkeys({}), {available: false, complete: false, commands: [], assignments: []});
   assert.equal(contracts.readObsidianActionHotkeys({hotkeyManager: {getHotkeys() {throw Error("unavailable");}, getDefaultHotkeys() {}}, commands: {commands: {bad: {name: "Bad"}}}}).complete, false);
 });
 
@@ -510,7 +510,7 @@ test("persistent native chips retain local and global labels, exact counts and r
       s.plugin.settings.actionPreferences.localBindings['node.rename']=[first,second];s.plugin.settings.actionPreferences.localBindings['pin.toggle']=[first];
       s.nativeCommands['native:test']={name:'Native test command'};s.defaultHotkeys['native:test']=[{key:'F12',modifiers:['Meta']}];
       s.nativeCommands['k-plex:kplex-search']={name:'K-Plex Search'};s.defaultHotkeys['k-plex:kplex-search']=[{key:'/',modifiers:['Alt']}];
-      const before=s.nativeReads.custom;c.refresh();const once=s.nativeReads.custom-before===2;
+      const before=s.nativeReads.custom;c.refresh();const once=s.nativeReads.custom-before===new Set([...Object.keys(s.nativeCommands),...sourceModules.ACTION_CATALOG.flatMap(action=>action.command?['k-plex:'+action.command.id]:[])]).size;
       const rename=s.list.querySelector('[data-action-id="node.rename"]'),pill=rename.querySelector('.setting-hotkey'),other=rename.querySelectorAll('.setting-hotkey')[1];
       const both=pill.classList.contains('has-conflict')&&Boolean(pill.querySelector('.kplex-action-local-conflict'))&&Boolean(pill.querySelector('.kplex-action-global-warning'))&&pill.getAttribute('aria-label').includes(s.plugin.translator('actions.pin.toggle'))&&pill.getAttribute('aria-label').includes('Native test command')&&!pill.hasAttribute('title');
       const precise=!other.classList.contains('has-conflict')&&!other.classList.contains('kplex-action-global-overlap');
@@ -574,4 +574,56 @@ test("valid native Tab navigation is excluded from comparable assignments withou
   hotkeys.ordinary = [{key: "f", modifiers: ["Future"]}]; assert.equal(contracts.readObsidianActionHotkeys(app).complete, false);
   hotkeys.ordinary = [{key: "Tab", modifiers: ["Future"]}]; assert.equal(contracts.readObsidianActionHotkeys(app).complete, false, "Unknown native modifiers are still malformed");
   hotkeys.ordinary = [{key: "Tab", modifiers: ["Ctrl", "Ctrl"]}]; assert.equal(contracts.readObsidianActionHotkeys(app).complete, false);
+});
+
+
+test("assignment presence is independent from native comparison and observes unpublished exact IDs", () => {
+  const keys = {tab: [{key: "Tab", modifiers: ["Ctrl"]}], disabled: [], inherited: undefined, partial: [{key: "Tab", modifiers: ["Ctrl"]}, {key: "f", modifiers: ["Future"]}], malformed: [{key: "f", modifiers: ["Future"]}], "k-plex:kplex-focus": [{key: "F9", modifiers: ["Mod"]}]};
+  const defaults = {disabled: [{key: "f", modifiers: ["Mod"]}], inherited: [{key: "i", modifiers: ["Mod"]}]};
+  const commands = Object.fromEntries(["tab", "disabled", "inherited", "partial", "malformed", "throwing", "unset"].map(id => [id, {name: id}]));
+  const reads = new Map();
+  const app = {hotkeyManager: {getHotkeys(id) {reads.set(id, (reads.get(id) ?? 0) + 1); if(id === "throwing") throw Error("unavailable"); return keys[id];}, getDefaultHotkeys(id) {return defaults[id];}}, commands: {commands}};
+  const snapshot = contracts.readObsidianActionHotkeys(app, ["tab", "k-plex:kplex-focus", "graph.focus", "missing"]), byId = new Map(snapshot.assignments.map(fact => [fact.id, fact]));
+  assert.equal(snapshot.complete, false);
+  assert.deepEqual(byId.get("tab"), {id: "tab", presence: "assigned", bindings: [], bindingsComplete: false});
+  assert.equal(byId.get("partial").presence, "assigned"); assert.equal(byId.get("partial").bindingsComplete, false);
+  assert.equal(byId.get("disabled").presence, "unassigned"); assert.deepEqual(byId.get("disabled").bindings, []);
+  assert.equal(byId.get("inherited").presence, "assigned"); assert.equal(byId.get("inherited").bindingsComplete, true);
+  assert.equal(byId.get("unset").presence, "unassigned");
+  for (const id of ["throwing", "malformed", "graph.focus", "missing"]) assert.equal(byId.get(id).presence, "unknown", id);
+  assert.equal(byId.get("k-plex:kplex-focus").presence, "assigned"); assert.equal(reads.get("tab"), 1);
+  commands.badRecord = null; keys.badRecord = [{key: "Tab", modifiers: ["Ctrl"]}];
+  Object.defineProperty(commands, "throwingRecord", {enumerable: true, get() {throw Error("record unavailable");}}); keys.throwingRecord = [{key: "Tab", modifiers: ["Ctrl"]}];
+  const damagedRegistry = contracts.readObsidianActionHotkeys(app);
+  for (const id of ["badRecord", "throwingRecord"]) assert.equal(damagedRegistry.assignments.find(fact => fact.id === id).presence, "assigned", "Independent saved assignment survives malformed command records");
+
+  assert(!snapshot.commands.some(command => command.id === "k-plex:kplex-focus"), "Unregistered saved keys do not become registered collision diagnostics");
+  keys["k-plex:kplex-focus"][0].key = "changed"; assert.equal(byId.get("k-plex:kplex-focus").bindings[0].value, "F9");
+  keys.partial = [{key: "Tab", modifiers: ["Ctrl"]}, {get key() {throw Error("unavailable entry");}, modifiers: []}];
+  assert.equal(contracts.readObsidianActionHotkeys(app).assignments.find(fact => fact.id === "partial").presence, "assigned", "A later throwing entry cannot suppress a proven assignment");
+  keys.partial = Array.from({length: 40}, (_, index) => ({key: index ? "x" : "Tab", modifiers: []}));
+  const limited = contracts.readObsidianActionHotkeys(app).assignments.find(fact => fact.id === "partial");
+  assert.equal(limited.presence, "assigned"); assert.equal(limited.bindingsComplete, false); assert.equal(limited.bindings.length, 31);
+});
+
+test("row-local publication guidance refreshes independent native keys in place and survives global search", async () => {
+  const browser = await settingsBrowser("macos");
+  try {
+    const result = await browser.evaluate(`(async()=>{
+      const s=makeSettings(),c=s.controller,action=sourceModules.ACTION_BY_ID.get('graph.focus'),id='k-plex:'+action.command.id;const style=document.head.createEl('style',{text:${JSON.stringify(readFileSync(new URL("../styles.css", import.meta.url), "utf8"))}});document.body.style.setProperty('--text-warning','rgb(1, 2, 3)');document.body.style.setProperty('--text-muted','rgb(4, 5, 6)');
+      const definition=s.definition.items.find(item=>item.aliases?.includes('graph.focus')),outside=document.body.createDiv(),setting=new sourceModules.Setting(outside),release=definition.render(setting,{listEl:outside});
+      const row=setting.settingEl,status=()=>row.querySelector('.kplex-action-publication-state').textContent,local=JSON.stringify(s.plugin.settings.actionPreferences.localBindings);
+      const guidance=row.querySelector('.kplex-action-scope').textContent.includes('focused Plex')&&row.querySelector('.setting-command-hotkeys').getAttribute('aria-label')==='Local shortcuts';
+      const unknown=status().includes('Global shortcut not checked');s.nativeCommands[id]={name:'Localized focus graph'};s.defaultHotkeys[id]=[];c.refresh();const absent=status().includes('No global shortcut');
+      const button=row.querySelector('[data-kplex-action-control=publication]');button.focus();s.customHotkeys[id]=[{key:'F9',modifiers:['Mod']}];c.refresh();
+      const updated=status().includes('Global shortcut: ⌘ F9')&&row.querySelector('[data-kplex-action-control=publication]')===button&&document.activeElement===button;
+      s.customHotkeys[id]=[{key:'Tab',modifiers:['Ctrl']}];c.refresh();const tab=status().includes('Shortcut assigned in Obsidian')&&!status().includes('No global shortcut');s.customHotkeys[id].push({key:'f',modifiers:['Future']});c.refresh();const partial=status().includes('Shortcut assigned in Obsidian');
+      s.plugin.registration.set('graph.focus',false);s.plugin.settings.actionPreferences.publishedCommands['graph.focus']=true;c.refresh();const failed=status().includes('Publication requested; not registered')&&getComputedStyle(row.querySelector('.kplex-action-publication-state')).color==='rgb(1, 2, 3)';
+      const publish=row.querySelector('[data-kplex-action-control=publication]');publish.click();for(let n=0;c.saving&&n<20;n++)await Promise.resolve();
+      const retained=status().includes('Saved shortcut retained; command unavailable.')&&JSON.stringify(s.plugin.settings.actionPreferences.localBindings)===local&&s.customHotkeys[id][0].key==='Tab';
+      const unpublishHint=row.querySelector('[data-kplex-action-control=publication]').getAttribute('aria-label').includes('no global shortcut is assigned');
+      release();c.dispose();outside.remove();s.page.remove();style.remove();return{guidance,unknown,absent,updated,tab,partial,failed,retained,unpublishHint,clean:s.listeners.size===0&&s.nativeListeners.size===0&&settingMigrations.size===0};
+    })()`);
+    assert.deepEqual(result, {guidance:true,unknown:true,absent:true,updated:true,tab:true,partial:true,failed:true,retained:true,unpublishHint:true,clean:true});
+  } finally {await browser.cleanup();}
 });

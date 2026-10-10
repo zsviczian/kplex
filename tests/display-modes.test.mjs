@@ -29,7 +29,7 @@ async function bundle() {
   const {controls,resize,prepare,editorResize,methods}=sourceParts();
   const result=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`
     import React from 'react';export {createElement,useState,useEffect,useSyncExternalStore} from 'react';export {createRoot} from 'react-dom/client';export {flushSync} from 'react-dom';
-    import {KplexDisplayModes,registerDisplayModeUnload} from './src/ui/KplexDisplayModes';export {KplexDisplayModes};
+    import {KplexDisplayModes,registerDisplayModeUnload} from './src/ui/KplexDisplayModes';export {KplexDisplayModes}; export {fullscreenControlInset} from './src/adapters/obsidian/fullscreenChrome'; export {Platform} from 'obsidian';
     import {ObsidianIcon} from './src/ui/ObsidianIcon';
     export {ActionManager} from './src/application/ActionManager';export {surfaceAction} from './src/ui/surfaceActionImplementation';export {createTranslator} from './src/lang';
     export function DisplayControls({plugin,translate,displayState,fullscreenAvailable,actionSurfaceId}){return ${controls}}
@@ -38,14 +38,14 @@ async function bundle() {
     class NativeBase {async onOpen(){}async onClose(){}getSurface(){return'leaf'}}
     class NativeView extends NativeBase {${methods}}
     export function lifecycleView(properties){return Object.assign(new NativeView(),{root:null,windowMigrationCleanup:null,ready:false,renderGeneration:0,readyResolvers:[],displayModes:null,releaseDisplayLifecycle:null},properties)}
-  `},bundle:true,write:false,platform:'browser',format:'iife',globalName:'sourceModules',plugins:[{name:'native-icons',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:`export function getIcon(name){const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('data-icon',name);return icon}`,loader:'js'}));}}]});
+  `},bundle:true,write:false,platform:'browser',format:'iife',globalName:'sourceModules',plugins:[{name:'native-icons',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:`export const Platform={isWin:false,isDesktop:true};export function getIcon(name){const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('data-icon',name);return icon}`,loader:'js'}));}}]});
   return result.outputFiles[0].text;
 }
 
 /** Install only the Obsidian DOM creation primitives used by the real view/controller. */
 async function browser() {
   const host=await chromiumHarness(await bundle());
-  await host.evaluate(`(()=>{HTMLElement.prototype.createDiv=function(options={}){const element=document.createElement('div');element.className=options.cls??'';for(const[key,value]of Object.entries(options.attr??{}))element.setAttribute(key,value);this.append(element);return element};HTMLElement.prototype.empty=function(){this.replaceChildren()};HTMLElement.prototype.addClass=function(value){this.classList.add(value)};HTMLElement.prototype.toggleClass=function(value,enabled){this.classList.toggle(value,enabled)};window.testStyles=document.createElement('style');testStyles.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(testStyles);})()`);
+  await host.evaluate(`(()=>{HTMLElement.prototype.createDiv=function(options={}){const element=document.createElement('div');element.className=options.cls??'';for(const[key,value]of Object.entries(options.attr??{}))element.setAttribute(key,value);this.append(element);return element};HTMLElement.prototype.empty=function(){this.replaceChildren()};HTMLElement.prototype.setCssProps=function(values){for(const[key,value]of Object.entries(values))this.style.setProperty(key,value)};HTMLElement.prototype.removeClass=function(value){this.classList.remove(value)};HTMLElement.prototype.addClass=function(value){this.classList.add(value)};HTMLElement.prototype.toggleClass=function(value,enabled){this.classList.toggle(value,enabled)};window.testStyles=document.createElement('style');testStyles.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(testStyles);})()`);
   return host;
 }
 
@@ -113,4 +113,77 @@ test('production native lifecycle restores before cross-document adoption and re
     })()`);
     assert.deepEqual(result,{migrated:true,unload:true,closed:true,changed:true});
   } finally {await host.cleanup();}
+});
+
+
+test('Windows fullscreen uses measured physical-right toolbar exclusion and releases every entry resource',async()=>{
+  const host=await browser();
+  try {
+    const result=await host.evaluate(`(async()=>{
+      const{KplexDisplayModes,Platform,fullscreenControlInset}=sourceModules;document.body.style.margin='0';Platform.isWin=true;
+      let liveResize=0,liveMutation=0,liveResizeListeners=0,queued=0;const originalResize=window.ResizeObserver,originalMutation=window.MutationObserver,add=window.addEventListener,remove=window.removeEventListener,raf=window.requestAnimationFrame,caf=window.cancelAnimationFrame;
+      const handles=new Set(),stale=[];
+      window.ResizeObserver=class extends originalResize{constructor(fn){super(fn);liveResize++;this.live=true}disconnect(){if(this.live){this.live=false;liveResize--}super.disconnect()}};
+      window.MutationObserver=class extends originalMutation{constructor(fn){super(fn);liveMutation++;this.live=true}disconnect(){if(this.live){this.live=false;liveMutation--}super.disconnect()}};
+      window.addEventListener=function(name,...args){if(name==='resize')liveResizeListeners++;return add.call(this,name,...args)};window.removeEventListener=function(name,...args){if(name==='resize')liveResizeListeners--;return remove.call(this,name,...args)};
+      window.requestAnimationFrame=function(fn){let handle;const callback=time=>{if(handles.delete(handle))queued--;fn(time)};stale.push(callback);handle=raf.call(this,callback);handles.add(handle);queued++;return handle};window.cancelAnimationFrame=function(handle){if(handles.delete(handle))queued--;return caf.call(this,handle)};
+      const controlParent=document.body.createDiv();const controls=controlParent.createDiv({cls:'titlebar-button-container mod-right'});controls.style.cssText='position:fixed;right:0;top:0;width:150px;height:30px;z-index:100;background:gray';
+      const parent=document.body.createDiv(),content=parent.createDiv({cls:'kplex-view-host'});content.innerHTML='<div class="kplex-app"><div class="kplex-main-column"><div class="kplex-top-stack"><div class="kplex-topbar"><div class="kplex-search-shell">Search</div><div class="kplex-top-actions"><button>Action</button><button>Action</button></div></div></div><main class="kplex-plex"></main><footer class="kplex-history-bar"></footer></div></div>';
+      const modes=new KplexDisplayModes(content,true);let prepares=0;modes.onBeforeResize(()=>prepares++);modes.toggleFullscreen();
+      const overlay=content.parentElement,toolbar=content.querySelector('.kplex-topbar'),search=content.querySelector('.kplex-search-shell'),actions=content.querySelector('.kplex-top-actions');
+      const frame=()=>new Promise(resolve=>raf.call(window,resolve));await frame();
+      const inset=Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'));
+      const geometry=inset===150&&actions.getBoundingClientRect().right<=controls.getBoundingClientRect().left-9&&search.getBoundingClientRect().left===10&&overlay.getBoundingClientRect().width===innerWidth&&content.querySelector('.kplex-plex').getBoundingClientRect().width===innerWidth;
+      controls.style.width='210px';window.dispatchEvent(new Event('resize'));await frame();await frame();const changed=Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'))===210&&prepares>=2;
+      controls.style.visibility='hidden';window.dispatchEvent(new Event('resize'));await frame();await frame();const cssHidden=controls.getBoundingClientRect().width===210&&Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'))===0;controls.style.visibility='';controlParent.style.visibility='hidden';window.dispatchEvent(new Event('resize'));await frame();await frame();const hiddenVisibilityAncestor=controls.getBoundingClientRect().width===210&&Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'))===0;controls.style.visibility='visible';window.dispatchEvent(new Event('resize'));await frame();await frame();const visibleChildOverride=Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'))===210;controls.style.visibility='';controlParent.style.visibility='';controlParent.style.opacity='0';window.dispatchEvent(new Event('resize'));await frame();await frame();const hiddenAncestor=controls.getBoundingClientRect().width===210&&Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'))===0;controlParent.style.opacity='';controls.style.display='none';window.dispatchEvent(new Event('resize'));await frame();await frame();const hidden=Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'))===0;
+      controls.style.display='';controls.style.top='-40px';window.dispatchEvent(new Event('resize'));await frame();await frame();const outside=Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'))===0;controls.style.top='0';
+      modes.exitFullscreen();const released=liveResize===0&&liveMutation===0&&liveResizeListeners===0&&queued===0&&!overlay.classList.contains('kplex-windows-fullscreen')&&!overlay.style.getPropertyValue('--kplex-window-controls-inset');
+      for(let i=0;i<25;i++){modes.toggleFullscreen();window.dispatchEvent(new Event('resize'));modes.exitFullscreen()}for(const callback of stale)callback(performance.now());const repeated=liveResize===0&&liveMutation===0&&liveResizeListeners===0&&queued===0&&!document.querySelector('.kplex-fullscreen-overlay');
+      modes.toggleFullscreen();const replacement=parent.createDiv(),other=new KplexDisplayModes(replacement,true);other.toggleFullscreen();const transferred=!modes.getSnapshot().fullscreen&&liveResize===1&&liveMutation===1&&liveResizeListeners===1;window.dispatchEvent(new Event('pagehide'));const pagehide=!other.getSnapshot().fullscreen&&liveResize===0&&liveMutation===0&&liveResizeListeners===0&&queued===0;other.dispose();replacement.remove();
+      Platform.isWin=false;modes.toggleFullscreen();const mac=!content.parentElement.classList.contains('kplex-windows-fullscreen')&&!content.parentElement.style.getPropertyValue('--kplex-window-controls-inset')&&liveResize===0&&liveResizeListeners===0;modes.exitFullscreen();Platform.isWin=true;Platform.isDesktop=false;modes.toggleFullscreen();const mobile=!content.parentElement.classList.contains('kplex-windows-fullscreen')&&liveResize===0;modes.dispose();
+      const rect=(left,top,width,height)=>({left,top,right:left+width,bottom:top+height,width,height}),o=rect(0,0,500,400),t=rect(0,0,500,46);
+      const invalid=fullscreenControlInset(o,t,rect(350,0,150,0))===0&&fullscreenControlInset(o,t,rect(350,80,150,30))===0&&fullscreenControlInset(o,t,{...rect(350,0,150,30),left:NaN})===0&&fullscreenControlInset(o,t,rect(-10,0,520,30))===500;
+      window.ResizeObserver=originalResize;window.MutationObserver=originalMutation;window.addEventListener=add;window.removeEventListener=remove;window.requestAnimationFrame=raf;window.cancelAnimationFrame=caf;
+      Platform.isDesktop=true;const frameElement=document.createElement('iframe');frameElement.style.cssText='width:390px;height:500px;border:0';document.body.append(frameElement);const popDocument=frameElement.contentDocument;Object.setPrototypeOf(popDocument.body,HTMLElement.prototype);popDocument.body.style.margin='0';popDocument.head.append(testStyles.cloneNode(true));const popControls=popDocument.body.createDiv({cls:'titlebar-button-container mod-right'});popControls.style.cssText='position:fixed;right:0;top:0;width:150px;height:30px';const popParent=popDocument.body.createDiv(),popContent=popParent.createDiv({cls:'kplex-view-host'});popContent.innerHTML=content.innerHTML;const expectedSearchLeft=popContent.querySelector('.kplex-search-shell').getBoundingClientRect().left;const popModes=new KplexDisplayModes(popContent,true);popModes.toggleFullscreen();const popOverlay=popContent.parentElement;await new Promise(resolve=>frameElement.contentWindow.requestAnimationFrame(resolve));const narrowOwner=popOverlay.ownerDocument===popDocument&&popOverlay.getBoundingClientRect().width===390&&popContent.querySelector('.kplex-plex').getBoundingClientRect().width===390&&Number.parseFloat(popDocument.defaultView.getComputedStyle(popOverlay).getPropertyValue('--kplex-window-controls-inset'))===150&&popContent.querySelector('.kplex-top-actions').getBoundingClientRect().right<=popControls.getBoundingClientRect().left-9&&popContent.querySelector('.kplex-search-shell').getBoundingClientRect().left===expectedSearchLeft&&!document.querySelector('.kplex-fullscreen-overlay');if(!narrowOwner)throw new Error(JSON.stringify({owner:popOverlay.ownerDocument===popDocument,overlay:popOverlay.getBoundingClientRect().width,graph:popContent.querySelector('.kplex-plex').getBoundingClientRect().width,inset:popDocument.defaultView.getComputedStyle(popOverlay).getPropertyValue('--kplex-window-controls-inset'),actions:popContent.querySelector('.kplex-top-actions').getBoundingClientRect().right,controls:popControls.getBoundingClientRect().left,search:popContent.querySelector('.kplex-search-shell').getBoundingClientRect().left,main:!!document.querySelector('.kplex-fullscreen-overlay')}));popModes.dispose();const popClean=!popDocument.querySelector('.kplex-fullscreen-overlay,.kplex-fullscreen-anchor')&&!popOverlay.style.getPropertyValue('--kplex-window-controls-inset');frameElement.remove();parent.remove();controlParent.remove();return{geometry,changed,cssHidden,hiddenVisibilityAncestor,visibleChildOverride,hiddenAncestor,hidden,outside,released,repeated,transferred,pagehide,mac,mobile,invalid,narrowOwner,popClean,clean:!document.querySelector('.kplex-fullscreen-overlay,.kplex-fullscreen-anchor')};
+    })()`);
+    assert.deepEqual(result,Object.fromEntries(Object.keys(result).map(key=>[key,true])));
+  } finally {await host.cleanup();}
+});
+
+
+/** Exercise actual fullscreen leasing and shipped CSS with the reported Zen/maximized editor hierarchy. */
+test('Windows fullscreen Zen keeps maximized editor controls outside native buttons without moving the editor', async () => {
+  const host = await browser();
+  try {
+    const result = await host.evaluate(`(async()=>{
+      const {KplexDisplayModes,Platform}=sourceModules; Platform.isWin=true; document.body.style.margin='0';
+      const controls=document.body.createDiv({cls:'titlebar-button-container mod-right'});
+      controls.style.cssText='position:fixed;right:0;top:0;width:150px;height:30px';
+      const parent=document.body.createDiv(),content=parent.createDiv({cls:'kplex-view-host'});
+      content.innerHTML='<div class="kplex-app"><div class="kplex-main-column"><div class="kplex-top-stack"><div class="kplex-topbar"></div></div><main class="kplex-plex"><div class="kplex-central-editor-overlay is-maximized"><div class="kplex-central-editor-toolbar"><button>Restore</button><button>Close</button></div></div></main></div></div>';
+      const app=content.querySelector('.kplex-app'),editor=content.querySelector('.kplex-central-editor-overlay'),toolbar=editor.firstChild;
+      // These are the production maximized geometry margins (36px width / 60px height).
+      editor.style.cssText='left:18px;top:30px;width:calc(100% - 36px);height:calc(100% - 60px)';
+      const modes=new KplexDisplayModes(content,true),frame=()=>new Promise(resolve=>window.requestAnimationFrame(resolve));
+      modes.toggleZen();app.classList.add('is-zen');modes.toggleFullscreen();await frame();
+      const overlay=content.parentElement,initial=editor.getBoundingClientRect();
+      const safe=()=>toolbar.getBoundingClientRect().right<=controls.getBoundingClientRect().left;
+      const startsInZen=getComputedStyle(content.querySelector('.kplex-topbar')).display==='flex'&&content.querySelector('.kplex-topbar').getBoundingClientRect().width===0&&safe()&&Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'))===150;
+      controls.style.width='210px';window.dispatchEvent(new Event('resize'));await frame();await frame();
+      const resized=safe()&&Number.parseFloat(getComputedStyle(overlay).getPropertyValue('--kplex-window-controls-inset'))===210;
+      const retained=editor.getBoundingClientRect().left===initial.left&&editor.getBoundingClientRect().width===initial.width;
+      app.classList.remove('is-zen');modes.toggleZen();
+      const nonZen=getComputedStyle(toolbar).right==='1px';
+      app.classList.add('is-zen');modes.toggleZen();editor.classList.remove('is-maximized');
+      const compact=getComputedStyle(toolbar).right==='1px';editor.classList.add('is-maximized');
+      controls.style.display='none';window.dispatchEvent(new Event('resize'));await frame();await frame();
+      const hidden=getComputedStyle(toolbar).right==='1px';
+      controls.style.display='';window.dispatchEvent(new Event('resize'));await frame();await frame();
+      const restored=safe();modes.exitFullscreen();
+      const exited=getComputedStyle(toolbar).right==='1px'&&!overlay.style.getPropertyValue('--kplex-window-controls-inset');
+      Platform.isWin=false;modes.toggleFullscreen();await frame();const mac=getComputedStyle(toolbar).right==='1px';modes.dispose();parent.remove();controls.remove();
+      return{startsInZen,resized,retained,nonZen,compact,hidden,restored,exited,mac,clean:!document.querySelector('.kplex-fullscreen-overlay,.kplex-fullscreen-anchor')};
+    })()`);
+    assert.deepEqual(result, Object.fromEntries(Object.keys(result).map(key => [key, true])));
+  } finally { await host.cleanup(); }
 });

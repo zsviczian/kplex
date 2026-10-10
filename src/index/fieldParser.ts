@@ -6,6 +6,8 @@
  * Cooperative parsing releases host event tasks before optional background-priority checkpoints;
  * parser grammar and the caller-owned cancellation predicate remain in the portable owner.
  * External target extraction shares the source adapters' canonical web authority/root identities.
+ * Mutation checks may retain occurrence multiplicity through the same resolver stream; legacy
+ * extraction still deduplicates targets and never creates a competing reference grammar.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
@@ -160,10 +162,13 @@ function resolveLink(app: App, raw: string, hostPath: string): string {
 
 /** Host-resolution compatibility facade retained for imagery, section and editing consumers. */
 export function extractLinksFromValue(app: App, value: unknown, file: TFile): string[] {
-  const found = new Set<string>();
+  return [...new Set(iterateResolvedLinksFromValue(app, value, file))];
+}
+
+/** Resolve each occurrence through the shared grammar without deduplication, for mutation preservation checks. */
+export function* iterateResolvedLinksFromValue(app: App, value: unknown, file: TFile): IterableIterator<string> {
   for (const reference of iterateLinkReferencesFromValue(value)) {
     const target = reference.external ? canonicalWebUrl(reference.rawTarget) : resolveLink(app, reference.rawTarget, file.path);
-    if (target) found.add(target);
+    if (target) yield target;
   }
-  return [...found];
 }

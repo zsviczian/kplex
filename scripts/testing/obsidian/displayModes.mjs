@@ -2,6 +2,7 @@
  * Exact-build native fullscreen/Zen acceptance in an explicit disposable small vault. Owns
  * temporary panes, mode/input probes, preference/layout restoration and evidence. Desktop mobile
  * emulation checks layout/routing only; this driver does not establish physical touch or paint latency.
+ * The macOS lane rejects Windows toolbar reservations; real Windows control/DPI acceptance is separate.
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -73,6 +74,13 @@ function installDesktopProbe(token) {
   /** Capture state whose identity must survive ordinary mode changes. */
   const snapshot = leaf => ({ camera: root(leaf).querySelector(".kplex-camera")?.style.transform, selected: p.actionManager.readSnapshot(surfaceId(leaf))?.selected ?? null,
     center: p.actionManager.readSnapshot(surfaceId(leaf))?.center ?? null, history: JSON.stringify(p.settings.navigationHistory), viewport: rect(root(leaf).querySelector(".kplex-plex")), content: rect(leaf.view.contentEl) });
+  /** Wait for the graph's owning frame to apply its scheduled camera transform before a baseline read. */
+  const settleCameraFrame = async leaf => {
+    let applied = false;
+    const owningWindow = root(leaf).ownerDocument.defaultView;
+    owningWindow.requestAnimationFrame(() => owningWindow.requestAnimationFrame(() => { applied = true; }));
+    await until(() => applied, "Camera transform frame did not settle");
+  };
   /** Deliver trusted pointer input to the exact owning renderer and hit-tested button. */
   const click = async button => {
     check(button && visible(button), "Mode/control button unavailable");
@@ -137,6 +145,7 @@ function installDesktopProbe(token) {
       await new Promise(resolve => window.setTimeout(resolve, 150));
       // An ordinary native pane resize may auto-fit; acquire a fresh non-default camera afterward.
       await p.actionManager.dispatch({ id: "view.zoom-in", source: "toolbar", surfaceId: surfaceId(original) });
+      await settleCameraFrame(original);
       const before = snapshot(original), layout = JSON.stringify(app.workspace.getLayout()), nativeLeaf = rect(original.view.containerEl);
       for (const [fullscreen, zen] of [[true, false], [true, true], [false, true], [false, false], [false, true], [true, true], [true, false], [false, false]]) {
         if (modes(original).fullscreen !== fullscreen) await click(control(original, "fullscreen"));
@@ -145,11 +154,18 @@ function installDesktopProbe(token) {
         await new Promise(resolve => window.setTimeout(resolve, 75));
         check(root(original) === originalRoot && originalRoot.querySelector(".kplex-camera") === cameraNode, "Mode change replaced React/graph DOM");
         const after = snapshot(original);
-        check(after.camera === before.camera && JSON.stringify(after.selected) === JSON.stringify(before.selected) && after.history === before.history && JSON.stringify(after.center) === JSON.stringify(before.center), "Mode resize changed camera/selection/history");
+        const unchanged = { camera: after.camera === before.camera, selected: JSON.stringify(after.selected) === JSON.stringify(before.selected),
+          history: after.history === before.history, center: JSON.stringify(after.center) === JSON.stringify(before.center) };
+        // Sixteen mode steps bound detached diagnostics; preserve the exact acceptance assertions.
+        (c.resizeComparisons ??= []).push({ sidebarOpen, fullscreen, zen, unchanged, before, after });
+        check(Object.values(unchanged).every(Boolean), "Mode resize changed camera/selection/history");
         check(visible(originalRoot.querySelector(".kplex-top-stack")) === !zen && visible(originalRoot.querySelector(".kplex-history-bar")) === !zen, "Zen toolbar visibility incorrect");
         check(control(original, "fullscreen").getAttribute("aria-pressed") === String(fullscreen) && control(original, "zen").getAttribute("aria-pressed") === String(zen), "Mode ARIA state incorrect");
         for (const button of originalRoot.querySelectorAll(".kplex-zoom-controls button")) { const r = button.getBoundingClientRect(); check(r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight + 1 && button.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)), "A graph control is clipped or covered"); }
-        if (fullscreen) { const r = rect(original.view.contentEl); check(Math.abs(r.x) < 1 && Math.abs(r.y) < 1 && Math.abs(r.width - innerWidth) < 1 && Math.abs(r.height - innerHeight) < 1, "Fullscreen does not cover owning application viewport"); check(!document.fullscreenElement, "Browser fullscreen was invoked"); }
+        if (fullscreen) { const r = rect(original.view.contentEl); check(Math.abs(r.x) < 1 && Math.abs(r.y) < 1 && Math.abs(r.width - innerWidth) < 1 && Math.abs(r.height - innerHeight) < 1, "Fullscreen does not cover owning application viewport"); check(!document.fullscreenElement, "Browser fullscreen was invoked");
+          const overlay = original.view.contentEl.parentElement;
+          check(!overlay.classList.contains("kplex-windows-fullscreen") && !overlay.style.getPropertyValue("--kplex-window-controls-inset"), "Mac fullscreen acquired Windows chrome state");
+        }
         else check(original.view.contentEl.parentElement === originalParent && JSON.stringify(rect(original.view.containerEl)) === JSON.stringify(nativeLeaf), "Original native pane position/dimensions not restored");
         check(JSON.stringify(app.workspace.getLayout()) === layout, "Mode toggle changed native workspace configuration");
       }
@@ -164,6 +180,7 @@ function installDesktopProbe(token) {
     await key(originalRoot, "Escape"); check(!modes(original).fullscreen, "Second bare Escape did not exit fullscreen"); passed("escape-query-before-zen-before-fullscreen");
     await click(control(original, "fullscreen")); await click(control(original, "zen"));
     await p.actionManager.dispatch({ id: "view.zoom-in", source: "toolbar", surfaceId: surfaceId(original) });
+    await settleCameraFrame(original);
     const beforeFit = snapshot(original).camera;
     const fitButton = [...originalRoot.querySelectorAll(".kplex-zoom-controls button")].find(button => button.getAttribute("aria-label") === p.translator("graph.fitGraph"));
     await click(fitButton); check(snapshot(original).camera !== beforeFit && modes(original).fullscreen && modes(original).zen, "Explicit Fit unavailable in combined modes");
@@ -201,8 +218,9 @@ async function desktopProbe() {
   nativeStarted = true; evaluate(`(${installDesktopProbe.toString()})(${JSON.stringify(token)})`);
   const deadline = Date.now() + 180000;
   while (true) {
-    await delay(150); const value = evaluate('JSON.stringify({done:window.__kplexDisplayModesProbe?.done,error:window.__kplexDisplayModesProbe?.error,scenarios:window.__kplexDisplayModesProbe?.scenarios})');
+    await delay(150); const value = evaluate('JSON.stringify({done:window.__kplexDisplayModesProbe?.done,error:window.__kplexDisplayModesProbe?.error,scenarios:window.__kplexDisplayModesProbe?.scenarios,resizeComparisons:window.__kplexDisplayModesProbe?.resizeComparisons})');
     report.scenarios = value.scenarios ?? [];
+    report.resizeComparisons = value.resizeComparisons ?? [];
     if (value.done) { if (value.error) throw Error(value.error); break; }
     assert(Date.now() < deadline, "Native desktop probe deadline");
   }

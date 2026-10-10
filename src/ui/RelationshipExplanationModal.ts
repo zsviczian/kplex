@@ -1,15 +1,19 @@
 /**
  * Native Connection details dialog over pair-scoped semantic explanations and provenance. This host UI
- * formats stable reason codes, including configured/default Date roles, and offers additive ontology/source
- * navigation actions. Native modal closure owns its lifetime; scalar dates remain date sources.
+ * formats stable reason codes and offers additive ontology, source navigation and confirmed selected
+ * frontmatter removal. Generation fences own reads/confirmation UI; saved writes remain plugin-owned.
  */
-import { Modal, setIcon, type WorkspaceLeaf } from "obsidian";
+import { Modal, Notice, setIcon, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { RelationshipSourceSection } from "../main";
 import { RelationType, type GateRole, type Role } from "../types";
 import { ONTOLOGY_PRECEDENCE_SUPPRESSION, type EvidenceDecision, type EvidenceSourceKind, type EvidenceSuppressionReason } from "../index/RelationEvidence";
 import type { RelationshipExplanation, RelationshipSummary } from "../index/RelationResolver";
 import type { Translator, PlainTranslationKey } from "../lang";
+import { frontmatterDeclarationKey, selectedFrontmatterDeclarations } from "../application/frontmatterUnlink";
+import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
+import { RemoveRelationshipSourceModal } from "./RemoveRelationshipSourceModal";
+import type { RelationEvidence } from "../index/RelationEvidence";
 
 const ROLE_LABEL: Record<string, PlainTranslationKey> = {
   parent: "role.parent",
@@ -86,6 +90,7 @@ function gateRoleForDisplayRole(role: Role): GateRole | null {
   return null;
 }
 
+/** Mount a localized native-icon action with one accessible name and no duplicate tooltip. */
 function iconButton(parent: HTMLElement, icon: string, label: string, action: () => void): HTMLButtonElement {
   const button = parent.createEl("button", { cls: "kplex-edge-source-action", attr: { type: "button", "aria-label": label } });
   setIcon(button, icon);
@@ -123,6 +128,15 @@ function renderDecisionEvaluations(parent: HTMLElement, decisions: readonly Evid
 /** One source-of-truth view for understanding a connection and navigating its provenance. */
 export class RelationshipExplanationModal extends Modal {
   private closed = false;
+  private loadGeneration = 0;
+  private operation: "idle" | "confirming" | "removing" | "saved-pending" = "idle";
+  private confirmation: RemoveRelationshipSourceModal | null = null;
+  private removalButtons: HTMLButtonElement[] = [];
+  private mutationNavigationButtons: HTMLButtonElement[] = [];
+  private renderedDeclarations = new Set<string>();
+  private statusText = "";
+  private pendingDeclaration: string | null = null;
+  private releaseIndex: (() => void) | null = null;
 
   /** Capture one pair explanation and optional native-dialog lease; source reads are cancelled on close. */
   constructor(
@@ -141,6 +155,7 @@ export class RelationshipExplanationModal extends Modal {
     super(plugin.app);
   }
 
+  /** Project active field names for additive ontology display without rewriting declaration provenance. */
   private currentOntologies(): string[] {
     return [...new Set(this.explanation.decisions
       .filter((decision) => decision.active)
@@ -180,7 +195,10 @@ export class RelationshipExplanationModal extends Modal {
 
     const actionLabel = this.plugin.translator(hasExplicitOntology ? "explain.addOntology" : "explain.specifyOntology");
     const button = row.createEl("button", { text: actionLabel, cls: "mod-cta", attr: { type: "button" } });
+    button.disabled = this.operation !== "idle";
+    this.mutationNavigationButtons.push(button);
     button.addEventListener("click", () => {
+      if (this.closed || this.operation !== "idle") return;
       this.close();
       this.plugin.openRelationModal({
         mode: "relink",
@@ -210,6 +228,7 @@ export class RelationshipExplanationModal extends Modal {
       });
       if (evidence.rawValue) row.createEl("code", { text: evidence.rawValue });
       if (decision.suppressionReason) row.createDiv({ cls: "kplex-edge-source-reason", text: suppressionReasonLabel(decision.suppressionReason, this.plugin.translator) });
+      this.renderRemovalActions(row, [decision]);
       return;
     }
 
@@ -239,14 +258,133 @@ export class RelationshipExplanationModal extends Modal {
       for (const reason of reasons) card.createDiv({ cls: "kplex-edge-source-reason", text: suppressionReasonLabel(reason, this.plugin.translator) });
 
       const actions = card.createDiv({ cls: "kplex-edge-source-actions" });
-      iconButton(actions, "locate-fixed", this.plugin.translator("explain.goToSource"), () => {
+      const navigate = iconButton(actions, "locate-fixed", this.plugin.translator("explain.goToSource"), () => {
+        if (this.closed || this.operation !== "idle") return;
         void this.plugin.openRelationshipEvidenceLocation({ path: section.path, line: section.startLine }, this.displayContext?.hostLeaf).then(() => this.close());
       });
+      navigate.disabled = this.operation !== "idle";
+      this.mutationNavigationButtons.push(navigate);
+      this.renderRemovalActions(card, decisions);
+  }
+
+  /** Render one independently editable declaration, not one action per overlapping visual source card. */
+  private renderRemovalActions(parent: HTMLElement, decisions: readonly EvidenceDecision[]): void {
+    for (const evidence of selectedFrontmatterDeclarations(decisions.map(/** Projection preserves declaration coordinates. */ decision => decision.evidence))) {
+      const key = frontmatterDeclarationKey(evidence)!;
+      if (this.renderedDeclarations.has(key)) continue;
+      const expected = this.plugin.captureFrontmatterUnlinkExpectation(evidence);
+      if (!expected) continue;
+      this.renderedDeclarations.add(key);
+      const generation = this.loadGeneration;
+      const row = parent.createDiv({ cls: "kplex-edge-source-removal" });
+      row.createDiv({ cls: "kplex-edge-source-removal-coordinate", text: this.plugin.translator("explain.removeCoordinate", {
+        note: expected.storagePath, field: expected.fieldKey, target: expected.targetPath,
+      }) });
+      const button = iconButton(row, "unlink", this.plugin.translator("explain.removeRelationship"), /** Capture one still-current physical declaration before showing native confirmation. */ () => {
+        if (!this.isCurrent(generation) || this.operation !== "idle") return;
+        const actual = this.plugin.captureFrontmatterUnlinkExpectation(evidence);
+        if (!actual || actual.storage !== expected.storage || actual.target !== expected.target || actual.fieldKey !== expected.fieldKey) {
+          this.refreshDetails(this.plugin.translator("explain.removeSourceChanged"));
+          return;
+        }
+        this.setOperation("confirming");
+        this.confirmation = new RemoveRelationshipSourceModal(this.app, this.plugin.translator,
+          { note: actual.storagePath, field: actual.fieldKey, target: actual.targetPath }, /** Only this mounted generation can resume an explicit approval. */ confirmed => {
+            this.confirmation = null;
+            if (!this.isCurrent(generation)) return;
+            if (!confirmed) { this.setOperation("idle"); return; }
+            void this.removeDeclaration(evidence, actual, generation);
+          });
+        this.confirmation.open();
+      });
+      button.dataset.kplexRemoveField = expected.fieldKey;
+      button.disabled = this.operation !== "idle";
+      this.removalButtons.push(button);
+    }
+  }
+
+  /** A closed modal or superseded source generation cannot resume confirmation or append old cards. */
+  private isCurrent(generation: number): boolean {
+    return !this.closed && generation === this.loadGeneration && this.contentEl.isConnected;
+  }
+
+  /** Serialize destructive activation across every candidate while retaining retry-free saved-pending state. */
+  private setOperation(operation: typeof this.operation): void {
+    this.operation = operation;
+    for (const button of this.removalButtons) button.disabled = operation !== "idle";
+    for (const button of this.mutationNavigationButtons) button.disabled = operation !== "idle";
+  }
+
+  /** Persist through the canonical selected-property writer; detached UI cannot cancel an already saved edit. */
+  private async removeDeclaration(evidence: RelationEvidence, expected: NonNullable<ReturnType<KplexPlugin["captureFrontmatterUnlinkExpectation"]>>, generation: number): Promise<void> {
+    if (!this.isCurrent(generation) || this.operation !== "confirming") return;
+    this.setOperation("removing");
+    try {
+      const changed = await this.plugin.unlinkFrontmatterEvidence(evidence, expected, /** Pre-persistence disposal fences native callback continuation. */ () => this.isCurrent(generation));
+      if (!this.isCurrent(generation)) return;
+      this.setOperation("idle");
+      this.refreshDetails(changed ? this.removalOutcome() : this.plugin.translator("explain.removeSourceChanged"));
+    } catch (error) {
+      if (error instanceof SavedRelationshipPendingError) {
+        if (!error.noticeReported) new Notice(error.message, 5000);
+        if (!this.isCurrent(generation)) return;
+        this.pendingDeclaration = frontmatterDeclarationKey(evidence);
+        this.setOperation("saved-pending");
+        this.refreshDetails(error.message);
+        this.refreshPendingRemoval();
+        return;
+      }
+      if (!this.isCurrent(generation)) return;
+      this.setOperation("idle");
+      this.refreshDetails(this.plugin.translator("relation.updateFailed", { error: error instanceof Error ? error.message : String(error) }));
+    }
+  }
+
+  /** Determine the remaining visible pair from canonical resolution, including hidden/overridden evidence. */
+  private removalOutcome(): string {
+    const current = this.plugin.index.explainRelationship(this.explanation.sourcePath, this.explanation.targetPath);
+    return this.plugin.translator(current && !current.hidden && current.resolvedRoles.length
+      ? "explain.sourceRemovedRemaining" : "explain.sourceRemoved");
+  }
+
+  /** Canonical publication completes a saved-pending UI without issuing another destructive mutation. */
+  private refreshPendingRemoval(): void {
+    if (this.closed || this.operation !== "saved-pending" || !this.pendingDeclaration) return;
+    if (!this.plugin.index.isSemanticWriteReady(this.explanation.sourcePath, this.explanation.targetPath)) return;
+    const current = this.plugin.index.explainRelationship(this.explanation.sourcePath, this.explanation.targetPath);
+    if (current?.decisions.some(/** A retained old declaration cannot prove publication finished. */ decision => frontmatterDeclarationKey(decision.evidence) === this.pendingDeclaration)) return;
+    this.pendingDeclaration = null;
+    this.setOperation("idle");
+    this.refreshDetails(this.removalOutcome());
+  }
+
+  /** Reacquire pair provenance and replace content in place, retiring earlier source reads and confirmation. */
+  private refreshDetails(statusText = this.statusText): void {
+    if (this.closed) return;
+    this.loadGeneration++;
+    this.confirmation?.close();
+    this.confirmation = null;
+    this.statusText = statusText;
+    const current = this.plugin.index.explainRelationship(this.explanation.sourcePath, this.explanation.targetPath);
+    this.explanation = current ?? { ...this.explanation, decisions: [], resolvedRoles: [], hidden: false, summary: "no-active-evidence" };
+    this.contentEl.empty();
+    this.removalButtons = [];
+    this.mutationNavigationButtons = [];
+    this.renderedDeclarations.clear();
+    this.renderContents();
   }
 
   /** Render the pair’s Connection details, evidence evaluations and provenance actions with localized captions and feedback; the native Modal owns its open/close shell. */
   onOpen(): void {
     this.closed = false;
+    this.releaseIndex = this.plugin.index.subscribe(/** Only a saved-pending operation needs publication-driven refresh. */ () => this.refreshPendingRemoval());
+    this.refreshDetails();
+  }
+
+  /** Build one mounted generation; asynchronous source reads retain its explanation snapshot. */
+  private renderContents(): void {
+    const generation = this.loadGeneration;
+    const explanation = this.explanation;
     const source = this.plugin.index.get(this.explanation.sourcePath);
     const target = this.plugin.index.get(this.explanation.targetPath);
     const sourceTitle = this.displayContext?.sourceTitle ?? (source ? this.plugin.index.titleFor(source) : this.explanation.sourcePath);
@@ -254,6 +392,9 @@ export class RelationshipExplanationModal extends Modal {
 
     this.titleEl.setText(this.plugin.translator("explain.title"));
     this.modalEl.addClass("kplex-explanation-modal", "kplex-edge-properties-modal");
+
+    if (this.statusText) this.contentEl.createDiv({ cls: "kplex-edge-removal-status", text: this.statusText,
+      attr: { role: "status", "aria-live": "polite" } });
 
     const pair = this.contentEl.createDiv({ cls: "kplex-explanation-pair" });
     pair.createEl("strong", { text: sourceTitle, attr: { title: this.explanation.sourcePath } });
@@ -290,17 +431,18 @@ export class RelationshipExplanationModal extends Modal {
       list.createDiv({ cls: "kplex-explanation-empty", text: this.plugin.translator("explain.noEvidence") });
     } else {
       const loading = list.createDiv({ cls: "kplex-explanation-empty", text: this.plugin.translator("explain.loadingSources") });
-      const evidence = this.explanation.decisions.map((decision) => decision.evidence);
-      void this.plugin.relationshipEvidenceSectionsBatch(evidence).then((sectionsByEvidence) => {
-        if (this.closed || !list.isConnected) return;
+      const evidence = explanation.decisions.map(/** Source acquisition uses this generation's exact explanation snapshot. */ (decision) => decision.evidence);
+      void this.plugin.relationshipEvidenceSectionsBatch(evidence).then(/** Render only still-mounted results and combine overlapping physical occurrence views. */ (sectionsByEvidence) => {
+        if (!this.isCurrent(generation) || !list.isConnected) return;
         loading.remove();
         const occurrenceGroups = new Map<string, { section: RelationshipSourceSection; decisions: EvidenceDecision[]; priority: number }>();
+        /** Prefer explicit ontology provenance when generic cache ranges overlap the same occurrence. */
         const priorityFor = (decision: EvidenceDecision): number => {
           if (decision.evidence.sourceKind === "frontmatter-ontology" || decision.evidence.sourceKind === "inline-ontology") return 0;
           if (decision.evidence.sourceKind === "body-url" || decision.evidence.sourceKind === "property-url" || decision.evidence.sourceKind === "date-property") return 1;
           return 2;
         };
-        for (const decision of this.explanation.decisions) {
+        for (const decision of explanation.decisions) {
           const sections = sectionsByEvidence.get(decision.evidence.id) ?? [];
           if (!sections.length) {
             this.renderEvidenceSource(list, decision, sections);
@@ -354,14 +496,14 @@ export class RelationshipExplanationModal extends Modal {
           this.renderSourceOccurrence(list, group.section, group.decisions);
         }
       }).catch(() => {
-        if (this.closed || !list.isConnected) return;
+        if (!this.isCurrent(generation) || !list.isConnected) return;
         loading.setText(this.plugin.translator("explain.sourceLoadFailed"));
       });
     }
 
     const viewWindow = this.contentEl.ownerDocument.defaultView ?? window;
     viewWindow.requestAnimationFrame(() => {
-      if (this.closed) return;
+      if (!this.isCurrent(generation)) return;
       const focus = this.displayContext?.initialFocus === "why" ? why : list;
       focus.scrollIntoView({ block: "nearest" });
     });
@@ -371,6 +513,13 @@ export class RelationshipExplanationModal extends Modal {
   onClose(): void {
     if (this.closed) return;
     this.closed = true;
+    this.loadGeneration++;
+    this.confirmation?.close();
+    this.confirmation = null;
+    this.releaseIndex?.();
+    this.releaseIndex = null;
+    this.removalButtons = [];
+    this.mutationNavigationButtons = [];
     this.onClosed();
     this.onClosed = () => {};
     this.contentEl.empty();

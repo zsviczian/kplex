@@ -13,7 +13,7 @@ function productionMethods() {
   const source=ts.createSourceFile("main.ts",readFileSync(new URL("../src/main.ts",import.meta.url),"utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
   const names=new Set(["prepareRelationshipMutation","publishSavedRelationship","mutateRelationshipMetadata","writeRelationship",
     "addRelationshipOntology","clearFrontmatterRelationship","createRelationToPage","addOntologyToConnection","relinkCentralNeighbour",
-    "unlinkFrontmatterEvidence","referenceForPage","valueContainsTarget","removeTargetFromValue","stripTargetFromScalar",
+    "unlinkFrontmatterEvidence","captureFrontmatterUnlinkExpectation","referenceForPage","referenceMatchesTarget","nonTargetReferenceCounts","valueContainsTarget","removeTargetFromValue","stripTargetFromScalar",
     "normalizedNoteReferenceMatches","inverseOntologyField","inverseRelationshipRole","allOntologyFields","ontologyRoleForField","defaultOntologyField","ontologyFieldsForRole","linkNewRelatedFile","createWebLinkRelatedPage","createPlaceholderRelatedPage","normalizedWebUrl","placeholderPath","configuredDisplayNameField"]), methods=[];
   /** Keep the method body intact and remove only the inaccessible native class wrapper. */
   function visit(node) {
@@ -27,9 +27,11 @@ function productionMethods() {
 }
 const bundle=await contributorBrowserBundle(["src/index/GraphIndex.ts","src/index/GraphBuilder.ts","src/index/IndexSnapshot.ts",
   "src/core/graph/compiler.ts","src/core/graph/evidence.ts","src/core/graph/relations.ts","src/adapters/obsidian/metadataSourceCollector.ts",
-  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts"]);
+  "src/adapters/obsidian/ontologySourceCollector.ts","src/adapters/obsidian/relationshipMetadataWrite.ts","src/application/frontmatterUnlink.ts"]);
 const methods=`const assert=Object.assign((value,message)=>ok(value,message),{equal}),M=sourceModules,normalizeFieldName=M.normalizeFieldName,extractLinksFromValue=M.extractLinksFromValue;
 const writeRelationshipMetadata=M.writeRelationshipMetadata,SavedRelationshipPendingError=M.SavedRelationshipPendingError;
+const relationshipMetadataPayload=M.relationshipMetadataPayload,SOURCE_DECODE_BUDGET_BYTES=M.SOURCE_DECODE_BUDGET_BYTES;
+const frontmatterDeclarationKey=M.frontmatterDeclarationKey,iterateResolvedLinksFromValue=M.iterateResolvedLinksFromValue;
 const normalizePath=x=>x,LinkDirection=M.LinkDirection,Notice=class{constructor(message){window.notices.push(message);}};
 const isUnknownRecord=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);${productionMethods()}`;
 const setup=`window.notices=[];${methods}
@@ -423,6 +425,109 @@ test("unlink rejects a changed canonical declaration and allows same-field paylo
     const payload=structuredClone(f.metadata.get('A.md').frontmatter);
     equal(await c.unlinkFrontmatterEvidence(retired),false,'Retired role/field cannot authorize deletion');
     equal(f.metadata.get('A.md').frontmatter,payload,'Changed canonical declaration remains untouched');return true;
+   }finally{f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
+/** Source selection preserves independent fields, reverse declarations and body evidence over real durable facts. */
+test("selected property removal keeps multi-source and inverse evidence with exact repeated-target semantics", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('selected-property-removal'),c=f.context,i=f.index;
+   try{
+    const file=f.files.get('A.md');f.texts.set(file.path,'[[B]]');f.app.metadataCache.resolvedLinks[file.path]={'B.md':1};
+    await f.app.fileManager.processFrontMatter(file,fm=>{fm.Children=['[[B|first]]','[[B#Heading|again]]','[[Unrelated]]'];fm.Friends=['[[B]]'];fm.Keep={empty:[],blank:{},enabled:false,count:3};});
+    ok(await i.prepareRelationshipPair('A.md','B.md'),'Canonical multi-source pair');
+    const candidate=i.evidenceBetween('A.md','B.md').find(e=>e.sourceKind==='frontmatter-ontology'&&e.declaredByPath==='A.md'&&e.fieldName.toLowerCase()==='children');
+    ok(candidate,'Selected exact field candidate');const approved=c.captureFrontmatterUnlinkExpectation(candidate);ok(approved,'Exact edit expectation');
+    const body=f.texts.get(file.path),inverse=structuredClone(f.metadata.get('B.md').frontmatter),keep=structuredClone(f.metadata.get('A.md').frontmatter.Keep);
+    ok(await c.unlinkFrontmatterEvidence(candidate,approved,()=>true),'Selected save published');
+    equal(f.metadata.get('A.md').frontmatter.Children,['[[Unrelated]]'],'Repeated target references removed only from selected property');
+    equal(f.metadata.get('A.md').frontmatter.Friends,['[[B]]'],'Independent field retained');equal(f.metadata.get('A.md').frontmatter.Keep,keep,'Unrelated empty containers and scalars retained');
+    equal(f.metadata.get('B.md').frontmatter,inverse,'Inverse physical owner untouched');ok(f.texts.get(file.path).startsWith(body),'Body preserved');
+    const explanation=i.explainRelationship('A.md','B.md');ok(!explanation.hidden&&explanation.resolvedRoles.length,'Canonical connection remains');
+    ok(explanation.decisions.some(d=>d.evidence.declaredByPath==='B.md'),'Reverse declaration remains');
+    ok(!explanation.decisions.some(d=>M.frontmatterDeclarationKey(d.evidence)===approved.declarationKey),'Removed property absent from canonical evidence');
+    const inverseCandidate=explanation.decisions.find(d=>d.evidence.sourceKind==='frontmatter-ontology'&&d.evidence.declaredByPath==='B.md').evidence;
+    const originalDirection=i.evidenceBetween('B.md','A.md').find(e=>e.sourceKind==='frontmatter-ontology'&&e.declaredByPath==='B.md').direction;
+    ok(inverseCandidate.direction!==originalDirection,'Genuine virtual inverse direction differs from physical declaration view');
+    const beforeInverseBody=f.texts.get('A.md'),beforeIndependent=structuredClone(f.metadata.get('A.md').frontmatter);
+    ok(await c.unlinkFrontmatterEvidence(inverseCandidate,c.captureFrontmatterUnlinkExpectation(inverseCandidate),()=>true),'Selected inverse-view property removal reauthorizes original direction in approved orientation');
+    equal(f.metadata.get('B.md').frontmatter.Parents,undefined,'Only inverse declaring note property removed');equal(f.metadata.get('A.md').frontmatter,beforeIndependent,'Independent forward declaration preserved');equal(f.texts.get('A.md'),beforeInverseBody,'Forward body untouched');
+    ok(i.explainRelationship('A.md','B.md').resolvedRoles.length,'Forward independent evidence retains visible pair');
+    equal(i.getSemanticPreparationDiagnostics().fullBuilds,0,'No whole-vault semantic rebuild');return true;
+   }finally{f.close();}
+  })()`),true);
+ }finally{await browser.cleanup();}
+});
+
+/** Pre-confirmation identities and exact YAML keys cannot be replaced while native reads are pending. */
+for (const mode of ['source-replaced','target-replaced','closed-before-prepare','closed-during-read','duplicate-key','key-renamed','unsupported']) {
+ test(`selected property authorization refuses ${mode} without persistence`, async () => {
+  const browser=await chromiumHarness(bundle);
+  try {
+   assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+   assert.equal(await browser.evaluate(`(async()=>{
+    const f=await makeRelationshipFixture('selected-refusal-${mode}'),c=f.context,i=f.index,mode=${JSON.stringify(mode)};
+    try{
+     await f.app.fileManager.processFrontMatter(f.files.get('A.md'),fm=>{fm.Children=['[[B]]'];});
+     ok(await i.prepareRelationshipPair('A.md','B.md'),'Selected declaring owner prepared');
+     const candidate=i.evidenceBetween('A.md','B.md').find(e=>e.sourceKind==='frontmatter-ontology'&&e.declaredByPath==='A.md');
+     const approved=c.captureFrontmatterUnlinkExpectation(candidate);ok(approved,'Captured pre-confirmation identity');
+     let saves=0,current=true;const native=f.app.fileManager.processFrontMatter;
+     f.app.fileManager.processFrontMatter=async(file,mutate)=>{
+      if(mode==='closed-during-read')current=false;
+      if(mode==='duplicate-key')f.metadata.get(file.path).frontmatter.children=['[[B]]'];
+      if(mode==='key-renamed'){const fm=f.metadata.get(file.path).frontmatter;fm.children=fm.Children;delete fm.Children;}
+      if(mode==='unsupported')f.metadata.get(file.path).frontmatter.Children='https://other.example/[[B]]';
+      await native(file,mutate);saves++;
+     };
+     if(mode==='source-replaced')f.files.set('A.md',new window.ContributorFile('A.md'));
+     if(mode==='target-replaced')f.files.set('B.md',new window.ContributorFile('B.md'));
+     if(mode==='closed-before-prepare')current=false;
+     const before=f.texts.get('A.md'),result=await c.unlinkFrontmatterEvidence(candidate,approved,()=>current).catch(error=>error);
+     ok(result===false||result instanceof Error,'Unsafe authority rejected');equal(saves,0,'No native save');equal(f.texts.get('A.md'),before,'Disk/body unchanged');
+     equal(c.relationshipWriteCancels.size,0,'Observers released');return true;
+    }finally{f.close();}
+   })()`),true);
+  }finally{await browser.cleanup();}
+ });
+}
+
+/** Actual shared parser resolution governs safe scalar/list transforms, including case-distinct same basenames. */
+test("selected property candidate refuses existing decode budget before preview transformation", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{const f=await makeRelationshipFixture('selected-preview-budget'),c=f.context,i=f.index;try{const file=f.files.get('A.md');await f.app.fileManager.processFrontMatter(file,fm=>{fm.Children=['[[B]]']});ok(await i.prepareRelationshipPair('A.md','B.md'),'Exact selected pair');const evidence=i.evidenceBetween('A.md','B.md').find(e=>e.sourceKind==='frontmatter-ontology'&&e.declaredByPath==='A.md');const transform=c.removeTargetFromValue;let transformed=0;c.removeTargetFromValue=function(...args){transformed++;return transform.apply(this,args)};file.stat.size=M.SOURCE_DECODE_BUDGET_BYTES/4;equal(c.captureFrontmatterUnlinkExpectation(evidence),null,'Existing writer inequality refuses oversized preview');equal(transformed,0,'No unsafe dry-run transformation before admission');file.stat.size=100;ok(c.captureFrontmatterUnlinkExpectation(evidence),'Ordinary supported candidate remains editable');return true}finally{f.close()}})()`),true);
+ }finally{await browser.cleanup();}
+});
+
+/** Actual shared parser resolution governs safe scalar/list transforms, including case-distinct same basenames. */
+test("selected property transforms preserve non-target grammar and refuse mixed lexical tokens", async () => {
+ const browser=await chromiumHarness(bundle);
+ try {
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);await browser.evaluate(setup);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const f=await makeRelationshipFixture('selected-value-grammar'),c=f.context;
+   try{
+    const file=f.files.get('A.md'),target=f.index.get('B.md');
+    equal(c.removeTargetFromValue('[[B|alias]]',file,target),undefined,'Scalar alias');
+    equal(c.removeTargetFromValue('[[B#Heading|alias]]',file,target),undefined,'Heading alias');
+    equal(c.removeTargetFromValue('[[B]], [Other](Unrelated.md); [[B.md]]',file,target),'[Other](Unrelated.md)','Multiple tokens preserve other target');
+    equal(c.removeTargetFromValue({nested:['[[B]]','[[Unrelated]]',false,5,null,[],{}],unchanged:{empty:[]}},file,target),{nested:['[[Unrelated]]',false,5,null,[],{}],unchanged:{empty:[]}},'Nested unrelated values retained');
+    const special=JSON.parse('{"drop":"[[B]]","__proto__":{"keep":"[[Unrelated]]"}}'),safe=c.removeTargetFromValue(special,file,target);
+    ok(Object.hasOwn(safe,'__proto__')&&Object.getPrototypeOf(safe)===Object.prototype,'YAML prototype-spelled key remains an own data property');
+    equal(safe,JSON.parse('{"__proto__":{"keep":"[[Unrelated]]"}}'),'Unrelated prototype-spelled metadata preserved');
+    const one=f.add('one/Same.md'),two=f.add('two/Same.md'),lower=f.add('one/same.md');
+    const resolve=f.app.metadataCache.getFirstLinkpathDest;f.app.metadataCache.getFirstLinkpathDest=(literal,host)=>literal==='Same'?one:resolve(literal,host);
+    const page={path:two.path,file:two,url:null};equal(c.removeTargetFromValue(['[[Same]]','[[two/Same]]','[[one/same]]'],file,page),['[[Same]]','[[one/same]]'],'Canonical resolver preserves basename/case-distinct files');
+    const url=f.index.get('https://Obsidian.md');equal(c.removeTargetFromValue(['[Web](https://Obsidian.md)','https://obsidian.md','https://obsidian.md/Other'],file,url),['https://obsidian.md/Other'],'Canonical URL host preserved and distinct paths retained');
+    let refused=false;try{c.removeTargetFromValue('https://other.example/[[B]]',file,target);}catch{refused=true;}ok(refused,'Mixed token must fail closed');
+    return true;
    }finally{f.close();}
   })()`),true);
  }finally{await browser.cleanup();}

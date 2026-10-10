@@ -2,6 +2,7 @@
  * Serial exact-build native action/composer regression driver for an explicit disposable vault.
  * Owns one fixture folder, temporary wrappers and configuration restoration. Synthetic DOM keys
  * establish host delivery/control behavior, not trusted OS input or physical-device acceptance.
+ * Native settings assert row-local scope and separately retained command/global-key state.
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -621,7 +622,9 @@ function nativeActionProbe(publishableActions, nativeOSKeys, diagnosticH13Only, 
     await scenario("H29-laptop-defaults-selection-sidecar-and-read-only-help", async () => {
       check(!app.setting.isOpen, "Settings already open before laptop-default fixture");
       const before = JSON.parse(JSON.stringify(p.settings.actionPreferences)), fresh = JSON.parse(JSON.stringify(before));
-      for (const id of ["search.focus", "keyboard.help", "node.rename", "graph.focus", "editor.focus", "selection.center", "node.open"]) delete fresh.localBindings[id];
+      // This saved test vault assigns Option+Slash to Sidecar while Search uses F4. Restoring the
+      // laptop Search default alone creates an intentional compiler conflict, not a focus failure.
+      for (const id of ["search.focus", "keyboard.help", "node.rename", "graph.focus", "editor.focus", "selection.center", "node.open", "view.sidecar.toggle"]) delete fresh.localBindings[id];
       fresh.characterShortcutsEnabled = true;
       fresh.crossSectionAtBoundary = true; // Fresh-vault policy; the saved upgrade fixture intentionally disables crossing.
       const root = () => c.hostLeaf.view.containerEl.querySelector(".kplex-app");
@@ -808,7 +811,7 @@ function nativeActionProbe(publishableActions, nativeOSKeys, diagnosticH13Only, 
       const rows = () => [...group.querySelectorAll(".kplex-action-setting")];
       check(group.querySelector('[data-kplex-action-search]')?.getAttribute("aria-label"), "Native manager search lacks accessible name");
       check(rows().length === catalogActionIds.length && catalogActionIds.every(id => rows().some(row => row.dataset.actionId === id)), "Native Settings lost globally searchable catalog rows");
-      check(group.querySelectorAll("button[data-kplex-action-filter]").length === 4, "Native manager filter pills unavailable");
+      check(group.querySelectorAll("button[data-kplex-action-filter]").length === 5, "Native manager filter pills unavailable");
       // Native ToggleComponent.setValue can invoke onChange while rendering; opening a read-only
       // page must neither start persistence nor manufacture successful-save feedback.
       let initialRenderFramesReady = false;
@@ -816,6 +819,31 @@ function nativeActionProbe(publishableActions, nativeOSKeys, diagnosticH13Only, 
       await until(() => initialRenderFramesReady, "Initial native Settings render frames did not settle");
       check(JSON.stringify(p.settings.actionPreferences) === preferencesBeforeSettingsOpen, "Initial native Settings render changed committed action preferences");
       check(![...group.querySelectorAll(".kplex-action-status")].some(status => [p.translator("actions.saving"), p.translator("actions.saved")].includes(status.textContent.trim())), "Initial native Settings render initiated an unsolicited save");
+      check(rows().filter(row => !row.dataset.actionId.startsWith("composer.")).every(row => row.querySelector(".kplex-action-scope")?.textContent === p.translator("actions.localScopeHint") && row.querySelector(".setting-command-hotkeys")?.getAttribute("aria-label") === p.translator("actions.localShortcuts")), "Local shortcut scope is missing from individual native rows");
+      const publishedChild = group.querySelector('[data-action-id="relationship.create-center.child"]');
+      check(publishedChild.querySelector(".kplex-action-publication-state")?.textContent.includes(p.translator("actions.actualPublished")) && publishedChild.querySelector(".kplex-action-publication-state")?.textContent.includes("F9"), "Actual child registration and separately assigned native shortcut are not visible");
+      const localBeforePublication = JSON.stringify(p.settings.actionPreferences.localBindings);
+      const childPublication = () => publishedChild.querySelector('[data-kplex-action-control="publication"]');
+      /** Reveal the deep catalog row and reacquire its rebuilt control before native input. */
+      const clickChildPublication = async () => {
+        childPublication().scrollIntoView({ block: "center" });
+        let revealed = false;
+        settingsDocument.defaultView.requestAnimationFrame(() => settingsDocument.defaultView.requestAnimationFrame(() => { revealed = true; }));
+        await until(() => revealed, "Child publication row did not finish scrolling");
+        await trustedClick(childPublication());
+      };
+      await clickChildPublication();
+      await until(() => !p.isActionPublished("relationship.create-center.child") && publishedChild.querySelector(".kplex-action-publication-state")?.textContent.includes(p.translator("actions.savedAssignmentUnavailable")), "Unpublished command did not retain its separately saved native key status");
+      check(JSON.stringify(p.settings.actionPreferences.localBindings) === localBeforePublication && app.hotkeyManager.getHotkeys("k-plex:kplex-add-child")?.some(binding => binding.key === "F9"), "Unpublication changed local or native shortcut assignments");
+      check(childPublication().getAttribute("aria-label") === p.translator("actions.publishCommand") && !childPublication().hasAttribute("title"), "Publication help does not explicitly distinguish global key assignment or duplicates tooltips");
+      await clickChildPublication();
+      await until(() => p.isActionPublished("relationship.create-center.child") && JSON.stringify(p.settings.actionPreferences.localBindings) === localBeforePublication, "Native publication fixture failed to restore registration without changing local keys");
+      // The two explicit publication clicks retain an explicit true override even when the
+      // entry started with an implicit default. Verify that single expected mutation first.
+      const expectedAfterPublication = JSON.parse(preferencesBeforeSettingsOpen);
+      expectedAfterPublication.publishedCommands["relationship.create-center.child"] = true;
+      check(JSON.stringify(p.settings.actionPreferences) === JSON.stringify(expectedAfterPublication), "Native publication clicks changed unrelated action preferences");
+      const preferencesBeforeWorkflowToggle = JSON.stringify(p.settings.actionPreferences);
       const originalCharacterShortcuts = p.settings.actionPreferences.characterShortcutsEnabled;
       const workflowToggle = () => group.querySelector('[data-action-preference="characterShortcutsEnabled"] .checkbox-container');
       const workflowSaved = expected => p.settings.actionPreferences.characterShortcutsEnabled === expected
@@ -826,7 +854,7 @@ function nativeActionProbe(publishableActions, nativeOSKeys, diagnosticH13Only, 
       workflowToggle().scrollIntoView({block:"center"}); await trustedClick(workflowToggle());
       await until(() => workflowSaved(!originalCharacterShortcuts), "Trusted native workflow toggle did not save its inverse value and visual state immediately");
       await trustedClick(workflowToggle());
-      await until(() => workflowSaved(originalCharacterShortcuts) && JSON.stringify(p.settings.actionPreferences) === preferencesBeforeSettingsOpen, "Trusted native workflow toggle did not restore its original value and complete preferences");
+      await until(() => workflowSaved(originalCharacterShortcuts) && JSON.stringify(p.settings.actionPreferences) === preferencesBeforeWorkflowToggle, "Trusted native workflow toggle did not restore its original value and complete preferences");
       const livePreferences = JSON.stringify(p.settings.actionPreferences);
       const configureRow = group.querySelector('[data-action-id="actions.configure"]');
       check(configureRow?.querySelector("span.setting-hotkey.mod-empty")?.textContent === p.translator("actions.blank"), "Unassigned action does not use the localized native Blank hotkey chip");
@@ -841,7 +869,10 @@ function nativeActionProbe(publishableActions, nativeOSKeys, diagnosticH13Only, 
       await trustedClick(hotkeySearch);
       await until(() => captureArea() === settingsDocument.activeElement, "Hotkey-search recorder did not focus in its exact Settings document");
       await trustedKey("F1", [], settingsOwner, settingsDocument);
-      await until(() => !captureArea() && group.querySelector('[data-kplex-action-search]').value === "F1", "Hotkey-search recorder did not return the actual F1 chord");
+      // Recording defaults to physical matching. Unlike common letter/punctuation keycaps,
+      // an F-key preserves the localized physical-position qualifier in its display label.
+      const recordedF1Display = p.translator("actions.physicalBinding", { binding: "F1" });
+      await until(() => !captureArea() && group.querySelector('[data-kplex-action-search]').value === recordedF1Display, "Hotkey-search recorder did not return the actual physical F1 chord");
       const f1Matches = () => rows().filter(row => !row.classList.contains("kplex-action-filtered")).map(row => row.dataset.actionId);
       await until(() => JSON.stringify(f1Matches()) === JSON.stringify(f1Rows), "Hotkey search did not filter exactly the actual F1-bound rows");
       check(JSON.stringify(p.settings.actionPreferences) === livePreferences, "Hotkey search changed live preferences");
@@ -968,6 +999,7 @@ function nativeActionProbe(publishableActions, nativeOSKeys, diagnosticH13Only, 
       group = app.setting.getCurrentPageEl().querySelector(".kplex-action-settings"); c.ownedSettings = group;
       check(group && group.querySelector('[data-kplex-action-search]').value === "", "Native global result inherited the previous local filter");
       check(JSON.stringify(p.settings.actionPreferences) === livePreferences, "Native global Settings search changed live preferences");
+      if (!lastAction.startsWith("composer.")) check(group.querySelector('[data-action-id="'+lastAction+'"] .kplex-action-scope')?.textContent === p.translator("actions.localScopeHint"), "Native global-search destination lost its row-local shortcut scope");
       c.integratedSettingsProof = { gearMainRoot: true, initialRenderReadOnly: true, workflowToggleImmediateSave: true, nativeHotkeyChipMarkup: true, globalLastAction: lastAction, globalResultRevealed: true, globalDestinationHighlighted: true, f1Matches: f1Rows, hotkeySearchReadOnly: true, optionHotkeySearch:true };
       input(group.querySelector('[data-kplex-action-search]'), p.translator("actions.pin.toggle"));
       await until(() => group.querySelector('[data-action-id="pin.toggle"]')?.getClientRects().length, "Manager localized-label search did not find pin action");

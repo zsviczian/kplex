@@ -1,6 +1,7 @@
 /**
  * Tests legacy data migration through the real K-Plex settings/style implementations with a
- * narrow Obsidian boundary double. Temporary bundles are removed independently of test outcomes.
+ * narrow Obsidian boundary double, including the stable manifest ID used by native command lookup.
+ * Temporary bundles are removed independently of test outcomes.
  */
 import assert from "node:assert/strict";
 import { build } from "esbuild";
@@ -115,7 +116,7 @@ test("indexing acquisition settings default conservatively, validate saved value
 
 test("background throttle settings use declarative localized controls and save without reconstruction", async () => {
   const saves = [];
-  const plugin = { settings: structuredClone(defaults), saveSettings: async (...args) => { saves.push(args); },
+  const plugin = { manifest: { id: "k-plex" }, settings: structuredClone(defaults), saveSettings: async (...args) => { saves.push(args); },
     index: { unassignedOntologyFields: () => [], allPages: () => [] } };
   plugin.translator = createObsidianTranslator();
   const tab = new KplexSettingTab({}, plugin);
@@ -133,7 +134,7 @@ test("background throttle settings use declarative localized controls and save w
   const faster = migrateAndMergeSettings({ indexingThrottle: "faster" });
   assert.deepEqual(classifySettingsChange(before, captureSettingsPolicy(faster)), {
     semanticInvalidation: false, presentationFacets: false, searchTerms: false,
-    nodeVisuals: false, render: false, changedKeys: [],
+    nodeVisuals: false, render: false, typographyOnly: false, changedKeys: [],
   });
   assert.equal(encodeIndexSettingsSignature(faster), encodeIndexSettingsSignature(defaults));
   assert.equal(importExcaliBrainGraphSettings({ ...fixture, indexingThrottle: "balanced" }, faster).indexingThrottle, "faster");
@@ -144,6 +145,7 @@ test("indexing settings persist without rebuilding and cache estimation is lazy 
   let completeEstimate;
   const saves = [];
   const plugin = {
+    manifest: { id: "k-plex" },
     settings: structuredClone(defaults),
     saveSettings: async (...args) => { saves.push(args); },
     index: {
@@ -349,7 +351,7 @@ test("every imported tag and relationship override reaches the production style 
 test("settings manager exposes imported tag styles without converting their matching semantics", () => {
   const settings = structuredClone(migrated);
   settings.noteTypeStyles = { "#person": { icon: "user" } };
-  const plugin = { settings, index: { unassignedOntologyFields: () => [], allPages: () => [] } };
+  const plugin = { manifest: { id: "k-plex" }, settings, index: { unassignedOntologyFields: () => [], allPages: () => [] } };
   plugin.translator = createObsidianTranslator();
   const tab = new KplexSettingTab({}, plugin);
   const entries = tab.nodeStyleEntries();

@@ -237,6 +237,8 @@ function nativeWorkflowProbe(runToken) {
     await scenario("H11-multiple-evidence-and-inferred-unlink-storage", async () => {
       const childField = p.defaultOntologyField("child"), friendField = p.defaultOntologyField("left"); check(childField !== friendField, "Evidence fixture requires distinct child/friend ontology fields");
       const target = await create("Evidence-Target"), multi = await create("Evidence-Multiple", `---\n${JSON.stringify(childField)}: ["[[${target.path}]]"]\n${JSON.stringify(friendField)}: ["[[${target.path}]]"]\n---\n${childField}:: [[${target.path}]]\n`);
+      const inverseField = p.defaultOntologyField("parent");
+      await app.fileManager.processFrontMatter(target, frontmatter => { frontmatter[inverseField] = [`[[${multi.path}]]`]; });
       const inferred = await create("Evidence-Inferred", `[[${target.path}]]\n`);
       for (const origin of [multi, inferred]) {
         await p.index.prepareRelationshipPair(origin.path, target.path); await center(origin.path); focus(c.host);
@@ -246,7 +248,34 @@ function nativeWorkflowProbe(runToken) {
         if (origin === multi) check(details.textContent.includes(childField) && details.textContent.includes(friendField), "Multiple evidence fields were flattened");
         await close(details); const outcome = await dispatch("relationship.unlink", pair); check(outcome.status === "opened", "Unsafe removal did not open source inspection");
         await close(await modal(".kplex-explanation-modal")); check(c.unlinkWrites === count && await app.vault.read(origin) === before, "Ambiguous/inferred removal fabricated a native mutation");
-        if (origin === multi) { const moved = await dispatch("relationship.relink", pair); check(moved.status === "opened", "Multiple-source relink unavailable"); await close(await modal(".kplex-explanation-modal")); }
+        if (origin === multi) {
+          const moved = await dispatch("relationship.relink", pair); check(moved.status === "opened", "Multiple-source relink unavailable"); await close(await modal(".kplex-explanation-modal"));
+          const inverseBefore = await app.vault.read(target), preservedBody = before.slice(before.indexOf("---", 3) + 3).trim();
+          await dispatch("relationship.details", pair); const selected = await modal(".kplex-explanation-modal");
+          await until(() => selected.querySelector(`[data-kplex-remove-field="${CSS.escape(childField)}"]`), "Source-selected removal action missing");
+          selected.querySelector(`[data-kplex-remove-field="${CSS.escape(childField)}"]`).click();
+          const cancelled = await modal(".kplex-remove-relationship-source-modal");
+          check(cancelled.textContent.includes(multi.path) && cancelled.textContent.includes(childField) && cancelled.textContent.includes(target.path), "Confirmation omitted exact source coordinates");
+          await close(cancelled); check(c.unlinkWrites === count && await app.vault.read(origin) === before, "Cancelling source removal wrote metadata");
+          selected.querySelector(`[data-kplex-remove-field="${CSS.escape(childField)}"]`).click();
+          const confirmed = await modal(".kplex-remove-relationship-source-modal"); confirmed.querySelector("[data-kplex-confirm-remove]").click();
+          await until(() => !selected.querySelector(`[data-kplex-remove-field="${CSS.escape(childField)}"]`) && selected.textContent.includes(p.translator("explain.sourceRemovedRemaining")), "Source-specific canonical refresh did not complete", 30000);
+          const metadata = app.metadataCache.getFileCache(origin)?.frontmatter ?? {};
+          check(!JSON.stringify(metadata[childField] ?? []).includes(target.path), "Selected property was retained");
+          check(JSON.stringify(metadata[friendField]).includes(target.path), "Independent ontology field was removed");
+          check((await app.vault.read(origin)).includes(preservedBody) && await app.vault.read(target) === inverseBefore, "Body or inverse note evidence changed");
+          check(c.unlinkWrites === count + 1, "Selected removal repeated the destructive write");
+          const editorBefore = JSON.stringify(c.editor.getViewState()), centerBefore = p.settings.lastActivePath;
+          await p.openSidecar(c.host, p.index.get(origin.path));
+          const ownedSidecar = p.sidecarLeaves.get(c.host); check(ownedSidecar, "Owned Sidecar did not open");
+          if (!c.leaves.includes(ownedSidecar)) c.leaves.push(ownedSidecar);
+          const inverseCard = selected.querySelector(`[data-kplex-remove-field="${CSS.escape(inverseField)}"]`)?.closest(".kplex-edge-source-card");
+          check(inverseCard, "Preserved inverse source card missing");
+          inverseCard.querySelector(`button[aria-label="${CSS.escape(p.translator("explain.goToSource"))}"]`).click();
+          await until(() => !selected.isConnected && ownedSidecar.view.file === target, "Go to source did not reuse its owning Sidecar");
+          check(p.sidecarLeaves.get(c.host) === ownedSidecar && JSON.stringify(c.editor.getViewState()) === editorBefore && p.settings.lastActivePath === centerBefore, "Source navigation altered an unrelated leaf or Plex center");
+          await p.closeSidecar(c.host, false);
+        } else check(!details.querySelector("[data-kplex-remove-field]"), "Inferred source exposed a destructive action");
       }
       const explicit = await create("Evidence-Explicit", `---\n${JSON.stringify(childField)}: ["[[${target.path}]]"]\n---\n`);
       await p.index.prepareRelationshipPair(explicit.path, target.path); await center(explicit.path); focus(c.host);

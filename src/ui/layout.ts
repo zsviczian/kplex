@@ -1,7 +1,8 @@
 /**
  * Host-bound Plex geometry: arrange semantic neighborhoods into presentation zones.
  * Area resize bounds exist for empty groups independently of overflow viewports;
- * Horizontal density owns widths/column spacing, vertical density owns row spacing; compact view
+ * Horizontal density owns area/column spacing, vertical density owns row spacing. Label truncation
+ * remains the explicit style character budget at every density; compact view
  * and minimum-link targets share the same geometry policy across normal/expanded/section scenes.
  * Parent width owns lateral x anchors; density three touches area edges and four permits bounded
  * margin overlap, while child-column/row controls cannot push those anchors. Optional deferred counts
@@ -95,14 +96,10 @@ export function gateDiameter(style: NodeStyle): number {
   return Math.max(5, (style.gateRadius ?? 5) * 1.05);
 }
 
-/** Horizontal density shortens labels without changing fixed thought padding or row height. */
-export function effectiveLabelLimit(settings: KplexSettings, configured = 30, center = false): number {
-  // Compactness changes only how much text is shown and how tightly thoughts are spaced.
-  // Node interior padding remains constant in every view.
-  const density = clamp(horizontalDensity(settings) / 1.5, 0.5, 2);
-  const base = Math.max(8, configured);
-  const scaled = Math.round(base / density);
-  return Math.max(center ? 18 : 8, scaled + (center ? 8 : 0));
+/** Apply the configured character budget independently of horizontal/vertical density. Explicit imported styles retain larger limits. */
+export function effectiveLabelLimit(configured = 30, center = false): number {
+  const base = Math.round(Math.max(8, configured));
+  return Math.max(center ? 18 : 8, base + (center ? 8 : 0));
 }
 
 /** Preserve historical role/style proportions while applying the user's base label size in pixels. */
@@ -111,7 +108,7 @@ export function nodeLabelFontSize(fontSize: number, center: boolean, baseFontSiz
   return historical * clamp(Number.isFinite(baseFontSize) ? baseFontSize : 12.4, 8, 28) / 12.4;
 }
 
-/** Measure a fixed-padding pill from the horizontally bounded label and optional two-line rows. */
+/** Measure a fixed-padding pill from the bounded label; center estimates use its larger rendered font, independently of density. */
 function nodeSize(
   label: string,
   fontSize: number,
@@ -121,11 +118,15 @@ function nodeSize(
   configuredMaxWidth?: number,
 ): { width: number; height: number } {
   const fontScale = (settings.baseFontSize ?? 12.4) / 12.4;
-  const visibleLength = Math.min(label.length, effectiveLabelLimit(settings, configuredMax, center));
+  const visibleLength = Math.min(label.length, effectiveLabelLimit(configuredMax, center));
   const minWidth = center ? 180 : 112;
   const defaultMaxWidth = center ? 370 : 286;
   const maxWidth = Math.max(minWidth, configuredMaxWidth ?? defaultMaxWidth);
-  const width = clamp(70 + visibleLength * Math.max(4.8, fontSize * fontScale * 0.29), minWidth, maxWidth);
+  // Regular pills keep their established geometry. The center uses a larger, heavier rendered
+  // font, so the regular raw-style coefficient underestimates even short labels and CSS clips
+  // text before either configured limit is reached. Estimate its advance from that actual font.
+  const characterWidth = center ? nodeLabelFontSize(fontSize, true, settings.baseFontSize) * 0.55 : fontSize * fontScale * 0.29;
+  const width = clamp(70 + visibleLength * Math.max(4.8, characterWidth), minWidth, maxWidth);
 
   // Two-line mode reserves the full two line boxes plus the node's vertical padding. Keep the
   // compact single-line defaults unchanged when wrapping is disabled.

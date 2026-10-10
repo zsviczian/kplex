@@ -278,3 +278,17 @@ remain unproven; no touch/UI behavior changed and no popout rendering boundary c
 Final whitespace and diagnostic cleanup checks pass. Temporary probe prefixes are absent from
 both `src/` and the actual `dist/main.js`;319-input freeze check reports no changes. All owned
 verification/native processes have exited and the sleep inhibitor exited after explicit cleanup.
+
+
+## Published Linux acceptance
+
+PR #105 is merged as `595a625c7fa7e3d7523642da867de5367fdbb6d4` at20:54:41 UTC after
+[Ubuntu run37986897203](https://github.com/zsviczian/kplex/actions/runs/37986897203) passes on
+implementation commit `13ea37b7ac3796e219b336cb7ed62a11725d0967`. All full suite counts match
+local verification: architecture7/core88/aggregate496/UI20/portable333/browser417, zero failures/
+skips, plus installed scanner/types and production build. Both prior PR104 Linux failures pass.
+The unchanged20,015-owner case takes738.738 s (deadline840 s); cached publication413.898 s,
+with exact replay/combined reservations405,146,310 /685,201,826 bytes and all original semantic/
+no-IO/cancellation assertions. Earlier pending-Linux statements describe their checkpoint time.
+Detailed CI receipt is linked in [PR105](https://github.com/zsviczian/kplex/pull/105#issuecomment-6089091257).
+Current main is fetched/fast-forwarded to the merge before starting the separately authorized UX package.

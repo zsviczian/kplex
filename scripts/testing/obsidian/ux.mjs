@@ -17,9 +17,12 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..")
 const vaultName = process.env.KPLEX_TEST_VAULT_NAME;
 const target = validateTarget({ vaultName, vaultPath: process.env.KPLEX_TEST_VAULT_PATH, configDir: process.env.KPLEX_TEST_CONFIG_DIR });
 const reportDir = process.env.KPLEX_HOST_REPORT_DIR;
+const layoutOnly = process.env.KPLEX_UX_LAYOUT_ONLY === "true";
+assert(!(layoutOnly && process.env.KPLEX_UX_DEVICE_ONLY === "true"), "Select layout-only or device-only verification separately");
 assert(reportDir, "Set KPLEX_HOST_REPORT_DIR explicitly");
 mkdirSync(reportDir, { recursive: true });
 const report = { status: "running", startedAt: new Date().toISOString(), scenarios: [], target: vaultName, artifacts: {}, limits: ["Desktop Electron functional tests; no physical iPad trackpad or mobile WebView acceptance", "Trusted native pointer input for resize and gate/history; File Explorer drops use the real host payload and DOM handler", "Browser guest creation, sizing and teardown are asserted; remote login, video playback and sites blocking mobile iframes require separate acceptance", "Area settings menu uses Obsidian's public DOM mode; OS-native menu selection is not asserted"] };
+report.scope = layoutOnly ? "layout-and-typography-only" : process.env.KPLEX_UX_DEVICE_ONLY === "true" ? "device-only" : "full";
 const dataPath = join(target.pluginDir, "data.json");
 const originalData = readFileSync(dataPath);
 const enabledPath = join(target.config, "community-plugins.json");
@@ -128,17 +131,47 @@ const nativeController = `(()=>{
   c.until=async(fn,message,timeout=180000)=>{const end=Date.now()+timeout;while(!fn()){if(Date.now()>end)throw new Error(message);await c.wait(50)}};
   c.root=()=>c.leaf.view.contentEl.querySelector(".kplex-app");
   c.plex=()=>c.root().querySelector(".kplex-plex");
-  // Optional global alias repair is separate from authoritative graph/current-view readiness.
-  c.primaryReady=()=>p.index.isFullSnapshotHydrated()&&!p.index.hasPendingSnapshotHydration()&&!p.index.hasPendingSemanticPreparation()&&!p.index.building;
+  // Constructor-selected on-demand mode intentionally never grants global source inventory or
+  // full-snapshot authority. Keep the selected distinct pair's actual production authority;
+  // eager mode retains its full-snapshot prerequisite. Neither a timer nor a graph flag grants it.
+  c.authorityTargets=new Map();
+  c.primaryReady=()=>{const center=c.root()?.querySelector(".kplex-role-center")?.dataset.kplexPath||p.settings.lastActivePath,target=c.authorityTargets.get(center);
+    return !p.index.hasPendingSnapshotHydration()&&!p.index.hasPendingSemanticPreparation()&&!p.index.building&&
+      (p.index.isOnDemandMode()?Boolean(center&&target&&p.index.isSemanticWriteReady(center,target)&&p.getIndexStatus().upToDate):p.index.isFullSnapshotHydrated())};
+  // Prepare only explicitly selected physical endpoints, using the same pair owner as editing.
+  // Pair authority is deliberately narrower than the global dependency-inventory certificate.
+  c.prepareAuthority=async(center,target)=>{c.check(center!==target,"Readiness requires distinct selected endpoints");
+    for(const path of [center,target]){const file=app.vault.getFileByPath(path);c.check(file?.extension==="md","Readiness endpoint is not physical Markdown: "+path);if(!p.index.get(path))p.index.insertCreatedFile(file)}
+    await c.until(()=>!p.index.hasPendingSnapshotHydration()&&!p.index.hasPendingSemanticPreparation()&&!p.index.building,"Selected endpoint graph tasks did not settle");
+    c.check(await p.index.prepareRelationshipPair(center,target),"Selected source/pair authority did not prepare: "+center+" / "+target);
+    c.check(p.index.isSemanticWriteReady(center,target),"Selected pair is not current after preparation");c.authorityTargets.set(center,target)};
   c.center=()=>c.root().querySelector(".kplex-role-center")?.dataset.kplexPath||p.settings.lastActivePath;
   // Hidden retained controls can share a localized label with the current editor toolbar.
   c.button=(key)=>Array.from(c.root().querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator(key)&&b.getBoundingClientRect().width>0&&b.getBoundingClientRect().height>0);
-  c.key=(target,key,extra={})=>target.dispatchEvent(new KeyboardEvent("keydown",{key,bubbles:true,cancelable:true,...extra}));
+  // Use the owning Electron renderer so native Obsidian Scope receives real key/code values.
+  // Raw keyDown needs the normal char stage for an unconsumed native Enter/editing gesture.
+  c.key=async(target,key,extra={})=>{const doc=target.ownerDocument,view=doc.defaultView,native=view.require("@electron/remote").getCurrentWindow();
+    const modifiers=[];if(extra.metaKey)modifiers.push("meta");if(extra.ctrlKey)modifiers.push("control");if(extra.altKey)modifiers.push("alt");if(extra.shiftKey)modifiers.push("shift");
+    const keyCode=({ArrowDown:"Down",ArrowUp:"Up",ArrowLeft:"Left",ArrowRight:"Right"})[key]??key;
+    const expectedCode=({f:"KeyF",F4:"F4",Enter:"Enter",Escape:"Escape",ArrowDown:"ArrowDown",ArrowUp:"ArrowUp",ArrowLeft:"ArrowLeft",ArrowRight:"ArrowRight"})[key];c.check(expectedCode,"Native UX key lacks an explicit physical receipt expectation");
+    native.focus();native.webContents.focus();target.focus({preventScroll:true});
+    await c.until(()=>doc.activeElement===target&&doc.hasFocus()&&native.isFocused(),"Native shortcut target did not own focus",5000);
+    let observedEvent;
+    const observe=event=>{if(event.target===target&&event.key.toLowerCase()===key.toLowerCase()&&event.metaKey===Boolean(extra.metaKey)&&event.ctrlKey===Boolean(extra.ctrlKey)&&event.altKey===Boolean(extra.altKey)&&event.shiftKey===Boolean(extra.shiftKey))observedEvent=event};
+    view.addEventListener("keydown",observe,true);
+    try{native.webContents.sendInputEvent({type:"keyDown",keyCode,modifiers});await c.until(()=>observedEvent,"Native shortcut keydown receipt missing",5000);
+      c.check(observedEvent.isTrusted&&observedEvent.code===expectedCode,"Shortcut lacked its exact trusted physical key receipt");
+      c.lastKey={key:observedEvent.key,code:observedEvent.code,trusted:observedEvent.isTrusted,meta:observedEvent.metaKey,ctrl:observedEvent.ctrlKey,alt:observedEvent.altKey,shift:observedEvent.shiftKey,targetClass:target.className,defaultPrevented:observedEvent.defaultPrevented};
+      if(!observedEvent.defaultPrevented&&!extra.metaKey&&!extra.ctrlKey&&!extra.altKey&&(key==="Enter"||key.length===1))native.webContents.sendInputEvent({type:"char",keyCode:key==="Enter"?"\\r":key,modifiers});
+      await c.wait(25);
+    }finally{native.webContents.sendInputEvent({type:"keyUp",keyCode,modifiers});view.removeEventListener("keydown",observe,true)}};
   c.input=(input,text)=>{input.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,text);input.dispatchEvent(new Event("input",{bubbles:true}))};
   // Navigation settings update before the React scene. Wait for the actual destination so
   // trusted pointer input cannot race the previous center's navigation-reset effect.
-  c.go=async(path)=>{p.notifyNavigation(path);await c.until(()=>p.settings.lastActivePath===path&&c.root().querySelector(".kplex-role-center")?.dataset.kplexPath===path,"Center did not render "+path);await c.frames()};
-  c.openFind=async()=>{app.workspace.setActiveLeaf(c.leaf,{focus:true});c.root().focus();c.key(c.root(),"f",{metaKey:true});await c.until(()=>c.root().querySelector(".kplex-find-input")===document.activeElement,"Ctrl/Cmd+F focus failed");return document.activeElement};
+  c.go=async(requestedPath)=>{const target=p.index.get(requestedPath);c.check(target,"Navigation fixture endpoint is unavailable: "+requestedPath);const path=target.path;
+    p.notifyNavigation(path);await c.until(()=>p.settings.lastActivePath===path&&c.root().querySelector(".kplex-role-center")?.dataset.kplexPath===path,"Center did not render "+path);await c.frames();
+    if(p.index.isOnDemandMode()&&(path===c.hub||path===c.labelCenter))await c.prepareAuthority(path,c.existing)};
+  c.openFind=async()=>{app.workspace.setActiveLeaf(c.leaf,{focus:true});c.root().focus();await c.key(c.root(),"f",{metaKey:true});await c.until(()=>c.root().querySelector(".kplex-find-input")===document.activeElement,"Ctrl/Cmd+F focus failed");return document.activeElement};
   c.editor=async(enabled)=>{if(Boolean(p.settings.embedCentralNode)!==enabled){c.button(enabled?"app.useCentralNodeEditor":"app.useNormalCentralNode").click();await c.frames()}
     await c.until(()=>Boolean(c.root().querySelector(".kplex-central-editor-content"))===enabled,"Editor toggle did not render")};
   c.click=async(el)=>{const r=el.getBoundingClientRect();const x=Math.round(r.x+r.width/2),y=Math.round(r.y+r.height/2);
@@ -162,13 +195,15 @@ const setup = `(()=>{const c=window.${controller};(async()=>{
     const name=role+"-"+String(i).padStart(2,"0")+".md";groups[role].push(c.folder+"/"+name);
     await create(name,i===15?"---\\naliases: [Hidden overflow alias]\\n---\\n":"# "+name);
   }
-  c.hub=c.folder+"/Hub.md";c.unrelated=c.folder+"/Unrelated.txt";c.canvas=c.folder+"/Drawing.canvas";
+  c.hub=c.folder+"/Hub.md";c.unrelated=c.folder+"-Unrelated.txt";c.canvas=c.folder+"/Drawing.canvas";
   c.tall=c.folder+"/Tall.png";c.wide=c.folder+"/Wide.png";
   c.existing=c.folder+"/Existing-target.md";await create("Existing-target.md","# Existing composer target");
   c.historyTargets={};for(const role of ["parent","child","left","right"]){const name="History-"+role+".md";c.historyTargets[role]=c.folder+"/"+name;await create(name,"# History target "+role)}
   const yaml=Object.entries(groups).map(([role,paths])=>role+":\\n"+paths.map(path=>"  - '[["+path+"]]'").join("\\n")).join("\\n");
   await create("Hub.md","---\\n"+yaml+"\\n---\\n# Hub\\n");
-  await create("Unrelated.txt","Unrelated whole-vault file");
+  // A same-folder attachment legitimately appears in sibling/folder-descendant projections.
+  // Keep the Vault-only candidate outside the hub's physical folder without hiding those features.
+  const unrelated=await app.vault.create(c.unrelated,"Unrelated whole-vault file");c.owned.push(unrelated.path);
   await create("Grandchild.md","# Expanded descendant");
   await create("URLs.md","[First Help alias](https://help.obsidian.md)\\n[Second Help alias](https://help.obsidian.md)\\n[User domain](https://Obsidian.md)\\n[Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)\\n[Shorts](https://www.youtube.com/shorts/dQw4w9WgXcQ)\\n[Vimeo](https://vimeo.com/76979871)");
   const longTitle="Meaningful connected knowledge and long book titles ".repeat(3);
@@ -198,31 +233,82 @@ const setup = `(()=>{const c=window.${controller};(async()=>{
   // Requested scopes materialize its current canonical relationships without forcing grammar
   // repair across the unrelated scale vault; every temporary demand is released in cleanup.
   await c.p.rebuildIndex(false,false,"ux-fixture-quiescence");
-  const legacyAliasesPending=c.p.index.hasPendingSearchVocabulary();
-  if(legacyAliasesPending){
+  const legacyAliasesPending=c.p.index.hasPendingSearchVocabulary(),localFixture=c.p.index.isOnDemandMode();
+  if(localFixture||legacyAliasesPending){
     const ownedMarkdown=c.owned.filter(path=>path.endsWith(".md"));
     await c.p.index.patchMarkdownPaths(ownedMarkdown);
     c.fixtureDemands=[c.hub,c.folder+"/Child-00.md",c.folder+"/URLs.md"].map(path=>c.p.index.acquireSemanticDemand(path));
     c.p.notifyNavigation(c.hub);await c.p.index.refreshSemanticSettings();
   }else await c.p.rebuildIndex(false,true,"ux-fixture-seed");
-  c.check(c.p.index.isFullSnapshotHydrated(),"Fixture graph seeding was cancelled");
+  // Exact pair acquisition is supported before global inventory in on-demand sessions. It
+  // cannot certify the whole vault, and self-pairs are explicitly unsupported by the writer.
+  await c.prepareAuthority(c.hub,c.existing);
+  c.check(localFixture?c.p.index.isSemanticWriteReady(c.hub,c.existing):c.p.index.isFullSnapshotHydrated(),"Fixture graph seeding lacks its mode's authority");
   await c.until(()=>c.primaryReady(),"Fixture primary graph/current-view semantics did not settle",900000);
   // A complete rendered graph may precede the initial source inventory. Establish actual
   // editable authority during fixture setup, so cold source acquisition is not attributed
   // to the first gesture's existing action deadline. Neither delay nor graph flags grant it.
-  c.check(await c.p.index.flushSourceRepository(),"Fixture source reconciliation remains incomplete");
-  c.check(c.p.index.sourceAcquisition.hasSemanticDependencies(),"Fixture lacks source dependency authority");
-  c.fixtureReadiness={mode:legacyAliasesPending?"owned-patch-and-requested-scopes":"full-seed",status:c.p.getIndexStatus(),aliasVocabularyPending:c.p.index.hasPendingSearchVocabulary(),source:c.p.index.getSourceAcquisitionCounters()};
+  if(localFixture){c.check(await c.p.index.sourceAcquisition.repository.flush(),"Fixture selected source persistence remains incomplete");c.check(c.p.index.isSemanticWriteReady(c.hub,c.existing),"Fixture selected pair lost current authority during persistence")}
+  else{c.check(await c.p.index.flushSourceRepository(),"Fixture source reconciliation remains incomplete");c.check(c.p.index.sourceAcquisition.hasSemanticDependencies(),"Fixture lacks source dependency authority")}
+  c.fixtureReadiness={mode:localFixture?"on-demand-owned-patch-and-requested-scopes":legacyAliasesPending?"owned-patch-and-requested-scopes":"full-seed",authorityPair:[c.hub,c.existing],pairReady:c.p.index.isSemanticWriteReady(c.hub,c.existing),globalDependencies:c.p.index.sourceAcquisition.hasSemanticDependencies(),status:c.p.getIndexStatus(),aliasVocabularyPending:c.p.index.hasPendingSearchVocabulary(),source:c.p.index.getSourceAcquisitionCounters()};
   for(const path of [c.tall,c.wide,c.canvas,c.unrelated])c.p.index.insertCreatedFile(app.vault.getFileByPath(path));
+  const fixtureHub=c.p.index.get(c.hub);c.check(fixtureHub&&c.p.index.isSemanticWriteReady(c.hub,c.existing),"Fixture hub is not canonically editable");
+  for(const [group,role]of [["Parent","parent"],["Friend","left"],["Challenger","right"],["Child","child"]]){
+    const expected=new Set(groups[group]),actual=c.p.index.neighbours(fixtureHub,role).filter(item=>expected.has(item.page.path));
+    c.check(actual.length===16&&new Set(actual.map(item=>item.page.path)).size===16&&actual.every(item=>c.p.index.get(item.page.path)===item.page),"Fixture "+group+" canonical relationships/counts were not materialized");
+  }
   c.fixtureAliases=["Parent","Friend","Challenger","Child"].map(role=>({role,aliases:c.p.index.get(c.folder+"/"+role+"-15.md")?.aliases}));
   c.check(c.fixtureAliases.every(item=>item.aliases.includes("Hidden overflow alias")),"Fixture aliases were not indexed");
   c.check(c.p.index.titleFor(c.p.index.get(c.folder+"/Parent-15.md")).includes("Parent-15"),"Find fixture must select file labels while retaining unused aliases");
   c.check(c.p.index.neighbours(c.p.index.get(c.folder+"/Child-00.md"),"child").some(item=>item.page.path===c.folder+"/Grandchild.md"),"Fixture expanded relationship was not materialized");
   app.workspace.setActiveLeaf(c.leaf,{focus:true});await c.until(()=>c.root()?.querySelector(".kplex-role-center"),"Fixture Plex did not render");
-  await c.go(c.hub);c.done=true;
+  await c.go(c.hub);
+  // The user may disable navigation auto-fit, and normal index publications preserve camera.
+  // Fit this fully materialized owned fixture through its real toolbar before pointer checks.
+  const fixtureFit=c.button("graph.fitGraph");c.check(fixtureFit,"Fixture Fit control is unavailable");fixtureFit.click();await c.frames();
+  await c.until(()=>["parent","child","left","right"].every(zone=>{const element=c.root().querySelector(".kplex-zone-"+zone+" .kplex-zone-filter-button"),r=element?.getBoundingClientRect(),v=c.plex().getBoundingClientRect();return r&&r.width>0&&r.height>0&&r.left>=v.left&&r.right<=v.right&&r.top>=v.top&&r.bottom<=v.bottom}),"Fitted fixture area controls did not become visible");
+  c.done=true;
 })().catch(e=>{c.error=e.stack;c.done=true});return JSON.stringify(true)})()`;
 
 /** Run UI workflows using production React handlers, native FileViews and trusted captured-pointer input. */
+/** One exact assertion block shared by broad UX and the explicitly scoped typography lane. */
+const labelLayoutAcceptanceScenarios = `
+  // Locate issue #70's actual nested settings page, then exercise its real control writer.
+  c.ownsSettings=true;app.setting.open();app.setting.openTabById("k-plex");
+  const tab=app.setting.pluginTabs.find(t=>t.id==="k-plex");
+  for(const key of ["settings.ui.visual.styling","settings.ui.node.styling"]){const row=Array.from(app.setting.getCurrentPageEl().querySelectorAll(".setting-item")).find(el=>el.querySelector(".setting-item-name")?.textContent===p.translator(key));c.check(row,"Label settings subpage missing: "+key);row.click();await c.frames()}
+  for(const key of ["settings.ui.max.label.length","settings.ui.wrap.node.labels","settings.ui.maximum.node.width","settings.ui.maximum.central.node.width"]){
+    const name=key==="settings.ui.maximum.central.node.width"?p.translator(key):p.translator("typography.deviceField",{device:p.translator("typography.sharedDefaults"),field:p.translator(key)});
+    const row=Array.from(app.setting.getCurrentPageEl().querySelectorAll(".setting-item")).find(el=>el.querySelector(".setting-item-name")?.textContent===name);c.check(row?.querySelector("input,.checkbox-container"),"Label control missing from rendered settings: "+key)}
+  app.setting.close();c.ownsSettings=false;
+  p.settings.graphDepth=1;p.settings.layoutProfiles={...p.settings.layoutProfiles,"desktop:leaf":{...p.settings.layoutProfiles["desktop:leaf"],parentColumns:2,childColumns:2}};
+  // The two-line sample needs a fixed font: a saved 8px base can fit this title on one line.
+  // The driver's original settings snapshot restores the caller's typography after the fixture.
+  await tab.setControlValue("baseFontSize",12.4);
+  await tab.setControlValue("baseNodeStyle.maxLabelLength",120);await tab.setControlValue("baseNodeStyle.maxWidth",800);await tab.setControlValue("centralNodeStyle.maxWidth",1000);
+  await c.go(c.labelCenter);
+  const labelEvidence=[];
+  for(const wrap of [false,true]){
+    // A wide short-font title can legitimately fit on one line; constrain the wrap case explicitly.
+    await tab.setControlValue("baseNodeStyle.maxWidth",wrap?320:800);
+    await tab.setControlValue("wrapNodeLabels",wrap);await c.until(()=>Boolean(root.querySelector(".kplex-role-center .is-two-line"))===wrap,"Wrap control did not update the rendered scene");await c.frames();
+    const nodes=Array.from(root.querySelectorAll(".kplex-thought")).filter(n=>[c.labelCenter,...Object.values(c.labelPaths),...Object.keys(c.labelPaths).map(role=>c.folder+"/Short "+role+".md")].includes(n.dataset.kplexPath));
+    c.check(nodes.length===8,"Long-label fixture did not render its exact neighborhood");
+    const rects=nodes.map(n=>({path:n.dataset.kplexPath,role:n.className,rect:n.getBoundingClientRect(),height:parseFloat(n.style.height),width:parseFloat(n.style.width)}));
+    for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++){const a=rects[i].rect,b=rects[j].rect;c.check(a.right<=b.left+.5||b.right<=a.left+.5||a.bottom<=b.top+.5||b.bottom<=a.top+.5,"Long-label nodes overlap: "+rects[i].path+" / "+rects[j].path)}
+    const regular=rects.filter(n=>n.path!==c.labelCenter);c.check(regular.some(n=>n.width>286),"Maximum node width control did not permit larger labels");c.check(rects.find(n=>n.path===c.labelCenter).width>370,"Central maximum width control did not permit a larger title");c.check(new Set(regular.map(n=>n.height)).size===1,"Short/long regular nodes have unequal row heights");
+    if(wrap){const text=nodes.find(n=>n.dataset.kplexPath===c.labelPaths.Friend).querySelector(".kplex-thought-text"),style=getComputedStyle(text),scale=nodes[0].getBoundingClientRect().height/parseFloat(nodes[0].style.height);c.check(style.whiteSpace==="normal"&&style.webkitLineClamp==="2"&&text.getBoundingClientRect().height/scale>parseFloat(style.lineHeight)*1.5,"Native long title did not occupy two lines: "+JSON.stringify({whiteSpace:style.whiteSpace,clamp:style.webkitLineClamp,height:text.getBoundingClientRect().height,scale,lineHeight:style.lineHeight,fontSize:style.fontSize,width:text.getBoundingClientRect().width,textLength:text.textContent.length}))}
+    const historyButton=Array.from(root.querySelectorAll("[data-kplex-history-path]")).find(n=>n.dataset.kplexHistoryPath===c.labelCenter),historyText=historyButton?.querySelector(".kplex-history-text");c.check(historyText,"History label text box missing");
+    const first=historyText.ownerDocument.createRange();first.setStart(historyText.firstChild,0);first.setEnd(historyText.firstChild,1);c.check(first.getBoundingClientRect().left>=historyText.getBoundingClientRect().left-.5,"History title clips its beginning");
+    const historyStyle=getComputedStyle(historyText),historyHeight=root.querySelector(".kplex-history-bar").getBoundingClientRect().height;
+    c.check(wrap?historyStyle.whiteSpace==="normal"&&historyStyle.webkitLineClamp==="2"&&historyText.getBoundingClientRect().height>parseFloat(historyStyle.lineHeight)*1.5:historyStyle.whiteSpace==="nowrap"&&historyText.scrollWidth>historyText.clientWidth,"History did not follow label wrapping mode");
+    c.check(historyHeight===(wrap?52:40),"History row did not reserve its configured text height");
+    labelEvidence.push({wrap,regularHeight:regular[0].height,widths:rects.map(n=>n.width),historyHeight});
+  }
+  record("label-controls-wide-nodes-fixed-two-line-height-no-overlap",{settingsPath:["Visual styling","Node styling","Node appearance"],modes:labelEvidence});
+  ${layoutEnhancementScenarios}
+`;
+
 const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const record=(id,evidence={})=>c.scenarios.push({id,status:"passed",...evidence});
   const p=c.p, root=c.root();
@@ -241,7 +327,10 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const styleWc=require("@electron/remote").getCurrentWindow().webContents,hoverStyles=[];
   for(const selector of sharedSelectors){
     const element=root.querySelector(selector),rect=element.getBoundingClientRect();
-    styleWc.sendInputEvent({type:"mouseMove",x:Math.round(rect.left+rect.width/2),y:Math.round(rect.top+rect.height/2)});await c.frames();
+    const x=Math.round(rect.left+rect.width/2),y=Math.round(rect.top+rect.height/2),hit=document.elementFromPoint(x,y),viewport=c.plex().getBoundingClientRect();
+    // Retain only the latest finite geometry and hit classes, with no note labels or contents.
+    c.lastHover={selector,point:[x,y],rect:{left:rect.left,top:rect.top,width:rect.width,height:rect.height},viewport:{left:viewport.left,top:viewport.top,width:viewport.width,height:viewport.height},hitClass:hit?.getAttribute("class"),hitsTarget:hit===element||element.contains(hit),camera:root.querySelector(".kplex-camera")?.style.transform};
+    styleWc.sendInputEvent({type:"mouseMove",x,y});await c.frames();
     c.check(element.matches(":hover"),"Button hover input did not reach "+selector);
     const style=getComputedStyle(element);hoverStyles.push({color:style.color,background:style.backgroundColor,border:style.border});
   }
@@ -269,7 +358,10 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
     } finally {oldPanelWidth?panel.style.setProperty("width",oldPanelWidth,oldPanelPriority):panel.style.removeProperty("width");await c.frames()}
   }
   record("area-filter-overflow-with-node-scroll-clipping",{areas:overflowEvidence});
-  c.key(root,"F4");await c.until(()=>document.activeElement===root.querySelector(".kplex-search"),"F4 did not focus Vault search");
+  // A synthetic root event does not move native focus. Local actions prepare against the actual
+  // focused surface, so retire the just-closed area input's focus before testing this binding.
+  app.workspace.setActiveLeaf(c.leaf,{focus:true});root.focus();c.check(root.ownerDocument.activeElement===root,"Plex did not own focus before Vault search shortcut");
+  await c.key(root,"F4");await c.until(()=>document.activeElement===root.querySelector(".kplex-search"),"F4 did not focus Vault search");
   const vaultInput=document.activeElement;
   p.settings.showAttachments=false;
   for(const term of ["Unrelated.txt","Tall.png","Drawing.canvas"]){
@@ -277,15 +369,16 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
     c.check(c.center()===c.hub,"Vault typing changed center");
   }
   p.settings.showAttachments=true;
-  c.key(vaultInput,"Enter");await c.until(()=>c.center()===c.canvas,"Vault Enter did not activate the selected Canvas file");
+  await c.key(vaultInput,"Enter");await c.until(()=>c.center()===c.canvas,"Vault Enter did not activate the selected Canvas file");
   await c.until(()=>vaultInput.value==="","Vault activation did not clear its query");await c.go(c.hub);
   // Enter closes/blurs the shared suggester; reopen its focus lifetime before another Vault query.
-  c.key(root,"F4");await c.until(()=>document.activeElement===root.querySelector(".kplex-search"),"F4 did not refocus Vault search after activation");
+  app.workspace.setActiveLeaf(c.leaf,{focus:true});root.focus();c.check(root.ownerDocument.activeElement===root,"Plex did not own focus before repeated Vault search shortcut");
+  await c.key(root,"F4");await c.until(()=>document.activeElement===root.querySelector(".kplex-search"),"F4 did not refocus Vault search after activation");
   c.check(vaultInput===document.activeElement,"Vault search input changed after Canvas activation");
   for(const term of ["help.obsidian.md","First Help alias","Second Help alias"]){
     c.input(vaultInput,term);await c.until(()=>root.querySelector(".kplex-search-results")?.textContent.includes("https://help.obsidian.md"),"Vault URL/alias search missing "+term);
   }
-  c.key(vaultInput,"Escape");record("F4-whole-vault-files-URL-multiple-aliases");
+  await c.key(vaultInput,"Escape");record("F4-whole-vault-files-URL-multiple-aliases");
   let find=await c.openFind();c.check(!root.querySelector(".kplex-find button[aria-expanded]"),"Expanded Find must hide its magnifier");c.check(!root.querySelector(".kplex-search-results"),"Find opened Vault results");
   const originalTheme={light:document.body.classList.contains("theme-light"),dark:document.body.classList.contains("theme-dark")},findTheme=[];
   const luminance=color=>color.match(/[\\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)}).reduce((v,c,i)=>v+c*[.2126,.7152,.0722][i],0);
@@ -309,20 +402,24 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   c.check(parentScroll.scrollTop<parentScrollBefore,"Find did not move the parent overflow list to its hit");
   const centerBefore=c.center(),historyBefore=JSON.stringify(p.settings.navigationHistory);
   c.input(find,"Hidden overflow alias");await c.frames();c.check(root.querySelectorAll(".kplex-thought.is-highlighted").length===0,"Find matched an unused alias");
-  c.input(find,c.folder);await c.frames();c.check(root.querySelectorAll(".kplex-thought.is-highlighted").length===0,"Default Find matched hidden paths");
-  const pathToggle=c.button("find.includePath");c.check(pathToggle,"Extended path toggle missing");pathToggle.click();await c.frames();
+  // The owned folder's basename is a legitimate visible folder-parent label. Its trailing
+  // separator occurs only in the flat owned notes' paths, so this term isolates hidden paths.
+  const pathToggle=c.button("find.includePath");c.check(pathToggle,"Extended path toggle missing");c.check(pathToggle.getAttribute("aria-pressed")==="false","Find must start with displayed labels only");
+  c.input(find,c.folder+"/");await c.frames();c.check(root.querySelectorAll(".kplex-thought.is-highlighted").length===0,"Default Find matched hidden paths");
+  pathToggle.click();await c.frames();
   c.check(pathToggle.getAttribute("aria-pressed")==="true"&&root.querySelectorAll(".kplex-thought.is-highlighted").length>3,"Extended path search did not include projected paths");
   c.check(!root.querySelector(".kplex-edge.is-highlighted"),"Path mode matched incidental connectors");pathToggle.click();await c.frames();
   c.input(find,"-15");await c.until(()=>root.querySelectorAll(".kplex-thought.is-highlighted").length===4,"Displayed labels should cover four projected regions",5000);
-  c.key(find,"Enter");await c.frames();c.key(find,"Enter",{shiftKey:true});await c.frames();
+  await c.key(find,"Enter");await c.frames();await c.key(find,"Enter",{shiftKey:true});await c.frames();
   c.check(c.center()===centerBefore&&JSON.stringify(p.settings.navigationHistory)===historyBefore,"Find changed navigation history");
+  c.check(!Array.from(root.querySelectorAll("[data-kplex-path]")).some(node=>node.dataset.kplexPath===c.unrelated),"Vault-only candidate must be outside the displayed Plex projection");
   c.input(find,"Unrelated.txt");await c.frames();c.check(root.querySelectorAll(".kplex-thought.is-highlighted").length===0,"Find searched an off-Plex file");
   const childScroll=root.querySelector(".kplex-zone-child .kplex-zone-scroll");childScroll.scrollTop=0;childScroll.dispatchEvent(new Event("scroll",{bubbles:true}));await c.frames();
   c.input(find,"Grandchild");await c.frames();c.check(root.querySelector(".kplex-expanded-mini-thought.is-find-match"),"Find missed expanded descendant");
-  c.key(find,"Escape");await c.frames();record("independent-Plex-Find-displayed-values-path-toggle-overflow-expanded-history");
+  await c.key(find,"Escape");await c.frames();record("independent-Plex-Find-displayed-values-path-toggle-overflow-expanded-history");
   await p.setGraphLenses([{id:"ux-exclude",name:"UX exclude",enabled:true,scope:"node",mode:"exclude",expression:'node.path.equals("'+c.folder+'/Parent-15.md")'}]);
   find=await c.openFind();c.input(find,"Parent-15");await c.frames();c.check(root.querySelectorAll(".kplex-thought.is-highlighted").length===0,"Find included a lens-excluded node");
-  c.key(find,"Escape");await p.setGraphLenses([]);record("Plex-Find-projection-excludes");
+  await c.key(find,"Escape");await p.setGraphLenses([]);record("Plex-Find-projection-excludes");
   // Exercise the actual portaled Filter shell with trusted pointer input. Its form state stays
   // caller-owned; moving the header must not pan the Plex, change semantics or steal field focus.
   const filterTrigger=c.button("filter.trigger"),filterWc=require("@electron/remote").getCurrentWindow().webContents;
@@ -383,7 +480,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   await c.until(()=>root.querySelectorAll(".kplex-role-parent").length===1&&root.querySelector(".kplex-role-parent").dataset.kplexPath===c.folder+"/Parent-14.md","Changed Find term did not replace its active filter");
   c.input(find,"");await c.frames();c.check(!findFilter.disabled,"Blank Find query trapped the active filter");await c.click(findFilter);await c.frames();
   c.check(findFilter.getAttribute("aria-pressed")==="false","Blank-query press failed to turn filtering off");
-  c.key(find,"Escape");await c.until(()=>JSON.stringify(Array.from(root.querySelectorAll(".kplex-role-parent")).map(node=>node.dataset.kplexPath).sort())===JSON.stringify(findParentsBefore),"Clearing Find filter did not restore the exact neighborhood");
+  await c.key(find,"Escape");await c.until(()=>JSON.stringify(Array.from(root.querySelectorAll(".kplex-role-parent")).map(node=>node.dataset.kplexPath).sort())===JSON.stringify(findParentsBefore),"Clearing Find filter did not restore the exact neighborhood");
   record("Plex-Find-apply-existing-label-contains-reflow-center-retained",{field:"node.label",operator:"contains",value:"Parent-15",layout:"reflow",semanticUnchanged:true});
   const indicator=root.querySelector(".kplex-index-status");indicator.click();await c.frames();
   c.check(!document.querySelector(".kplex-vault-stats"),"Single click opened About vault");
@@ -436,11 +533,11 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   // Type only after modal autofocus has settled; initial focus resets its typed-results lifetime.
   await c.until(()=>document.activeElement===targetInput,"Composer note input did not focus");await c.frames();c.input(targetInput,"Existing-target");
   await c.until(()=>document.querySelector(".kplex-search-results")?.textContent.includes("Existing-target"),"Existing note not suggested");
-  c.key(targetInput,"Enter");await c.frames();c.check(linkButton()&&!linkButton().disabled,"Existing selection did not enable Link");
+  await c.key(targetInput,"Enter");await c.frames();c.check(linkButton()&&!linkButton().disabled,"Existing selection did not enable Link");
   const ontology=modal().querySelector(".kplex-add-related-ontology-search input");
   c.input(ontology,"");modal().querySelector(".kplex-fuzzy-disclosure").click();await c.frames();
   c.check(document.querySelector(".kplex-search-results"),"Empty ontology disclosure did not show fields");
-  c.key(ontology,"Enter");await c.frames();const selectedField=ontology.value;c.check(selectedField,"Ontology dropdown did not select a field");
+  await c.key(ontology,"Enter");await c.frames();const selectedField=ontology.value;c.check(selectedField,"Ontology dropdown did not select a field");
   linkButton().click();await c.until(()=>!modal(),"Existing-target Link failed to close after commit");
   await linked(c.existing,selectedField);record("gate-composer-existing-target-Link-and-empty-ontology-disclosure",{field:selectedField});
   const showPosition=p.showKplexMenuAtPosition;
@@ -497,8 +594,10 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const releaseUnrelated=denseUrl?p.index.acquireSemanticDemand(denseUrl.path):null;
   const nonMarkdownMenu=p.showKplexMenuAtPosition;
   p.showKplexMenuAtPosition=function(menu,position,doc){menu.setUseNativeMenu(false);return nonMarkdownMenu.call(this,menu,position,doc)};
-  try{for(const path of [c.tall,"https://Obsidian.md",...(c.denseTarget?[c.denseTarget]:[])]){
-    c.check(p.index.get(path),"Non-Markdown fixture endpoint is missing: "+path);await c.go(path);await c.go(c.hub);
+  try{for(const requestedPath of [c.tall,"https://Obsidian.md",...(c.denseTarget?[c.denseTarget]:[])]){
+    // Keep the source URL's lexical spelling, but compare navigation, provenance and publication
+    // against the actual canonical endpoint returned by the index's ordinary identity boundary.
+    const endpoint=p.index.get(requestedPath);c.check(endpoint,"Non-Markdown fixture endpoint is missing: "+requestedPath);const path=endpoint.path;await c.go(path);await c.go(c.hub);
     const button=Array.from(root.querySelectorAll("[data-kplex-history-path]")).find(b=>b.dataset.kplexHistoryPath===path);
     c.check(button,"Non-Markdown history endpoint missing");button.scrollIntoView({block:"nearest",inline:"center"});await c.frames();
     const r=button.getBoundingClientRect();await dragGate({x:r.x+r.width/2,y:r.y+r.height/2},"bottom",button);
@@ -532,18 +631,45 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const imageCheck=()=>{const img=root.querySelector('[data-type="image"] img'),frame=img.closest(".view-content"),r=img.getBoundingClientRect(),f=frame.getBoundingClientRect(),style=getComputedStyle(img);
     c.check(style.objectFit==="contain","Native image does not contain-fit");c.check(r.width<=f.width+1&&r.height<=f.height+1,"Native image exceeds its editor bounds");
     c.check(Math.abs(r.x+r.width/2-f.x-f.width/2)<1&&Math.abs(r.y+r.height/2-f.y-f.height/2)<1,"Native image box is not centered");return {image:[r.width,r.height],frame:[f.width,f.height],objectFit:style.objectFit}};
-  const paintedImage=async()=>{const img=root.querySelector('[data-type="image"] img'),r=img.getBoundingClientRect();
-    const scale=Math.min(r.width/img.naturalWidth,r.height/img.naturalHeight),w=img.naturalWidth*scale,h=img.naturalHeight*scale;
-    const x=r.x+(r.width-w)/2,y=r.y+(r.height-h)/2;await c.frames();
-    // Use the same explicit NativeImage representation for dimensions and bitmap on Retina displays.
-    const capture=await wc.capturePage({x:Math.round(x),y:Math.round(y),width:Math.round(w),height:Math.round(h)}),size=capture.getSize(1),bitmap=capture.toBitmap({scaleFactor:1});
-    c.check(bitmap.length===size.width*size.height*4,"Native capture bitmap dimensions do not match its selected representation");
-    const pixel=(sx,sy)=>{const i=(Math.round(sy*(size.height-1))*size.width+Math.round(sx*(size.width-1)))*4;return [bitmap[i+2],bitmap[i+1],bitmap[i]]};
-    const pixels=[[.04,.04],[.96,.04],[.04,.96],[.96,.96]].map(([sx,sy])=>pixel(sx,sy));
+  const paintedImage=async()=>{const img=root.querySelector('[data-type="image"] img'),owner=img.ownerDocument.defaultView,frame=img.closest(".view-content");
+    let decodeTimer;try{await Promise.race([img.decode(),new Promise((_,reject)=>decodeTimer=owner.setTimeout(()=>reject(new Error("Native image decode did not settle")),5000))]);}finally{owner.clearTimeout(decodeTimer)}
+    let previousGeometry=null,stableGeometry=0;
+    c.lastImagePaint={natural:[img.naturalWidth,img.naturalHeight],samples:[]};
+    await c.until(()=>{
+      const ancestors=[];for(let node=img;node;node=node.parentElement){ancestors.push(node);if(node===root)break;}
+      const r=img.getBoundingClientRect(),f=frame.getBoundingClientRect();
+      const geometry=JSON.stringify([r.x,r.y,r.width,r.height,f.x,f.y,f.width,f.height]);
+      const settled=img.isConnected&&img.complete&&img.naturalWidth>0&&r.width>0&&r.height>0&&ancestors.every(node=>Number(owner.getComputedStyle(node).opacity)>=.999&&!node.getAnimations().some(animation=>animation.playState==="running"||animation.pending));
+      stableGeometry=settled&&geometry===previousGeometry?stableGeometry+1:0;previousGeometry=geometry;
+      c.lastImagePaint.ancestors=ancestors.map(node=>({className:node.className,opacity:owner.getComputedStyle(node).opacity,activeAnimations:node.getAnimations().filter(animation=>animation.playState==="running"||animation.pending).length}));
+      c.lastImagePaint.geometry=JSON.parse(geometry);return stableGeometry>=2;
+    },"Native image geometry/ancestor animation did not settle",5000);
+    // Calculate after settling: a pre-frame rectangle can belong to a prior navigation transform.
+    const r=img.getBoundingClientRect(),scale=Math.min(r.width/img.naturalWidth,r.height/img.naturalHeight),w=img.naturalWidth*scale,h=img.naturalHeight*scale;
+    const x=r.x+(r.width-w)/2,y=r.y+(r.height-h)/2,rectangle={x:Math.round(x),y:Math.round(y),width:Math.round(w),height:Math.round(h)};
+    let pixels,previousPixels=null,stablePaint=false;const deadline=Date.now()+5000;
+    while(Date.now()<deadline){
+      // Use the same explicit NativeImage representation for dimensions and bitmap on Retina displays.
+      const capture=await wc.capturePage(rectangle),size=capture.getSize(1),bitmap=capture.toBitmap({scaleFactor:1});
+      c.check(bitmap.length===size.width*size.height*4,"Native capture bitmap dimensions do not match its selected representation");
+      const pixel=(sx,sy)=>{const i=(Math.round(sy*(size.height-1))*size.width+Math.round(sx*(size.width-1)))*4;return [bitmap[i+2],bitmap[i+1],bitmap[i]]};
+      pixels=[[.04,.04],[.96,.04],[.04,.96],[.96,.96]].map(([sx,sy])=>pixel(sx,sy));
+      const currentPixels=JSON.stringify(pixels);c.lastImagePaint.samples.push(pixels);if(c.lastImagePaint.samples.length>8)c.lastImagePaint.samples.shift();
+      if(currentPixels===previousPixels){stablePaint=true;break;}previousPixels=currentPixels;await c.wait(50);
+    }
+    // Stability is independent of the expected colors; stable cropping still fails the exact check.
+    c.check(stablePaint,"Native image paint did not settle: "+JSON.stringify(c.lastImagePaint));
     const expected=[[255,0,0],[0,255,0],[0,0,255],[255,255,0]];
     c.check(pixels.every((sample,i)=>sample.every((value,j)=>Math.abs(value-expected[i][j])<25)),"Image corner content cropped/distorted: "+JSON.stringify(pixels));
     return {natural:[img.naturalWidth,img.naturalHeight],painted:[w,h],pixels}};
-  const tall={...imageCheck(),paint:await paintedImage()};
+  // Keep small-editor fit assertions, then use the real maximized native surface for exact pixels.
+  // At a tiny camera scale, its top corner swatches can sit beneath the sibling toolbar's shadow.
+  await c.frames();const smallTall=imageCheck(),tallCamera=root.querySelector(".kplex-camera").style.transform;
+  await c.click(c.button("centralEditor.maximize"));await c.until(()=>root.querySelector(".kplex-central-editor-content.is-maximized"),"Tall image editor did not maximize",5000);
+  const tallPaint=await paintedImage(),maximizedTall=imageCheck();
+  await c.click(c.button("centralEditor.restore"));await c.until(()=>!root.querySelector(".kplex-central-editor-content.is-maximized")&&Math.abs(root.querySelector('[data-type="image"] img').getBoundingClientRect().width-smallTall.image[0])<1&&Math.abs(root.querySelector('[data-type="image"] img').getBoundingClientRect().height-smallTall.image[1])<1,"Tall image editor did not restore original geometry",5000);
+  c.check(root.querySelector(".kplex-camera").style.transform===tallCamera,"Tall image maximize/restore changed the Plex camera");
+  const tall={...imageCheck(),maximized:maximizedTall,paint:tallPaint,cameraBefore:tallCamera,cameraAfter:root.querySelector(".kplex-camera").style.transform};
   record("native-image-tall-corners-contain",{tall});
   find=await c.openFind();c.input(find,"Tall");await c.frames();
   const editorFindState={query:find.value,pathMode:c.button("find.includePath").getAttribute("aria-pressed")};
@@ -573,9 +699,9 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   await c.click(c.button("centralEditor.restore"));await c.frames();
   c.check(!root.querySelector(".kplex-find").classList.contains("is-suspended")&&root.querySelector(".kplex-find-input").value===editorFindState.query,"Editor restore did not preserve Find");
   c.check(c.button("find.includePath").getAttribute("aria-pressed")===editorFindState.pathMode,"Editor restore lost path-search mode");
-  c.key(root.querySelector(".kplex-find-input"),"Escape");record("maximized-editor-suspends-preserves-Plex-Find");
+  await c.key(root.querySelector(".kplex-find-input"),"Escape");record("maximized-editor-suspends-preserves-Plex-Find");
   await c.go(c.wide);await c.until(()=>root.querySelector('[data-type="image"] img')?.complete&&root.querySelector('[data-type="image"] img')?.naturalWidth===2000,"Second native image did not load");
-  const wide={...imageCheck(),paint:await paintedImage()};const history=JSON.stringify(p.settings.navigationHistory);
+  const widePaint=await paintedImage(),wide={...imageCheck(),paint:widePaint};const history=JSON.stringify(p.settings.navigationHistory);
   await c.click(root.querySelector('[data-type="image"] img'));
   await c.click(c.button("app.useNormalCentralNode"));await c.wait(250);
   c.check(c.center()===c.wide&&JSON.stringify(p.settings.navigationHistory)===history,"Collapsing second image navigated back");
@@ -605,7 +731,14 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
       const samples=[];
       // Electron does not retain the held button on injected moves; without the modifier,
       // Chromium receives buttons=0 and implicitly releases capture before the first move.
-      for(const delta of [10,20,35]){wc.sendInputEvent({type:"mouseMove",x,y:y+(top?-delta:delta),modifiers:["leftbuttondown"]});await c.frames();samples.push(area.getBoundingClientRect().height)}
+      for(const delta of [10,20,35]){
+        const previousHeight=samples.length?samples[samples.length-1]:oldHeight;
+        wc.sendInputEvent({type:"mouseMove",x,y:y+(top?-delta:delta),modifiers:["leftbuttondown"]});await c.frames();
+        // A native input receipt precedes React's commit. Observe the actual next painted geometry
+        // before recording this point, without dispatching another move or forcing a render.
+        await c.until(()=>area.isConnected&&area.getBoundingClientRect().height>previousHeight,"Resize point did not render: "+zone+" "+delta,5000);
+        samples.push(area.getBoundingClientRect().height);
+      }
       c.lastResize={zone,before,after:p.settings[key],oldHeight,samples,connected:area.isConnected,top,
         captured:root.querySelector(".kplex-area-frame.is-resizing")?.className};
       c.check(p.settings[key]>before&&area.getBoundingClientRect().height>oldHeight,"Area did not update while dragging: "+JSON.stringify(c.lastResize));
@@ -629,6 +762,8 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const r=c.plex().getBoundingClientRect();c.plex().dispatchEvent(new WheelEvent("wheel",{bubbles:true,cancelable:true,deltaY:-150,clientX:r.x+30,clientY:r.y+30}));
   await c.frames();await c.wait(100);const after=overlay.getBoundingClientRect();
   c.check(after.width>before.width+1&&after.height>before.height+1,"Canvas overlay did not resize on Plex wheel zoom before pan");
+  c.lastCanvasResize={before:[canvasBefore.width,canvasBefore.height],overlayBefore:[before.width,before.height],overlayAfter:[after.width,after.height]};
+  await c.until(()=>{const r=nativeCanvas.getBoundingClientRect();c.lastCanvasResize.after=[r.width,r.height];c.lastCanvasResize.connected=nativeCanvas.isConnected;return nativeCanvas.isConnected&&r.width>canvasBefore.width+1&&r.height>canvasBefore.height+1},"Native Canvas surface resize did not settle: "+JSON.stringify(c.lastCanvasResize),5000);
   const canvasAfter=nativeCanvas.getBoundingClientRect();
   c.check(canvasAfter.width>canvasBefore.width+1&&canvasAfter.height>canvasBefore.height+1,"Native Canvas surface did not resize on Plex zoom before pan");
   record("Canvas-drop-native-view-wheel-resize-before-pan",{before:[before.width,before.height],after:[after.width,after.height],nativeBefore:[canvasBefore.width,canvasBefore.height],nativeAfter:[canvasAfter.width,canvasAfter.height],nativeType:root.querySelector('[data-type="canvas"]').dataset.type});
@@ -658,7 +793,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   c.popoutRootForFind=pr;
   c.check(pw!==window,"Popout remained in the main document");
   app.workspace.setActiveLeaf(c.popoutLeaf,{focus:true});pr.focus();
-  pr.dispatchEvent(new pw.KeyboardEvent("keydown",{key:"f",metaKey:true,bubbles:true,cancelable:true}));
+  await c.key(pr,"f",{metaKey:true});
   await c.until(()=>pr.querySelector(".kplex-find-input")===pd.activeElement,"Popout Ctrl/Cmd+F did not focus its own field");
   const popoutInput=pd.activeElement,popoutHistory=JSON.stringify(p.settings.navigationHistory);
   Object.getOwnPropertyDescriptor(pw.HTMLInputElement.prototype,"value").set.call(popoutInput,"Parent-15");popoutInput.dispatchEvent(new pw.Event("input",{bubbles:true}));
@@ -668,38 +803,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   for(const property of ["width","height","backgroundColor","borderRadius"])c.check(ps[property]===pz[property],"Popout Find differs from zoom controls");
   record("popout-Find-owning-document-focus-highlight-style-history",{width:ps.width,height:ps.height,background:ps.backgroundColor});
   c.popoutLeaf.detach();c.popoutLeaf=null;app.workspace.setActiveLeaf(c.leaf,{focus:true});
-  // Locate issue #70's actual nested settings page, then exercise its real control writer.
-  c.ownsSettings=true;app.setting.open();app.setting.openTabById("k-plex");
-  const tab=app.setting.pluginTabs.find(t=>t.id==="k-plex");
-  for(const key of ["settings.ui.visual.styling","settings.ui.node.styling"]){const row=Array.from(app.setting.getCurrentPageEl().querySelectorAll(".setting-item")).find(el=>el.querySelector(".setting-item-name")?.textContent===p.translator(key));c.check(row,"Label settings subpage missing: "+key);row.click();await c.frames()}
-  for(const key of ["settings.ui.max.label.length","settings.ui.wrap.node.labels","settings.ui.maximum.node.width","settings.ui.maximum.central.node.width"]){const row=Array.from(app.setting.getCurrentPageEl().querySelectorAll(".setting-item")).find(el=>el.querySelector(".setting-item-name")?.textContent===p.translator(key));c.check(row?.querySelector("input,.checkbox-container"),"Label control missing from rendered settings: "+key)}
-  app.setting.close();c.ownsSettings=false;
-  p.settings.graphDepth=1;p.settings.layoutProfiles={...p.settings.layoutProfiles,"desktop:leaf":{...p.settings.layoutProfiles["desktop:leaf"],parentColumns:2,childColumns:2}};
-  // The two-line sample needs a fixed font: a saved 8px base can fit this title on one line.
-  // The driver's original settings snapshot restores the caller's typography after the fixture.
-  await tab.setControlValue("baseFontSize",12.4);
-  await tab.setControlValue("baseNodeStyle.maxLabelLength",120);await tab.setControlValue("baseNodeStyle.maxWidth",800);await tab.setControlValue("centralNodeStyle.maxWidth",1000);
-  await c.go(c.labelCenter);
-  const labelEvidence=[];
-  for(const wrap of [false,true]){
-    // A wide short-font title can legitimately fit on one line; constrain the wrap case explicitly.
-    await tab.setControlValue("baseNodeStyle.maxWidth",wrap?320:800);
-    await tab.setControlValue("wrapNodeLabels",wrap);await c.until(()=>Boolean(root.querySelector(".kplex-role-center .is-two-line"))===wrap,"Wrap control did not update the rendered scene");await c.frames();
-    const nodes=Array.from(root.querySelectorAll(".kplex-thought")).filter(n=>[c.labelCenter,...Object.values(c.labelPaths),...Object.keys(c.labelPaths).map(role=>c.folder+"/Short "+role+".md")].includes(n.dataset.kplexPath));
-    c.check(nodes.length===8,"Long-label fixture did not render its exact neighborhood");
-    const rects=nodes.map(n=>({path:n.dataset.kplexPath,role:n.className,rect:n.getBoundingClientRect(),height:parseFloat(n.style.height),width:parseFloat(n.style.width)}));
-    for(let i=0;i<rects.length;i++)for(let j=i+1;j<rects.length;j++){const a=rects[i].rect,b=rects[j].rect;c.check(a.right<=b.left+.5||b.right<=a.left+.5||a.bottom<=b.top+.5||b.bottom<=a.top+.5,"Long-label nodes overlap: "+rects[i].path+" / "+rects[j].path)}
-    const regular=rects.filter(n=>n.path!==c.labelCenter);c.check(regular.some(n=>n.width>286),"Maximum node width control did not permit larger labels");c.check(rects.find(n=>n.path===c.labelCenter).width>370,"Central maximum width control did not permit a larger title");c.check(new Set(regular.map(n=>n.height)).size===1,"Short/long regular nodes have unequal row heights");
-    if(wrap){const text=nodes.find(n=>n.dataset.kplexPath===c.labelPaths.Friend).querySelector(".kplex-thought-text"),style=getComputedStyle(text),scale=nodes[0].getBoundingClientRect().height/parseFloat(nodes[0].style.height);c.check(style.whiteSpace==="normal"&&style.webkitLineClamp==="2"&&text.getBoundingClientRect().height/scale>parseFloat(style.lineHeight)*1.5,"Native long title did not occupy two lines: "+JSON.stringify({whiteSpace:style.whiteSpace,clamp:style.webkitLineClamp,height:text.getBoundingClientRect().height,scale,lineHeight:style.lineHeight,fontSize:style.fontSize,width:text.getBoundingClientRect().width,textLength:text.textContent.length}))}
-    const historyButton=Array.from(root.querySelectorAll("[data-kplex-history-path]")).find(n=>n.dataset.kplexHistoryPath===c.labelCenter),historyText=historyButton?.querySelector(".kplex-history-text");c.check(historyText,"History label text box missing");
-    const first=historyText.ownerDocument.createRange();first.setStart(historyText.firstChild,0);first.setEnd(historyText.firstChild,1);c.check(first.getBoundingClientRect().left>=historyText.getBoundingClientRect().left-.5,"History title clips its beginning");
-    const historyStyle=getComputedStyle(historyText),historyHeight=root.querySelector(".kplex-history-bar").getBoundingClientRect().height;
-    c.check(wrap?historyStyle.whiteSpace==="normal"&&historyStyle.webkitLineClamp==="2"&&historyText.getBoundingClientRect().height>parseFloat(historyStyle.lineHeight)*1.5:historyStyle.whiteSpace==="nowrap"&&historyText.scrollWidth>historyText.clientWidth,"History did not follow label wrapping mode");
-    c.check(historyHeight===(wrap?52:40),"History row did not reserve its configured text height");
-    labelEvidence.push({wrap,regularHeight:regular[0].height,widths:rects.map(n=>n.width),historyHeight});
-  }
-  record("label-controls-wide-nodes-fixed-two-line-height-no-overlap",{settingsPath:["Visual styling","Node styling","Node appearance"],modes:labelEvidence});
-  ${layoutEnhancementScenarios}
+  ${labelLayoutAcceptanceScenarios}
   ${relationshipEnhancementScenarios}
   ${gateCountScenarios}
   // Siblings share the same toolbar but need their own overflowing production fixture.
@@ -719,6 +823,15 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   c.done=true;
 })().catch(e=>{c.error=e.stack;c.done=true});return JSON.stringify(true)})()`;
 
+/** Scoped acceptance retains the full owned fixture and the identical label/settings/layout assertions. */
+const layoutScenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
+  const record=(id,evidence={})=>c.scenarios.push({id,status:"passed",...evidence});
+  const p=c.p,root=c.root(),gateWindow=require("@electron/remote").getCurrentWindow(),wc=gateWindow.webContents;
+  await c.editor(false);
+  ${labelLayoutAcceptanceScenarios}
+  c.done=true;
+})().catch(e=>{c.error=e.stack;c.done=true});return JSON.stringify(true)})()`;
+
 /** Clean up even a partially created fixture and flush the original settings before byte restoration. */
 const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(true);c.noticeObserver?.disconnect();c.restorePairTrace?.();c.done=false;c.error=null;(async()=>{
   c.statsModalEl?.querySelector(".modal-content button.mod-cta")?.click();
@@ -735,6 +848,7 @@ const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(
   require("@electron/remote").getCurrentWindow().webContents.sendInputEvent({type:"mouseUp",x:0,y:0,button:"left",clickCount:1});
   for(const release of c.fixtureDemands??[])release();c.fixtureDemands=[];
   c.popoutLeaf?.detach();c.leaf?.detach();c.previousLeaf?.detach();
+  const unrelated=app.vault.getFileByPath(c.unrelated);if(unrelated&&c.owned.includes(c.unrelated))await app.vault.delete(unrelated,true);
   const fixture=app.vault.getFolderByPath(c.folder);if(fixture&&c.owned.includes(c.folder))await app.vault.delete(fixture,true);
   await c.until(()=>c.settingsWrites.size===0,"Retiring fixture still has active settings writes");await c.frames();
   c.p.settings=c.settings;await c.p.saveSettings(false,false);
@@ -753,16 +867,28 @@ async function deviceMatrix() {
   const liveSettings=evaluate('JSON.stringify(app.plugins.plugins["k-plex"].settings)');
   const webOwner="Kplex-UX-Web-Routing.md";
   let ownsWebOwner=false;
+  let devicePhase={step:"fixture-setup"};
   const probe=async(width,height,expected)=>{
+    devicePhase={device:expected,width,height,step:"environment"};
     cli("dev:errors", "clear");
     evaluate(`(()=>{const w=require("@electron/remote").getCurrentWindow();w.setMinimumSize(200,200);w.setContentSize(${width},${height});return JSON.stringify(true)})()`);
     await sleep(500);
-    const environment=evaluate(`(()=>{const p=app.plugins.plugins["k-plex"],original=p.settings.layoutProfiles;
+    const environment=evaluate(`(()=>{const p=app.plugins.plugins["k-plex"],original=p.settings.layoutProfiles,originalTypography=p.settings.typographyProfiles;
       // Distinct valid profile values identify the actual environment selected by the production adapter.
       p.settings.layoutProfiles={...original,"desktop:leaf":{...original["desktop:leaf"],compactingFactor:2.01},"tablet:leaf":{...original["tablet:leaf"],compactingFactor:2.02},"mobile:leaf":{...original["mobile:leaf"],compactingFactor:2.03}};
-      try{const value=p.getActiveLayoutProfile("leaf").compactingFactor;return JSON.stringify({device:value===2.01?"desktop":value===2.02?"tablet":value===2.03?"phone":"unknown",mobile:app.isMobile,size:[innerWidth,innerHeight],bodyClasses:document.body.className})}finally{p.settings.layoutProfiles=original}
+      // Distinct temporary overrides exercise the production typography environment projection;
+      // they are restored synchronously without storage writes or semantic publication.
+      p.settings.typographyProfiles={...originalTypography,desktop:{maxLabelLength:61},tablet:{maxLabelLength:62},mobile:{maxLabelLength:63}};
+      try{const value=p.getActiveLayoutProfile("leaf").compactingFactor,typographyDevice=p.getTypographyDevice();
+        const typography=Object.fromEntries(["leaf","sidepanel","popout"].map(surface=>[surface,p.getViewSettings(surface).baseNodeStyle.maxLabelLength]));
+        return JSON.stringify({device:value===2.01?"desktop":value===2.02?"tablet":value===2.03?"phone":"unknown",typographyDevice,typography,mobile:app.isMobile,size:[innerWidth,innerHeight],bodyClasses:document.body.className})
+      }finally{p.settings.layoutProfiles=original;p.settings.typographyProfiles=originalTypography}
     })()`);
     assert.equal(environment.device,expected,`Actual classification: ${JSON.stringify(environment)}`);
+    const expectedTypographyDevice=expected==="phone"?"mobile":expected;
+    assert.equal(environment.typographyDevice,expectedTypographyDevice);
+    assert.deepEqual(environment.typography,{leaf:{desktop:61,tablet:62,mobile:63}[expectedTypographyDevice],sidepanel:{desktop:61,tablet:62,mobile:63}[expectedTypographyDevice],popout:{desktop:61,tablet:62,mobile:63}[expectedTypographyDevice]},"Typography environment scope differs between native surfaces");
+    devicePhase.step="mount-and-Find";
     evaluate(`(()=>{const c=window.__kplexUxDevice={done:false,error:null,leaf:app.workspace.getLeaf(true)};
       c.leaf.setViewState({type:"k-plex-react-view",active:true}).then(()=>{app.workspace.setActiveLeaf(c.leaf,{focus:true});c.done=true}).catch(e=>{c.error=e.stack;c.done=true});return JSON.stringify(true)})()`);
     await until('JSON.stringify(window.__kplexUxDevice.error?{error:window.__kplexUxDevice.error}:window.__kplexUxDevice.done)',"Emulated view did not open");
@@ -774,37 +900,49 @@ async function deviceMatrix() {
     })())`,"Emulated magnifier did not focus its Find field");
     assert(geometry.inside&&!geometry.dropdown&&!geometry.magnifier,JSON.stringify(geometry));
     if(expected!=="desktop")assert(!geometry.searchHint.includes("F4"),"Mobile hint assumes a hardware keyboard");
+    devicePhase.step="layout-controls";
     // Probe responsive availability without mutating density/columns: their behavior is exercised
     // separately. Every actual range and the new Find action must remain reachable in this surface.
     const hiddenLayout=evaluate('JSON.stringify((()=>{const root=window.__kplexUxDevice.leaf.view.contentEl,t=root.querySelector(".kplex-layout-toggle");return {toggle:Boolean(t),expanded:t?.getAttribute("aria-expanded"),ranges:root.querySelectorAll(".kplex-layout-controls input[type=range]").length}})())');
     assert(hiddenLayout.toggle&&hiddenLayout.expanded==="false"&&hiddenLayout.ranges===0,JSON.stringify(hiddenLayout));
     evaluate('(()=>{window.__kplexUxDevice.leaf.view.contentEl.querySelector(".kplex-layout-toggle").click();return JSON.stringify(true)})()');
-    await until('JSON.stringify(window.__kplexUxDevice.leaf.view.contentEl.querySelectorAll(".kplex-layout-controls input[type=range]").length===6)',"Emulated configuration did not mount sliders");
+    await until('JSON.stringify(window.__kplexUxDevice.leaf.view.contentEl.querySelectorAll(".kplex-layout-controls input[type=range]").length===7)',"Emulated configuration did not mount seven sliders");
     const layoutControls=evaluate(`JSON.stringify((()=>{const p=app.plugins.plugins["k-plex"],root=window.__kplexUxDevice.leaf.view.contentEl,plex=root.querySelector(".kplex-plex").getBoundingClientRect();
-      const keys=["graph.horizontalDensity","graph.verticalDensity","graph.parentColumns","graph.childColumns","graph.baseFontSize","settings.ui.maximum.node.width"];
+      const keys=["graph.horizontalDensity","graph.verticalDensity","graph.parentColumns","graph.childColumns","graph.baseFontSize","settings.ui.max.label.length","settings.ui.maximum.node.width"];
       const controls=keys.map(key=>{const input=Array.from(root.querySelectorAll('.kplex-layout-controls input[type="range"]')).find(el=>el.getAttribute("aria-label")===p.translator(key));if(!input)return {key,missing:true};const r=input.getBoundingClientRect(),label=input.closest("label").getBoundingClientRect();return {key,min:input.min,max:input.max,step:input.step,value:input.value,width:r.width,height:r.height,inside:r.width>0&&r.height>0&&label.left>=plex.left-1&&label.right<=plex.right+1&&label.top>=plex.top-1&&label.bottom<=plex.bottom+1}});
       const filter=Array.from(root.querySelectorAll(".kplex-find button")).find(el=>el.getAttribute("aria-label")===p.translator("find.applyFilter")),r=filter?.getBoundingClientRect();
       const wrap=root.querySelector(".kplex-wrap-label-control"),wr=wrap?.getBoundingClientRect();
-      const pair=root.querySelector(".kplex-typography-controls .kplex-density-axes"),rails=pair?.querySelectorAll(".kplex-density-control"),first=rails?.[0],second=rails?.[1],fr=first?.getBoundingClientRect(),sr=second?.getBoundingClientRect(),pr=pair?.getBoundingClientRect();
+      const pair=root.querySelector(".kplex-typography-controls .kplex-density-axes"),rails=pair?.querySelectorAll(".kplex-density-control"),first=rails?.[0],second=rails?.[1],third=rails?.[2],fr=first?.getBoundingClientRect(),sr=second?.getBoundingClientRect(),tr=third?.getBoundingClientRect(),pr=pair?.getBoundingClientRect();
       const caption=wrap?.querySelector(".kplex-wrap-label-caption"),heading=first?.querySelector(".kplex-density-heading"),cs=caption&&getComputedStyle(caption),hs=heading&&getComputedStyle(heading),ws=wrap&&getComputedStyle(wrap),rs=first&&getComputedStyle(first);
-      const typography={stacked:Boolean(fr&&sr&&Math.abs(fr.left-sr.left)<1&&Math.abs(fr.width-sr.width)<1&&sr.top>fr.bottom),twoRowTile:Boolean(wr&&pr&&Math.abs(wr.top-pr.top)<1&&Math.abs(wr.bottom-pr.bottom)<1),narrowTile:Boolean(wr&&fr&&wr.width<fr.width),wrappedCaption:Boolean(cs&&caption.getBoundingClientRect().height>parseFloat(cs.lineHeight)*1.5),matchingText:Boolean(cs&&hs&&["fontSize","letterSpacing","textTransform","color"].every(key=>cs[key]===hs[key])),matchingTile:Boolean(ws&&rs&&["backgroundColor","borderRadius","borderTopColor","borderTopWidth","boxShadow"].every(key=>ws[key]===rs[key])),tileWidth:wr?.width,tileHeight:wr?.height,pairHeight:pr?.height,fontSize:cs?.fontSize};
+      const typography={stacked:Boolean(fr&&sr&&tr&&rails.length===3&&Math.abs(fr.left-sr.left)<1&&Math.abs(fr.left-tr.left)<1&&Math.abs(fr.width-sr.width)<1&&Math.abs(fr.width-tr.width)<1&&sr.top>fr.bottom&&tr.top>sr.bottom),threeRowTile:Boolean(wr&&pr&&Math.abs(wr.top-pr.top)<1&&Math.abs(wr.bottom-pr.bottom)<1),narrowTile:Boolean(wr&&fr&&wr.width<fr.width),wrappedCaption:Boolean(cs&&caption.getBoundingClientRect().height>parseFloat(cs.lineHeight)*1.5),matchingText:Boolean(cs&&hs&&["fontSize","letterSpacing","textTransform","color"].every(key=>cs[key]===hs[key])),matchingTile:Boolean(ws&&rs&&["backgroundColor","borderRadius","borderTopColor","borderTopWidth","boxShadow"].every(key=>ws[key]===rs[key])),tileWidth:wr?.width,tileHeight:wr?.height,pairHeight:pr?.height,fontSize:cs?.fontSize};
       return {typography,wrapInside:Boolean(wr&&wr.left>=plex.left-1&&wr.right<=plex.right+1&&wr.top>=plex.top-1&&wr.bottom<=plex.bottom+1),controls,rangeCount:root.querySelectorAll('.kplex-layout-controls input[type="range"]').length,findFilter:filter?{disabled:filter.disabled,noTitle:!filter.hasAttribute("title"),besidePath:filter.previousElementSibling?.getAttribute("aria-label")===p.translator("find.includePath"),inside:r.width>0&&r.height>0&&r.left>=plex.left-1&&r.right<=plex.right+1&&r.top>=plex.top-1&&r.bottom<=plex.bottom+1}:null}
     })())`);
-    assert.equal(layoutControls.rangeCount,6,JSON.stringify(layoutControls));
+    assert.equal(layoutControls.rangeCount,7,JSON.stringify(layoutControls));
     assert(layoutControls.wrapInside&&layoutControls.controls.every(control=>control.inside),JSON.stringify(layoutControls));
-    assert(["stacked","twoRowTile","narrowTile","wrappedCaption","matchingText","matchingTile"].every(key=>layoutControls.typography[key]),JSON.stringify(layoutControls.typography));
+    assert(["stacked","threeRowTile","narrowTile","wrappedCaption","matchingText","matchingTile"].every(key=>layoutControls.typography[key]),JSON.stringify(layoutControls.typography));
     assert.deepEqual(layoutControls.controls.slice(2,4).map(({min,max,step})=>[min,max,step]),[["1","3","1"],["1","7","1"]],"Rendered parent/child column caps differ from their supported 3/7 widths");
     assert(layoutControls.findFilter?.disabled&&layoutControls.findFilter.noTitle&&layoutControls.findFilter.besidePath&&layoutControls.findFilter.inside,JSON.stringify(layoutControls));
+    devicePhase.step="Filter-open";
     evaluate('(()=>{const p=app.plugins.plugins["k-plex"],root=window.__kplexUxDevice.leaf.view.contentEl;window.__kplexUxDevice.filterTrigger=Array.from(root.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("filter.trigger"));if(!window.__kplexUxDevice.filterTrigger)throw new Error("Emulated Filter trigger missing");window.__kplexUxDevice.filterTrigger.click();return JSON.stringify(true)})()');
-    const filterPanelGeometry=await until(`JSON.stringify((()=>{const p=app.plugins.plugins["k-plex"],panel=document.querySelector(".kplex-filter-portal"),header=panel?.querySelector(".kplex-filter-panel-header");if(!header)return false;const r=panel.getBoundingClientRect(),close=Array.from(header.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("filter.closePanel")),cr=close?.getBoundingClientRect();return {ownerMatches:panel.ownerDocument===window.__kplexUxDevice.filterTrigger.ownerDocument,sharedDrag:header.classList.contains("kplex-draggable-dialog-handle"),title:header.querySelector("span")?.textContent,expectedTitle:p.translator("filter.panelTitle"),width:r.width,height:r.height,left:r.left,top:r.top,inside:r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth+1&&r.top>=0&&r.bottom<=innerHeight+1,closeReachable:Boolean(cr&&cr.width>0&&cr.height>0&&cr.left>=0&&cr.right<=innerWidth+1&&cr.top>=0&&cr.bottom<=innerHeight+1)}})())`,"Emulated draggable Filter panel did not render");
+    const filterPanelGeometry=await until(`JSON.stringify((()=>{const p=app.plugins.plugins["k-plex"],doc=window.__kplexUxDevice.filterTrigger.ownerDocument,view=doc.defaultView,panel=doc.querySelector(".kplex-filter-portal"),header=panel?.querySelector(".kplex-filter-panel-header");if(!header||!view)return false;const r=panel.getBoundingClientRect(),close=Array.from(header.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("filter.closePanel")),cr=close?.getBoundingClientRect();return {ownerMatches:panel.ownerDocument===doc,sharedDrag:header.classList.contains("kplex-draggable-dialog-handle"),title:header.querySelector("span")?.textContent,expectedTitle:p.translator("filter.panelTitle"),width:r.width,height:r.height,left:r.left,top:r.top,inside:r.width>0&&r.height>0&&r.left>=0&&r.right<=view.innerWidth+1&&r.top>=0&&r.bottom<=view.innerHeight+1,closeReachable:Boolean(cr&&cr.width>0&&cr.height>0&&cr.left>=0&&cr.right<=view.innerWidth+1&&cr.top>=0&&cr.bottom<=view.innerHeight+1)}})())`,"Emulated draggable Filter panel did not render");
     assert(filterPanelGeometry.ownerMatches&&filterPanelGeometry.sharedDrag&&filterPanelGeometry.inside&&filterPanelGeometry.closeReachable,JSON.stringify(filterPanelGeometry));
     assert.equal(filterPanelGeometry.title,filterPanelGeometry.expectedTitle);
-    evaluate('(()=>{const p=app.plugins.plugins["k-plex"],panel=document.querySelector(".kplex-filter-portal");Array.from(panel.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("filter.closePanel")).click();return JSON.stringify(true)})()');
-    await until('JSON.stringify(!document.querySelector(".kplex-filter-portal")&&document.activeElement===window.__kplexUxDevice.filterTrigger)',"Emulated Filter close failed dismissal/focus cleanup");
+    devicePhase.step="Filter-close";
+    evaluate('(()=>{const p=app.plugins.plugins["k-plex"],panel=window.__kplexUxDevice.filterTrigger.ownerDocument.querySelector(".kplex-filter-portal");Array.from(panel.querySelectorAll("button")).find(b=>b.getAttribute("aria-label")===p.translator("filter.closePanel")).click();return JSON.stringify(true)})()');
+    await until('JSON.stringify((()=>{const trigger=window.__kplexUxDevice.filterTrigger,doc=trigger.ownerDocument;return !doc.querySelector(".kplex-filter-portal")&&doc.activeElement===trigger})())',"Emulated Filter close failed dismissal/focus cleanup");
     report.scenarios.push({id:`emulated-${expected}-new-controls-and-filter-panel-fit`,status:"passed",environment,layoutControls,filterPanelGeometry,interaction:"DOM activation/geometry in desktop emulation; no physical touch assertion"});
-    // A validated source-backed startup is authoritative without a complete graph acceleration
-    // snapshot. Require settled source/current-view authority, not the optional full-graph flag.
-    await until('JSON.stringify((()=>{const p=app.plugins.plugins["k-plex"],i=p.index;return (i.isFullSnapshotHydrated()||i.hasSourceBackedStartup()&&p.getIndexStatus().upToDate&&i.sourceAcquisition.hasSemanticDependencies())&&!i.hasPendingSnapshotHydration()&&!i.hasPendingSemanticPreparation()&&!i.building})())',"Emulated primary source/graph authority did not complete",1_800_000);
+    devicePhase.step="selected-pair-authority";
+    // Local sessions grant selected-pair authority before global inventory. Prepare the actual
+    // displayed center and owned Markdown endpoint; eager sessions retain their global proof.
+    await until('JSON.stringify((()=>{const i=app.plugins.plugins["k-plex"].index;return !i.hasPendingSnapshotHydration()&&!i.hasPendingSemanticPreparation()&&!i.building})())',"Emulated pending primary work did not settle",1_800_000);
+    evaluate(`(()=>{const c=window.__kplexUxDevice,p=app.plugins.plugins["k-plex"],i=p.index;c.readiness={done:false,error:null};
+      (async()=>{if(i.isOnDemandMode()){const file=app.vault.getFileByPath(${JSON.stringify(webOwner)});if(!file)throw new Error("Owned web source disappeared");if(!i.get(file.path))i.insertCreatedFile(file);
+        const center=c.leaf.view.contentEl.querySelector(".kplex-role-center")?.dataset.kplexPath,other=center===file.path?"https://help.obsidian.md":file.path;
+        if(!center||!i.get(center)||center===other||!i.get(other))throw new Error("Emulated selected endpoints are unavailable");
+        if(!await i.prepareRelationshipPair(center,other)||!i.isSemanticWriteReady(center,other))throw new Error("Emulated selected pair authority did not prepare");c.readiness.pair=[center,other];}
+        c.readiness.done=true})().catch(error=>{c.readiness.error=String(error);c.readiness.done=true});return JSON.stringify(true)})()`);
+    await until('JSON.stringify((()=>{const c=window.__kplexUxDevice,p=app.plugins.plugins["k-plex"],i=p.index;if(c.readiness.error)return {error:c.readiness.error};if(!c.readiness.done)return false;return (i.isOnDemandMode()?c.readiness.pair&&i.isSemanticWriteReady(...c.readiness.pair)&&p.getIndexStatus().upToDate:i.isFullSnapshotHydrated()||i.hasSourceBackedStartup()&&p.getIndexStatus().upToDate&&i.sourceAcquisition.hasSemanticDependencies())&&!i.hasPendingSnapshotHydration()&&!i.hasPendingSemanticPreparation()&&!i.building})())',"Emulated primary source/graph authority did not complete",1_800_000);
+    devicePhase.step="web-routing";
     // Route a known URL through the actual central editor in every host mode. A guest's
     // remote response/authentication is separate from proving native element selection.
     await until('JSON.stringify(Boolean(app.plugins.plugins["k-plex"].index.get("https://help.obsidian.md")))',"Source-backed web routing URL did not restore");
@@ -836,6 +974,12 @@ async function deviceMatrix() {
     cli("eval","code=app.emulateMobile(true)");await ready();
     await probe(900,875,"tablet");
     await probe(390,844,"phone");
+  } catch(error) {
+    // Capture the failed phase before owned view teardown, without labels, paths or vault data.
+    report.deviceFailure={...devicePhase};
+    try{report.deviceFailure.native=evaluate('JSON.stringify((()=>{const c=window.__kplexUxDevice,root=c?.leaf?.view.contentEl,trigger=c?.filterTrigger,current=root?.querySelector(".kplex-filter-trigger"),doc=trigger?.ownerDocument||root?.ownerDocument||document;const portals=scope=>Array.from(scope.querySelectorAll(".kplex-filter-portal")).slice(0,4).map(panel=>({class:panel.className,header:Boolean(panel.querySelector(".kplex-filter-panel-header")),connected:panel.isConnected}));return {rootConnected:root?.isConnected,triggerConnected:trigger?.isConnected,triggerMatchesCurrent:trigger===current,triggerExpanded:trigger?.getAttribute("aria-expanded"),currentExpanded:current?.getAttribute("aria-expanded"),ownerMatchesAmbient:doc===document,ownedPortalCount:doc.querySelectorAll(".kplex-filter-portal").length,ambientPortalCount:document.querySelectorAll(".kplex-filter-portal").length,ownedPortals:portals(doc),ambientPortals:portals(document),activeClass:doc.activeElement?.className,mode:app.plugins.plugins["k-plex"].index.isOnDemandMode()?"on-demand":"eager",readinessError:c?.readiness?.error,readinessDone:c?.readiness?.done}})())')}catch(receiptError){report.deviceFailure.receiptError=String(receiptError)}
+    try{report.deviceFailure.errors=cli("dev:errors").slice(0,8000)}catch(receiptError){report.deviceFailure.errorReceiptError=String(receiptError)}
+    throw error;
   } finally {
     try{evaluate('(()=>{window.__kplexUxDevice?.leaf?.detach();delete window.__kplexUxDevice;return JSON.stringify(true)})()')}catch{}
     if(ownsWebOwner){evaluate(`(()=>{window.__kplexUxWebCleanup={done:false,error:null};const file=app.vault.getFileByPath(${JSON.stringify(webOwner)});(file?app.vault.delete(file):Promise.resolve()).then(()=>{window.__kplexUxWebCleanup.done=true}).catch(e=>{window.__kplexUxWebCleanup.error=e.stack;window.__kplexUxWebCleanup.done=true});return JSON.stringify(true)})()`);await until('JSON.stringify(window.__kplexUxWebCleanup.error?{error:window.__kplexUxWebCleanup.error}:window.__kplexUxWebCleanup.done)',"Web routing fixture cleanup failed")}
@@ -872,12 +1016,17 @@ try {
   evaluate(`(()=>{const c=window.${controller};c.mount={done:false,error:null};c.leaf=app.workspace.getLeaf(true);
     c.leaf.setViewState({type:"k-plex-react-view",active:true}).then(()=>{app.workspace.setActiveLeaf(c.leaf,{focus:true});c.mount.done=true}).catch(e=>{c.mount.error=e.stack;c.mount.done=true});return JSON.stringify(true)})()`);
   await until(`JSON.stringify(window.${controller}.mount.error?{error:window.${controller}.mount.error}:window.${controller}.mount.done)`,"Owned test view did not mount");
+  // Native setViewState can resolve before the child React navigation subscription mounts.
+  // Wait on the owning view's frames before sending its ordinary setup navigation notification.
+  evaluate(`(()=>{const c=window.${controller};c.navigationMounted=false;const owner=c.leaf.view.contentEl.ownerDocument.defaultView;owner.requestAnimationFrame(()=>owner.requestAnimationFrame(()=>{c.navigationMounted=true}));return JSON.stringify(true)})()`);
+  await until(`JSON.stringify(window.${controller}.navigationMounted)`,"Owned navigation subscription frames did not settle",5000);
   // A previous stress run can leave a 20k-contributor center whose requested-scope decode
   // deliberately exceeds its budget. Select an existing small note before strict readiness.
   const setupCenter=process.env.KPLEX_UX_SETUP_CENTER||"Welcome.md";
   if(evaluate(`JSON.stringify(Boolean(app.vault.getFileByPath(${JSON.stringify(setupCenter)})))`)){
     await until(`JSON.stringify(Boolean(app.plugins.plugins["k-plex"].index.getVaultSearchPage(${JSON.stringify(setupCenter)})))`,"Setup center did not become available",1_800_000);
     evaluate(`(()=>{const p=app.plugins.plugins["k-plex"],page=p.index.getVaultSearchPage(${JSON.stringify(setupCenter)});if(page?.file&&!p.index.get(page.path))p.index.insertCreatedFile(page.file);p.notifyNavigation(${JSON.stringify(setupCenter)});return JSON.stringify(true)})()`);
+    await until(`JSON.stringify(window.${controller}.center()===${JSON.stringify(setupCenter)})`,"Explicit physical setup center did not render",30000);
     report.setupCenter=setupCenter;
   }
   console.log("Waiting for test-vault index readiness");
@@ -885,18 +1034,26 @@ try {
   // readiness entry point as opening a view; never manufacture readiness by changing its flags.
   evaluate(`(()=>{const c=window.${controller};c.readinessRecovery={done:false,error:null};
     (async()=>{await c.p.ensureIndexReady("ux-test-setup");
-      if(!c.p.index.isFullSnapshotHydrated()&&!c.p.index.hasPendingSnapshotHydration())await c.p.rebuildIndex(false,true,"ux-initial-seed");
+      if(!c.p.index.isOnDemandMode()&&!c.p.index.isFullSnapshotHydrated()&&!c.p.index.hasPendingSnapshotHydration())await c.p.rebuildIndex(false,true,"ux-initial-seed");
       await c.p.index.refreshSemanticSettings();
+      const center=c.center();c.check(center&&c.p.index.get(center),"Initial canonical center is unavailable");
+      if(c.p.index.isOnDemandMode()){
+        // Prefer an already published physical neighbor. An unconnected selected file is also
+        // a valid negative pair; enumerate identities only, without acquiring the global vault.
+        const page=c.p.index.get(center),neighbor=[...page.neighbours.keys()].map(path=>app.vault.getFileByPath(path)).find(file=>file?.extension==="md"&&file.path!==center);
+        const target=neighbor||app.vault.getMarkdownFiles().find(file=>file.path!==center);
+        c.check(target,"Initial center has no distinct physical Markdown readiness target");await c.prepareAuthority(center,target.path);
+      }
       c.readinessRecovery.done=true})().catch(e=>{c.readinessRecovery.error=e.stack;c.readinessRecovery.done=true});return JSON.stringify(true)})()`);
   await until(`JSON.stringify(window.${controller}.readinessRecovery.error?{error:window.${controller}.readinessRecovery.error}:window.${controller}.readinessRecovery.done&&window.${controller}.primaryReady())`, "Initial primary graph/current-view semantics did not settle", 1_800_000);
-  report.startupReadiness=evaluate(`JSON.stringify((()=>{const c=window.${controller},center=c.root().querySelector(".kplex-role-center")?.dataset.kplexPath,page=c.p.index.get(center);return {center,centerNeighbours:page?c.p.index.neighbourCount(page):null,primaryReady:c.primaryReady(),failure:c.p.index.getSemanticPreparationFailure(),status:c.p.getIndexStatus(),aliasVocabularyPending:c.p.index.hasPendingSearchVocabulary(),source:c.p.index.getSourceAcquisitionCounters(),semantic:c.p.index.getSemanticPreparationDiagnostics()}})())`);
+  report.startupReadiness=evaluate(`JSON.stringify((()=>{const c=window.${controller},center=c.root().querySelector(".kplex-role-center")?.dataset.kplexPath,page=c.p.index.get(center),target=c.authorityTargets.get(center);return {center,centerNeighbours:page?c.p.index.neighbourCount(page):null,mode:c.p.index.isOnDemandMode()?"on-demand":"eager",authorityPair:target?[center,target]:null,pairReady:target?c.p.index.isSemanticWriteReady(center,target):null,globalDependencies:c.p.index.sourceAcquisition.hasSemanticDependencies(),primaryReady:c.primaryReady(),failure:c.p.index.getSemanticPreparationFailure(),status:c.p.getIndexStatus(),aliasVocabularyPending:c.p.index.hasPendingSearchVocabulary(),source:c.p.index.getSourceAcquisitionCounters(),semantic:c.p.index.getSemanticPreparationDiagnostics()}})())`);
   if(report.setupCenter){assert.equal(report.startupReadiness.center,report.setupCenter,"Setup center is not rendered");assert.equal(report.startupReadiness.failure,null,"Ordinary setup center still has a terminal scope failure");}
   console.log("Index ready; creating the owned UX fixture");
   cli("dev:errors", "clear");
   evaluate(setup);
   await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "Fixture setup timed out",900000);
-  console.log("Fixture ready; running UX workflows");
-  evaluate(scenarios);
+  console.log("Fixture ready; running "+report.scope+" UX workflows");
+  evaluate(layoutOnly ? layoutScenarios : scenarios);
   await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "UX scenarios timed out", 300_000);
   report.scenarios = evaluate(`JSON.stringify(window.${controller}.scenarios)`);
   report.fixtureReadiness=evaluate(`JSON.stringify(window.${controller}.fixtureReadiness)`);
@@ -912,7 +1069,7 @@ try {
       center:r?c.center():c.p.settings.lastActivePath,status:c.p.getIndexStatus(),activeClass:document.activeElement?.className,
       findOpen:r?.querySelector(".kplex-find button")?.getAttribute("aria-expanded"),
       findValue:r?.querySelector(".kplex-find-input")?.value,matchLabel:r?.querySelector(".kplex-find-count")?.textContent,fixtureAliases:c.fixtureAliases,
-      pairTrace:c.pairTrace,notices:c.notices,linkDisabled:document.querySelector(".kplex-add-related-link-button")?.disabled,relationshipWrites:c.p.relationshipWriteCancels.size,sourceDiagnostics:c.p.index.getSourceRepositoryDiagnostics(),highlightedNodes:r?.querySelectorAll(".kplex-thought.is-highlighted").length,resize:c.lastResize,gate:c.lastGate,bodyDrag:c.lastBodyDrag,dragEvents:c.dragEvents,lastClick:c.lastClick,
+      pairTrace:c.pairTrace,notices:c.notices,linkDisabled:document.querySelector(".kplex-add-related-link-button")?.disabled,relationshipWrites:c.p.relationshipWriteCancels.size,sourceDiagnostics:c.p.index.getSourceRepositoryDiagnostics(),highlightedNodes:r?.querySelectorAll(".kplex-thought.is-highlighted").length,resize:c.lastResize,imagePaint:c.lastImagePaint,canvasResize:c.lastCanvasResize,gate:c.lastGate,bodyDrag:c.lastBodyDrag,dragEvents:c.dragEvents,lastClick:c.lastClick,lastHover:c.lastHover,lastKey:c.lastKey,
       vaultInput:r?.querySelector(".kplex-search")?.value,vaultResults:r?.querySelector(".kplex-search-results")?.textContent,
       popoutRootConnected:c.popoutRootForFind?.isConnected,
       popoutRootCurrent:c.popoutRootForFind===c.popoutLeaf?.view.contentEl.querySelector(".kplex-app"),

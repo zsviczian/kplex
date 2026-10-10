@@ -9,10 +9,12 @@ export const layoutEnhancementScenarios = `
   const configToggle=root.querySelector(".kplex-layout-toggle");
   c.check(configToggle&&configToggle.getAttribute("aria-expanded")==="false"&&root.querySelectorAll('.kplex-layout-controls input[type="range"]').length===0,"Configuration must begin hidden with unmounted sliders");
   await c.click(configToggle);await c.frames();
-  c.check(root.querySelectorAll('.kplex-layout-controls input[type="range"]').length===6,"Configuration toggle did not mount six sliders");
+  c.check(root.querySelectorAll('.kplex-layout-controls input[type="range"]').length===7,"Configuration toggle did not mount seven sliders");
   await c.click(configToggle);await c.frames();
   c.check(root.querySelectorAll('.kplex-layout-controls input[type="range"]').length===0,"Configuration toggle did not unmount sliders");
-  await c.click(configToggle);await c.frames();record("default-hidden-layout-toggle-mount-unmount");
+  await c.click(configToggle);await c.frames();
+  c.check(Array.from(root.querySelectorAll('.kplex-typography-controls input[type="range"]')).map(input=>input.getAttribute("aria-label")).join("|")===["graph.baseFontSize","settings.ui.max.label.length","settings.ui.maximum.node.width"].map(key=>p.translator(key)).join("|"),"Typography rails are not ordered font, label length, node width");
+  record("default-hidden-layout-toggle-mount-unmount");
   const layoutRail=key=>root.querySelector('.kplex-layout-controls input[aria-label="'+p.translator(key)+'"]');
   for(const key of ["graph.horizontalDensity","graph.verticalDensity","graph.parentColumns","graph.childColumns"]){
     const input=layoutRail(key);c.check(input&&input.type==="range"&&!input.disabled,"Missing usable layout rail: "+key);
@@ -108,21 +110,45 @@ export const layoutEnhancementScenarios = `
   }
   p.settings.animationSpeed=0;p.index.notify();await c.frames();
   record("slow-native-density-sweeps-no-animation-rollback-or-camera-jump",{samples:sweepSamples,fullBuildDelta:p.index.getSemanticPreparationDiagnostics().fullBuilds-layoutBuilds});
-  // Typography controls share plugin settings; interleaved drafts cannot revert one another.
-  const typographyBefore={baseFontSize:p.settings.baseFontSize,maxWidth:p.settings.baseNodeStyle.maxWidth,wrap:p.settings.wrapNodeLabels};
-  await c.go(c.labelCenter);await tab.setControlValue("wrapNodeLabels",false);await tab.setControlValue("baseNodeStyle.maxLabelLength",120);await c.frames();
+  // Typography controls target the active device; shared defaults and other devices stay untouched.
+  const typographyDevice=p.getTypographyDevice(),typographyBefore=structuredClone(p.settings.typographyProfiles);
+  const sharedTypographyBefore={font:p.settings.baseFontSize,width:p.settings.baseNodeStyle.maxWidth,wrap:p.settings.wrapNodeLabels};
+  await c.go(c.labelCenter);await c.until(c.primaryReady,"Typography fixture source/semantics did not settle");
+  // Commit earlier fixture layout/animation changes outside the lease. Mixed writes legitimately
+  // refresh local coverage; the measured edit below must contain only device typography changes.
+  await p.saveSettings(false);await c.until(c.primaryReady,"Typography fixture settings/semantics did not settle");
+  // Existing foreground priority parks optional background work at its normal checkpoint. Wrappers
+  // remain passive and count only actual source/Markdown work on this already-prepared fixture.
+  await p.index.withForegroundPriority(async()=>{
+  await c.wait(200);await c.frames();
+  const typographyWork={reads:0,parses:0,acquisitions:0,semanticPublications:0},typographyRestores=[];
+  const observeTypography=(owner,name,counter)=>{const original=owner[name];c.check(typeof original==="function","Typography observation missing "+name);owner[name]=function(...args){typographyWork[counter]++;return original.apply(this,args)};typographyRestores.push(()=>owner[name]=original)};
+  observeTypography(app.vault,"read","reads");observeTypography(app.vault,"cachedRead","reads");
+  observeTypography(p.index.sourceAcquisition,"parse","parses");observeTypography(p.index.sourceAcquisition,"acquire","acquisitions");
+  typographyRestores.push(p.index.subscribe(()=>typographyWork.semanticPublications++));
+  const typographyPublication=p.index.publicationRevision;
+  try{
+  await tab.setControlValue(("typography."+typographyDevice+".wrapNodeLabels"),false);await tab.setControlValue(("typography."+typographyDevice+".maxLabelLength"),120);await c.frames();
+  c.check(root.querySelector(".kplex-typography-scope").textContent.includes(p.translator("typography."+typographyDevice)),"Quick controls lack active device scope");
   const measureTypography=()=>{const node=root.querySelector(".kplex-role-left"),scale=root.querySelector(".kplex-role-center").getBoundingClientRect().height/parseFloat(root.querySelector(".kplex-role-center").style.height);return {font:Number.parseFloat(getComputedStyle(node).fontSize),width:node.getBoundingClientRect().width/scale,height:node.getBoundingClientRect().height/scale}};
   await setRail("settings.ui.maximum.node.width",160);const narrowTypography=measureTypography();
-  await setRail("graph.baseFontSize",24);await setRail("settings.ui.maximum.node.width",500);
+  await setRail("graph.baseFontSize",24);await setRail("settings.ui.max.label.length",60);await setRail("settings.ui.maximum.node.width",500);
   const wrapControl=root.querySelector('.kplex-wrap-label-control input');await c.click(wrapControl);await c.wait(300);await c.frames();
   const wideTypography=measureTypography();
   c.check(wideTypography.font>narrowTypography.font&&wideTypography.width>narrowTypography.width&&wideTypography.height>narrowTypography.height,"Typography rails did not change actual font/width/two-line geometry");
-  c.check(p.settings.baseFontSize===24&&tab.getControlValue("baseFontSize")===24&&tab.getControlValue("baseNodeStyle.maxWidth")===500&&p.settings.wrapNodeLabels===true,"Plex typography differs from plugin Settings");
-  await tab.setControlValue("baseFontSize",16);await c.frames();c.check(Number(layoutRail("graph.baseFontSize").value)===16,"Plugin font setting did not update the Plex rail");
-  await p.saveSettings(false);const savedTypography=await p.loadData();c.check(savedTypography.baseFontSize===16&&savedTypography.baseNodeStyle.maxWidth===500&&savedTypography.wrapNodeLabels===true,"Typography settings did not persist");
+  c.check(tab.getControlValue(("typography."+typographyDevice+".baseFontSize"))===24&&tab.getControlValue(("typography."+typographyDevice+".maxWidth"))===500&&tab.getControlValue(("typography."+typographyDevice+".maxLabelLength"))===60&&tab.getControlValue(("typography."+typographyDevice+".wrapNodeLabels"))===true,"Plex typography differs from same-device plugin Settings");
+  c.check(p.settings.baseFontSize===sharedTypographyBefore.font&&p.settings.baseNodeStyle.maxWidth===sharedTypographyBefore.width&&p.settings.wrapNodeLabels===sharedTypographyBefore.wrap,"Device quick edit changed shared defaults");
+  await tab.setControlValue(("typography."+typographyDevice+".baseFontSize"),16);await c.frames();c.check(Number(layoutRail("graph.baseFontSize").value)===16,"Device Settings did not update the Plex rail");
+  await p.saveSettings(false);const savedTypography=await p.loadData();c.check(savedTypography.typographyProfiles[typographyDevice].baseFontSize===16&&savedTypography.typographyProfiles[typographyDevice].maxWidth===500&&savedTypography.typographyProfiles[typographyDevice].wrapNodeLabels===true,"Device typography did not persist");
+  for(const surface of ["leaf","sidepanel","popout"])c.check(p.getViewSettings(surface).baseFontSize===16,"Device typography leaked across surface selection");
+  await setRail("settings.ui.max.label.length",70);await p.resetTypographyOverride(typographyDevice);await c.wait(250);await c.frames();
+  c.check(["baseFontSize","maxLabelLength","maxWidth","wrapNodeLabels"].every(field=>!Object.prototype.hasOwnProperty.call(p.settings.typographyProfiles[typographyDevice]||{},field)),"Pending debounce resurrected reset typography");
   c.check(p.index.getSemanticPreparationDiagnostics().fullBuilds===layoutBuilds,"Typography requested a full semantic rebuild");
-  record("Plex-font-width-wrap-settings-geometry-and-persistence",{narrow:narrowTypography,wide:wideTypography,globalSettings:true});
-  await tab.setControlValue("baseFontSize",typographyBefore.baseFontSize);await tab.setControlValue("baseNodeStyle.maxWidth",typographyBefore.maxWidth);await tab.setControlValue("wrapNodeLabels",typographyBefore.wrap);
+  c.check(Object.values(typographyWork).every(value=>value===0)&&p.index.publicationRevision===typographyPublication,"Device typography caused source/parsing/Markdown or semantic publication work: "+JSON.stringify(typographyWork));
+  record("Plex-device-font-label-width-wrap-settings-geometry-persistence-reset",{narrow:narrowTypography,wide:wideTypography,device:typographyDevice,sharedDefaultsPreserved:true,work:typographyWork});
+  p.settings.typographyProfiles=typographyBefore;await p.saveSettings(false);await c.frames();
+  }finally{typographyRestores.reverse().forEach(restore=>restore())}
+  });
   await c.go(c.hub);await c.frames();
   // Return to the established sparse test profile before relationship gestures.
   await setRail("graph.parentColumns",1);await setRail("graph.childColumns",1);

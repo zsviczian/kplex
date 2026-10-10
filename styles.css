@@ -324,15 +324,6 @@ button.kplex-sidecar-unfold-plex:hover,
 .kplex-thought.is-highlighted { filter: brightness(1.22); box-shadow: 0 0 0 1px rgba(184,222,255,.66), 0 0 18px rgba(112,184,255,.32), 0 5px 18px rgba(0,0,0,.36); z-index: 13; }
 .kplex-thought.is-dimmed { opacity: .24; filter: saturate(.55) brightness(.72); }
 .kplex-thought.is-selected { box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 0 34px rgba(112,184,255,.28), 0 8px 24px rgba(0,0,0,.42); }
-/* A crisp outer ring plus a broad theme-accent halo keeps arrow-key selection distinct. */
-.kplex-thought.is-keyboard-selected,
-.kplex-expanded-mini-thought.is-keyboard-selected,
-.kplex-thought.is-selected.is-keyboard-selected,
-.kplex-plex.is-section-expanded .kplex-thought.is-selected.is-keyboard-selected {
-  outline: 3px solid var(--interactive-accent);
-  outline-offset: 3px;
-  box-shadow: 0 0 0 3px var(--background-primary), 0 0 0 6px var(--interactive-accent), 0 0 28px 6px var(--interactive-accent);
-}
 /* Legacy rectangular clipping preserves live announcements without newer clip-path support. */
 .kplex-keyboard-announcement {
   position: absolute;
@@ -2670,6 +2661,10 @@ body.kplex-filter-panel-open .tooltip { z-index: 100300; }
 }
 .kplex-edge-source-reason { margin: 5px 0; color: var(--text-muted); font-size: var(--font-ui-smaller); }
 .kplex-edge-source-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.kplex-edge-source-removal { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--size-4-2); margin-top: var(--size-4-2); }
+.kplex-edge-source-removal-coordinate { color: var(--text-muted); font-size: var(--font-ui-small); overflow-wrap: anywhere; }
+.kplex-edge-source-removal button { color: var(--text-error); }
+.kplex-edge-removal-status { padding: var(--size-4-2) 0; color: var(--text-muted); }
 .kplex-edge-source-action { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 3px 8px; font-size: var(--font-ui-smaller); }
 .kplex-edge-source-action svg { width: 14px; height: 14px; }
 
@@ -3330,9 +3325,16 @@ button.kplex-style-manager-row { height: fit-content; }
 }
 .kplex-type-selection-query { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .kplex-type-selection-count { flex: 0 0 auto; white-space: nowrap; color: var(--text-muted); }
+/* Navigation, typing selection and local Find share one theme-accent ring and halo, including center and expanded nodes. */
+.kplex-thought.is-keyboard-selected,
+.kplex-expanded-mini-thought.is-keyboard-selected,
+.kplex-thought.is-selected.is-keyboard-selected,
+.kplex-plex.is-section-expanded .kplex-thought.is-selected.is-keyboard-selected,
 .kplex-plex.is-finding .kplex-thought.is-highlighted,
 .kplex-expanded-mini-thought.is-find-match {
-  box-shadow: 0 0 0 2px var(--interactive-accent);
+  outline: 3px solid var(--interactive-accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--background-primary), 0 0 0 6px var(--interactive-accent), 0 0 28px 6px var(--interactive-accent);
 }
 .kplex-plex.is-finding .kplex-edge.is-highlighted .kplex-edge-visible,
 .kplex-expanded-edge.is-find-match { stroke: var(--interactive-accent); }
@@ -3448,6 +3450,9 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-wrap-label-control { width: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
 .kplex-wrap-label-caption { display: block; width: 100%; line-height: 1.4; text-align: center; white-space: normal; overflow-wrap: anywhere; }
 .kplex-wrap-label-control input { margin: 0; }
+.kplex-typography-group { width: 198px; min-width: 0; max-width: 100%; display: flex; flex-direction: column; gap: 4px; }
+.kplex-typography-scope { display: flex; align-items: center; justify-content: space-between; gap: 4px; color: var(--text-muted); font-size: var(--font-smallest); }
+.kplex-typography-scope button { padding: 2px; height: auto; min-height: 20px; background: transparent; box-shadow: none; color: var(--text-muted); }
 
 /* Declarative shortcut rows stay within the native Settings page and global search results. */
 .kplex-action-setting .setting-item-control { flex-wrap: wrap; gap: 6px; }
@@ -3465,6 +3470,9 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-action-filtered { display: none; }
 .kplex-action-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .kplex-action-status { color: var(--text-muted); font-size: var(--font-ui-small); overflow-wrap: anywhere; }
+.kplex-action-scope,
+.kplex-action-publication-state { color: var(--text-muted); font-size: var(--font-ui-small); margin-top: 4px; overflow-wrap: anywhere; }
+.kplex-action-publication-state.kplex-action-diagnostic-warning { color: var(--text-warning); }
 
 /* Native suggestion themes supply row typography and surfaces; these rules keep both columns bounded. */
 .kplex-action-suggestion { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -3528,6 +3536,13 @@ button.kplex-sidecar-unfold-plex:focus-visible,
   z-index: calc(var(--layer-popover, 30) - 1);
   overflow: hidden;
   background-color: var(--background-primary);
+}
+/* Keep the graph viewport and left gutter; Windows fullscreen action bars share measured native-control exclusion. */
+.kplex-fullscreen-overlay.kplex-windows-fullscreen .kplex-topbar {
+  padding-right: calc(10px + var(--kplex-window-controls-inset, 0px));
+}
+.kplex-fullscreen-overlay.kplex-windows-fullscreen .kplex-app.is-zen .kplex-central-editor-overlay.is-maximized .kplex-central-editor-toolbar {
+  right: calc(1px + var(--kplex-window-controls-inset, 0px));
 }
 .kplex-fullscreen-overlay > .kplex-view-host { padding: 0; }
 .kplex-app.is-zen > .kplex-main-column { grid-template-rows: minmax(0, 1fr); }

@@ -1938,3 +1938,76 @@ try {
 test("Native hotkey pills support disable, customize, restore, conflicts and recording cleanup",()=>{
  runBrowserDom(internalHotkeySettingsBrowserEntry(),"Native hotkey pills and recording lifecycle passed");
 });
+
+/** Render the actual ThoughtNode text and geometry for long titles/aliases across independent density values. */
+function typographyLabelsBrowserEntry() {
+  return `
+import React from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import { alphaHexToCss } from ${JSON.stringify(join(root, "src/index/style.ts"))};
+import { effectiveLabelLimit, nodeLabelFontSize, gateDiameter } from ${JSON.stringify(join(root, "src/ui/layout.ts"))};
+${uiDefinitions("src/ui/layout.ts", ["clamp", "nodeSize"])}
+import { physicalPositionLabel } from ${JSON.stringify(join(root, "src/ui/features/positionPresentation.ts"))};
+const ObsidianIcon=({className,size})=><span className={"kplex-icon "+className} style={{width:size,height:size}}/>;
+${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
+const result=document.querySelector("#result"),container=document.createElement("div");document.body.append(container);
+container.className="kplex-view-host";container.style.fontFamily="Arial, sans-serif";
+const css=document.head.appendChild(document.createElement("style"));css.textContent=${JSON.stringify(readFileSync(join(root,"styles.css"),"utf8"))};
+const root=createRoot(container),check=(condition,message)=>{if(!condition)throw new Error(message)};
+const title="A long alias and original note title ".repeat(5),prefix="@ ";
+const noop=()=>{},gates=Object.fromEntries(["top","bottom","left","right"].map(gate=>[gate,{visibleCount:0,hasAny:false,complete:true}]));
+try{
+ for(const role of ["child","center"]){
+  let expectedWidth,expectedText;
+  for(const density of [0.75,1,1.5,2,3,4]){
+   const settings={baseFontSize:12.4,wrapNodeLabels:true,showNeighborCount:false,horizontalCompactingFactor:density,compactingFactor:density};
+   const style={fontSize:20,maxLabelLength:60,maxWidth:800,prefix};
+   const size=nodeSize(prefix+title,20,settings,role==="center",60,800);
+   const node={page:{path:"Long.md",name:title,file:{extension:"md"}},label:title,role,x:0,y:0,...size,style,gateStats:gates,neighbourCount:0};
+   flushSync(()=>root.render(<ThoughtNode node={node} settings={settings} selected={false} highlighted={false} dimmed={false} highlightedGates={new Set()}
+    translate={key=>key} onActivate={noop} onOpen={noop} onHoverNode={noop} onHoverGate={noop} onHoverEnd={noop} onHoverPreview={noop} onGatePointerDown={noop} onNodePointerDown={noop}/>));
+   const element=container.querySelector(".kplex-thought"),text=container.querySelector(".kplex-thought-label").textContent;
+   const maximum=role==="center"?68:60;
+   check(text===(prefix+title).slice(0,maximum-1)+"…","Actual long title truncated with wrong configured budget");
+   check(text.length===maximum,"Center allowance/prefix/ellipsis length changed");
+   if(expectedWidth!==undefined){check(element.style.width===expectedWidth,"Density changed actual measured label width");check(text===expectedText,"Density changed actual rendered truncation");}
+   expectedWidth=element.style.width;expectedText=text;
+  }
+ }
+ let priorWidth=0;
+ for(const [budget,width,wrap] of [[60,800,true],[120,800,true],[8,800,true],[60,160,false],[60,160,true]]){
+  const settings={baseFontSize:12.4,wrapNodeLabels:wrap,showNeighborCount:false,horizontalCompactingFactor:4,compactingFactor:0.75};
+  const style={fontSize:20,maxLabelLength:budget,maxWidth:width,prefix},size=nodeSize(prefix+title,20,settings,false,budget,width);
+  const node={page:{path:"Long.md",name:title,file:{extension:"md"}},label:title,role:"child",x:0,y:0,...size,style,gateStats:gates,neighbourCount:0};
+  flushSync(()=>root.render(<ThoughtNode node={node} settings={settings} selected={false} highlighted={false} dimmed={false} highlightedGates={new Set()}
+    translate={key=>key} onActivate={noop} onOpen={noop} onHoverNode={noop} onHoverGate={noop} onHoverEnd={noop} onHoverPreview={noop} onGatePointerDown={noop} onNodePointerDown={noop}/>));
+  const element=container.querySelector(".kplex-thought"),label=container.querySelector(".kplex-thought-label");
+  check(label.textContent===(prefix+title).slice(0,budget-1)+"…","Same-mount budget change left stale label text");
+  check(parseFloat(element.style.width)===size.width&&parseFloat(element.style.height)===size.height,"Same-mount typography left stale geometry");
+  check(label.classList.contains("is-two-line")===wrap,"Wrap change retained stale line policy");
+  if(budget===120)check(size.width>priorWidth,"Raised budget did not enlarge actual geometry");
+  if(budget===8)check(size.width<priorWidth,"Minimum budget did not shrink actual geometry");
+  priorWidth=size.width;
+ }
+ // Short center labels must fit actual CSS/font/icon geometry, not merely retain their DOM text.
+ for(const density of [0.75,2,4])for(const baseFontSize of [13,20,28]){
+  const label="Graph Lenses are local",settings={baseFontSize,wrapNodeLabels:false,showNeighborCount:false,horizontalCompactingFactor:density,compactingFactor:density};
+  const style={fontSize:25,maxLabelLength:120,maxWidth:baseFontSize===13?390:800,icon:"triangle-alert"};
+  const size=nodeSize(label,25,settings,true,120,style.maxWidth),node={page:{path:"Short.md",name:label,file:{extension:"md"}},label,role:"center",x:0,y:0,...size,style,gateStats:gates,neighbourCount:0};
+  flushSync(()=>root.render(<ThoughtNode node={node} settings={settings} selected={false} highlighted={false} dimmed={false} highlightedGates={new Set()}
+   translate={key=>key} onActivate={noop} onOpen={noop} onHoverNode={noop} onHoverGate={noop} onHoverEnd={noop} onHoverPreview={noop} onGatePointerDown={noop} onNodePointerDown={noop}/>));
+  const text=container.querySelector(".kplex-thought-text");
+  check(text.textContent===label,"Short center label was character-truncated");
+  check(text.scrollWidth<=text.clientWidth,"Short center label was CSS-clipped at font "+baseFontSize+", density "+density+": "+text.scrollWidth+">"+text.clientWidth);
+  check(size.width<=style.maxWidth,"Center sizing ignored its explicit width cap");
+ }
+ flushSync(()=>root.unmount());check(container.childElementCount===0,"Typography test retained nodes");
+ result.dataset.status="passed";result.textContent="Density-independent rendered typography passed";
+}catch(error){result.dataset.status="failed";result.textContent=String(error?.stack??error)}finally{container.remove();css.remove()}
+`;
+}
+
+test("long node titles and aliases retain exact rendered truncation and measured width across all density values", () => {
+  runBrowserDom(typographyLabelsBrowserEntry(), "Density-independent rendered typography passed");
+});

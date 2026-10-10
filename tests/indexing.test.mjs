@@ -484,7 +484,9 @@ for (const file of [
   "src/ui/internalHotkeySettings.ts",
   "src/core/plex/actions.ts",
   "src/core/plex/actionPreferences.ts",
+  "src/core/plex/typographyPreferences.ts",
   "src/application/ActionManager.ts",
+  "src/application/frontmatterUnlink.ts",
   "src/adapters/obsidian/actionCommands.ts",
   "src/adapters/obsidian/actionNode.ts",
   "src/adapters/obsidian/relatedFileOutcome.ts",
@@ -1646,7 +1648,53 @@ try {
   frozenBaseline.scene.edges.splice(dateCrossInsertion + 1, 0, ...oldDateSiblingEdges.filter(edge => edge.targetPath !== removedDateSibling).map(edge => ({
     ...edge, id: `cross:Note B.md:${edge.targetPath}:parent`, isCrossLink: true, role: "parent", relationType: 1,
   })));
-  assert.deepEqual(baseline, frozenBaseline, "Exact compatibility except approved URL and default Date-role deltas");
+  // Approved #98 presentation delta only: density two no longer reduces a 30-character budget
+  // to 23. At this fixture's font size 20, each character contributes 5.8 px: the three >=30-character
+  // URL labels grow 70 + 23 * 5.8 = 203.4 to 70 + 30 * 5.8 = 244; the 25-character inferred alias grows to 215.
+  // Fixed 33.75 px grid gaps then repack those rows. The wider parent envelope grows 20.3 px,
+  // moving lateral/sibling anchors by that amount. Explicit finite numbers below are a reviewed
+  // arithmetic oracle, never calculated from the production scene. The archived JSON stays intact;
+  // y, height, every style/evidence/count field, node order and all edges remain exactly frozen.
+  const typographyWidths = [
+    ["https://source.com/ontology-full-line", 203.4, 244],
+    ["https://source.com/ontology-inline", 203.4, 244],
+    ["https://youtu.be/excalibrain-fixture-video", 203.4, 244],
+    ["https://source.com/inferred", 203.4, 215],
+  ];
+  const typographyPositions = [
+    ["tag:project", -118.57499999999999, -138.875],
+    ["https://source.com/ontology-full-line", 72.87500000000001, 72.875],
+    ["https://source.com/ontology-inline", -104.07499999999997, -104.07499999999999],
+    ["tag:taxonomy/body/leaf", 118.57500000000002, 138.875],
+    ["https://youtu.be/excalibrain-fixture-video", -337.2, -343],
+    ["Note C.md", -145.74999999999997, -131.25],
+    ["Note F.md", 2.842170943040401e-14, 14.5],
+    ["Note Y.md", 145.75000000000003, 160.25],
+    ["https://source.com/inferred", 337.20000000000005, 357.5],
+    ["Note D.md", -392.775, -413.075],
+    ["Note G.md", -392.775, -413.075],
+    ["Note H.md", -392.775, -413.075],
+    ["Note X.md", -392.775, -413.075],
+    ["Note E.md", 392.775, 413.075],
+    ["Daily/2026/09/20260918.md", 665.775, 686.075],
+    ["Daily/2026/09/20260919.md", 665.775, 686.075],
+    ["folder:Daily", 665.775, 686.075],
+    ["Section Tree.md", 665.775, 686.075],
+  ];
+  /** Change exactly one approved scalar after checking its unique archived endpoint and old value. */
+  const applyTypographySceneDelta = (field, rows) => {
+    assert.equal(new Set(rows.map(([path]) => path)).size, rows.length, "Typography delta paths must be unique");
+    for (const [path, before, after] of rows) {
+      const matches = frozenBaseline.scene.nodes.filter(node => node.path === path);
+      assert.equal(matches.length, 1, `Typography delta requires one archived node: ${path}`);
+      assert.equal(matches[0][field], before, `Unreviewed archived ${field} value: ${path}`);
+      assert(Number.isFinite(before) && Number.isFinite(after), `Typography geometry must remain finite: ${path}`);
+      matches[0][field] = after;
+    }
+  };
+  applyTypographySceneDelta("width", typographyWidths);
+  applyTypographySceneDelta("x", typographyPositions);
+  assert.deepEqual(baseline, frozenBaseline, "Exact compatibility except approved URL, default Date-role and density-independent label geometry deltas");
 
   // A new Markdown file may arrive after the last complete snapshot and before the five-minute
   // edit idle write. Warm startup must reuse that snapshot and ingest only the new source.
