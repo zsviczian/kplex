@@ -618,3 +618,20 @@ manual check is requested based solely on missing detailed DPI metadata.
   This proves native CSS/cascade values, not paint timing or physical touch acceptance.
 - Final48-file local diff/no deletion ledger `/private/tmp/kplex-search-highlight-final-diff-2026-10-10.json`.
   Branch/base unchanged, no Git publication or further assignment. C15–C26 remain paused.
+
+
+## PR108 Linux test scheduling correction — 2026-10-10
+
+- Initial GitHub run [38033103697](https://github.com/zsviczian/kplex/actions/runs/38033103697)
+  failed before the browser-source lane: aggregate519 tests,516 passed and3 failed. All three failures
+  were Chromium startup timeouts in action-settings, action-surface-ui and display-modes before their
+  assertions. Their independent Chrome processes logged startup at the same07:04:58.208UTC boundary;
+  subsequent browser cases passed. Stderr includes DBus warnings, which alone do not establish cause.
+- The aggregate and UI lanes now run test files with --test-concurrency=1, matching the existing
+  browser-source lane. This removes simultaneous browser launches without retries, skips, relaxed
+  deadlines or production scheduler changes. Harness startup-failure cleanup already terminates its
+  owned child and removes its profile. CONTRIBUTING documents the scheduling contract.
+- Pinned Node22.22.2: focused serial action-settings/action-surface-ui/display-modes checks PASS56/56,
+  zero failures/cancellations/skips. Log /private/tmp/kplex-pr108-serial-browser-2026-10-10.log.
+  Linux full verification remains pending on the corrected commit. No runtime source or shipped
+  artifacts changed; prior native/manual acceptance remains applicable. No additional manual test needed.

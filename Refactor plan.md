@@ -3780,3 +3780,9 @@ locks, continue portable work without awaiting maintainer intervention or bypass
 - 2026-10-10 — Publication scope correction: maintainer excludes the temporary
   docs/KPLEX_IMPLEMENTATION_HANDOFF.md from commit. Preserve it locally; publish the self-contained
   validation report and47 other reviewed files, with no links requiring the temporary document.
+
+- 2026-10-10 — PR108 initial Linux verify failed3 of519 aggregate cases during simultaneous
+  Chromium startups, before product assertions; all remaining516 passed. Serialize browser-bearing
+  aggregate/UI file execution to match existing browser-source lane; preserve coverage/deadlines,
+  no retry/skip/production scheduling change. Focused Node22.22.2 Chromium55/55 PASS. Full Linux
+  recheck pending; evidence in five-issue validation report. Temporary handoff remains excluded.
