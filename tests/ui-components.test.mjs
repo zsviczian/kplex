@@ -1388,6 +1388,7 @@ function editorHistoryBrowserEntry(){
   const history=uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
   const editor=uiDefinitions("src/ui/CentralNodeEditor.tsx",["CentralNodeEditor"]);
   return `
+import {markdownZoomMode,withMarkdownZoomMode} from ${JSON.stringify(join(root,"src/core/plex/markdownZoomPreferences.ts"))};
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {flushSync} from "react-dom";
 import {createRoot} from "react-dom/client";
@@ -1442,7 +1443,7 @@ try{
  viewportElement.dispatchEvent(new PointerEvent("lostpointercapture",{bubbles:true,pointerId:10,pointerType:"mouse"}));
  check(resizeFinishes===1&&areaClears===1,"viewport-owned resize lost its capture completion");
  const container=document.body.appendChild(document.createElement("div")),root=createRoot(container),opened=[],page={path:"https://example.com",url:"https://example.com",name:"Example"};
- const props={plugin:{},hostLeaf:{},page,defaultMode:"preview",allowMaximize:true,activateHostLeafOnInteraction:false,onModeChange(){},onMaximizedChange(){},onCollapse(){},onNavigate(){},translate:key=>key,onOpenMenu:button=>opened.push(button)};
+ const props={plugin:{settings:{centralNodeMarkdownZoomModes:{}}},hostLeaf:{},page,defaultMode:"preview",allowMaximize:true,activateHostLeafOnInteraction:false,onModeChange(){},onMaximizedChange(){},onCollapse(){},onNavigate(){},translate:key=>key,onOpenMenu:button=>opened.push(button)};
  for(const maximized of [false,true]){
   flushSync(()=>root.render(React.createElement(CentralNodeEditor,{...props,maximized})));
   const menu=container.querySelector('[aria-label="graph.openMenu"]');check(menu instanceof HTMLButtonElement&&menu.type==="button","editor menu button missing or nonsemantic");

@@ -3147,6 +3147,13 @@ button.kplex-style-manager-row { height: fit-content; }
   border-radius: 12px;
   background: var(--background-primary);
 }
+/* Only Markdown opts into camera scaling; canvas hosts and editor controls remain untransformed. */
+.kplex-central-editor-content.is-markdown-zoom-scaled > .kplex-central-editor-leaf-host {
+  width: calc(100% / var(--kplex-editor-camera-scale, 1));
+  height: calc(100% / var(--kplex-editor-camera-scale, 1));
+  transform: scale(var(--kplex-editor-camera-scale, 1));
+  transform-origin: top left;
+}
 .kplex-embedded-workspace-split {
   display: flex;
   flex-direction: column;
@@ -3571,3 +3578,9 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 .kplex-app.is-zen > .kplex-main-column { grid-template-rows: minmax(0, 1fr); }
 .kplex-app.is-zen > .kplex-main-column > .kplex-top-stack,
 .kplex-app.is-zen > .kplex-main-column > .kplex-history-bar { display: none; }
+
+/* Native support guidance keeps its exact Markdown payload selectable in narrow owner windows. */
+.kplex-support-report-modal { width: 640px; max-width: calc(100vw - 32px); }
+.kplex-empty-support { position: absolute; top: 12px; right: 12px; }
+.kplex-support-report-links { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.kplex-support-report-preview { display: block; box-sizing: border-box; width: 100%; max-width: 100%; min-height: 180px; max-height: 40vh; font-family: var(--font-monospace); font-size: var(--font-ui-small); resize: vertical; }

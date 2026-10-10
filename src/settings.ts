@@ -10,6 +10,7 @@
  * Background throttle changes apply live without reconstructing semantic data. Style creation selects
  * property-value or primary-tag-prefix matching without converting existing imported styles. Internal
  * keyboard bindings are additive workflow preferences; recorder controls own only transient capture.
+ * Sparse per-note Markdown zoom overrides are durable local workflow data, independent of graph imports.
  */
 import {
   AbstractInputSuggest,
@@ -36,6 +37,7 @@ import { ActionSettingsController } from "./ui/ActionSettingsController";
 import { sanitizeDatePropertyRelations, type DatePropertyRelations } from "./core/graph/settings";
 import { effectiveTypography, sanitizeTypographyProfiles, sanitizeTypographyValue, TYPOGRAPHY_FIELDS, TYPOGRAPHY_LIMITS, type TypographyProfiles, type TypographyField } from "./core/plex/typographyPreferences";
 import type { PersistedLayoutDeviceClass } from "./core/plex/viewPresentation";
+import { sanitizeMarkdownZoomModes, type MarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 
 export const DEFAULT_LINK_STYLE: LinkStyle = {
   strokeColor: "#696969ff",
@@ -226,7 +228,11 @@ export interface KplexSettings {
   allowAutofocuOnSearch: boolean;
   defaultAlwaysOnTop: boolean;
   embedCentralNode: boolean;
+  /** Fit newly opened drawings in normal editor nodes independently of the companion's preference. */
+  excalidrawFitOnNodeOpen: boolean;
   centralNodeMarkdownMode: SidecarMarkdownMode;
+  /** Exact Markdown file paths whose normal editor nodes scale their content with Plex zoom. */
+  centralNodeMarkdownZoomModes: MarkdownZoomModes;
   centerEmbedWidth: number;
   centerEmbedHeight: number;
   // React/K-Plex additions. Existing ExcaliBrain data.json files simply omit these.
@@ -349,9 +355,9 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   allowOntologySuggester: true,
   ontologySuggesterParentTrigger: "::p",
   ontologySuggesterChildTrigger: "::c",
-  ontologySuggesterLeftFriendTrigger: "::l",
+  ontologySuggesterLeftFriendTrigger: "::f",
   ontologySuggesterRightFriendTrigger: "::r",
-  ontologySuggesterPreviousTrigger: "::e",
+  ontologySuggesterPreviousTrigger: "::s",
   ontologySuggesterNextTrigger: "::n",
   ontologySuggesterTrigger: ":::",
   ontologySuggesterMidSentenceTrigger: "(",
@@ -360,7 +366,9 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   allowAutofocuOnSearch: true,
   defaultAlwaysOnTop: false,
   embedCentralNode: false,
+  excalidrawFitOnNodeOpen: true,
   centralNodeMarkdownMode: "source",
+  centralNodeMarkdownZoomModes: {},
   centerEmbedWidth: 550,
   centerEmbedHeight: 700,
   showContentPane: false,
@@ -601,7 +609,9 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     // embedded editor is a different, explicitly opt-in surface, so legacy imports must start
     // with the normal central node. Existing initialized K-Plex vaults keep the user's choice.
     embedCentralNode: old.kplexInitialized ? Boolean(old.embedCentralNode) : false,
+    excalidrawFitOnNodeOpen: typeof old.excalidrawFitOnNodeOpen === "boolean" ? old.excalidrawFitOnNodeOpen : true,
     centralNodeMarkdownMode: old.centralNodeMarkdownMode === "preview" ? "preview" : "source",
+    centralNodeMarkdownZoomModes: sanitizeMarkdownZoomModes(old.centralNodeMarkdownZoomModes),
     toolbarExpanded: Boolean(old.toolbarExpanded),
     sidecarOpen: Boolean(old.sidecarOpen),
     sidecarPosition: old.sidecarPosition === "left" || old.sidecarPosition === "above" || old.sidecarPosition === "below" ? old.sidecarPosition : "right",
@@ -2186,6 +2196,15 @@ export class KplexSettingTab extends PluginSettingTab {
         name: translate("settings.ui.compatibility"),
         desc: translate("settings.ui.migration.and.legacy.excalibrain.interoperability"),
         items: [
+          {
+            type: "group",
+            heading: translate("settings.excalidrawCompatibility"),
+            items: [{
+              name: translate("settings.excalidrawFitOnNodeOpen"),
+              desc: translate("settings.excalidrawFitOnNodeOpenHelp"),
+              control: { type: "toggle", key: "excalidrawFitOnNodeOpen" },
+            }],
+          },
           {
             type: "group",
             heading: translate("settings.ui.excalibrain"),

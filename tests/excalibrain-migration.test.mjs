@@ -273,6 +273,33 @@ test("central editor stays opt-in while its local mode defaults safely", () => {
   assert.equal(migrateAndMergeSettings({ ...fixture, kplexInitialized: true, embedCentralNode: true }).embedCentralNode, true, "initialized K-Plex vaults preserve the user's editor toggle");
 });
 
+test("per-note Markdown zoom preferences reload and remain independent of foreign imports and graph policy", /** Sparse local workflow choices have no semantic/presentation/index signature effects. */ () => {
+  assert.deepEqual(defaults.centralNodeMarkdownZoomModes, {});
+  const local = migrateAndMergeSettings({ centralNodeMarkdownZoomModes: { "Local.md": "scale", "Fixed.md": "fixed", "Bad.md": true } });
+  assert.deepEqual(local.centralNodeMarkdownZoomModes, { "Local.md": "scale" });
+  assert.deepEqual(migrateAndMergeSettings(JSON.parse(JSON.stringify(local))).centralNodeMarkdownZoomModes, { "Local.md": "scale" });
+  assert.deepEqual(importExcaliBrainGraphSettings({ ...fixture, centralNodeMarkdownZoomModes: { "Foreign.md": "scale" } }, local).centralNodeMarkdownZoomModes, { "Local.md": "scale" });
+  assert.deepEqual(classifySettingsChange(captureSettingsPolicy(defaults), captureSettingsPolicy(local)), {
+    semanticInvalidation: false, presentationFacets: false, searchTerms: false, nodeVisuals: false,
+    render: false, typographyOnly: false, changedKeys: [],
+  });
+  assert.equal(encodeIndexSettingsSignature(local), encodeIndexSettingsSignature(defaults));
+});
+
+test("editor drawing-fit override defaults on and preserves explicit saved choices", /** Local compatibility policy is Boolean, reload-safe and unrelated to legacy graph preferences. */ () => {
+  assert.equal(migrateAndMergeSettings({}).excalidrawFitOnNodeOpen, true);
+  assert.equal(migrateAndMergeSettings({ excalidrawFitOnNodeOpen: false }).excalidrawFitOnNodeOpen, false);
+  assert.equal(migrateAndMergeSettings({ excalidrawFitOnNodeOpen: true }).excalidrawFitOnNodeOpen, true);
+  assert.equal(migrateAndMergeSettings({ excalidrawFitOnNodeOpen: "false" }).excalidrawFitOnNodeOpen, true);
+  const saved = migrateAndMergeSettings({ kplexInitialized: true, excalidrawFitOnNodeOpen: false });
+  assert.equal(migrateAndMergeSettings(JSON.parse(JSON.stringify(saved))).excalidrawFitOnNodeOpen, false);
+  assert.equal(importExcaliBrainGraphSettings(fixture, saved).excalidrawFitOnNodeOpen, false);
+  assert.deepEqual(classifySettingsChange(captureSettingsPolicy(saved), captureSettingsPolicy({ ...saved, excalidrawFitOnNodeOpen: true })), {
+    semanticInvalidation: false, presentationFacets: false, searchTerms: false, nodeVisuals: false,
+    render: false, typographyOnly: false, changedKeys: [],
+  }, "opening-only preference must not trigger source/index recanonicalization");
+});
+
 
 test("central editor layout reserves its rectangle and pushes surrounding relationship zones away", () => {
   const makePage = (path) => ({ path, name: path, file: { extension: "md" }, noteType: null, styleTags: [], primaryStyleTag: null });

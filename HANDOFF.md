@@ -18,56 +18,32 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Interaction correctness — maintainer accepted
+# Support diagnostics and zoom batch — validated for publication
 
-Base: `80f73619a68e634698f404ea8c61a58f276c0fbe` (merged PR #108).
-Branch: `fix/interaction-correctness-2026-10-10`; 29 changed/new files, no deletions, uncommitted.
-The temporary assignment remains untracked and excluded. On 2026-10-10 the maintainer confirmed
-testing and authorized committing, pushing, creating/merging a PR, closing #24/#28/#51/#106 with
-that PR reference and updating local main. Publication is now proceeding under that instruction.
+Direction: scoped offline implementation, trace and driver returns accepted by the main validation agent. The main agent had Node 22.22.2, npm 10.9.7, installed Obsidian 1.13.0 types and the CLI; offline agents did not invoke Obsidian. Only the explicitly configured disposable `kplex-test-small` vault was used.
 
-- [x] Verify baseline and reproduce bounded native failures.
-- [x] A/#106: preserve native ranges with local passive touch containment; pane-fit controls stack
-  above the bottom-left disclosure and scroll in short panes. Shared button sizing is preserved.
-- [x] B/#28: count exact semantic endpoint membership independently of physical connector routes,
-  retaining revisions, visibility, unknown/count-only proof and transient provenance.
-- [x] C/#24/#51: same-file passive native follow preserves representation; initial embedded Markdown
-  honors marked `excalidraw-open-md`. Exact request lifetimes preserve explicit source/open actions,
-  different-file companions and pending native publication.
-- [x] Independently review architecture, reuse, TSDoc, host APIs, source/revision boundaries and cleanup.
-- [x] Full verification, exact-build staging and all final native lanes pass.
-- [x] Restore disposable environment and return reviewable uncommitted work.
+Branch `2026-10-10-support-diagnostics-and-zoom`, base `fa4fc62e7493312a050f8bcef5c6f5c0dc2f8fc2`. The review inventory contains 50 files: 45 runtime/test/config inputs and 5 documentation files, with no required deletions. The ignored assignment stays excluded. The maintainer authorized commit, branch publication, PR creation and merge, followed by switching to main and fetching. Issue closure, a release and a version bump are outside this publication request. C14 accepted; C15–C26 paused.
 
-Node 22.22.2. Prior full `npm run verify:obsidian` PASS, 791.329 s: architecture 7/core 88/aggregate 559/
-UI 25/portable sources 333/browser sources 428, zero failures/skips, official scanner, actual installed
-Obsidian types, production build and native smoke. Final native UX 56/56, gates 6/6, touch/geometry,
-Excalidraw 18/18, action workflows 8/8 and desktop/tablet/phone settings 3/3 pass. Native UX count
-acceptance is local uncertified coverage; it does not claim requested-scope proof in an on-demand vault.
-Earlier failed probes and corrected fixture prerequisites remain documented separately.
+- [x] Deliver #109 fresh Friend `::f` / Previous `::s`, preserving saved triggers.
+- [x] Deliver #111 bounded immutable native support reporting and passive events, including active plugins, custom theme and snippet counts. No raw console or vault-content capture or report I/O.
+- [x] Deliver #92's amended normal-editor drawing-fit override, with native fullscreen policy and manual zoom preservation.
+- [x] Deliver the per-note normal Markdown text-size/scaling toggle, shared by source and reading, with reload/rename/delete persistence and native fullscreen/Canvas/Excalidraw isolation. Eight localized catalogs.
+- [x] Review ownership, lifetime, localization, privacy and settings boundaries; complete full production verification and exact-build native acceptance.
+- [x] Restore and audit native state and persistent plugin enablement; finalize durable evidence.
 
-C14 remains accepted; C15–C26 paused. No schema, ontology, parser, source-cache format, scheduler,
-connector routing, dependency or sibling-source changes. Version remains 0.1.0. Production changes
-remain inside the existing index, native adapter/orchestration and reusable presentation owners.
+Full `npm run verify:obsidian` passed: architecture 7, core 88, aggregate 612, Chromium UI 30, portable sources 333, real IndexedDB 428, official Obsidian lint, actual installed-type build and exact staging/native smoke. Root focused 50, migration 24, core 88 and affected menu 1 passed. A final TSDoc-only callback comment rebuilt byte-identical artifacts; touched lint passed.
 
-Final built/installed main: `90a641a8f21dad9bb9d321c2cdec57f0ee4454420c52a663789cb8cf1cfadc31`.
-Styles: `da87b7b3a35522dedd63eb021f51e8458a389608dd5e5ccfd3fcb8036323506a`.
-Final full-run freeze: `1f72953dc70f2315aa06d4778e4a8466ff8df9a0a0b13746d967048e5d761741`.
-Delivery source identity: `85cb352300a92ed6b5e59f75c4349db6a208e8b7d8332ec9bfbde91e7411cc31`.
-The later native-driver setup/assertion/receipt changes are verified by their final native lane;
-JavaScript remains identical to the full-run build; the subsequent typography styling uses the new stylesheet hash above.
+Serial native acceptance passed: Markdown 12/12 (trusted CodeMirror caret/text, fixed/scaled geometry, reading, reload/per-note choices, fullscreen and canvas isolation); matched Excalidraw fit 21/21 with a verified serialized two-element fixture; original Excalidraw 18/18; UX 56/56; support 22/22; reloaded tablet/phone emulation 2/2. Earlier failed setup, empty fixture and device-unavailability receipts are retained, never counted as passes. Assertions and deadlines were not weakened. No executable product change followed full verification.
 
-Cleanup passed: original 76 files, desktop bounds, typography overrides, configuration bytes and
-owned lifecycle resources restored; no captured JavaScript errors. No active test resource remains.
-Automated evidence does not establish physical Android/iOS or Windows acceptance; the maintainer
-has confirmed the fixes and accepted publication. No specific device result is inferred from that confirmation. Emulated plugin-only
-last-Sidepanel drawer reopening was not established; fresh mobile-shell recreation is used for
-persistence testing, with the observation preserved for future investigation and no production workaround.
+Final artifact SHA-256:
 
-The complete inventory, actual commands/results, evidence limits and at most three brief manual
-checks are in [the validation report](docs/validation/interaction-correctness-2026-10-10.md).
+- Main: `0121a6398387abdb90bf34091c4332eb65bc8786c9cabcece6f34ec0b2737fe8`
+- Styles: `1e7a037c153feb41810a3f9bf0e6761bbe0790f011e299cc18ba2cfd6e775342`
+- Unchanged manifest: `19799fff9ae459130d707901e7c0d98b3e14a8567881a393f07d457c2fa8ec1c`
+- 45-input ledger: `c86c545e7120dbb500e7086be6c7a6996a160eef949d6ad5add104be604cd898`
 
-Typography styling follow-up: all three rails now use full-width stacked cards with the wrap
-checkbox in a horizontal card beneath, in wide and narrow panes. Focused Chromium 4/4, official
-lint, real typed build, exact-build staging/smoke and native touch/reload/geometry all pass. The
-full suite was not repeated for this CSS-only change; prior full/native evidence remains historical.
-See the validation report for current artifact identity and receipts. Work remains uncommitted.
+Installed and built bytes match. Whitespace and reviewed inputs were rechecked before staging. Final native audit at 17:00 UTC confirmed K-Plex and Excalidraw loaded, enabled in memory and persisted; desktop bounds restored to 900×700 at (270,113), original throttling, 74 Markdown files, no owned fixtures/controllers/report dialogs, no Settings window/debugger/errors.
+
+A failed device attempt found an empty enabled list despite present exact artifacts. Root restored the two required plugins through verified `enablePluginAndSave` / `saveConfig`, original serialized workspace and bounds. The strict rerun passed from a valid persisted baseline. The empty-list cause remains unconfirmed and is recorded for later harness-lifecycle investigation.
+
+Available implementation and acceptance are complete; no implementation ETA remains. Prioritized manual checks: physical Android/iOS report clipboard/touch/permissions; affected-device perceived Excalidraw scale/manual zoom; physical Markdown fixed/scaled visual and selection behavior. Emulation and trusted desktop input do not establish physical Mobile acceptance. Durable decisions are in `Refactor plan.md` and the [validation record](docs/validation/support-diagnostics-and-zoom-2026-10-10.md). No further scope queued.

@@ -7,6 +7,9 @@
  * that host-specific seam in this adapter so the React graph only deals with a small controller.
  * Drawing capability remains separate from the initial Markdown preference in current metadata;
  * explicit representation changes belong to Excalidraw and never reapply that opening preference.
+ * Normal node editors may request opening fit through a live, narrow host policy. Maximized
+ * editors and native fullscreen follow the companion preference. Rendering and resizing never
+ * reapply K-Plex opening fit, so user viewport adjustments survive those updates.
  */
 import { FileView, Platform, WorkspaceLeaf, WorkspaceSplit, type App, type Scope, type TFile, type Workspace } from "obsidian";
 import { focusEmbeddedMarkdownView, registerEmbeddedMarkdownFocus, registerEmbeddedMarkdownFocusTarget } from "./embeddedMarkdownFocus";
@@ -89,6 +92,9 @@ type ExcalidrawAutomateApi = {
   destroy?: () => void;
 };
 type ExcalidrawAutomateBridge = ExcalidrawAutomateApi & {
+  // Excalidraw Automate exposes its plugin publicly. Project only this proven setting; never
+  // retain its full settings object or discover another plugin through the host registry.
+  plugin?: { settings?: { zoomToFitOnOpen?: boolean } };
   getAPI?: (view: WorkspaceLeaf["view"]) => ExcalidrawAutomateApi | null | undefined;
 };
 type ExcalidrawWindow = Window & { ExcalidrawAutomate?: ExcalidrawAutomateBridge };
@@ -213,6 +219,7 @@ function markdownLinkTargetAt(sourceLine: string, sourceOffset: number): string 
  *
  * @remarks This intentionally mirrors Hover Editor's narrow WorkspaceSplit seam. The returned
  * controller owns the leaf and must be disposed when the React host unmounts.
+ * @param preferEmbeddedDrawingFit Live normal-node fit intent; omit to follow companion policy.
  */
 export function mountEmbeddedMarkdownLeaf(
   app: App,
@@ -222,6 +229,7 @@ export function mountEmbeddedMarkdownLeaf(
   onExcalidrawVersionMismatch?: (requiredVersion: string) => void,
   onDocumentViewChange?: (view: EmbeddedDocumentView) => void,
   activateHostLeafOnInteraction = false,
+  preferEmbeddedDrawingFit?: () => boolean,
 ): EmbeddedMarkdownLeafController {
   const SplitConstructor = WorkspaceSplit as unknown as WorkspaceSplitConstructor;
   const LeafConstructor = WorkspaceLeaf as unknown as WorkspaceLeafConstructor;
@@ -603,9 +611,23 @@ export function mountEmbeddedMarkdownLeaf(
     return isExcalidrawBackedFile(currentFile);
   };
 
-  /** Fit the mounted Excalidraw scene into the embedded viewport once its Automate API is ready. */
+  /**
+   * Resolve live opening-fit intent from the normal-node policy and companion preference.
+   *
+   * Synthetic leaves are absent from Excalidraw's ordinary workspace-leaf enumeration, so its
+   * native first-render fit can need the one-shot request even when its own preference is enabled.
+   * The host callback already excludes a maximized editor; native Excalidraw fullscreen is excluded
+   * here using its actual ancestry marker. With no host override, a missing companion preference
+   * leaves saved zoom alone. This helper is read only on opening/representation transitions.
+   */
+  const shouldFitExcalidrawOnOpen = (): boolean => (
+    (!fullscreenHost?.classList.contains("excalidraw-visible") && preferEmbeddedDrawingFit?.() === true)
+    || getExcalidrawBridge()?.plugin?.settings?.zoomToFitOnOpen === true
+  );
+
+  /** Apply current normal-node or companion opening-fit intent after a compatibility view transition. */
   const zoomExcalidrawToFit = (api: ExcalidrawAutomateApi | null): void => {
-    if (!api) return;
+    if (!api || !shouldFitExcalidrawOnOpen()) return;
     try {
       if (api.viewZoomToFit) {
         api.viewZoomToFit();
@@ -660,8 +682,8 @@ export function mountEmbeddedMarkdownLeaf(
    * `WorkspaceLeaf.openFile()` can resolve before Excalidraw has replaced the temporary Markdown
    * view and mounted `excalidrawAPI`. Applying reading mode only in the immediate `open()` path can
    * therefore be lost and the drawing settles in edit mode. Keep a short, cancellable post-open
-   * watcher so the same mode is applied once the real drawing view is ready, then zoom the scene to
-   * fit the available central-editor viewport.
+   * watcher so the same mode is applied once the real drawing view is ready. Only the compatibility
+   * fallback may then fit the scene, and only when current normal-node or companion intent enables it.
    */
   const finishExcalidrawAfterOpen = async (
     filePath: string,
@@ -827,7 +849,7 @@ export function mountEmbeddedMarkdownLeaf(
             state: {
               file: file.path,
               mode: mode === "preview" ? "view" : "edit",
-              zoomToFit: true,
+              ...(shouldFitExcalidrawOnOpen() ? { zoomToFit: true } : {}),
             },
           }, { focus: false });
         } else {

@@ -1,4 +1,7 @@
-/** Native Obsidian view for a file- or URL-backed central Plex node. */
+/** Native Obsidian view for a file- or URL-backed central Plex node. Live editor geometry supplies
+ * the small-node drawing-fit policy only when opening or switching a drawing, never on rendering.
+ * Per-note Markdown scaling affects only native Markdown content; controls, fullscreen and canvas
+ * views retain untransformed native geometry and pointer coordinates. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Notice, type TFile, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
@@ -10,6 +13,7 @@ import {
   type EmbeddedMarkdownLeafController,
   type EmbeddedMarkdownMode,
 } from "../adapters/obsidian/embeddedMarkdownLeaf";
+import { markdownZoomMode, withMarkdownZoomMode } from "../core/plex/markdownZoomPreferences";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { EmbeddedWebPage } from "./EmbeddedWebPage";
 import { urlEmbed } from "./features/urlEmbed";
@@ -51,13 +55,17 @@ export function CentralNodeEditor({
   const fileRef = useRef(page.file);
   const defaultModeRef = useRef(defaultMode);
   const onNavigateRef = useRef(onNavigate);
+  const maximizedRef = useRef(maximized);
   const [mode, setMode] = useState<EmbeddedMarkdownMode>(defaultMode);
+  const [, refreshMarkdownZoom] = useState(0);
+  const scaleMarkdownWithZoom = markdownZoomMode(plugin.settings.centralNodeMarkdownZoomModes, page.path) === "scale";
   const [documentView, setDocumentView] = useState<EmbeddedDocumentView | null>(null);
   const [excalidrawFile, setExcalidrawFile] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   fileRef.current = page.file;
   defaultModeRef.current = defaultMode;
   onNavigateRef.current = onNavigate;
+  maximizedRef.current = maximized;
 
   useLayoutEffect(/** Own a native file leaf only; URL guests have an independent view-scoped lifetime. */ () => {
     const mount = mountRef.current;
@@ -72,7 +80,8 @@ export function CentralNodeEditor({
         }), 6000);
       }, (nextView) => {
         setDocumentView(nextView);
-      }, activateHostLeafOnInteraction);
+      }, activateHostLeafOnInteraction, /** Read current preference and editor geometry only at a native opening boundary. */ () =>
+        plugin.settings.excalidrawFitOnNodeOpen && !maximizedRef.current);
     } catch (error) {
       console.error("K-Plex failed to create the embedded central leaf.", error);
       setStatus("error");
@@ -140,6 +149,17 @@ export function CentralNodeEditor({
     });
   };
 
+  /** Persist only this note's presentation preference; native leaf ownership and semantic state stay unchanged. */
+  const toggleMarkdownZoom = (): void => {
+    const next = !scaleMarkdownWithZoom;
+    plugin.settings.centralNodeMarkdownZoomModes = withMarkdownZoomMode(
+      plugin.settings.centralNodeMarkdownZoomModes, page.path, next ? "scale" : "fixed");
+    refreshMarkdownZoom(/** Apply the selected mode immediately without replacing the native leaf. */ revision => revision + 1);
+    void plugin.saveSettings(false, true).catch(/** Settle a failed preference write without replacing the active native editor. */ (error: unknown) => {
+      console.error("K-Plex failed to save the central-node Markdown zoom preference.", error);
+    });
+  };
+
   /** Toggle an Excalidraw-backed note between its drawing surface and native Markdown view. */
   const toggleExcalidrawView = (): void => {
     const controller = controllerRef.current;
@@ -154,7 +174,7 @@ export function CentralNodeEditor({
   };
 
   return <div
-    className={`kplex-central-editor-content${maximized ? " is-maximized" : ""}${mode === "source" ? " is-edit-mode" : ""}`}
+    className={`kplex-central-editor-content${maximized ? " is-maximized" : ""}${mode === "source" ? " is-edit-mode" : ""}${documentView === "markdown" && !maximized && scaleMarkdownWithZoom ? " is-markdown-zoom-scaled" : ""}`}
     onPointerDownCapture={/** Native document gestures route commands to its leaf; local buttons keep the Plex active. */ (event) => {
       if (!(event.target as Element).closest(".kplex-central-editor-toolbar")) controllerRef.current?.activate();
     }}
@@ -175,6 +195,13 @@ export function CentralNodeEditor({
         aria-label={translate(mode === "source" ? "centralEditor.showPreview" : "centralEditor.showEditor")}
         onClick={toggleMode}
       ><ObsidianIcon name={mode === "source" ? "book-open" : "square-pen"} size={12} /></button>}
+      {documentView === "markdown" && !maximized && <button
+        type="button"
+        data-kplex-markdown-zoom-toggle
+        aria-label={translate(scaleMarkdownWithZoom ? "centralEditor.keepTextSize" : "centralEditor.scaleWithZoom")}
+        aria-pressed={scaleMarkdownWithZoom}
+        onClick={toggleMarkdownZoom}
+      ><ObsidianIcon name={scaleMarkdownWithZoom ? "scaling" : "type"} size={12} /></button>}
       {allowMaximize && <button
         type="button"
         aria-label={translate(maximized ? "centralEditor.restore" : "centralEditor.maximize")}

@@ -1,4 +1,8 @@
-/** Actual native suggester matching, compatibility oracle and deadline-bounded long editor inputs. */
+/**
+ * Real settings migration and native suggester matching through a narrow Obsidian boundary double.
+ * Fresh mnemonic defaults are tested separately from the frozen historical/custom-trigger oracle;
+ * bounded long editor inputs retain their subprocess deadline and temporary bundles are removed.
+ */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {build} from 'esbuild';
@@ -11,9 +15,101 @@ import {spawnSync} from 'node:child_process';
 const temp=mkdtempSync(join(tmpdir(),'kplex-ontology-suggester-'));
 process.once('exit',()=>rmSync(temp,{recursive:true,force:true}));
 const entry=join(temp,'suggester.mjs');
-await build({stdin:{resolveDir:process.cwd(),contents:'export {OntologySuggester} from "./src/editor/OntologySuggester";',loader:'ts'},outfile:entry,bundle:true,platform:'node',format:'esm',plugins:[{name:'native-owner-boundary',setup(builder){builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'native'}));builder.onLoad({filter:/.*/,namespace:'native'},()=>({contents:'export class EditorSuggest {constructor(app){this.app=app;this.context=null}}',loader:'js'}));}}]});
-const {OntologySuggester}=await import(pathToFileURL(entry).href);
+await build({
+  stdin: {resolveDir:process.cwd(),contents:'export {OntologySuggester} from "./src/editor/OntologySuggester"; export {DEFAULT_SETTINGS,migrateAndMergeSettings} from "./src/settings"; export {captureSettingsPolicy,classifySettingsChange} from "./src/core/graph/settingsPolicy";',loader:'ts'},
+  outfile:entry,bundle:true,platform:'node',format:'esm',plugins:[{
+    name:'native-owner-boundary',
+    /** Substitute only native shell classes; migration, matching and settings effects remain real. */
+    setup(builder){
+      builder.onResolve({filter:/^obsidian$/},
+        /** Resolve the host import to the bounded test shell without mocking K-Plex owners. */
+        ()=>({path:'obsidian',namespace:'native'}));
+      builder.onLoad({filter:/.*/,namespace:'native'},
+        /** Supply unused native UI exports plus the editor-owned context required by selection. */
+        ()=>({contents:'export class EditorSuggest {constructor(app){this.app=app;this.context=null}} export class App {} export class Modal {} export class Notice {} export class AbstractInputSuggest {} export class PluginSettingTab {} export class Scope {} export class Setting {} export class ButtonComponent {} export class ExtraButtonComponent {} export class SearchComponent {} export const setIcon=()=>{},setTooltip=()=>{},getIcon=()=>null,getIconIds=()=>[],getLanguage=()=>"en",Platform={};',loader:'js'}));
+    }
+  }]
+});
+const {OntologySuggester,DEFAULT_SETTINGS,migrateAndMergeSettings,captureSettingsPolicy,classifySettingsChange}=await import(pathToFileURL(entry).href);
+// Deliberate historical fixture: these values define the compatibility oracle, not fresh defaults.
 const defaults={allowOntologySuggester:true,ontologySuggesterTrigger:':::',ontologySuggesterParentTrigger:'::p',ontologySuggesterChildTrigger:'::c',ontologySuggesterLeftFriendTrigger:'::l',ontologySuggesterRightFriendTrigger:'::r',ontologySuggesterPreviousTrigger:'::e',ontologySuggesterNextTrigger:'::n',ontologySuggesterMidSentenceTrigger:'(',primaryTagField:'Tags',boldFields:false,hierarchy:{hidden:['Hidden'],parents:['Parent','Progenitor'],children:['Child'],leftFriends:['Friend'],rightFriends:['Challenger'],previous:['Previous'],next:['Next']}};
+
+test('fresh factory mnemonics select configured roles and replace only the captured query span',
+  /** Exercise real fresh migration and insertion with configured fields, inline prefixes and suffixes. */
+  ()=>{
+    const fresh=migrateAndMergeSettings({});
+    const keys=['ontologySuggesterParentTrigger','ontologySuggesterChildTrigger','ontologySuggesterLeftFriendTrigger','ontologySuggesterRightFriendTrigger','ontologySuggesterPreviousTrigger','ontologySuggesterNextTrigger','ontologySuggesterTrigger','ontologySuggesterMidSentenceTrigger'];
+    assert.deepEqual(keys.map(
+      /** Compare all factory trigger values so unrelated role and prefix defaults remain stable. */
+      key=>fresh[key]),['::p','::c','::f','::r','::s','::n',':::','(']);
+    assert.equal(DEFAULT_SETTINGS.ontologySuggesterLeftFriendTrigger,'::f');
+    assert.equal(DEFAULT_SETTINGS.ontologySuggesterPreviousTrigger,'::s');
+    const plugin={app:{},settings:migrateAndMergeSettings({hierarchy:structuredClone(defaults.hierarchy),primaryTagField:'Tags'})};
+    const owner=new OntologySuggester(plugin);
+    for(const [trigger,field] of [['::p','Parent'],['::c','Child'],['::f','Friend'],['::r','Challenger'],['::s','Previous'],['::n','Next']]){
+      const before=`Some prose (${trigger}${field.slice(0,3)}`,text=before+' untouched suffix';
+      const info=invoke(owner,text,{line:4,ch:before.length});
+      assert.equal(info.query,field.slice(0,3));
+      assert.deepEqual(owner.getSuggestions({...info,editor:{}}),[field]);
+      let replacement;
+      owner.context={editor:{
+        /** Capture the native editor replacement to prove neither prefix nor trailing prose is consumed. */
+        replaceRange:(...args)=>{replacement=args}
+      }};
+      owner.selectSuggestion(field);
+      assert.deepEqual(replacement,[`${field}:: `,{line:4,ch:'Some prose ('.length},{line:4,ch:before.length}]);
+      assert.equal(text.slice(0,info.start.ch)+replacement[0]+text.slice(info.end.ch),`Some prose (${field}::  untouched suffix`);
+    }
+    const all=invoke(owner,':::');
+    assert.deepEqual(owner.getSuggestions({...all,editor:{}}),['Challenger','Child','Friend','Hidden','Next','Parent','Previous','Progenitor','Tags']);
+    assert.equal(invoke(owner,'::l'),null);
+    assert.equal(invoke(owner,'::e'),null);
+  });
+
+test('saved historical, empty and custom triggers remain authoritative through migration and reload',
+  /** Preserve deliberate saved values, live matching, disabled behavior and nonsemantic settings effects. */
+  ()=>{
+    const fresh=migrateAndMergeSettings({});
+    for(const [friend,previous] of [['::l','::e'],['','::e'],['::l',''],['🧠+','é[.*]+'],['friend!','past?']]){
+      const raw={ontologySuggesterLeftFriendTrigger:friend,ontologySuggesterPreviousTrigger:previous,hierarchy:structuredClone(defaults.hierarchy),primaryTagField:'Tags'};
+      const settings=migrateAndMergeSettings(raw);
+      assert.equal(settings.ontologySuggesterLeftFriendTrigger,friend);
+      assert.equal(settings.ontologySuggesterPreviousTrigger,previous);
+      assert.deepEqual(migrateAndMergeSettings(JSON.parse(JSON.stringify(settings))),settings);
+      const owner=new OntologySuggester({app:{},settings});
+      for(const [trigger,field] of [[friend,'Friend'],[previous,'Previous']]){
+        // Empty triggers retain the historical plain-word match; an opening parenthesis would
+        // itself join the query before the later prefixed alternative could be considered.
+        const text=`Some prose ${trigger.length?'(':''}${trigger}${field.slice(0,3)}`;
+        const info=invoke(owner,text);
+        assert.deepEqual(info,legacy(text,settings));
+        // A saved empty Friend trigger already outranks Previous, even when the latter is
+        // nonempty. Preserve that deliberate historical precedence rather than migrating it.
+        assert.deepEqual(owner.getSuggestions({...info,editor:{}}),!friend&&field==='Previous'?[]:[field],JSON.stringify({friend,previous,field}));
+      }
+      const effect=classifySettingsChange(captureSettingsPolicy(fresh),captureSettingsPolicy(migrateAndMergeSettings({ontologySuggesterLeftFriendTrigger:friend,ontologySuggesterPreviousTrigger:previous})));
+      assert.equal(effect.semanticInvalidation,false);
+      settings.allowOntologySuggester=false;
+      assert.equal(owner.onTrigger({line:0,ch:0},{
+        /** A disabled live suggester must not acquire editor text, regardless of saved triggers. */
+        getLine:()=>{throw new Error('disabled owner must not read editor content')}
+      },null),null);
+    }
+  });
+
+test('custom trigger collisions retain generic-before-role and parent-before-friend priority',
+  /** Check unchanged matcher priority against migrated live settings rather than rewriting the legacy oracle. */
+  ()=>{
+    const settings=migrateAndMergeSettings({hierarchy:structuredClone(defaults.hierarchy),primaryTagField:'Tags',ontologySuggesterParentTrigger:'::f'});
+    const owner=new OntologySuggester({app:{},settings});
+    let info=invoke(owner,'Some prose (::f');
+    assert.deepEqual(info,legacy('Some prose (::f',settings));
+    assert.deepEqual(owner.getSuggestions({...info,editor:{}}),['Parent','Progenitor']);
+    settings.ontologySuggesterTrigger='::f';
+    info=invoke(owner,'Some prose (::f');
+    assert.deepEqual(info,legacy('Some prose (::f',settings));
+    assert.deepEqual(owner.getSuggestions({...info,editor:{}}),['Challenger','Child','Friend','Hidden','Next','Parent','Previous','Progenitor','Tags']);
+  });
 
 /** Exercise the unchanged native editor port and return its exact trigger/query replacement span. */
 function invoke(owner,text,cursor={line:3,ch:text.length}) {return owner.onTrigger(cursor,{getLine:()=>text},null)}

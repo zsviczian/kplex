@@ -1145,7 +1145,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     });
     return () => { cancelled = true; };
   }, [sectionExpanded, persistentNeighborhood?.center.path, persistentNeighborhood?.center.mtime, plugin, index, settings.animationSpeed]);
-  /** Keep the native central editor in viewport coordinates so host canvases are never scaled by a DOM transform. */
+  /** Keep native editor geometry in viewport coordinates; expose camera scale only to opt-in Markdown content, never host canvases. */
   const syncCentralEditorOverlay = (): void => {
     const overlay = centralEditorOverlayElement.current;
     // Native wheel listeners outlive the render that installed them. Read current geometry so
@@ -1160,6 +1160,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     overlay.style.top = `${current.y + (node.y - node.height / 2) * current.scale}px`;
     overlay.style.width = `${width}px`;
     overlay.style.height = `${height}px`;
+    overlay.style.setProperty("--kplex-editor-camera-scale", String(current.scale));
   };
 
   const applyCamera = (nextOrUpdater: { x: number; y: number; scale: number } | ((current: { x: number; y: number; scale: number }) => { x: number; y: number; scale: number })) => {
@@ -3927,7 +3928,8 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         top: camera.current.y + (centralEditorNode.y - centralEditorNode.height / 2) * camera.current.scale,
         width: Math.max(1, centralEditorNode.width * camera.current.scale),
         height: Math.max(1, centralEditorNode.height * camera.current.scale),
-      }}
+        "--kplex-editor-camera-scale": camera.current.scale,
+      } as CSSProperties}
       onContextMenu={(event: MouseEvent<HTMLDivElement>) => event.stopPropagation()}
     >
       <CentralNodeEditor

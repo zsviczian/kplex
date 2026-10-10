@@ -405,6 +405,7 @@ for (const file of [
   "src/types.ts",
   "src/core/plex/viewPresentation.ts",
   "src/core/plex/internalHotkeys.ts",
+  "src/core/plex/markdownZoomPreferences.ts",
   "src/core/plex/shortcutPresentation.ts",
   "src/core/contracts/fieldName.ts",
   "src/core/graph/model.ts",
@@ -486,7 +487,14 @@ for (const file of [
   "src/core/plex/actionPreferences.ts",
   "src/core/plex/typographyPreferences.ts",
   "src/application/ActionManager.ts",
+  "src/application/SessionEventRecorder.ts",
+  "src/application/supportClipboard.ts",
+  "src/application/supportReport.ts",
+  "src/application/supportReportProjection.ts",
+  "src/application/supportCustomizationProjection.ts",
+  "src/adapters/obsidian/supportEnvironment.ts",
   "src/application/frontmatterUnlink.ts",
+  "src/adapters/obsidian/SupportReportModal.ts",
   "src/adapters/obsidian/actionCommands.ts",
   "src/adapters/obsidian/actionNode.ts",
   "src/adapters/obsidian/relatedFileOutcome.ts",
@@ -900,6 +908,49 @@ assert.deepEqual(KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "First status read must capture the Markdown total once");
 KplexPlugin.prototype.getIndexStatus.call(indexingStatusContext);
 assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publications must reuse the cached Markdown total");
+
+// Durable editor-node preferences follow physical paths even before an index baseline exists. The
+// actual registered callbacks must neither read graph state nor turn local choices into index work.
+{
+  const coordinator = new KplexPlugin();
+  const handlers = new Map();
+  const registrations = [];
+  const writes = [];
+  coordinator.app = { vault: { on: (name, callback) => { handlers.set(name, callback); return { name }; } } };
+  coordinator.registerEvent = handle => registrations.push(handle);
+  coordinator.index = new Proxy({}, { get() { throw new Error("Markdown zoom preferences must not access the index"); } });
+  coordinator.settings = { centralNodeMarkdownZoomModes: { "Folder/A.md": "scale", "Folder/Sub/B.md": "scale", "Folderish/C.md": "scale" } };
+  coordinator.persistSettingsSnapshot = async () => { writes.push(structuredClone(coordinator.settings.centralNodeMarkdownZoomModes)); };
+  coordinator.initialIndexComplete = false;
+  coordinator.registerMarkdownZoomPreferenceListeners();
+  assert.deepEqual(registrations.map(item => item.name), ["rename", "delete"], "Both callbacks belong to the plugin cleanup lifetime");
+  handlers.get("rename")(new TFolder("Moved"), "Folder");
+  assert.deepEqual(coordinator.settings.centralNodeMarkdownZoomModes, { "Moved/A.md": "scale", "Moved/Sub/B.md": "scale", "Folderish/C.md": "scale" });
+  handlers.get("rename")(new TFile("Moved/Renamed.md", 1), "Moved/A.md");
+  assert.equal(coordinator.settings.centralNodeMarkdownZoomModes["Moved/Renamed.md"], "scale");
+  handlers.get("rename")(new TFile("Moved/Renamed.txt", 1), "Moved/Renamed.md");
+  assert.equal(Object.hasOwn(coordinator.settings.centralNodeMarkdownZoomModes, "Moved/Renamed.txt"), false);
+  handlers.get("delete")(new TFolder("Moved"));
+  assert.deepEqual(coordinator.settings.centralNodeMarkdownZoomModes, { "Folderish/C.md": "scale" });
+  handlers.get("delete")(new TFile("Folderish/C.md", 1));
+  assert.deepEqual(coordinator.settings.centralNodeMarkdownZoomModes, {});
+  handlers.get("delete")(new TFile("Unrelated.md", 1));
+  handlers.get("rename")(new TFolder("Unrelated"), "Nothing");
+  assert.equal(writes.length, 5, "Only affected moves/deletes persist; duplicate descendant/unrelated events are no-ops");
+  const originalError = console.error;
+  const failures = [];
+  console.error = (...args) => failures.push(args);
+  coordinator.persistSettingsSnapshot = async () => { throw new Error("Synthetic private path must not escape"); };
+  try {
+    coordinator.settings.centralNodeMarkdownZoomModes = { "Fail.md": "scale", "Delete.md": "scale" };
+    handlers.get("rename")(new TFile("MovedFail.md", 1), "Fail.md");
+    handlers.get("delete")(new TFile("Delete.md", 1));
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.deepEqual(coordinator.settings.centralNodeMarkdownZoomModes, { "MovedFail.md": "scale" }, "A failed persistence does not revert the known physical move/delete");
+    assert.deepEqual(failures, [["K-Plex could not save Markdown zoom preferences"], ["K-Plex could not save Markdown zoom preferences"]], "Event saves settle rejected writes with a path-free diagnostic");
+  } finally { console.error = originalError; }
+}
 
 // Once the denominator is known, ordinary Markdown membership events must maintain it exactly in
 // O(1), including the status notification itself. Only a genuinely unknown initial count may enumerate.
