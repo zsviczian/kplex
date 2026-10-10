@@ -108,6 +108,9 @@ const nativeController = `(()=>{
   const c=window.${controller}={p,settings:JSON.parse(JSON.stringify(p.settings)),owned:[],leaf:null,done:false,error:null,
     bounds:win.getBounds(),throttling:win.webContents.getBackgroundThrottling(),sidebars:{left:app.workspace.leftSplit.collapsed,right:app.workspace.rightSplit.collapsed},folder:${JSON.stringify(folder)},
     denseTarget:${JSON.stringify(process.env.KPLEX_UX_DENSE_TARGET || null)},scenarios:[],notices:[]};
+  // The inactive-control fixture must not inherit persisted open intent onto its new leaf.
+  // Preserve existing companion leaves and restore the captured settings during cleanup.
+  p.settings.sidecarOpen=false;
   // Track actual persistence promises so native view teardown cannot race original-byte restoration.
   c.settingsWrites=new Set();c.settingsWriteErrors=[];
   const originalSaveData=p.saveData;
@@ -228,7 +231,7 @@ const setup = `(()=>{const c=window.${controller};(async()=>{
   }
   await c.until(()=>[c.hub,...Object.values(groups).flat(),c.folder+"/Grandchild.md"].every(path=>app.metadataCache.getFileCache(app.vault.getFileByPath(path))),"Fixture metadata did not settle");
   await c.wait(1000);
-  Object.assign(c.p.settings,{embedCentralNode:false,documentSyncMode:"off",followActiveFile:false,autoOpenCentralDocument:false,
+  Object.assign(c.p.settings,{embedCentralNode:false,sidecarOpen:false,documentSyncMode:"off",followActiveFile:false,autoOpenCentralDocument:false,
     renderAlias:false,
     graphDepth:2,maxItemCount:100,parentMaxHeight:160,childMaxHeight:180,friendMaxHeight:160,parentColumns:1,childColumns:1,
     graphLenses:[],animationSpeed:0,showAttachments:true,attachmentImageDisplay:"thumbnail-label",lastActivePath:c.hub,navigationHistory:[c.hub]});
@@ -328,6 +331,7 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   const controlProperties=["width","height","backgroundColor","borderRadius","color","borderTopWidth","borderTopColor","padding","boxShadow"];
   const controlStyle=element=>{const style=getComputedStyle(element);return Object.fromEntries(controlProperties.map(property=>[property,style[property]]))};
   const assertControlStyle=async elements=>{require("@electron/remote").getCurrentWindow().webContents.sendInputEvent({type:"mouseMove",x:0,y:0});await c.frames();const expected=controlStyle(root.querySelector(".kplex-zoom-controls button"));for(const element of elements){c.check(element,"Expected Plex control is missing");c.check(JSON.stringify(controlStyle(element))===JSON.stringify(expected),"Plex control differs from zoom: "+element.getAttribute("aria-label")+JSON.stringify({actual:controlStyle(element),expected}))}};
+  await c.until(/** Require the real owned fixture companion state before comparing inactive styles. */ ()=>!p.isSidecarOpen(c.leaf)&&root.querySelector(".kplex-sidecar-primary")?.getAttribute("aria-pressed")==="false","Inactive Sidecar fixture did not settle",5000);
   const sharedSelectors=[".kplex-find button",".kplex-layout-toggle",".kplex-zoom-controls button",".kplex-sidecar-primary",...["parent","child","left","right"].map(role=>".kplex-zone-"+role+" .kplex-zone-filter-button")];
   await assertControlStyle(sharedSelectors.map(selector=>root.querySelector(selector)));
   c.check(getComputedStyle(root.querySelector(".kplex-find")).backgroundColor==="rgba(0, 0, 0, 0)","Find wrapper has an opaque surface");
@@ -763,9 +767,24 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
     await c.until(()=>c.center()===c.canvas,"Canvas File Explorer drop did not center its node");
   }finally{app.dragManager.draggable=drag}
   // The editor opens AFTER wheel registration: detects stale geometry closures even before pan.
-  await c.editor(true);await c.until(()=>root.querySelector('[data-type="canvas"] .canvas'),"Native Canvas view missing");
-  const overlay=root.querySelector(".kplex-central-editor-overlay"),before=overlay.getBoundingClientRect();
-  const nativeCanvas=root.querySelector('[data-type="canvas"] .canvas'),canvasBefore=nativeCanvas.getBoundingClientRect();
+  await c.editor(true);
+  /** Observe completed native opening and stable live Canvas/host layout before sampling zoom. */
+  const waitForNativeCanvasLayout=async()=>{
+    let previous=null,stable=0,selection;
+    await c.until(/** Native DOM presence precedes controller.open completion and first view resize. */ ()=>{
+      const status=root.querySelector(".kplex-central-editor-status");
+      c.check(!status?.classList.contains("is-error"),"Native Canvas editor failed to open");
+      const overlay=root.querySelector(".kplex-central-editor-overlay"),nativeCanvas=root.querySelector('[data-type="canvas"] .canvas');
+      if(status||!overlay?.isConnected||!nativeCanvas?.isConnected){previous=null;stable=0;return false}
+      const before=overlay.getBoundingClientRect(),canvasBefore=nativeCanvas.getBoundingClientRect();
+      const measured=[before.width,before.height,canvasBefore.width,canvasBefore.height];
+      if(measured.some(/** Reject an attached but hidden or not yet sized native view. */ value=>value<=0)){previous=null;stable=0;return false}
+      const unchanged=previous&&previous.element===nativeCanvas&&measured.every(/** Compare settled measurements without manufacturing a native resize. */ (value,index)=>Math.abs(value-previous.measured[index])<0.1);
+      stable=unchanged?stable+1:0;previous={element:nativeCanvas,measured};selection={overlay,nativeCanvas,before,canvasBefore};return stable>=3;
+    },"Native Canvas initial ready/layout prerequisite did not settle",5000);
+    return selection;
+  };
+  const {overlay,nativeCanvas,before,canvasBefore}=await waitForNativeCanvasLayout();
   const r=c.plex().getBoundingClientRect();c.plex().dispatchEvent(new WheelEvent("wheel",{bubbles:true,cancelable:true,deltaY:-150,clientX:r.x+30,clientY:r.y+30}));
   await c.frames();await c.wait(100);const after=overlay.getBoundingClientRect();
   c.check(after.width>before.width+1&&after.height>before.height+1,"Canvas overlay did not resize on Plex wheel zoom before pan");
@@ -811,6 +830,12 @@ const scenarios = `(()=>{const c=window.${controller};c.done=false;(async()=>{
   record("popout-Find-owning-document-focus-highlight-style-history",{width:ps.width,height:ps.height,background:ps.backgroundColor});
   c.popoutLeaf.detach();c.popoutLeaf=null;app.workspace.setActiveLeaf(c.leaf,{focus:true});
   ${labelLayoutAcceptanceScenarios}
+  // Typography acceptance deliberately leaves its live panel open above graph nodes. Retire
+  // that fixture-owned disclosure before real relationship hit testing; never reroute the drop.
+  const gestureLayoutToggle=root.querySelector(".kplex-layout-toggle");
+  c.check(gestureLayoutToggle,"Relationship fixture layout disclosure is unavailable");
+  if(gestureLayoutToggle.getAttribute("aria-expanded")==="true")await c.click(gestureLayoutToggle);
+  await c.until(/** Require actual controls teardown rather than ignoring a covered center hit. */ ()=>gestureLayoutToggle.getAttribute("aria-expanded")==="false"&&!root.querySelector('.kplex-layout-controls input[type="range"]'),"Relationship fixture configuration did not close",5000);
   ${relationshipEnhancementScenarios}
   ${gateCountScenarios}
   // Siblings share the same toolbar but need their own overflowing production fixture.

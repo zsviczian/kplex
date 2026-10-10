@@ -838,6 +838,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     historyBack: historyCursor > 0, historyForward: historyCursor < plugin.settings.navigationHistory.length - 1, onReady });
   /** Forward intentional toolbar/control actions with explicit owning surface. */
   const runAction = (id: ActionId): void => actions.dispatch({ id, source: "toolbar" });
+  const supportButton = <ToolButton icon="bug" title={translate("support.reportTitle")} onClick={/** Invoke the owning clipboard writer directly before any action-dispatch await, including partial startup. */ event => plugin.reportBug(event.currentTarget, actions.surfaceId)} />;
 
   if (!page) return <div
     ref={rootRef}
@@ -865,6 +866,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
       />
     </div>
     <span>{translate("app.buildingIndex")}</span>
+    {!displayState.zen && <div className="kplex-empty-support">{supportButton}</div>}
   </div>;
 
   const linkedLabel = plugin.getLinkedDocumentLeafLabel();
@@ -996,6 +998,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
             translate={translate}
           />
           <div className="kplex-top-actions is-compact">
+            {supportButton}
             <button
               className={`kplex-icon-button${syncMode !== "off" && syncTargetAvailable ? " is-on" : ""}`}
               aria-label={translate("app.syncActions", { status: syncTitle })}

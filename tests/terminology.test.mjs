@@ -229,9 +229,9 @@ test("commands are registered once with canonical IDs and unchanged availability
     registerPluginCommands(plugin, device);
     assert.equal(new Set(commands.map((command) => command.id)).size, commands.length);
     assert(commands.every((command) => command.id.startsWith("kplex-")));
-    assert.equal(commands.length, 29, "22 preserved commands and seven new defaults must publish");
+    assert.equal(commands.length, 30, "22 preserved commands and eight new defaults must publish");
     plugin.actionPublisher.sync(plugin.settings.actionPreferences);
-    assert.equal(commands.length, 29, "Repeated reconciliation must not duplicate stable IDs");
+    assert.equal(commands.length, 30, "Repeated reconciliation must not duplicate stable IDs");
     assert.equal(commands.filter(command => typeof command.editorCheckCallback === "function").length, 9);
     assert(commands.every(command => command.hotkeys === undefined), "Local defaults must not become global host hotkeys");
     const byId = (id) => {

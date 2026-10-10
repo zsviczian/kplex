@@ -189,3 +189,25 @@ test('unsupported page navigation retains main settings recovery without a detac
   const current = { app: {}, openSettings: () => opens++, settingsTab: { openActionSettingsPage: () => false } };
   assert.equal(method('openActionSettings').call(current), false); assert.equal(opens, 1);
 });
+
+
+test('support command stays available without a center or a readable graph during partial startup', /** Exercise the actual native command-context callback and portable dispatch with no live center. */ async () => {
+  class KplexView {} class KplexSidepanelView {}
+  const owner = {}; let executions = 0;
+  const plugin = {
+    app: { workspace: { getMostRecentLeaf: /** No native graph has finished opening. */ () => null, getActiveViewOfType: /** No current view owns a center. */ () => null } },
+    actionSurfaceHosts: new Map(), settings: { lastActivePath: 'unavailable-center' },
+    index: { get: /** A diagnostic recovery command must not depend on this unavailable graph reader. */ () => assert.fail('Support attempted a center lookup') },
+    actionWindowId: /** Preserve the actual native window association without a node reference. */ () => 'own',
+  };
+  const create = commandContext({ window: { activeWindow: owner }, KplexView, KplexSidepanelView, actionNodeRef: assert.fail });
+  const read = create.call(plugin);
+  const manager = new contracts.ActionManager({ readCommandContext: read, implementations: {
+    'support.report-bug': { availability: /** Reporting has no semantic readiness prerequisite. */ () => ({ state: 'enabled' }), execute: /** Count actual execution separately from pure availability checking. */ () => { executions++; return { status: 'completed' }; } },
+  } });
+  plugin.actionManager = manager;
+  const request = { id: 'support.report-bug', source: 'obsidian-command' };
+  assert.deepEqual(manager.check(request), { state: 'enabled' }); assert.equal(executions, 0);
+  assert.equal((await manager.dispatch(request)).status, 'completed'); assert.equal(executions, 1);
+  manager.dispose();
+});

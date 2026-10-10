@@ -21,7 +21,7 @@ export const localPreferenceKeys = [
   "ontologySuggesterLeftFriendTrigger", "ontologySuggesterRightFriendTrigger", "ontologySuggesterPreviousTrigger",
   "ontologySuggesterNextTrigger", "ontologySuggesterTrigger", "ontologySuggesterMidSentenceTrigger",
   "boldFields", "allowAutozoom", "allowAutofocuOnSearch", "defaultAlwaysOnTop", "applyPowerFilter",
-  "embedCentralNode", "centralNodeMarkdownMode", "centerEmbedWidth", "centerEmbedHeight",
+  "embedCentralNode", "centralNodeMarkdownMode", "centralNodeMarkdownZoomModes", "centerEmbedWidth", "centerEmbedHeight",
   "startInPopout", "sidecarOpen", "sidecarPosition", "sidecarLastFilePath", "sidecarLastUrl",
   "mouseInteractionMode", "toolbarExpanded", "kplexInitialized", "startupIndexInfoBubbleSeen",
   "deletePromptInitialized", "confirmFileDelete", "editNewNodeAfterCreate", "newNodeDefaultType",

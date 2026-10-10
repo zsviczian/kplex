@@ -1,8 +1,9 @@
 /**
- * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback. Native metadata events request finite visible presentation repair independently of semantic readiness. Passive document synchronization preserves the current representation of exact matching native destinations; explicit opening and source inspection retain their separate navigation contracts.
+ * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback. Native metadata events request finite visible presentation repair independently of semantic readiness. Passive document synchronization preserves the current representation of exact matching native destinations; explicit opening and source inspection retain their separate navigation contracts. Support reporting projects retained facts without starting index work; this lifetime owns its bounded recorder and native report dialogs. Per-note Markdown zoom preferences follow Vault rename/delete events independently of index readiness.
  */
-import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, getAllTags, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
+import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, apiVersion, getLanguage, getAllTags, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { captureSettingsPolicy, classifySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
+import { removeMarkdownZoomModes, renameMarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { GraphIndex } from "./index/GraphIndex";
 import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition } from "./settings";
 import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelView } from "./ui/KplexView";
@@ -33,6 +34,11 @@ import { writeRelationshipMetadata, SavedRelationshipPendingError, relationshipM
 import { SOURCE_DECODE_BUDGET_BYTES } from "./index/SourceFacts";
 import { perfNow } from "./util/perf";
 import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
+import { createSupportReport } from "./application/supportReport";
+import { SessionEventRecorder } from "./application/SessionEventRecorder";
+import { SupportClipboardSession } from "./application/supportClipboard";
+import { SupportReportModal } from "./adapters/obsidian/SupportReportModal";
+import { readSupportCustomizations } from "./adapters/obsidian/supportEnvironment";
 import { PartialRelatedFileError } from "./adapters/obsidian/relatedFileOutcome";
 import { ActionManager, type ActionContext, type ActionImplementations } from "./application/ActionManager";
 import { frontmatterDeclarationKey } from "./application/frontmatterUnlink";
@@ -227,9 +233,13 @@ export default class KplexPlugin extends Plugin {
   }
 
   readonly startupDiagnostics = new StartupDiagnostics();
+  /** Passive scalar-only evidence for this plugin lifetime, never a source or publication owner. */
+  readonly supportEvents = new SessionEventRecorder(/** Use the existing host monotonic clock without a timer. */ () => window.performance.now());
+  private lastSupportIndexPhase: string | null = null;
 
   /** Register host resources; optional startup diagnostics observe this exact production path. */
   async onload(): Promise<void> {
+    this.supportEvents.record("plugin-start");
     this.startupDiagnostics.begin((window as Window & { kplexStartupDiagnosticsEnabled?: boolean }).kplexStartupDiagnosticsEnabled === true);
     this.translator = createObsidianTranslator();
     const ownData: unknown = await this.loadData();
@@ -259,6 +269,7 @@ export default class KplexPlugin extends Plugin {
 
     this.startupDiagnostics.mark("settings-loaded");
     this.index = new GraphIndex(this);
+    this.registerMarkdownZoomPreferenceListeners();
     // URL acquisition is independent of MetadataCache, local graph preparation and full Eager inventory.
     this.registerEvent(this.app.vault.on("modify", /** Retire exact URL facts on content edits, including equal-stat writes. */
       file => { if (file instanceof TFile && file.extension === "md") void this.index.refreshUrlOwner(file.path); }));
@@ -408,9 +419,18 @@ export default class KplexPlugin extends Plugin {
         // temporarily hydrate real files as virtual nodes on mobile while the vault tree is still
         // settling, producing the misleading "ghost then real" startup scene.
         const startupSeedPaths = this.startupGraphSeedPaths();
-        this.snapshotRestoreTask ??= this.index.restorePersistedSnapshot(startupSeedPaths);
-        const restored = await this.snapshotRestoreTask;
+        const restoreStarted = perfNow();
+        this.supportEvents.record("cache-restore-start", { category: "cache" });
+        let restored: Awaited<ReturnType<GraphIndex["restorePersistedSnapshot"]>>;
+        try {
+          this.snapshotRestoreTask ??= this.index.restorePersistedSnapshot(startupSeedPaths);
+          restored = await this.snapshotRestoreTask;
+        } catch (error) {
+          this.supportEvents.record("cache-restore-failure", { category: "cache", outcome: "failed", durationMs: perfNow() - restoreStarted });
+          throw error; // Preserve the existing startup rejection; diagnostics do not repair or retry it.
+        }
         if (this.unloading) return;
+        this.supportEvents.record("cache-restore-end", { category: "cache", outcome: restored.restored ? "complete" : "unavailable", durationMs: perfNow() - restoreStarted });
         if (restored.restored) {
           await this.refreshBookmarkedEntryPoints();
         }
@@ -502,6 +522,7 @@ export default class KplexPlugin extends Plugin {
     for (const cancel of this.relationshipWriteCancels) cancel();
     this.relationshipWriteCancels.clear();
     this.startupDiagnostics.dispose();
+    this.supportEvents.dispose();
     this.dismissKplexMenu();
     if (this.rebuildTimer !== null) window.clearTimeout(this.rebuildTimer);
     if (this.startupInitializationTimer !== null) window.clearTimeout(this.startupInitializationTimer);
@@ -656,6 +677,30 @@ export default class KplexPlugin extends Plugin {
   /** Maintain an already-established Markdown progress denominator in O(1); null remains genuinely unknown. */
   private adjustCachedMarkdownFileCount(delta: number): void {
     if (this.cachedMarkdownFileCount !== null) this.cachedMarkdownFileCount += delta;
+  }
+
+  /**
+   * Keep durable note preferences attached to their physical file through startup and normal work.
+   * Graph listeners are installed in separate restore phases and may skip folder moves before an
+   * authoritative baseline exists; these lifecycle-registered listeners have no graph dependency.
+   */
+  private registerMarkdownZoomPreferenceListeners(): void {
+    this.registerEvent(this.app.vault.on("rename", /** Move file/subtree overrides even while index restore is pending. */ (item, oldPath) => {
+      const next = renameMarkdownZoomModes(this.settings.centralNodeMarkdownZoomModes, oldPath, item.path, item instanceof TFolder);
+      if (next === this.settings.centralNodeMarkdownZoomModes) return;
+      this.settings.centralNodeMarkdownZoomModes = next;
+      void this.persistSettingsSnapshot().catch(/** Event saves must not leave an unhandled rejection; a later ordinary save can retry. */ () => {
+        console.error("K-Plex could not save Markdown zoom preferences");
+      });
+    }));
+    this.registerEvent(this.app.vault.on("delete", /** Retire deleted file/subtree choices without rebuilding or observing graph state. */ item => {
+      const next = removeMarkdownZoomModes(this.settings.centralNodeMarkdownZoomModes, item.path, item instanceof TFolder);
+      if (next === this.settings.centralNodeMarkdownZoomModes) return;
+      this.settings.centralNodeMarkdownZoomModes = next;
+      void this.persistSettingsSnapshot().catch(/** Keep the in-memory deletion while reporting a failed disk write without private paths. */ () => {
+        console.error("K-Plex could not save Markdown zoom preferences");
+      });
+    }));
   }
 
   /** Register post-restore vault/metadata listeners and initialize lazy vault-wide status facts. */
@@ -920,12 +965,17 @@ export default class KplexPlugin extends Plugin {
       this.visibleMetadataTimer = null;
       const paths = [...this.visibleMetadataPaths];
       this.visibleMetadataPaths.clear();
+      const preparationStarted = perfNow();
+      this.supportEvents.record("semantic-preparation-pending", { category: "index", outcome: "pending", count: paths.length });
       void (async () => {
         for (const selected of paths) {
           if (this.unloading || !this.hasVisibleKplexSurface()) return;
           await this.index.refreshVisibleMarkdownPath(selected);
         }
-      })().catch(error => console.error("K-Plex visible source preparation failed", error));
+      })().catch(/** Preserve the existing local error while exporting only a finite failure category and duration. */ error => {
+        this.supportEvents.record("semantic-preparation-failure", { category: "index", outcome: "failed", durationMs: perfNow() - preparationStarted });
+        console.error("K-Plex visible source preparation failed", error);
+      });
     }, 120);
   }
 
@@ -1355,8 +1405,12 @@ export default class KplexPlugin extends Plugin {
   registerActionSurfaceHost(id: string, generation: number, leaf: WorkspaceLeaf): () => void {
     const registration = { generation, leaf };
     this.actionSurfaceHosts.set(id, registration);
+    this.supportEvents.record("view-created", { category: "view" });
     return /** Release only this owning React generation's native association. */ () => {
-      if (this.actionSurfaceHosts.get(id) === registration) this.actionSurfaceHosts.delete(id);
+      if (this.actionSurfaceHosts.get(id) === registration) {
+        this.actionSurfaceHosts.delete(id);
+        this.supportEvents.record("view-closed", { category: "view" });
+      }
       for (const [dialog, owner] of this.actionDialogs) {
         if (owner.surfaceId === id && owner.generation === generation) dialog.close();
       }
@@ -1495,6 +1549,11 @@ export default class KplexPlugin extends Plugin {
     operation("surface.open-sidepanel", completed(() => this.activateSidepanel()));
     operation("index.rebuild", completed(() => this.rebuildIndex(true)));
     operation("index.copy-diagnostics", completed(() => this.copyIndexDiagnostics()));
+    operation("support.report-bug", /** Alternate palette/command route remains usable when Zen hides the toolbar. */ context => {
+      const origin = this.actionHostLeaf(context.surfaceId)?.view.containerEl;
+      this.reportBug(origin, context.surfaceId);
+      return { status: "completed" };
+    });
     operation("actions.configure", /** Native Settings owns the page lifetime; navigation creates no detached dialog session. */ () => this.openActionSettings()
       ? { status: "completed" } : { status: "unavailable", reasonKey: "actions.unavailable" });
     operation("search.focus", /** Legacy fallback covers readiness before a surface port is registered. */ context => {
@@ -1579,7 +1638,8 @@ export default class KplexPlugin extends Plugin {
         })?.[0]
           ?? surfaces.find(([, value]) => value.leaf === active)?.[0]
           ?? surfaces.find(([, value]) => value.leaf === recent)?.[0];
-        const shared = this.index.get(this.settings.lastActivePath);
+        // Reporting has no node target and must stay usable when the graph is not yet available.
+        const shared = request.id === "support.report-bug" ? null : this.index.get(this.settings.lastActivePath);
         return { sharedCenter: shared ? actionNodeRef(shared) : null,
           windowId: request.windowId ?? this.actionWindowId(owner), preferredSurfaceId: associated,
           focusRegion: associated ? (this.actionManager.readSnapshot(associated)?.commandFocusRegion ?? this.actionManager.readSnapshot(associated)?.focusRegion) : "external" };
@@ -1591,7 +1651,10 @@ export default class KplexPlugin extends Plugin {
         return Boolean(page && (!page.file || this.app.vault.getFileByPath(page.file.path) === page.file));
       },
       /** Existing services own expected notices; unexpected thrown failures have one localized owner. */
-      onError: error => { console.error("K-Plex action failed", error); new Notice(this.translator("actions.failed")); },
+      onError: error => {
+        this.supportEvents.record("action-failed", { category: "action" });
+        console.error("K-Plex action failed", error); new Notice(this.translator("actions.failed"));
+      },
     });
     this.actionPublisher = createActionCommandPublisher({ host: this, manager: this.actionManager,
       /** Catalog strings cross into typed localization only through the checked assembly helper. */
@@ -2486,8 +2549,61 @@ export default class KplexPlugin extends Plugin {
     return () => this.navigationListeners.delete(listener);
   }
 
+  /** Notify existing navigation consumers while retaining only a path-free request boundary. */
   private notifyNavigation(path: string): void {
+    this.supportEvents.record("navigation-request", { category: "navigation" });
     for (const listener of this.navigationListeners) listener(path);
+  }
+
+  /**
+   * Capture bounded retained facts and start copying in the original toolbar gesture. Each optional
+   * diagnostic owner fails independently to unavailable; raw exceptions never enter the report.
+   * The modal previews exactly these bytes and is retired with its captured surface or plugin.
+   */
+  reportBug(origin?: HTMLElement, surfaceId?: string): void {
+    if (this.unloading) return;
+    const owner = origin?.ownerDocument.defaultView ?? window.activeWindow ?? window;
+    let indexReport: unknown = null;
+    let startup: unknown = null;
+    try {
+      if (this.index) indexReport = JSON.parse(createIndexDiagnosticsReport(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version));
+    } catch { /* Partial startup/cache failures remain explicit unavailable facts, never raw errors. */ }
+    try { startup = this.getStartupDiagnostics(); } catch { /* Report remains available without this optional owner. */ }
+    let formFactor: unknown = null;
+    let locale: unknown = null;
+    try { formFactor = readObsidianPresentationEnvironment(owner).device; } catch { /* Optional evidence can be unavailable during window teardown. */ }
+    try { locale = getLanguage(); } catch { /* A missing host locale must not disable issue reporting. */ }
+    const host = this.actionHostLeaf(surfaceId);
+    const report = createSupportReport({
+      capturedAt: new Date().toISOString(), indexReport, startup, session: this.supportEvents.snapshot(),
+      environment: {
+        ...readSupportCustomizations(this.app),
+        pluginVersion: this.manifest.version, obsidianApiVersion: apiVersion,
+        operatingSystem: Platform.isIosApp ? "ios" : Platform.isAndroidApp ? "android" : Platform.isMacOS ? "macos" : Platform.isWin ? "windows" : Platform.isLinux ? "linux" : "unknown",
+        formFactor, locale,
+        theme: owner.document.body.classList.contains("theme-dark") ? "dark" : owner.document.body.classList.contains("theme-light") ? "light" : "unavailable",
+        surfaceKind: host?.view instanceof KplexSidepanelView ? "sidepanel" : host ? (owner === window ? "tab" : "popout") : "unavailable",
+      },
+      indexingPreferences: {
+        indexingMode: this.settings?.indexingMode, urlIndexingMode: this.settings?.urlIndexingMode,
+        indexingThrottle: this.settings?.indexingThrottle,
+        excalidrawFitOnNodeOpen: this.settings?.excalidrawFitOnNodeOpen,
+      },
+    });
+    const session = new SupportClipboardSession(report, /** Capture only this toolbar's actual native clipboard owner. */ text => owner.navigator.clipboard.writeText(text));
+    session.copy(); // Must precede native UI creation and every await on mobile clipboard paths.
+    const registration = surfaceId ? this.actionSurfaceHosts.get(surfaceId) : undefined;
+    let dialog: SupportReportModal | null = null;
+    try {
+      dialog = new SupportReportModal(this.app, session, this.translator, /** Native dismissal releases this exact plugin lifetime's dialog. */ () => { if (dialog) this.actionDialogs.delete(dialog); });
+      this.actionDialogs.set(dialog, { surfaceId, generation: registration?.generation });
+      dialog.open();
+    } catch (error) {
+      session.dispose();
+      dialog?.close();
+      if (dialog) this.actionDialogs.delete(dialog);
+      throw error;
+    }
   }
 
   subscribeSearchFocus(hostLeaf: WorkspaceLeaf, listener: () => void): () => void {
@@ -2697,8 +2813,13 @@ export default class KplexPlugin extends Plugin {
     return () => this.indexStatusListeners.delete(listener);
   }
 
+  /** Reuse the existing status read and retain only phase transitions, never per-file progress chatter. */
   private notifyIndexStatus(): void {
     const status = this.getIndexStatus();
+    if (status.phase !== this.lastSupportIndexPhase) {
+      this.lastSupportIndexPhase = status.phase;
+      this.supportEvents.record("index-phase-change", { category: "index", phase: status.phase });
+    }
     const key = `${status.upToDate ? "1" : "0"}:${status.phase}:${status.indexedFiles}:${status.totalFiles}:${status.label}`;
     if (key === this.lastIndexStatusKey) return;
     this.lastIndexStatusKey = key;

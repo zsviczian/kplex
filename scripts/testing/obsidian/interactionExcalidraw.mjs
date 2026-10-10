@@ -23,7 +23,8 @@ const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const driver=readFileSync(fileURLToPath(import.meta.url));writeFileSync(join(out,'driver-source.mjs'),driver);
 const names=['plugins/k-plex/data.json','plugins/obsidian-excalidraw-plugin/data.json','community-plugins.json','hotkeys.json'];
 const backups=names.map(name=>({name,bytes:existsSync(`${config}/${name}`)?readFileSync(`${config}/${name}`):null}));
-const report={startedAt:new Date().toISOString(),base:'80f73619a68e634698f404ea8c61a58f276c0fbe',driverSha256:sha(driver),vault:vaultName,scope:'native representation/command routing, passive destination identity and embedded initial defaults',limits:['Electron trusted input is not physical keyboard or Windows acceptance','Bounded settlement/DOM checks do not establish actual paint latency','Embedded leaf capture is temporary native-call observation, not a production diagnostic API'],artifacts:{}};
+const sourceHead=spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8',timeout:5000});assert.equal(sourceHead.status,0,'Read actual native receipt source provenance');
+const report={startedAt:new Date().toISOString(),base:sourceHead.stdout.trim(),driverSha256:sha(driver),vault:vaultName,scope:'native representation/command routing, passive destination identity and embedded initial defaults',limits:['Electron trusted input is not physical keyboard or Windows acceptance','Bounded settlement/DOM checks do not establish actual paint latency','Embedded leaf capture is temporary native-call observation, not a production diagnostic API'],artifacts:{}};
 /** Invoke one bounded CLI operation and retain exact failure text. */
 function cli(command,...args){const r=spawnSync(process.env.KPLEX_OBSIDIAN_CLI??'obsidian',[`vault=${vaultName}`,command,...args],{cwd:root,encoding:'utf8',timeout:30000,killSignal:'SIGKILL',maxBuffer:8*1024*1024});if(r.error||r.status!==0||/^Error:/m.test(r.stdout))throw r.error??Error(r.stderr||r.stdout);return r.stdout.trim();}
 /** Read the serializable result of a native owning-window operation. */
@@ -35,7 +36,10 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function probe(){
  if(window.__kplexInteractionFinal)throw Error('Existing interaction final controller');
  const p=app.plugins.plugins['k-plex'],ex=app.plugins.plugins['obsidian-excalidraw-plugin'];
- const remote=require('@electron/remote'),win=remote.getCurrentWindow(),wc=win.webContents;
+ const remote=require('@electron/remote');
+ const windows=remote.BrowserWindow.getAllWindows().filter(/** Restrict trusted input to the explicitly configured disposable vault, never an unrelated active window. */ item=>item.getTitle().includes('kplex-test-small'));
+ if(windows.length!==1)throw Error('Disposable native window identity ambiguous');
+ const win=windows[0],wc=win.webContents;
  if(remote.powerMonitor.getSystemIdleState(10)==='locked')throw Error('Locked native session');
  if(app.setting.isOpen||document.querySelector('.modal-container'))throw Error('Existing modal');
  remote.app.show();remote.app.focus({steal:true});win.show();win.moveTop();win.focus();wc.focus();

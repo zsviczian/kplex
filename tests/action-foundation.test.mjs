@@ -21,10 +21,14 @@ const implementation = (execute = () => ({status: "completed"})) => ({availabili
 /** Provide a shared center independently of whichever editor has focus. */
 const manager = (extra = {}) => new api.ActionManager({readCommandContext: () => ({sharedCenter: node("shared"), windowId: "main", focusRegion: "graph"}), ...extra});
 
-test("catalog contains bounded variants, 22 preserved IDs, seven new publication defaults and session-only actions", () => {
+test("catalog contains bounded variants, 22 preserved IDs, eight new publication defaults and session-only actions", () => {
   assert.equal(new Set(api.ACTION_CATALOG.map(item => item.id)).size, api.ACTION_CATALOG.length);
   assert.equal(new Set(api.ACTION_CATALOG.flatMap(item => item.command ? [item.command.id] : [])).size, api.ACTION_CATALOG.filter(item => item.command).length);
-  assert.equal(api.ACTION_CATALOG.filter(item => item.command?.defaultPublished).length, 29);
+  assert.equal(api.ACTION_CATALOG.filter(item => item.command?.defaultPublished).length, 30);
+  const support = api.ACTION_BY_ID.get("support.report-bug");
+  assert.equal(support.command.id, "kplex-support-report-bug");
+  assert.equal(support.target, "none");
+  assert.deepEqual(api.effectiveActionBindings(api.migrateActionPreferences(undefined).preferences, "support.report-bug"), []);
   const preserved = ["kplex-start", "kplex-rebuild-index", "kplex-copy-index-diagnostics", "kplex-open-popout", "kplex-open-sidepanel", "kplex-search", "kplex-add-child", "kplex-add-parent", "kplex-add-friend", "kplex-add-challenger", "kplex-sync-tab-from-plex", "kplex-sync-plex-from-tab", "kplex-focus-active-note", ...["select", "parent", "child", "left", "right", "previous", "next", "hidden", "excluded"].map(role => `kplex-ontology-${role}`)];
   for (const id of preserved) assert(api.ACTION_CATALOG.some(item => item.command?.id === id));
   for (const role of ["parent", "child", "left", "right", "previous", "next"]) for (const origin of ["center", "selected"]) assert(api.ACTION_BY_ID.has(`relationship.create-${origin}.${role}`));
@@ -199,8 +203,8 @@ test("public command diff preserves editor callbacks, omits global hotkeys and r
   const app = manager({implementations: {"index.rebuild": implementation(), "ontology.assign.parent": implementation()}});
   const publisher = api.createActionCommandPublisher({host: {addCommand: command => {added.push(command); return command;}, removeCommand: id => removed.push(id)}, manager: app, translate: key => key, makeRequest: id => ({id, source: "obsidian-command", ...(id.startsWith("ontology.") ? {target: {kind: "editor-field", editorInvocationId: "cursor"}} : {})}), releaseRequest: request => released.push(request.id)});
   const preferences = api.migrateActionPreferences(undefined).preferences;
-  publisher.sync(preferences); assert.equal(added.length, 29);
-  publisher.sync(preferences); assert.equal(added.length, 29);
+  publisher.sync(preferences); assert.equal(added.length, 30);
+  publisher.sync(preferences); assert.equal(added.length, 30);
   assert(added.every(command => command.hotkeys === undefined));
   const editor = added.find(command => command.id === "kplex-ontology-parent"); assert.equal(typeof editor.editorCheckCallback, "function"); assert.equal(editor.checkCallback, undefined);
   assert.equal(editor.editorCheckCallback(true, {}, {}), true); assert.deepEqual(released, ["ontology.assign.parent"]);
@@ -255,9 +259,9 @@ test("partial public registration failure reports actual state and stable-ID ret
   const app = manager();
   const publisher = api.createActionCommandPublisher({host: {addCommand: command => {counts.set(command.id, (counts.get(command.id) ?? 0) + 1); if (command.id === "kplex-actions" && fail) throw new Error("native failure"); return command;}, removeCommand: () => {}}, manager: app, translate: key => key, makeRequest: id => ({id, source: "obsidian-command"})});
   const preferences = api.migrateActionPreferences(undefined).preferences;
-  const first = publisher.sync(preferences); assert.equal(first.failures.length, 1); assert.equal(publisher.registeredIds().length, 28);
-  const actual = publisher.registeredIds(); actual.pop(); assert.equal(publisher.registeredIds().length, 28);
-  fail = false; assert.equal(publisher.sync(preferences).failures.length, 0); assert.equal(publisher.registeredIds().length, 29);
+  const first = publisher.sync(preferences); assert.equal(first.failures.length, 1); assert.equal(publisher.registeredIds().length, 29);
+  const actual = publisher.registeredIds(); actual.pop(); assert.equal(publisher.registeredIds().length, 29);
+  fail = false; assert.equal(publisher.sync(preferences).failures.length, 0); assert.equal(publisher.registeredIds().length, 30);
   assert.equal(counts.get("kplex-actions"), 2); assert.equal(counts.get("kplex-start"), 1);
   publisher.dispose(); app.dispose();
 });

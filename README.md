@@ -129,6 +129,9 @@ K-Plex also keeps a **Past nodes** history for back/forward navigation. Drag a r
 
 Select **Editor node** to expand a file or URL inside the central node. Images fit both dimensions without cropping. The editor’s **Open menu** button provides the same opening destinations as the node context menu. Maximizing the editor temporarily hides Find and preserves its query. Webpages use a desktop webview with browser authentication, or an iframe on Obsidian mobile. YouTube and Vimeo links use embedded players; YouTube Shorts use a portrait frame. Expanding a URL loads that website, which receives normal browser requests and may store its own cookies.
 
+For Markdown notes in a normal editor node, select **Scale text with Plex zoom** to make text grow or shrink with the graph. Select **Keep text size** to retain the native font size as the frame changes. K-Plex remembers this choice for each note. Fullscreen editors use the native text size.
+
+
 ## Creating and editing relationships
 
 K-Plex lets you create Parent, Child, Friend, Challenger, Previous and Next relationships directly from the Plex. You can start from a gate, use the Command Palette, or use node/connector context menus.
@@ -382,9 +385,13 @@ Sibling relative size (30–85%) is under **Plex behavior → Layout & sizing**.
 2. **Ontology** — separate pages for relationship fields, editor suggestions and discovered/unassigned vault properties
 3. **Visual styling** — canvas options plus dedicated **Node styling** and **Link styling** pages
 4. **Sidecar** — companion-pane behavior and Markdown mode
-5. **Compatibility** — ExcaliBrain settings import
+5. **Compatibility** — ExcaliBrain settings import and Excalidraw editor-node behavior
+
+Excalidraw drawings fit automatically when opened or navigated to in a normal editor node, even if Excalidraw’s own fit-on-open preference is off. Change this in **K-Plex settings → Compatibility → Excalidraw → Fit drawings when opening an editor node**. Fullscreen editors follow Excalidraw’s preference. Resizing or maximizing an already-open drawing preserves your manual zoom.
 
 ## Help, issues and contributing
+
+Select **Report a bug** (the Bug icon in the toolbar) to copy a diagnostic report and view reporting guidance. In Zen mode, use **K-Plex: Report a bug** from Obsidian’s Command Palette. Search existing issues first, describe how to reproduce the problem, and paste the report at the bottom. The report includes active plugin names and versions, the custom theme name, and enabled/available CSS snippet counts. It excludes note contents, paths and snippet names. Inspect the preview before posting; nothing is submitted automatically. If copying fails, select the preview to copy it manually or select **Copy again**.
 
 If you find a bug, have a feature request, or want to suggest an improvement, please use the K-Plex GitHub repository:
 
