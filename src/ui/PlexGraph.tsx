@@ -1,5 +1,5 @@
 /**
- * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. View-owned display transitions retain camera coordinates and scene settings; ordinary pane resizes keep their existing autozoom policy. Device typography stages scalar live preferences and persists after input settles; unmount flushes storage without replaying stale overrides. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity. Normal-mode keyboard and exact-phrase typing selection are view-local; the displayed occurrence projection supplies all candidates and the shared selection owner reveals them without changing the center, filters or native search. Host methods own activation/rename/creation.
+ * Host-bound Plex scene composition, layout and relationship interactions. Semantic resolution stays index/core-owned; UI labels and on-demand evidence hints use the injected translator. View-owned display transitions retain camera coordinates and scene settings; ordinary pane resizes keep their existing autozoom policy. Device typography stages scalar live preferences and persists after input settles; unmount flushes storage without replaying stale overrides. Area-height gestures own viewport pointer capture and persist existing presentation settings on completion or interruption. History and pinned drag targets share composer eligibility; external file drops follow the rendered area's semantic role. Theme-native area previews follow the existing drop action without intercepting capture or moving the dragged thought. Visible rows retain finite cache-only presentation demand; hidden surfaces and effect teardown release it. Geometry defers gate/count queries until a row intersects the displayed viewport, including partially clipped rows. Ordinary unfiltered scenes project cross-links for clipped visible rows; filtered and section scenes retain their established edge/count policy. Scene-local React keys capture paths before canonical pages can mutate during rename; semantic pages and actions retain their live identity. Normal-mode keyboard and exact-phrase typing selection are view-local; the displayed occurrence projection supplies all candidates and the shared selection owner reveals them without changing the center, filters or native search. Host methods own activation/rename/creation. Filtered badge numerators use revision-scoped semantic endpoint membership independently of connector routing and viewport clipping. Pane-fit native layout controls own local touch containment and bounded scrolling without changing preferences or browser range behavior.
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type MouseEvent, type PointerEvent, type RefObject } from "react";
 import { Menu, Notice, Platform, type WorkspaceLeaf } from "obsidian";
@@ -16,6 +16,8 @@ import { alphaHexToCss, resolveLinkStyle, resolveNodeStyle } from "../index/styl
 import { TYPOGRAPHY_FIELDS, TYPOGRAPHY_LIMITS, type TypographyValues } from "../core/plex/typographyPreferences";
 import { buildScene, buildSectionExpandedScene, appendVisibleCrossLinks, projectNodeCounts, rowIntersectsViewport, effectiveLabelLimit, expandedChildReserve, expandedNodeWidth, expandedMiniLayout, horizontalDensity, layoutColumns, spacingPolicy, gateDiameter, siblingScale, withAreaHeightOverrides, type CenterNodeSize, type ZoneViewport, type ZoneAreaBounds } from "./layout";
 import { LayoutSlider } from "./components/LayoutSlider";
+import { projectFilteredGateCounts } from "./filteredGateCounts";
+import { LayoutControls } from "./components/LayoutControls";
 import { ElementMotion } from "./components/ElementMotion";
 import { ResizableAreaFrame } from "./components/ResizableAreaFrame";
 import { ThoughtNode, type ConnectionDragState } from "./ThoughtNode";
@@ -1809,26 +1811,10 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     return paths;
   }, [scene.nodes, scene.zoneViewports, filterMatchedNodePaths, zoneDisplayLayouts, renderedNodeMap, nodeDrag]);
 
-  const filteredGateCounts = useMemo(() => {
-    const counts = new Map<string, Record<GateSide, number>>();
-    if (!globalFiltering) return counts;
-    const ensure = (path: string) => {
-      let item = counts.get(path);
-      if (!item) {
-        item = { top: 0, bottom: 0, left: 0, right: 0 };
-        counts.set(path, item);
-      }
-      return item;
-    };
-    for (const node of scene.nodes) ensure(node.page.path);
-    for (const edge of scene.edges) {
-      if (!filterMatchedNodePaths.has(edge.sourcePath) || !filterMatchedNodePaths.has(edge.targetPath)) continue;
-      const gates = gatesForEdge(edge);
-      ensure(edge.sourcePath)[gates.source] += 1;
-      ensure(edge.targetPath)[gates.target] += 1;
-    }
-    return counts;
-  }, [globalFiltering, scene.nodes, scene.edges, filterMatchedNodePaths]);
+  const filteredGateCounts = useMemo(/** Count surviving scene pairs by canonical endpoint membership, before viewport clipping. */ () => {
+    if (!globalFiltering) return null;
+    return projectFilteredGateCounts(scene.nodes, scene.edges, filterMatchedNodePaths, index);
+  }, [globalFiltering, scene.nodes, scene.edges, filterMatchedNodePaths, index, renderRevision, semanticRevision, predicateRevision]);
 
   const expandedClusters = useMemo<ExpandedCluster[]>(/** Project descendant strips with the original base node's captured scene identity. */ () => {
     if (sectionExpansion || settings.graphDepth !== 2 || !neighborhood) return [];
@@ -3488,7 +3474,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
     }) : {};
     const countedDisplayNode = hydrateCounts ? projectNodeCounts(displayNode, index) : displayNode;
     const styledDisplayNode = Object.keys(lensNodeStyle).length ? { ...countedDisplayNode, style: { ...countedDisplayNode.style, ...lensNodeStyle } } : countedDisplayNode;
-    const gateCounts = filteredGateCounts.get(baseNode.page.path);
+    const gateCounts = filteredGateCounts?.isCurrent() ? filteredGateCounts.counts.get(baseNode.page.path) : undefined;
     const nodeForDisplay = globalFiltering && gateCounts
       ? {
         ...styledDisplayNode,
@@ -3974,13 +3960,13 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
       style={{ left: edgeHoverTooltip.left, top: edgeHoverTooltip.top }}
     >{edgeHoverTooltip.text}</div>}
 
-    <div className="kplex-layout-controls" onPointerDown={(event: PointerEvent<HTMLDivElement>) => event.stopPropagation()}>
+    <LayoutControls width={viewportSize.width} height={viewportSize.height} expanded={layoutControlsOpen} toggle={
       <button type="button" className="kplex-icon-button kplex-layout-toggle" aria-label={translate("graph.configureLayout")}
         aria-expanded={layoutControlsOpen} aria-pressed={layoutControlsOpen}
         onClick={/** Keep configuration local to this view; hidden sliders are unmounted. */ () => void plugin.actionManager.dispatch({ id: "view.layout-controls", source: "toolbar", surfaceId: actionSurfaceId })}>
         <ObsidianIcon name="sliders-horizontal" size={16} />
       </button>
-      {layoutControlsOpen && <>
+      }>
       <div className="kplex-density-axes">
         <LayoutSlider label={translate("graph.horizontalDensity")} caption={translate("graph.horizontalDensityShort")}
           hint={translate("settings.ui.horizontal.density.help")} icon={<ObsidianIcon name="move-horizontal" size={11} />}
@@ -4035,8 +4021,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, surface, host
         </label>
       </div>
       </div>
-      </>}
-    </div>
+    </LayoutControls>
 
     <div className="kplex-zoom-controls">
       <button aria-label={translate("graph.zoomIn")} onClick={(e: MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); void plugin.actionManager.dispatch({ id: "view.zoom-in", source: "toolbar", surfaceId: actionSurfaceId }); }}><ObsidianIcon name="zoom-in" size={16} /></button>

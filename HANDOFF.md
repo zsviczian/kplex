@@ -18,32 +18,56 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# Completed — shared local Find/navigation highlight
+# Interaction correctness — maintainer accepted
 
-**Publication approved:** The maintainer reports all tests passed and authorizes commit, push, PR, merge and closure of #96, #97, #98, #99 and #101. Earlier automated Clipboard/Canvas observations remain historical evidence; this is maintainer acceptance of the batch. Copy-link preferences remain future issue #107.
+Base: `80f73619a68e634698f404ea8c61a58f276c0fbe` (merged PR #108).
+Branch: `fix/interaction-correctness-2026-10-10`; 29 changed/new files, no deletions, uncommitted.
+The temporary assignment remains untracked and excluded. On 2026-10-10 the maintainer confirmed
+testing and authorized committing, pushing, creating/merging a PR, closing #24/#28/#51/#106 with
+that PR reference and updating local main. Publication is now proceeding under that instruction.
 
-The maintainer confirms both device Node width and Windows fullscreen + Zen + maximized-editor
-controls pass manual testing. Actual Markdown editor text copy/paste is also confirmed. These are
-accepted manual results; the separately recorded physical-mobile and Canvas zoom observations remain.
+- [x] Verify baseline and reproduce bounded native failures.
+- [x] A/#106: preserve native ranges with local passive touch containment; pane-fit controls stack
+  above the bottom-left disclosure and scroll in short panes. Shared button sizing is preserved.
+- [x] B/#28: count exact semantic endpoint membership independently of physical connector routes,
+  retaining revisions, visibility, unknown/count-only proof and transient provenance.
+- [x] C/#24/#51: same-file passive native follow preserves representation; initial embedded Markdown
+  honors marked `excalidraw-open-md`. Exact request lifetimes preserve explicit source/open actions,
+  different-file companions and pending native publication.
+- [x] Independently review architecture, reuse, TSDoc, host APIs, source/revision boundaries and cleanup.
+- [x] Full verification, exact-build staging and all final native lanes pass.
+- [x] Restore disposable environment and return reviewable uncommitted work.
 
-Top-right local Find now uses the same theme-accent outline and broad halo as arrow/Option-arrow
-navigation and Plex typing selection. One shared CSS rule covers regular, center, section-center and
-expanded nodes, after earlier center/selection styling. Search matching, keyboard selection state,
-input focus and ARIA remain distinct and unchanged; clearing a match removes its halo.
+Node 22.22.2. Prior full `npm run verify:obsidian` PASS, 791.329 s: architecture 7/core 88/aggregate 559/
+UI 25/portable sources 333/browser sources 428, zero failures/skips, official scanner, actual installed
+Obsidian types, production build and native smoke. Final native UX 56/56, gates 6/6, touch/geometry,
+Excalidraw 18/18, action workflows 8/8 and desktop/tablet/phone settings 3/3 pass. Native UX count
+acceptance is local uncertified coverage; it does not claim requested-scope proof in an on-demand vault.
+Earlier failed probes and corrected fixture prerequisites remain documented separately.
 
-This follow-up changes only styles.css among325 verification inputs. Frozen source SHA-256
-`bec4f9be1011b57971eb91070f02b5167ca5439783bb0eb60c49017d086c166f`; installed styles.css `d5b3973600b9a082e600e7fcdb5b17284838bd82bd8e2bf949f01fdc9b77df73`.
-JavaScript/manifest hashes are unchanged from the prior full verified build (main3875ea11). For this
-CSS-only correction, scanner,26 existing UI/display Chromium checks and production typecheck/build
-PASS. Exact bounded-verified build is staged using the standard native runner; rendered smoke and
-owning-document style comparison4/4 PASS, no captured JavaScript errors. The style comparison uses
-removed offscreen clones, not physical-device/paint validation; no query, preferences or focus edits.
-Earlier full verify697.969s/native display12/12 results remain historical for source2e3ba2e5; semantic
-suites were not repeated for CSS alone. Full commands and receipts are in the validation report.
+C14 remains accepted; C15–C26 paused. No schema, ontology, parser, source-cache format, scheduler,
+connector routing, dependency or sibling-source changes. Version remains 0.1.0. Production changes
+remain inside the existing index, native adapter/orchestration and reusable presentation owners.
 
-Reviewed publication branch: five-issue-ux-package, base595a625. Pre-publication48-file diff ledger:
-`/private/tmp/kplex-search-highlight-final-diff-2026-10-10.json`. Commit/push/PR/merge and the five implementation issue closures are authorized; no release,
-version change or structural refactor is included. Copy-link preferences remain future issue107.
+Final built/installed main: `90a641a8f21dad9bb9d321c2cdec57f0ee4454420c52a663789cb8cf1cfadc31`.
+Styles: `da87b7b3a35522dedd63eb021f51e8458a389608dd5e5ccfd3fcb8036323506a`.
+Final full-run freeze: `1f72953dc70f2315aa06d4778e4a8466ff8df9a0a0b13746d967048e5d761741`.
+Delivery source identity: `85cb352300a92ed6b5e59f75c4349db6a208e8b7d8332ec9bfbde91e7411cc31`.
+The later native-driver setup/assertion/receipt changes are verified by their final native lane;
+JavaScript remains identical to the full-run build; the subsequent typography styling uses the new stylesheet hash above.
 
-Evidence: docs/validation/five-issue-ux-package-2026-10-09.md.
-The temporary implementation handoff is intentionally excluded from the commit.
+Cleanup passed: original 76 files, desktop bounds, typography overrides, configuration bytes and
+owned lifecycle resources restored; no captured JavaScript errors. No active test resource remains.
+Automated evidence does not establish physical Android/iOS or Windows acceptance; the maintainer
+has confirmed the fixes and accepted publication. No specific device result is inferred from that confirmation. Emulated plugin-only
+last-Sidepanel drawer reopening was not established; fresh mobile-shell recreation is used for
+persistence testing, with the observation preserved for future investigation and no production workaround.
+
+The complete inventory, actual commands/results, evidence limits and at most three brief manual
+checks are in [the validation report](docs/validation/interaction-correctness-2026-10-10.md).
+
+Typography styling follow-up: all three rails now use full-width stacked cards with the wrap
+checkbox in a horizontal card beneath, in wide and narrow panes. Focused Chromium 4/4, official
+lint, real typed build, exact-build staging/smoke and native touch/reload/geometry all pass. The
+full suite was not repeated for this CSS-only change; prior full/native evidence remains historical.
+See the validation report for current artifact identity and receipts. Work remains uncommitted.

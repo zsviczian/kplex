@@ -53,6 +53,8 @@
  * new-owner appends while replacement/removal preserves ordered contributor flattening. Facets
  * share immutable output arrays with working pages and retire on purge/unload. URL refreshes
  * launched by atomic source publication release that host turn before independent preparation.
+ * Filtered scene gate reads reuse cached visible all-role incidence under its captured policy;
+ * synchronous read epochs retire detached numerators without acquiring count proof or sources.
  */
 import { canonicalWebUrl } from "../adapters/obsidian/urlIdentity";
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
@@ -7142,6 +7144,51 @@ export class GraphIndex {
       }
     }
     return this.relationView(page).gateStats;
+  }
+
+  /**
+   * Capture a synchronous, revision-scoped visible gate-membership read for finite scene pairs.
+   * Endpoint membership reuses the denominator's cached all-role classification and captured
+   * inference policy. It never requests count proof, enumerates absent neighbors or hydrates
+   * sources. Count-only totals remain distinct from the available incidence returned here.
+   * Transient section projections retain their separate provenance/denominators and are not
+   * substituted with an unrelated persistent page. Consumers withhold overlays after retirement.
+   */
+  captureSemanticGateRead(): Readonly<{
+    isCurrent(): boolean;
+    read(page: GraphPage, targets: ReadonlySet<string>): ReadonlyMap<string, readonly GateSide[]> | null;
+  }> {
+    const cache = this.relationViewCache;
+    const publication = this.publicationRevision, policy = this.semanticPolicyRevision;
+    const source = this.plugin.getIndexSourceRevision(), host = this.hostPreview.observationRevision();
+    const presentation = this.presentationRevision, signature = this.relationViewSignature();
+    /** Retire membership alongside semantic/presentation/count-proof input lifetimes. */
+    const isCurrent = (): boolean => !this.diagnosticsClosed && cache === this.relationViewCache
+      && publication === this.publicationRevision && policy === this.semanticPolicyRevision
+      && source === this.plugin.getIndexSourceRevision() && host === this.hostPreview.observationRevision()
+      && presentation === this.presentationRevision && signature === this.relationViewSignature();
+    return {
+      isCurrent,
+      /** Return every visible semantic side for supplied represented targets, without editing authority. */
+      read: (page, targets) => {
+        if (!isCurrent() || page.transient) return null;
+        const view = this.relationView(page);
+        const result = new Map<string, GateSide[]>();
+        const sides: Record<Exclude<Role, "sibling">, GateSide> = {
+          parent: "top", child: "bottom", left: "left", previous: "left", right: "right", next: "right",
+        };
+        for (const role of ["parent", "child", "left", "right", "previous", "next"] as const) {
+          for (const relation of view.roles[role]) {
+            const path = relation.page.path;
+            if (!targets.has(path)) continue;
+            const gates = result.get(path) ?? [];
+            if (!gates.includes(sides[role])) gates.push(sides[role]);
+            result.set(path, gates);
+          }
+        }
+        return isCurrent() ? result : null;
+      },
+    };
   }
 
   gateNeighbourPaths(page: GraphPage, gate: GateSide): Set<string> {

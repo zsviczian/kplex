@@ -1,5 +1,5 @@
 /**
- * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback. Native metadata events request finite visible presentation repair independently of semantic readiness.
+ * Obsidian plugin lifecycle and host orchestration for indexing, navigation and vault mutations. Portable owners determine semantics; this host boundary supplies effects, cleanup and localized product feedback. Native metadata events request finite visible presentation repair independently of semantic readiness. Passive document synchronization preserves the current representation of exact matching native destinations; explicit opening and source inspection retain their separate navigation contracts.
  */
 import { FileView, MarkdownView, Menu, Notice, Platform, Plugin, TFile, TFolder, getAllTags, normalizePath, setIcon, type Editor, type EventRef, type HoverParent, type WorkspaceLeaf } from "obsidian";
 import { captureSettingsPolicy, classifySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
@@ -140,6 +140,14 @@ export default class KplexPlugin extends Plugin {
   private startupIndexInfoBubbleClaimed = false;
   private snapshotRestoreTask: Promise<{ restored: boolean; fresh: boolean; createdAt: number | null; partial?: boolean }> | null = null;
   private readonly sidecarLeaves = new Map<WorkspaceLeaf, WorkspaceLeaf>();
+  /** A newer passive target retires awaited mode/persistence work for this exact Sidecar host. */
+  private readonly passiveSidecarSyncRequests = new WeakMap<WorkspaceLeaf, {
+    leaf: WorkspaceLeaf;
+    file: TFile | null;
+    filePath: string | undefined;
+    url: string | null;
+    pending: boolean;
+  }>();
   private sidecarRestoreTask: Promise<void> | null = null;
   private readonly sidecarMovingHosts = new Set<WorkspaceLeaf>();
   private readonly sidecarRestoreAttemptedHosts = new Set<WorkspaceLeaf>();
@@ -2355,17 +2363,22 @@ export default class KplexPlugin extends Plugin {
     return createIfMissing ? this.app.workspace.getLeaf("split") : null;
   }
 
+  /** Pin the recent tab explicitly; any deliberate open supersedes its older passive completion. */
   async relinkDocumentLeafToMostRecent(page?: GraphPage): Promise<void> {
     const candidate = this.findRecentDocumentLeaf() ?? this.app.workspace.getLeaf("split");
     this.linkedDocumentLeaf = candidate;
     this.lastDocumentLeaf = candidate;
     this.settings.documentSyncMode = "pinned";
-    if (page?.file) await candidate.openFile(page.file, { active: false });
+    if (page?.file) {
+      this.retirePassiveSidecarRequestsForLeaf(candidate);
+      await candidate.openFile(page.file, { active: false });
+    }
     this.settings.sidecarOpen = false;
     await this.saveSettings(false, false);
     this.notifySidecar();
   }
 
+  /** Change native follow ownership, with explicit pinning retiring passive work on its target. */
   async setDocumentSyncMode(mode: DocumentSyncMode, page?: GraphPage): Promise<TFile | null> {
     this.settings.documentSyncMode = mode;
     this.settings.autoOpenCentralDocument = mode !== "off";
@@ -2400,7 +2413,10 @@ export default class KplexPlugin extends Plugin {
     const candidate = this.linkedDocumentLeaf ?? this.findRecentDocumentLeaf() ?? this.app.workspace.getLeaf("split");
     this.linkedDocumentLeaf = candidate;
     this.lastDocumentLeaf = candidate;
-    if (page?.file) await candidate.openFile(page.file, { active: false });
+    if (page?.file) {
+      this.retirePassiveSidecarRequestsForLeaf(candidate);
+      await candidate.openFile(page.file, { active: false });
+    }
     this.settings.sidecarOpen = this.isManagedSidecarLeaf(candidate);
     await this.saveSettings(false, false);
     this.notifySidecar();
@@ -2411,10 +2427,12 @@ export default class KplexPlugin extends Plugin {
     await this.setDocumentSyncMode(linked ? "recent" : "off", page);
   }
 
+  /** Explicitly synchronize the recent tab, retiring older passive work on that destination. */
   async syncMostRecentTabWithKplex(page: GraphPage): Promise<void> {
     if (!page.file) return;
     const leaf = this.findRecentDocumentLeaf() ?? this.app.workspace.getLeaf("split");
     this.lastDocumentLeaf = leaf;
+    this.retirePassiveSidecarRequestsForLeaf(leaf);
     await leaf.openFile(page.file, { active: false });
   }
 
@@ -2436,12 +2454,31 @@ export default class KplexPlugin extends Plugin {
     await this.syncMostRecentTabWithKplex(page);
   }
 
+  /**
+   * Follow the Plex center into its linked destination only when the exact file differs.
+   * Same-file representation changes are observations, not reopening requests. Explicit Open
+   * and one-shot synchronization use their existing independent methods and remain unconditional.
+   * There is no post-await mode/focus/persistence work that can outlive this captured request.
+   */
   async syncPageToDocumentLeaf(page: GraphPage): Promise<void> {
-    if (!this.syncKplexToLeafEnabled() || !page.file) return;
+    if (this.unloading || !this.syncKplexToLeafEnabled() || !page.file
+      || this.app.vault.getFileByPath(page.file.path) !== page.file) return;
     const leaf = this.targetNoteLeaf(true);
-    if (!leaf) return;
+    if (!leaf || !this.leafIsAttached(leaf) || this.leafDisplaysPage(leaf, page)) return;
     this.lastDocumentLeaf = leaf;
     await leaf.openFile(page.file, { active: false });
+  }
+
+  /**
+   * Compare a native destination with its exact canonical target, without inferring identity from
+   * a graph NodeId or enforcing a Markdown/drawing representation. Deferred leaves retain the
+   * existing file-state lookup; URLs and genuinely empty pages use their native view identities.
+   */
+  private leafDisplaysPage(leaf: WorkspaceLeaf, page: GraphPage): boolean {
+    if (page.file) return this.app.vault.getFileByPath(page.file.path) === page.file
+      && this.fileForLeaf(leaf) === page.file;
+    if (page.url) return this.webViewerUrlForLeaf(leaf) === page.url;
+    return leaf.getViewState().type === "empty";
   }
 
   subscribeNavigation(listener: (path: string) => void): () => void {
@@ -2935,6 +2972,10 @@ export default class KplexPlugin extends Plugin {
     return leaf;
   }
 
+  /**
+   * Deliberately inspect a file and line in the managed companion. An older passive open must
+   * not reapply its preview preference after this explicit source request finishes.
+   */
   async openMarkdownInSidecar(hostLeaf: WorkspaceLeaf, file: TFile, line = 0, sourceMode = true): Promise<void> {
     const leaf = this.ensureSidecarLeaf(hostLeaf);
     if (!leaf) {
@@ -2944,6 +2985,7 @@ export default class KplexPlugin extends Plugin {
     this.transientDocumentFollowSuppression = { path: file.path, until: Date.now() + 1800 };
     this.settings.sidecarLastFilePath = file.path;
     this.settings.sidecarLastUrl = "";
+    this.retirePassiveSidecarRequestsForLeaf(leaf);
     await leaf.openFile(file, { active: false });
     const state = leaf.getViewState();
     if (state.type === "markdown") {
@@ -2957,8 +2999,26 @@ export default class KplexPlugin extends Plugin {
     this.notifySidecar();
   }
 
-  /** Open the selected page in the supplied native Sidecar leaf, preserving host navigation and localized failure feedback. */
-  private async openPageInSidecarLeaf(leaf: WorkspaceLeaf, page: GraphPage): Promise<void> {
+  /**
+   * Retire completion leases only for owners of this exact managed destination. Explicit native
+   * navigation wins over an older passive request even when both display the same canonical file.
+   * This bounded inventory neither intercepts host events nor cancels native openFile itself.
+   */
+  private retirePassiveSidecarRequestsForLeaf(leaf: WorkspaceLeaf): void {
+    for (const [hostLeaf, sidecarLeaf] of this.sidecarLeaves) {
+      if (sidecarLeaf === leaf) this.passiveSidecarSyncRequests.delete(hostLeaf);
+    }
+  }
+
+  /**
+   * Open the selected page in the supplied native Sidecar leaf, preserving host navigation and
+   * localized failure feedback. Passive callers supply an exact destination/request lifetime;
+   * retired awaited opens cannot apply Markdown mode to a newer file or representation.
+   * Explicit Open/move callers retain their existing unconditional representation behavior.
+   */
+  private async openPageInSidecarLeaf(leaf: WorkspaceLeaf, page: GraphPage, stillCurrent?: () => boolean): Promise<void> {
+    if (stillCurrent && !stillCurrent()) return;
+    if (!stillCurrent) this.retirePassiveSidecarRequestsForLeaf(leaf);
     if (page.url) {
       // setViewState resolves to a missing-plugin placeholder rather than rejecting an unavailable view.
       // Keep the companion's actual content/restore identity; explicit Open still uses host URL routing.
@@ -2971,7 +3031,7 @@ export default class KplexPlugin extends Plugin {
       try {
         await leaf.setViewState({ type: "webviewer", state: { url: page.url, navigate: true }, active: false });
       } catch {
-        new Notice(this.translator("notice.webViewerUnavailable"), 2600);
+        if (!stillCurrent || stillCurrent()) new Notice(this.translator("notice.webViewerUnavailable"), 2600);
       }
       return;
     }
@@ -2984,6 +3044,7 @@ export default class KplexPlugin extends Plugin {
     this.settings.sidecarLastFilePath = page.file.path;
     this.settings.sidecarLastUrl = "";
     await leaf.openFile(page.file, { active: false });
+    if (stillCurrent && (!stillCurrent() || !this.leafDisplaysPage(leaf, page))) return;
     const state = leaf.getViewState();
     if (state.type === "markdown") {
       await leaf.setViewState({
@@ -3123,13 +3184,42 @@ export default class KplexPlugin extends Plugin {
     }
   }
 
+  /**
+   * Update a managed adjacent companion only when its actual target differs. A same-file view
+   * toggle keeps its chosen representation, while another follower still receives genuine target
+   * navigation. Captured leaf, file path/incarnation and request identity fence awaited mode and
+   * settings work against navigation, rename, detachment, replacement and plugin unload.
+   */
   async syncSidecarToPage(hostLeaf: WorkspaceLeaf, page: GraphPage): Promise<void> {
+    if (this.unloading || !this.leafIsAttached(hostLeaf)) return;
     const leaf = this.validateSidecarLeaf(hostLeaf);
     if (!leaf || !this.adjacentPosition(hostLeaf, leaf)) return;
-    await this.openPageInSidecarLeaf(leaf, page);
-    // Persist the sidecar's actual content identity, not merely the graph center. This is what lets
-    // startup reconnect to the correct restored tab inside the remembered adjacent tab group.
-    await this.saveSettings(false, false);
+    const file = page.file;
+    const filePath = file?.path;
+    const previous = this.passiveSidecarSyncRequests.get(hostLeaf);
+    // Native openFile can publish its destination after await; another same-target observation
+    // must join that pending request rather than start a coalesced open with an early completion.
+    if (previous?.leaf === leaf && (previous.pending || this.leafDisplaysPage(leaf, page)) && previous.file === file
+      && previous.filePath === filePath && previous.url === page.url) return;
+    const request = { leaf, file, filePath, url: page.url, pending: true };
+    this.passiveSidecarSyncRequests.set(hostLeaf, request);
+    /** Only this exact live destination and canonical file incarnation may finish passive work. */
+    const stillCurrent = (): boolean => !this.unloading
+      && this.passiveSidecarSyncRequests.get(hostLeaf) === request
+      && this.sidecarLeaves.get(hostLeaf) === leaf
+      && this.leafIsAttached(hostLeaf) && this.leafIsAttached(leaf)
+      && Boolean(this.adjacentPosition(hostLeaf, leaf))
+      && (!file || (file.path === filePath && this.app.vault.getFileByPath(filePath ?? "") === file));
+    try {
+      if (!stillCurrent() || this.leafDisplaysPage(leaf, page)) return;
+      await this.openPageInSidecarLeaf(leaf, page, stillCurrent);
+      if (!stillCurrent() || !this.leafDisplaysPage(leaf, page)) return;
+      // Persist actual content identity so startup reconnects to the remembered adjacent tab.
+      await this.saveSettings(false, false);
+    } finally {
+      // A failed or retired open must not permanently suppress a later navigation to this target.
+      request.pending = false;
+    }
   }
 
 
@@ -3216,14 +3306,17 @@ export default class KplexPlugin extends Plugin {
     await this.saveSettings(false, false);
   }
 
+  /** Explicitly open and reveal a native document, superseding passive work on that exact leaf. */
   async openInDocumentLeaf(file: TFile): Promise<void> {
     this.validateLinkedDocumentLeaf();
     const leaf = this.linkedDocumentLeaf ?? this.findRecentDocumentLeaf() ?? this.app.workspace.getLeaf("split");
     this.lastDocumentLeaf = leaf;
+    this.retirePassiveSidecarRequestsForLeaf(leaf);
     await leaf.openFile(file, { active: true });
     await this.app.workspace.revealLeaf(leaf);
   }
 
+  /** Open a section's native source subpath without letting an older passive mode request win. */
   async openSection(page: GraphPage): Promise<void> {
     const sourcePath = page.transient?.sourcePath;
     const subpath = page.transient?.subpath;
@@ -3233,6 +3326,7 @@ export default class KplexPlugin extends Plugin {
     this.validateLinkedDocumentLeaf();
     const leaf = this.linkedDocumentLeaf ?? this.findRecentDocumentLeaf() ?? this.app.workspace.getLeaf("split");
     this.lastDocumentLeaf = leaf;
+    this.retirePassiveSidecarRequestsForLeaf(leaf);
     await leaf.openFile(file, { active: true, eState: { subpath } });
     await this.app.workspace.revealLeaf(leaf);
   }

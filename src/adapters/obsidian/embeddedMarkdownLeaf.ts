@@ -5,6 +5,8 @@
  * same narrow WorkspaceSplit/WorkspaceLeaf seam: construct an isolated split, give it the owning
  * workspace root/container, insert one leaf, and detach that leaf on teardown. Keep every use of
  * that host-specific seam in this adapter so the React graph only deals with a small controller.
+ * Drawing capability remains separate from the initial Markdown preference in current metadata;
+ * explicit representation changes belong to Excalidraw and never reapply that opening preference.
  */
 import { FileView, Platform, WorkspaceLeaf, WorkspaceSplit, type App, type Scope, type TFile, type Workspace } from "obsidian";
 import { focusEmbeddedMarkdownView, registerEmbeddedMarkdownFocus, registerEmbeddedMarkdownFocusTarget } from "./embeddedMarkdownFocus";
@@ -576,6 +578,19 @@ export function mountEmbeddedMarkdownLeaf(
     return Boolean(frontmatter && Object.prototype.hasOwnProperty.call(frontmatter, "excalidraw-plugin"));
   };
 
+  /**
+   * Read Excalidraw's initial Markdown preference from the current cached frontmatter.
+   *
+   * Both properties use Excalidraw's practical truthiness semantics. A drawing-style filename
+   * alone does not opt into this preference: the actual Excalidraw marker must be enabled too.
+   * Missing metadata retains the existing opening path; a later explicit open reads fresh facts.
+   * This decision is deliberately not reapplied by representation observers or explicit toggles.
+   */
+  const shouldOpenEmbeddedAsMarkdown = (file: TFile): boolean => {
+    const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+    return Boolean(frontmatter?.["excalidraw-plugin"] && frontmatter["excalidraw-open-md"]);
+  };
+
   /** Detect an Excalidraw-backed Markdown file while remaining safe when the plugin is absent. */
   const isExcalidrawFile = (): boolean => {
     if (getDocumentView() === "excalidraw") return true;
@@ -774,6 +789,12 @@ export function mountEmbeddedMarkdownLeaf(
   };
 
   return {
+    /**
+     * Open the exact file with its current initial representation preference and read/edit mode.
+     * Excalidraw-marked Markdown preferences use an explicit native view request rather than
+     * `openFile`, whose drawing default can differ. Completion work belongs only to the current
+     * open sequence; later navigation or disposal retires earlier asynchronous requests.
+     */
     async open(file, mode) {
       if (disposed) return;
       documentViewTransitionDepth += 1;
@@ -790,7 +811,15 @@ export function mountEmbeddedMarkdownLeaf(
           compatibleBridge && bridge?.registerViewLinkClickHook && bridge?.viewZoomToFit,
         );
         let openedWithIntegrationState = false;
-        if (supportsIntegrationState) {
+        const openedAsMarkdown = shouldOpenEmbeddedAsMarkdown(file);
+        if (openedAsMarkdown) {
+          restoreExcalidrawLinkRouting();
+          await leaf.setViewState({
+            type: "markdown",
+            active: false,
+            state: { file: file.path, mode },
+          }, { focus: false });
+        } else if (supportsIntegrationState) {
           openedWithIntegrationState = true;
           await leaf.setViewState({
             type: "excalidraw",
@@ -805,6 +834,11 @@ export function mountEmbeddedMarkdownLeaf(
           await leaf.openFile(file, { active: false });
         }
         if (disposed || sequence !== openSequence) return;
+        if (openedAsMarkdown) {
+          syncObservedDocumentView(false);
+          resize();
+          return;
+        }
         if (openedWithIntegrationState) {
           syncObservedDocumentView(false);
           void finishExcalidrawAfterOpen(file.path, sequence, false);

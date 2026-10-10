@@ -155,28 +155,48 @@ export const layoutEnhancementScenarios = `
   await setRail("graph.horizontalDensity",2);await setRail("graph.verticalDensity",2);await tab.setControlValue("minLinkLength",18);
 `;
 
-/** Certify ordinary neighbor counts on a requested-only scope after existing interaction checks. */
+/** Check ordinary rendered counts under the fixture's real local or requested-scope authority. */
 export const gateCountScenarios = `
   await c.go(c.hub);await c.editor(false);
   await tab.setControlValue("renderSiblings",false);await tab.setControlValue("showNeighborCount",true);
   const countBuilds=p.index.getSemanticPreparationDiagnostics().fullBuilds;
   p.index.invalidateSemanticPolicy();await p.index.refreshSemanticSettings();await c.frames();
+  const localCounts=p.index.isOnDemandMode();
+  c.button("graph.fitGraph").click();await c.frames();
+  // Count preparation is intentionally visible-row demand, not an eager all-neighbor query.
+  // Earlier Find/layout scenarios retain scroll positions. Expose each asserted row, then
+  // await its current production proof rather than treating refresh plus one frame as finality.
+  // Visible parents own complete incidence for sibling projection; the other candidates have
+  // separate count proof. Child-00 is explicitly held as a center by the initial fixture, so
+  // use Child-01 to establish the intended partial-neighbor contract without retiring that owner.
+  c.countProofState=[];
   const countNodes=[];
   for(const role of ["Parent","Friend","Challenger","Child"]){
-    const path=c.folder+"/"+role+"-00.md",page=p.index.get(path),info=p.index.preparedPageInfo.get(page);
-    c.check(info&&!info.completeRelations&&info.gates,"Ordinary neighbor lacks separate count-only proof: "+role);
+    const path=c.folder+"/"+role+(role==="Child"?"-01.md":"-00.md");
     const node=Array.from(root.querySelectorAll(".kplex-thought")).find(el=>el.dataset.kplexPath===path);
     c.check(node,"Count fixture node missing: "+role);
+    const scroll=node.closest(".kplex-zone-scroll");c.check(scroll,"Count fixture row lacks its owned scroll container");
+    const nr=node.getBoundingClientRect(),sr=scroll.getBoundingClientRect(),scale=sr.height/scroll.clientHeight;
+    scroll.scrollTop+=(nr.top-sr.top)/scale;await c.frames();
+    if(!localCounts)await c.until(/** Observe requested-scope proof without granting local data full authority. */ ()=>{const page=p.index.get(path),info=p.index.preparedPageInfo.get(page);return info&&info.policyRevision===p.index.semanticPolicyRevision&&(role==="Parent"?info.completeRelations:info.gates)},"Visible ordinary neighbor count proof did not settle: "+role);
+    const page=p.index.get(path),info=p.index.preparedPageInfo.get(page);
+    c.countProofState.push({role,completeRelations:info?.completeRelations,hasGates:Boolean(info?.gates),policy:info?.policyRevision,currentPolicy:p.index.semanticPolicyRevision});
+    if(!localCounts)c.check(role==="Parent"?info?.completeRelations===true:Boolean(info&&!info.completeRelations&&info.gates),"Ordinary neighbor lacks its expected incidence/count-only proof: "+role);
     const gates=p.index.gateStats(page),counts={};
     for(const side of ["top","bottom","left","right"]){
       const stat=gates[side],text=node.querySelector(".gate-wrap-"+side+" .kplex-gate-count")?.textContent?.trim()??"";
-      c.check(stat.complete===true,"Count remains uncertified: "+role+" "+side);
-      c.check(!text.includes("…")&&!text.includes("≥"),"Settled ordinary gate retained a placeholder: "+text);
-      c.check(stat.visibleCount===0?text==="":text.split("/").pop()===String(stat.visibleCount),"Rendered count differs from certified total: "+role+" "+side+" "+text);
-      counts[side]={total:stat.visibleCount,text};
+      if(localCounts){
+        c.check(stat.complete===false&&(stat.coverage==="local"||stat.coverage==="cached"),"Local neighbor falsely gained complete count authority: "+role+" "+side);
+        c.check(text===(stat.countUnavailable?"…":String(stat.visibleCount)),"Rendered local count differs from its actual coverage: "+role+" "+side+" "+text);
+      }else{
+        c.check(stat.complete===true,"Count remains uncertified: "+role+" "+side);
+        c.check(!text.includes("…")&&!text.includes("≥"),"Settled ordinary gate retained a placeholder: "+text);
+        c.check(stat.visibleCount===0?text==="":text.split("/").pop()===String(stat.visibleCount),"Rendered count differs from certified total: "+role+" "+side+" "+text);
+      }
+      counts[side]={total:stat.visibleCount,text,complete:stat.complete,coverage:stat.coverage};
     }
-    countNodes.push({role,counts,completeRelations:info.completeRelations});
+    countNodes.push({role,counts,completeRelations:info?.completeRelations});
   }
   c.check(p.index.getSemanticPreparationDiagnostics().fullBuilds===countBuilds,"Gate certification caused a full semantic rebuild");
-  record("partial-neighbor-certified-directional-gate-counts",{nodes:countNodes,fullBuildDelta:0});
+  record(localCounts?"partial-neighbor-local-counts-preserve-uncertified-coverage":"partial-neighbor-certified-directional-gate-counts",{nodes:countNodes,fullBuildDelta:0});
 `;

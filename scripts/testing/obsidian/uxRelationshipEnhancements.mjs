@@ -13,15 +13,34 @@ export const relationshipEnhancementScenarios = `
     const originalPins=[...p.settings.pinnedNodes],originalDrag=app.dragManager.draggable;
     const originalMenuPresenter=p.showKplexMenuAtPosition;
     const areaPaths={},pinPaths={},newPaths=[];
+    /** Create and register only a test-owned note before incremental source replacement. */
     const createEnhancementNote=async(name)=>{
       const path=c.folder+"/"+name+".md";
       c.check(!app.vault.getFileByPath(path),"Relationship fixture already exists: "+path);
-      const file=await app.vault.create(path,"# "+name+"\\n");c.owned.push(path);newPaths.push(path);return file.path;
+      const file=await app.vault.create(path,"# "+name+"\\n");c.owned.push(path);newPaths.push(path);
+      // Incremental Markdown patches replace existing endpoints. In an on-demand session an
+      // unrelated new note is not automatically materialized; register this owned creation
+      // through the same optimistic endpoint API used by the driver's initial fixture.
+      p.index.insertCreatedFile(file);return file.path;
     };
     for(const role of roles){areaPaths[role]=await createEnhancementNote("Area-"+role);pinPaths[role]=await createEnhancementNote("Pinned-"+role)}
     const centerDropPath=await createEnhancementNote("Drop-center"),bodyPath=await createEnhancementNote("Pinned-body");
     await c.until(()=>newPaths.every(path=>app.metadataCache.getFileCache(app.vault.getFileByPath(path))),"Relationship fixture metadata did not settle");
-    await p.index.patchMarkdownPaths(newPaths);
+    // Create events may retire a source patch while the visible scope catches up. Join the
+    // existing owner and retry only its pending paths after a proven competing generation.
+    c.enhancementPatchAttempts=[];let enhancementPending=[...newPaths];
+    const enhancementPatchDeadline=Date.now()+180000;
+    while(enhancementPending.length){
+      await c.until(()=>!p.index.building&&!p.index.hasActiveSemanticPreparation(),"Relationship fixture owner did not settle",Math.max(1,enhancementPatchDeadline-Date.now()));
+      c.check(Date.now()<enhancementPatchDeadline&&c.enhancementPatchAttempts.length<16,"Owned relationship source patches did not converge");
+      const generationBefore=p.index.generation,sourceBefore=p.getIndexSourceRevision();
+      const enhancementPatch=await p.index.patchMarkdownPaths(enhancementPending);
+      const generationAfter=p.index.generation,sourceAfter=p.getIndexSourceRevision();
+      c.enhancementPatchAttempts.push({result:enhancementPatch,generationBefore,generationAfter,sourceBefore,sourceAfter});
+      if(enhancementPatch.outcome==="patched")break;
+      c.check(enhancementPatch.outcome==="cancelled"&&(generationAfter!==generationBefore+1||sourceBefore!==sourceAfter),"Owned relationship patch failed without observed retirement: "+JSON.stringify(c.enhancementPatchAttempts));
+      enhancementPending=enhancementPatch.pendingPaths??enhancementPending;
+    }
     await c.until(()=>newPaths.every(path=>p.index.get(path)?.file===app.vault.getFileByPath(path)),"Owned relationship endpoints were not patched");
     const doc=root.ownerDocument,view=doc.defaultView;
     const cancelEnhancementComposer=async()=>{

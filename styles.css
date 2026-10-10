@@ -3402,8 +3402,30 @@ button.kplex-style-manager-row { height: fit-content; }
 
 /* A paired density stack preserves the previous two-card footprint on narrow Plex surfaces. */
 .kplex-density-axes { display: grid; gap: 4px; }
-.kplex-layout-controls { flex-wrap: wrap; }
-.kplex-layout-controls { align-items: flex-end; }
+/* Disclosure stays first in Tab order and bottom-left; only the expanded content can scroll. */
+.kplex-layout-controls { flex-wrap: nowrap; align-items: flex-end; max-width: calc(100% - 84px); }
+/* Override the shared icon's horizontal 30px flex basis when this shell turns vertical. */
+.kplex-layout-controls .kplex-layout-toggle { flex: 0 0 auto; }
+.kplex-layout-panel {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  max-height: var(--kplex-layout-panel-height);
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+}
+.kplex-layout-panel > .kplex-density-axes { flex: 0 0 auto; }
+.kplex-layout-panel > .kplex-typography-group { flex: 0 0 auto; }
+.kplex-layout-controls.is-stacked { flex-direction: column-reverse; align-items: flex-start; }
+.kplex-layout-controls.is-stacked .kplex-layout-panel {
+  flex-direction: column;
+  align-items: stretch;
+  width: 198px;
+  max-width: 100%;
+}
+.kplex-layout-controls.is-stacked .kplex-layout-panel > .kplex-density-axes > .kplex-density-control { width: 100%; }
 /* Toggles retain one common active state instead of changing their surface palette. */
 .kplex-topbar button.is-on,
 .kplex-find button[aria-pressed="true"],
@@ -3445,10 +3467,11 @@ button.kplex-sidecar-unfold-plex:focus-visible,
 }
 .kplex-center-drop-preview { z-index: 27; border-radius: 18px; }
 
-/* Keep typography paired like density/columns; the shared control tile spans both rows. */
-.kplex-typography-controls { min-width: 0; max-width: 100%; display: flex; align-items: stretch; gap: 8px; }
-.kplex-wrap-label-control { width: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
-.kplex-wrap-label-caption { display: block; width: 100%; line-height: 1.4; text-align: center; white-space: normal; overflow-wrap: anywhere; }
+/* Typography always uses full-width rails with its checkbox in a separate row below. */
+.kplex-typography-controls { min-width: 0; max-width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.kplex-typography-controls .kplex-density-control { width: 100%; }
+.kplex-wrap-label-control { min-height: 36px; display: flex; flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
+.kplex-wrap-label-caption { display: block; width: 100%; line-height: 1.4; text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .kplex-wrap-label-control input { margin: 0; }
 .kplex-typography-group { width: 198px; min-width: 0; max-width: 100%; display: flex; flex-direction: column; gap: 4px; }
 .kplex-typography-scope { display: flex; align-items: center; justify-content: space-between; gap: 4px; color: var(--text-muted); font-size: var(--font-smallest); }

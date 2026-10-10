@@ -1264,7 +1264,8 @@ ${uiDefinitions("src/ui/ThoughtNode.tsx", ["GATES", "ThoughtNode"])}
 const settings = { horizontalCompactingFactor: 2, compactingFactor: 2, baseFontSize: 12.4, wrapNodeLabels: false, showNeighborCount: true, graphDepth: 2, minLinkLength: 18, childColumns: 2, maxItemCount: 100, siblingRelativeSize: 85 };
 const translate = (key) => key;
 const interaction = { gates: new Set(), nodePaths: new Set() }, connectDrag = null, nodeDrag = null;
-const globalFiltering = false, filteredGateCounts = new Map(), nodeVisuals = new Map();
+// The production unfiltered projection is absent; rename reconciliation must not invent a filtered read.
+const globalFiltering = false, filteredGateCounts = null, nodeVisuals = new Map();
 const predicate = null, lenses = { lenses: [] }, predicateEngine = {}, predicateRevision = 0, layoutRevision = 0;
 const graphLensNodeStyle = () => ({});
 const centralEditorCapable = true, finding = false, hover = null, activeNodeFlair = null, findNodePaths = new Set(), keyboardSelection = null;
