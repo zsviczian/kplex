@@ -1,7 +1,7 @@
 {
   "id": "k-plex",
   "name": "K-Plex",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "1.13.0",
   "description": "Knowledge Plex: a structured visual navigator for your notes.",
   "author": "Zsolt Viczian",

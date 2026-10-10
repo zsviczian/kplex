@@ -11,6 +11,7 @@
  * property-value or primary-tag-prefix matching without converting existing imported styles. Internal
  * keyboard bindings are additive workflow preferences; recorder controls own only transient capture.
  * Sparse per-note Markdown zoom overrides are durable local workflow data, independent of graph imports.
+ * Cross-link visibility is shared persisted presentation state for the filter panel and Plex settings.
  */
 import {
   AbstractInputSuggest,
@@ -189,6 +190,8 @@ export interface KplexSettings {
   showFullTagName: boolean;
   maxItemCount: number;
   renderSiblings: boolean;
+  /** Show connections between peripheral nodes without changing semantic relationships. */
+  showCrossLinks: boolean;
   /** Relative layout scale applied to sibling nodes and their expanded descendants, as a percentage. */
   siblingRelativeSize: number;
   /** Opacity applied to non-highlighted cross-links, as a percentage. */
@@ -329,6 +332,7 @@ export const DEFAULT_SETTINGS: KplexSettings = {
   showFullTagName: false,
   maxItemCount: 100,
   renderSiblings: false,
+  showCrossLinks: false,
   siblingRelativeSize: 85,
   crossLinkOpacity: 85,
   applyPowerFilter: false,
@@ -555,6 +559,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...old,
+    showCrossLinks: typeof old.showCrossLinks === "boolean" ? old.showCrossLinks : DEFAULT_SETTINGS.showCrossLinks,
     indexingMode: old.indexingMode === "eager" ? "eager" : "on-demand",
     urlIndexingMode: "background",
     indexingThrottle: sanitizeIndexingThrottle(old.indexingThrottle),
@@ -1823,7 +1828,7 @@ export class KplexSettingTab extends PluginSettingTab {
     return `${(bytes / 1024 ** unit).toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
   }
 
-  /** Build native declarative settings and subpages with localized copy while keeping keys, defaults and control behavior stable. */
+  /** Build localized native settings and subpages, including shared persisted Plex visibility controls. */
   getSettingDefinitions(): SettingDefinitionItem<DeclarativeSettingKey>[] {
     const translate = createObsidianTranslator();
     const nodeStyles = this.nodeStyleEntries();
@@ -1904,6 +1909,7 @@ export class KplexSettingTab extends PluginSettingTab {
             heading: translate("settings.ui.content.visibility"),
             items: [
               { name: translate("settings.ui.show.siblings"), control: { type: "toggle", key: "renderSiblings" } },
+              { name: translate("filter.showCrossLinks"), desc: translate("filter.crossLinksHelp"), control: { type: "toggle", key: "showCrossLinks" } },
               { name: translate("settings.ui.show.inferred.relationships"), control: { type: "toggle", key: "showInferredNodes" } },
               { name: translate("settings.ui.ghost.unresolved.nodes"), control: { type: "toggle", key: "showVirtualNodes" } },
               { name: translate("settings.ui.web.links"), control: { type: "toggle", key: "showURLNodes" } },

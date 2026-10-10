@@ -1,5 +1,6 @@
 /**
  * Host-bound React shell for K-Plex navigation, startup guidance, File Explorer note drops, toolbar and Sidecar controls. It composes shared components and injected environment/localization capabilities; plugin methods own host effects. The native view owns session display modes; React projects Zen chrome and supplies exact camera-resize preparation without replacing its root. Search/Find scopes and hints use effective action bindings; each surface releases its own registrations on teardown.
+ * Cross-link visibility reads shared persisted settings rather than temporary quick-filter or Find snapshots.
  */
 import {
   useCallback,
@@ -48,7 +49,7 @@ import { compilePlexFilter } from "../lens/SimplePlexFilter";
 import { compileGraphLensDefinitions, type GraphLensDefinition } from "../lens/GraphLens";
 import { installKplexLongPressTooltips } from "./LongPressTooltip";
 
-type BooleanToolbarSetting = PlexVisibilitySetting | "renderAlias";
+type BooleanToolbarSetting = PlexVisibilitySetting | "renderAlias" | "showCrossLinks";
 type IndexStatus = ReturnType<KplexPlugin["getIndexStatus"]>;
 
 /**
@@ -163,7 +164,7 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
   ><ObsidianIcon name={icon} size={17} /></button>;
 }
 
-/** Compose the native K-Plex toolbar, filters and scene with injected localization and environment facts; host effects remain plugin-owned. */
+/** Compose the native toolbar, filters and scene; shared visibility preferences persist through plugin-owned host effects. */
 export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady, displayModes }: {
   plugin: KplexPlugin;
   surface: KplexViewSurface;
@@ -508,6 +509,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     if (target) activate(target, false);
   };
 
+  /** Persist a shared visibility preference and refresh mounted views without rebuilding the index. */
   const toggleToolbarSetting = async (key: BooleanToolbarSetting) => {
     plugin.settings[key] = !plugin.settings[key];
     // These toolbar/filter controls are presentation-only. Folder/tag topology and aliases reuse
@@ -971,8 +973,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
             index={plugin.index}
             center={page}
             revision={renderRevision}
-            value={plexFilter}
-            onChange={/** Manual quick-filter edits retire Find ownership rather than being undone by its button. */ (next) => {
+            value={{ ...plexFilter, showCrossLinks: plugin.settings.showCrossLinks }}
+            onChange={/** Persist cross-link changes separately from temporary filters; manual edits retire Find ownership. */ (next) => {
+              if (next.showCrossLinks !== plugin.settings.showCrossLinks) void toggleToolbarSetting("showCrossLinks");
               setFindFilterOwner(null); setPlexFilter(next);
             }}
             lenses={graphLenses}
@@ -1034,7 +1037,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           <div className="kplex-zone-label zone-left">{translate("app.zoneFriendsPrevious")}</div>
           <div className="kplex-zone-label zone-right">{translate("app.zoneChallengersNext")}</div>
           <div className="kplex-zone-label zone-child">{translate("app.zoneChildren")}</div>
-          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plexFilter.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
+          <PlexGraph plugin={plugin} index={plugin.index} settings={viewSettings} surface={profileSurface} hostLeaf={hostLeaf} predicate={plexFilterPredicate} lenses={compiledGraphLenses} filterLayoutMode={filterLayoutMode} predicateRevision={predicateRevision} showCrossLinks={plugin.settings.showCrossLinks} activePath={page.path} renderRevision={renderRevision} findFocusRequest={findFocusRequest}
           actionPorts={graphActionPorts} actionSurfaceId={actions.surfaceId} displayState={displayState} fullscreenAvailable={displayModes.fullscreenAvailable && environment.device === "desktop"}
           semanticRevision={plugin.index.getSemanticRevision()} onActivate={activate} onOpen={open} onOpenInSidecar={centerAndOpenSidecar} onCentralNodeEditorChange={setCentralNodeEditorEnabled} onCentralNodeModeChange={rememberCentralNodeMarkdownMode} areaSettingsMode={areaSettingsMode} onAreaSettingsModeChange={setAreaSettingsMode}
           onApplyFindFilter={applyFindFilter} appliedFindFilterQuery={findFilterOwner?.query ?? null} onClearFindFilter={clearFindFilter} />
