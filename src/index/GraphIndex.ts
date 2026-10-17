@@ -2536,7 +2536,9 @@ export class GraphIndex {
   /** Prefer complete current incidence over sparse endpoints and native previews.
    * Requested/retained/local owners keep their existing selection order. A full state wins over
    * provisional reads only under the exact source/policy/maintenance certificate; newer host
-   * observations keep their provisional cover until the coordinator acknowledges reconciliation. */
+   * observations keep their provisional cover until the coordinator acknowledges reconciliation.
+   * Within the existing On-demand baseline, tags retain indexed structural incidence: a local
+   * cover may reconstruct only direct member notes and omit a child tag's descendant-owned edge. */
   private semanticPage(path: string): GraphPage | undefined {
     if (/^https?:\/\//i.test(path)) {
       path = canonicalWebUrl(path);
@@ -2584,7 +2586,12 @@ export class GraphIndex {
     if (this.usesLocalForeground() && this.onDemandBaselineReady) {
       // A native baseline contains all host edges, while the early preview is deliberately capped.
       // Counts must never be limited by that preview/candidate cap.
-      const local = this.onDemandHostScopes.get(path)?.pages.get(path) ?? this.state.pages.get(path);
+      const canonical = this.state.pages.get(path);
+      // Tag hierarchy and direct memberships already belong to this structural publication.
+      // Prefer that existing owner over the narrower note-only cover; no new facts, reads or
+      // semantic/write completeness are inferred, and normal per-file publication retires tags.
+      if (canonical?.isTag) return canonical;
+      const local = this.onDemandHostScopes.get(path)?.pages.get(path) ?? canonical;
       if (local) return this.mergeOnDemandCachedPage(local);
     }
 
@@ -7269,11 +7276,12 @@ export class GraphIndex {
   }
 
   /** Select one coherent scope that owns either endpoint incidence and therefore certifies the pair. */
-  private semanticScopeForPair(sourcePath: string, targetPath: string, currentOnly = false): PreparedSemanticScope | null {
+  private semanticScopeForPair(sourcePath: string, targetPath: string, currentOnly = false, sourceRevision?: number): PreparedSemanticScope | null {
     const covered = (scope: PreparedSemanticScope, path: string): boolean =>
       scope.pagesByPath.has(path) || scope.suppressedPaths.has(path) || this.state.pages.has(path);
     const ownsPair = (scope: PreparedSemanticScope): boolean =>
-      (scope.completePaths.has(sourcePath) || scope.completePaths.has(targetPath))
+      (sourceRevision === undefined || scope.sourceRevision === sourceRevision)
+      && (scope.completePaths.has(sourcePath) || scope.completePaths.has(targetPath))
       && covered(scope, sourcePath) && covered(scope, targetPath);
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
     for (const scope of this.semanticScopes.values()) {
@@ -7503,8 +7511,24 @@ export class GraphIndex {
   private semanticEvidenceWithoutUrls(sourcePath: string, targetPath: string): Readonly<{ evidence: RelationEvidence[]; settings: GraphCompilerSettings }> {
     const pair = this.relationshipPairs.get(relationshipPairKey(sourcePath, targetPath));
     if (pair) return { evidence: pair.evidence.between(sourcePath, targetPath), settings: pair.settings };
-    const local = this.retainedLocalScopeFor(sourcePath) ?? this.retainedLocalScopeFor(targetPath)
-      ?? (this.usesLocalForeground() ? this.onDemandHostScopes.get(sourcePath) ?? this.onDemandHostScopes.get(targetPath) : undefined);
+    const retained = this.retainedLocalScopeFor(sourcePath) ?? this.retainedLocalScopeFor(targetPath);
+    if (retained) return { evidence: retained.evidence.between(sourcePath, targetPath), settings: this.fullSemanticSettings };
+    if (this.usesLocalForeground() && this.onDemandBaselineReady) {
+      const source = this.state.pages.get(sourcePath), target = this.state.pages.get(targetPath);
+      // Only the canonical tag selected above owns this exception. Exact pairs and retained
+      // scopes keep precedence; complete current semantic incidence also remains authoritative.
+      // A narrower direct-note cover cannot erase its existing structural hierarchy evidence.
+      if ((source?.isTag && this.semanticPage(sourcePath) === source)
+        || (target?.isTag && this.semanticPage(targetPath) === target)) {
+        const current = this.semanticScopeForPair(sourcePath, targetPath, false, this.plugin.getIndexSourceRevision());
+        if (current?.policyRevision === this.semanticPolicyRevision
+          && current.maintenanceRevision === this.sourceAcquisition.getMaintenanceRevision()) {
+          return { evidence: current.evidence.between(sourcePath, targetPath), settings: current.settings };
+        }
+        return { evidence: this.state.evidence.between(sourcePath, targetPath), settings: this.fullSemanticSettings };
+      }
+    }
+    const local = this.usesLocalForeground() ? this.onDemandHostScopes.get(sourcePath) ?? this.onDemandHostScopes.get(targetPath) : undefined;
     if (local) return { evidence: local.evidence.between(sourcePath, targetPath), settings: this.fullSemanticSettings };
     const scope = this.semanticScopeForPair(sourcePath, targetPath);
     if (scope) return { evidence: scope.evidence.between(sourcePath, targetPath), settings: scope.settings };

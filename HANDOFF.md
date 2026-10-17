@@ -66,7 +66,13 @@ source-portable 334/334 and source IndexedDB/browser 598/598, plus real-types bu
 Obsidian lint and exact-build native smoke/staging. These counts do not yet
 constitute focused native feature acceptance. One earlier browser-startup timeout
 is preserved; the unchanged isolated case and complete retry pass, with no
-deadline or assertion relaxation. Focused native lanes are next.
+deadline or assertion relaxation. Native Find now passes eight guarded searches
+and six navigations, with zero indexing/storage work in search intervals and
+exact fixture/layout/config restoration. The intermediate-tag native failure is
+fixed using the existing structural baseline and matching evidence; 118 focused
+tag/host checks pass, including shared-tag removal/final deletion. Other native
+lanes and final combined verification remain in progress. Confirmed folder,
+modifier and layout-profile corrections are not yet a completed native checkpoint.
 
 Durable feature evidence/report owner:
 docs/validation/navigation-and-native-drag-2026-10-18.md. Keep final build hashes,

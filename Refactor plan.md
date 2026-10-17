@@ -4622,3 +4622,14 @@ artifact identities, zero-work interval definitions,
 failed controls and platform acceptance belong in
 [the feature report](docs/validation/navigation-and-native-drag-2026-10-18.md).
 No merge or release of the new feature branch is authorized.
+
+The first actual Find lane exposes an intermediate-tag edge lost by a narrower
+On-demand host cover: canonical Person owns the Müller child tag, while the local
+direct-note cover omits it. Read selection now retains existing canonical
+structural tag incidence/evidence within the established native baseline. Exact
+pair, retained/current scope and suppression precedence remain intact; no source
+pass or write completeness is added. The actual GraphIndex regression covers
+shared-member retention and final deletion. Focused tag/host tests pass 118/118;
+native Find passes eight guarded searches and six navigations, with zero guarded
+read/parse/acquisition/build/snapshot/inventory operations and exact restoration.
+Other native feature lanes and final combined verification remain in progress.

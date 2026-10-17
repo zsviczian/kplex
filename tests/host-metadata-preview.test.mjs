@@ -1,4 +1,6 @@
-/** Host preview contracts exercise bundled canonical collectors/compiler with native membership and metadata doubles. */
+/** Host preview contracts exercise actual collectors/compiler/index readers with native metadata doubles.
+ * Canonical structural tags retain their hierarchy over narrower direct-member covers; normal
+ * atomic source patches preserve shared tag lifetimes without navigation-driven acquisition. */
 import assert from "node:assert/strict";
 import { buildSync } from "esbuild";
 import { createRequire } from "node:module";
@@ -25,8 +27,8 @@ const resolverOutput = join(directory, "resolver.cjs");
 buildSync({ entryPoints: ["src/core/graph/resolver.ts"], outfile: resolverOutput, bundle: true, platform: "node", format: "cjs" });
 const { classifyRelation } = require(resolverOutput);
 const indexOutput = join(directory, "graph-index.cjs");
-buildSync({ entryPoints: ["src/index/GraphIndex.ts"], outfile: indexOutput, bundle: true, platform: "node", format: "cjs", external: ["obsidian"] });
-const { GraphIndex } = require(indexOutput);
+buildSync({ stdin: { resolveDir: process.cwd(), contents: 'export * from "./src/index/GraphIndex"; export * from "./src/index/GraphBuilder";' }, outfile: indexOutput, bundle: true, platform: "node", format: "cjs", external: ["obsidian"] });
+const { GraphIndex, GraphBuilder } = require(indexOutput);
 const { TFile, TFolder } = require(join(obsidianDirectory, "index.js"));
 const settings = { hierarchy: { hidden: ["Hidden"], parents: ["Parent"], children: ["Child"], leftFriends: ["Left"], rightFriends: ["Right"], previous: ["Previous"], next: ["Next"] }, inferAllLinksAsFriends: false, inverseInfer: false, showFullTagName: true, tagStyleList: [], baseNodeStyle: { maxLabelLength: 30 }, noteTypeField: "Type", primaryTagField: "Type" };
 
@@ -71,6 +73,103 @@ function folderFixture(options = {}) {
   return { root, folder, files, folders, app, preview, addFolder, addFile, yields: () => yields,
     settings: () => liveSettings, setSettings: value => { liveSettings = value; } };
 }
+
+/** Reproduce a narrower real tag-center cover without acquiring any descendant note bodies. */
+test("On-demand tag reads retain canonical hierarchy across narrow host covers and normal shared-tag edits", async () => {
+  const f = fixture(), originalWindow = globalThis.window;
+  globalThis.window = { performance, setTimeout, clearTimeout, setInterval, clearInterval };
+  for (const cache of f.cache.values()) { cache.frontmatter = {}; cache.tags = []; }
+  f.app.metadataCache.resolvedLinks = {}; f.app.metadataCache.unresolvedLinks = {};
+  const person = "tag:Research/Person", leaf = `${person}/Müller`, research = "tag:Research";
+  f.cache.get("Notes/Center.md").tags = [{ tag: "#Research/Person" }];
+  f.cache.get("Notes/Child.md").tags = [{ tag: "#Research/Person/Müller" }];
+  f.cache.get("Notes/Ordinary.md").tags = [{ tag: "#Research/Person/Müller" }];
+  Object.assign(f.app.vault, { getName: () => "tag-navigation-scope", getFiles: () => [...f.files.values()], getMarkdownFiles: () => [...f.files.values()] });
+  f.app.saveLocalStorage = () => {};
+  const indexSettings = { ...settings, indexingMode: "on-demand", pinnedNodes: [], lastActivePath: person,
+    excludeFilepaths: [], nameFields: "aliases", renderAlias: false, nodeTitleScript: "", nodeSortOrder: "name-asc",
+    showInferredNodes: true, showVirtualNodes: true, showAttachments: true, showFolderNodes: false,
+    showTagNodes: false, showPageNodes: true, showURLNodes: true, maxItemCount: 100, renderSiblings: false,
+    thumbnailProperty: "thumbnail", nodeImageProperty: "node-image" };
+  let sourceRevision = 0;
+  const plugin = { app: f.app, settings: indexSettings, getIndexSourceRevision: () => sourceRevision };
+  const index = new GraphIndex(plugin, f.app);
+  const builder = new GraphBuilder(plugin, f.app, index.fieldCache, index.metadataParser, index.indexedDb,
+    /** The fixture's actual per-file publication controls source revisions explicitly. */ () => true, index.semanticFingerprints);
+  try {
+    const baseline = await builder.buildStructuralBaseline();
+    assert(baseline); index.state = baseline; index.onDemandBaselineReady = true; index.onDemandPartialState = true;
+    const canonical = baseline.pages.get(person);
+    assert(canonical.neighbours.has(leaf), "The actual structural producer already indexed the child-tag edge");
+    await index.publishOnDemandHostScope(person, /** Keep the finite prepared owner current. */ () => true);
+    const narrowState = index.onDemandHostScopes.get(person), narrow = narrowState.pages.get(person);
+    assert(narrow.neighbours.has("Notes/Center.md"));
+    assert.equal(narrow.neighbours.has(leaf), false, "The real direct-note host cover omits the descendant-owned child tag");
+    const forbidden = /** Selecting existing indexed structure cannot begin source/storage/index work. */ () => { throw Error("Unexpected tag navigation source or index work"); };
+    f.app.vault.read = f.app.vault.cachedRead = f.app.vault.getFiles = f.app.vault.getMarkdownFiles = forbidden;
+    index.metadataParser.parse = index.sourceAcquisition.acquire = index.rebuild = index.rebuildProgressively = forbidden;
+    index.indexedDb.open = index.sourceAcquisition.flush = forbidden;
+    const counters = index.getSourceAcquisitionCounters(), semantic = index.getSemanticPreparationDiagnostics();
+    assert.equal(index.get(person), canonical, "The narrower local cover cannot replace existing structural tag incidence");
+    const neighborhood = index.getNeighborhood(person);
+    assert.deepEqual(neighborhood.parents.map(item => item.page.path), [research]);
+    assert.deepEqual(neighborhood.children.map(item => item.page.path).sort(), ["Notes/Center.md", leaf].sort());
+    assert.equal(index.getNeighborhood(leaf).parents[0].page.path, person);
+    assert(index.getNeighborhood(research).children.some(item => item.page.path === person));
+    assert.equal(narrowState.evidence.between(person, leaf).length, 0, "The narrower cover lacks this actual structural proof too");
+    assert(index.evidenceBetween(person, leaf).some(item => item.sourceKind === "tag-tree"), "Hierarchy evidence follows the selected canonical tag");
+    assert(index.evidenceBetween(person, "Notes/Center.md").some(item => item.sourceKind === "tag-tree"), "Direct-member evidence remains available");
+    assert.equal(index.isSemanticWriteReady(person, leaf), false, "Structural navigation does not grant semantic write authority");
+    assert.deepEqual(index.getSourceAcquisitionCounters(), counters); assert.deepEqual(index.getSemanticPreparationDiagnostics(), semantic);
+
+    // Existing current semantic owners and current suppression still precede this local baseline.
+    const coherent = { ...canonical, name: "Current semantic owner", neighbours: new Map() };
+    const scope = { centerPath: person, policyRevision: index.semanticPolicyRevision,
+      maintenanceRevision: index.sourceAcquisition.getMaintenanceRevision(), sourceRevision,
+      completePaths: new Set([person]), pagesByPath: new Map([[person, coherent]]), suppressedPaths: new Set(), settings: index.fullSemanticSettings,
+      evidence: narrowState.evidence };
+    index.semanticScopes.set(person, scope); assert.equal(index.get(person), coherent); index.semanticScopes.clear();
+    index.semanticScopes.set(person, { ...scope, pagesByPath: new Map(), suppressedPaths: new Set([person]) });
+    assert.equal(index.get(person), undefined);
+    assert.equal(index.evidenceBetween(person, leaf).length, 0, "Current complete suppression keeps its negative pair evidence");
+    index.semanticScopes.clear();
+    assert.equal(index.get(person), canonical);
+
+    // A current owner of the opposite endpoint still certifies the exact pair over the baseline.
+    index.semanticScopes.set(leaf, { ...scope, centerPath: leaf, completePaths: new Set([leaf]),
+      pagesByPath: new Map([[leaf, { ...baseline.pages.get(leaf), neighbours: new Map() }]]) });
+    assert.equal(index.get(person), canonical);
+    assert.equal(index.evidenceBetween(person, leaf).length, 0, "Current prepared endpoint incidence keeps precedence");
+    index.semanticScopes.clear();
+    const pairKey = JSON.stringify([person, leaf].sort());
+    index.relationshipPairs.set(pairKey, { evidence: narrowState.evidence, settings: index.fullSemanticSettings });
+    assert.equal(index.evidenceBetween(person, leaf).length, 0, "Exact pair publication keeps precedence");
+    index.relationshipPairs.clear();
+    index.retainedLocalScopes.set(person, { state: narrowState, sourceRevision, policyRevision: index.semanticPolicyRevision });
+    assert.equal(index.retainedLocalScopeFor(person), narrowState, "Exercise the actual still-current retained certificate");
+    assert.equal(index.evidenceBetween(person, leaf).length, 0, "Retained coherent local publication keeps precedence");
+    index.retainedLocalScopes.clear();
+    assert(index.evidenceBetween(person, leaf).some(item => item.sourceKind === "tag-tree"));
+
+    /** Use the real patch preparer and GraphIndex atomic publisher with an already parsed unchanged body. */
+    const removeMembership = async path => {
+      const file = f.files.get(path); f.cache.get(path).tags = []; file.stat.mtime++; sourceRevision++;
+      index.fieldCache.set(path, { mtime: file.stat.mtime, body: { inlineFields: {}, inlineFieldOccurrences: [], urls: [] } });
+      const result = await builder.patchMarkdownFiles(index.state, [file], { publishFileCommit: index.publishIncrementalFile });
+      assert.equal(result.ok, true); assert.equal(result.cancelled, false);
+    };
+    await removeMembership("Notes/Child.md");
+    assert(index.state.pages.has(leaf), "One remaining tagged note retains the shared tag");
+    assert(index.getNeighborhood(person).children.some(item => item.page.path === leaf));
+    assert(index.evidenceBetween(person, leaf).some(item => item.sourceKind === "tag-tree"), "Shared tag hierarchy retains its proof");
+    await removeMembership("Notes/Ordinary.md");
+    assert.equal(index.state.pages.has(leaf), false, "Removing the final member retires the canonical leaf tag");
+    assert.equal(index.getNeighborhood(person).children.some(item => item.page.path === leaf), false);
+    assert.equal(index.evidenceBetween(person, leaf).length, 0, "Retired tag hierarchy leaves no stale proof");
+    assert(index.getNeighborhood(person).children.some(item => item.page.path === "Notes/Center.md"), "Unchanged direct membership remains");
+    assert(index.evidenceBetween(person, "Notes/Center.md").some(item => item.sourceKind === "tag-tree"), "Unchanged direct-member proof remains");
+  } finally { index.destroy(); f.preview.dispose(); globalThis.window = originalWindow; }
+});
 
 test("root and nested native folder previews expose direct canonical membership without metadata or recursive traversal", async () => {
   for (const policy of [{}, { inverseInfer: true }, { inferAllLinksAsFriends: true }]) {
