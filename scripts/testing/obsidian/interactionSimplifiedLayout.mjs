@@ -105,6 +105,7 @@ export async function acceptSimplifiedLayout({app,p,c,check,wait,until,frames,ro
   const leftAreas=await captureAreas();check(Math.abs(leftAreas.left.left-leftAreas.right.left)<1,'Left groups use different physical columns');
   check(leftAreas.left.bottom<leftAreas.right.top,'Shared-left semantic areas overlap');
   check(leftAreas.right.right<=leftAreas.parent.left+1,'Shared-left area overlaps parent bounds');
+  c.layoutWork={semanticBefore:semanticRevision,semanticAfter:p.index.getSemanticRevision(),sourceBefore,sourceAfter:p.index.getSourceAcquisitionCounters(),counts,workBefore,workAfter:{...work}};
   check(p.index.getSemanticRevision()===semanticRevision,'Arrangement changed semantic graph revision');
   check(Object.values(counts).every(value=>value===0),'Layout changes acquired or parsed source data: '+JSON.stringify(counts));
   const workDelta=Object.fromEntries(Object.keys(work).map(key=>[key,work[key]-workBefore[key]]));

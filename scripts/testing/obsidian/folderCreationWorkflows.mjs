@@ -4,7 +4,7 @@
  * This module performs no transport or filesystem work and never runs outside that explicit owner.
  */
 export async function runFolderCreationWorkflows(h) {
-  const {c,p,check,delay,until,scenario,input,key,close,configureComposer,dispatch,center,focus,root,nativeWindow}=h;
+  const {c,p,check,delay,until,scenario,input,key,close,configureComposer,dispatch,center,focus,root,nativeWindow,pickNode}=h;
   const owner=root(c.host).ownerDocument, view=owner.defaultView;
   const mod=require('process').platform==='darwin'?'meta':'control';
   const folderInput=element=>element.querySelector('.kplex-folder-path-input input');
@@ -13,8 +13,7 @@ export async function runFolderCreationWorkflows(h) {
   const path=(folder,name)=>`${folder?folder+'/':''}${name}.md`;
   const nativePath=name=>`${c.folder}/${name}`;
   const defaultGhost=`Ghost-default-${c.runToken}`, chosenGhost=`Ghost-chosen-${c.runToken}`;
-  const quick=`Quick-${c.runToken}`, nested=`${c.folder}/Moved notes')`;
-  const encodedPath=value=>value.split('/').map(part=>encodeURIComponent(part).replace(/[!'()*]/g,char=>'%'+char.charCodeAt(0).toString(16).toUpperCase())).join('/');
+  const quick=`Quick-${c.runToken}`, nested=`${c.folder}/Moved notes')`,createdFolder=c.folder+'/Created notes';
   c.folderCreation={counts:[],doubleClicks:[],zeroWork:[]};
   c.acceptedWrites=new Set();
   for(const method of ['createNewRelatedFileForOrigin','linkNewRelatedFile','createPlaceholderRelatedPage','materializeGhostPage']){
@@ -35,7 +34,7 @@ export async function runFolderCreationWorkflows(h) {
     await delay(200);
   };
   /** Own only native creations beneath our unique folder or an explicitly predicted new-file destination. */
-  const allowedPaths=new Set([nested,c.folder+'/Never-created',path(c.folder,defaultGhost),path(nested,chosenGhost)]);
+  const allowedPaths=new Set([nested,createdFolder,c.folder+'/Never-created',path(c.folder,defaultGhost),path(nested,chosenGhost)]);
   const createRef=app.vault.on('create',file=>{
     if(allowedPaths.has(file.path))c.owned.push(file.path);
   });
@@ -98,13 +97,26 @@ export async function runFolderCreationWorkflows(h) {
   };
   /** Trusted Electron double-click reaches the actual node, preserving modifiers and reporting trust. */
   const doubleClick=async(name,modified)=>{
-    await center(c.a.path);focus(c.host);
-    const destination=nativePath(name);await until(()=>root(c.host).querySelector(`[data-kplex-path="${CSS.escape(destination)}"] .kplex-thought-text`),'Rendered placeholder missing');
-    const target=root(c.host).querySelector(`[data-kplex-path="${CSS.escape(destination)}"] .kplex-thought-text`);
-    target.scrollIntoView({block:'nearest',inline:'nearest'});await delay(80);
+    const destination=nativePath(name);
+    // Ordinary first-click navigation already moves noncentral tiles in the baseline.
+    // Keep that known transition hazard separate from default-folder materialization;
+    // the new modifier gesture below deliberately exercises the noncentral occurrence.
+    await center(modified?c.a.path:destination);focus(c.host);
+    if(modified)await pickNode(name);focus(c.host);
+    await until(()=>root(c.host).querySelector(`.kplex-thought[data-kplex-path="${CSS.escape(destination)}"]`),'Rendered placeholder missing');
+    let target=root(c.host).querySelector(`.kplex-thought[data-kplex-path="${CSS.escape(destination)}"]`);
+    // The existing visible-node picker reveals overflow occurrences through the graph camera.
+    // Native scrollIntoView is incorrect for transformed canvas text and may scroll the workspace.
+    await until(()=>{target=root(c.host).querySelector(`.kplex-thought[data-kplex-path="${CSS.escape(destination)}"]`);if(!target)return false;
+      const rect=target.getBoundingClientRect(),hit=owner.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2),transitioning=Boolean(root(c.host).querySelector('.is-scene-transitioning'));
+      c.folderCreation.revealPending={destination,connected:target.isConnected,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},hitClass:hit?.className,hitPath:hit?.closest('[data-kplex-path]')?.dataset.kplexPath,transitioning,activeLeaf:c.host===app.workspace.activeLeaf,hostRect:root(c.host).getBoundingClientRect().toJSON()};
+      return hit?.closest('[data-kplex-path]')===target&&!transitioning},'Revealed placeholder does not own a native pointer target');await delay(80);
     const rect=target.getBoundingClientRect(),x=Math.round(rect.left+rect.width/2),y=Math.round(rect.top+rect.height/2),modifiers=modified?[mod]:[];
     let trusted=null,modifier=null;
-    const observed=event=>{if(target.contains(event.target)||event.target===target){trusted=event.isTrusted;modifier=Boolean(event.metaKey||event.ctrlKey)}};
+    const trace={destination,modified,point:{x,y},events:[]};c.folderCreation.doubleClickPending=trace;
+    const priorDialogs=new Set(owner.querySelectorAll('.modal'));
+    const observed=event=>{const hit=event.target.closest?.('[data-kplex-path]');if(trace.events.length<12)trace.events.push({type:event.type,path:hit?.dataset.kplexPath,trusted:event.isTrusted,detail:event.detail,point:{x:event.clientX,y:event.clientY},class:event.target.className});if(event.type==='dblclick'&&hit?.dataset.kplexPath===destination){trusted=event.isTrusted;modifier=Boolean(event.metaKey||event.ctrlKey)}};
+    for(const type of ['mousedown','mouseup','click'])owner.addEventListener(type,observed,true);
     owner.addEventListener('dblclick',observed,true);
     try{
       nativeWindow.webContents.sendInputEvent({type:'mouseMove',x,y,modifiers});
@@ -115,7 +127,8 @@ export async function runFolderCreationWorkflows(h) {
       await until(()=>trusted!==null,'Native double-click did not reach the placeholder');
       check(trusted&&modifier===modified,'Double-click trust/modifier mismatch');
       c.folderCreation.doubleClicks.push({modified,trusted,modifier});
-    }finally{owner.removeEventListener('dblclick',observed,true)}
+    }finally{owner.removeEventListener('dblclick',observed,true);for(const type of ['mousedown','mouseup','click'])owner.removeEventListener(type,observed,true);
+      for(const dialog of owner.querySelectorAll('.modal'))if(!priorDialogs.has(dialog))c.dialogs.add(dialog)}
   };
   /** Track only the new native materialization dialog, never an unrelated modal. */
   const materializationDialog=async()=>{
@@ -157,9 +170,9 @@ export async function runFolderCreationWorkflows(h) {
   });
 
   await scenario('folders-new-path-duplicate-basename',async()=>{
-    allowedPaths.add(path(nested,quick));
-    const element=await composer(quick);await setFolder(element,nested);await createMarkdown(element);
-    check(app.vault.getFileByPath(path(nested,quick)),'Typed new folder was not created on commit');
+    allowedPaths.add(path(createdFolder,quick));
+    const element=await composer(quick);await setFolder(element,createdFolder);await createMarkdown(element);
+    check(app.vault.getFileByPath(path(createdFolder,quick)),'Typed new folder was not created on commit');
     check(c.created.filter(file=>file.basename===quick).length===2,'Equal basenames in separate folders were merged or rejected');
     return{newFolder:true,matchingBasenames:2};
   });
@@ -190,7 +203,7 @@ export async function runFolderCreationWorkflows(h) {
       check(folderInput(element).getAttribute('aria-expanded')!=='true','Ordinary materialization opened an unnecessary folder suggestion');
       await key('Enter',[mod]);await until(()=>!element.isConnected,'Ordinary materialization did not accept one Ctrl/Cmd+Enter',30000)}
     await until(()=>app.vault.getFileByPath(path(c.folder,defaultGhost)),'Ordinary placeholder was not materialized',30000);
-    return{ordinaryFastPath:!withDrawingChoice,existingDrawingChoice:withDrawingChoice,metadataFolderPreserved:true};
+    return{ordinaryFastPath:!withDrawingChoice,existingDrawingChoice:withDrawingChoice,metadataFolderPreserved:true,stationaryCentralOccurrence:true};
   });
 
   await scenario('folders-modifier-double-click-and-cancel',async()=>{
@@ -203,7 +216,7 @@ export async function runFolderCreationWorkflows(h) {
     await confirmMaterialization(confirmed);await until(()=>app.vault.getFileByPath(path(nested,chosenGhost)),'Explicit materialization destination ignored',30000);
     await center(c.a.path);const real=app.vault.getFileByPath(path(nested,chosenGhost));
     await until(()=>p.index.get(real.path)?.file===real,'Materialized page not canonical');
-    const body=await app.vault.read(c.a);check(body.includes(`[[${encodedPath(real.path)}|Friendly placeholder]]`),'Original source still points at the old placeholder after folder override');
+    const body=await app.vault.read(c.a);check(body.includes(`[[${real.path}|Friendly placeholder]]`),'Original source still points at the old placeholder after folder override');
     check(!p.index.get(nativePath(chosenGhost))?.file,'Old placeholder was incorrectly bound to another physical path');
     return{modifierPrompt:true,cancelNoWrite:true,sharedSuggester:true,newDestination:true,durableAliasRetargeted:true};
   });
@@ -228,10 +241,15 @@ export async function verifyFolderCreationRestart(expected) {
   const origin=app.vault.getFileByPath(expected.origin),target=app.vault.getFileByPath(expected.target);
   if(!origin||!target)throw Error('Owned restart files missing');
   const source=await app.vault.read(origin);
-  const encodedTarget=target.path.split('/').map(part=>encodeURIComponent(part).replace(/[!'()*]/g,char=>'%'+char.charCodeAt(0).toString(16).toUpperCase())).join('/');
-  if(!source.includes(`[[${encodedTarget}|${expected.alias}]]`))throw Error('Restart source lost explicit destination/alias');
-  await until(()=>app.metadataCache.resolvedLinks[origin.path]?.[target.path]>0,'Native Obsidian resolution lost the encoded special-character destination');
-  await p.activateView();p.notifyNavigation(origin.path);
+  if(!source.includes(`[[${target.path}|${expected.alias}]]`))throw Error('Restart source lost explicit destination/alias');
+  await until(()=>app.metadataCache.resolvedLinks[origin.path]?.[target.path]>0,'Native Obsidian resolution lost the literal wiki special-character destination');
+  await p.activateView();
+  const opened=app.workspace.getLeavesOfType('k-plex-react-view')[0];
+  if(!opened)throw Error('Restart did not open a Plex leaf');
+  await opened.loadIfDeferred();await opened.view.waitUntilReady();
+  await until(()=>opened.view.contentEl.querySelector('.kplex-plex'),'Restart Plex did not mount');
+  await new Promise(resolve=>opened.view.contentEl.ownerDocument.defaultView.requestAnimationFrame(()=>opened.view.contentEl.ownerDocument.defaultView.requestAnimationFrame(resolve)));
+  p.notifyNavigation(origin.path);
   await until(()=>app.workspace.getLeavesOfType('k-plex-react-view').some(leaf=>leaf.view.containerEl.querySelector(`.kplex-role-center[data-kplex-path="${CSS.escape(origin.path)}"]`)),'Restart did not render the owned center');
   await until(()=>{
     const page=p.index.get(origin.path);

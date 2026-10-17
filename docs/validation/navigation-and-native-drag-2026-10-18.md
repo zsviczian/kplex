@@ -82,11 +82,37 @@ conservatively rejected; unrelated apostrophes can therefore cause refusal. The
 user can choose another folder. No parallel YAML grammar is introduced.
 
 Focused suites pass 226/226, plus nine drag-contract tests after the final text
-effect adjustment. Native folder restart and trusted body-drag completion remain
-pending. An injected trusted body drag starts but delivers no later drag-over/drop,
-leaving keyboard transport unresponsive. Failed runs and exact fixture/configuration
-recovery receipts remain private; this is not accepted as a passing drag.
-No personal vault is used.
+effect adjustment. All seven native folder workflows and a genuine plugin reload
+pass: native resolution, durable destination/alias, old-placeholder removal and
+source provenance. The typing/cancel interval records zero guarded resource work.
+The drag lane also passes trusted body start/drop delivery using Chromium's
+intercepted native drag data, with no synthetic fallback, correct relink intent and
+the original relationship preserved on Cancel. These lanes restore the complete
+107-file inventory, workspace and original configuration bytes.
+
+Earlier injected body dragging emitted only dragstart and left native keyboard
+transport unresponsive. A disposable-renderer reload restored input; the native
+test now uses exclusive CDP interception and explicit drag cancellation. Failed
+trials and exact recovery receipts remain private. Folder harness corrections
+wait for the replacement React view before navigation, restore deferred utility
+leaves by their public IDs and restore the reload-owned enablement-list bytes.
+No failure is relabeled as a pass. Existing touch/range acceptance passes eight
+trusted gestures, saved-value reload and phone/pane geometry under desktop
+emulation. The existing interaction lane passes all 14 asserted scenarios,
+including sibling additions in four directions, Bases drops, held-build
+materialization and Properties main/popout/overlap behavior. Final combined
+verification remains pending. No personal vault is used.
+
+The separate On-demand gate/filter lane **fails** its unchanged-semantic-revision
+guard. Its asserted gate values are correct; tracing attributes the publications
+to ordinary per-file patching after the cross-link toggle's legacy settings save
+calls `refreshSemanticSettings()`, clearing requested coverage. Source counters
+remain unchanged, but this is still extra graph work. Merged main contains the
+same toolbar/save/refresh path; that attribution is a source comparison, not a
+native old-build trial. This PR does not broaden into that unrelated correction
+or weaken the assertion. A future focused fix should route cross-link-only saves
+through presentation and verify mixed visibility/ontology saves remain correct.
+Initial fixture-precondition failures and all failed controls are retained.
 
 An ordinary noncentral placeholder double-click can move the tile after its first
 click and land its second click on a gate. The immediate-navigation/gate bubbling

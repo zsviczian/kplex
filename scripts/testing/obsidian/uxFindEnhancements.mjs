@@ -11,6 +11,13 @@ export const findEnhancementSetup = `(()=>{const c=window.__kplexUxRegression;c.
     const p=c.p,i=p.index;
     c.findUntil=(predicate,message,timeout=180000)=>c.until(()=>{c.check(!c.findCancelled,"Find fixture cancelled");return predicate()},message,timeout);
     c.findWork={search:[],navigation:[]};c.historyTargets={};
+    c.findObserve=()=>{const path=c.center(),n=i.getNeighborhood(path),paths=page=>page?[...page.neighbours.keys()]:[];return {
+      center:path,canonical:paths(i.state.pages.get(path)),effective:paths(i.get(path)),
+      localHost:paths(i.onDemandHostScopes.get(path)?.pages.get(path)),
+      localCached:paths(i.onDemandCachedScopes.get(path)?.pages.get(path)),
+      projected:n?Object.fromEntries(['parents','children','leftFriends','rightFriends','siblings'].map(role=>[role,n[role].map(item=>item.page.path)])):null,
+      rendered:[...c.root().querySelectorAll('.kplex-thought[data-kplex-path]')].map(element=>({path:element.dataset.kplexPath,class:element.className})),
+      pending:i.getSemanticPreparationDiagnostics(),source:i.getSourceAcquisitionCounters()}};
     await p.ensureIndexReady("ux-find-fixture");c.check(!c.findCancelled,"Find fixture cancelled");
     c.check(i.isOnDemandMode()===c.originalMode,"Find setup changed the actual indexing strategy");
     c.check(!app.vault.getFolderByPath(c.folder),"Owned Find folder already exists");
@@ -75,12 +82,14 @@ export const findEnhancementScenarios = `(()=>{const c=window.__kplexUxRegressio
       await c.findUntil(()=>doc.activeElement===root.querySelector("input.kplex-search"),"Actual F4 did not focus global Find");
       const input=doc.activeElement;c.input(input,query);await c.frames();await c.findUntil(()=>rows().some(row=>label(row)===wantedLabel),"Find did not show expected result: "+wantedLabel);
       const row=rows().find(row=>label(row)===wantedLabel);c.check(row.querySelector('.kplex-search-result-prefix[aria-hidden="true"]'),"Result icon is not decorative");
-      c.check(icon(row)===expectedIcon,"Find result has the wrong native type icon: "+JSON.stringify({label:wantedLabel,actual:icon(row),expected:expectedIcon}));
+      // The installed native icon registry aliases folder to folder-open; both identify a folder.
+      const expected=expectedIcon==='lucide-folder'?['lucide-folder','lucide-folder-open']:[expectedIcon];
+      c.check(expected.includes(icon(row)),"Find result has the wrong native type icon: "+JSON.stringify({label:wantedLabel,actual:icon(row),expected}));
       const work=delta(before);c.check(Object.values(work).every(value=>value===0),"Typing/F4 performed indexing/source/storage work: "+JSON.stringify(work));
       c.check(sourceSnapshot()===source&&semanticSnapshot()===semantic&&c.center()===center,"Search-only interaction changed source/semantic work or center");
       c.findWork.search.push({query,resultLabel:wantedLabel,icon:icon(row),work,trustedF4:c.lastKey?.trusted===true});return {input,row};
     };
-    const navigate=async(action,path)=>{const before=copy(),sourceBefore=i.getSourceAcquisitionCounters();await action();await c.findUntil(()=>c.center()===path,"Find destination did not become the rendered center: "+path);await c.findSettle();c.findWork.navigation.push({path,work:delta(before),sourceBefore,sourceAfter:i.getSourceAcquisitionCounters()});c.check(i.isOnDemandMode()===c.originalMode,"Navigation changed indexing strategy")};
+    const navigate=async(action,path)=>{const before=copy(),sourceBefore=i.getSourceAcquisitionCounters();await action();await c.findUntil(()=>c.center()===path,"Find destination did not become the rendered center: "+path);await c.findSettle();c.findWork.navigation.push({path,work:delta(before),sourceBefore,sourceAfter:i.getSourceAcquisitionCounters(),state:c.findObserve()});c.check(i.isOnDemandMode()===c.originalMode,"Navigation changed indexing strategy")};
     const research="tag:"+c.findTagRoot,person=research+"/Person",leaf=person+"/Müller",project=research+"/Project";
     const leafResult=await find("#Müller","#Müller","lucide-tags");
     c.check(leafResult.row.querySelector("small")?.textContent==="#"+c.findTagRoot+"/Person/Müller","Find omitted the full hierarchical tag path");
@@ -100,7 +109,7 @@ export const findEnhancementScenarios = `(()=>{const c=window.__kplexUxRegressio
     await navigate(async()=>{await c.click(folder.row)},"folder:"+c.folder+"/Empty-find-folder");
     const note=await find("Anchor","Anchor","lucide-file-text");
     await navigate(async()=>{await c.click(note.row)},c.hub);
-    await find("Find-image","Find-image","lucide-image");
+    await find("Find-image","Find-image.png","lucide-image");
     await find("Find URL alias","Find URL alias","lucide-globe");
     const personNote=await find("Person","Person","lucide-file-text");
     await navigate(async()=>{await c.click(personNote.row)},c.findPaths.person);
@@ -124,10 +133,15 @@ export const findEnhancementCleanup = `(()=>{const c=window.__kplexUxRegression;
       for(const [host,leaf]of c.originalOwners.sidecars){const restoredHost=rebind(host),restoredLeaf=rebind(leaf);if(restoredHost&&restoredLeaf)c.p.sidecarLeaves.set(restoredHost,restoredLeaf)}});
     await attempt("original-settings-after-layout",async()=>{c.p.settings=c.settings;await c.p.saveSettings(false,false);await c.p.settingsWriteQueue;await c.p.index.refreshPresentationSettings();c.p.savedSettingsPolicy=c.originalPolicy;
       await c.until(()=>c.settingsWrites.size===0,"Find cleanup still has accepted settings writes");c.check(!c.settingsWriteErrors.length,"Native fixture settings storage failed");c.restoreSettingsWrites()});
+    await attempt("original-native-utility-targets",async()=>{
+      const restore=async node=>{if(node?.type==='leaf'&&['backlink','outgoing-link','localgraph'].includes(node.state?.type)){
+        const leaf=app.workspace.getLeafById(node.id);c.check(leaf,'Original native utility leaf is missing');await leaf.setViewState(node.state)}
+        for(const child of node?.children??[])await restore(child)};
+      for(const key of ['main','left','right'])await restore(c.originalLayout[key])});
     await attempt("native-window",()=>{const win=require("@electron/remote").getCurrentWindow();win.setBounds(c.bounds);win.webContents.setBackgroundThrottling(c.throttling);
       for(const [side,collapsed]of Object.entries(c.sidebars)){const split=app.workspace[side+"Split"];collapsed?split.collapse():split.expand()}});
     await attempt("inventory-and-mode",()=>{c.check(JSON.stringify(app.vault.getFiles().map(file=>file.path).sort())===JSON.stringify(c.originalInventory),"Find fixture file inventory was not restored");c.check(c.p.index.isOnDemandMode()===c.originalMode,"Find changed the actual indexing strategy")});
-    await attempt("native-layout-settlement",async()=>{await c.wait(500);c.check(JSON.stringify(app.workspace.getLayout())===JSON.stringify(c.originalLayout),"Original native layout did not restore exactly")});
+    await attempt("native-layout-settlement",async()=>{await c.wait(500);c.findLayout={expected:c.originalLayout,actual:app.workspace.getLayout()};c.check(JSON.stringify(c.findLayout.actual)===JSON.stringify(c.findLayout.expected),"Original native layout did not restore exactly")});
     c.findCleanup={steps,errors,inventoryRestored:!errors.some(error=>error.startsWith("inventory")),modePreserved:c.p.index.isOnDemandMode()===c.originalMode,ownedFolderRemoved:!app.vault.getFolderByPath(c.folder),layoutRestored:!errors.some(error=>error.startsWith("original-layout")||error.startsWith("native-layout"))};
     c.restoreSettingsWrites?.();if(errors.length)c.error=errors.join("\\n");c.done=true;
   })().catch(error=>{c.error=String(error?.stack??error);c.done=true});return JSON.stringify(true)})()`;

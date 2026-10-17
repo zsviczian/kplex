@@ -116,6 +116,17 @@ For native navigation and creation acceptance, use the same exact staged build, 
 - `KPLEX_ACTION_WORKFLOW_SCENARIO=folder-creation node scripts/testing/obsidian/actionWorkflows.mjs` checks quick creation, the shared folder suggestions, placeholder aliases, modifier double-click, durable reference relocation and one real plugin reload. Typing/cancellation guards exclude legitimate creation and source updates.
 - `KPLEX_NATIVE_INTERACTION_SCENARIO=navigation-enhancements node scripts/testing/obsidian/interactionUpdates.mjs` checks all six actual layout Settings controls, main/sidepanel/pop-out placement, dense independent areas and native outbound link payloads/Markdown drops/cross-Plex actions. Use `layout` or `native-drag` to isolate either section. Synthetic DragEvents exercise actual host handlers; the report identifies trusted desktop gesture evidence separately.
 
+The native body-drag subcase requires exclusive CDP ownership, just like the touch
+lane. Release only an idle CLI console-capture attachment with `dev:debug off`,
+and restore its prior capture state afterward. It uses Chromium's
+[`Input.setInterceptDrags`](https://chromedevtools.github.io/devtools-protocol/tot/Input/#method-setInterceptDrags)
+and the captured data with `Input.dispatchDragEvent`; start/drop must be trusted
+and no synthetic fallback is accepted. Cleanup cancels dragging and releases the
+owned debugger. This proves native renderer delivery, not physical OS dragging
+between windows/applications. Folder acceptance restores the enablement-list bytes
+changed by its deliberate plugin reload, including an initially runtime-enabled
+plugin whose saved enablement list excludes it.
+
 These opt-in routes retain their existing driver's configuration/fixture restoration and exact artifact checks. Zero-work assertions cover the isolated presentation or payload intervals, including snapshot writes; they do not claim that navigating to new On-demand scopes or writing notes is free. Physical tablet/phone touch and macOS still require their own acceptance.
 
 After exact-build staging, `npm run verify:obsidian:color-styling` exercises actual declarative Settings navigation, paired palette strips/property actions, source/alpha/palette/adoption editing, local counterpart recommendations and Compass controls/motion in `kplex-test-small`. Use the same three explicit vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. The driver verifies artifact hashes, measures source/index/search calls in the tested paint intervals and checks retained center/camera DOM and actual mode changes. It owns two synthetic Compass notes, removes only those fixtures and restores settings, appearance, workspace/configuration bytes and listeners/controllers. Cleanup failure fails acceptance. Programmatic activation and trusted range/Escape input do not establish physical native-picker/touch, minimum-host or macOS acceptance.

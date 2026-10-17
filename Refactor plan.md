@@ -4646,3 +4646,16 @@ and cross-Plex navigation handlers pass. Trusted body-drag completion and folder
 restart remain pending; failed native transport trials/recovery are preserved.
 See the feature report for actual evidence and the pre-existing-source ordinary
 moving-placeholder double-click limitation. C14 remains accepted and paused.
+
+Native completion checkpoint: seven folder scenarios plus an actual plugin reload
+preserve native resolution, explicit destination/alias, canonical endpoint and
+source provenance; all fixtures/configuration restore. The native drag lane passes
+all five Markdown and cross-Plex kinds, popout handlers, gate geometry and trusted
+body start/drop delivery using captured Chromium data. Its finite CDP transport
+is reused by the existing interaction lane, whose 14 assertions pass. Touch/range,
+reload and pane geometry pass under desktop emulation. No physical OS/mobile
+acceptance is inferred. A separate existing On-demand gate/filter guard fails:
+cross-link-only saves take the legacy semantic-refresh path and repatch requested
+coverage despite unchanged source counters. Main has the same source path; no
+native baseline trial or fix is claimed. Preserve that failure as a scoped future
+opportunity, rather than broadening this feature or weakening its assertion.

@@ -1117,6 +1117,7 @@ try {
   report.status = "failed";report.error = error.stack;
   if (installed) try {
     report.scenarios=evaluate(`JSON.stringify(window.${controller}.scenarios)`);
+    if(findOnly)report.findWork=evaluate(`JSON.stringify(window.${controller}.findWork)`);
     report.failureState=evaluate(`JSON.stringify((()=>{const c=window.${controller},r=c.leaf?c.root():null;return {
       center:r?c.center():c.p.settings.lastActivePath,status:c.p.getIndexStatus(),activeClass:document.activeElement?.className,
       findOpen:r?.querySelector(".kplex-find button")?.getAttribute("aria-expanded"),
@@ -1145,12 +1146,14 @@ try {
     if(evaluate(`JSON.stringify(Boolean(window.${controller}))`)){
       evaluate(findOnly ? findEnhancementCleanup : cleanup);
       await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "UX cleanup timed out");
-      if(findOnly)report.findCleanup=evaluate(`JSON.stringify(window.${controller}.findCleanup)`);
+      if(findOnly)report.findCleanup=evaluate(`JSON.stringify({cleanup:window.${controller}.findCleanup,layout:window.${controller}.findLayout})`);
     }
     evaluate(`(()=>{window.${controller}?.restorePairTrace?.();window.${controller}?.restoreSettingsWrites?.();delete window.${controller};return JSON.stringify(true)})()`);
     if(!findOnly){writeFileSync(dataPath,originalData);assert(readFileSync(dataPath).equals(originalData),"Original settings bytes were not restored");assert(readFileSync(enabledPath).equals(originalEnabled),"Community plugin enablement changed");}
     report.cleanup="passed";
-  } catch(error) {report.cleanup=error.stack;report.status="failed"}
+  } catch(error) {report.cleanup=error.stack;report.status="failed";
+    if(findOnly)try{report.findCleanup=evaluate(`JSON.stringify({cleanup:window.${controller}?.findCleanup,layout:window.${controller}?.findLayout})`)}catch{}
+  }
   if(findOnly&&installed)try{
     // Native assertion failures do not skip exact byte restoration. Refuse to race a still-accepted
     // settings write if native teardown itself could not finish; that remains a failed cleanup.

@@ -12,6 +12,7 @@ import {obsidianCliExecutable,spawnNativeSync} from './processTools.mjs';
 import {validateTarget} from './runner.mjs';
 import {acceptSimplifiedLayout} from './interactionSimplifiedLayout.mjs';
 import {acceptNativeDragEnhancements} from './interactionNativeDragEnhancements.mjs';
+import {nativeHtmlDrag} from './nativeHtmlDrag.mjs';
 const root=fileURLToPath(new URL('../../..',import.meta.url)),vaultName=process.env.KPLEX_TEST_VAULT_NAME;
 const scenario=process.env.KPLEX_NATIVE_INTERACTION_SCENARIO??'legacy';
 assert(['legacy','layout','native-drag','navigation-enhancements'].includes(scenario),'Unknown native interaction scenario');
@@ -29,7 +30,7 @@ const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const artifacts=Object.fromEntries(['main.js','styles.css','manifest.json'].map(name=>{const bytes=readFileSync(join(root,'dist',name));assert(bytes.equals(readFileSync(join(target.pluginDir,name))),'Stale installed '+name);return[name,hash(bytes)]}));
 
 /** Keep actual native controls and trusted pointer input inside their owning renderer. */
-function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance){
+function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag){
  const p=app.plugins.plugins['k-plex'],remote=require('@electron/remote'),win=remote.getCurrentWindow();
  if(['__kplexInteractionUpdates','__kplexHoverProbe','__kplexInteractionTouch','__kplexInteractionGateProbe','__kplexActionWorkflows','__kplexActionDevice','__kplexDisplayModesProbe'].some(name=>window[name])||app.setting.isOpen||app.dragManager.draggable)throw Error('Clean native prerequisites required');
  const c=window.__kplexInteractionUpdates={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{linked:p.linkedDocumentLeaf,last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},bounds:win.getBounds(),minimum:win.getMinimumSize(),inventory:app.vault.getFiles().map(f=>f.path).sort(),files:[],leaves:[],releases:[],restores:[],cases:[],done:false,folder:'Kplex-Interaction-Updates-'+Date.now()};
@@ -63,12 +64,12 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance){
  /** Choose actual empty canvas within a displayed native area frame. */
  const emptyPoint=(rect)=>{
   const doc=root().ownerDocument,v=root().querySelector('.kplex-plex').getBoundingClientRect();
-  for(let y=Math.max(rect.top+15,v.top+15);y<Math.min(rect.bottom-15,v.bottom-15);y+=15)for(let x=Math.max(rect.left+15,v.left+15);x<Math.min(rect.right-15,v.right-15);x+=15){const e=doc.elementFromPoint(x,y);if(e&&root().contains(e)&&!e.closest('.kplex-thought,.kplex-edge-hit,button,input,select,.kplex-zone-tools,.kplex-area-frame'))return{x,y}}
+  for(let y=Math.max(rect.top+15,v.top+15);y<Math.min(rect.bottom-15,v.bottom-15);y+=15)for(let x=Math.max(rect.left+15,v.left+15);x<Math.min(rect.right-15,v.right-15);x+=15){const e=doc.elementFromPoint(x,y);if(e&&root().contains(e)&&!e.closest('.kplex-thought,.kplex-edge-hit,button,input,select,.kplex-zone-tools,.kplex-area-frame,.kplex-layout-controls'))return{x,y}}
   throw Error('No exposed empty area');
  };
  const captureAreas=async()=>{await areaMode();check(root().querySelectorAll('.kplex-area-frame').length>=4,'Area mode did not show frames');const result=Object.fromEntries(['parent','child','left','right'].map(zone=>[zone,root().querySelector('.kplex-area-frame.kplex-area-'+zone).getBoundingClientRect().toJSON()]));await areaMode();return result};
  /** Trusted pointer sequence, preserving mouse-button state between native events. */
- const drag=async(from,to,release=true)=>{input('mouseMove',from);await wait(80);input('mouseDown',from);await wait(80);input('mouseMove',to,['leftButtonDown']);await wait(180);if(release){input('mouseUp',to);await frames()}};
+ const drag=async(from,to,release=true)=>{const hit=root().ownerDocument.elementFromPoint(from.x,from.y);if(release&&hit?.closest('.kplex-thought[draggable="true"]')&&!hit.closest('[data-kplex-gate]')){const receipt=await htmlDrag({contents:native(c.leaf).webContents,from,to,input,wait,until});await frames();return receipt}input('mouseMove',from);await wait(80);input('mouseDown',from);await wait(80);input('mouseMove',to,['leftButtonDown']);await wait(180);if(release){input('mouseUp',to);await frames()}};
  /** Confirm the existing composer through its real primary button. */
  const confirm=async()=>{await until(()=>root().ownerDocument.querySelector('[data-kplex-primary-action="true"]'),'Composer absent');const button=root().ownerDocument.querySelector('[data-kplex-primary-action="true"]');check(!button.disabled,'Composer primary disabled');button.click();await until(()=>!button.isConnected,'Composer did not close')};
  c.task=(async()=>{
@@ -193,11 +194,11 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance){
 }
 const report={status:'running',scenario,startedAt:new Date().toISOString(),node:process.version,host:process.platform,artifacts};
 try{
- report.obsidian=cli('version');evaluate('('+start.toString()+')('+JSON.stringify(scenario)+','+acceptSimplifiedLayout.toString()+','+acceptNativeDragEnhancements.toString()+')');const end=Date.now()+600000;let completed=0;
+ report.obsidian=cli('version');evaluate('('+start.toString()+')('+JSON.stringify(scenario)+','+acceptSimplifiedLayout.toString()+','+acceptNativeDragEnhancements.toString()+','+nativeHtmlDrag.toString()+')');const end=Date.now()+600000;let completed=0;
  while(true){await new Promise(r=>setTimeout(r,350));const state=evaluate('JSON.stringify((()=>{const c=window.__kplexInteractionUpdates;return{done:c?.done,error:c?.error,cases:c?.cases,cleanup:c?.cleanup,areas:c?.areas}})())');if(state.cases?.length!==completed){completed=state.cases?.length??0;console.log(JSON.stringify({completed:state.cases}))}if(state.done){Object.assign(report,state);assert(!state.error,state.error);assert.deepEqual(state.cleanup.errors,[]);assert(state.cleanup.inventoryRestored);assert.deepEqual(state.cleanup.ownedFilesRemaining,[]);report.status='passed';break}assert(Date.now()<end,'Native interaction deadline')}
 }catch(error){report.status='failed';report.error=String(error.stack||error);process.exitCode=1}
 finally{
- try{const end=Date.now()+100000;while(true){const state=evaluate('JSON.stringify((()=>{const c=window.__kplexInteractionUpdates;if(!c)return{absent:true};if(!c.done){c.cancelled=true;return{pending:true}}return{cleanup:c.cleanup,cases:c.cases,error:c.error}})())');if(!state.pending){report.finalState=state;assert(!state.cleanup?.errors.length,state.cleanup?.errors.join('\n'));assert(state.absent||state.cleanup?.inventoryRestored);evaluate('JSON.stringify(delete window.__kplexInteractionUpdates)');break}assert(Date.now()<end,'Controller still running; preserve configuration');await new Promise(r=>setTimeout(r,200))}for(const backup of backups)writeFileSync(join(target.config,backup.name),backup.bytes);report.configurationBytesRestored=backups.every(b=>readFileSync(join(target.config,b.name)).equals(b.bytes))}
+ try{const end=Date.now()+100000;while(true){const state=evaluate('JSON.stringify((()=>{const c=window.__kplexInteractionUpdates;if(!c)return{absent:true};if(!c.done){c.cancelled=true;return{pending:true}}return{cleanup:c.cleanup,cases:c.cases,error:c.error,nativeDropDiagnostics:c.nativeDropDiagnostics,layoutWork:c.layoutWork}})())');if(!state.pending){report.finalState=state;assert(!state.cleanup?.errors.length,state.cleanup?.errors.join('\n'));assert(state.absent||state.cleanup?.inventoryRestored);evaluate('JSON.stringify(delete window.__kplexInteractionUpdates)');break}assert(Date.now()<end,'Controller still running; preserve configuration');await new Promise(r=>setTimeout(r,200))}for(const backup of backups)writeFileSync(join(target.config,backup.name),backup.bytes);report.configurationBytesRestored=backups.every(b=>readFileSync(join(target.config,b.name)).equals(b.bytes))}
  catch(error){report.cleanupError=String(error);report.status='failed';process.exitCode=1}
  report.completedAt=new Date().toISOString();writeFileSync(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');writeFileSync(join(output,'driver-source.mjs'),readFileSync(new URL(import.meta.url)));
  for(const name of ['interactionSimplifiedLayout.mjs','interactionNativeDragEnhancements.mjs'])writeFileSync(join(output,name),readFileSync(new URL(name,import.meta.url)));

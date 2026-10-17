@@ -227,6 +227,10 @@ async function phase(mode, expected = null) {
 try {
   assert.equal(realpathSync(cli('vault', 'info=path').replace(/^path\s+/, '')), target.vault, 'Wrong native vault');
   baseline = evaluate('JSON.stringify((()=>{const w=require("@electron/remote").getCurrentWindow(),p=app.plugins.plugins["k-plex"];return{mobile:app.isMobile,bounds:w.getBounds(),minimum:w.getMinimumSize(),layout:app.workspace.getLayout(),settings:p.settings,files:app.vault.getFiles().length}})())'); report.baseline = baseline;
+  // Exact-build staging can leave the candidate loaded while preserving an originally disabled
+  // saved list. Mobile emulation reloads that list, so own this temporary prerequisite explicitly.
+  report.temporaryEnablement = !JSON.parse(configuration[1].bytes.toString('utf8')).includes('k-plex');
+  if (report.temporaryEnablement) writeFileSync(configuration[1].path, JSON.stringify([...JSON.parse(configuration[1].bytes.toString('utf8')), 'k-plex'], null, 2));
   if (!baseline.mobile) { cli('eval', 'code=app.emulateMobile(true)'); await ready(); }
   evaluate('(()=>{const w=require("@electron/remote").getCurrentWindow();w.setMinimumSize(150,150);w.setBounds({width:390,height:844});return JSON.stringify({done:true})})()'); await delay(250);
   const touchResult = await phase('touch');
@@ -256,7 +260,7 @@ finally {
     await attempt('emulation-restore', async () => { if (evaluate('JSON.stringify(app.isMobile)') !== baseline.mobile) { cli('eval', `code=app.emulateMobile(${baseline.mobile})`); await ready(); } });
     await attempt('layout-and-settings-restore', async () => { await ready(); evaluate(`(async()=>{const p=app.plugins.plugins['k-plex'];await app.workspace.changeLayout(${JSON.stringify(baseline.layout)});Object.assign(p.settings,${JSON.stringify(baseline.settings)});await p.saveSettings(false,false);await p.settingsWriteQueue;return JSON.stringify({restored:true})})()`); });
     await attempt('window-restore', async () => evaluate(`(()=>{const w=require('@electron/remote').getCurrentWindow();w.setMinimumSize(${baseline.minimum[0]},${baseline.minimum[1]});w.setBounds(${JSON.stringify(baseline.bounds)});return JSON.stringify({restored:true})})()`));
-    await attempt('configuration-byte-restore', async () => { writeFileSync(configuration[0].path, configuration[0].bytes); for (const entry of configuration) if (entry.bytes ? !readFileSync(entry.path).equals(entry.bytes) : existsSync(entry.path)) throw Error(`Configuration differs: ${entry.name}`); report.configurationRestored = true; });
+    await attempt('configuration-byte-restore', async () => { writeFileSync(configuration[0].path, configuration[0].bytes); if(report.temporaryEnablement)writeFileSync(configuration[1].path,configuration[1].bytes); for (const entry of configuration) if (entry.bytes ? !readFileSync(entry.path).equals(entry.bytes) : existsSync(entry.path)) throw Error(`Configuration differs: ${entry.name}`); report.configurationRestored = true; });
     await attempt('host-restoration-receipt', async () => { report.restored = evaluate('JSON.stringify({mobile:app.isMobile,files:app.vault.getFiles().length,controller:!!window.__kplexInteractionTouch,debuggerAttached:require("@electron/remote").getCurrentWindow().webContents.debugger.isAttached(),bounds:require("@electron/remote").getCurrentWindow().getBounds()})'); assert.equal(report.restored.mobile, baseline.mobile); assert.equal(report.restored.files, baseline.files); assert.equal(report.restored.controller, false); assert.equal(report.restored.debuggerAttached, false); assert.deepEqual(report.restored.bounds, baseline.bounds); });
   }
   if (cleanupErrors.length) { report.status = 'failed'; report.cleanupErrors = cleanupErrors; }

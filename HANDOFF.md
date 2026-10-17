@@ -74,9 +74,16 @@ tag/host checks pass, including shared-tag removal/final deletion. Layout now
 passes all six actual Settings controls, main/sidepanel/popout geometry and zero
 semantic/source/storage work. Five Markdown payload drops and cross-Plex navigation
 handlers pass, as do popout file/URL/tag handlers and trusted gate geometry.
-Folder restart and trusted native body completion remain pending: injected HTML
-dragging starts without later drag-over/drop and leaves keyboard transport
-unresponsive. Preserve failed trials and recovery receipts. The report records
+Folder workflows/restart and trusted native body start/drop now pass, with exact
+107-file inventory/layout/configuration restoration. Chromium's intercepted native
+drag data supplies trusted delivery without a synthetic fallback. Earlier injected
+drag transport failures and their recovery receipts remain private. Touch/gate
+range/reload/geometry acceptance and all 14 existing interaction assertions pass.
+The separate On-demand gate/filter lane fails its zero-semantic-revision guard:
+correct gate counts, but the existing cross-link toggle save refreshes requested
+coverage. The same path exists in main source; no old-build native comparison is
+claimed and no unrelated runtime correction or assertion relaxation is included.
+The report records
 the ordinary moving-placeholder double-click source hazard; ordinary materialization
 uses a stationary central placeholder, while the modifier gesture is tested
 noncentrally. Final combined verification remains pending.
