@@ -1,14 +1,16 @@
 /**
  * Public URL search and scoped general-cache publication regressions using actual index/compiler
  * owners. Catalog deduplication cannot bypass requested eligibility, stale-source checks, ordinary
- * canonical refreshes or physical fallback. Scoped work counters exclude public search itself.
+ * canonical refreshes or physical fallback. Global Find also reuses existing accented tag/folder
+ * vocabulary and navigates existing tag-tree incidence without source work. Scoped flush-work
+ * counters exclude public search itself; acquisition counters remain observable during Find.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {contributorBrowserBundle} from './support/contributorBrowserFixture.mjs';
 import {urlSearchPublicationFixture} from './support/urlSearchPublicationProbe.mjs';
 
-const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts']);
+const bundle=await contributorBrowserBundle(['src/index/GraphIndex.ts','src/index/GraphBuilder.ts','src/index/RelationResolver.ts']);
 
 /** Supply current parsed native facts through the actual owner publisher, then expose one display boundary. */
 async function publish(f,path,text,frontmatter={}){const record=f.add(path,text,frontmatter);await f.index.publishUrlOwner(record.file,record.body,f.index.urlOwnerEvents.get(path)??0,frontmatter,true);f.index.flushUrlPublication();return record;}
@@ -16,6 +18,83 @@ async function publish(f,path,text,frontmatter={}){const record=f.add(path,text,
 const paths=(index,query,scope='visible')=>Array.from(index.search(query,100,scope),/** Compare exact semantic keys, not lowercased labels. */page=>page.path);
 
 for(const mode of ['on-demand','eager']){
+  test(`${mode}: Find discovers existing accented tags and folders without changing acquisition`, /** Existing indexed vocabulary is enough; the old file-only scope remains compatible. */ () => {
+    const f = urlSearchPublicationFixture(bundle, mode), i = f.index;
+    try {
+      const builder = new f.M.GraphBuilder(i.plugin, i.app, new Map(), i.metadataParser, i.indexedDb, /** Keep this finite fixture current. */ () => true);
+      const definitions = [
+        { path: 'tag:Research', name: 'Research', isTag: true },
+        { path: 'tag:Research/Person', name: 'Person', isTag: true },
+        { path: 'tag:Research/Person/Müller', name: 'Müller', isTag: true },
+        { path: 'tag:Research/Project', name: 'Project', isTag: true },
+        { path: 'folder:Research/People', name: 'People', isFolder: true },
+      ];
+      for (const definition of definitions) builder.addPage(i.state, builder.createPage(definition));
+      const native = f.add('Research/Müller.md', '');
+      builder.addPage(i.state, builder.createPage({ path: native.file.path, name: native.file.basename, file: native.file }));
+      i.rebuildSearchIndex();
+      i.plugin.settings.showTagNodes = false; i.plugin.settings.showFolderNodes = false;
+      i.plugin.settings.showPageNodes = false;
+      const sourceBefore = i.sourceAcquisition.getActivityCounters(), semanticBefore = i.getSemanticPreparationDiagnostics();
+      f.reset();
+      i.app.vault.getFiles = i.app.vault.getMarkdownFiles = /** Search may not begin another inventory. */ () => { throw Error('Find enumerated the vault'); };
+      assert.deepEqual(paths(i, 'Müller', 'vault-files'), ['Research/Müller.md']);
+      assert.deepEqual(paths(i, 'People', 'vault-files'), []);
+      assert.deepEqual(paths(i, '#Müller', 'vault'), ['tag:Research/Person/Müller']);
+      assert.deepEqual(paths(i, '#research/person/mü', 'vault'), ['tag:Research/Person/Müller']);
+      assert.deepEqual(paths(i, 'Müller', 'vault').sort(), ['Research/Müller.md', 'tag:Research/Person/Müller']);
+      assert.deepEqual(paths(i, 'People', 'vault'), ['folder:Research/People']);
+      assert.deepEqual(paths(i, 'Research/People', 'vault'), ['folder:Research/People']);
+      const allTags = paths(i, '#', 'vault');
+      assert.equal(allTags.length, 4); assert(allTags.every(path => path.startsWith('tag:')));
+      assert.deepEqual(paths(i, '##Research', 'vault'), []);
+      assert.deepEqual(paths(i, '#not-a-tag', 'vault'), []);
+      assert.deepEqual(paths(i, '#Research/Person/Müller', 'vault'), ['tag:Research/Person/Müller']);
+      assert.equal(i.getVaultSearchPage('tag:Research/Person/Müller'), i.get('tag:Research/Person/Müller'));
+      assert.equal(i.getVaultSearchPage('folder:Research/People'), i.get('folder:Research/People'));
+      f.files.delete(native.file.path);
+      assert.deepEqual(paths(i, 'Müller', 'vault'), ['tag:Research/Person/Müller'], 'A stale native file cannot survive the broader Find scope');
+      assert.deepEqual(f.operations, { reads: 0, parses: 0 });
+      assert.deepEqual(i.sourceAcquisition.getActivityCounters(), sourceBefore);
+      assert.deepEqual(i.getSemanticPreparationDiagnostics(), semanticBefore);
+    } finally { f.close(); }
+  });
+
+  test(`${mode}: an explicit tag center traverses parent and child tags beside its notes`, /** Navigation reuses canonical tag-tree incidence while ordinary centers retain hidden tags. */ () => {
+    const f = urlSearchPublicationFixture(bundle, mode), i = f.index;
+    try {
+      const builder = new f.M.GraphBuilder(i.plugin, i.app, new Map(), i.metadataParser, i.indexedDb, /** Keep this finite fixture current. */ () => true);
+      const pages = ['Research', 'Research/Person', 'Research/Person/Müller'].map(path => builder.createPage({ path: `tag:${path}`, name: path.split('/').at(-1), isTag: true }));
+      const native = f.add('Person.md', ''), note = builder.createPage({ path: native.file.path, name: 'Person note', file: native.file });
+      for (const page of [...pages, note]) builder.addPage(i.state, page);
+      for (const [source, target] of [[pages[0], pages[1]], [pages[1], pages[2]], [pages[1], note]]) {
+        i.state.evidence.addPair(source.path, target.path, 'child', 1, 2, { sourceKind: 'tag-tree', definition: 'tag-tree' });
+        f.M.resolveEvidencePair(i.state.pages, i.state.evidence, source.path, target.path);
+        f.M.resolveEvidencePair(i.state.pages, i.state.evidence, target.path, source.path);
+      }
+      i.plugin.settings.showTagNodes = false; i.plugin.settings.renderSiblings = false;
+      i.fullSnapshotFresh = true;
+      // A prior requested cover counted ordinary hidden-tag visibility. It cannot overwrite the
+      // explicitly navigated tag center's newly visible parent/child rows with certified zeros.
+      i.preparedPageInfo.set(pages[1], { policyRevision: i.semanticPolicyRevision,
+        gateCoverageSignature: i.semanticCoverageSignature(), gatePairRevision: i.relationshipPairRevision,
+        gates: { top: { visibleCount: 0, hasAny: true }, bottom: { visibleCount: 1, hasAny: true },
+          left: { visibleCount: 0, hasAny: false }, right: { visibleCount: 0, hasAny: false } } });
+      const before = i.sourceAcquisition.getActivityCounters(); f.reset();
+      const center = i.getNeighborhood(pages[1].path);
+      assert.deepEqual(Array.from(center.parents, item => item.page.path), [pages[0].path]);
+      assert.deepEqual(Array.from(center.children, item => item.page.path).sort(), [note.path, pages[2].path].sort());
+      assert.equal(i.getNeighborhood(note.path).parents.length, 0, 'Ordinary note centers still honor hidden tag nodes');
+      assert.equal(i.getNeighborhood(pages[2].path).parents[0].page.path, pages[1].path);
+      assert.equal(i.gateStats(pages[1]).top.visibleCount, 1);
+      assert.equal(i.gateStats(pages[1]).bottom.visibleCount, 2);
+      assert.equal(i.plugin.settings.showTagNodes, false, 'Explicit navigation never changes the saved visibility toggle');
+      i.plugin.settings.excludeFilepaths = ['tag:Research/Person/Müller'];
+      assert.deepEqual(Array.from(i.getNeighborhood(pages[1].path).children, item => item.page.path), [note.path]);
+      assert.deepEqual(f.operations, { reads: 0, parses: 0 }); assert.deepEqual(i.sourceAcquisition.getActivityCounters(), before);
+    } finally { f.close(); }
+  });
+
   test(`${mode}: flush avoids covered URL lookups while owner vocabulary and public eligibility remain`,/** A high-degree origin never needs a duplicate general search projection. */async()=>{
     const f=urlSearchPublicationFixture(bundle,mode),i=f.index,owners=64;
     try{

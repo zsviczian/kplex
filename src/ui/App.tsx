@@ -8,6 +8,8 @@
  * Native follow retains the latest canonical file while hidden and suppresses fallback scenes/motion during partial hydration.
  * Directional Sidecar attachment controls project host eligibility and use the same native follow owner for inward synchronization.
  * Existing native File properties panes follow the active surface's central file through a leased host adapter.
+ * Global Find consumes existing tag/folder/file/URL vocabulary with caller-owned native type icons;
+ * current native files and captured Plex links share drop navigation without source acquisition.
  */
 import { subscribeAppearanceSources } from "../adapters/obsidian/colorChanges";
 import type {AppearanceOwner} from "../core/plex/appearanceThemes";
@@ -50,10 +52,12 @@ import { surfaceAction } from "./surfaceActionImplementation";
 import { toolbarMenuAnchor } from "./menuAnchor";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdownMode, SidecarPosition } from "../settings";
 import { SearchBox } from "./features/SearchBox";
+import { searchResultIconName } from "./features/searchResultPresentation";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
 import { getDraggedFile } from "../adapters/obsidian/fileExplorerDrag";
+import { draggedGraphPage, nodeLinkDragSource } from "../adapters/obsidian/nodeLinkDrag";
 import { registerFilePropertiesCenter, type FilePropertiesCenterLease } from "../adapters/obsidian/filePropertiesCenter";
 import { ActionButton } from "./components/ActionButton";
 import { DoubleTapGesture } from "./components/DoubleTapGesture";
@@ -546,8 +550,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     propertiesCenterLease.current?.refresh();
   }, [page?.file, page?.path]);
   const graphSearchRead = useMemo(() => createLegacyGraphSearchRead({
-    /** Preserve Vault files and URL aliases independently of the current Plex and graph filters. */
-    search: (query, limit) => plugin.index.search(query, limit, "vault-files"),
+    /** Search existing notes, folders, tags and URL vocabulary independently of current Plex filters. */
+    search: (query, limit) => plugin.index.search(query, limit, "vault"),
     titleFor: (target) => plugin.index.titleFor(target),
   }), [plugin.index]);
 
@@ -855,25 +859,26 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     rootRef.current?.focus({ preventScroll: true });
   };
 
-  /** Accept a current Vault file from native file or resolved-link drags, including Bases. */
+  /** Accept current native files and exact Plex URL/tag/placeholder links without source acquisition. */
   const handlePlexDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
-    if (!getDraggedFile(plugin.app)) return;
+    const target = draggedGraphPage(plugin.app, plugin.index);
+    if (!target && (nodeLinkDragSource(plugin.app) || !getDraggedFile(plugin.app))) return;
     event.preventDefault();
   };
 
-  /** Re-center on the dropped file, queuing it while partial indexing catches up. */
+  /** Re-center on an existing dropped endpoint; only native files may wait for partial indexing. */
   const handlePlexDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+    const target = draggedGraphPage(plugin.app, plugin.index);
     const file = getDraggedFile(plugin.app);
-    if (!file) return;
+    if (!target && (nodeLinkDragSource(plugin.app) || !file)) return;
     event.preventDefault();
     event.stopPropagation();
-    const target = plugin.index.get(file.path);
     if (target) {
       pendingFileExplorerDropRef.current = null;
       activate(target, true);
       return;
     }
-    pendingFileExplorerDropRef.current = file;
+    if (file) pendingFileExplorerDropRef.current = file;
   };
 
   /** Explicit graph focus reveals its captured native tab; other foreground actions reveal when invoked as published commands. */
@@ -1184,6 +1189,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           <SearchBox
             graph={graphSearchRead}
             icon={<ObsidianIcon name="search" size={16} />}
+            resultIcon={/** Explicit type facets choose the host's native Lucide icon. */ hit => <ObsidianIcon name={searchResultIconName(hit.node)} size={16} />}
             portalSelector=".kplex-app"
             appTopbarSelector=".kplex-topbar"
             revision={renderRevision}

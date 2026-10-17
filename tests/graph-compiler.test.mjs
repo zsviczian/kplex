@@ -497,6 +497,29 @@ test("pathless tag membership preserves the producer's exact tag identity", asyn
   assert.equal(compilation.evidenceBetween(source.id, target.id)[0].declaredById, source.id);
 });
 
+test("existing hierarchical tags expose both navigation directions and their direct note membership", async () => {
+  const rev = core.sourceRevision("hierarchical-navigation:1");
+  const leaf = { id: core.nodeId("opaque-person-tag"), kind: "tag", state: "materialized", semanticPath: "tag:Research/Person/Müller" };
+  const note = { id: core.nodeId("opaque-note"), kind: "document", state: "materialized", semanticPath: "People/Müller.md", physicalPath: "People/Müller.md" };
+  const { compilation } = await compileRecords([
+    { kind: "entity", source: note, sourceRevision: rev, entity: note, name: "Müller", url: null,
+      file: { name: "Müller.md", path: "People/Müller.md", extension: "md", mtime: 1 } },
+    { kind: "tag-tree", source: leaf, sourceRevision: rev,
+      target: { entity: note, rawTarget: "Müller", resolvedBy: "structural" }, membership: "entity-member", provenance: { rawValue: "#Research/Person/Müller" } },
+  ]);
+  const byPath = new Map([...compilation.nodes.values()].map(node => [node.semanticPath, node]));
+  const research = byPath.get("tag:Research"), person = byPath.get("tag:Research/Person"), müller = compilation.node(leaf.id);
+  assert(research && person && müller);
+  for (const [parent, child] of [[research, person], [person, müller]]) {
+    assert.equal([...parent.neighbours.values()].find(relation => relation.target.id === child.id).isChild, true);
+    assert.equal([...child.neighbours.values()].find(relation => relation.target.id === parent.id).isParent, true);
+    assert.equal(compilation.evidenceBetween(parent.id, child.id).length, 1);
+  }
+  assert.equal([...müller.neighbours.values()].find(relation => relation.target.id === note.id).isChild, true);
+  assert.equal([...compilation.node(note.id).neighbours.values()].find(relation => relation.target.id === leaf.id).isParent, true);
+  assert.equal(müller.id, leaf.id, "Tag hierarchy navigation keeps the host-supplied opaque leaf identity");
+});
+
 test("derived tag ancestors cannot overwrite unrelated opaque identities", async () => {
   const rev = core.sourceRevision("tag-collision:1");
   const unrelated = { id: core.nodeId("tag:parent"), kind: "unresolved", state: "unresolved", semanticPath: "Unrelated" };

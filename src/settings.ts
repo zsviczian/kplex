@@ -21,6 +21,8 @@
  * are isolated from foreign graph imports and unsupported formats retain a persistence marker.
  * Hover modifier requirements are local workflow preferences, independent of themes and graph data;
  * absent or malformed values enable gating while explicit saved false values remain respected.
+ * Device/main-tab/sidepanel layout profiles own physical lateral arrangement independently of
+ * appearance themes and semantic indexing; omitted preferences preserve split placement.
  */
 import { readObsidianPresentationEnvironment } from "./adapters/obsidian/presentationEnvironment";
 import { formatShortcut } from "./core/plex/shortcutPresentation";
@@ -63,7 +65,7 @@ import { migrateActionPreferences, type ActionPreferencesV1 } from "./core/plex/
 import { ActionSettingsController } from "./ui/ActionSettingsController";
 import { sanitizeDatePropertyRelations, type DatePropertyRelations } from "./core/graph/settings";
 import { effectiveTypography, sanitizeTypographyProfiles, sanitizeTypographyValue, TYPOGRAPHY_FIELDS, TYPOGRAPHY_LIMITS, type TypographyProfiles, type TypographyField } from "./core/plex/typographyPreferences";
-import type { PersistedLayoutDeviceClass } from "./core/plex/viewPresentation";
+import type { LateralArrangement, PersistedLayoutDeviceClass } from "./core/plex/viewPresentation";
 import { sanitizeMarkdownZoomModes, type MarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { STYLE_SETTINGS_KEYS, appearanceColorReferences, appearanceHasUnsupportedColors } from "./core/contracts/appearance";
 import {applyThemeAppearance, captureThemeAppearance, readAppearanceThemes, resetAppearanceColors, semanticColorSlots, DEFAULT_THEME_ID, type ColorResetScope, type AppearanceThemeLibrary, type AppearanceOwner} from "./core/plex/appearanceThemes";
@@ -153,6 +155,8 @@ function sanitizeNodeSortOrder(value: unknown): NodeSortOrder {
   }
 }
 export type KplexLayoutProfile = {
+  /** Omission retains the established split layout; pop-outs share the main-tab arrangement. */
+  lateralArrangement?: LateralArrangement;
   /** Retained vertical density key, also the fallback for pre-axis profiles. */
   compactingFactor: number;
   /** Horizontal density is optional only at the persisted legacy/profile boundary. */
@@ -305,6 +309,8 @@ export interface KplexSettings {
   lastActivePath: string;
   pinnedNodes: string[];
   layoutProfiles: Record<string, KplexLayoutProfile>;
+  /** Effective-view projection of the active profile; shared persisted settings leave this absent. */
+  lateralArrangement?: LateralArrangement;
   mouseInteractionMode: MouseInteractionMode;
   /** Require the alternate modifier instead of delayed pointer highlighting. */
   hoverHighlightRequiresAlt: boolean;
@@ -613,13 +619,15 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
-  /** Missing horizontal density inherits legacy density; parent columns retain the supported one-to-three-column range. */
+  /** Preserve old density/column defaults; only explicit supported lateral arrangements become saved overrides. */
   const sanitizeProfile = (candidate: Partial<KplexLayoutProfile> | undefined, fallback: KplexLayoutProfile): KplexLayoutProfile => ({
     compactingFactor: Math.max(0.75, Math.min(4, finite(candidate?.compactingFactor, fallback.compactingFactor))),
     horizontalCompactingFactor: Math.max(0.75, Math.min(4, finite(candidate?.horizontalCompactingFactor,
       finite(candidate?.compactingFactor, fallback.horizontalCompactingFactor ?? fallback.compactingFactor)))),
     parentColumns: Math.max(1, Math.min(3, Math.round(finite(candidate?.parentColumns, fallback.parentColumns)))),
     childColumns: Math.max(1, Math.min(7, Math.round(finite(candidate?.childColumns, fallback.childColumns)))),
+    ...(candidate?.lateralArrangement === "left" || candidate?.lateralArrangement === "split"
+      ? { lateralArrangement: candidate.lateralArrangement } : {}),
   });
   const legacyProfile = sanitizeProfile({
     compactingFactor: old.compactingFactor,
@@ -1635,6 +1643,7 @@ class LegacySettingsImportModal extends StyleEditorModal {
 
 type DeclarativeSettingKey =
   | keyof KplexSettings
+  | `layout.${PersistedLayoutDeviceClass}.${"leaf" | "sidepanel"}.lateralArrangement`
   | `typography.${PersistedLayoutDeviceClass}.${TypographyField}`
   | "hierarchy.parents"
   | "hierarchy.children"
@@ -2364,6 +2373,7 @@ export class KplexSettingTab extends PluginSettingTab {
             heading: translate("settings.ui.layout.sizing"),
             items: [
               { name: translate("settings.ui.parent.maximum.height"), desc: translate("settings.ui.parent.rows.become.vertically.scrollable.above.this.heig"), control: { type: "slider", key: "parentMaxHeight", min: 140, max: 800, step: 20 } },
+              { type: "page", name: translate("layout.simplifiedTitle"), desc: translate("layout.simplifiedHelp"), items: this.lateralArrangementDefinitions() },
               { name: translate("settings.ui.friend.challenger.maximum.height"), desc: translate("settings.ui.friend.and.challenger.lists.become.vertically.scrollable"), control: { type: "slider", key: "friendMaxHeight", min: 140, max: 800, step: 20 } },
               { name: translate("settings.ui.sibling.maximum.height"), desc: translate("settings.ui.sibling.lists.become.vertically.scrollable.above.this.he"), control: { type: "slider", key: "siblingMaxHeight", min: 120, max: 700, step: 10 } },
               { name: translate("settings.ui.sibling.relative.size"), desc: translate("settings.ui.scale.sibling.nodes.and.their.expanded.descendants.relat"), control: { type: "slider", key: "siblingRelativeSize", min: 30, max: 85, step: 5 } },
@@ -2833,8 +2843,31 @@ export class KplexSettingTab extends PluginSettingTab {
     }));
   }
 
+  /** Recognize only the six visible arrangement scopes; pop-outs inherit the matching main tab. */
+  private lateralArrangementKey(key: string): string | undefined {
+    const parts = key.split(".");
+    if (parts.length !== 4 || parts[0] !== "layout" || parts[3] !== "lateralArrangement") return;
+    const [, device, surface] = parts;
+    if ((device !== "desktop" && device !== "tablet" && device !== "mobile")
+      || (surface !== "leaf" && surface !== "sidepanel")) return;
+    return `${device}:${surface}`;
+  }
+
+  /** Reuse native declarative toggles with captured device/surface identities, including Settings search. */
+  private lateralArrangementDefinitions(): SettingDefinitionItem<DeclarativeSettingKey>[] {
+    const translate = this.kplexPlugin.translator;
+    return (["desktop", "tablet", "mobile"] as const).flatMap(/** Keep all device preferences editable from any host device. */ device =>
+      (["leaf", "sidepanel"] as const).map(/** Each row has an explicit scope rather than following the active Plex. */ surface => ({
+        name: translate("layout.arrangementScope", { device: translate(`typography.${device}`),
+          surface: translate(surface === "leaf" ? "layout.mainTab" : "layout.sidepanel") }),
+        control: { type: "toggle", key: `layout.${device}.${surface}.lateralArrangement` as const },
+      })));
+  }
+
   /** Read shared controls or device overrides without turning an inherited value into a saved customization. */
   getControlValue(key: string): unknown {
+    const arrangementKey = this.lateralArrangementKey(key);
+    if (arrangementKey) return this.kplexPlugin.settings.layoutProfiles[arrangementKey]?.lateralArrangement === "left";
     const typography = this.typographyKey(key);
     if (typography) {
       const settings = this.kplexPlugin.settings;
@@ -2862,6 +2895,14 @@ export class KplexSettingTab extends PluginSettingTab {
 
   /** Apply every declarative control through the plugin's shared settings-impact classifier. */
   async setControlValue(key: string, value: unknown, owner?: AppearanceOwner): Promise<void> {
+    const arrangementKey = this.lateralArrangementKey(key);
+    if (arrangementKey) {
+      const current = this.kplexPlugin.settings.layoutProfiles[arrangementKey] ?? DEFAULT_LAYOUT_PROFILES[arrangementKey];
+      this.kplexPlugin.settings.layoutProfiles = { ...this.kplexPlugin.settings.layoutProfiles,
+        [arrangementKey]: { ...current, lateralArrangement: value === true ? "left" : "split" } };
+      await this.kplexPlugin.saveSettings(false);
+      return;
+    }
     const typography = this.typographyKey(key);
     if (typography) {
       const scalar = sanitizeTypographyValue(typography.field, value);

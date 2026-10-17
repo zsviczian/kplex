@@ -1,7 +1,8 @@
 /**
- * Host view projection combines existing surface density with sparse device typography. Root settings
+ * Host view projection combines surface density, scoped lateral arrangement and sparse device typography. Root settings
  * inherit prepared dictionaries; an explicit device width applies to base and center styles before
- * tag/note-type precedence. Sparse reset restores shared role styles. No graph/default mutations occur.
+ * tag/note-type precedence. Pop-out arrangement follows the same device's main-tab choice while
+ * density remains independently scoped. Sparse reset restores shared role styles. No graph/default mutations occur.
  */
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
 import { layoutProfileKey as portableLayoutProfileKey, persistedLayoutDeviceClass, selectLayoutProfile } from "../core/plex/viewPresentation";
@@ -25,17 +26,21 @@ type EffectiveSettingsCacheEntry = {
   font: number;
   wrap: boolean;
   typographyValues: string;
+  lateralArrangement: KplexSettings["lateralArrangement"];
   value: KplexSettings;
 };
 const effectiveSettingsCache = new WeakMap<KplexSettings, Map<string, EffectiveSettingsCacheEntry>>();
 
-/** Project explicit device width onto both node roles; unconfigured roles and later tag/note-type overrides retain their shared precedence. */
+/** Project scoped arrangement and explicit device width without changing shared styles or graph state. */
 export function effectiveViewSettings(settings: KplexSettings, surface: KplexViewSurface,
   environment: PresentationEnvironment = readObsidianPresentationEnvironment()): KplexSettings {
   const key = layoutProfileKey(surface, environment);
   const profile = settings.layoutProfiles[key];
+  // Pop-outs keep their own density, but the six device/surface controls own arrangement.
+  const lateralArrangement = (surface === "popout"
+    ? settings.layoutProfiles[layoutProfileKey("leaf", environment)] : profile)?.lateralArrangement ?? "split";
   const override = settings.typographyProfiles?.[persistedLayoutDeviceClass(environment.device)];
-  if (!profile && !override) return settings;
+  if (!profile && !override && lateralArrangement === "split") return settings;
   const typography = effectiveTypography({ baseFontSize: settings.baseFontSize, wrapNodeLabels: settings.wrapNodeLabels,
     maxLabelLength: settings.baseNodeStyle.maxLabelLength ?? 30, maxWidth: settings.baseNodeStyle.maxWidth ?? 286 }, override);
   // A small scalar fingerprint catches supported in-place edits without cloning the settings tree.
@@ -48,6 +53,7 @@ export function effectiveViewSettings(settings: KplexSettings, surface: KplexVie
   if (!bySurface) { bySurface = new Map(); effectiveSettingsCache.set(settings, bySurface); }
   const cached = bySurface.get(key);
   if (cached && cached.profile === profile && cached.override === override && cached.sharedStyle === settings.baseNodeStyle
+    && cached.lateralArrangement === lateralArrangement
     && cached.font === settings.baseFontSize && cached.wrap === settings.wrapNodeLabels && cached.typographyValues === typographyValues
     && cached.sharedCenterStyle === settings.centralNodeStyle && cached.deviceWidth === deviceWidth
     && cached.centerStyleValues.length === centerStyleValues.length && centerStyleValues.every(/** Preserve supported center-style edits underneath the device width. */ ([name, value], i) => cached.centerStyleValues[i][0] === name && cached.centerStyleValues[i][1] === value)
@@ -55,6 +61,7 @@ export function effectiveViewSettings(settings: KplexSettings, surface: KplexVie
   const value = Object.assign(Object.create(settings) as KplexSettings, profile ?? {}, profile ? {
     horizontalCompactingFactor: profile.horizontalCompactingFactor ?? profile.compactingFactor,
   } : {}, {
+    lateralArrangement,
     baseFontSize: typography.baseFontSize,
     wrapNodeLabels: typography.wrapNodeLabels,
     baseNodeStyle: { ...settings.baseNodeStyle, maxLabelLength: typography.maxLabelLength, maxWidth: typography.maxWidth },
@@ -62,7 +69,7 @@ export function effectiveViewSettings(settings: KplexSettings, surface: KplexVie
   });
   bySurface.set(key, { profile, override, sharedStyle: settings.baseNodeStyle, styleValues,
     sharedCenterStyle: settings.centralNodeStyle, centerStyleValues, deviceWidth, font: settings.baseFontSize,
-    wrap: settings.wrapNodeLabels, typographyValues, value });
+    wrap: settings.wrapNodeLabels, typographyValues, lateralArrangement, value });
   return value;
 }
 

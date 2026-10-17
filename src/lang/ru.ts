@@ -311,8 +311,8 @@ const russianTranslations = {
     "other": "K-Plex проиндексировал {count} узла."
   },
   "search.ariaLabel": "Поиск в хранилище",
-  "search.placeholder": "Поиск в хранилище…",
-  "search.placeholderWithShortcut": "Поиск в хранилище… ({shortcut})",
+  "search.placeholder": "Поиск заметок, папок, тегов или URL",
+  "search.placeholderWithShortcut": "Поиск заметок, папок, тегов или URL ({shortcut})",
   "toolbar.navigateBack": "Назад",
   "toolbar.navigateForward": "Вперёд",
   "common.save": "Сохранить",
@@ -1223,6 +1223,21 @@ const russianTranslations = {
   "graph.maximumNodeWidthShort": "Ширина узла",
   "settings.ui.base.font.size": "Базовый размер шрифта",
   "settings.ui.base.font.size.help": "Базовый размер подписей в пикселях. Роли и пользовательские стили сохраняют относительные размеры.",
+  "folderPicker.label": "Папка",
+  "folderPicker.placeholder": "Путь к папке",
+  "folderPicker.browse": "Выбрать папку",
+  "folderPicker.help": "Выберите существующую папку или введите новый путь. / означает корень хранилища.",
+  "folderPicker.invalid": "Введите допустимый путь к папке внутри этого хранилища.",
+  "folderPicker.fileConflict": "Этот путь уже используется файлом.",
+  "folderPicker.invalidAlias": "Псевдоним не может содержать две закрывающие квадратные скобки подряд.",
+  "layout.simplifiedTitle": "Упрощённая компоновка",
+  "layout.simplifiedHelp": "Разместить друзей и оппонентов отдельными группами слева. Связи и фильтры остаются прежними. Отдельные окна используют настройку основной вкладки.",
+  "layout.arrangementScope": "{device}: {surface}",
+  "layout.mainTab": "Основная вкладка",
+  "layout.sidepanel": "Боковая панель",
+  "folderPicker.placeholderUnsupported": "Выберите имя, папку и псевдоним, образующие допустимую ссылку Obsidian. Для имён и папок с # нужна настоящая заметка.",
+  "ghost.relocationChanged": "Заглушка или входящие ссылки изменились. Откройте диалог снова и повторите попытку.",
+  "ghost.recoverCreated": "Заметка создана в {path}, но часть изменений не завершена: {error}. Повторите попытку, чтобы завершить работу с той же заметкой.",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

@@ -20,7 +20,7 @@ export type ActionId = typeof SIMPLE_IDS[number] | `selection.${"move" | "sectio
 export type ActionMetadata = Readonly<{ id: ActionId; labelKey: string; descriptionKey: string; category: "navigation" | "nodes" | "relationships" | "view" | "tools"; keywordKeys: readonly string[]; target: TargetRequest["kind"]; localContexts: readonly FocusRegion[]; repeat: "allow" | "coalesce" | "deny"; effect: "read" | "ui" | "workflow" | "vault-write" | "semantic-setting"; command?: Readonly<{ id: string; kind: "ordinary" | "editor"; defaultPublished: boolean }> }>;
 type CreateId = Extract<ActionId, `relationship.create-${string}`>;
 /** Fixed variants carry their semantic role in the ID; only continuation is user input. */
-export type ActionArgs<Id extends ActionId> = Id extends CreateId ? Readonly<{ continuation?: CompletionIntent }> : Id extends "view.sidecar.position" ? Readonly<{ position?: "left" | "right" | "above" | "below" }> : Readonly<Record<string, never>>;
+export type ActionArgs<Id extends ActionId> = Id extends CreateId ? Readonly<{ continuation?: CompletionIntent }> : Id extends "view.sidecar.position" ? Readonly<{ position?: "left" | "right" | "above" | "below" }> : Id extends "node.open" ? Readonly<{ chooseFolder?: boolean }> : Readonly<Record<string, never>>;
 export type ActionRequest = { [Id in ActionId]: Readonly<{ id: Id; source: ActionSource; surfaceId?: string; target?: TargetRequest; args?: ActionArgs<Id>; windowId?: string }> }[ActionId] | Readonly<{ id: ActionId; source: ActionSource; surfaceId?: string; target?: TargetRequest; args?: never; windowId?: string }>;
 const LEGACY_COMMANDS: Partial<Record<ActionId, string>> = {
   "surface.open-tab": "kplex-start", "index.rebuild": "kplex-rebuild-index", "index.copy-diagnostics": "kplex-copy-index-diagnostics", "surface.open-popout": "kplex-open-popout", "surface.open-sidepanel": "kplex-open-sidepanel", "search.focus": "kplex-search",
@@ -66,6 +66,8 @@ export function validActionArguments(id: ActionId, value: unknown): boolean {
   if (value === undefined) return true;
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const keys = Object.keys(value);
+  if (id === "node.open") return keys.every(/** Folder selection is an invocation choice, never executable persisted data. */ key => key === "chooseFolder")
+    && (Reflect.get(value, "chooseFolder") === undefined || typeof Reflect.get(value, "chooseFolder") === "boolean");
   if (id.startsWith("relationship.create-")) return keys.every(/** Only invocation continuation may override compatibility behavior. */ key => key === "continuation") && (Reflect.get(value, "continuation") === undefined || ["configured", "return", "another", "follow", "edit"].some(/** Match a finite completion intent. */ intent => intent === Reflect.get(value, "continuation")));
   if (id === "view.sidecar.position") return keys.every(/** Position is a finite supported UI choice. */ key => key === "position") && (Reflect.get(value, "position") === undefined || ["left", "right", "above", "below"].some(/** Match supported sidecar placement. */ position => position === Reflect.get(value, "position")));
   return keys.length === 0;

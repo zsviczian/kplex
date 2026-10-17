@@ -23,7 +23,9 @@
  * and priority ownership, while public supersession never retires healthy shared URL acquisition.
  * This owner coordinates snapshot restoration/persistence, search and
  * presentation caches, atomic per-file publication and source-backed startup adoption; builders stage
- * semantics privately. URL search terms use their current labels directly, avoiding title-cache
+ * semantics privately. Global Find reuses indexed tag/folder vocabulary, and explicit tag centers
+ * expose existing hierarchy incidence without changing ordinary note visibility or acquiring sources.
+ * URL search terms use their current labels directly, avoiding title-cache
  * allocation during dense atomic commits while retaining ordinary note display-name policy.
  * URL display flushes reuse their just-published search catalog instead of resolving duplicate
  * general URL entries; ordinary patches retain their canonical search update behavior.
@@ -7535,14 +7537,15 @@ export class GraphIndex {
     );
   }
 
-  isVisiblePage(page: GraphPage, settings: KplexSettings = this.plugin.settings): boolean {
+  /** Apply ordinary visibility, allowing explicit tag-center traversal without changing saved filters. */
+  isVisiblePage(page: GraphPage, settings: KplexSettings = this.plugin.settings, tagNavigation = false): boolean {
     if (settings.excludeFilepaths.some((prefix) => page.path.startsWith(prefix))) return false;
     const isVirtual = !page.file && !page.isFolder && !page.isTag && !page.url;
     const isAttachment = Boolean(page.file && page.file.extension !== "md");
     if (!settings.showVirtualNodes && isVirtual) return false;
     if (!settings.showAttachments && isAttachment) return false;
     if (!settings.showFolderNodes && page.isFolder) return false;
-    if (!settings.showTagNodes && page.isTag) return false;
+    if (!settings.showTagNodes && page.isTag && !tagNavigation) return false;
     if (!settings.showPageNodes && !page.isFolder && !page.isTag && !isAttachment && !page.url) return false;
     if (!settings.showURLNodes && page.url) return false;
     return true;
@@ -7676,7 +7679,9 @@ export class GraphIndex {
         if (classifyRelation(relation, role, this.relationshipInference(source.path, relation.target.path, inferAllLinksAsFriends)) !== null) gateStats[roleGate(role)].hasAny = true;
       }
 
-      if (!this.isVisiblePage(relation.target, settings)) continue;
+      // Selecting a tag is an explicit hierarchy-navigation intent. Keep its existing parent and
+      // child tags reachable even when tags are hidden around ordinary notes; other filters stay.
+      if (!this.isVisiblePage(relation.target, settings, source.isTag)) continue;
       for (const role of concreteRoles) {
         const relationType = classifyRelation(relation, role, this.relationshipInference(source.path, relation.target.path, inferAllLinksAsFriends));
         if (!relationType || (relationType === RelationType.INFERRED && !settings.showInferredNodes)) continue;
@@ -7704,7 +7709,9 @@ export class GraphIndex {
     // editing authority partial; only replace gate presentation. A later pair overlay retires old
     // totals until normal source refresh certifies counts against that overlay's source lifetime.
     const countInfo = this.preparedPageInfo.get(source);
-    const countProof = countInfo?.policyRevision === this.semanticPolicyRevision
+    // Stored gate totals used ordinary tag visibility. Explicit tag-center traversal must use
+    // its visible incidence rather than replacing it with totals that excluded those tag rows.
+    const countProof = (!source.isTag || settings.showTagNodes) && countInfo?.policyRevision === this.semanticPolicyRevision
       && countInfo.gateCoverageSignature === this.semanticCoverageSignature() ? countInfo.gates : undefined;
     let hasPairOverlay = false;
     for (const pair of this.relationshipPairs.values()) if (pair.paths.includes(source.path)
@@ -8124,15 +8131,17 @@ export class GraphIndex {
     return output;
   }
 
-  /** Rank the global catalog; Vault search includes all current files and URL aliases regardless of Plex visibility. */
-  search(query: string, limit = 40, scope: "visible" | "vault-files" = "visible"): GraphPage[] {
+  /** Rank existing vocabulary without source work. Find includes tags/folders; a leading # selects tags only. */
+  search(query: string, limit = 40, scope: "visible" | "vault-files" | "vault" = "visible"): GraphPage[] {
     const q = query.trim().toLowerCase();
     const settings = this.plugin.settings;
     const max = Math.max(1, limit);
-    const searchEntries = this.effectiveSearchEntries(scope === "vault-files");
-    /** Vault search ignores graph filters while excluding folders, tags, unresolved and deleted files. */
-    const eligible = (page: GraphPage): boolean => (!page.url || Boolean(this.get(page.path))) && (scope === "vault-files"
-      ? Boolean(page.url || page.file && page.path === page.file.path && this.app.vault.getFileByPath(page.path) === page.file)
+    const searchEntries = this.effectiveSearchEntries(scope !== "visible");
+    const tagQuery = scope === "vault" && q.startsWith("#");
+    /** Find ignores display filters; existing physical identity checks still reject retired files. */
+    const eligible = (page: GraphPage): boolean => (!tagQuery || page.isTag) && (!page.url || Boolean(this.get(page.path))) && (scope !== "visible"
+      ? Boolean(page.url || scope === "vault" && (page.isTag || page.isFolder)
+        || page.file && page.path === page.file.path && this.app.vault.getFileByPath(page.path) === page.file)
       : this.isVisiblePage(page, settings));
 
     if (!q) {
@@ -8172,7 +8181,9 @@ export class GraphIndex {
     const textualMatches: SearchEntry[] = [];
     const best: Array<{ page: GraphPage; score: number }> = [];
     for (const entry of candidates) {
-      const score = searchEntryScore(entry, q);
+      // Keep the cached prefix keyed by the literal query. '#x' cannot borrow ordinary 'x'
+      // candidates, and the broad '#' set remains a valid prefix for every longer tag query.
+      const score = tagQuery ? entry.page.isTag ? searchEntryScore(entry, q.slice(1)) : null : searchEntryScore(entry, q);
       if (score === null) continue;
       textualMatches.push(entry);
       if (!eligible(entry.page)) continue;

@@ -308,8 +308,8 @@ const traditionalChineseTranslations = {
     "other": "K-Plex 已索引 {count} 個節點。"
   },
   "search.ariaLabel": "搜尋儲存庫",
-  "search.placeholder": "搜尋儲存庫…",
-  "search.placeholderWithShortcut": "搜尋儲存庫… ({shortcut})",
+  "search.placeholder": "搜尋筆記、資料夾、標籤或網址",
+  "search.placeholderWithShortcut": "搜尋筆記、資料夾、標籤或網址（{shortcut}）",
   "toolbar.navigateBack": "向後導覽",
   "toolbar.navigateForward": "向前導覽",
   "common.save": "儲存",
@@ -1211,6 +1211,21 @@ const traditionalChineseTranslations = {
   "graph.maximumNodeWidthShort": "節點寬度",
   "settings.ui.base.font.size": "基礎字型大小",
   "settings.ui.base.font.size.help": "標籤的基礎大小（像素）。角色與自訂樣式保留相對大小。",
+  "folderPicker.label": "資料夾",
+  "folderPicker.placeholder": "資料夾路徑",
+  "folderPicker.browse": "選擇資料夾",
+  "folderPicker.help": "使用現有資料夾或輸入新路徑。/ 代表儲存庫根目錄。",
+  "folderPicker.invalid": "請輸入此儲存庫內的有效資料夾路徑。",
+  "folderPicker.fileConflict": "已有檔案使用此資料夾路徑。",
+  "folderPicker.invalidAlias": "別名不可包含兩個連續的右方括號。",
+  "layout.simplifiedTitle": "簡化版面配置",
+  "layout.simplifiedHelp": "將朋友與挑戰者分別放在左側群組。關係與篩選條件不變。彈出視窗使用主要分頁的選項。",
+  "layout.arrangementScope": "{device}：{surface}",
+  "layout.mainTab": "主要分頁",
+  "layout.sidepanel": "側邊面板",
+  "folderPicker.placeholderUnsupported": "請選擇能形成有效 Obsidian 連結的預留筆記名稱、資料夾與別名。名稱或資料夾含有 # 時，請建立實際筆記。",
+  "ghost.relocationChanged": "預留筆記或其傳入連結已變更。請重新開啟對話框後再試一次。",
+  "ghost.recoverCreated": "筆記已建立於 {path}，但部分更新尚未完成：{error}。請重試以使用同一篇筆記完成更新。",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

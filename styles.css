@@ -244,6 +244,16 @@ button.kplex-sidecar-unfold-plex:hover,
   cursor: pointer;
 }
 .kplex-search-result:hover { background: var(--background-modifier-hover); }
+.kplex-search-result.has-prefix {
+  grid-template-columns: 16px minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 10px;
+}
+.kplex-search-result-prefix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
 .kplex-search-result > span,
 .kplex-search-result small {
   min-width: 0;
@@ -252,6 +262,11 @@ button.kplex-sidecar-unfold-plex:hover,
   white-space: nowrap;
 }
 .kplex-search-result small { color: var(--kplex-muted, var(--text-muted)); text-align: right; }
+.kplex-create-folder-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kplex-create-folder-caption { color: var(--text-muted); font-size: var(--font-ui-small); flex: none; }
+.kplex-create-folder-row .kplex-folder-path-input { flex: 1; min-width: 0; }
+.kplex-materialize-folder-input { width: 100%; min-width: 0; }
+.kplex-materialize-folder-input .kplex-folder-path-input { min-width: 0; }
 
 .kplex-workspace { min-height: 0; display: flex; }
 .kplex-graph-area { position: relative; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }

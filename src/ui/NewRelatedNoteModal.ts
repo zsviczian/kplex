@@ -8,6 +8,7 @@ import { createRoot, type Root } from "react-dom/client";
 import type KplexPlugin from "../main";
 import type { GraphPage, RelationshipRole } from "../types";
 import { FuzzySearchInput, fuzzyFilterStrings } from "./FuzzySearchInput";
+import { FolderPathInput } from "./FolderPathInput";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
 import { enableDraggableDialog } from "./components/DraggableDialog";
 import { ObsidianIcon } from "./ObsidianIcon";
@@ -89,6 +90,11 @@ function RelatedNoteComposer({
   const [defaultCreateType, setDefaultCreateType] = useState<"markdown" | "excalidraw">(() =>
     plugin.settings.newNodeDefaultType === "excalidraw" && excalidrawAvailable ? "excalidraw" : "markdown",
   );
+  const [folderOverride, setFolderOverride] = useState<string | null>(null);
+  const folderPaths = useMemo(/** Capture only folder metadata once for this native dialog; no note/source work. */ () =>
+    plugin.app.vault.getAllFolders(true).map(folder => folder.path === "/" ? "/" : folder.path), [plugin]);
+  const folderPath = folderOverride ?? plugin.newRelatedNoteFolder(origin, query, defaultCreateType);
+  const folderValidation = plugin.validateNoteFolderPath(folderPath);
 
   useEffect(/** Track same-file target renames for this bounded composer, without a permanent identity index. */ () => {
     const rename = plugin.app.vault.on("rename", /** Refresh the chosen target's displayed path while retaining its exact captured file identity. */ file => {
@@ -125,7 +131,7 @@ function RelatedNoteComposer({
       return null;
     }
   }, [query]);
-  const nameValidation = useMemo(() => plugin.validateRelatedNoteName(query), [plugin, query]);
+  const nameValidation = useMemo(() => plugin.validateRelatedNoteName(query, folderValidation.folderPath), [plugin, query, folderValidation.folderPath]);
 
   useEffect(() => {
     setRole(initialRole);
@@ -215,13 +221,13 @@ function RelatedNoteComposer({
 
   /** Create once; retained partial files are linked explicitly on recovery instead of created again. */
   const createNew = async (kind: "markdown" | "excalidraw", intent: CompletionIntent = continuation) => {
-    if (selectedTarget || webUrl || (!partialFile && (!nameValidation.valid || nameValidation.existing)) || !beginWrite()) return;
+    if (selectedTarget || webUrl || folderValidation.error || (!partialFile && (!nameValidation.valid || nameValidation.existing)) || !beginWrite()) return;
     let file: TFile | null = partialFile;
     try {
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
       const currentOrigin = refreshCapturedPage(plugin, origin);
-      if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias);
+      if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias, folderPath);
       if (!file) return;
       if (!session.isSessionOpen()) return;
       if (plugin.app.vault.getFileByPath(file.path) !== file) throw new Error(plugin.translator("addRelated.endpointChanged"));
@@ -235,12 +241,11 @@ function RelatedNoteComposer({
 
   /** Save an unresolved target through the existing writer without materializing a file. */
   const createPlaceholder = async (intent: CompletionIntent = continuation) => {
-    if (selectedTarget || webUrl || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
+    if (selectedTarget || webUrl || folderValidation.error || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
     try {
-      if (alias.trim()) new Notice(plugin.translator("addRelated.placeholderAliasNotSaved"), 4000);
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
-      const page = await plugin.createPlaceholderRelatedPage(refreshCapturedPage(plugin, origin), role, nameValidation.stem, field);
+      const page = await plugin.createPlaceholderRelatedPage(refreshCapturedPage(plugin, origin), role, nameValidation.stem, field, folderPath, alias);
       if (page) await complete(page, intent === "edit" ? "return" : intent, false);
     } catch (error) { reportFailure(error); }
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
@@ -288,7 +293,7 @@ function RelatedNoteComposer({
     setOntology(value);
   };
 
-  const createAvailable = !savedPending && !partialFile && !selectedTarget && !webUrl && nameValidation.valid && !nameValidation.existing;
+  const createAvailable = !savedPending && !partialFile && !selectedTarget && !webUrl && !folderValidation.error && nameValidation.valid && !nameValidation.existing;
   const placeholderAvailable = createAvailable && origin.file?.extension === "md";
   const webLinkAvailable = !selectedTarget && Boolean(webUrl) && origin.file?.extension === "md";
   const noteSearch = createElement(FuzzySearchInput<GraphPage>, {
@@ -498,6 +503,12 @@ function RelatedNoteComposer({
   ) : null;
   const controlRow = createElement("div", { className: "kplex-add-related-control-row" }, ontologySearch, editToggle, completionSelect);
   const composeRow = createElement("div", { className: "kplex-add-related-compose-row" }, nameEditor, actionArea);
+  const folderRow = !selectedTarget && !webUrl ? createElement("div", { className: "kplex-create-folder-row" },
+    createElement("span", { className: "kplex-create-folder-caption" }, plugin.translator("folderPicker.label")),
+    createElement(FolderPathInput, {
+      value: folderPath, onChange: setFolderOverride, folders: folderPaths, translate: plugin.translator,
+      disabled: busy || Boolean(savedPending) || Boolean(partialFile), resultsOwnerId: session.suggestionOwnerId,
+    })) : null;
 
   let statusText: string | null = null;
   let statusError = false;
@@ -511,7 +522,10 @@ function RelatedNoteComposer({
       statusText = alias.trim() ? plugin.translator("addRelated.webAliasStatus", { alias: alias.trim() }) : plugin.translator("addRelated.webStatus");
     }
   } else if (noteTyped && query.trim()) {
-    if (nameValidation.error) {
+    if (folderValidation.error) {
+      statusText = folderValidation.error;
+      statusError = true;
+    } else if (nameValidation.error) {
       statusText = nameValidation.error;
       statusError = true;
     } else if (nameValidation.existing) {
@@ -530,6 +544,7 @@ function RelatedNoteComposer({
     { className: "kplex-add-related-form" },
     controlRow,
     composeRow,
+    folderRow,
     status,
     recovery,
   );

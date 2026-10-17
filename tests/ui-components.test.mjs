@@ -1035,6 +1035,7 @@ try {
   const render = (revision) => flushSync(() => root.render(React.createElement(SearchBox, {
     graph, revision, onActivate: (id) => chosen.push(id), placeholder: "Localized placeholder", ariaLabel: "Localized search",
     icon: React.createElement("span", { "data-test-icon": "true" }, "search icon"), portalSelector: ".test-search-host", appTopbarSelector: ".test-search-topbar",
+    resultIcon: hit => React.createElement("i", { "data-result-kind": hit.node.kind }),
   })));
   render(0);
   const input = host.querySelector("input");
@@ -1043,7 +1044,9 @@ try {
   flushSync(() => type(input, "needle"));
   const rows = () => [...host.querySelectorAll(".kplex-search-result")];
   check(rows().length === 2, "search hits did not render");
-  check(rows()[0].querySelector("span").textContent === second.label, "source ranking was changed");
+  check(rows()[0].querySelector("span:not(.kplex-search-result-prefix)").textContent === second.label, "source ranking was changed");
+  check(rows().every(row => row.classList.contains("has-prefix") && row.querySelector('.kplex-search-result-prefix[aria-hidden="true"]')), "caller icon prefixes lost decorative semantics");
+  check(rows()[0].querySelector("[data-result-kind]").dataset.resultKind === "url" && rows()[1].querySelector("[data-result-kind]").dataset.resultKind === "document", "result type facets were reinterpreted");
   check(rows()[1].querySelector("small").textContent === first.detail, "opaque ID was used as display detail");
   check(input.getAttribute("aria-label") === "Localized search" && input.placeholder === "Localized placeholder", "localized copy was changed");
   check(host.querySelector("[data-test-icon]"), "host icon slot missing");
@@ -1053,7 +1056,7 @@ try {
   hits = [{ ...first, label: "Renamed first", detail: "actual/Renamed.md" }]; render(1);
   check(calls.length === count + 1 && calls.at(-1)[0] === "needle", "publication revision did not refresh the same query");
   check(input.value === "needle" && document.activeElement === input, "publication lost query or focus");
-  check(rows().length === 1 && rows()[0].querySelector("span").textContent === "Renamed first", "stale label/result survived publication");
+  check(rows().length === 1 && rows()[0].querySelector("span:not(.kplex-search-result-prefix)").textContent === "Renamed first", "stale label/result survived publication");
   flushSync(() => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
   check(chosen.length === 1 && chosen[0] === first.node.id, "activation reinterpreted/normalized the opaque ID");
   check(input.value === "", "selection did not clear query");
@@ -1086,7 +1089,8 @@ import { SavedRelationshipPendingError } from ${JSON.stringify(join(root, "src/a
 import { PartialRelatedFileError } from ${JSON.stringify(join(root, "src/adapters/obsidian/relatedFileOutcome.ts"))};
 const FuzzySearchInput = (props) => createElement(FuzzySuggester, { ...props, icon: null });
 const ObsidianIcon = ({ name }) => createElement("span", null, name);
-const fuzzyFilterStrings = (values, query, limit) => values.filter((value) => !query || value.includes(query)).slice(0, limit);
+${uiDefinitions("src/ui/FuzzySearchInput.tsx", ["fuzzyFilterStrings"])}
+${uiDefinitions("src/ui/FolderPathInput.tsx", ["FolderPathInput"])}
 const notices = []; class Notice { constructor(message) { notices.push(message); } }
 ${production}
 (async () => {
@@ -1100,13 +1104,17 @@ ${production}
   const host = document.createElement("div"); document.body.append(host);
   const origin = { path: "Origin.md", file: { path: "Origin.md", extension: "md" } }; const target = { path: "Target.md", file: { path: "Target.md", extension: "md" } };
   const intents = [], outcomes = []; let commits = 0; let closes = 0; let rejectCommit = true; let savedPending = false;
+  let folderEnumerations = 0;
   const session = { continuation: "return", suggestionOwnerId: "composer-browser-fixture", isSessionOpen: () => true, canComplete: () => true, setWriting: () => {}, registerSubmit: () => () => {}, focusName: () => host.querySelector("input")?.focus(), closeForCompletion: () => { closes++; }, finishCompletion: () => {}, focusGraph: () => {} };
   const plugin = {
-   app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file } },
+   app: { vault: { on: () => ({}), offref: () => {}, getFileByPath: path => [origin, target].find(page => page.path === path)?.file,
+    getAllFolders: includeRoot => { check(includeRoot === true, "folder inventory must include the vault root"); folderEnumerations++; return [{ path: "/" }, { path: "Projects" }, { path: "Projects/Ideas" }]; } } },
    settings: { editNewNodeAfterCreate: false, newNodeDefaultType: "markdown" },
    translator: (key) => key, isExcalidrawAvailable: () => false, defaultOntologyField: () => "children",
    ontologyFieldsForRole: () => ["children", "review", "example"],
    validateRelatedNoteName: () => ({ valid: true, existing: false, stem: "Target" }),
+   newRelatedNoteFolder: () => "Projects",
+   validateNoteFolderPath: value => ({ folderPath: value === "/" ? "" : value, error: null }),
    index: { search: () => [target], titleFor: (page) => page.path, get: path => [origin, target].find(page => page.path === path), prepareRelationshipPair: async () => true },
    rememberRelationshipOntology: async (_role, field) => field,
    createRelationToPage: async (...args) => { if (savedPending) throw new SavedRelationshipPendingError("Saved; graph pending"); if (rejectCommit) throw new Error("not ready"); intents.push(args); return { state: "saved-published", page: target }; },
@@ -1115,12 +1123,20 @@ ${production}
   const root = createRoot(host);
   flushSync(() => root.render(createElement(RelatedNoteComposer, { plugin, origin, session, initialRole: "child", onCommitted: outcome => { commits += 1; outcomes.push(outcome); }, onClose: () => { closes += 1; } })));
   const input = host.querySelector(".kplex-add-related-note-search input");
+  const folder = host.querySelector(".kplex-folder-path-input input");
+  check(folder?.value === "Projects" && !folder.autofocus, "computed folder did not prefill independently of quick-name focus");
+  flushSync(() => folder.focus()); flushSync(() => type(folder, "Projects/Id"));
+  let folders = document.body.querySelector(".kplex-fuzzy-floating-results");
+  check(folders?.textContent.includes("Projects/Ideas"), "actual shared folder autocomplete did not rank the native folder vocabulary");
+  flushSync(() => folders.querySelector("button").click());
+  check(folder.value === "Projects/Ideas" && commits === 0 && closes === 0 && folderEnumerations === 1, "folder choice wrote, submitted or reacquired the inventory");
   flushSync(() => input.focus()); flushSync(() => type(input, "Target"));
   let list = document.body.querySelector(".kplex-fuzzy-floating-results");
   check(list, "existing-target suggestions did not open");
   flushSync(() => list.querySelector("button").click());
   const link = host.querySelector(".kplex-add-related-link-button");
   check(link && input.value === "Target.md", "existing selection was not retained as explicit Link action");
+  check(!host.querySelector(".kplex-folder-path-input"), "linking an existing target exposed an unrelated creation folder");
   const ontology = host.querySelector(".kplex-add-related-ontology-search input");
   flushSync(() => ontology.focus()); flushSync(() => type(ontology, ""));
   flushSync(() => host.querySelector(".kplex-fuzzy-disclosure").click());
@@ -1250,6 +1266,7 @@ test("ActionButton rendered browser behavior", () => {
 /** Exercise production reconciliation keys and thought DOM across a mutable rename/placeholder handover. */
 function attachmentRenameBrowserEntry() {
   return `
+import {canDragNodeLink,startNodeLinkDrag,finishNodeLinkDrag} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
 import React, { useId, useMemo } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
@@ -1281,6 +1298,10 @@ const activePath = "Editor.md", centralEditorAvailable = true, sectionExpanded =
 const page = (path, materialized = true) => ({ path, name: path, file: materialized ? { extension: "png", path } : null });
 const centerPage = page(activePath), attachmentPage = page("Before.png"), placeholderPage = page("After.png", false), sentinelPage = page("Other.png");
 const neighborhood = { center: centerPage }, miniPage = page("Descendant.png");
+const nativeNodeDrag={current:null},viewport={current:null},suppressActivateUntil={current:0},miniOpened=[];
+const Keymap={isModEvent:event=>event.ctrlKey||event.metaKey},openNode=(...args)=>miniOpened.push(args),clearHoverIntent=()=>{},setExternalDropZone=()=>{};
+const manager={draggable:null,dragLink:(event,linktext,sourcePath,title,source)=>({type:"link",linktext,sourcePath,title,source}),onDragStart(event,value){this.draggable=value},onDragEnd(){this.draggable=null}};
+const plugin={app:{dragManager:manager,vault:{getFileByPath:path=>[centerPage,attachmentPage,placeholderPage,sentinelPage,miniPage].find(page=>page.file?.path===path)?.file??null}}};
 // The production center renderer publishes already-rendered local gate coverage for readiness.
 const renderedCenterGates = { current: null };
 const gates = Object.fromEntries(["top", "bottom", "left", "right"].map((gate) => [gate, { visibleCount: 0, hasAny: false, complete: true }]));
@@ -1293,7 +1314,7 @@ function Scene({ scene: sourceScene, expanded }) {
   const sectionExpansion = null, expandedScrollTop = useMemo(() => ({}), []);
   const visibleNodePaths = useMemo(() => new Set(scene.nodes.map((item) => item.page.path)), [scene.nodes]);
   const renderedNodeMap = useMemo(() => new Map(scene.nodes.map((item) => [item.page.path, { ...item }])), [scene.nodes]);
-  ${uiDefinitions("src/ui/PlexGraph.tsx", ["paintedNodeStyles", "sceneNodeKeys", "expandedClusters", "renderNode", "renderExpandedCluster", "zoneForRole"])}
+  ${uiDefinitions("src/ui/PlexGraph.tsx", ["paintedNodeStyles", "sceneNodeKeys", "expandedClusters", "beginNativeNodeDrag", "endNativeNodeDrag", "renderNode", "renderExpandedCluster", "zoneForRole"])}
   const miniKeys = expandedClusters.flatMap((cluster) => cluster.children.map((child) => child.key));
   check(new Set(miniKeys).size === miniKeys.length, "expanded connector keys collide during rename");
   return <><div className="kplex-nodes">{scene.nodes.map((item) => renderNode(item, { ...item }))}</div><div>{expandedClusters.map(renderExpandedCluster)}</div></>;
@@ -1316,6 +1337,12 @@ try {
   const recoloredReads=styleReads;render(initial,true);check(styleReads===recoloredReads,"New paint cache did not settle");
   check(container.querySelectorAll(".kplex-thought").length === 4, "initial real endpoint and unresolved placeholder were not distinct");
   check(clusters() === 3, "fixture did not render expanded strips through the production owner");
+  const mini=container.querySelector(".kplex-expanded-mini-thought"),transfer=new DataTransfer();
+  check(mini.draggable,"Expanded descendants do not expose native dragging");
+  flushSync(()=>mini.dispatchEvent(new DragEvent("dragstart",{bubbles:true,cancelable:true,dataTransfer:transfer})));
+  check(manager.draggable?.linktext===miniPage.path&&manager.draggable?.source.owner===mini,"Expanded drag did not retain its endpoint and distinct occurrence authority");
+  flushSync(()=>mini.dispatchEvent(new DragEvent("dragend",{bubbles:true,dataTransfer:transfer})));check(manager.draggable===null,"Expanded native drag did not retire");
+  flushSync(()=>mini.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,ctrlKey:true})));check(miniOpened.at(-1)?.[0]===miniPage&&miniOpened.at(-1)?.[1]===true,"Expanded opening lost the folder modifier");
   // GraphIndex.renameTreeEndpoint intentionally retains canonical page identity and mutates its
   // path; an unrelated React update may reuse the existing scene before its publication commits.
   attachmentPage.path = "After.png"; attachmentPage.name = "After.png"; attachmentPage.file.path = "After.png";
@@ -1401,6 +1428,7 @@ function editorHistoryBrowserEntry(){
   const history=uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
   const editor=uiDefinitions("src/ui/CentralNodeEditor.tsx",["CentralNodeEditor"]);
   return `
+import {canDragNodeLink} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
 import {markdownZoomMode,withMarkdownZoomMode} from ${JSON.stringify(join(root,"src/core/plex/markdownZoomPreferences.ts"))};
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {flushSync} from "react-dom";
@@ -1416,6 +1444,7 @@ try{
  const touchDoubleTap={current:{reset(){}}},areaSettingsDismissPointer={current:null},areaResizeDrag={current:null},pendingGateLongPress={current:null},panDrag={current:null};
  let relocatedRow=null;
  const touchLongPress={current:null},setNodeDrag=value=>{nodeDrag=value;if(value?.path&&relocatedRow)relocatedRow.remove()};let resizeFinishes=0,areaClears=0;
+ const touchPointers={current:new Map()},cancelTouchLongPress=()=>{if(touchLongPress.current)window.clearTimeout(touchLongPress.current.timer);touchLongPress.current=null};
  const viewport={current:null},neighborhood={center:origin},renderedNodeMap=new Map(),toWorld=(x,y)=>({x,y}),areaOutline={current:null};
  const finishAreaResize=()=>{resizeFinishes++;return true},setAreaHoverIfChanged=()=>areaClears++;
  const setConnectDrag=value=>{connectDrag=value},clearHoverIntent=()=>{};
@@ -1433,8 +1462,14 @@ try{
  const bodyNode={role:"parent",page:origin,x:20,y:30};relocatedRow=gateElement;
  gateElement.addEventListener("pointerdown",event=>startNodeDrag(bodyNode,event));
  gateElement.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:6,pointerType:"mouse",button:0,clientX:25,clientY:35}));
+ check(gateElement.isConnected&&nodeDrag===null&&captured.length===0,"Desktop native drag lost its original source or acquired pointer capture");
+ gateElement.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:5,pointerType:"pen",button:0,clientX:25,clientY:35}));
+ check(!gateElement.isConnected&&nodeDrag?.pointerId===5&&captured[0]?.owner===viewportElement,"Pen input lost its established pointer-owned relink gesture");
+ nodeDrag=null;captured.length=0;viewportElement.append(gateElement);
+ gateElement.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerId:6,pointerType:"touch",button:0,clientX:25,clientY:35}));
  check(!gateElement.isConnected&&nodeDrag?.path===origin.path,"Fixture did not move the original row into a floating layer");
- check(captured.length===1&&captured[0].owner===viewportElement&&captured[0].id===6,"Body drag captured its removed overflow row instead of the stable viewport");
+ check(captured.length===1&&captured[0].owner===viewportElement&&captured[0].id===6,"Touch drag captured its removed overflow row instead of the stable viewport");
+ cancelTouchLongPress();touchPointers.current.clear();
  relocatedRow=null;nodeDrag=null;viewportElement.append(gateElement);
  viewportElement.addEventListener("lostpointercapture",lostPointerCapture);
  connectDrag={pointerId:7};updateHistoryDragHover(origin,x,y,document);
@@ -1474,9 +1509,10 @@ try{
 function externalAndPinnedDropBrowserEntry() {
   const callbacks = uiDefinitions("src/ui/PlexGraph.tsx", ["normalizedRole", "semanticRoleForGate", "toWorld", "isAreaControlTarget", "isEmptyAreaTarget", "areaHoverAt",
     "relationshipDropRoles", "historyRelationshipTarget", "clearHistoryDragHover", "updateHistoryDragHover", "openHistoryRelationshipMenu",
-    "externalFileDropTarget", "dragExternalFileOver", "leaveExternalFile", "dropExternalFile", "semanticRoleForPosition", "nodeDropRole", "relationshipDropArea", "up"]);
+    "externalFileDropTarget", "dragExternalFileOver", "leaveExternalFile", "dropExternalFile", "semanticRoleForPosition", "nodeDropRole", "commitNodeAreaDrop", "relationshipDropArea", "up"]);
   return `
 import {getDraggedFile} from ${JSON.stringify(join(root,"src/adapters/obsidian/fileExplorerDrag.ts"))};
+import {draggedGraphPage,nodeLinkDragSource} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
 import {captureSurfaceContinuation} from ${JSON.stringify(join(root,"src/ui/surfaceContinuation.ts"))};
 const check=(ok,message)=>{if(!ok)throw new Error(message)},result=document.querySelector("#result");
 try {
@@ -1492,6 +1528,7 @@ try {
  class Menu {items=[];addItem(build){const item={setTitle(value){this.title=value;return this},setIcon(){return this},onClick(value){this.run=value;return this}};build(item);this.items.push(item)}}
  const surface=document.body.appendChild(document.createElement("div"));surface.style.cssText="position:absolute;left:0;top:0;width:900px;height:650px";
  const viewport={current:surface},camera={current:{x:0,y:0,scale:1}},neighborhood={center:origin},historyDragHover={current:null};
+ const settings={lateralArrangement:"split"};
  let connectDrag=null,nodeDrag=null,externalDropZone=null;const setExternalDropZone=value=>{externalDropZone=value};const areaResizeDrag={current:null},pendingGateLongPress={current:null},touchLongPress={current:null},suppressActivateUntil={current:0};
  const finishAreaSettingsDismiss=()=>{},setConnectDrag=value=>{connectDrag=value},setNodeDrag=value=>{nodeDrag=value},renderedNodeMap=new Map();
  const optimisticCommitToken={current:0};let optimistic=null,updating=false;
@@ -1565,6 +1602,7 @@ try {
  // The same real area geometry owns sibling preview and submitted composer intent. Only the
  // center/sibling pair is handed to the additive create flow; shared-parent evidence stays intact.
  const sibling={page:target,role:"sibling",linkDirection:"shared-parent"};scene.nodes=[sibling];
+ blocked.clear();
  for(const [role,x,y]of [["parent",350,80],["child",510,80],["left",350,280],["right",510,280]]){
   nodeDrag={path:target.path,pointerId:31,x,y,offsetX:0,offsetY:0,startClientX:800,startClientY:550,moved:true};
   renderedNodeMap.set(target.path,{...sibling,x,y});
@@ -1574,6 +1612,8 @@ try {
   check(opened.existingDirection===undefined&&sibling.linkDirection==="shared-parent","sibling shared-parent relation was treated as a moved direct relation");
   check(nodeDrag===null,"sibling drag did not retire");
  }
+ blocked.set("left",new Set([target.path]));const duplicateCount=calls.length;
+ commitNodeAreaDrop(sibling,"left");check(calls.length===duplicateCount,"duplicate sibling role bypassed canonical drop eligibility");blocked.clear();
  nodeDrag={path:target.path,pointerId:32,x:700,y:500,offsetX:0,offsetY:0,startClientX:800,startClientY:550,moved:true};
  check(relationshipDropArea()===null,"sibling accepted empty canvas outside real areas");nodeDrag=null;
  pages.delete(target.path);e=event(90,90);dragExternalFileOver(e);check(externalDropZone==="center","unindexed center did not preview queued navigation");e=event(90,90);dropExternalFile(e);check(!e.stopped,"unindexed center drop lost App readiness fallback");

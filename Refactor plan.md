@@ -4597,3 +4597,28 @@ independent re-read checks every entry and 1,745 source originals. Manifest SHA-
 d32a6e8df72e67d322966bc2fe817ec3a8bd87f67acd6e3b33e20d249eafb077.
 The original 1,716-file archive is independently reverified unchanged. Neither copy nor originals
 are published/deleted; temporary handoffs and dependency junctions remain excluded.
+
+### 2026-10-18 — navigation and native drag feature checkpoint
+
+The maintainer authorizes merging #174 and a new feature branch. #174 is merged
+at `8f702d9c6dfcb70921a1bd5c15087af70e7f2156`; feature work continues on
+`2026-10-17-navigation-and-native-drag`. C14 remains accepted and structural
+refactoring paused. No receipt, indexing optimization, new source owner or schema
+is introduced.
+
+Existing search/relation presentation exposes tag hierarchy and folder/tag Find;
+profile/layout policy owns the six combined-left preferences and independent-area
+seam correction. Native outbound link dragging is isolated behind the reviewed
+Obsidian DragManager boundary. One folder component serves creation and explicit
+placeholder materialization, retaining name-first quick creation. A destination
+change uses bounded, native-approved reference edits and exact-text/identity
+guards; accepted writes remain recoverable after a partial failure. Existing
+duplicate/relink policy is preserved rather than inferred from an alias override.
+
+Review/focused tests pass, including 97 creation/relationship checks after the
+final delegation correction. Full portable verification and exact-build native
+smoke/staging pass; focused native feature validation is next. Actual counts,
+artifact identities, zero-work interval definitions,
+failed controls and platform acceptance belong in
+[the feature report](docs/validation/navigation-and-native-drag-2026-10-18.md).
+No merge or release of the new feature branch is authorized.

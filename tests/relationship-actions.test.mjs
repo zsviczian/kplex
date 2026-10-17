@@ -27,7 +27,7 @@ function productionFunction(path, name, dependencies) {
   function visit(node) {
     if (ts.isVariableDeclaration(node) && node.name.getText(source) === name) expression = node.initializer.getText(source);
     if (ts.isFunctionDeclaration(node) && node.name?.text === name) expression = node.getText(source);
-    if (ts.isMethodDeclaration(node) && node.name.getText(source) === name) expression = `async function ${name}${node.getText(source).slice(node.getText(source).indexOf("("))}`;
+    if (ts.isMethodDeclaration(node) && node.name.getText(source) === name) expression = `${node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword) ? "async " : ""}function ${name}${node.getText(source).slice(node.getText(source).indexOf("("))}`;
     if (ts.isPropertyDeclaration(node) && node.name.getText(source) === name && node.initializer) expression = `function (...args) { return (${node.initializer.getText(source)})(...args); }`;
     ts.forEachChild(node, visit);
   }
@@ -612,7 +612,7 @@ test("navigation with autofit disabled recenters without resetting manual scale"
 /** Supply real convergence logic with controlled native metadata events and a newly persisted file. */
 function createdMetadataFixture({ extension = "md", displayField = "aliases", initialCache = null } = {}) {
   const target = page(`Created.${extension}`); target.file.extension = extension;
-  target.file.basename = "Created"; target.file.stat = { mtime: 1, size: 0 };
+  target.file.basename = "Created"; target.file.parent = { path: "/" }; target.file.stat = { mtime: 1, size: 0 };
   const file = target.file, origin = page("Origin.md"), writes = [], events = [], notices = [];
   let cache = initialCache, body = "", frontmatter = {}, pairCaptured = false;
   const host = () => ({ refs: new Set(), on(name, callback) { const ref = { name, callback }; this.refs.add(ref); return ref; }, offref(ref) { this.refs.delete(ref); },
@@ -643,8 +643,9 @@ function createdMetadataFixture({ extension = "md", displayField = "aliases", in
     writeRelationship: async () => { assert(pairCaptured); events.push("write-relation"); },
     publishSavedRelationship: async () => events.push("publish-relation"),
   };
-  for (const method of ["mutateCreatedNodeMetadata", "writeCreatedNodeDisplayName", "writeCreatedNodeAlias", "createNewRelatedFileForOrigin", "linkNewRelatedFile", "appendRelationshipReference"])
+  for (const method of ["newRelatedNoteFolder", "validateNoteFolderPath", "mutateCreatedNodeMetadata", "writeCreatedNodeDisplayName", "writeCreatedNodeAlias", "createNewRelatedFileForOrigin", "linkNewRelatedFile", "appendRelationshipReference"])
     context[method] = productionFunction("src/main.ts", method, { writeRelationshipMetadata, normalizeFieldName: actualNormalizeFieldName,
+      normalizePath: value => value,
       Notice: class { constructor(message) { notices.push(message); } } }).bind(context);
   return { context, file, origin, writes, events, notices, metadataCache, vault,
     observe() { cache = { frontmatter: structuredClone(frontmatter) }; events.push("cache-body-observed"); metadataCache.emit("changed", file, body, cache); },

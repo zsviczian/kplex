@@ -1,7 +1,8 @@
 /**
  * Maps K-Plex host graph/settings facades to narrow portable read contracts. Host page identity
  * stays at this boundary; adapters capture date policy for live and cached compilation without
- * reclassifying relationships or changing physical source facts.
+ * reclassifying relationships or changing physical source facts. Find adds a visible tag marker
+ * and removes structural prefixes only from secondary display text, never from activation identity.
  */
 import type { KplexSettings } from "../../settings";
 import type { GraphPage } from "../../types";
@@ -98,15 +99,17 @@ type LegacySearchSource = Readonly<{
 
 /**
  * Adapts the legacy semantic-index search facade without exposing GraphPage/TFile to consumers.
- * Search ordering/visibility stay with the legacy source; this boundary only maps returned values.
+ * Search ordering/visibility stay with the legacy source; tag markers and folder display paths
+ * remain presentation-only while the mapped semantic node retains its exact activation identity.
  */
 export function createLegacyGraphSearchRead(source: LegacySearchSource): GraphSearchRead {
   return {
+    /** Map only ranked bounded hits, retaining source ordering and revision-scoped metadata. */
     search(query, limit) {
-      return source.search(query, limit).map((page) => ({
+      return source.search(query, limit).map(/** Display source-specific paths without rewriting the mapped identity. */ (page) => ({
         node: graphNodeViewFromLegacy(page),
-        label: source.titleFor(page),
-        detail: page.path,
+        label: page.isTag ? `#${source.titleFor(page).replace(/^#/, "")}` : source.titleFor(page),
+        detail: page.isTag ? `#${page.path.replace(/^tag:/, "")}` : page.isFolder ? page.path.replace(/^folder:/, "") : page.path,
       }));
     },
   };

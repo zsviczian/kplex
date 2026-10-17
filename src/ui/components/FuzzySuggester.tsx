@@ -390,13 +390,13 @@ export function FuzzySuggester<T>({
         return <button
           key={getKey(item)}
           data-kplex-fuzzy-index={resultIndex}
-          className={`kplex-search-result${resultIndex === clampedSelectedIndex ? " is-selected" : ""}`}
+          className={`kplex-search-result${resultPrefix ? " has-prefix" : ""}${resultIndex === clampedSelectedIndex ? " is-selected" : ""}`}
           aria-label={detail ? `${label}\n${detail}` : label}
           onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.preventDefault()}
           onMouseEnter={() => setSelectedIndex(resultIndex)}
           onClick={() => choose(item)}
         >
-          {resultPrefix?.(item)}
+          {resultPrefix ? <span className="kplex-search-result-prefix" aria-hidden="true">{resultPrefix(item)}</span> : null}
           <span>{highlightedText(label, highlightQuery)}</span>{detail ? <small>{highlightedText(detail, highlightQuery)}</small> : null}
         </button>;
       })}

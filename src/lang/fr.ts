@@ -310,8 +310,8 @@ const frenchTranslations = {
     "other": "K-Plex a indexé {count} nœuds."
   },
   "search.ariaLabel": "Rechercher dans le coffre",
-  "search.placeholder": "Rechercher dans le coffre…",
-  "search.placeholderWithShortcut": "Rechercher dans le coffre… ({shortcut})",
+  "search.placeholder": "Rechercher des notes, dossiers, tags ou URL",
+  "search.placeholderWithShortcut": "Rechercher des notes, dossiers, tags ou URL ({shortcut})",
   "toolbar.navigateBack": "Revenir en arrière",
   "toolbar.navigateForward": "Avancer",
   "common.save": "Enregistrer",
@@ -1219,6 +1219,21 @@ const frenchTranslations = {
   "graph.maximumNodeWidthShort": "Largeur des nœuds",
   "settings.ui.base.font.size": "Taille de police de base",
   "settings.ui.base.font.size.help": "Taille de base des libellés en pixels. Les rôles et styles personnalisés conservent leurs tailles relatives.",
+  "folderPicker.label": "Dossier",
+  "folderPicker.placeholder": "Chemin du dossier",
+  "folderPicker.browse": "Choisir un dossier",
+  "folderPicker.help": "Choisissez un dossier existant ou saisissez un nouveau chemin. / désigne la racine du coffre.",
+  "folderPicker.invalid": "Saisissez un chemin de dossier valide dans ce coffre.",
+  "folderPicker.fileConflict": "Un fichier utilise déjà ce chemin de dossier.",
+  "folderPicker.invalidAlias": "L’alias ne peut pas contenir deux crochets fermants.",
+  "layout.simplifiedTitle": "Disposition simplifiée",
+  "layout.simplifiedHelp": "Place les amis et les opposants dans des groupes distincts à gauche. Leurs relations et filtres restent identiques. Les fenêtres détachées utilisent le choix de l’onglet principal.",
+  "layout.arrangementScope": "{device} : {surface}",
+  "layout.mainTab": "Onglet principal",
+  "layout.sidepanel": "Panneau latéral",
+  "folderPicker.placeholderUnsupported": "Choisissez un nom, un dossier et un alias formant un lien Obsidian valide. Les noms et dossiers contenant # nécessitent une vraie note.",
+  "ghost.relocationChanged": "L’espace réservé ou ses liens entrants ont changé. Rouvrez la boîte de dialogue et réessayez.",
+  "ghost.recoverCreated": "La note a été créée dans {path}, mais certaines modifications restent inachevées : {error}. Réessayez pour terminer avec cette même note.",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

@@ -603,7 +603,10 @@ test("central native Open reuses the visible main tab and excludes sidebar, embe
 
 test("stationary central double taps open in the main tab on a sidepanel and consume synthetic duplicates", /** Run the real gesture owner and graph action, preserving first-tap activation and default ghost behavior. */ () => {
   const file = {path: "A.md"}, page = {path: file.path, file}, requests = [], opened = [], activated = [];
-  const dependencies = {plugin: {openFileInMainTab: /** Capture the central explicit native destination. */ target => opened.push(target)},
+  const folderPrompts=[];
+  const dependencies = {plugin: {openFileInMainTab: /** Capture the central explicit native destination. */ target => opened.push(target),
+    openPage: /** Explicit modifier opening owns its native folder prompt, independent of Sidecar availability. */ (target,doc,options)=>folderPrompts.push({target,doc,options})},
+    viewport:{current:{ownerDocument:{}}},
     activePath: page.path, surface: "sidepanel", graphActionPage: /** Use the graph's accepted exact target in this finite action fixture. */ context => context.page,
     onActivate: /** Capture the first accepted touch selection/activation. */ target => activated.push(target),
     onOpen: /** Existing unresolved nodes keep their deliberate materialization route. */ target => opened.push(["ghost", target]),
@@ -614,7 +617,7 @@ test("stationary central double taps open in the main tab on a sidepanel and con
   const touchDependencies = {index: {get: /** Return the currently accepted central page. */ () => page},
     touchDoubleTap: {current: new DoubleTapGesture()}, suppressSyntheticClickUntil: {current: 0}, suppressNativeDoubleClickUntil: {current: 0},
     runNodeAction: /** The touch owner dispatches once through the same graph implementation used by menus/keyboard. */ (id, target) => {
-      requests.push(id); if (id === "node.open") { assert(available({page: target})); open({page: target, target: {kind: "node"}}); }
+      requests.push(id); if (id === "node.open") { assert(available({page: target,request:{id}})); open({page: target, request:{id}, target: {kind: "node"}}); }
       else dependencies.onActivate(target);
     }};
   const complete = production("completeTouchTap", touchDependencies, "src/ui/PlexGraph.tsx");
@@ -624,9 +627,12 @@ test("stationary central double taps open in the main tab on a sidepanel and con
   assert.deepEqual(requests, ["node.activate", "node.open"]); assert.deepEqual(opened, [file]); assert.deepEqual(activated, [page]);
   assert(touchDependencies.suppressNativeDoubleClickUntil.current > Date.now()); assert(touchDependencies.suppressSyntheticClickUntil.current > Date.now());
   const noncentral = {path: "B.md", file: {path: "B.md"}}, ghost = {path: "Missing"};
-  assert.equal(available({page: noncentral}), false); assert.equal(available({page: ghost}), false);
-  open({page: ghost, target: {kind: "node"}}); open({page: noncentral, target: {kind: "node"}});
+  assert.equal(available({page: noncentral,request:{id:"node.open"}}), false); assert.equal(available({page: ghost,request:{id:"node.open"}}), false);
+  open({page: ghost,request:{id:"node.open"}, target: {kind: "node"}}); open({page: noncentral,request:{id:"node.open"}, target: {kind: "node"}});
   assert.deepEqual(opened.slice(1), [["ghost", ghost], ["sidecar", noncentral]]);
+  const modifier={page:ghost,request:{id:"node.open",args:{chooseFolder:true}},target:{kind:"node"}};
+  assert.equal(available(modifier),true);open(modifier);
+  assert.deepEqual(folderPrompts,[{target:ghost,doc:dependencies.viewport.current.ownerDocument,options:{chooseFolder:true}}]);
 });
 
 test('color publication never promotes a pending native follow or expands its demand',()=>{

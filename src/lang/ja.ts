@@ -307,9 +307,9 @@ const japaneseTranslations = {
   "notice.indexedNodes": {
     "other": "K-Plex は {count} 個のノードをインデックス化しました。"
   },
-  "search.ariaLabel": "保管庫を検索",
-  "search.placeholder": "保管庫を検索…",
-  "search.placeholderWithShortcut": "保管庫を検索… ({shortcut})",
+  "search.ariaLabel": "保管庫内を検索",
+  "search.placeholder": "ノート、フォルダー、タグ、URLを検索",
+  "search.placeholderWithShortcut": "ノート、フォルダー、タグ、URLを検索（{shortcut}）",
   "toolbar.navigateBack": "戻る",
   "toolbar.navigateForward": "進む",
   "common.save": "保存",
@@ -1211,6 +1211,21 @@ const japaneseTranslations = {
   "graph.maximumNodeWidthShort": "ノード幅",
   "settings.ui.base.font.size": "基本フォントサイズ",
   "settings.ui.base.font.size.help": "ラベルの基本サイズ（ピクセル）。役割やカスタムスタイルの相対的なサイズは維持されます。",
+  "folderPicker.label": "フォルダー",
+  "folderPicker.placeholder": "フォルダーのパス",
+  "folderPicker.browse": "フォルダーを選択",
+  "folderPicker.help": "既存のフォルダーを選ぶか、新しいパスを入力します。保管庫のルートには / を使用します。",
+  "folderPicker.invalid": "この保管庫内の有効なフォルダーパスを入力してください。",
+  "folderPicker.fileConflict": "このフォルダーパスは既にファイルで使用されています。",
+  "folderPicker.invalidAlias": "エイリアスに閉じ角括弧を2つ続けて含めることはできません。",
+  "layout.simplifiedTitle": "簡易レイアウト",
+  "layout.simplifiedHelp": "友人と挑戦者を左側の別々のグループに配置します。関係とフィルターは変わりません。別ウィンドウにはメインタブの設定を使用します。",
+  "layout.arrangementScope": "{device}: {surface}",
+  "layout.mainTab": "メインタブ",
+  "layout.sidepanel": "サイドパネル",
+  "folderPicker.placeholderUnsupported": "有効なObsidianリンクになる仮ノート名、フォルダー、エイリアスを選んでください。名前やフォルダーに # を含める場合は実際のノートを作成してください。",
+  "ghost.relocationChanged": "仮ノートまたは参照リンクが変更されました。ダイアログを開き直して再試行してください。",
+  "ghost.recoverCreated": "ノートは {path} に作成されましたが、未完了の更新があります: {error}。同じノートで処理を完了するには再試行してください。",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

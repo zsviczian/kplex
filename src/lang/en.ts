@@ -5191,6 +5191,21 @@ export const englishCatalog = {
   "hotkeys.conflict": { message: "Already assigned to {action}. Disable or change that binding first.", context: "Plex-local keyboard navigation and shortcut configuration.", params: ["action"], referenceParams: [] },
   "hotkeys.selection": { message: "Selected node: {label}", context: "Plex-local keyboard navigation and shortcut configuration.", params: ["label"], referenceParams: ["label"] },
   "hotkeys.space": { message: "Space", context: "Visible key name in the internal shortcut recorder.", params: [] },
+  "folderPicker.label": {"message":"Folder","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "folderPicker.placeholder": {"message":"Folder path","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "folderPicker.browse": {"message":"Choose a folder","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "folderPicker.help": {"message":"Use an existing folder or type a new path. Use / for the vault root.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "folderPicker.invalid": {"message":"Enter a valid folder path inside this vault.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "folderPicker.fileConflict": {"message":"A file already uses this folder path.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "folderPicker.invalidAlias": {"message":"The alias cannot contain two closing brackets.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "layout.simplifiedTitle": {"message":"Simplified layout","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "layout.simplifiedHelp": {"message":"Place friends and challengers in separate groups on the left. Their relationships and filters stay the same. Pop-out windows use the main-tab choice.","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "layout.arrangementScope": {"message":"{device}: {surface}","context":"Note destination selection and device-specific navigation layout settings.","params":["device","surface"],"referenceParams":[]},
+  "layout.mainTab": {"message":"Main tab","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "layout.sidepanel": {"message":"Sidepanel","context":"Note destination selection and device-specific navigation layout settings.","params":[]},
+  "folderPicker.placeholderUnsupported": {"message":"Choose a placeholder name, folder and alias that form a valid Obsidian link. Names and folders containing # require a real note.","context":"Recoverable placeholder relocation and safe native note creation.","params":[]},
+  "ghost.relocationChanged": {"message":"The placeholder or its incoming links changed. Reopen the dialog and try again.","context":"Recoverable placeholder relocation and safe native note creation.","params":[]},
+  "ghost.recoverCreated": {"message":"The note was created at {path}, but some updates are unfinished: {error}. Retry to finish using this same note.","context":"Recoverable placeholder relocation and safe native note creation.","params":["path","error"],"referenceParams":["path"]},
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;
