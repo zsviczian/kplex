@@ -51,6 +51,8 @@ import {
   type Setting,
 } from "obsidian";
 import type KplexPlugin from "./main";
+import { parseHierarchyFieldMapping } from "./core/contracts/fieldName";
+import { oppositeOntologyRole } from "./core/graph/evidence";
 import { RelationType, type Arrowhead, type Hierarchy, type LinkStyle, type NodeStyle, type Role } from "./types";
 import { sanitizeGraphLensDefinitions, type GraphLensDefinition } from "./lens/GraphLens";
 import { collectionWindow } from "./ui/components/collectionWindow";
@@ -2184,7 +2186,7 @@ export class KplexSettingTab extends PluginSettingTab {
 
   /** Build style-manager entries from configured ontology fields, preserving field values and localizing fallback role captions. */
   private ontologyStyleFields(): OntologyStyleField[] {
-    const roleGroups: [Role, string[]][] = [
+    const roleGroups: [Exclude<Role, "sibling">, string[]][] = [
       ["parent", this.kplexPlugin.settings.hierarchy.parents],
       ["child", this.kplexPlugin.settings.hierarchy.children],
       ["left", this.kplexPlugin.settings.hierarchy.leftFriends],
@@ -2193,16 +2195,24 @@ export class KplexSettingTab extends PluginSettingTab {
       ["next", this.kplexPlugin.settings.hierarchy.next],
     ];
     const fields = new Map<string, OntologyStyleField>();
+    const registerField = /** Merge one physical field into the manager without activating another theme or changing styles. */ (name: string, role: Role) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const key = normalizeOntologyStyleKey(trimmed);
+      const current = fields.get(key);
+      if (current) {
+        if (!current.roles.includes(role)) current.roles.push(role);
+      } else {
+        fields.set(key, { name: trimmed, roles: [role] });
+      }
+    };
     for (const [role, names] of roleGroups) {
       for (const rawName of names) {
-        const name = rawName.trim();
-        if (!name) continue;
-        const key = normalizeOntologyStyleKey(name);
-        const current = fields.get(key);
-        if (current) {
-          if (!current.roles.includes(role)) current.roles.push(role);
-        } else {
-          fields.set(key, { name, roles: [role] });
+        const mapping = parseHierarchyFieldMapping(rawName);
+        registerField(mapping.forward, role);
+        if (mapping.inverse) {
+          const opposite = oppositeOntologyRole(role);
+          if (opposite && opposite !== "hidden") registerField(mapping.inverse, opposite);
         }
       }
     }
@@ -2421,6 +2431,7 @@ export class KplexSettingTab extends PluginSettingTab {
                 heading: translate("settings.ui.relationship.fields"),
                 cls: "kplex-ontology-fields",
                 items: [
+                  { name: translate("settings.ontologyMappings.name"), desc: translate("settings.ontologyMappings.help") },
                   { name: translate("settings.ui.parent.fields"), control: { type: "textarea", key: "hierarchy.parents", rows: 3 } },
                   { name: translate("settings.ui.child.fields"), control: { type: "textarea", key: "hierarchy.children", rows: 3 } },
                   { name: translate("settings.ui.left.friend.jump.fields"), control: { type: "textarea", key: "hierarchy.leftFriends", rows: 3 } },

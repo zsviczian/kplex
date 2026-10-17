@@ -506,10 +506,9 @@ export class NormalizedGraphCompiler {
       const location = value.location;
       const provenance: EvidenceProvenance = {
         sourceKind: value.surface === "frontmatter" ? "frontmatter-ontology" : "inline-ontology",
-        definition: assignment.normalizedFieldName,
         // The accepted evidence oracle uses configured frontmatter labels but actual inline spelling.
         // The neutral value header separately preserves the exact physical frontmatter key.
-        fieldName: value.surface === "frontmatter" ? assignment.configuredFieldName : value.fieldName,
+        ...this.assignmentProvenance(assignment, value.surface === "frontmatter" ? assignment.configuredFieldName : value.fieldName),
         ...(record.rawValue === undefined ? {} : { rawValue: record.rawValue }),
         ...(location?.line === undefined ? {} : { line: location.line }),
         ...(location?.start === undefined ? {} : { start: location.start }),
@@ -539,6 +538,15 @@ export class NormalizedGraphCompiler {
       this.presentationCounts.set(key, count);
     }
     return true;
+  }
+
+  /** Share configured reciprocal labels between reference and Date declarations while preserving their physical field. */
+  private assignmentProvenance(assignment: ReferenceAssignment, fieldName: string): Pick<EvidenceProvenance,
+    "definition" | "fieldName" | "inverseDefinition" | "inverseFieldName" | "inverseRole"> {
+    return { definition: assignment.normalizedFieldName, fieldName,
+      ...(assignment.inverseNormalizedFieldName ? {inverseDefinition: assignment.inverseNormalizedFieldName} : {}),
+      ...(assignment.inverseConfiguredFieldName ? {inverseFieldName: assignment.inverseConfiguredFieldName} : {}),
+      ...(assignment.inverseRole ? {inverseRole: assignment.inverseRole} : {}) };
   }
 
   private consumeFieldName(record: SourceFieldNameFact): boolean {
@@ -601,7 +609,7 @@ export class NormalizedGraphCompiler {
     if (assignments.length) {
       for (const assignment of assignments) {
         const provenance: EvidenceProvenance = { sourceKind: "date-property",
-          definition: assignment.normalizedFieldName, fieldName: assignment.configuredFieldName, rawValue };
+          ...this.assignmentProvenance(assignment, assignment.configuredFieldName), rawValue };
         if (assignment.role === "hidden") this.addHidden(record, source, target, provenance, assignment);
         else this.addEvidence(record, source, target, assignment.role, RelationType.DEFINED, LinkDirection.FROM, provenance, assignment);
       }

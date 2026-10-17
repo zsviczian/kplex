@@ -904,3 +904,13 @@ physical touch or perceived paint.
 `tests/viewport-fit.test.mjs` compiles actual fit math, the native resize coordinator and graph
 camera/layout callbacks. `tests/embedded-markdown-default.test.mjs` checks native-controller wiring
 and cleanup with finite host doubles; native lanes remain authoritative for real geometry.
+
+## Reciprocal ontology acceptance
+
+After exact-build staging with `npm run verify:obsidian`, run
+`npm run verify:obsidian:ontology-mappings` with the same three explicit disposable
+`kplex-test-small` identity variables and a fresh `KPLEX_HOST_REPORT_DIR`. The driver exercises
+the actual Settings textarea, reciprocal labels, ordinary edits with exact-pair refresh, reverse physical
+source lookup/unlink and plugin reload. It removes its owned notes and restores preferences,
+workspace and configuration bytes. Native Settings input is programmatic; trusted typing,
+physical touch, paint and macOS behavior remain separate checks. Run native drivers serially.

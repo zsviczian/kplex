@@ -242,6 +242,8 @@ function estimatedEvidenceBytes(item: PersistedEvidenceDeclaration): number {
     + stringStorageBytes(item.targetPath)
     + stringStorageBytes(item.definition)
     + stringStorageBytes(item.fieldName)
+    + stringStorageBytes(item.inverseDefinition)
+    + stringStorageBytes(item.inverseFieldName)
     + stringStorageBytes(item.rawValue);
 }
 

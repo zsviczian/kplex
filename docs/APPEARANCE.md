@@ -82,6 +82,12 @@ If there are no standard color overrides, the dialog explains that theme colors 
 
 A newer or unsupported saved color format is read-only. Other settings can still be saved without rewriting that color data. Releases predating theme/named color sources cannot interpret those references. Preserve a settings backup and convert affected fields to fixed colors before downgrading if their appearance must remain available.
 
+## Paired relationship fields
+
+In **Ontology → Relationship fields**, a reciprocal entry such as `replies to/replied by` gives each direction its own property name and connector label. Parent/child and previous/next swap roles; friend and challenger pairs remain in their respective areas. Both property names appear in relationship editors and link styling. An explicit style for one name takes precedence; otherwise its counterpart's style can supply the appearance.
+
+Write `\/` for a literal slash in a property name. Entries with multiple slashes, consecutive slashes, or an empty side remain literal. Hidden and excluded fields always remain literal and have no reciprocal counterpart. Editing or removing a connection continues to address the property on the note that actually declares it.
+
 ## Directional background tint
 
 Open **Visual styling → Colors → Directional background tint**. It is off by default. Enable **Show directional tint**, choose sources if desired and select **Save**.

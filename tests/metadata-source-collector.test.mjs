@@ -1,3 +1,8 @@
+/**
+ * Execute real metadata/reference collectors and canonical field selection over finite host doubles.
+ * The explicit transpile inventory includes the selector's reciprocal-role dependency and its enum
+ * owner; temporary emitted modules never replace production policy or persistence behavior.
+ */
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -30,6 +35,8 @@ for (const file of [
   "src/core/parser/metadata.ts",
   "src/core/parser/referenceValues.ts",
   "src/core/graph/sourcePolicy.ts",
+  "src/core/graph/evidence.ts",
+  "src/core/graph/relations.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts",
   "src/core/graph/source.ts",
   "src/index/fieldParser.ts",

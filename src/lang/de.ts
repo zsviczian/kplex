@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const germanTranslations = {
+  "settings.ontologyMappings.name": "Gepaarte Eigenschaftsnamen",
+  "settings.ontologyMappings.help": "Mit vorwärts/rückwärts erhält eine Beziehung zwei Eigenschaftsnamen, etwa antwortet auf/beantwortet von. Eltern/Kinder und vorherige/nächste sind wechselseitig; Freund- und Herausfordererpaare bleiben im selben Bereich. Verwende \\/ für einen wörtlichen Schrägstrich. Versteckte und ausgeschlossene Felder bleiben wörtlich.",
   "settings.areaOutline.name": "Bereichsumrisse nur mit Zusatztaste",
   "settings.areaOutline.help": "Halte {key} beim Zeigen auf einen Bereich gedrückt, um seinen Umriss und die Kante zum Ändern der Größe anzuzeigen. In den Bereichseinstellungen sind die Umrisse immer sichtbar.",
   "settings.hoverHighlight.name": "Hervorheben beim Zeigen nur mit Zusatztaste",

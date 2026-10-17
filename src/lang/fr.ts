@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const frenchTranslations = {
+  "settings.ontologyMappings.name": "Noms de propriétés appariés",
+  "settings.ontologyMappings.help": "Utilisez directe/inverse pour donner deux noms de propriété à une relation, par exemple répond à/réponse de. Parent/enfant et précédent/suivant sont réciproques ; les paires d’amis et de contradicteurs restent dans leur zone. Utilisez \\/ pour une barre oblique littérale. Les champs masqués et exclus restent littéraux.",
   "settings.areaOutline.name": "Exiger une touche pour les contours des zones",
   "settings.areaOutline.help": "Maintenez {key} en survolant une zone pour afficher son contour et sa bordure de redimensionnement. Les réglages des zones affichent toujours les contours.",
   "settings.hoverHighlight.name": "Exiger une touche pour la surbrillance au survol",

@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const spanishTranslations = {
+  "settings.ontologyMappings.name": "Nombres de propiedades emparejados",
+  "settings.ontologyMappings.help": "Usa directa/inversa para dar dos nombres de propiedad a una relación, por ejemplo responde a/respondido por. Padre/hijo y anterior/siguiente son recíprocos; los pares de amigos y oponentes permanecen en su propia área. Usa \\/ para una barra literal. Los campos ocultos y excluidos siguen siendo literales.",
   "settings.areaOutline.name": "Exigir modificador para los contornos de áreas",
   "settings.areaOutline.help": "Mantén {key} al pasar el cursor sobre un área para mostrar su contorno y el borde para cambiar su tamaño. Los ajustes de áreas siempre muestran los contornos.",
   "settings.hoverHighlight.name": "Exigir modificador para resaltar al pasar el cursor",

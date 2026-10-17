@@ -9,7 +9,7 @@ import { obsidianCliExecutable } from "./processTools.mjs";
 import { spawnNativeSync as spawnSync } from "./processTools.mjs";
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateTarget } from './runner.mjs';
 const projectRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
@@ -219,7 +219,7 @@ try {
     evaluate('(async()=>{const p=app.plugins.plugins["k-plex"];await p.actionPreferenceQueue;await p.settingsWriteQueue;return JSON.stringify(true)})()');
     configuration = [join(target.pluginDir, 'data.json'), join(target.config, 'community-plugins.json'), join(target.config, 'hotkeys.json'), join(target.config, 'types.json')].map(path => ({ path, bytes: existsSync(path) ? readFileSync(path) : null }));
     for (const c of configuration) {
-        if (c.bytes) writeFileSync(join(output, c.path.endsWith('/data.json') ? 'original-data.json' : 'original-' + c.path.split('/').pop()), c.bytes);
+        if (c.bytes) writeFileSync(join(output, 'original-' + basename(c.path)), c.bytes);
     }
     baseline = evaluate('JSON.stringify({layout:app.workspace.getLayout(),files:app.vault.getMarkdownFiles().length,settingsOpen:app.setting.isOpen,mobile:app.isMobile,hidden:document.hidden,visibility:document.visibilityState})');
     originalSettings = evaluate('JSON.stringify(app.plugins.plugins["k-plex"].settings)');

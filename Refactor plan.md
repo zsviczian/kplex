@@ -4250,3 +4250,43 @@ syntax and actual native acceptance. Earlier checkpoint CI passes; new push CI r
 Evidence is a separate verified local supplement; original evidence remains intact, no publication.
 Actual macOS and physical-device behavior and the earlier gate/filter resource gap remain pending.
 Keep draft; no merge/release or C15+ work.
+
+
+### 2026-10-17: O1, reciprocal ontology review (#154)
+
+Integrated main d40a339 into reviewed head 4500a97, preserving the completed appearance and
+interaction work. Corrected physical source identity in reciprocal evidence, inverse metadata
+through Date/per-file/snapshot publication, pair reassignment and literal physical slash inputs,
+mutable style aliases, canonical section/unassigned-field selection and conditional semantic
+signature invalidation. All eight locales and appearance guidance updated; C14 remains accepted
+and structural refactoring paused. No cache schema, dependency/version, source-validation or
+scheduler change. Native Date tooling additionally fixes Windows backup basenames.
+
+Full Node 22.22.2 strict verification passes 2,061 TAP executions/lint/types/build/exact smoke;
+native actual Settings/reciprocal/reload/unlink 5 and Date 24 pass on Windows Obsidian1.14.4.
+Final original 107-file/settings/layout/bounds/configuration/debugger state restores and no active
+work/controllers remain. The strict smoke's workspace change was detected/restored independently.
+Runtime/test logic remained frozen after full verification; only test EOF whitespace, native diagnostic metadata and driver/docs changed afterward and
+native driver acceptance passed. Superseded/failed logs remain local; no archive publication.
+See [review and evidence](docs/validation/reciprocal-ontology-154-2026-10-17.md).
+
+macOS, minimum-host, physical mobile and whole-app restart remain untested; optional device
+acceptance should exercise paired names in Settings and both endpoint editors. No efficiency
+benchmark claim. Main may commit/push and merge only after final CI under explicit user authority,
+then return to main/fetch; no release or further optimization authorized by this checkpoint.
+
+
+### 2026-10-17: O2, sorting checkpoint and cancelled #154 review
+
+At parent3a1907c, restricted reassignment sorting to the destination and roles actually
+receiving a preserved counterpart. Unrelated and removal-only role order/default precedence
+remain unchanged; avoid replacing unmodified arrays. New regression covers existing/missing
+counterparts and selector roles. Focused79 plus core/full installed TypeScript pass on
+Node22.22.2. Full verification v4 was stopped on explicit user request before native staging;
+its partial log is not an acceptance pass. Earlier prototype tests/native/CI are separate.
+
+The maintainer requested committing this correction and aborting further fix/merge work, and
+expects a separate future PR for the product intent. Stop performance trials, architecture
+analysis and implementation. No indexing performance result or alternative design is claimed.
+Do not approve/merge/release154; preserve raw evidence. Pair identity for lenses/filters versus
+directional labels is unresolved and requires a separately authorized task. C14 remains paused.

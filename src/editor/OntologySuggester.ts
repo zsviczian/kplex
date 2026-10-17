@@ -13,6 +13,8 @@ import {
   type TFile
 } from "obsidian";
 import type KplexPlugin from "../main";
+import type { RelationshipRole } from "../types";
+import { ontologyFieldsForHierarchyRole } from "../core/contracts/fieldName";
 
 /**
  * Match the legacy optional greedy whitespace prefix and terminal non-whitespace/non-colon query
@@ -100,16 +102,31 @@ export class OntologySuggester extends EditorSuggest<string> {
   /** Read the chosen role’s fields; the all-role picker retains its established sorted order. */
   private keys(): string[] {
     const h = this.plugin.settings.hierarchy;
-    switch (this.suggestType) {
-      case "parent": return h.parents;
-      case "child": return h.children;
-      case "leftFriend": return h.leftFriends;
-      case "rightFriend": return h.rightFriends;
-      case "previous": return h.previous;
-      case "next": return h.next;
-      case "all": return [...h.hidden, ...h.parents, ...h.children, ...h.leftFriends, ...h.rightFriends, ...h.previous, ...h.next, this.plugin.settings.primaryTagField]
-        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    const roleForType: Record<Exclude<SuggestType, "all">, RelationshipRole> = {
+      parent: "parent",
+      child: "child",
+      leftFriend: "left",
+      rightFriend: "right",
+      previous: "previous",
+      next: "next",
+    };
+    const getFields = /** The same configured-field grammar supplies host editors and this native suggester. */
+      (role: RelationshipRole): string[] => ontologyFieldsForHierarchyRole(h, role);
+
+    if (this.suggestType !== "all") {
+      return getFields(roleForType[this.suggestType]);
     }
+    const all = [
+      ...h.hidden,
+      ...getFields("parent"),
+      ...getFields("child"),
+      ...getFields("left"),
+      ...getFields("right"),
+      ...getFields("previous"),
+      ...getFields("next"),
+      this.plugin.settings.primaryTagField,
+    ];
+    return [...new Set(all)].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }
 
   /** Filter configured field labels using the native trigger’s query, preserving role selection. */

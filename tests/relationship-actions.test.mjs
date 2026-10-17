@@ -15,9 +15,9 @@ import ts from "typescript";
 // The real convergence adapter is exercised with host events, not replaced by an immediate success.
 const metadataTemp = mkdtempSync(join(tmpdir(), "kplex-created-metadata-"));
 process.on("exit", () => rmSync(metadataTemp, { recursive: true, force: true }));
-await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export { normalizeFieldName } from "./src/core/contracts/fieldName"; export { captureSurfaceContinuation } from "./src/ui/surfaceContinuation"; export { createTranslator } from "./src/lang/index";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+await build({ stdin: { contents: 'export * from "./src/adapters/obsidian/relationshipMetadataWrite"; export { normalizeFieldName,parseHierarchyFieldMapping,reassignFieldInHierarchy,ontologyFieldsForHierarchyRole } from "./src/core/contracts/fieldName"; export {oppositeOntologyRole} from "./src/core/graph/evidence"; export {ReferencePolicySelector} from "./src/core/graph/sourcePolicy"; export { captureSurfaceContinuation } from "./src/ui/surfaceContinuation"; export { createTranslator } from "./src/lang/index";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   outfile: join(metadataTemp, "observer.mjs"), bundle: true, platform: "node", format: "esm" });
-const { writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, normalizeFieldName: actualNormalizeFieldName, captureSurfaceContinuation, createTranslator }
+const { writeRelationshipMetadata, SavedRelationshipPendingError: ActualSavedPendingError, normalizeFieldName: actualNormalizeFieldName, parseHierarchyFieldMapping, reassignFieldInHierarchy, ontologyFieldsForHierarchyRole, oppositeOntologyRole, ReferencePolicySelector, captureSurfaceContinuation, createTranslator }
   = await import(pathToFileURL(join(metadataTemp, "observer.mjs")));
 
 /** Compile a production callback/method; class-field arrows capture the supplied owning instance. */
@@ -39,6 +39,36 @@ function productionFunction(path, name, dependencies) {
 
 /** Minimal Markdown-backed graph page retaining exact endpoint paths and canonical identity. */
 function page(path) { return { path, file: { path, extension: "md" }, neighbours: new Map() }; }
+
+test("actual physical-field assignment and remembered writes escape new slash names without creating reciprocal pairs",async()=>{
+  const source=ts.createSourceFile('main.ts',readFileSync(new URL('../src/main.ts',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
+  const names=new Set(['assignFieldToOntology','rememberRelationshipOntology','ontologyFieldsForRole','ontologyRoleForField']);
+  const owner=source.statements.find(node=>ts.isClassDeclaration(node)&&node.name?.text==='KplexPlugin');
+  const methods=owner.members.filter(node=>ts.isMethodDeclaration(node)&&names.has(node.name.getText(source)));
+  assert.equal(methods.length,names.size);
+  const output=ts.transpileModule('class ActualOntologyOwner {'+methods.map(method=>method.getText(source)).join('\n')+'}',{compilerOptions:{target:ts.ScriptTarget.ES2021,module:ts.ModuleKind.None}}).outputText;
+  const ActualOwner=Function('normalizeFieldName','parseHierarchyFieldMapping','reassignFieldInHierarchy','ontologyFieldsForHierarchyRole','oppositeOntologyRole',output+';return ActualOntologyOwner;')(
+    actualNormalizeFieldName,parseHierarchyFieldMapping,reassignFieldInHierarchy,ontologyFieldsForHierarchyRole,oppositeOntologyRole);
+  for(const physical of ['a/b',String.raw`a\/b`,'a/b/c'])for(const role of ['parent','previous','hidden'])for(const operation of ['assign','remember']){
+    if(role==='hidden'&&operation==='remember')continue;
+    const instance=new ActualOwner(),saves=[];
+    instance.settings={hierarchy:{hidden:[],parents:[],children:[],leftFriends:[],rightFriends:[],previous:[],next:[],exclusions:[]},relationDefaultFields:{parent:'',previous:''}};
+    instance.saveSettings=async(...args)=>{saves.push(args);};
+    if(operation==='assign')await instance.assignFieldToOntology(physical,role);
+    else assert.equal(await instance.rememberRelationshipOntology(role,physical),physical,'Writer returns the physical name, never its escaped configuration');
+    const group=role==='parent'?'parents':role;
+    assert.deepEqual(instance.settings.hierarchy[group],[role==='hidden'?physical:physical.replaceAll('/','\\/')]);
+    assert.equal(await instance.ontologyRoleForField(physical),role);
+    const assignments=new ReferencePolicySelector(instance.settings).assignmentsForField(physical);
+    assert.equal(assignments.length,1);assert.equal(assignments[0].configuredFieldName,physical);assert.equal(assignments[0].role,role);
+    assert.equal(assignments[0].inverseConfiguredFieldName,undefined,'Physical slashes do not acquire synthetic inverse fields');
+    assert.equal(saves.length,1);
+    if(operation==='remember'){
+      assert.equal(await instance.rememberRelationshipOntology(role,physical),physical);
+      assert.equal(saves.length,1,'Remembering the same physical write field twice is unchanged');
+    }
+  }
+});
 
 /** The actual connector hint quotes field coordinates but leaves role/type and source-kind prose plain. */
 test("connector evidence tooltip shares semantic reference quoting without quoting source-kind descriptions", () => {

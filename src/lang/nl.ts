@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const dutchTranslations = {
+  "settings.ontologyMappings.name": "Gekoppelde eigenschapsnamen",
+  "settings.ontologyMappings.help": "Gebruik heen/terug voor twee eigenschapsnamen per relatie, bijvoorbeeld antwoordt op/beantwoord door. Ouder/kind en vorige/volgende zijn wederkerig; vrienden- en uitdagerparen blijven in hun eigen gebied. Gebruik \\/ voor een letterlijke schuine streep. Verborgen en uitgesloten velden blijven letterlijk.",
   "settings.areaOutline.name": "Toets vereisen voor gebiedsomtrekken",
   "settings.areaOutline.help": "Houd {key} ingedrukt terwijl je een gebied aanwijst om de omtrek en de rand voor formaatwijziging te tonen. Gebiedsinstellingen tonen altijd de omtrekken.",
   "settings.hoverHighlight.name": "Toets vereisen voor markering bij aanwijzen",

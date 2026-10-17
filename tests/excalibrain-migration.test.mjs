@@ -1128,6 +1128,25 @@ test("explicit normalized link-style keys take precedence over legacy display na
   assert.equal(resolveLinkStyle({ typeDefinition: "Inspired by", relationType: 1 }, settings).strokeColor, fixture.hierarchyLinkStyles["Inspired by"].strokeColor);
 });
 
+test("paired link styles retain typed paint, explicit field precedence and same-length hierarchy edits", () => {
+  const settings=structuredClone(defaults);
+  settings.hierarchy.previous=['Replies to/Replied by'];
+  settings.hierarchyLinkStyles={'REPLIES TO':{strokeColor:{kind:'theme',variable:'--color-red'},strokeWidth:4},'Other':{strokeColor:'#123456'}};
+  const reverse={typeDefinition:'replied-by',relationType:1};
+  assert.deepEqual(resolveLinkStyle(reverse,settings).strokeColor,{kind:'theme',variable:'--color-red'});
+  assert.equal(resolveLinkStyle(reverse,settings).strokeWidth,4);
+  settings.hierarchyLinkStyles['replied-by']={strokeColor:'#abcdef'};
+  assert.equal(resolveLinkStyle(reverse,settings).strokeColor,'#abcdef');
+  delete settings.hierarchyLinkStyles['replied-by'];
+  settings.hierarchy.previous[0]='Other/Replied by';
+  assert.equal(resolveLinkStyle(reverse,settings).strokeColor,'#123456','Mutable hierarchy edits cannot retain a stale counterpart alias');
+  const plugin={manifest:{id:'k-plex'},settings,index:{unassignedOntologyFields:()=>[],allPages:()=>[]},translator:createObsidianTranslator()};
+  const fields=new KplexSettingTab({},plugin).ontologyStyleFields();
+  assert(fields.some(field=>field.name==='Other'&&field.roles.includes('previous')));
+  assert(fields.some(field=>field.name==='Replied by'&&field.roles.includes('next')));
+  assert(!fields.some(field=>field.name==='Other/Replied by'));
+});
+
 
 /** Exercise issue #70 against production style resolution/layout without changing semantic neighborhoods. */
 test("long labels and fixed two-line rows clear the center and neighboring zones", () => {

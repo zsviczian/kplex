@@ -152,6 +152,51 @@ test('bounded custom triggers preserve the prior matcher including embedded/repe
   }
 });
 
+test('slash-syntax forward and inverse terms appear under role-specific triggers',()=>{
+  const hierarchy={
+    hidden:['Hidden'],
+    parents:['Parent','super/sub'],
+    children:['Child'],
+    leftFriends:['Friend'],
+    rightFriends:['Challenger'],
+    previous:['Previous','replies to/replied by'],
+    next:['Next'],
+    exclusions:[],
+  };
+  const settings=migrateAndMergeSettings({hierarchy,primaryTagField:'Tags'});
+  const plugin={app:{},settings};
+  const owner=new OntologySuggester(plugin);
+
+  // Triggering previous (::s) must suggest forward term 'replies to'
+  const prevInfo=invoke(owner,'Some note (::srep');
+  assert.equal(prevInfo.query,'rep');
+  assert.deepEqual(owner.getSuggestions({...prevInfo,editor:{}}),['replies to']);
+
+  // Triggering next (::n) must suggest reciprocal inverse term 'replied by'
+  const nextInfo=invoke(owner,'Some note (::nrep');
+  assert.equal(nextInfo.query,'rep');
+  assert.deepEqual(owner.getSuggestions({...nextInfo,editor:{}}),['replied by']);
+
+  // Triggering parent (::p) must suggest forward term 'super'
+  const parentInfo=invoke(owner,'Some note (::psu');
+  assert.equal(parentInfo.query,'su');
+  assert.deepEqual(owner.getSuggestions({...parentInfo,editor:{}}),['super']);
+
+  // Triggering child (::c) must suggest reciprocal inverse term 'sub'
+  const childInfo=invoke(owner,'Some note (::csu');
+  assert.equal(childInfo.query,'su');
+  assert.deepEqual(owner.getSuggestions({...childInfo,editor:{}}),['sub']);
+
+  // Triggering all (:::) must include both terms unpacked
+  const allInfo=invoke(owner,':::');
+  const allSuggestions=owner.getSuggestions({...allInfo,editor:{}});
+  assert(allSuggestions.includes('replies to'),'All trigger must include forward term');
+  assert(allSuggestions.includes('replied by'),'All trigger must include reciprocal inverse term');
+  assert(allSuggestions.includes('super'),'All trigger must include parent forward term');
+  assert(allSuggestions.includes('sub'),'All trigger must include child inverse term');
+  assert(!allSuggestions.includes('replies to/replied by'),'Raw unsplit entry must not appear in suggestions');
+});
+
 test('large native no-trigger prose and overlapping custom literal input finish within a subprocess deadline',{timeout:15000},()=>{
   const probe=join(temp,'large-input.mjs');
   writeFileSync(probe,`import assert from 'node:assert/strict';import {OntologySuggester} from './suggester.mjs';const settings=${JSON.stringify(defaults)};const owner=new OntologySuggester({app:{},settings});for(const text of ['Ordinary prose about a quiet afternoon. '.repeat(5000),'z'.repeat(512*1024)])assert.equal(owner.onTrigger({line:0,ch:text.length},{getLine:()=>text},null),null);settings.ontologySuggesterTrigger='a'.repeat(10000)+'b';const repeated='a'.repeat(512*1024);assert.equal(owner.onTrigger({line:0,ch:repeated.length},{getLine:()=>repeated},null),null);const text='Ordinary prose words. '.repeat(5000)+'::pPro';const info=owner.onTrigger({line:0,ch:text.length},{getLine:()=>text},null);assert.equal(info.query,'Pro');assert.equal(info.start.ch,text.length-6);console.log('bounded real owner passed');`);

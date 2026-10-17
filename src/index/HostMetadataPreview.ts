@@ -27,6 +27,7 @@ import type { KplexSettings } from "../settings";
 import type { GraphPage } from "../types";
 import { createGraphState, type GraphState } from "./GraphState";
 import { extractLinksFromValue, iterateFrontmatterAliasSteps, mergeFileMetadata, normalizeFieldName, type ParsedBodyMetadata } from "./fieldParser";
+import { parseHierarchyFieldMapping } from "../core/contracts/fieldName";
 import { cachedCenterTargetVisibility, captureCachedCenterGateSettings, projectCachedCenterGates,
   type CachedCenterGates } from "./CachedCenterGateProjection";
 
@@ -259,7 +260,9 @@ export class HostMetadataPreview {
       for (const field of group) {
         fieldBytes += field.length * 2;
         if (++fieldCount > MAX_PREVIEW_TARGETS || fieldBytes > MAX_PREVIEW_METADATA_BYTES) return null;
-        fields.add(normalizeFieldName(field));
+        const mapping = parseHierarchyFieldMapping(field, group !== hierarchy.hidden && group !== hierarchy.exclusions);
+        fields.add(mapping.normalizedForward);
+        if (mapping.normalizedInverse) fields.add(mapping.normalizedInverse);
       }
     }
     const tags = getAllTags(cache) ?? [];

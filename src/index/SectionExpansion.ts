@@ -3,11 +3,14 @@
  * slices retain physical LF/CRLF offsets to match native metadata positions. Transient explanation
  * codes reuse the UI language boundary without persisting section nodes. Projected/folded pairs
  * share the core defined-direction tier instead of independently merging arrow directions.
+ * Inline section fields reuse the canonical captured reference-policy selector, including paired
+ * labels, directional Hidden names and exact physical property provenance.
  */
 import type { App, CachedMetadata } from "obsidian";
 import type KplexPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Neighbour, type Neighborhood, type Relation, type Role } from "../types";
-import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
+import { type ParsedBodyMetadata } from "../core/parser/metadata";
+import { ReferencePolicySelector } from "../core/graph/sourcePolicy";
 import { extractLinksFromValue, parseBodyMetadataCooperative } from "./fieldParser";
 import type { GraphIndex } from "./GraphIndex";
 import { applyEvidenceDecisionsToRelation, applyOntologyPrecedence, emptyRelation, type EvidenceRole, type RelationEvidence } from "./RelationEvidence";
@@ -113,20 +116,6 @@ function scanHeadings(content: string): HeadingRange[] {
   return output;
 }
 
-function ontologyRole(plugin: KplexPlugin, name: string): EvidenceRole | null {
-  const normalized = normalizeFieldName(name);
-  const h = plugin.settings.hierarchy;
-  const includes = (values: string[]) => values.some((value) => normalizeFieldName(value) === normalized);
-  if (includes(h.hidden)) return "hidden";
-  if (includes(h.parents)) return "parent";
-  if (includes(h.children)) return "child";
-  if (includes(h.leftFriends)) return "left";
-  if (includes(h.rightFriends)) return "right";
-  if (includes(h.previous)) return "previous";
-  if (includes(h.next)) return "next";
-  return null;
-}
-
 function inferredRole(plugin: KplexPlugin): Exclude<EvidenceRole, "hidden"> {
   if (plugin.settings.inferAllLinksAsFriends) return "left";
   return plugin.settings.inverseInfer ? "parent" : "child";
@@ -151,6 +140,9 @@ function evidence(
     definition: extra.definition,
     fieldName: extra.fieldName,
     rawValue: extra.rawValue,
+    inverseDefinition: extra.inverseDefinition,
+    inverseFieldName: extra.inverseFieldName,
+    inverseRole: extra.inverseRole,
     line: extra.line,
     start: extra.start,
     end: extra.end,
@@ -313,6 +305,7 @@ export async function buildCentralSectionExpansion(
     explanations.set(`${center.path}\u0000${target.path}`, explainResolvedRelationship(center, target, items, plugin.settings.inferAllLinksAsFriends));
   }
 
+  const ontology = new ReferencePolicySelector(plugin.settings);
   for (const heading of headings) {
     const sectionPath = `kplex-section:${centerPage.path}:${heading.id}`;
     const sectionPage = clonePage(centerPage, sectionPath);
@@ -354,18 +347,24 @@ export async function buildCentralSectionExpansion(
     }
 
     for (const occurrence of parsed.inlineFieldOccurrences) {
-      const role = ontologyRole(plugin, occurrence.name);
-      if (!role) continue;
-      for (const actualPath of extractLinksFromValue(plugin.app, occurrence.value, file)) {
-        const actual = index.get(actualPath);
-        if (!actual) continue;
-        const target = sectionTarget(actual, heading.id);
-        addEvidence(byTarget, target, evidence(`section-${heading.id}-ontology-${counter++}`, sectionPath, target.path, role, RelationType.DEFINED, "inline-ontology", centerPage.path, {
-          declaredTargetPath: actual.path,
-          declaredRole: role,
-          definition: normalizeFieldName(occurrence.name), fieldName: occurrence.name, rawValue: occurrence.value,
-          line: heading.line + occurrence.line - 1, start: heading.start + occurrence.start, end: heading.start + occurrence.end,
-        }));
+      for (const assignment of ontology.assignmentsForField(occurrence.name)) {
+        const role = assignment.role;
+        for (const actualPath of extractLinksFromValue(plugin.app, occurrence.value, file)) {
+          const actual = index.get(actualPath);
+          if (!actual) continue;
+          const target = sectionTarget(actual, heading.id);
+          addEvidence(byTarget, target, evidence(`section-${heading.id}-ontology-${counter++}`, sectionPath, target.path, role, RelationType.DEFINED, "inline-ontology", centerPage.path, {
+            declaredTargetPath: actual.path,
+            declaredRole: role,
+            definition: assignment.normalizedFieldName,
+            fieldName: occurrence.name,
+            rawValue: occurrence.value,
+            inverseDefinition: assignment.inverseNormalizedFieldName,
+            inverseFieldName: assignment.inverseConfiguredFieldName,
+            inverseRole: assignment.inverseRole,
+            line: heading.line + occurrence.line - 1, start: heading.start + occurrence.start, end: heading.start + occurrence.end,
+          }));
+        }
       }
     }
 

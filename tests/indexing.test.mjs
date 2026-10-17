@@ -25,7 +25,7 @@ const temp = mkdtempSync(join(tmpdir(), "kplex-index-test-"));
 // managed leaf, so the implementation must never adopt an arbitrary adjacent/pinned user tab.
 const mainSource = readFileSync(join(root, "src/main.ts"), "utf8");
 
-const appSource = readFileSync(join(root, "src/ui/App.tsx"), "utf8");
+const appSource = readFileSync(join(root, "src/ui/App.tsx"), "utf8").replace(/\r\n/g, "\n");
 const newRelatedSource = readFileSync(join(root, "src/ui/NewRelatedNoteModal.ts"), "utf8");
 const draggableDialogSource = readFileSync(join(root, "src/ui/components/DraggableDialog.ts"), "utf8");
 const ghostModalSource = readFileSync(join(root, "src/ui/MaterializeGhostModal.ts"), "utf8");
@@ -1159,7 +1159,7 @@ for (const axis of ["width", "height"]) {
   KplexPlugin.prototype.ensureAdjacentFileLeafSize.call(context, anchor, pane);
   assert.deepEqual(writes, [], "Sizing must not cross unrelated workspace splits");
 }
-const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedPageRelations, hydratePersistedRelations, hydrateGraphState, computeIndexSettingsSignature, computeVaultSignature, persistedDeclarationFromEvidence } = require(join(temp, "src/index/IndexSnapshot.js"));
+const { persistedPageFromGraphPage, addPersistedPageToState, hydratePersistedPageRelations, hydratePersistedRelations, hydrateGraphState, computeIndexSettingsSignature, computeVaultSignature, persistedDeclarationFromEvidence, serializeGraphState } = require(join(temp, "src/index/IndexSnapshot.js"));
 const { createGraphState } = require(join(temp, "src/index/GraphState.js"));
 const { buildCentralSectionExpansion, canExpandCentralSections, projectCentralSectionExpansion } = require(join(temp, "src/index/SectionExpansion.js"));
 const { parseBodyMetadata, parseBodyMetadataCore, parseBodyMetadataCooperative } = require(join(temp, "src/index/fieldParser.js"));
@@ -1496,6 +1496,41 @@ const plugin = { app, settings, getIndexSourceRevision: () => 0, recordDiagnosti
 }
 
 const index = new GraphIndex(plugin, app);
+
+// Full binding, the actual per-file declaration bridge and snapshot replay must preserve the
+// same physical owner/property plus reciprocal labels. No Vault data or live index is changed.
+{
+  const {NormalizedGraphCompiler}=require(join(temp,"src/core/graph/compiler.js"));
+  const {NormalizedSourcePatchPreparer}=require(join(temp,"src/core/graph/patch.js"));
+  const source={id:'Note A.md',kind:'document',state:'materialized',semanticPath:'Note A.md',physicalPath:'Note A.md'};
+  const target={id:'Note B.md',kind:'document',state:'materialized',semanticPath:'Note B.md',physicalPath:'Note B.md'};
+  const entity=ref=>({kind:'entity',source:ref,sourceRevision:'pair:1',entity:ref,name:ref.id,url:null,file:{name:ref.id,extension:'md',path:ref.id,mtime:files.get(ref.id).stat.mtime}});
+  const value={source,sourceRevision:'pair:1',valueId:'pair-property'};
+  const records=[entity(source),entity(target),{...value,kind:'reference-value',fieldName:'Replies to',normalizedFieldName:'replies-to',surface:'frontmatter',ordinal:0,origin:'physical'},
+    {...value,kind:'reference-payload',index:0,final:true,text:'[[Note B]]'},
+    {...value,kind:'reference-candidate',ordinal:0,final:true,hostOccurrenceCount:0,target:{entity:target,rawTarget:'Note B',resolvedBy:'host'}}];
+  const pairSettings={...settings,maxLabelLength:30,hierarchy:{...settings.hierarchy,previous:['Replies to/Replied by']}};
+  const runtime={now:()=>0,yield:async()=>{},isCurrent:()=>true,sliceBudgetMs:8,resolverBatchSize:32};
+  const feed=async owner=>{const boundary={generation:'paired-bridge',snapshotRevision:'paired-bridge'},read=owner.beginRead(boundary);assert.equal(await owner.acceptBatch(read,{boundary,sequence:0,final:true,records}),true);assert.equal(owner.completeRead(read,boundary),true);};
+  const compiler=new NormalizedGraphCompiler(pairSettings,runtime);await feed(compiler);const compiled=await compiler.finish();assert(compiled);
+  const builder=new GraphBuilder({...plugin,settings:pairSettings},app,new Map(),index.metadataParser,index.indexedDb,()=>true);
+  const full=await builder.bindCompiledGraph(compiled,{materializedFile:facet=>files.get(facet.path)});assert(full);
+  const preparer=new NormalizedSourcePatchPreparer(source.id,pairSettings,runtime,{entity:ref=>entity(ref)});await feed(preparer);
+  const prepared=await preparer.finish();assert.equal(prepared.outcome,'prepared');
+  const patched=createGraphState();for(const page of full.pages.values())addPersistedPageToState(patched,persistedPageFromGraphPage(page),app);
+  for(const item of prepared.patch.compilation.declarations())assert.equal(builder.addPreparedDeclaration(patched,item),true);
+  require(join(temp,'src/index/RelationResolver.js')).resolveEvidenceStore(patched.pages,patched.evidence);
+  const restored=hydrateGraphState(JSON.parse(JSON.stringify(serializeGraphState(patched,app,pairSettings))),app);
+  for(const state of [full,patched,restored]){
+    const reverse=state.evidence.between(target.id,source.id).find(item=>item.sourceKind==='frontmatter-ontology');
+    assert(reverse);assert.equal(reverse.definition,'replied-by');assert.equal(reverse.fieldName,'Replies to');
+    assert.equal(reverse.inverseFieldName,'Replied by');assert.equal(reverse.inverseRole,'next');assert.equal(reverse.declaredByPath,source.id);
+    assert.equal(state.pages.get(target.id).neighbours.get(source.id).nextFriendTypeDefinition,'replied-by');
+  }
+  const membership=Object.create(GraphIndex.prototype);membership.plugin={settings:pairSettings};
+  membership.discoveredFields=()=>['Replies to','Replied by','Unknown'].map(name=>({name,normalized:name.toLowerCase().replaceAll(' ','-'),count:1}));
+  assert.deepEqual(membership.unassignedOntologyFields().map(item=>item.name),['Unknown']);
+}
 
 // Restore has a temporary event fence before the normal reactive listeners are installed.
 // Events before inventory capture are already represented there; later events must remain queued
@@ -2907,6 +2942,31 @@ try {
   expectRole("Note A.md", "child", "Note F.md", RelationType.INFERRED);
   assert.equal(index.get(friends.page.path), undefined);
 
+  // Assertions on Section Expansion with forward and inverse slash syntax.
+  plugin.settings.hierarchy.previous.push("replies to/replied by");
+  const noteABodyWithSlash = contents.get("Note A.md") + "\n\n## Slash Discussion\nreplies to:: [[Note B]]\nreplied by:: [[Note C]]\n";
+  contents.set("Note A.md", noteABodyWithSlash);
+  try {
+    const slashExpansion = await buildCentralSectionExpansion(plugin, index, index.get("Note A.md"));
+    assert(slashExpansion, "Expected slash expansion for Note A");
+    const slashSection = slashExpansion.sections.find((s) => s.page.name === "Slash Discussion");
+    assert(slashSection, "Slash Discussion section found");
+    // Forward "replies to" -> role previous -> placed in leftFriends bucket
+    expandedHas(slashSection.neighborhood, "left", "Note B.md", RelationType.DEFINED);
+    // Inverse "replied by" -> role next -> placed in rightFriends bucket
+    expandedHas(slashSection.neighborhood, "right", "Note C.md", RelationType.DEFINED);
+    // Verify explicit reciprocal metadata is attached to the decisions
+    const bTarget = slashSection.neighborhood.leftFriends.find((item) => (item.page.transient?.actualPath ?? item.page.path) === "Note B.md");
+    const cTarget = slashSection.neighborhood.rightFriends.find((item) => (item.page.transient?.actualPath ?? item.page.path) === "Note C.md");
+    const explainB = slashExpansion.explanations.get(`${slashSection.page.path}\u0000${bTarget.page.path}`);
+    const explainC = slashExpansion.explanations.get(`${slashSection.page.path}\u0000${cTarget.page.path}`);
+    assert(explainB?.decisions.some((d) => d.evidence.inverseFieldName === "replied by" && d.evidence.inverseRole === "next"));
+    assert(explainC?.decisions.some((d) => d.evidence.inverseFieldName === "replies to" && d.evidence.inverseRole === "previous"));
+  } finally {
+    contents.set("Note A.md", originalSectionBody);
+    plugin.settings.hierarchy.previous = plugin.settings.hierarchy.previous.filter((f) => f !== "replies to/replied by");
+  }
+
   // Assertions 43–47: nested headings form a runtime outline tree. This is the structural input
   // used by the fold/unfold renderer; it must not create persistent section identities.
   const sectionTree = await buildCentralSectionExpansion(plugin, index, index.get("Section Tree.md"));
@@ -3134,7 +3194,9 @@ try {
       const original = owner[method];
       owner[method] = async (...args) => { await blocked; return original.apply(owner, args); };
       const start = stalled.restoreIndexedDbSnapshot(["Note A.md"]);
-      await settle();
+      for (let n = 0; n < 20 && stalled.getSnapshotHydrationDiagnostics().phase !== phase; n++) {
+        await settle();
+      }
       assert.equal(stalled.getSnapshotHydrationDiagnostics().phase, phase);
       if (phase === "source-authority") {
         await advanceWatchdog(60000);

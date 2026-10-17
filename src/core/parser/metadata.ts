@@ -2,9 +2,9 @@
  * Canonical host-free body grammar shared by synchronous workers and cooperative host parsing.
  * Versioned parser DTOs retain primary URL provenance while additional labels feed search facets.
  */
-import { normalizeFieldName } from "../contracts/fieldName";
+import { normalizeFieldName, parseHierarchyFieldMapping, ontologyFieldsForHierarchyRole, reassignFieldInHierarchy, type HierarchyFieldMapping, type HierarchyRole, type RoleHierarchyData, type OntologyFieldRole, type MutableHierarchyData } from "../contracts/fieldName";
 
-export { normalizeFieldName };
+export { normalizeFieldName, parseHierarchyFieldMapping, ontologyFieldsForHierarchyRole, reassignFieldInHierarchy, type HierarchyFieldMapping, type HierarchyRole, type RoleHierarchyData, type OntologyFieldRole, type MutableHierarchyData };
 
 const WIKI_LINK_RE = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
 const MARKDOWN_LINK_RE = /\[[^\]]*\]\(([^)]+)\)/g;

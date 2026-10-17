@@ -105,6 +105,7 @@ import {
 import { planRetiredExclusionReconciliation } from "./LegacySnapshotPolicy";
 import { GraphBuilder, type FieldCacheEntry, type PatchFileCommit, type PatchFilePublisher, type UrlAdjacencyPrivacy } from "./GraphBuilder";
 import { iterateLinkReferencesFromValue, normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
+import { ReferencePolicySelector } from "../core/graph/sourcePolicy";
 import { extractLinksFromValue, iterateFrontmatterAliasSteps } from "./fieldParser";
 import { MAX_CACHED_SCOPE_RETAINED_BYTES } from "./CachedSourceSemantics";
 import { KplexIndexedDbCache, URL_ALIAS_FACET_VERSION, sanitizeIndexDiagnostics, type IndexedDbSnapshotMeta, type IndexDiagnosticEntry,
@@ -3013,13 +3014,16 @@ export class GraphIndex {
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }
 
+  /** Reuse canonical physical-field selection so both halves of a pair count as assigned in Settings. */
   unassignedOntologyFields(): Array<{ normalized: string; name: string; count: number }> {
     const h = this.plugin.settings.hierarchy;
+    const selector = new ReferencePolicySelector(this.plugin.settings);
     const assigned = new Set([
-      ...h.hidden, ...h.parents, ...h.children, ...h.leftFriends, ...h.rightFriends, ...h.previous, ...h.next, ...h.exclusions,
+      ...h.exclusions,
       this.plugin.settings.noteTypeField, this.plugin.settings.primaryTagField,
-    ].map((name) => name.toLowerCase().replaceAll(" ", "-").trim()));
-    return this.discoveredFields().filter((field) => !assigned.has(field.normalized));
+    ].map(normalizeFieldName));
+    return this.discoveredFields().filter(/** Exclude configured assignments without reading any note source. */
+      field => !assigned.has(field.normalized) && selector.assignmentsForField(field.name).length === 0);
   }
 
   /** Invalidate in-flight semantic work and advance the demanded policy without scheduling a rebuild. */

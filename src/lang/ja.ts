@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const japaneseTranslations = {
+  "settings.ontologyMappings.name": "対になるプロパティ名",
+  "settings.ontologyMappings.help": "順方向/逆方向で関係に2つのプロパティ名を付けられます。例：返信先/返信元。親/子と前/次は相互に対応し、友達と対立相手の組は同じエリアに留まります。文字としてのスラッシュは \\/ と記入します。非表示と除外のフィールドは文字どおりに扱われます。",
   "settings.areaOutline.name": "エリアの輪郭表示に修飾キーを必要とする",
   "settings.areaOutline.help": "エリアにポインターを合わせながら {key} を押すと、輪郭とサイズ変更用の端を表示します。エリア設定では輪郭が常に表示されます。",
   "settings.hoverHighlight.name": "ホバー強調表示に修飾キーを必要とする",

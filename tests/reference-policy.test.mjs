@@ -9,6 +9,7 @@ const loaded = loadPortableModules([
   "src/core/graph/resolver.ts",
   "src/core/graph/relations.ts",
   "src/core/graph/sourcePolicy.ts", "src/core/parser/metadata.ts", "src/core/parser/referenceValues.ts",
+  "src/core/graph/settingsPolicy.ts", "src/application/frontmatterUnlink.ts",
   "src/adapters/obsidian/ontologySourceCollector.ts", "src/index/SourceFingerprint.ts",
 ], { obsidian: `class TFile { constructor(path) { this.path=path; this.name=path.split('/').pop();
   this.extension=this.name.split('.').pop(); this.basename=this.name.replace(/\\.[^.]*$/, '');
@@ -297,4 +298,271 @@ test("unassigned property URLs infer with raw provenance, configured roles and r
   const preparer = new c.NormalizedSourcePatchPreparer(source.id, policy(), runtime(), { entity: e => e.id === source.id ? fact : undefined });
   await feed(preparer, [fact, ...found.records]); const patch = await preparer.finish(); assert.equal(patch.outcome, "prepared");
   assert.deepEqual(declarations(patch.patch.compilation), declarations(inferred), "full and patch share the URL default and hierarchy owner");
+});
+
+test("parseHierarchyFieldMapping parses forward and inverse slash syntax with escape and boundary safety", () => {
+  const mapping1 = c.parseHierarchyFieldMapping("replies to/replied by");
+  assert.equal(mapping1.forward, "replies to");
+  assert.equal(mapping1.normalizedForward, "replies-to");
+  assert.equal(mapping1.inverse, "replied by");
+  assert.equal(mapping1.normalizedInverse, "replied-by");
+
+  const mapping2 = c.parseHierarchyFieldMapping("  replaces  /  replaced by  ");
+  assert.equal(mapping2.forward, "replaces");
+  assert.equal(mapping2.normalizedForward, "replaces");
+  assert.equal(mapping2.inverse, "replaced by");
+  assert.equal(mapping2.normalizedInverse, "replaced-by");
+
+  const mapping3 = c.parseHierarchyFieldMapping("parent");
+  assert.equal(mapping3.forward, "parent");
+  assert.equal(mapping3.normalizedForward, "parent");
+  assert.equal(mapping3.inverse, undefined);
+  assert.equal(mapping3.normalizedInverse, undefined);
+
+  // Escaped slashes: a\/b treated as literal name a/b
+  const mappingEscaped = c.parseHierarchyFieldMapping("replaces\\/supersedes");
+  assert.equal(mappingEscaped.forward, "replaces/supersedes");
+  assert.equal(mappingEscaped.normalizedForward, "replaces/supersedes");
+  assert.equal(mappingEscaped.inverse, undefined);
+
+  // Consecutive slashes: a//b treated as literal single token
+  const mappingDoubleSlash = c.parseHierarchyFieldMapping("replaces//supersedes");
+  assert.equal(mappingDoubleSlash.forward, "replaces//supersedes");
+  assert.equal(mappingDoubleSlash.inverse, undefined);
+
+  // Multiple slashes: a/b/c treated as literal single token
+  const mappingMultiSlash = c.parseHierarchyFieldMapping("a/b/c");
+  assert.equal(mappingMultiSlash.forward, "a/b/c");
+  assert.equal(mappingMultiSlash.inverse, undefined);
+
+  // Leading or trailing slashes: /a or a/ treated as literal
+  const mappingLeading = c.parseHierarchyFieldMapping("/leading");
+  assert.equal(mappingLeading.forward, "/leading");
+  assert.equal(mappingLeading.inverse, undefined);
+
+  const mappingTrailing = c.parseHierarchyFieldMapping("trailing/");
+  assert.equal(mappingTrailing.forward, "trailing/");
+  assert.equal(mappingTrailing.inverse, undefined);
+});
+
+test("reassignFieldInHierarchy preserves reciprocal half or moves full pair without data loss", () => {
+  const makeHierarchy = () => ({
+    hidden: [],
+    parents: ["super/sub"],
+    children: [],
+    leftFriends: ["friend/ally"],
+    rightFriends: [],
+    previous: ["replies to/replied by", "before"],
+    next: ["after"],
+  });
+
+  // 1. Reassigning forward half of a pair: "replies to" from previous -> parents
+  // Should move "replies to" to parents, and preserve inverse "replied by" in next (the reciprocal role of previous).
+  const h1 = makeHierarchy();
+  const updated1 = c.reassignFieldInHierarchy(h1, "replies to", "parents");
+  assert.deepEqual(updated1.parents, ["replies to", "super/sub"]);
+  assert.deepEqual(updated1.previous, ["before"]);
+  assert.deepEqual(updated1.next, ["after", "replied by"]);
+
+  // 2. Reassigning inverse half of a pair: "sub" from parents -> next
+  // In "super/sub", forward was in parents so inverse "sub" belonged reciprocally to children.
+  // When "sub" is moved to next, "super" should be preserved in parents.
+  const h2 = makeHierarchy();
+  const updated2 = c.reassignFieldInHierarchy(h2, "sub", "next");
+  assert.deepEqual(updated2.parents, ["super"]);
+  assert.deepEqual(updated2.next, ["after", "sub"]);
+
+  // 3. Reassigning full pair: "replies to/replied by" -> leftFriends
+  const h3 = makeHierarchy();
+  const updated3 = c.reassignFieldInHierarchy(h3, "replies to/replied by", "leftFriends");
+  assert.deepEqual(updated3.leftFriends, ["friend/ally", "replies to/replied by"]);
+  assert.deepEqual(updated3.previous, ["before"]);
+
+  // 4. Reassigning single field: "before" -> children
+  const h4 = makeHierarchy();
+  const updated4 = c.reassignFieldInHierarchy(h4, "before", "children");
+  assert.deepEqual(updated4.previous, ["replies to/replied by"]);
+  assert.deepEqual(updated4.children, ["before"]);
+
+  // 5. Symmetric friend pair reassignment: "friend" in leftFriends moved to rightFriends
+  // In leftFriends, reciprocal role is leftFriends. "ally" should remain in leftFriends.
+  const h5 = makeHierarchy();
+  const updated5 = c.reassignFieldInHierarchy(h5, "friend", "rightFriends");
+  assert.deepEqual(updated5.leftFriends, ["ally"]);
+  assert.deepEqual(updated5.rightFriends, ["friend"]);
+});
+
+test("slash syntax defines forward and inverse names for ontology categories and places reverse links in opposite roles with reverse labels", async () => {
+  const targetFile = new TFile("Target.md");
+  const hostInstance = host([targetFile]);
+  const meta = metadata({ "replies to": "[[Target]]" });
+  const found = await collect(meta, { host: hostInstance });
+  const source = ref(found.file);
+  const factSource = entityFact(source);
+  const factTarget = entityFact(ref(targetFile));
+
+  const settings = policy({ previous: ["replies to/replied by"] });
+  const graph = await compile([factSource, factTarget, ...found.records], settings);
+
+  // Check Source -> Target: role is previous, definition is replies-to
+  const sourceNode = graph.node(source.id);
+  const toTarget = sourceNode.neighbours.get(targetFile.path);
+  assert(toTarget, "Source has connection to Target");
+  assert.equal(c.classifyRelation(toTarget, "previous", false), c.RelationType.DEFINED);
+  assert.equal(toTarget.previousFriendTypeDefinition, "replies-to");
+
+  // Check Target -> Source: role is next, definition is replied-by
+  const targetNode = graph.node(targetFile.path);
+  const toSource = targetNode.neighbours.get(source.id);
+  assert(toSource, "Target has reverse connection to Source");
+  assert.equal(c.classifyRelation(toSource, "next", false), c.RelationType.DEFINED);
+  assert.equal(toSource.nextFriendTypeDefinition, "replied-by");
+});
+
+test("slash syntax inverse field declared in a note is recognized under the reciprocal role", async () => {
+  const targetFile = new TFile("Other.md");
+  const hostInstance = host([targetFile]);
+  const meta = metadata({ "replied by": "[[Other]]" });
+  const found = await collect(meta, { host: hostInstance });
+  const source = ref(found.file);
+  const factSource = entityFact(source);
+  const factTarget = entityFact(ref(targetFile));
+
+  const settings = policy({ previous: ["replies to/replied by"] });
+  const graph = await compile([factSource, factTarget, ...found.records], settings);
+
+  // Source -> Target: role is next, definition is replied-by
+  const sourceNode = graph.node(source.id);
+  const toTarget = sourceNode.neighbours.get(targetFile.path);
+  assert(toTarget, "Source has connection to Target");
+  assert.equal(c.classifyRelation(toTarget, "next", false), c.RelationType.DEFINED);
+  assert.equal(toTarget.nextFriendTypeDefinition, "replied-by");
+
+  // Target -> Source: role is previous, definition is replies-to
+  const targetNode = graph.node(targetFile.path);
+  const toSource = targetNode.neighbours.get(source.id);
+  assert(toSource, "Target has reverse connection to Source");
+  assert.equal(c.classifyRelation(toSource, "previous", false), c.RelationType.DEFINED);
+  assert.equal(toSource.previousFriendTypeDefinition, "replies-to");
+});
+
+test("parent/child slash syntax places reverse links in child role with inverse definition", async () => {
+  const targetFile = new TFile("ParentNote.md");
+  const hostInstance = host([targetFile]);
+  const meta = metadata({ "subclass of": "[[ParentNote]]" });
+  const found = await collect(meta, { host: hostInstance });
+  const source = ref(found.file);
+  const factSource = entityFact(source);
+  const factTarget = entityFact(ref(targetFile));
+
+  const settings = policy({ parents: ["subclass of/superclass of"] });
+  const graph = await compile([factSource, factTarget, ...found.records], settings);
+
+  // Source -> Target: parent, definition is subclass-of
+  const sourceNode = graph.node(source.id);
+  const toTarget = sourceNode.neighbours.get(targetFile.path);
+  assert(toTarget, "Source has parent connection to ParentNote");
+  assert.equal(c.classifyRelation(toTarget, "parent", false), c.RelationType.DEFINED);
+  assert.equal(toTarget.parentTypeDefinition, "subclass-of");
+
+  // Target -> Source: child, definition is superclass-of
+  const targetNode = graph.node(targetFile.path);
+  const toSource = targetNode.neighbours.get(source.id);
+  assert(toSource, "ParentNote has child connection to Source");
+  assert.equal(c.classifyRelation(toSource, "child", false), c.RelationType.DEFINED);
+  assert.equal(toSource.childTypeDefinition, "superclass-of");
+});
+
+test("pair reassignment preserves unrelated halves from every intersecting existing pair", () => {
+  const hierarchy={...emptyHierarchy(),parents:['A/B'],children:['D/C'],exclusions:[]};
+  c.reassignFieldInHierarchy(hierarchy,'A/C','previous');
+  assert.deepEqual(hierarchy.parents,[]);
+  assert.deepEqual(hierarchy.children,['B','D']);
+  assert.deepEqual(hierarchy.previous,['A/C']);
+  assert.deepEqual(c.ontologyFieldsForHierarchyRole(hierarchy,'next'),['C']);
+});
+
+test("reassignment sorts only destination and newly extended counterpart roles, preserving all other precedence", () => {
+  for(const counterpartAlreadyPresent of [false,true]){
+    const hierarchy={hidden:['Z-hidden','A-hidden'],parents:['Z-parent','Move/Counterpart','A-parent'],
+      children:counterpartAlreadyPresent?['Z-child','Counterpart','A-child']:['Z-child','A-child'],
+      leftFriends:['Z-friend','A-friend'],rightFriends:['Z-challenge','A-challenge'],
+      previous:['Z-previous','A-previous'],next:['Z-next','A-next'],exclusions:['Z-excluded','A-excluded']};
+    const before=structuredClone(hierarchy);
+    c.reassignFieldInHierarchy(hierarchy,'Move','right',{literal:true});
+    assert.deepEqual(hierarchy.parents,['Z-parent','A-parent'],'A role that only loses a field keeps its remaining order');
+    assert.deepEqual(hierarchy.rightFriends,['A-challenge','Move','Z-challenge'],'The destination retains established sorted insertion');
+    assert.deepEqual(hierarchy.children,counterpartAlreadyPresent?before.children:['A-child','Counterpart','Z-child'],
+      'A counterpart role is sorted only if its preserved half was actually appended');
+    for(const role of ['hidden','leftFriends','previous','next','exclusions'])assert.deepEqual(hierarchy[role],before[role],role+' precedence remains unchanged');
+    assert.equal(c.ontologyFieldsForHierarchyRole(hierarchy,'parent')[0],'Z-parent');
+    assert.equal(c.ontologyFieldsForHierarchyRole(hierarchy,'previous')[0],'Z-previous');
+    const selector=new c.ReferencePolicySelector({hierarchy});
+    assert.deepEqual(selector.assignmentsForField('Move').map(item=>item.role),['right']);
+    assert.deepEqual(selector.assignmentsForField('Counterpart').map(item=>item.role),['child']);
+  }
+});
+
+test("physical literal slashes stay literal when menus reassign escaped or directional fields", () => {
+  const hierarchy={...emptyHierarchy(),parents:['Track\\/Part'],hidden:['Hidden/Path'],exclusions:[]};
+  c.reassignFieldInHierarchy(hierarchy,'Track/Part','child',{literal:true});
+  assert.deepEqual(hierarchy.parents,[]);
+  assert.deepEqual(hierarchy.children,['Track\\/Part']);
+  assert.deepEqual(c.ontologyFieldsForHierarchyRole(hierarchy,'child'),['Track/Part']);
+  assert.deepEqual(c.ontologyFieldsForHierarchyRole(hierarchy,'parent'),[]);
+  c.reassignFieldInHierarchy(hierarchy,'Hidden/Path','previous',{literal:true});
+  assert.deepEqual(hierarchy.hidden,[]);
+  assert.deepEqual(c.ontologyFieldsForHierarchyRole(hierarchy,'previous'),['Hidden/Path']);
+  assert.deepEqual(c.ontologyFieldsForHierarchyRole(hierarchy,'next'),[]);
+});
+
+test("reciprocal graph labels never replace the declaring property used for edit authorization", async () => {
+  const targetFile=new TFile('Other.md'),found=await collect(metadata({'Replies to':'[[Other]]'}),{host:host([targetFile])});
+  const source=ref(found.file),records=[entityFact(source),entityFact(ref(targetFile)),...found.records];
+  const settings=policy({previous:['Replies to/Replied by']});
+  const graph=await compile(records,settings),forward=graph.evidenceBetween(source.id,targetFile.path)[0],reverse=graph.evidenceBetween(targetFile.path,source.id)[0];
+  assert.equal(forward.fieldName,'Replies to');assert.equal(reverse.fieldName,'Replies to');
+  assert.equal(reverse.definition,'replied-by');assert.equal(reverse.inverseFieldName,'Replied by');
+  assert.equal(reverse.declaredByPath,source.id);assert.equal(reverse.declaredTargetPath,targetFile.path);
+  assert.equal(JSON.parse(c.frontmatterDeclarationKey(reverse))[2],'replies-to');
+  const patch=new c.NormalizedSourcePatchPreparer(source.id,settings,runtime(),{entity:entity=>entityFact(entity)});
+  await feed(patch,records);const result=await patch.finish();assert.equal(result.outcome,'prepared');
+  assert.deepEqual(declarations(result.patch.compilation),declarations(graph));
+});
+
+test("Hidden slash names remain directional literal fields rather than incomplete reciprocal pairs", async () => {
+  const targetFile=new TFile('Other.md'),settings=policy({hidden:['Secret/Link']});
+  const selector=new c.ReferencePolicySelector(settings);
+  assert.equal(selector.assignmentsForField('Secret/Link').length,1);assert.equal(selector.assignmentsForField('Secret').length,0);
+  const found=await collect(metadata({'Secret/Link':'[[Other]]'}),{host:host([targetFile])});
+  const source=ref(found.file),graph=await compile([entityFact(source),entityFact(ref(targetFile)),...found.records],settings);
+  assert.equal(graph.evidenceBetween(source.id,targetFile.path)[0].role,'hidden');
+  assert.deepEqual(graph.evidenceBetween(targetFile.path,source.id),[]);
+});
+
+test("only reciprocal or escaped interpretation changes require the v5 graph signature", () => {
+  const ordinary={...policy(),hierarchy:{...emptyHierarchy(),exclusions:[]},baseNodeStyle:{maxLabelLength:30},datePropertyRelations:'parent'};
+  const plain=c.encodeIndexSettingsSignature(ordinary);assert.equal(JSON.parse(plain).signatureVersion,4);
+  assert.equal(c.compareIndexSettingsSignature(plain,ordinary).compatible,true);
+  for(const name of ['Replies to/Replied by','Track\\/Part']){
+    const mapped={...ordinary,hierarchy:{...ordinary.hierarchy,previous:[name]}},signature=c.encodeIndexSettingsSignature(mapped),saved=JSON.parse(signature);
+    assert.equal(saved.signatureVersion,5);assert.equal(c.compareIndexSettingsSignature(signature,mapped).compatible,true);
+    const old=JSON.stringify({...saved,signatureVersion:4}),comparison=c.compareIndexSettingsSignature(old,mapped);
+    assert.equal(comparison.compatible,false);assert.equal(comparison.reason,'semantic-settings-changed');
+    assert.deepEqual(comparison.changedKeys,['hierarchy.previous']);
+  }
+  for(const role of ['hidden','exclusions'])assert.equal(JSON.parse(c.encodeIndexSettingsSignature({...ordinary,hierarchy:{...ordinary.hierarchy,[role]:['Literal/Property']}})).signatureVersion,4);
+});
+
+test("ordinary quoted whitespace keys keep historical normalization, configured spelling and v4 signatures", () => {
+  for(const role of ['parents','hidden']){
+    const settings={...policy({[role]:[' Foo ']}),hierarchy:{...policy({[role]:[' Foo ']}).hierarchy,exclusions:[]},baseNodeStyle:{maxLabelLength:30},datePropertyRelations:'parent'};
+    const mapping=c.parseHierarchyFieldMapping(' Foo ',role!=='hidden');
+    assert.equal(mapping.forward,' Foo ');assert.equal(mapping.normalizedForward,'-foo-');
+    const selector=new c.ReferencePolicySelector(settings);
+    assert.equal(selector.assignmentsForField(' Foo ')[0].configuredFieldName,' Foo ');
+    assert.equal(selector.assignmentsForField('Foo').length,0,'No ordinary-field normalization migration is introduced');
+    const signature=c.encodeIndexSettingsSignature(settings);assert.equal(JSON.parse(signature).signatureVersion,4);
+    assert.equal(c.compareIndexSettingsSignature(signature,settings).compatible,true);
+  }
 });

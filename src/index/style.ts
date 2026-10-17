@@ -1,10 +1,13 @@
 /**
  * Resolves K-Plex node/connector appearance without mutating graph semantics or saved settings.
  * Imported style dictionaries retain their original keys and alpha channels at this presentation seam.
+ * Reciprocal aliases share style fallback; exact field overrides win and mutable hierarchy edits
+ * invalidate the bounded parsed-alias cache without scanning any graph or acquiring note data.
  */
 import type { KplexSettings } from "../settings";
 import type { GraphPage, LinkStyle, Neighbour, NodeStyle, PositionedNode, Role } from "../types";
 import { RelationType } from "../types";
+import { normalizeFieldName, parseHierarchyFieldMapping } from "../core/contracts/fieldName";
 import type { ColorValue } from "../core/contracts/colorValue";
 import { colorValueCss } from "../adapters/obsidian/colorPresentation";
 
@@ -70,6 +73,38 @@ export function resolveNodeStyle(page: GraphPage, relation: Neighbour | null, ro
   };
 }
 
+/** Cache parsed aliases without assuming mutable Settings hierarchy lists are immutable. */
+const HIERARCHY_STYLE_ROLES = ["parents", "children", "previous", "next", "leftFriends", "rightFriends"] as const;
+const hierarchyStyleAliasesCache = new WeakMap<object, { lists: string[][]; aliases: Map<string, string[]> }>();
+
+/** Reparse only changed configuration; cheap string comparisons also detect same-length in-place edits. */
+function getHierarchyStyleAliases(hierarchy: KplexSettings["hierarchy"]): Map<string, string[]> {
+  const cached = hierarchyStyleAliasesCache.get(hierarchy);
+  if (cached && HIERARCHY_STYLE_ROLES.every(/** Preserve cache correctness across the existing mutable Settings writer. */
+    (role, index) => hierarchy[role].length === cached.lists[index].length
+      && hierarchy[role].every(/** Compare field spelling as well as array length and identity. */ (entry, position) => entry === cached.lists[index][position]))) return cached.aliases;
+  const aliases = new Map<string, string[]>();
+  for (const role of HIERARCHY_STYLE_ROLES) for (const entry of hierarchy[role]) {
+    const mapping = parseHierarchyFieldMapping(entry);
+    const pairs = mapping.inverse && mapping.normalizedInverse
+      ? [[mapping.normalizedForward, [mapping.inverse, mapping.normalizedInverse, entry, normalizeFieldName(entry)]],
+        [mapping.normalizedInverse, [mapping.forward, mapping.normalizedForward, entry, normalizeFieldName(entry)]]] as const
+      : [[mapping.normalizedForward, [entry, normalizeFieldName(entry)]]] as const;
+    for (const [name, candidates] of pairs) aliases.set(name, [...(aliases.get(name) ?? []), ...candidates]);
+  }
+  hierarchyStyleAliasesCache.set(hierarchy, {lists: HIERARCHY_STYLE_ROLES.map(/** Detach exact raw spellings from mutable role lists. */ role => [...hierarchy[role]]), aliases});
+  return aliases;
+}
+
+/** Preserve exact and normalized imported key precedence for both direct fields and pair aliases. */
+function configuredLinkStyle(name: string, settings: KplexSettings): LinkStyle | undefined {
+  const normalized = normalizeFieldName(name);
+  const direct = settings.hierarchyLinkStyles[name] ?? settings.hierarchyLinkStyles[normalized];
+  if (direct) return direct;
+  const imported = Object.keys(settings.hierarchyLinkStyles).find(/** Match historical display spellings without rewriting the dictionary. */ key => normalizeFieldName(key) === normalized);
+  return imported ? settings.hierarchyLinkStyles[imported] : undefined;
+}
+
 /** Layer connector overrides, preserving exact and normalized imported ontology-key precedence. */
 export function resolveLinkStyle(neighbour: Neighbour, settings: KplexSettings): LinkStyle {
   let layered: LinkStyle = {};
@@ -77,16 +112,18 @@ export function resolveLinkStyle(neighbour: Neighbour, settings: KplexSettings):
   for (const definition of definitions) {
     if (definition === "file-tree") layered = { ...layered, ...settings.folderLinkStyle };
     else if (definition === "tag-tree") layered = { ...layered, ...settings.tagLinkStyle };
-    const normalized = definition.toLowerCase().replaceAll(" ", "-");
-    // The index publishes normalized names; legacy ExcaliBrain overrides may retain
-    // their original display spelling. Preserve exact-key precedence and stored data.
-    const importedKey = settings.hierarchyLinkStyles[definition] || settings.hierarchyLinkStyles[normalized]
-      ? undefined
-      : Object.keys(settings.hierarchyLinkStyles).find((key) => key.toLowerCase().replaceAll(" ", "-") === normalized);
+    const normalized = normalizeFieldName(definition);
+    let style = configuredLinkStyle(definition, settings);
+    if (!style && settings.hierarchy) {
+      const aliasCandidates = getHierarchyStyleAliases(settings.hierarchy).get(normalized);
+      if (aliasCandidates) for (const candidate of aliasCandidates) {
+        style = configuredLinkStyle(candidate, settings);
+        if (style) break;
+      }
+    }
     layered = {
       ...layered,
-      ...(settings.hierarchyLinkStyles[definition] ?? settings.hierarchyLinkStyles[normalized]
-        ?? (importedKey ? settings.hierarchyLinkStyles[importedKey] : undefined) ?? {})
+      ...(style ?? {})
     };
   }
   return {

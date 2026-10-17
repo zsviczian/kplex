@@ -79,6 +79,16 @@ test('all configured roles, hidden and normalized exact-label duplicates retain 
   }
 });
 
+test('paired Date fields preserve reciprocal labels through full and patch compilation without changing scalar provenance',async()=>{
+ const policy=settings({parents:['Started/Start of']},{datePropertyRelations:'left'}),records=[entity(meeting),entity(daily),date('Started')];
+ const graph=await compile(records,policy),reverse=graph.evidenceBetween(daily.id,meeting.id)[0];
+ assert.equal(reverse.definition,'start-of');assert.equal(reverse.fieldName,'Started');assert.equal(reverse.sourceKind,'date-property');
+ assert.equal(reverse.inverseFieldName,'Start of');assert.equal(reverse.role,'child');
+ const patch=new c.NormalizedSourcePatchPreparer(meeting.id,policy,runtime(),{entity:ref=>entity(ref)});
+ await feed(patch,records);const result=await patch.finish();assert.equal(result.outcome,'prepared');
+ assert.deepEqual(declarations(result.patch.compilation),declarations(graph));
+});
+
 /** Execute the actual consumer filter; no mutation safety predicate is reconstructed by this fixture. */
 function productionEvidenceFilter(path,name,needle) {
   const file=ts.createSourceFile(path,readFileSync(path,'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);

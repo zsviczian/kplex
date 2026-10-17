@@ -5,9 +5,11 @@
  * Unconfigured physical URL references remain inferred, while dormant
  * internal references and payload chunks are validated and discarded. No host lookup,
  * Markdown parsing, persistence or publication is performed here.
+ * Reciprocal field mappings expand only in the six directional relationship groups; Hidden keeps
+ * literal names, and ordinary single-field spelling/normalization remains historically exact.
  */
-import { normalizeFieldName } from "../contracts/fieldName";
-import type { EvidenceRole } from "./evidence";
+import { normalizeFieldName, parseHierarchyFieldMapping } from "../contracts/fieldName";
+import { oppositeOntologyRole, type EvidenceRole } from "./evidence";
 import {
   MAX_REFERENCE_PAYLOAD_CHARS,
   type NormalizedSourceRecord,
@@ -37,6 +39,12 @@ export type ReferenceAssignment = Readonly<{
   role: EvidenceRole;
   fieldOrder: number;
   assignmentOrder: number;
+  /** Optional display field name for the inverse relationship view when configured via slash syntax. */
+  inverseConfiguredFieldName?: string;
+  /** Optional normalized name for the inverse relationship view when configured via slash syntax. */
+  inverseNormalizedFieldName?: string;
+  /** Optional target role for the inverse relationship view when configured via slash syntax. */
+  inverseRole?: EvidenceRole;
 }>;
 
 /** Shared immutable selection for every candidate in one physical value. */
@@ -72,14 +80,52 @@ export class ReferencePolicySelector {
       [policy.hierarchy.next, "next"],
     ];
     const exact = new Map<string, ReferenceAssignment[]>();
+    const registerAssignment = /** Retain physical labels and multiplicity while sharing one normalized lookup. */ (
+      configuredFieldName: string,
+      normalizedFieldName: string,
+      role: EvidenceRole,
+      inverseConfigured?: string,
+      inverseNormalized?: string,
+      inverseRole?: EvidenceRole,
+    ): void => {
+      if (!normalizedFieldName) return;
+      let assignments = exact.get(configuredFieldName);
+      if (!assignments) { assignments = []; exact.set(configuredFieldName, assignments); }
+      assignments.push({
+        configuredFieldName,
+        normalizedFieldName,
+        role,
+        fieldOrder: 0,
+        assignmentOrder: assignments.length,
+        ...(inverseConfigured !== undefined ? { inverseConfiguredFieldName: inverseConfigured } : {}),
+        ...(inverseNormalized !== undefined ? { inverseNormalizedFieldName: inverseNormalized } : {}),
+        ...(inverseRole !== undefined ? { inverseRole } : {}),
+      });
+    };
+
     for (const [fields, role] of groups) {
-      for (const configuredFieldName of fields) {
-        const normalizedFieldName = normalizeFieldName(configuredFieldName);
-        if (!normalizedFieldName) continue;
-        let assignments = exact.get(configuredFieldName);
-        if (!assignments) { assignments = []; exact.set(configuredFieldName, assignments); }
-        assignments.push({ configuredFieldName, normalizedFieldName, role,
-          fieldOrder: 0, assignmentOrder: assignments.length });
+      for (const entry of fields) {
+        const mapping = parseHierarchyFieldMapping(entry, role !== "hidden");
+        if (!mapping.normalizedForward) continue;
+        const reciprocalRole = mapping.inverse ? oppositeOntologyRole(role) : null;
+        registerAssignment(
+          mapping.forward,
+          mapping.normalizedForward,
+          role,
+          mapping.inverse,
+          mapping.normalizedInverse,
+          reciprocalRole ?? undefined,
+        );
+        if (mapping.inverse && mapping.normalizedInverse && reciprocalRole) {
+          registerAssignment(
+            mapping.inverse,
+            mapping.normalizedInverse,
+            reciprocalRole,
+            mapping.forward,
+            mapping.normalizedForward,
+            role,
+          );
+        }
       }
     }
     let fieldOrder = 0;

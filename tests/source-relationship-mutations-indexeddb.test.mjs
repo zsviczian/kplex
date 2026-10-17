@@ -32,6 +32,7 @@ const methods=`const assert=Object.assign((value,message)=>ok(value,message),{eq
 const writeRelationshipMetadata=M.writeRelationshipMetadata,SavedRelationshipPendingError=M.SavedRelationshipPendingError;
 const relationshipMetadataPayload=M.relationshipMetadataPayload,SOURCE_DECODE_BUDGET_BYTES=M.SOURCE_DECODE_BUDGET_BYTES;
 const frontmatterDeclarationKey=M.frontmatterDeclarationKey,iterateResolvedLinksFromValue=M.iterateResolvedLinksFromValue;
+const parseHierarchyFieldMapping=M.parseHierarchyFieldMapping,ontologyFieldsForHierarchyRole=M.ontologyFieldsForHierarchyRole,oppositeOntologyRole=M.oppositeOntologyRole;
 const normalizePath=x=>x,LinkDirection=M.LinkDirection,Notice=class{constructor(message){window.notices.push(message);}};
 const isUnknownRecord=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);${productionMethods()}`;
 const setup=`window.notices=[];${methods}

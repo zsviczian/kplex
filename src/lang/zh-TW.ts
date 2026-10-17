@@ -7,6 +7,8 @@
 import { buildLocaleCatalog, type LocaleTranslationMap } from "./catalog";
 
 const traditionalChineseTranslations = {
+  "settings.ontologyMappings.name": "成對的屬性名稱",
+  "settings.ontologyMappings.help": "使用正向/反向為關係指定兩個屬性名稱，例如回覆對象/回覆來源。父項/子項及上一個/下一個互為反向；朋友及挑戰者配對會留在各自區域。使用 \\/ 表示字面上的斜線。隱藏和排除的欄位仍按字面處理。",
   "settings.areaOutline.name": "區域輪廓需要修飾鍵",
   "settings.areaOutline.help": "將游標停在區域上時，按住 {key} 即可顯示輪廓和調整大小的邊緣。區域設定會一直顯示輪廓。",
   "settings.hoverHighlight.name": "懸停強調顯示需要修飾鍵",

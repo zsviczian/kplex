@@ -506,11 +506,15 @@ export class GraphBuilder {
     return true;
   }
 
+  /** Preserve the compiler's physical declaration and reciprocal labels through per-file publication. */
   private preparedEvidenceProvenance(item: CompiledRelationEvidence): EvidenceProvenance {
     return {
       sourceKind: item.sourceKind,
       ...(item.definition === undefined ? {} : { definition: item.definition }),
       ...(item.fieldName === undefined ? {} : { fieldName: item.fieldName }),
+      ...(item.inverseDefinition === undefined ? {} : { inverseDefinition: item.inverseDefinition }),
+      ...(item.inverseFieldName === undefined ? {} : { inverseFieldName: item.inverseFieldName }),
+      ...(item.inverseRole === undefined ? {} : { inverseRole: item.inverseRole }),
       ...(item.rawValue === undefined ? {} : { rawValue: item.rawValue }),
       ...(item.line === undefined ? {} : { line: item.line }),
       ...(item.start === undefined ? {} : { start: item.start }),

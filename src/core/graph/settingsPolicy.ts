@@ -4,6 +4,7 @@
  * only built-in key names may cross the diagnostic boundary. Array order/multiplicity is retained for the owning policy.
  */
 import {appearanceWithoutColors,isColorAppearanceKey} from "../contracts/appearance";
+import {parseHierarchyFieldMapping} from "../contracts/fieldName";
 import { sanitizeDatePropertyRelations, type DatePropertyRelations, type SemanticHierarchy } from "./settings";
 
 export const HIERARCHY_ROLES = ["hidden", "parents", "children", "leftFriends", "rightFriends", "previous", "next"] as const;
@@ -150,9 +151,18 @@ export function sanitizeChangedSettingKeys(value: unknown): SettingDiagnosticKey
   return SETTING_DIAGNOSTIC_KEYS.filter((key) => value.includes(key));
 }
 
-/** Write signature format 4 for Date fallback roles; neutral source and snapshot schemas stay intact. */
+/** Identify only reciprocal groups whose configured pair/escape now changes historical literal semantics. */
+function mappedHierarchyKeys(hierarchy: SemanticHierarchy): SettingDiagnosticKey[] {
+  return HIERARCHY_ROLES.filter(/** Hidden has no reciprocal mapping and keeps literal property names. */ role => role !== "hidden"
+    && hierarchy[role].some(/** Valid pairs and escaped literals require the new interpretation marker. */ entry => {
+      const mapping = parseHierarchyFieldMapping(entry);
+      return mapping.inverse !== undefined || entry.includes("\\/");
+    })).map(/** Export only a built-in settings key, never a configured field name. */ role => `hierarchy.${role}` as const);
+}
+
+/** Mark mapped ontology semantics as v5; ordinary v4 signatures remain byte-identical and neutral sources stay reusable. */
 export function encodeIndexSettingsSignature(settings: SettingsPolicyInput): string {
-  return JSON.stringify({ schema: 1, signatureVersion: 4, ...semanticValues(settings) });
+  return JSON.stringify({ schema: 1, signatureVersion: mappedHierarchyKeys(settings.hierarchy).length ? 5 : 4, ...semanticValues(settings) });
 }
 
 export type SignatureCompatibility = Readonly<{
@@ -169,7 +179,7 @@ function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-/** Recognize old inference/mode signatures as semantic mismatches; only current v4 roles may reuse graphs. */
+/** Recognize historical literal-v4 and reciprocal-v5 semantics without invalidating unaffected v4 graphs. */
 export function compareIndexSettingsSignature(raw: unknown, current: SettingsPolicyInput): SignatureCompatibility {
   const unknown: SignatureCompatibility = { compatible: false, reason: "signature-format-unknown", changedKeys: [], presentationChanged: false };
   if (typeof raw !== "string") return unknown;
@@ -177,17 +187,23 @@ export function compareIndexSettingsSignature(raw: unknown, current: SettingsPol
   try { saved = JSON.parse(raw); } catch { return unknown; }
   if (!isRecord(saved) || saved.schema !== 1 || !isRecord(saved.hierarchy)) return unknown;
   const legacy = saved.signatureVersion === undefined;
-  if (!legacy && saved.signatureVersion !== 2 && saved.signatureVersion !== 3 && saved.signatureVersion !== 4) return unknown;
+  if (!legacy && saved.signatureVersion !== 2 && saved.signatureVersion !== 3 && saved.signatureVersion !== 4 && saved.signatureVersion !== 5) return unknown;
   const common = ["schema", "hierarchy", "inferAllLinksAsFriends", "inverseInfer"];
   const legacyFields = ["showFullTagName", "noteTypeField", "primaryTagField", "tagStyleList", "maxLabelLength", "excalibrainFilepath"];
   const allowed = legacy ? [...common, ...legacyFields] : [...common, "signatureVersion", "thumbnailProperty", "nodeImageProperty",
-    ...(saved.signatureVersion === 3 || saved.signatureVersion === 4 ? ["datePropertyRelations"] : [])];
+    ...(saved.signatureVersion === 3 || saved.signatureVersion === 4 || saved.signatureVersion === 5 ? ["datePropertyRelations"] : [])];
   if (Object.keys(saved).some((key) => !allowed.includes(key))) return unknown;
   const hierarchy = saved.hierarchy;
   if (Object.keys(hierarchy).some((key) => ![...HIERARCHY_ROLES, "exclusions", "friends"].includes(key))) return unknown;
   if (HIERARCHY_ROLES.some((role) => !isStringList(role === "leftFriends" ? hierarchy.leftFriends ?? hierarchy.friends : hierarchy[role]))) return unknown;
   if (hierarchy.exclusions !== undefined && !isStringList(hierarchy.exclusions)) return unknown;
   if (hierarchy.friends !== undefined && !isStringList(hierarchy.friends)) return unknown;
+  if (saved.signatureVersion === 5 && !HIERARCHY_ROLES.some(/** A v5 marker without any mapped field was never emitted by this format. */ role => {
+    const entries = role === "leftFriends" ? hierarchy.leftFriends ?? hierarchy.friends : hierarchy[role];
+    return role !== "hidden" && isStringList(entries) && entries.some(/** Earlier list validation makes configured entries safe to parse. */ entry => {
+      const mapping = parseHierarchyFieldMapping(entry); return mapping.inverse !== undefined || entry.includes("\\/");
+    });
+  })) return unknown;
   if (typeof saved.inferAllLinksAsFriends !== "boolean" || typeof saved.inverseInfer !== "boolean") return unknown;
   if (legacy) {
     if (typeof saved.showFullTagName !== "boolean" || typeof saved.noteTypeField !== "string" ||
@@ -196,23 +212,25 @@ export function compareIndexSettingsSignature(raw: unknown, current: SettingsPol
       (saved.excalibrainFilepath !== undefined && typeof saved.excalibrainFilepath !== "string")) return unknown;
   } else if (typeof saved.thumbnailProperty !== "string" || typeof saved.nodeImageProperty !== "string") return unknown;
   if (saved.signatureVersion === 3 && saved.datePropertyRelations !== "inferred" && saved.datePropertyRelations !== "ontology") return unknown;
-  if (saved.signatureVersion === 4 && saved.datePropertyRelations !== sanitizeDatePropertyRelations(saved.datePropertyRelations)) return unknown;
+  if ((saved.signatureVersion === 4 || saved.signatureVersion === 5) && saved.datePropertyRelations !== sanitizeDatePropertyRelations(saved.datePropertyRelations)) return unknown;
   const currentPolicy = captureSettingsPolicy(current);
   const oldValues = { ...currentPolicy.values };
   for (const role of HIERARCHY_ROLES) oldValues[`hierarchy.${role}`] = encode(role === "leftFriends" ? hierarchy.leftFriends ?? hierarchy.friends : hierarchy[role]);
   for (const key of SEMANTIC_KEYS) oldValues[key] = encode(key === "datePropertyRelations"
     // Historical mode values must stay distinct from every current role, never sanitize to Parent.
-    ? saved.signatureVersion === 4 ? saved[key] : saved.signatureVersion === 3 ? saved[key] : "inferred"
+    ? saved.signatureVersion === 4 || saved.signatureVersion === 5 ? saved[key] : saved.signatureVersion === 3 ? saved[key] : "inferred"
     : saved[key] ?? (key === "thumbnailProperty" ? "thumbnail" : "node-image"));
   if (legacy) {
     for (const key of ["showFullTagName", "noteTypeField", "primaryTagField", "tagStyleList"] as const) oldValues[key] = encode(saved[key]);
     oldValues["baseNodeStyle.maxLabelLength"] = encode(saved.maxLabelLength);
   }
   const effects = classifySettingsChange({ values: oldValues }, currentPolicy);
+  const mappingChanges = saved.signatureVersion === 5 ? [] : mappedHierarchyKeys(current.hierarchy);
+  const semanticInvalidation = effects.semanticInvalidation || mappingChanges.length > 0;
   return {
-    compatible: !effects.semanticInvalidation,
-    reason: effects.semanticInvalidation ? "semantic-settings-changed" : legacy ? "signature-format-changed" : "compatible",
-    changedKeys: effects.changedKeys,
+    compatible: !semanticInvalidation,
+    reason: semanticInvalidation ? "semantic-settings-changed" : legacy ? "signature-format-changed" : "compatible",
+    changedKeys: [...new Set([...effects.changedKeys, ...mappingChanges])],
     presentationChanged: legacy && effects.presentationFacets,
     ...(legacy && typeof saved.excalibrainFilepath === "string" && saved.excalibrainFilepath ? { retiredFilepath: saved.excalibrainFilepath } : {}),
   };

@@ -48,7 +48,8 @@ import { suggestHiddenProperty } from "./adapters/obsidian/hiddenPropertyName";
 import { LinkDirection, type GateRole, type GraphPage, type RelationshipRole } from "./types";
 import { OntologySuggester } from "./editor/OntologySuggester";
 import { isWebViewerAvailable, openExternalUrl } from "./adapters/obsidian/externalUrl";
-import { normalizeFieldName, parseBodyMetadata, iterateLinkReferencesFromValue } from "./core/parser/metadata";
+import { normalizeFieldName, parseBodyMetadata, iterateLinkReferencesFromValue, parseHierarchyFieldMapping, ontologyFieldsForHierarchyRole, reassignFieldInHierarchy } from "./core/parser/metadata";
+import { oppositeOntologyRole } from "./core/graph/evidence";
 import { extractLinksFromValue, iterateResolvedLinksFromValue } from "./index/fieldParser";
 import type { RelationEvidence } from "./index/RelationEvidence";
 import { AddToOntologyModal, type OntologyAssignmentRole } from "./ui/AddToOntologyModal";
@@ -3987,27 +3988,9 @@ export default class KplexPlugin extends Plugin {
     dialog.open(); return dialog;
   }
 
+  /** Reassign only the selected physical field(s), retaining every unrelated half of a configured pair. */
   async assignFieldToOntology(field: string, role: OntologyAssignmentRole): Promise<void> {
-    const normalized = normalizeFieldName(field);
-    const h = this.settings.hierarchy;
-    const remove = (items: string[]) => items.filter((item) => normalizeFieldName(item) !== normalized);
-    h.hidden = remove(h.hidden);
-    h.parents = remove(h.parents);
-    h.children = remove(h.children);
-    h.leftFriends = remove(h.leftFriends);
-    h.rightFriends = remove(h.rightFriends);
-    h.previous = remove(h.previous);
-    h.next = remove(h.next);
-    h.exclusions = remove(h.exclusions);
-    const target = role === "parent" ? h.parents
-      : role === "child" ? h.children
-      : role === "left" ? h.leftFriends
-      : role === "right" ? h.rightFriends
-      : role === "previous" ? h.previous
-      : role === "next" ? h.next
-      : role === "hidden" ? h.hidden : h.exclusions;
-    target.push(field.trim());
-    target.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    reassignFieldInHierarchy(this.settings.hierarchy, field, role, {literal: true});
     await this.saveSettings(true);
   }
 
@@ -4194,16 +4177,9 @@ export default class KplexPlugin extends Plugin {
     });
   }
 
+  /** Offer decomposed physical property names, including reciprocals declared in the opposite group. */
   ontologyFieldsForRole(role: RelationshipRole): string[] {
-    const h = this.settings.hierarchy;
-    switch (role) {
-      case "parent": return [...h.parents];
-      case "child": return [...h.children];
-      case "left": return [...h.leftFriends];
-      case "right": return [...h.rightFriends];
-      case "previous": return [...h.previous];
-      case "next": return [...h.next];
-    }
+    return ontologyFieldsForHierarchyRole(this.settings.hierarchy, role);
   }
 
   inverseRelationshipRole(role: RelationshipRole): RelationshipRole {
@@ -4220,29 +4196,53 @@ export default class KplexPlugin extends Plugin {
     return role;
   }
 
+  /** Resolve configured physical names; directional Hidden and exclusions never parse reciprocal pairs. */
   ontologyRoleForField(field: string): OntologyAssignmentRole | null {
     const normalized = normalizeFieldName(field);
     const h = this.settings.hierarchy;
-    const has = (items: string[]) => items.some((item) => normalizeFieldName(item) === normalized);
-    if (has(h.hidden)) return "hidden";
-    if (has(h.parents)) return "parent";
-    if (has(h.children)) return "child";
-    if (has(h.leftFriends)) return "left";
-    if (has(h.rightFriends)) return "right";
-    if (has(h.previous)) return "previous";
-    if (has(h.next)) return "next";
-    if (has(h.exclusions)) return "excluded";
+    const groups: Array<[string[], OntologyAssignmentRole]> = [
+      [h.hidden, "hidden"],
+      [h.parents, "parent"],
+      [h.children, "child"],
+      [h.leftFriends, "left"],
+      [h.rightFriends, "right"],
+      [h.previous, "previous"],
+      [h.next, "next"],
+      [h.exclusions, "excluded"],
+    ];
+    for (const [items, role] of groups) {
+      for (const entry of items) {
+        const mapping = parseHierarchyFieldMapping(entry, role !== "hidden" && role !== "excluded");
+        if (mapping.normalizedForward === normalized) return role;
+        if (mapping.inverse && mapping.normalizedInverse === normalized) {
+          const opposite = role === "hidden" || role === "excluded" ? null : oppositeOntologyRole(role);
+          if (opposite) return opposite;
+        }
+      }
+    }
     return null;
   }
 
+  /** Choose the explicit counterpart before falling back to a physical property in the opposite role. */
   inverseOntologyField(field: string, semanticRole: RelationshipRole): string {
-    const group = this.ontologyRoleForField(field);
+    const normalized = normalizeFieldName(field);
     const h = this.settings.hierarchy;
+    const lists = [h.parents, h.children, h.previous, h.next, h.leftFriends, h.rightFriends];
+    for (const list of lists) {
+      for (const entry of list) {
+        const mapping = parseHierarchyFieldMapping(entry);
+        if (mapping.inverse) {
+          if (mapping.normalizedForward === normalized) return mapping.inverse;
+          if (mapping.normalizedInverse === normalized) return mapping.forward;
+        }
+      }
+    }
+    const group = this.ontologyRoleForField(field);
     switch (group) {
       case "parent": return this.defaultOntologyField("child");
       case "child": return this.defaultOntologyField("parent");
-      case "previous": return h.next[0] ?? "Next";
-      case "next": return h.previous[0] ?? "Previous";
+      case "previous": return this.defaultOntologyField("next");
+      case "next": return this.defaultOntologyField("previous");
       // Friend/challenger ontologies are symmetric in classic ExcaliBrain. Keep the same
       // property name when the relationship has to be stored on the opposite Markdown note.
       case "left":
@@ -4273,6 +4273,7 @@ export default class KplexPlugin extends Plugin {
     return fields[0] ?? (role === "parent" ? "Parent" : role === "child" ? "Child" : role === "left" ? "Friend" : role === "right" ? "Challenger" : role === "previous" ? "Previous" : "Next");
   }
 
+  /** Remember one physical write field, updating configured roles only when that exact role needs assignment. */
   async rememberRelationshipOntology(role: RelationshipRole, rawField: string): Promise<string> {
     const trimmed = rawField.trim();
     if (!trimmed) return this.defaultOntologyField(role);
@@ -4282,22 +4283,8 @@ export default class KplexPlugin extends Plugin {
     let hierarchyChanged = false;
 
     if (!existing) {
-      // A field typed into a relationship role is an explicit ontology assignment. Keep ontology
-      // membership unambiguous by moving an identically named field out of another hierarchy list
-      // before assigning it to this role. Previous/next are already offered by the matching lateral
-      // role suggester, so they are preserved when selected from that role's own result list.
-      const h = this.settings.hierarchy;
-      const lists = [h.hidden, h.parents, h.children, h.leftFriends, h.rightFriends, h.previous, h.next, h.exclusions];
-      for (const list of lists) {
-        const match = list.find((field) => normalizeFieldName(field) === normalized);
-        if (match) canonical = match;
-      }
-      for (const list of lists) {
-        const next = list.filter((field) => normalizeFieldName(field) !== normalized);
-        if (next.length !== list.length) { list.splice(0, list.length, ...next); hierarchyChanged = true; }
-      }
-      const target = role === "parent" ? h.parents : role === "child" ? h.children : role === "left" ? h.leftFriends : role === "right" ? h.rightFriends : role === "previous" ? h.previous : h.next;
-      target.push(canonical);
+      reassignFieldInHierarchy(this.settings.hierarchy, trimmed, role, {literal: true});
+      canonical = trimmed;
       hierarchyChanged = true;
     }
 
@@ -4310,9 +4297,24 @@ export default class KplexPlugin extends Plugin {
     return canonical;
   }
 
+  /** Enumerate physical configured fields for mutation admission without emitting raw pair syntax. */
   private allOntologyFields(): string[] {
     const h = this.settings.hierarchy;
-    return [...h.parents, ...h.children, ...h.leftFriends, ...h.rightFriends, ...h.previous, ...h.next];
+    const raw = [...h.parents, ...h.children, ...h.leftFriends, ...h.rightFriends, ...h.previous, ...h.next];
+    const result: string[] = [];
+    const seen = new Set<string>();
+    for (const item of raw) {
+      const mapping = parseHierarchyFieldMapping(item);
+      if (!seen.has(mapping.normalizedForward)) {
+        seen.add(mapping.normalizedForward);
+        result.push(mapping.forward);
+      }
+      if (mapping.inverse && mapping.normalizedInverse && !seen.has(mapping.normalizedInverse)) {
+        seen.add(mapping.normalizedInverse);
+        result.push(mapping.inverse);
+      }
+    }
+    return result;
   }
 
   /** Collect vault/index counts on demand for the About vault dialog without changing graph state. */

@@ -723,3 +723,38 @@ for(const operation of ["build","folderGates"]){
     }finally{release();f.preview.dispose();owner.close();}
   });
 }
+
+test("metadataImpactTargets expands forward and inverse slash syntax in hierarchy settings", () => {
+  const customSettings = {
+    ...settings,
+    hierarchy: {
+      ...settings.hierarchy,
+      previous: ["replies to/replied by"],
+    },
+  };
+  const f = fixture({ settings: customSettings });
+  const file = new TFile("Notes/ReplyTest.md", f.app.vault.getRoot());
+  f.files.set(file.path, file);
+  f.cache.set(file.path, {
+    frontmatter: {
+      "replied by": "[[TargetNote]]",
+    },
+    tags: [],
+    links: [],
+  });
+  f.app.metadataCache.resolvedLinks[file.path] = {};
+  const targets = f.preview.metadataImpactTargets(file.path);
+  assert(targets, "Bounded metadata observation must return impact targets");
+  assert(targets.has("TargetNote"), "Impact targets must detect target from inverse property 'replied by'");
+
+  f.cache.set(file.path, {
+    frontmatter: {
+      "replies to": "[[ParentNote]]",
+    },
+    tags: [],
+    links: [],
+  });
+  const forwardTargets = f.preview.metadataImpactTargets(file.path);
+  assert(forwardTargets, "Bounded metadata observation must return impact targets");
+  assert(forwardTargets.has("ParentNote"), "Impact targets must detect target from forward property 'replies to'");
+});

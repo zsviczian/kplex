@@ -49,7 +49,8 @@
     "verify:obsidian:color-styling": "node scripts/testing/obsidian/colorStyling.mjs",
     "verify:obsidian:style-operations": "node scripts/testing/obsidian/styleOperations.mjs",
     "verify:obsidian:sidecar-latency": "node scripts/testing/obsidian/sidecarLatency.mjs",
-    "verify:obsidian:delete-cleanup": "node scripts/testing/obsidian/deleteCleanup.mjs"
+    "verify:obsidian:delete-cleanup": "node scripts/testing/obsidian/deleteCleanup.mjs",
+    "verify:obsidian:ontology-mappings": "node scripts/testing/obsidian/ontologyMappings.mjs"
   },
   "engines": {
     "node": ">=22.22.2 <23"

@@ -15,6 +15,8 @@
  * A newly created private compiler store alone may append to owned arrays. Finalization/rejection,
  * forks, retained original iterators, ordering, compaction and derived-index activation revoke that
  * permission irreversibly; normal stores and all published generations retain copy-on-write.
+ * Reciprocal projections may change a relationship label but retain the physical declaring field
+ * for source navigation and mutation authorization.
  */
 import { LinkDirection, RelationType, type Role, type SemanticRelation } from "./relations";
 
@@ -36,6 +38,12 @@ export type EvidenceProvenance = {
   sourceKind: EvidenceSourceKind;
   definition?: string;
   fieldName?: string;
+  /** Normalized name for the reverse/inverse relationship view when configured via slash syntax. */
+  inverseDefinition?: string;
+  /** Display field name for the reverse/inverse relationship view when configured via slash syntax. */
+  inverseFieldName?: string;
+  /** Target role for the reverse/inverse relationship view when configured via slash syntax. */
+  inverseRole?: EvidenceRole;
   rawValue?: string;
   line?: number;
   /** Character offsets in the declaring Markdown file when the evidence came from a body field. */
@@ -73,17 +81,23 @@ const inverseDirection = (direction: LinkDirection): LinkDirection => {
   return direction;
 };
 
-const inverseRole = (role: EvidenceRole): EvidenceRole | null => {
+/**
+ * Return the canonical opposite ontology role for reciprocal/inverse relationship mappings.
+ *
+ * @param role The declared relationship role.
+ * @returns The inverse role, or null for roles with no inverse (e.g. hidden).
+ */
+export function oppositeOntologyRole(role: EvidenceRole): EvidenceRole | null {
   switch (role) {
     case "parent": return "child";
     case "child": return "parent";
-    case "left": return "left";
-    case "right": return "right";
     case "previous": return "next";
     case "next": return "previous";
+    case "left": return "left";
+    case "right": return "right";
     case "hidden": return null;
   }
-};
+}
 
 const pairKey = (a: string, b: string): string => a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`;
 const splitPairKey = (key: string): [string, string] => {
@@ -505,6 +519,7 @@ export class RelationEvidenceStore {
     this.addPair(sourcePath, targetPath, role, relationType, direction, provenance);
   }
 
+  /** Project reciprocal labels/roles without changing the physical property or declaring owner. */
   between(sourcePath: string, targetPath: string): RelationEvidence[] {
     if (sourcePath === targetPath) return [];
     const declarations = this.readPair(pairKey(sourcePath, targetPath));
@@ -516,7 +531,7 @@ export class RelationEvidenceStore {
         continue;
       }
       if (item.declaredByPath !== targetPath || item.declaredTargetPath !== sourcePath) continue;
-      const role = inverseRole(item.declaredRole);
+      const role = item.inverseRole ?? oppositeOntologyRole(item.declaredRole);
       if (!role) continue; // Hidden evidence is intentionally directional.
       output.push({
         ...item,
@@ -525,6 +540,7 @@ export class RelationEvidenceStore {
         targetPath,
         role,
         direction: inverseDirection(item.direction),
+        ...(item.inverseDefinition !== undefined ? { definition: item.inverseDefinition } : {}),
       });
     }
     return output;
