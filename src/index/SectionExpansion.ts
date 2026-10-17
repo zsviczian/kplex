@@ -4,7 +4,7 @@
  * codes reuse the UI language boundary without persisting section nodes. Projected/folded pairs
  * share the core defined-direction tier instead of independently merging arrow directions.
  */
-import type { App, CachedMetadata } from "obsidian";
+import type { App, CachedMetadata, TFile } from "obsidian";
 import type KplexPlugin from "../main";
 import { LinkDirection, RelationType, type GraphPage, type Neighbour, type Neighborhood, type Relation, type Role } from "../types";
 import { normalizeFieldName, type ParsedBodyMetadata } from "../core/parser/metadata";
@@ -25,6 +25,14 @@ export type ExpandedSection = {
 
 type EvidenceTargetMap = Map<string, { target: GraphPage; evidence: RelationEvidence[] }>;
 
+export type LinkPlacement = {
+  sectionId: string | null;
+  line: number;
+  rawLink: string;
+  initialPath: string;
+  file?: TFile | null;
+};
+
 type SectionProjectionSource = {
   centerPage: GraphPage;
   centerEvidence: EvidenceTargetMap;
@@ -35,7 +43,9 @@ type SectionProjectionSource = {
     level: number;
     parentId: string | null;
     childIds: string[];
+    line: number;
   }>;
+  linkPlacements: LinkPlacement[];
 };
 
 export type CentralSectionExpansion = {
@@ -255,13 +265,24 @@ export async function buildCentralSectionExpansion(
     }
     return low > 0 ? headings[low - 1] : null;
   };
+  const linkPlacements: LinkPlacement[] = [];
+
   // Assign cached links to heading ranges once. The previous per-heading full link scan made an
   // expanded document with H headings and L links do O(H x L) projection work.
   for (const link of links) {
     const line = (link.position?.start.line ?? Number.MAX_SAFE_INTEGER) + 1;
+    const target = resolveTarget(plugin.app, index, link.link, file.path);
+    if (!target) continue;
+
     if (line < firstHeadingLine) {
-      const target = resolveTarget(plugin.app, index, link.link, file.path);
-      if (target) preambleTargets.add(target.path);
+      preambleTargets.add(target.path);
+      linkPlacements.push({
+        sectionId: null,
+        line,
+        rawLink: link.link,
+        initialPath: target.path,
+        file: target.file,
+      });
       continue;
     }
     const heading = headingForLine(line);
@@ -271,6 +292,13 @@ export async function buildCentralSectionExpansion(
     const bucket = linksBySection.get(heading.id) ?? [];
     bucket.push(link);
     linksBySection.set(heading.id, bucket);
+    linkPlacements.push({
+      sectionId: heading.id,
+      line,
+      rawLink: link.link,
+      initialPath: target.path,
+      file: target.file,
+    });
   }
 
   // Preserve inbound/structural/frontmatter evidence on the real center, but move outgoing body
@@ -387,7 +415,7 @@ export async function buildCentralSectionExpansion(
     sections.push({ id: heading.id, page: sectionPage, neighborhood, level: heading.level, parentId: heading.parentId, childIds: [] });
     projectionSections.push({
       id: heading.id, page: sectionPage, evidenceByTarget: byTarget, level: heading.level,
-      parentId: heading.parentId, childIds: [],
+      parentId: heading.parentId, childIds: [], line: heading.line,
     });
   }
 
@@ -419,42 +447,162 @@ export async function buildCentralSectionExpansion(
     centerPath: centerPage.path, centerNeighborhood, sections, explanations,
     projectionSource: {
       centerPage, centerEvidence, sections: projectionSections,
+      linkPlacements,
     },
   };
 }
 
-/** Rebind current persistent evidence to cached heading ranges without rereading the Markdown body. */
-function currentSectionEvidence(index: GraphIndex, source: SectionProjectionSource): Readonly<{
+/**
+ * Resolves the nearest preceding section heading for a 1-based physical line number using binary search.
+ * Returns null when the line falls in the preamble before the first heading.
+ *
+ * @param ordered Headings sorted ascending by physical start line.
+ * @param line 1-based line number in the declaring file.
+ */
+function sectionForLine(
+  ordered: ReadonlyArray<{ section: SectionProjectionSource["sections"][number]; line: number }>,
+  line: number,
+): SectionProjectionSource["sections"][number] | null {
+  let low = 0;
+  let high = ordered.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (ordered[mid].line <= line) low = mid + 1;
+    else high = mid;
+  }
+  return low > 0 ? ordered[low - 1].section : null;
+}
+
+/**
+ * Rebinds persistent index evidence and active relationship roles to cached heading and preamble
+ * placements without rereading Markdown from disk.
+ *
+ * Ordinary body links and unresolved links lack physical line numbers in index declarations, so
+ * their heading assignment is established from cached link locations while their live evidence, roles,
+ * precedence, multiplicity and target rebinding are derived from the current GraphIndex.
+ *
+ * @param index The authoritative persistent GraphIndex.
+ * @param source Cached section projection source captured when the center was expanded.
+ * @returns Re-projected center and section evidence maps ready for neighborhood evaluation.
+ */
+function currentSectionEvidence(
+  plugin: KplexPlugin,
+  index: GraphIndex,
+  source: SectionProjectionSource,
+): Readonly<{
   center: EvidenceTargetMap; sections: ReadonlyMap<string, EvidenceTargetMap>;
 }> {
-  const center = new Map<string, { target: GraphPage; evidence: RelationEvidence[] }>();
+  const center: EvidenceTargetMap = new Map();
   const sections = new Map<string, EvidenceTargetMap>(source.sections.map((section) => [section.id, new Map()]));
-  const ordered = source.sections
-    .map((section) => ({ section, line: section.page.transient?.line ?? Number.MAX_SAFE_INTEGER }))
+  const orderedSections = source.sections
+    .map((section) => ({ section, line: section.line }))
     .sort((a, b) => a.line - b.line);
-  const sectionAt = (line: number): SectionProjectionSource["sections"][number] | null => {
-    let found: SectionProjectionSource["sections"][number] | null = null;
-    for (const candidate of ordered) {
-      if (candidate.line > line) break;
-      found = candidate.section;
+  const sectionById = new Map(source.sections.map((s) => [s.id, s] as const));
+
+  const placementsByFile = new Map<TFile, LinkPlacement[]>();
+  const placementsByPath = new Map<string, LinkPlacement[]>();
+
+  for (const placement of source.linkPlacements) {
+    if (placement.file) {
+      const bucket = placementsByFile.get(placement.file) ?? [];
+      bucket.push(placement);
+      placementsByFile.set(placement.file, bucket);
     }
-    return found;
-  };
+    const pathBucket = placementsByPath.get(placement.initialPath) ?? [];
+    pathBucket.push(placement);
+    placementsByPath.set(placement.initialPath, pathBucket);
+
+    if (placement.rawLink && placement.rawLink !== placement.initialPath) {
+      const rawBucket = placementsByPath.get(placement.rawLink) ?? [];
+      rawBucket.push(placement);
+      placementsByPath.set(placement.rawLink, rawBucket);
+    }
+
+    const currentTarget = resolveTarget(plugin.app, index, placement.rawLink, source.centerPage.file?.path ?? "");
+    if (currentTarget && currentTarget.path !== placement.initialPath) {
+      const currentBucket = placementsByPath.get(currentTarget.path) ?? [];
+      currentBucket.push(placement);
+      placementsByPath.set(currentTarget.path, currentBucket);
+    }
+  }
 
   for (const entry of index.evidenceFrom(source.centerPage.path)) {
     const actual = index.get(entry.targetPath);
     if (!actual) continue;
+
     for (const item of entry.evidence) {
-      const bodyOwned = item.declaredByPath === source.centerPage.path
-        && (item.sourceKind === "inline-ontology" || item.sourceKind === "body-url" || (item.sourceKind === "property-url" && typeof item.line === "number")
-          || item.sourceKind === "obsidian-link" || item.sourceKind === "unresolved-link");
-      const section = bodyOwned && typeof item.line === "number" ? sectionAt(item.line) : null;
-      if (!section) { addEvidence(center, actual, item); continue; }
-      const target = sectionTarget(actual, section.id);
-      const projected: RelationEvidence = { ...item, sourcePath: section.page.path, targetPath: target.path };
-      addEvidence(sections.get(section.id)!, target, projected);
+      // 1. Inbound evidence: declared by another note targeting center.
+      // Retain on center so note edits in another note update center neighborhood immediately.
+      if (item.declaredByPath !== source.centerPage.path) {
+        addEvidence(center, actual, item);
+        continue;
+      }
+
+      // 2. Frontmatter and structural hierarchy belong to center.
+      if (
+        item.sourceKind === "frontmatter-ontology" ||
+        item.sourceKind === "date-property" ||
+        item.sourceKind === "file-tree" ||
+        item.sourceKind === "tag-tree"
+      ) {
+        addEvidence(center, actual, item);
+        continue;
+      }
+
+      // 3. Body items with explicit line numbers (inline-ontology, body-url, property-url).
+      if (typeof item.line === "number") {
+        const section = sectionForLine(orderedSections, item.line);
+        if (!section) {
+          addEvidence(center, actual, item);
+        } else {
+          const target = sectionTarget(actual, section.id);
+          const projected: RelationEvidence = {
+            ...item,
+            sourcePath: section.page.path,
+            targetPath: target.path,
+          };
+          addEvidence(sections.get(section.id)!, target, projected);
+        }
+        continue;
+      }
+
+      // 4. Ordinary links and unresolved links without line numbers.
+      // Rebind to cached heading placement or preamble, retaining active evidence and roles from index.
+      if (item.sourceKind === "obsidian-link" || item.sourceKind === "unresolved-link") {
+        const placements = (actual.file ? placementsByFile.get(actual.file) : undefined)
+          ?? placementsByPath.get(actual.path)
+          ?? placementsByPath.get(entry.targetPath)
+          ?? placementsByPath.get(item.declaredTargetPath);
+
+        if (placements && placements.length > 0) {
+          for (const placement of placements) {
+            if (!placement.sectionId) {
+              addEvidence(center, actual, { ...item, line: placement.line });
+            } else {
+              const section = sectionById.get(placement.sectionId);
+              const sectionMap = sections.get(placement.sectionId);
+              if (section && sectionMap) {
+                const target = sectionTarget(actual, placement.sectionId);
+                const projected: RelationEvidence = {
+                  ...item,
+                  sourcePath: section.page.path,
+                  targetPath: target.path,
+                  line: placement.line,
+                };
+                addEvidence(sectionMap, target, projected);
+              }
+            }
+          }
+        } else {
+          addEvidence(center, actual, item);
+        }
+        continue;
+      }
+
+      addEvidence(center, actual, item);
     }
   }
+
   return { center, sections };
 }
 
@@ -465,7 +613,7 @@ export function projectCentralSectionExpansion(
   expansion: CentralSectionExpansion,
 ): CentralSectionExpansion {
   const source = expansion.projectionSource;
-  const currentEvidence = currentSectionEvidence(index, source);
+  const currentEvidence = currentSectionEvidence(plugin, index, source);
   const currentCenter = index.get(source.centerPage.path) ?? source.centerPage;
   const inferAllLinksAsFriends = index.publishedInferAllLinksAsFriends(source.centerPage.path);
   const center = clonePage(currentCenter);

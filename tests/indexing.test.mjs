@@ -25,7 +25,7 @@ const temp = mkdtempSync(join(tmpdir(), "kplex-index-test-"));
 // managed leaf, so the implementation must never adopt an arbitrary adjacent/pinned user tab.
 const mainSource = readFileSync(join(root, "src/main.ts"), "utf8");
 
-const appSource = readFileSync(join(root, "src/ui/App.tsx"), "utf8");
+const appSource = readFileSync(join(root, "src/ui/App.tsx"), "utf8").replace(/\r\n/g, "\n");
 const newRelatedSource = readFileSync(join(root, "src/ui/NewRelatedNoteModal.ts"), "utf8");
 const draggableDialogSource = readFileSync(join(root, "src/ui/components/DraggableDialog.ts"), "utf8");
 const ghostModalSource = readFileSync(join(root, "src/ui/MaterializeGhostModal.ts"), "utf8");
@@ -2875,6 +2875,114 @@ try {
   expandedHas(urls.neighborhood, "parent", "https://source.com/ontology-inline", RelationType.DEFINED);
   expandedHas(urls.neighborhood, "child", "https://source.com/inferred", RelationType.INFERRED);
   expandedHas(urls.neighborhood, "child", "https://youtu.be/excalibrain-fixture-video", RelationType.INFERRED);
+
+  let sectionProjectionReads = 0;
+  const originalReadForSectionProjection = app.vault.cachedRead;
+  app.vault.cachedRead = async (file) => {
+    sectionProjectionReads += 1;
+    return originalReadForSectionProjection(file);
+  };
+
+  try {
+    const projectedA = projectCentralSectionExpansion(plugin, index, expandedA);
+    const projFriends = projectedA.sections.find((section) => section.page.name === "Friend and challenger cases");
+    const projConflict = projectedA.sections.find((section) => section.page.name === "Inference and conflict cases");
+    assert(projFriends && projConflict);
+    expandedHas(projFriends.neighborhood, "child", "Note Y.md", RelationType.INFERRED);
+    expandedHas(projConflict.neighborhood, "child", "Note F.md", RelationType.INFERRED);
+
+    // Regression 1: Unchanged-center add and remove sequence.
+    // Edit another note (Note Y) by adding Parent: "[[Note A]]", patch Y incrementally while Note A's
+    // mtime stays unchanged: live graph and projection gain a defined child, without reading Markdown.
+    const originalYBody = contents.get("Note Y.md");
+    const originalYCache = caches.get("Note Y.md");
+    try {
+      contents.set("Note Y.md", `---\nParent: "[[Note A]]"\n---\n${originalYBody}`);
+      caches.set("Note Y.md", { ...originalYCache, frontmatter: { Parent: "[[Note A]]" } });
+      const patchAddRes = await index.patchMarkdownPaths(["Note Y.md"]);
+      assert.equal(patchAddRes.outcome, "patched");
+      expectRole("Note A.md", "child", "Note Y.md", RelationType.DEFINED);
+
+      const projectedAfterAdd = projectCentralSectionExpansion(plugin, index, expandedA);
+      expandedHas(projectedAfterAdd.centerNeighborhood, "child", "Note Y.md", RelationType.DEFINED);
+
+      // Now remove the property and patch Y again: center loses the defined relationship.
+      contents.set("Note Y.md", originalYBody);
+      caches.set("Note Y.md", originalYCache);
+      const patchRemoveRes = await index.patchMarkdownPaths(["Note Y.md"]);
+      assert.equal(patchRemoveRes.outcome, "patched");
+      expandedLacks(projectCentralSectionExpansion(plugin, index, expandedA).centerNeighborhood, "Note Y.md");
+
+      // Ordinary link under section heading is still preserved after edit/revert sequence.
+      const friendsAfterRevert = projectCentralSectionExpansion(plugin, index, expandedA).sections.find((s) => s.page.name === "Friend and challenger cases");
+      assert(friendsAfterRevert);
+      expandedHas(friendsAfterRevert.neighborhood, "child", "Note Y.md", RelationType.INFERRED);
+    } finally {
+      contents.set("Note Y.md", originalYBody);
+      caches.set("Note Y.md", originalYCache);
+      await index.patchMarkdownPaths(["Note Y.md"]);
+    }
+
+    // Regression 2: Inference toggle sequence.
+    // Enabling inverse inference republishes canonical semantics making Note F a parent instead of a child.
+    settings.inverseInfer = true;
+    await index.rebuild();
+    try {
+      expectRole("Note A.md", "parent", "Note F.md", RelationType.INFERRED);
+      const projectedInverse = projectCentralSectionExpansion(plugin, index, expandedA);
+      const conflictInverse = projectedInverse.sections.find((s) => s.page.name === "Inference and conflict cases");
+      assert(conflictInverse);
+      expandedHas(conflictInverse.neighborhood, "parent", "Note F.md", RelationType.INFERRED);
+    } finally {
+      settings.inverseInfer = false;
+      await index.rebuild();
+    }
+    const projectedRestoredInfer = projectCentralSectionExpansion(plugin, index, expandedA);
+    const conflictRestored = projectedRestoredInfer.sections.find((s) => s.page.name === "Inference and conflict cases");
+    assert(conflictRestored);
+    expandedHas(conflictRestored.neighborhood, "child", "Note F.md", RelationType.INFERRED);
+
+    // Regression 3: Target rename.
+    // Renaming a target updates the section projection to the renamed target without rereading Markdown.
+    const pageY = index.get("Note Y.md");
+    assert(pageY?.file);
+    const fileY = pageY.file;
+    fileY.path = "Note Y Renamed.md"; fileY.name = "Note Y Renamed.md"; fileY.basename = "Note Y Renamed";
+    files.set("Note Y Renamed.md", fileY);
+    files.delete("Note Y.md");
+    try {
+      assert.equal(index.renameFile("Note Y.md", fileY), true);
+      const projectedRename = projectCentralSectionExpansion(plugin, index, expandedA);
+      const friendsRename = projectedRename.sections.find((s) => s.page.name === "Friend and challenger cases");
+      assert(friendsRename);
+      expandedHas(friendsRename.neighborhood, "child", "Note Y Renamed.md", RelationType.INFERRED);
+      expandedLacks(friendsRename.neighborhood, "Note Y.md");
+    } finally {
+      fileY.path = "Note Y.md"; fileY.name = "Note Y.md"; fileY.basename = "Note Y";
+      files.set("Note Y.md", fileY);
+      files.delete("Note Y Renamed.md");
+      assert.equal(index.renameFile("Note Y Renamed.md", fileY), true);
+    }
+
+    // Regression 4: Target removal / retirement.
+    // Deleting/retiring a target page drops it dynamically from the section projection.
+    const pageF = index.get("Note F.md");
+    assert(pageF);
+    try {
+      index.state.pages.delete("Note F.md");
+      const projectedRemoval = projectCentralSectionExpansion(plugin, index, expandedA);
+      const conflictRemoval = projectedRemoval.sections.find((s) => s.page.name === "Inference and conflict cases");
+      assert(conflictRemoval);
+      expandedLacks(conflictRemoval.neighborhood, "Note F.md");
+    } finally {
+      index.state.pages.set("Note F.md", pageF);
+    }
+
+    // Zero Markdown reads asserted across all projection operations.
+    assert.equal(sectionProjectionReads, 0, "Section projection must perform zero Markdown reads");
+  } finally {
+    app.vault.cachedRead = originalReadForSectionProjection;
+  }
 
   // Git may check this fixture out with CRLF on Windows. Both newline conventions must retain
   // the same section relationships and physical heading ranges without weakening accepted goldens.
