@@ -49,7 +49,7 @@ export function placeholderReference(app: App, source: TFile, path: string, alia
 export function assertPlaceholderRelocationTarget(plan: PlaceholderRelocation, targetPath: string, unsupported: string): void {
   for (const source of plan.sources) for (const replacement of source.replacements) {
     if (replacement.kind !== "wiki") continue;
-    if (/[\[\]#]/.test(targetPath)) throw new Error(unsupported);
+    if (targetPath.includes("[") || targetPath.includes("]") || targetPath.includes("#")) throw new Error(unsupported);
     // Native wiki targets must stay literal. A quote anywhere in this YAML region makes its
     // quoting context uncertain; this conservatively rejects unrelated apostrophes as well.
     if (targetPath.includes("'") && replacement.frontmatter && source.frontmatterHasApostrophe) throw new Error(unsupported);
