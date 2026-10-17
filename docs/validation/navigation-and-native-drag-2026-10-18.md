@@ -61,8 +61,39 @@ Both repository output and installed artifacts have these SHA-256 values:
 | `styles.css` | `3dd15f02ccd96bd363731342b7fc8d056b8461ca7371b9ca3746d41471f3366f` |
 | `manifest.json` | `19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c` |
 
-Focused native feature lanes are still pending at this checkpoint. Final actual
-results will be recorded before returning the draft PR. No personal vault is used.
+Native Find passes eight guarded searches and six navigations. The complete
+layout lane passes six actual Settings controls, main/sidepanel/popout placement,
+independent-area geometry and semantic drop previews. Layout changes record zero
+guarded reads, parses, acquisitions, builds, semantic refreshes and snapshot writes,
+with unchanged semantic revision and source counters. Native payload/Markdown
+checks pass for notes, attachments, URLs, placeholders and tags. Cross-Plex
+navigation passes for all five; file/URL/tag popout handlers, the external
+fixed-target composer and trusted gate draft geometry also pass. These handler
+drop events are synthetic and do not establish OS drag completion.
+
+Native findings corrected at this checkpoint: tag text uses ordinary HTML text
+rather than an unsupported native draggable type; layout-only saves stay on the
+presentation channel; modified placeholder first clicks retain their target;
+materialization buttons retain visible labels; relocated wiki links remain literal
+so Obsidian itself can resolve them after restart. Markdown targets remain encoded.
+Uncertain YAML quoting and unsupported wiki destinations fail before file creation.
+An apostrophe in the destination plus any apostrophe in affected frontmatter is
+conservatively rejected; unrelated apostrophes can therefore cause refusal. The
+user can choose another folder. No parallel YAML grammar is introduced.
+
+Focused suites pass 226/226, plus nine drag-contract tests after the final text
+effect adjustment. Native folder restart and trusted body-drag completion remain
+pending. An injected trusted body drag starts but delivers no later drag-over/drop,
+leaving keyboard transport unresponsive. Failed runs and exact fixture/configuration
+recovery receipts remain private; this is not accepted as a passing drag.
+No personal vault is used.
+
+An ordinary noncentral placeholder double-click can move the tile after its first
+click and land its second click on a gate. The immediate-navigation/gate bubbling
+hazard exists in baseline source, but that exact baseline native sequence has not
+been reproduced. Ordinary materialization is checked on a stationary central
+placeholder; the new modifier gesture is checked on a noncentral placeholder.
+The moving-target ordinary gesture remains a recorded limitation.
 
 The resource claim is narrowly testable: search typing, layout presentation,
 native payload creation and folder editing/cancellation must perform no added

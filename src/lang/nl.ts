@@ -1230,6 +1230,7 @@ const dutchTranslations = {
   "folderPicker.placeholderUnsupported": "Kies een tijdelijke naam, map en alias die een geldige Obsidian-link vormen. Namen en mappen met # vereisen een echte notitie.",
   "ghost.relocationChanged": "De tijdelijke notitie of de inkomende links zijn gewijzigd. Open het dialoogvenster opnieuw en probeer het nogmaals.",
   "ghost.recoverCreated": "De notitie is aangemaakt op {path}, maar enkele wijzigingen zijn nog niet voltooid: {error}. Probeer opnieuw om dezelfde notitie af te maken.",
+  "ghost.relocationUnsupported": "Kies een andere map. Sommige inkomende links kunnen op deze bestemming niet veilig behouden blijven.",
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

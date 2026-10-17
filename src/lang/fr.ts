@@ -1234,6 +1234,7 @@ const frenchTranslations = {
   "folderPicker.placeholderUnsupported": "Choisissez un nom, un dossier et un alias formant un lien Obsidian valide. Les noms et dossiers contenant # nécessitent une vraie note.",
   "ghost.relocationChanged": "L’espace réservé ou ses liens entrants ont changé. Rouvrez la boîte de dialogue et réessayez.",
   "ghost.recoverCreated": "La note a été créée dans {path}, mais certaines modifications restent inachevées : {error}. Réessayez pour terminer avec cette même note.",
+  "ghost.relocationUnsupported": "Choisissez un autre dossier. Certains liens entrants ne peuvent pas être conservés correctement à cet emplacement.",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

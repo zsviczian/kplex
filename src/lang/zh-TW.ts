@@ -1226,6 +1226,7 @@ const traditionalChineseTranslations = {
   "folderPicker.placeholderUnsupported": "請選擇能形成有效 Obsidian 連結的預留筆記名稱、資料夾與別名。名稱或資料夾含有 # 時，請建立實際筆記。",
   "ghost.relocationChanged": "預留筆記或其傳入連結已變更。請重新開啟對話框後再試一次。",
   "ghost.recoverCreated": "筆記已建立於 {path}，但部分更新尚未完成：{error}。請重試以使用同一篇筆記完成更新。",
+  "ghost.relocationUnsupported": "請選擇其他資料夾。部分傳入連結無法在此位置安全保留。",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

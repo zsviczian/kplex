@@ -72,11 +72,20 @@ test("hierarchical tags export #tag text while captured metadata enables cross-P
   const f = fixture(), p = page({ path: "tag:Research/Person/Müller", isTag: true, name: "Müller" });
   const source = api.startNodeLinkDrag(f.app, p, f.event, {}, "parent", p.name, "Origin.md");
   assert(source);
-  assert.equal(f.manager.draggable.type, "text");
-  assert.equal(f.manager.draggable.text, "#Research/Person/Müller");
+  assert.equal(f.manager.draggable, null, "Plain tag text must not invent a native host draggable type");
+  assert.equal(api.nodeLinkDragSource(f.app), source);
   assert.equal(f.transfer.get("text/plain"), "#Research/Person/Müller");
-  assert.deepEqual(f.calls, [{ kind: "start" }], "tag export must not turn a tag into a native heading link");
+  assert.equal(f.event.dataTransfer.effectAllowed,"copyLink","Editor copies and Plex link drops must both be permitted");
+  assert.deepEqual(f.calls, [], "tag export must not turn a tag into a native heading link");
   assert.equal(api.draggedGraphPage(f.app, { get: () => p }), p);
+  api.finishNodeLinkDrag(f.app, source);
+  assert.equal(api.nodeLinkDragSource(f.app), null);
+  const newer=api.startNodeLinkDrag(f.app,p,f.event,{},"child",p.name,"");
+  api.finishNodeLinkDrag(f.app,source);
+  assert.equal(api.nodeLinkDragSource(f.app),newer,"Late tag cleanup cannot retire a newer gesture");
+  const foreign={source:{}};f.manager.draggable=foreign;
+  assert.equal(api.nodeLinkDragSource(f.app),null,"A competing native drag cannot inherit tag identity");
+  api.finishNodeLinkDrag(f.app,newer);assert.equal(f.manager.draggable,foreign);
 });
 
 test("unsupported nodes, competing drags and missing host methods remain inert", () => {

@@ -9,8 +9,8 @@ import { iterateInternalLinkTokens, type InternalLinkToken } from "../../core/pa
 import { extractLinksFromValue } from "../../index/fieldParser";
 import { SOURCE_DECODE_BUDGET_BYTES } from "../../index/SourceFacts";
 
-type Replacement = Readonly<{ start: number; end: number; kind: "wiki" | "markdown" }>;
-type RelocationSource = Readonly<{ file: TFile; path: string; mtime: number; size: number; text: string; replacements: readonly Replacement[] }>;
+type Replacement = Readonly<{ start: number; end: number; kind: "wiki" | "markdown"; frontmatter: boolean }>;
+type RelocationSource = Readonly<{ file: TFile; path: string; mtime: number; size: number; text: string; replacements: readonly Replacement[]; frontmatterHasApostrophe: boolean }>;
 /** One modal-local continuation; fulfilled native writes retire only their own source authority. */
 export type PlaceholderRelocation = {
   readonly oldPath: string;
@@ -45,6 +45,17 @@ export function placeholderReference(app: App, source: TFile, path: string, alia
   return reference;
 }
 
+/** Refuse uncertain destination spellings before creating a file, without introducing a YAML grammar. */
+export function assertPlaceholderRelocationTarget(plan: PlaceholderRelocation, targetPath: string, unsupported: string): void {
+  for (const source of plan.sources) for (const replacement of source.replacements) {
+    if (replacement.kind !== "wiki") continue;
+    if (/[\[\]#]/.test(targetPath)) throw new Error(unsupported);
+    // Native wiki targets must stay literal. A quote anywhere in this YAML region makes its
+    // quoting context uncertain; this conservatively rejects unrelated apostrophes as well.
+    if (targetPath.includes("'") && replacement.frontmatter && source.frontmatterHasApostrophe) throw new Error(unsupported);
+  }
+}
+
 /** Capture only references whose native target remains this exact unresolved coordinate. */
 export async function capturePlaceholderRelocation(app: App, oldPath: string, knownSources: readonly TFile[], changed: string): Promise<PlaceholderRelocation> {
   if (knownSources.length > 256) throw new Error(changed);
@@ -75,11 +86,11 @@ export async function capturePlaceholderRelocation(app: App, oldPath: string, kn
     const matches = (reference: Reference): boolean => coordinate(reference.link) === wanted
       && app.metadataCache.getFirstLinkpathDest(reference.link.split("#", 1)[0], path) === null;
     /** Preserve the literal heading/block suffix while changing only its approved path substring. */
-    const add = (token: InternalLinkToken, offset: number): void => {
+    const add = (token: InternalLinkToken, offset: number, frontmatter = false): void => {
       const literalHash = token.rawTarget.indexOf("#"), encodedHash = token.rawTarget.toLocaleLowerCase().indexOf("%23");
       const hash = literalHash < 0 ? encodedHash : encodedHash < 0 ? literalHash : Math.min(literalHash, encodedHash);
       const end = hash < 0 ? token.targetEnd : token.targetStart + hash;
-      const replacement = { start: offset + token.targetStart, end: offset + end, kind: token.kind };
+      const replacement = { start: offset + token.targetStart, end: offset + end, kind: token.kind, frontmatter };
       const previous = replacements.get(replacement.start);
       if (previous && (previous.end !== replacement.end || previous.kind !== replacement.kind)) throw new Error(changed);
       if (!previous) { retained += 128; if (retained > SOURCE_DECODE_BUDGET_BYTES) throw new Error(changed); }
@@ -110,22 +121,24 @@ export async function capturePlaceholderRelocation(app: App, oldPath: string, kn
       if (!groups.has(reference.original)) { retained += 128 + 2 * reference.original.length; if (retained > SOURCE_DECODE_BUDGET_BYTES) throw new Error(changed); }
       groups.set(reference.original, (groups.get(reference.original) ?? 0) + 1);
     }
+    let frontmatterHasApostrophe = false;
     if (frontmatterCount) {
       const position = cache.frontmatterPosition;
       if (!position) throw new Error(changed);
       const textPart = text.slice(position.start.offset, position.end.offset), observed = new Map<string, number>();
+      frontmatterHasApostrophe = textPart.includes("'");
       for (const token of iterateInternalLinkTokens(textPart)) {
         if (coordinate(token.rawTarget) !== wanted) continue;
         const original = textPart.slice(token.start, token.end), count = (observed.get(original) ?? 0) + 1, expected = groups.get(original);
         if (expected === undefined || count > expected) throw new Error(changed);
-        observed.set(original, count); add(token, position.start.offset);
+        observed.set(original, count); add(token, position.start.offset, true);
       }
       for (const [original, count] of groups) if (observed.get(original) !== count) throw new Error(changed);
     }
     if (!replacements.size) throw new Error(changed);
     const ordered = [...replacements.values()].sort(/** Nonoverlapping right-to-left patches retain every unrelated byte. */ (a, b) => b.start - a.start);
     for (let index = 1; index < ordered.length; index++) if (ordered[index].end > ordered[index - 1].start) throw new Error(changed);
-    sources.push({ file, path, mtime, size, text, replacements: ordered });
+    sources.push({ file, path, mtime, size, text, replacements: ordered, frontmatterHasApostrophe });
   }
   return { oldPath, sources, completed: new Set(), target: null };
 }
@@ -134,6 +147,7 @@ export async function capturePlaceholderRelocation(app: App, oldPath: string, kn
 export async function applyPlaceholderRelocation(app: App, plan: PlaceholderRelocation, created: TFile, current: () => boolean, changed: string): Promise<void> {
   plan.target ??= { file: created, path: created.path };
   const { path: targetPath, file: target } = plan.target;
+  assertPlaceholderRelocationTarget(plan, targetPath, changed);
   /** Accepted references remain bound to the exact destination across every asynchronous native boundary. */
   const assertTargetCurrent = (): void => {
     if (!current() || created !== target || targetPath === plan.oldPath || created.path !== targetPath || app.vault.getFileByPath(targetPath) !== created) throw new Error(changed);
@@ -151,7 +165,7 @@ export async function applyPlaceholderRelocation(app: App, plan: PlaceholderRelo
       const encodedTarget = encodeReferencePath(targetPath);
       let cursor = text.length;
       for (const item of source.replacements) {
-        pieces.push(text.slice(item.end, cursor), encodedTarget);
+        pieces.push(text.slice(item.end, cursor), item.kind === "wiki" ? targetPath : encodedTarget);
         cursor = item.start;
       }
       pieces.push(text.slice(0, cursor));

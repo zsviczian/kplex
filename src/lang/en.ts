@@ -5206,6 +5206,7 @@ export const englishCatalog = {
   "folderPicker.placeholderUnsupported": {"message":"Choose a placeholder name, folder and alias that form a valid Obsidian link. Names and folders containing # require a real note.","context":"Recoverable placeholder relocation and safe native note creation.","params":[]},
   "ghost.relocationChanged": {"message":"The placeholder or its incoming links changed. Reopen the dialog and try again.","context":"Recoverable placeholder relocation and safe native note creation.","params":[]},
   "ghost.recoverCreated": {"message":"The note was created at {path}, but some updates are unfinished: {error}. Retry to finish using this same note.","context":"Recoverable placeholder relocation and safe native note creation.","params":["path","error"],"referenceParams":["path"]},
+  "ghost.relocationUnsupported": {"message":"Choose a different folder. Some incoming links cannot be preserved safely at this destination.","context":"Safe destination selection when incoming placeholder references cannot be retargeted.","params":[]},
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

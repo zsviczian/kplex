@@ -70,9 +70,16 @@ deadline or assertion relaxation. Native Find now passes eight guarded searches
 and six navigations, with zero indexing/storage work in search intervals and
 exact fixture/layout/config restoration. The intermediate-tag native failure is
 fixed using the existing structural baseline and matching evidence; 118 focused
-tag/host checks pass, including shared-tag removal/final deletion. Other native
-lanes and final combined verification remain in progress. Confirmed folder,
-modifier and layout-profile corrections are not yet a completed native checkpoint.
+tag/host checks pass, including shared-tag removal/final deletion. Layout now
+passes all six actual Settings controls, main/sidepanel/popout geometry and zero
+semantic/source/storage work. Five Markdown payload drops and cross-Plex navigation
+handlers pass, as do popout file/URL/tag handlers and trusted gate geometry.
+Folder restart and trusted native body completion remain pending: injected HTML
+dragging starts without later drag-over/drop and leaves keyboard transport
+unresponsive. Preserve failed trials and recovery receipts. The report records
+the ordinary moving-placeholder double-click source hazard; ordinary materialization
+uses a stationary central placeholder, while the modifier gesture is tested
+noncentrally. Final combined verification remains pending.
 
 Durable feature evidence/report owner:
 docs/validation/navigation-and-native-drag-2026-10-18.md. Keep final build hashes,

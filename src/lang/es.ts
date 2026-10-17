@@ -1234,6 +1234,7 @@ const spanishTranslations = {
   "folderPicker.placeholderUnsupported": "Elige un nombre, carpeta y alias que formen un enlace válido de Obsidian. Los nombres y carpetas con # requieren una nota real.",
   "ghost.relocationChanged": "El marcador o sus enlaces entrantes han cambiado. Abre de nuevo el diálogo e inténtalo otra vez.",
   "ghost.recoverCreated": "La nota se creó en {path}, pero algunas actualizaciones están pendientes: {error}. Reintenta para terminar con esta misma nota.",
+  "ghost.relocationUnsupported": "Elige otra carpeta. Algunos enlaces entrantes no se pueden conservar de forma segura en este destino.",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

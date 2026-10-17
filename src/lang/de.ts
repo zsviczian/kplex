@@ -1230,6 +1230,7 @@ const germanTranslations = {
   "folderPicker.placeholderUnsupported": "Wähle einen Platzhalternamen, Ordner und Alias, die einen gültigen Obsidian-Link bilden. Namen und Ordner mit # erfordern eine echte Notiz.",
   "ghost.relocationChanged": "Der Platzhalter oder seine eingehenden Links wurden geändert. Öffne den Dialog erneut und versuche es noch einmal.",
   "ghost.recoverCreated": "Die Notiz wurde unter {path} erstellt, aber einige Änderungen sind noch offen: {error}. Versuche es erneut, um dieselbe Notiz fertigzustellen.",
+  "ghost.relocationUnsupported": "Wähle einen anderen Ordner. Einige eingehende Links können an diesem Ziel nicht sicher erhalten bleiben.",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

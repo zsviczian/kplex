@@ -411,11 +411,12 @@ function literalOwners() {
   const normalizePath = value => value.replaceAll("\\", "/").replace(/\/{2,}/g, "/").replace(/^\/+|\/+$/g, "");
   const coordinate = production("coordinate", { normalizePath }, adapter);
   const encodeReferencePath = production("encodeReferencePath", {}, adapter);
-  return { tokens, coordinate, extract,
+  const preflight = production("assertPlaceholderRelocationTarget", {}, adapter);
+  return { tokens, coordinate, extract, preflight,
     serialize: production("placeholderReference", { extractLinksFromValue: extract, normalizePath, coordinate, encodeReferencePath }, adapter),
     capture: production("capturePlaceholderRelocation", { coordinate, iterateInternalLinkTokens: tokens,
       iterateCacheRefs: (cache, visit) => { for (const reference of [...cache.links ?? [], ...cache.embeds ?? []]) visit(reference); }, SOURCE_DECODE_BUDGET_BYTES: 8 * 1024 * 1024 }, adapter),
-    apply: production("applyPlaceholderRelocation", { encodeReferencePath }, adapter) };
+    apply: production("applyPlaceholderRelocation", { encodeReferencePath, assertPlaceholderRelocationTarget: preflight }, adapter) };
 }
 
 /** Exact native cache ranges approve changes; code examples with identical spelling remain untouched. */
@@ -520,7 +521,7 @@ test("complete retarget followed by metadata or navigation failure retries the s
   const owners=literalOwners();
   class PartialRelatedFileError extends Error{constructor(file,cause){super(cause.message);this.file=file;}}
   const materialize=production("materializeGhostPage",{capturePlaceholderRelocation:owners.capture,applyPlaceholderRelocation:owners.apply,
-    placeholderReference:owners.serialize,PartialRelatedFileError},"src/main.ts");
+    assertPlaceholderRelocationTarget:owners.preflight,placeholderReference:owners.serialize,PartialRelatedFileError},"src/main.ts");
   for(const stage of ["metadata","navigation"]){
     const f=relocationFixture('---\nChild: ["[[Projects/Next|Alias]]"]\n---\n');
     f.created.parent={path:"Other"};f.files.delete(f.created.path);
@@ -559,14 +560,14 @@ test("special folder targets preserve typed frontmatter, body aliases and litera
   const serialized=owners.serialize(app,source,path,"Readable","unsupported");
   assert.equal(serialized,`[Readable](${encoded})`);
   assert.deepEqual(owners.extract(app,{Child:[serialized],Enabled:true,Rank:2},source),[path]);
-  const text="---\nChild: '[[Projects/Next|Alias]]'\nEnabled: true\nRank: 2\n---\n[Readable](Projects/Next%23Heading)\n";
-  const f=relocationFixture(text),original="[Readable](Projects/Next%23Heading)",offset=text.indexOf(original);
+  const text="---\nChild: '[Alias](Projects/Next)'\nEnabled: true\nRank: 2\n---\n[Readable](Projects/Next%23Heading)\n";
+  const f=relocationFixture(text,["[Alias](Projects/Next)"]),original="[Readable](Projects/Next%23Heading)",offset=text.indexOf(original);
   f.cache.links=[{link:"Projects/Next%23Heading",original,position:{start:{offset},end:{offset:offset+original.length}}}];
   f.files.delete(f.created.path);f.created.path=path+".md";f.files.set(f.created.path,f.created);
   const plan=await owners.capture(f.app,"Projects/Next",[],"changed");await owners.apply(f.app,plan,f.created,()=>true,"changed");
   const result=f.texts.get(f.source.path),target=encoded+".md";
-  assert.equal(result,`---\nChild: '[[${target}|Alias]]'\nEnabled: true\nRank: 2\n---\n[Readable](${target}%23Heading)\n`);
-  assert.deepEqual(owners.extract(app,{Child:[`[[${target}|Alias]]`],Enabled:true,Rank:2},source),[path+".md"]);
+  assert.equal(result,`---\nChild: '[Alias](${target})'\nEnabled: true\nRank: 2\n---\n[Readable](${target}%23Heading)\n`);
+  assert.deepEqual(owners.extract(app,{Child:[`[Alias](${target})`],Enabled:true,Rank:2},source),[path+".md"]);
   assert.deepEqual(owners.extract(app,`[Readable](${target}%23Heading)`,source),[path+".md"]);
 });
 
@@ -589,7 +590,7 @@ test("materialization fences final metadata races and dismissed capture or accep
   const owners=literalOwners();
   class PartialRelatedFileError extends Error{constructor(file,cause){super(cause.message);this.file=file;}}
   const materialize=production("materializeGhostPage",{capturePlaceholderRelocation:owners.capture,applyPlaceholderRelocation:owners.apply,
-    placeholderReference:owners.serialize,PartialRelatedFileError},"src/main.ts");
+    assertPlaceholderRelocationTarget:owners.preflight,placeholderReference:owners.serialize,PartialRelatedFileError},"src/main.ts");
   for(const stage of ["capture-cancel","create-cancel","metadata-rename","default-rename"]){
     const f=relocationFixture('---\nChild: ["[[Projects/Next|Alias]]"]\n---\n'),barrier=deferred(),entered=deferred();
     f.created.parent={path:"Other"};f.files.delete(f.created.path);
@@ -655,4 +656,40 @@ test("existing placeholder delegates duplicate, relink and unconnected alias beh
     assert.deepEqual(relinks,mode==="connected"?[[origin,ghost,"left","Friends",null]]:[]);
     assert.equal(publications,mode==="unconnected"?1:0);
   }
+});
+
+/** Native Obsidian resolves literal wiki coordinates; URI escaping belongs only to Markdown targets. */
+test("wiki relocation retains raw spaces, apostrophes and parentheses in body and safe native YAML", async () => {
+  const owners=literalOwners(),text='---\nChild: ["[[Projects/Next|Alias]]"]\n---\n[[Projects/Next#Heading|Readable]]\n';
+  const f=relocationFixture(text),target="Moved notes')/Next.md";
+  f.files.delete(f.created.path);f.created.path=target;f.files.set(target,f.created);
+  const plan=await owners.capture(f.app,"Projects/Next",[],"changed");owners.preflight(plan,target,"unsupported");
+  await owners.apply(f.app,plan,f.created,()=>true,"changed");
+  assert.equal(f.texts.get(f.source.path),`---\nChild: ["[[${target}|Alias]]"]\n---\n[[${target}#Heading|Readable]]\n`);
+  assert.deepEqual(owners.extract(f.app,`[[${target}|Alias]]`,f.source),[target]);
+  const body=relocationFixture("---\nTitle: 'An unrelated apostrophe'\n---\n[[Projects/Next#Heading|Readable]]\n",[]);
+  const bodyPlan=await owners.capture(body.app,"Projects/Next",[],"changed");
+  owners.preflight(bodyPlan,target,"unsupported");
+});
+
+/** Unsupported native wiki destinations fail before file creation, source mutation or graph publication. */
+test("materialization preflight rejects bracketed wiki paths and uncertain YAML apostrophes before creation", async () => {
+  const owners=literalOwners();
+  const materialize=production("materializeGhostPage",{capturePlaceholderRelocation:owners.capture,
+    assertPlaceholderRelocationTarget:owners.preflight,placeholderReference:owners.serialize},"src/main.ts");
+  for(const [text,folder]of [
+    ['---\nChild: ["[[Projects/Next|Alias]]"]\n---\n',"Moved [old]"],
+    ["---\nChild: '[[Projects/Next|Alias]]'\n---\n","People's notes"],
+    ['---\nChild: ["[[Projects/Next|Alias]]"]\nTitle: "An unrelated apostrophe\'s presence is uncertain"\n---\n',"People's notes"],
+  ]){
+    const f=relocationFixture(text);let creates=0,writes=0;
+    f.app.vault.process=async()=>{writes++;assert.fail("Unsupported target must not reach a writer");};
+    const context={app:f.app,translator:key=>key,validateNoteFolderPath:folder=>({folderPath:folder,error:null}),
+      referencingMarkdownFiles:()=>[f.source],createNewFileInFolder:async()=>{creates++;assert.fail("Unsupported target must not create a file");}};
+    await assert.rejects(materialize.call(context,{path:"Projects/Next",name:"Next"},"Next","markdown",folder),/ghost.relocationUnsupported/);
+    assert.equal(creates,0);assert.equal(writes,0);assert.equal(f.texts.get(f.source.path),text);
+  }
+  const single=relocationFixture("---\nChild: '[[Projects/Next|Alias]]'\n---\n");
+  const plan=await owners.capture(single.app,"Projects/Next",[],"changed");
+  assert.throws(()=>owners.preflight(plan,"Other/#Draft.md","unsupported"),/unsupported/);
 });

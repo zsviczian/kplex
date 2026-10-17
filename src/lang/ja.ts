@@ -1226,6 +1226,7 @@ const japaneseTranslations = {
   "folderPicker.placeholderUnsupported": "有効なObsidianリンクになる仮ノート名、フォルダー、エイリアスを選んでください。名前やフォルダーに # を含める場合は実際のノートを作成してください。",
   "ghost.relocationChanged": "仮ノートまたは参照リンクが変更されました。ダイアログを開き直して再試行してください。",
   "ghost.recoverCreated": "ノートは {path} に作成されましたが、未完了の更新があります: {error}。同じノートで処理を完了するには再試行してください。",
+  "ghost.relocationUnsupported": "別のフォルダーを選んでください。この保存先では一部の参照リンクを安全に維持できません。",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

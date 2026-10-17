@@ -64,7 +64,7 @@ export function ThoughtNode({
   dragging?: boolean;
   flair?: boolean;
   connectionState?: ConnectionDragState;
-  onActivate: (node: PositionedNode) => void;
+  onActivate: (node: PositionedNode, event: MouseEvent<HTMLDivElement>) => void;
   onOpen: (node: PositionedNode, event: MouseEvent<HTMLDivElement>) => void;
   onHoverNode: (node: PositionedNode, event: ReactPointerEvent) => void;
   onHoverGate: (node: PositionedNode, gate: GateSide, event: ReactPointerEvent) => void;
@@ -103,7 +103,7 @@ export function ThoughtNode({
   const label = `${prefix}${node.label}`;
   const max = effectiveLabelLimit(style.maxLabelLength ?? 30, node.role === "center");
   const display = label.length > max ? `${label.slice(0, Math.max(1, max - 1))}…` : label;
-  const click = (e: MouseEvent) => { e.stopPropagation(); onActivate(node); };
+  const click = (e: MouseEvent<HTMLDivElement>) => { e.stopPropagation(); onActivate(node, e); };
   const paint = nodePaint(style, nodePaintFallbacks(node));
   const gateSize = gateDiameter(style);
   const nodeCss = {

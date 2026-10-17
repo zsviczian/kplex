@@ -1238,6 +1238,7 @@ const russianTranslations = {
   "folderPicker.placeholderUnsupported": "Выберите имя, папку и псевдоним, образующие допустимую ссылку Obsidian. Для имён и папок с # нужна настоящая заметка.",
   "ghost.relocationChanged": "Заглушка или входящие ссылки изменились. Откройте диалог снова и повторите попытку.",
   "ghost.recoverCreated": "Заметка создана в {path}, но часть изменений не завершена: {error}. Повторите попытку, чтобы завершить работу с той же заметкой.",
+  "ghost.relocationUnsupported": "Выберите другую папку. Некоторые входящие ссылки нельзя безопасно сохранить для этого расположения.",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);

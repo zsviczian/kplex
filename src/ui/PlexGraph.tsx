@@ -3637,9 +3637,14 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     return index.get(actualPath) ?? null;
   };
 
-  /** Navigate through click-based input while ignoring compatibility clicks already handled by pointer-up. */
-  const activateNode = (page: GraphPage, occurrenceId?: string): void => {
+  /** Keep a modified placeholder stationary for its explicit double-click folder gesture. */
+  const isPlaceholderFolderGesture = (page: GraphPage, event: MouseEvent<HTMLDivElement>): boolean =>
+    Boolean(Keymap.isModEvent(event.nativeEvent)) && !page.file && !page.url && !page.isFolder && !page.isTag && !page.transient;
+
+  /** Navigate through click-based input; modified placeholder clicks reserve the stationary double-click target. */
+  const activateNode = (page: GraphPage, occurrenceId?: string, event?: MouseEvent<HTMLDivElement>): void => {
     if (page.transient?.kind === "section") return;
+    if (event && isPlaceholderFolderGesture(page, event)) return;
     const target = persistentPageFor(page);
     if (target && Date.now() >= Math.max(suppressActivateUntil.current, suppressSyntheticClickUntil.current)) runNodeAction("node.activate", target, occurrenceId);
   };
@@ -3910,7 +3915,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
       dragging={nodeDrag?.path === baseNode.page.path}
       flair={activeNodeFlair === baseNode.page.path}
       connectionState={connectionStateFor(baseNode)}
-      onActivate={/** Capture the clicked occurrence before its semantic role changes. */ () => activateNode(baseNode.page, sceneNodeKeys.get(baseNode))}
+      onActivate={/** Capture the clicked occurrence; explicit placeholder folder gestures retain their target. */ (_node, event) => activateNode(baseNode.page, sceneNodeKeys.get(baseNode), event)}
       onOpen={(_, event) => openNode(baseNode.page, Boolean(Keymap.isModEvent(event.nativeEvent)))}
       nativeDraggable={canDragNodeLink(baseNode.page) && !hasCentralEditor}
       onNativeDragStart={/** Regular rows retain the viewport's same-view relink authority. */ (_, event) => beginNativeNodeDrag(baseNode.page, baseNode.role, baseNode.label, event)}
@@ -4122,7 +4127,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
                 fontSize: 8 * (cluster.parent.role === "sibling" ? siblingScale(settings) : 1) * (settings.baseFontSize ?? 12.4) / 12.4,
               }}
               title={translate("graph.relatedNotePath", { label: child.label, path: child.relation.page.path })}
-              onClick={(event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); activateNode(child.relation.page, child.key); }}
+              onClick={(event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); activateNode(child.relation.page, child.key, event); }}
               onDoubleClick={/** Expanded placeholders share the ordinary node's explicit folder-selection gesture. */ (event: MouseEvent<HTMLDivElement>) => { event.stopPropagation(); openNode(child.relation.page, Boolean(Keymap.isModEvent(event.nativeEvent))); }}
               onContextMenu={/** Mini occurrences reuse the same captured native node menu policy. */ (event: MouseEvent<HTMLDivElement>) => {
                 event.preventDefault(); event.stopPropagation(); runNodeAction("node.context-menu", child.relation.page, child.key);

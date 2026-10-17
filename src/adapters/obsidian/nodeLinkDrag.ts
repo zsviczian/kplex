@@ -19,13 +19,17 @@ export type NodeLinkDragSource = Readonly<{
   role: Role | "center";
 }>;
 
-type NativeDraggable = { type: string; title: string; icon: string; source?: unknown; text?: string };
+type NativeDraggable = { type: string; title: string; icon: string; source?: unknown };
 type DragManagerBridge = {
   draggable?: { source?: unknown } | null;
   dragLink?: (event: DragEvent, linktext: string, sourcePath: string, title?: string, source?: unknown) => NativeDraggable;
   onDragStart?: (event: DragEvent, draggable: NativeDraggable) => void;
   onDragEnd?: () => void;
 };
+
+// Tags have no verified native DragManager type. Keep only their current gesture identity here;
+// plain HTML text travels through CodeMirror's ordinary external-text drop path.
+const plainTagDrags = new WeakMap<App, NodeLinkDragSource>();
 
 /** Feature-detect the reviewed unpublished API at one host boundary. */
 function dragManager(app: App): DragManagerBridge | undefined {
@@ -40,20 +44,24 @@ export function canDragNodeLink(page: GraphPage): boolean {
 /**
  * Start an actual native drag synchronously during HTML dragstart. Never manufacture a DragEvent
  * or claim another drag's manager state. Tags travel as ordinary tag text, rather than a fictitious
- * internal heading link. Missing host capabilities safely refuse the gesture.
+ * internal heading link. Missing native link capabilities refuse file/URL/placeholder gestures;
+ * tags use standard HTML text and the same bounded captured identity for Plex consumers.
  * @returns The exact source token to retire on drag end, or null when no drag was accepted.
  */
 export function startNodeLinkDrag(app: App, page: GraphPage, event: DragEvent, owner: object, role: Role | "center", title: string, sourcePath: string): NodeLinkDragSource | null {
   const manager = dragManager(app);
-  if (!event.dataTransfer || !canDragNodeLink(page) || !manager?.onDragStart || !manager.dragLink || manager.draggable) return null;
+  if (!event.dataTransfer || !canDragNodeLink(page) || manager?.draggable || plainTagDrags.has(app)) return null;
   if (page.file && app.vault.getFileByPath(page.file.path) !== page.file) return null;
   const source: NodeLinkDragSource = { kind: "kplex-node-link", owner, node: actionNodeRef(page), role };
   try {
-    const tag = page.isTag ? `#${tagDisplayName(page.path, true).replace(/^#/, "")}` : null;
-    const draggable = page.isTag
-      ? { type: "text", title: tag ?? title, icon: "lucide-tag", text: tag ?? title, source }
-      : manager.dragLink(event, page.url ?? page.file?.path ?? page.path, sourcePath, title, source);
-    if (page.isTag) event.dataTransfer.setData("text/plain", draggable.text ?? draggable.title);
+    if (page.isTag) {
+      event.dataTransfer.setData("text/plain", `#${tagDisplayName(page.path, true).replace(/^#/, "")}`);
+      event.dataTransfer.effectAllowed = "copyLink";
+      plainTagDrags.set(app, source);
+      return source;
+    }
+    if (!manager?.onDragStart || !manager.dragLink) return null;
+    const draggable = manager.dragLink(event, page.url ?? page.file?.path ?? page.path, sourcePath, title, source);
     manager.onDragStart(event, draggable);
     return nodeLinkDragSource(app) === source ? source : null;
   } catch {
@@ -65,7 +73,10 @@ export function startNodeLinkDrag(app: App, page: GraphPage, event: DragEvent, o
 
 /** Read only this adapter's finite source shape from the host's currently active drag. */
 export function nodeLinkDragSource(app: App): NodeLinkDragSource | null {
-  const source = dragManager(app)?.draggable?.source;
+  const manager = dragManager(app), tag = plainTagDrags.get(app);
+  if (tag && !manager?.draggable) return tag;
+  if (tag) plainTagDrags.delete(app); // Another native drag cannot inherit stale tag authority.
+  const source = manager?.draggable?.source;
   if (!source || typeof source !== "object" || !("kind" in source) || source.kind !== "kplex-node-link"
     || !("owner" in source) || !source.owner || typeof source.owner !== "object"
     || !("node" in source) || !source.node || typeof source.node !== "object"
@@ -89,6 +100,7 @@ export function draggedGraphPage(app: App, read: { get(path: string): GraphPage 
 
 /** Retire only the exact accepted source; native global dragend may already have cleaned it up. */
 export function finishNodeLinkDrag(app: App, source: NodeLinkDragSource | null): void {
+  if (source && plainTagDrags.get(app) === source) plainTagDrags.delete(app);
   const manager = dragManager(app);
   if (source && manager?.draggable?.source === source) manager.onDragEnd?.();
 }

@@ -4633,3 +4633,16 @@ shared-member retention and final deletion. Focused tag/host tests pass 118/118;
 native Find passes eight guarded searches and six navigations, with zero guarded
 read/parse/acquisition/build/snapshot/inventory operations and exact restoration.
 Other native feature lanes and final combined verification remain in progress.
+
+The next native-driven correction checkpoint keeps layout-only saves on the
+presentation channel (including the existing profile writer), uses plain HTML
+tag text with finite cross-Plex identity, reserves modified placeholder first
+clicks, restores materialization action labels and preserves native literal wiki
+targets during bounded relocation. Uncertain YAML quoting fails before creation;
+no second grammar or source scheduler is introduced. Focused tests pass 226/226
+and the real-types build passes. Native layout passes all six durable settings,
+three surfaces and zero semantic/source/storage work. Five Markdown drop types
+and cross-Plex navigation handlers pass. Trusted body-drag completion and folder
+restart remain pending; failed native transport trials/recovery are preserved.
+See the feature report for actual evidence and the pre-existing-source ordinary
+moving-placeholder double-click limitation. C14 remains accepted and paused.

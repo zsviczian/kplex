@@ -1298,8 +1298,10 @@ const activePath = "Editor.md", centralEditorAvailable = true, sectionExpanded =
 const page = (path, materialized = true) => ({ path, name: path, file: materialized ? { extension: "png", path } : null });
 const centerPage = page(activePath), attachmentPage = page("Before.png"), placeholderPage = page("After.png", false), sentinelPage = page("Other.png");
 const neighborhood = { center: centerPage }, miniPage = page("Descendant.png");
-const nativeNodeDrag={current:null},viewport={current:null},suppressActivateUntil={current:0},miniOpened=[];
+const nativeNodeDrag={current:null},viewport={current:null},suppressActivateUntil={current:0},suppressSyntheticClickUntil={current:0},miniOpened=[],activated=[];
 const Keymap={isModEvent:event=>event.ctrlKey||event.metaKey},openNode=(...args)=>miniOpened.push(args),clearHoverIntent=()=>{},setExternalDropZone=()=>{};
+const runNodeAction=(...args)=>activated.push(args);
+${uiDefinitions("src/ui/PlexGraph.tsx", ["isPlaceholderFolderGesture", "activateNode"])}
 const manager={draggable:null,dragLink:(event,linktext,sourcePath,title,source)=>({type:"link",linktext,sourcePath,title,source}),onDragStart(event,value){this.draggable=value},onDragEnd(){this.draggable=null}};
 const plugin={app:{dragManager:manager,vault:{getFileByPath:path=>[centerPage,attachmentPage,placeholderPage,sentinelPage,miniPage].find(page=>page.file?.path===path)?.file??null}}};
 // The production center renderer publishes already-rendered local gate coverage for readiness.
@@ -1337,6 +1339,15 @@ try {
   const recoloredReads=styleReads;render(initial,true);check(styleReads===recoloredReads,"New paint cache did not settle");
   check(container.querySelectorAll(".kplex-thought").length === 4, "initial real endpoint and unresolved placeholder were not distinct");
   check(clusters() === 3, "fixture did not render expanded strips through the production owner");
+  const ghost=[...container.querySelectorAll('.kplex-thought')].find(element=>element.dataset.kplexPath===placeholderPage.path),beforeActivations=activated.length;
+  suppressActivateUntil.current=0;
+  for(const modifier of [{ctrlKey:true},{metaKey:true}])flushSync(()=>ghost.dispatchEvent(new MouseEvent('click',{bubbles:true,...modifier})));
+  check(activated.length===beforeActivations,'Modified placeholder first click navigated away from its double-click target');
+  flushSync(()=>ghost.dispatchEvent(new MouseEvent('click',{bubbles:true})));
+  check(activated.length===beforeActivations+1,'Ordinary placeholder click stopped navigating');
+  const real=[...container.querySelectorAll('.kplex-thought')].find(element=>element.dataset.kplexPath===attachmentPage.path);
+  flushSync(()=>real.dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true})));
+  check(activated.length===beforeActivations+2,'Modified real-file click was incorrectly reserved for placeholder creation');
   const mini=container.querySelector(".kplex-expanded-mini-thought"),transfer=new DataTransfer();
   check(mini.draggable,"Expanded descendants do not expose native dragging");
   flushSync(()=>mini.dispatchEvent(new DragEvent("dragstart",{bubbles:true,cancelable:true,dataTransfer:transfer})));

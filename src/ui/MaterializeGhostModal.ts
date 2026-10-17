@@ -112,7 +112,6 @@ export class MaterializeGhostModal extends Modal {
       this.buttons.push({ button, kind: "markdown" });
       button
         .setButtonText(this.translate("common.markdown"))
-        .setIcon("file-text")
         .onClick(() => { void this.create("markdown"); });
       if (effectiveDefault === "markdown") button.setCta();
     });
@@ -122,7 +121,6 @@ export class MaterializeGhostModal extends Modal {
         this.buttons.push({ button, kind: "excalidraw" });
         button
           .setButtonText(this.translate("common.excalidraw"))
-          .setIcon("palette")
           .onClick(() => { void this.create("excalidraw"); });
         if (effectiveDefault === "excalidraw") button.setCta();
       });

@@ -1121,6 +1121,20 @@ test("compatibility saves skip semantics only for style-only edits; mixed view c
   settings.hierarchyLinkStyles.parent = { strokeWidth: 4 }; settings.renderSiblings = !settings.renderSiblings; await plugin.saveSettings(false); assert.equal(semantic, 1);
 });
 
+test("actual layout-profile saves stay presentation-only while mixed visibility and ontology edits retain semantic refresh", async () => {
+  const {plugin,settings}=styleEditorFixture();let semantic=0,invalidations=0;
+  plugin.index.refreshSemanticSettings=async()=>{semantic++};
+  plugin.index.invalidateSemanticPolicy=()=>{invalidations++};
+  settings.layoutProfiles['desktop:leaf']={...settings.layoutProfiles['desktop:leaf'],lateralArrangement:'left'};
+  await plugin.saveSettings(false);assert.equal(semantic,0);
+  settings.layoutProfiles['desktop:leaf']={...settings.layoutProfiles['desktop:leaf'],horizontalCompactingFactor:4};
+  await plugin.saveSettings(false,false);assert.equal(semantic,0);assert.equal(invalidations,0);
+  settings.layoutProfiles['desktop:sidepanel']={...settings.layoutProfiles['desktop:sidepanel'],lateralArrangement:'left'};
+  settings.renderSiblings=!settings.renderSiblings;await plugin.saveSettings(false);assert.equal(semantic,1);
+  settings.layoutProfiles['desktop:leaf']={...settings.layoutProfiles['desktop:leaf'],lateralArrangement:'split'};
+  settings.hierarchy.parents.push('Other parent');await plugin.saveSettings(false);assert.equal(semantic,2);assert.equal(invalidations,1);
+});
+
 test("explicit normalized link-style keys take precedence over legacy display names", () => {
   const settings = structuredClone(migrated);
   settings.hierarchyLinkStyles["inspired-by"] = { strokeColor: "#123456ff" };

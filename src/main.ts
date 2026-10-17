@@ -78,7 +78,7 @@ import { SupportClipboardSession } from "./application/supportClipboard";
 import { SupportReportModal } from "./adapters/obsidian/SupportReportModal";
 import { readSupportCustomizations } from "./adapters/obsidian/supportEnvironment";
 import { PartialRelatedFileError } from "./adapters/obsidian/relatedFileOutcome";
-import { capturePlaceholderRelocation, applyPlaceholderRelocation, placeholderReference, type PlaceholderRelocation } from "./adapters/obsidian/placeholderRelocation";
+import { capturePlaceholderRelocation, applyPlaceholderRelocation, assertPlaceholderRelocationTarget, placeholderReference, type PlaceholderRelocation } from "./adapters/obsidian/placeholderRelocation";
 import { ActionManager, type ActionContext, type ActionImplementations, type SidecarFoldRoute, type SidecarFoldTarget } from "./application/ActionManager";
 import { frontmatterDeclarationKey } from "./application/frontmatterUnlink";
 import { ACTION_BY_ID, ACTION_RELATION_ROLES, type ActionId, type ActionOutcome, type ActionRequest, type Availability } from "./core/plex/actions";
@@ -2013,6 +2013,7 @@ export default class KplexPlugin extends Plugin {
     const previousPolicy = this.savedSettingsPolicy;
     const effects = classifySettingsChange(previousPolicy ?? next, next);
     const consentOnly = effects.changedKeys.length === 1 && effects.changedKeys[0] === "allowRemoteNodeImages";
+    const layoutOnly = effects.changedKeys.length === 1 && effects.changedKeys[0] === "layoutProfiles";
     const appearanceChanged = effects.changedKeys.some(/** Legacy imperative saves delegate appearance synchronization to the one queued owner. */ key => STYLE_SETTINGS_KEYS.some(/** This is the appearance-write inventory, not the theme schema. */ field => field === key));
     const queuedAppearance = appearanceChanged && (this.settings.appearanceThemes || this.settings.appearanceThemesFuture !== undefined);
     // The appearance queue owns its durable policy baseline. Advancing it here would make a
@@ -2030,10 +2031,10 @@ export default class KplexPlugin extends Plugin {
     if (this.unloading) return;
     await this.index.refreshPresentationSettings();
     if (effects.semanticInvalidation) await this.index.refreshSemanticSettings();
-    // Device typography changes reuse the existing graph and cannot expand a requested scope.
+    // Device typography and physical layout profiles reuse the graph without expanding a requested scope.
     // Style dictionaries/order also reuse semantic coverage. Preserve the legacy refresh
     // for other render changes and mixed writes, which may change requested scopes.
-    else if (effects.render && !effects.typographyOnly && !effects.paintOnly && !consentOnly && !isStyleOnlySettingsChange(effects) && !effects.changedKeys.every(/** Non-color theme geometry uses presentation/layout only. */ key => STYLE_SETTINGS_KEYS.some(/** Lens behavior keeps its existing separate settings owner. */ field => field === key))) await this.index.refreshSemanticSettings();
+    else if (effects.render && !effects.typographyOnly && !effects.paintOnly && !consentOnly && !layoutOnly && !isStyleOnlySettingsChange(effects) && !effects.changedKeys.every(/** Non-color theme geometry uses presentation/layout only. */ key => STYLE_SETTINGS_KEYS.some(/** Lens behavior keeps its existing separate settings owner. */ field => field === key))) await this.index.refreshSemanticSettings();
     // Workflow-only callers can still request their historical view notification. Changed settings
     // use the separate presentation channel and never pretend relationship evidence changed.
     if ((!effects.render || effects.typographyOnly) && notifyIndex) this.index.notifyPresentation();
@@ -4256,13 +4257,14 @@ export default class KplexPlugin extends Plugin {
     return activeLayoutProfile(this.settings, surface, readObsidianPresentationEnvironment());
   }
 
+  /** Persist physical layout preferences and notify presentation without invalidating relationship evidence. */
   async updateLayoutProfile(surface: KplexViewSurface, patch: Partial<KplexLayoutProfile>): Promise<void> {
     const environment = readObsidianPresentationEnvironment();
     const key = layoutProfileKey(surface, environment);
     const current = activeLayoutProfile(this.settings, surface, environment);
     this.settings.layoutProfiles[key] = { ...current, ...patch };
     await this.saveSettings(false, false);
-    this.index.notify();
+    this.index.notifyPresentation();
   }
 
   isPinned(path: string): boolean { return this.settings.pinnedNodes.includes(path); }
@@ -6479,6 +6481,9 @@ export default class KplexPlugin extends Plugin {
     if (relocates && !referenceHost) throw new Error(changed);
     if (relocates && referenceHost) placeholderReference(this.app, referenceHost,
       `${destination.folderPath ? destination.folderPath + "/" : ""}${stem}`, stem, this.translator("folderPicker.placeholderUnsupported"));
+    if (relocation) assertPlaceholderRelocationTarget(relocation,
+      `${destination.folderPath ? destination.folderPath + "/" : ""}${stem}${kind === "excalidraw" ? ".excalidraw.md" : ".md"}`,
+      this.translator("ghost.relocationUnsupported"));
     if (this.unloading || retainedFile && this.app.vault.getFileByPath(retainedFile.path) !== retainedFile) throw new Error(changed);
     if (retainedFile && (retainedFile.parent?.path === "/" ? "" : retainedFile.parent?.path) !== destination.folderPath) throw new Error(changed);
     const file = retainedFile ?? await this.createNewFileInFolder(stem, kind, destination.folderPath);
