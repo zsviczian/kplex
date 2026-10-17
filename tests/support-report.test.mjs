@@ -2,10 +2,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { browserBundle } from "./support/browserTypeScript.mjs";
-const source = await browserBundle(["src/application/SessionEventRecorder.ts", "src/application/supportReport.ts"]);
+const source = await browserBundle(["src/application/SessionEventRecorder.ts", "src/application/supportReport.ts", "src/application/IndexingActivity.ts"]);
 const host = {};
 new Function("window", source)(host);
 const { SessionEventRecorder, SESSION_EVENT_LIMIT, SESSION_EVENT_BYTE_LIMIT, SESSION_EVENT_MAX_AGE_MS, createSupportReport, SUPPORT_REPORT_BYTE_LIMIT } = host.sourceModules;
+const {IndexingActivity,ACTIVITY_SOURCE_COLUMNS,ACTIVITY_SESSION_COLUMNS,ACTIVITY_CURRENT_COLUMNS}=host.sourceModules;
+
+/** Create one shared branded snapshot at the real capture owner, without native dependencies. */
+function activityFixture(){let now=0;const recorder=new IndexingActivity(()=>now),source=Object.fromEntries(ACTIVITY_SOURCE_COLUMNS.map(key=>[key,0])),session=Object.fromEntries(ACTIVITY_SESSION_COLUMNS.map(key=>[key,0]));
+  recorder.mark('onload');recorder.cause('uncovered-non-file');const token=recorder.begin('host-inventory','global','unscoped-resolved',source,session);now=35;source.checked=88;recorder.end(token,'complete',source,session);
+  return{recorder,capture:recorder.capture('on-demand','background','responsive','1.2.3+abcdef012345',...Array(ACTIVITY_CURRENT_COLUMNS.length).fill(0))};}
 
 /** Parse only the formatter's fenced payload so tests inspect the exact bytes shown and copied. */
 function payload(text) {
@@ -34,6 +40,34 @@ function inputFixture() {
       source: { checked: 73, reusedBodies: 69, vaultReads: 4, parses: 4, failures: 0 }, semantic: { requested: 1, pending: 1, lastReason: "pending-metadata" } },
     session: { eventsCaptureStatus: "active", events: [{ code: "plugin-start", atMs: 0 }, { code: "index-phase-change", atMs: 350, phase: "indexing" }], droppedEvents: 0, retainedBytes: 109 } };
 }
+
+test('support text embeds one compact shared activity object without changing existing fields',()=>{
+  const {capture}=activityFixture(),input=inputFixture(),text=createSupportReport(input,capture),report=payload(text);
+  assert.deepEqual(report.indexingActivity,capture);assert.equal(report.index.status.indexedFiles,4);assert.equal(report.startup.source.checked,73);
+  assert(text.includes('  "indexingActivity": '+JSON.stringify(capture)+'\n}'));assert.equal(createSupportReport(input,capture),text);
+  assert.equal(Buffer.byteLength(text),text.length);assert.equal(report.index.indexingActivity,undefined,'Activity has one top-level owner, not a duplicate parsed index field');
+});
+
+test('new activity inputs reject accessors/proxies/toJSON and retired/parsed captures without execution',()=>{
+  let calls=0;const secret='private-vault/path.md';const hostile=new Proxy({},{get(){calls++;throw Error(secret)},getOwnPropertyDescriptor(){calls++;throw Error(secret)},ownKeys(){calls++;throw Error(secret)}}),getter={get schemaVersion(){calls++;throw Error(secret)},toJSON(){calls++;throw Error(secret)}};
+  const revoked=Proxy.revocable({},{});revoked.revoke();const {recorder,capture}=activityFixture();
+  for(const value of [hostile,getter,revoked.proxy,JSON.parse(JSON.stringify(capture))]){const text=createSupportReport(inputFixture(),value);assert.equal(payload(text).indexingActivity,null);assert(!text.includes(secret));}
+  const input=inputFixture();Object.defineProperty(input.indexReport,'indexingActivity',{get(){calls++;throw Error(secret)}});assert.equal(payload(createSupportReport(input)).indexingActivity,null,'Parsed/native index fields cannot introduce a second activity projection');
+  for(let index=0;index<8;index++)recorder.capture();assert.equal(payload(createSupportReport(inputFixture(),capture)).indexingActivity,null);assert.equal(calls,0);
+});
+
+test('maximum environment/event/startup pressure preserves the shared activity core under32KiB',()=>{
+  const {capture}=activityFixture(),input=inputFixture(),max=Number.MAX_SAFE_INTEGER;
+  input.startup.enabled=true;input.startup.phases=Array.from({length:32},()=>({lane:'source',phase:'dependency-final-validation',pass:max,processed:max,total:max,startedMs:max,endedMs:max,uniqueOwners:max,counters:{physicalRevisionComparisons:max,headPageOwners:max,inventoryFiles:max,inventoryFolders:max}}));
+  input.startup.overlaps=Array.from({length:32},()=>({first:'dependency-final-validation',second:'resolution-reconciliation',owners:max}));
+  input.session.events=Array.from({length:96},(_,index)=>({code:'semantic-preparation-failure',atMs:index,phase:'dependency-final-validation',category:'navigation',outcome:'superseded',durationMs:max,count:max}));
+  input.environment.activePluginsAvailability='available';input.environment.activePluginTotalCount=700;
+  input.environment.activePlugins=Array.from({length:700},(_,index)=>({kind:'community',id:'plugin-'+index,name:'漢'.repeat(128),version:'12345.12345.12345'}));
+  input.indexReport.decisions=Array.from({length:20},()=>({at:max,stage:'reconcile',reason:'complete-restored',added:max,removed:max,modified:max,completedMarkdownFiles:max,durationMs:max}));
+  const text=createSupportReport(input,capture),report=payload(text);
+  assert(Buffer.byteLength(text)<=SUPPORT_REPORT_BYTE_LIMIT);assert.deepEqual(report.indexingActivity,capture);assert.equal(report.indexingActivity.lastGlobal[5],capture.lastGlobal[5]);assert.deepEqual(report.indexingActivity.totals,capture.totals);
+  assert.equal(report.events.length,0);assert(report.truncation.activePluginsOmitted>0);assert(!/[^\u0000-\u007f]/.test(text));
+});
 
 test("session work counts survive disabled detailed timings without exporting arbitrary fields", /** Only finite nonnegative counts enter the public report. */ () => {
   const input = inputFixture();

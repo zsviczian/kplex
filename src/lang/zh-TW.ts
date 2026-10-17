@@ -211,7 +211,7 @@ const traditionalChineseTranslations = {
   "support.reportTitle": "回報錯誤",
   "support.searchFirst": "請先搜尋現有的議題，確認是否已有人回報此問題。",
   "support.issueInstructions": "如果要建立議題，請說明重現問題的步驟，並將此診斷報告貼在最下方。",
-  "support.privacyDisclosure": "此報告包含彙總計數、環境資訊、啟用中核心與社群外掛的名稱、社群外掛版本、自訂佈景主題名稱、已啟用與可用的 CSS 程式碼片段數量及簡短的工作階段事件記錄，不包含筆記內容、筆記名稱、路徑、程式碼片段名稱或原始主控台記錄。發佈前請檢查是否含有私人資料。不會自動傳送任何資料。",
+  "support.privacyDisclosure": "此報告包含彙總計數、環境資訊、啟用中核心與社群外掛的名稱、社群外掛版本、自訂佈景主題名稱、已啟用與可用的 CSS 程式碼片段數量及簡短的工作階段事件記錄，不包含筆記內容、筆記名稱、路徑、程式碼片段名稱或原始主控台記錄。索引活動只在本次工作階段於本機保留，重新載入 K-Plex 或結束 Obsidian 時會重設。發佈前請檢查是否含有私人資料。不會自動傳送任何資料。",
   "settings.excalidrawCompatibility": "Excalidraw",
   "settings.excalidrawFitOnNodeOpen": "開啟編輯器節點時將繪圖縮放至完整顯示",
   "settings.excalidrawFitOnNodeOpenHelp": "開啟或瀏覽至一般編輯器節點時，將繪圖縮放至完整顯示，並優先採用此設定而非 Excalidraw 的設定。全螢幕編輯器會遵循 Excalidraw 的偏好設定。手動縮放會保留，直到開啟另一幅繪圖。",

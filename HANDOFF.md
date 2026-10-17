@@ -19,28 +19,53 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR #173 - implementation returned for draft review
+# PR #174 — returned for independent review; long-session gate open
 
-Branch: `2026-10-17-issue-164-safe-plex-folding`. #172 merged at `ef301dc07fa6a8754455a6aeb94ae871d2aacd75`; #161 closed with the requested comment referencing #172. Main integrated without rewriting history at `2735550a28b7ad16a68da1df2a0cac4ad9845217`. Animation prerequisite checkpoint `75ac2ab` pushed. Feature checkpoint `5e53eb6` committed and pushed; keep #173 draft and #164 open. No merge/release/branch deletion/personal-vault access.
+State: main-agent implementation/review is complete through pushed runtime checkpoint `d6be473`;
+final documentation/link/whitespace/diff checks pass for this closeout checkpoint. No active native/resource lane remains. Runtime checkpoint D2 passes GitHub CI (26m52s, all suites, zero failures/skips); final documentation-head CI is tracked separately. An unfinished run is not a pass.
+Branch: `2026-10-17-local-folder-diagnostics`. Main/#173 was merged at `23aa44e` and integrated
+without rewriting history at `d4d65cd`. #164 is closed with the requested comment. Independent
+checkpoints: D0 `786e91c`, F2 `b4bb401`, F3 `ebe26cc`, D2 `d6be473`.
+Keep #174 draft. No merge, release, personal-vault access or raw-evidence publication.
 
-## Returned implementation and review
+F authenticates one bounded empty-folder wave using existing complete physical ownership and
+preserves source/referrer/CAS validation. F3 completes exact current missing-head rename retirement
+without erasing newer intent. D adds bounded passive coarse accounting, shared allowlisted captures,
+O(1) health, public static build identity and eight-locale disclosure. Canonical ownership, finality,
+privacy, retention, exception isolation, reuse, comments and owner-window behavior were reviewed.
+No receipt, schema, parser/compiler or scheduler redesign; C14 remains paused.
 
-Stable fold action/command now toggles a graph-independent captured native pair. Existing Sidecar/fold maps remain sole ownership inventories. Exact generation/revision/window/group/ancestry fences, finite native picker, complete-group recovery, restore-before-release/reveal/migration, four edges, overlap/disjoint ownership and a proven late-startup-adoption race are covered. New folds deliberately require two direct native groups in an isolated split; unsafe layouts stay expanded. Native model/flex/dimensions are untouched. All eight locales and user documentation updated. No index/source/parser/settings/schema/scheduler changes; C14 structural refactoring remains paused.
+Actual Node 22.22.2 `verify:obsidian` passes: architecture 7, core 128, main 960, UI 131,
+sources 334, browser sources 598; zero failures/skips, installed types/core/lint/build and exact
+Windows smoke. Main SHA-256 `d46b370199b0a2b06347266308e539f3a71a9e83459d50934be4b38bbc067ebc`
+is the verified precommit artifact at `ebe26cc` plus the archived D2 patch; runtime files match D2.
+Individual test deadlines are unchanged. The failed 20-minute aggregate invocation and clean
+35-minute rerun remain separate evidence.
 
-Offline agent source review and independent main review found no additional concrete source blocker. Runtime tests exercise production owners, and UI tests compile real components. Main reviewed ownership, async fencing, architectural seams, lifecycle/document cleanup, native types, localization/accessibility and paint-versus-semantic boundaries. Automated verification supplements rather than replaces that review.
+38 focused real-IDB cases, #172 held-P3 Find/sync/stationary completion, #161's 28 variants,
+final 610-second quiet, ordinary Markdown, actual Excalidraw and create/fill/rename pass. Final
+native report/Settings/main/popout lane completes 23 recorded cases; optional real clipboard
+writing is pending to preserve non-plain-text formats. Earlier 24-case control includes real writing.
+All final fixture/settings/configuration/clipboard cleanup passes. Failed controls remain preserved.
 
-## Actual evidence
+F: suitable for independent review within eligibility. D: revise acceptance before field rollout.
+The real two-hour foreground soak remains unproven: one native-focus preflight fails before
+fixtures/captures; a setup-only bounded focus-settlement variant reaches one edit/capture and two
+unchanged-idle controls before losing focus. Both restore exactly. Pre-existing Explorer-owned
+Chrome is foreground; no titles, other-vault data or actual input are read, and no other application
+is closed. No focus oracle is weakened/refocused away. The maintainer confirms the machine is in use and explicitly instructs leaving the long foreground test pending.
+Next action, only after the maintainer makes a new test window available: run the archived setup-settled
+soak driver on the exact reviewed build, unchanged actual mode/policy, for two real hours; preserve
+all results and cleanup. Do not call failed/accelerated evidence a native multi-hour pass.
 
-Only authorized disposable Small (107 files / 88 Markdown), Windows 10.0.26200 / Obsidian 1.14.4 / Electron 43.3.0 / Excalidraw 2.29.0; Node22.22.2. Final artifact SHA-256 `8d20bf308e935f353a9eea24256d44838b33863cd6d99d7b00ed056e7459e8c1` matches strict staging.
+Private durable evidence is verified at `%LOCALAPPDATA%/KplexValidation/pr-174-2026-10-17/final-evidence`:
+1,716 files, 103,633,691 bytes; independent re-read of every entry and 1,713 originals passes.
+Manifest SHA-256 `4a4cfaf45cdd5c90f73bf7909391984f5fd372ad5db127bfadc10ec75b93f58a`.
+No originals are deleted or raw material published; junctions/dependencies/transient handoffs are
+excluded. Final documentation is written after manifest verification. See the consolidated report
+and `docs/INDEXING_DIAGNOSTICS.md` for source identities, costs, limitations and collection guide.
 
-Full `npm run verify:obsidian` passes: 937 portable, 131 general Chromium, 334 source-contract and 560 source-browser tests; architecture/core, installed types, official scanner, production build and strict native staging. Persistence passes all five checks including trusted asymmetric native divider drag, live disable, enabled/disabled reload, and actual selected-renderer interruption with a new PID followed by disabled startup. Both groups remain reachable at the same native share. Configuration/runtime and note inventory restore, no errors. Full application/OS restart is separate.
-
-The final-artifact matrix passes 36 functional checks, but runs nine/ten/eleven capture Obsidian's zoom-status exception during companion popout close. Simple no-fold controls and a matched matrix omitting the preceding fold are clean: this does not prove the exception unrelated. The helper-only control removing diagnostic child-realm remote proxies still passes all36 functional checks and reproduces the same zoom-status exception; exact closed-window and native-leaf-removal assertions remain. Do not suppress the error or claim native overall acceptance unless the final lane is clean.
-
-Existing display-mode lane passes after correcting its proven Mac-only chrome assertion for Windows. Sidecar navigation passes38 samples. Existing broader action lane's semantic Mod transport was corrected for Windows; 13 groups pass before explicit F1 recorder assertion fails. Relationship workflow stops at Wrong child target/storage on both final and merged-#172 baseline; final artifact restored afterward. These partial lanes remain explicit, not accepted passes.
-
-## Evidence and next owner
-
-Curated source/artifact/driver/results/limits: `docs/validation/safe-plex-folding-173-2026-10-17.md`. Raw originals and failed controls retained in `%TEMP%/kplex-173-*`; verified private backup is `%LOCALAPPDATA%/KplexValidation/pr-173-2026-10-17/final-evidence/`, manifest SHA-256 `8c5461f9f5b18f30de8a34df295fa2c458326ea303a0af10ec37017306efbd26`; all749 files plus patch independently verified. Implementation CI39023891312 is running; prerequisite75ac CI passed. Native-runner20 contracts pass. Do not publish private configuration/raw evidence or delete originals. All native drivers run serially with the three explicit disposable-vault variables. No active portable/native suite should overlap another.
-
-Remaining acceptance: settle native popout-close error and broad action recorder gap; physical desktop group dragging/multi-monitor; full application interruption/restart and macOS/Linux/physical tablet lifecycle/touch. Never infer physical-device or perceived-paint coverage from Electron automation. Native repository management remains root-owned. Commit/push checkpoints within standing user authorization, update #173 with real outcomes, keep draft/#164 open. Do not resume receipts/reader optimizations or C15+ refactoring.
+Prioritized remaining acceptance: uninterrupted Windows two-hour then real 24-hour use; macOS
+popout/copy/interrupted folder waves; physical Android/iOS suspend/resume, clipboard and memory.
+Estimated next test window: two hours plus setup/cleanup; availability is unknown. Do not resume
+unrelated architecture/performance work or merge/release while this gate is unresolved.

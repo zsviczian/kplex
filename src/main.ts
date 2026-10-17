@@ -70,6 +70,7 @@ import { SOURCE_DECODE_BUDGET_BYTES } from "./index/SourceFacts";
 import { perfNow } from "./util/perf";
 import { createIndexDiagnosticsReport } from "./adapters/obsidian/indexDiagnosticsReport";
 import { createSupportReport } from "./application/supportReport";
+import type { IndexingActivityCapture } from "./application/IndexingActivity";
 import { SessionEventRecorder } from "./application/SessionEventRecorder";
 import { SupportClipboardSession } from "./application/supportClipboard";
 import { SupportReportModal } from "./adapters/obsidian/SupportReportModal";
@@ -84,6 +85,9 @@ import { actionNodeRef, resolveActionPage } from "./adapters/obsidian/actionNode
 import { translateActionText } from "./ui/actionPresentation";
 import { ActionTargetPicker } from "./ui/ActionTargetPicker";
 import { PlexFoldSession, plexFoldIdentity, type PlexFoldCandidate } from "./ui/PlexFoldSession";
+
+/** Public build-time identity; finite source harnesses may omit the esbuild replacement. */
+declare const __KPLEX_BUILD_ID__: string;
 
 type LoadAwareView = FileView & { _loaded?: boolean };
 
@@ -791,7 +795,8 @@ export default class KplexPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("create",
       /** Publish native file availability independently of startup/build completion, then queue its source patch. */
       (created) => {
-        this.index.invalidateHostStructure();
+        this.index.invalidateHostStructure(Boolean((created instanceof TFile || created instanceof TFolder)
+          && this.initialIndexComplete && this.index.hasPhysicalBaseline()));
         this.pruneManagedMetadataWrites();
         if (created instanceof TFile && created.extension === "md") {
           this.deletedMarkdownFiles.delete(created);
@@ -3101,10 +3106,11 @@ export default class KplexPlugin extends Plugin {
   reportBug(origin?: HTMLElement, surfaceId?: string): void {
     if (this.unloading) return;
     const owner = origin?.ownerDocument.defaultView ?? window.activeWindow ?? window;
+    const indexingActivity = this.captureIndexingActivity();
     let indexReport: unknown = null;
     let startup: unknown = null;
     try {
-      if (this.index) indexReport = JSON.parse(createIndexDiagnosticsReport(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version));
+      if (this.index) indexReport = JSON.parse(createIndexDiagnosticsReport(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version, indexingActivity));
     } catch { /* Partial startup/cache failures remain explicit unavailable facts, never raw errors. */ }
     try { startup = this.getStartupDiagnostics(); } catch { /* Report remains available without this optional owner. */ }
     let formFactor: unknown = null;
@@ -3127,7 +3133,7 @@ export default class KplexPlugin extends Plugin {
         indexingThrottle: this.settings?.indexingThrottle,
         excalidrawFitOnNodeOpen: this.settings?.excalidrawFitOnNodeOpen,
       },
-    });
+    }, indexingActivity);
     const session = new SupportClipboardSession(report, /** Capture only this toolbar's actual native clipboard owner. */ text => owner.navigator.clipboard.writeText(text));
     session.copy(); // Must precede native UI creation and every await on mobile clipboard paths.
     const registration = surfaceId ? this.actionSurfaceHosts.get(surfaceId) : undefined;
@@ -3179,10 +3185,24 @@ export default class KplexPlugin extends Plugin {
     return this.indexDirtyRevision;
   }
 
-  private async copyIndexDiagnostics(): Promise<void> {
+  /** Capture passive scalar health once; optional owners fail independently without admitting work. */
+  captureIndexingActivity(): IndexingActivityCapture | null {
+    let facts: ReturnType<GraphIndex["getIndexingActivityFacts"]> | undefined;
+    try { facts = this.index?.getIndexingActivityFacts?.(); }
+    catch { /* The retained recorder remains usable if optional health is unavailable. */ }
     try {
-      const report = createIndexDiagnosticsReport(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version);
-      await window.navigator.clipboard.writeText(report);
+      return this.startupDiagnostics?.captureActivity?.(facts?.mode, facts?.urls, facts?.pacing,
+        typeof __KPLEX_BUILD_ID__ === "string" ? __KPLEX_BUILD_ID__ : "source-archive", ...(facts?.current ?? [])) ?? null;
+    } catch { return null; }
+  }
+
+  /** Copy one fresh passive capture through the invoking native window's clipboard owner. */
+  private async copyIndexDiagnostics(): Promise<void> {
+    const owner = window.activeWindow ?? window;
+    try {
+      const indexingActivity = this.captureIndexingActivity();
+      const report = createIndexDiagnosticsReport(this.index, () => this.getIndexDiagnosticsStatus(), this.manifest.version, indexingActivity);
+      await owner.navigator.clipboard.writeText(report);
       new Notice(this.translator("notice.indexDiagnosticsCopied"));
     } catch (error) {
       console.error("K-Plex could not copy index diagnostics", error);
@@ -3197,11 +3217,11 @@ export default class KplexPlugin extends Plugin {
     indexedFiles: number;
     totalFiles: number | null;
   } {
-    return this.computeIndexStatusFacts(this.cachedMarkdownFileCount);
+    return this.computeIndexStatusFacts(this.cachedMarkdownFileCount, false);
   }
 
-  /** Aggregate readiness without scheduling work; a completed unsuccessful startup attempt is incomplete even when its backlog remains dirty. */
-  private computeIndexStatusFacts(totalFiles: number | null): {
+  /** Aggregate readiness without scheduling; only product status reads may record strict readiness. */
+  private computeIndexStatusFacts(totalFiles: number | null, recordReadiness = true): {
     upToDate: boolean;
     phase: "ready" | "loading-cache" | "preparing" | "checking-cache" | "indexing" | "saving-cache" | "updating" | "incomplete";
     indexedFiles: number;
@@ -3220,7 +3240,7 @@ export default class KplexPlugin extends Plugin {
       && !semanticPreparing
       && !semanticIncomplete
       && !this.index.hasPendingSearchVocabulary();
-    if (upToDate) this.startupDiagnostics?.finish();
+    if (upToDate && recordReadiness) this.startupDiagnostics?.finish();
     const indexedFiles = totalFiles === null
       ? this.index.indexedMarkdownFileCount()
       : upToDate && !this.index.isOnDemandMode() ? totalFiles : Math.min(totalFiles, this.index.indexedMarkdownFileCount());
@@ -3335,7 +3355,7 @@ export default class KplexPlugin extends Plugin {
    * completed trace remains available for this plugin lifetime. No owner identities are exported.
    */
   getStartupDiagnostics() {
-    const status = this.index ? this.computeIndexStatusFacts(this.cachedMarkdownFileCount) : null;
+    const status = this.index ? this.computeIndexStatusFacts(this.cachedMarkdownFileCount, false) : null;
     return {
       ...this.startupDiagnostics.snapshot(),
       progress: { source: this.startupDiagnostics.progress("source"), hydration: this.startupDiagnostics.progress("hydration") },

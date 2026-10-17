@@ -525,6 +525,7 @@ for (const file of [
   "src/core/plex/actionPreferences.ts",
   "src/core/plex/typographyPreferences.ts",
   "src/application/ActionManager.ts",
+  "src/application/IndexingActivity.ts",
   "src/application/SessionEventRecorder.ts",
   "src/application/supportClipboard.ts",
   "src/application/supportReport.ts",
@@ -819,6 +820,78 @@ const KplexPlugin = require(join(temp, "src/main.js")).default;
     getIndexStatus: () => { throw new Error("Clipboard report must not enumerate the vault"); },
   });
   assert.deepEqual(readyStatus, { upToDate: true, phase: "ready", indexedFiles: 8, totalFiles: null });
+  let readinessWrites = 0;
+  const passive = {
+    cachedMarkdownFileCount: null,
+    computeIndexStatusFacts: KplexPlugin.prototype.computeIndexStatusFacts,
+    initialIndexComplete: true, indexDirty: false, rebuildTask: null, rebuildTimer: null,
+    index: { isOnDemandMode: () => false, hasPendingSnapshotHydration: () => false,
+      hasPendingSemanticPreparation: () => false, hasPendingSearchVocabulary: () => false,
+      indexedMarkdownFileCount: () => 8, getSnapshotHydrationDiagnostics: () => null,
+      getSourceAcquisitionCounters: () => null, getSemanticPreparationDiagnostics: () => null },
+    startupDiagnostics: { finish() { readinessWrites++; }, snapshot: () => ({ phases: [] }), progress: () => null },
+    app: { vault: { getMarkdownFiles() { throw new Error("Passive diagnostics must not enumerate files"); } } },
+  };
+  KplexPlugin.prototype.getIndexDiagnosticsStatus.call(passive);
+  KplexPlugin.prototype.getStartupDiagnostics.call(passive);
+  assert.equal(readinessWrites, 0, "Both diagnostic readers preserve strict-readiness observations");
+  passive.computeIndexStatusFacts(8);
+  assert.equal(readinessWrites, 1, "Ordinary product readiness retains its existing completion boundary");
+}
+
+// Explicit report capture projects actual scalar facts once and tolerates independent optional failures.
+{
+  const facts = { mode: "on-demand", urls: "background", pacing: "responsive", current: [3, null, 1] };
+  const owned = Object.freeze({ status: "active" });
+  let healthReads = 0, captured;
+  const context = {
+    index: { getIndexingActivityFacts() { healthReads++; return facts; } },
+    startupDiagnostics: { captureActivity(...args) { captured = args; return owned; } },
+    app: new Proxy({}, { get() { throw new Error("Activity capture must not consult host state"); } }),
+  };
+  assert.equal(KplexPlugin.prototype.captureIndexingActivity.call(context), owned);
+  assert.equal(healthReads, 1);
+  assert.deepEqual(captured, ["on-demand", "background", "responsive", "source-archive", 3, null, 1]);
+  assert.deepEqual(facts.current, [3, null, 1], "Capture does not mutate the health owner's array");
+  context.index.getIndexingActivityFacts = () => { throw new Error("Optional health unavailable"); };
+  assert.equal(KplexPlugin.prototype.captureIndexingActivity.call(context), owned);
+  assert.deepEqual(captured, [undefined, undefined, undefined, "source-archive"], "Retained activity survives unavailable health");
+  context.startupDiagnostics.captureActivity = () => { throw new Error("Optional recorder unavailable"); };
+  assert.equal(KplexPlugin.prototype.captureIndexingActivity.call(context), null);
+  context.startupDiagnostics = undefined;
+  assert.equal(KplexPlugin.prototype.captureIndexingActivity.call(context), null);
+}
+
+// Copy Index Diagnostics selects and retains the invoking window before its first await.
+{
+  const descriptors = Object.fromEntries(["navigator", "activeWindow"].map(key => [key, Object.getOwnPropertyDescriptor(window, key)]));
+  let mainWrites = 0, popoutWrites = 0, captures = 0, release;
+  const context = {
+    manifest: { version: "0.1.3" }, translator: () => "Copied",
+    captureIndexingActivity() { captures++; return null; },
+    getIndexDiagnosticsStatus: () => ({ upToDate: true, phase: "ready", indexedFiles: 0, totalFiles: null }),
+    index: { size: 0, getSavedSnapshotSummary: () => null, indexedMarkdownFileCount: () => 0,
+      isFullSnapshotHydrated: () => false, getSnapshotHydrationDiagnostics: () => null,
+      getIndexDiagnostics: () => [] },
+  };
+  try {
+    Object.defineProperty(window, "navigator", { configurable: true, value: { clipboard: { writeText() { mainWrites++; return Promise.resolve(); } } } });
+    Object.defineProperty(window, "activeWindow", { configurable: true, writable: true, value: {
+      navigator: { clipboard: { writeText(text) { popoutWrites++; assert.equal(JSON.parse(text).formatVersion, 1); return new Promise(resolve => { release = resolve; }); } } },
+    } });
+    const pending = KplexPlugin.prototype.copyIndexDiagnostics.call(context);
+    assert.equal(popoutWrites, 1, "Invoking popout writes synchronously before any await");
+    assert.equal(mainWrites, 0, "Main clipboard remains untouched for a distinct popout capability");
+    window.activeWindow = window;
+    release(); await pending;
+    assert.equal(popoutWrites, 1, "A later active-window change cannot duplicate or redirect the accepted copy");
+    await KplexPlugin.prototype.copyIndexDiagnostics.call(context);
+    assert.equal(mainWrites, 1); assert.equal(captures, 2, "Each invocation captures exactly once");
+  } finally {
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if (descriptor) Object.defineProperty(window, key, descriptor); else delete window[key];
+    }
+  }
 }
 
 // URL selection must not replace a companion with Obsidian's missing-plugin placeholder.
@@ -1035,6 +1108,7 @@ assert.equal(indexingStatusContext.markdownFileCountReads, 1, "Progress publicat
   };
   statusMembershipCoordinator.index = { isOnDemandMode: () => false,
     hasLocalBaseline: () => false,
+    hasPhysicalBaseline: () => false,
     getUrlIndexProgress: () => ({ active: false, failed: false, processed: 0, total: 0 }),
     invalidateHostStructure: () => { structuralInvalidations += 1; },
     size: 10,

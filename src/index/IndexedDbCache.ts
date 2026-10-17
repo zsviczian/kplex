@@ -334,6 +334,11 @@ export class KplexIndexedDbCache {
   private maintenanceReads = new Set<IDBTransaction>();
   private purgePromise: Promise<boolean> | null = null;
 
+  /** Read retained body-write state only; queued includes the current batch until its ordinary commit. */
+  getActivityState(): Readonly<{queuedBodies: number; writerActive: boolean}> {
+    return {queuedBodies: this.queuedBodyWrites.size, writerActive: this.bodyWriteInFlight};
+  }
+
   /** Share one connection owner. The injected checkpoint belongs to broad cache maintenance (P4);
    * caller-specific URL restore overrides it with P3 and foreground point reads never borrow it. */
   constructor(private vaultName: string, private readonly backgroundCheckpoint?: () => Promise<void>, completedWork?: () => void) {

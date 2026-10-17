@@ -820,6 +820,44 @@ that becomes canonical before query is recorded as a setup exclusion, not a comp
 The lane records bounded milestone/resource aggregates, checks foreground ownership and restores
 its fixture files, wrappers, workspace, preferences and exact configuration bytes.
 
+### Local folder wave validation
+
+After exact-build staging, run `npm run verify:obsidian:folder-wave -- <fresh-absolute-report-directory>`
+with the three explicit disposable `kplex-test-small` vault variables. The driver requires the
+107-file baseline used by the matched fixture and refuses collisions before mutation. Run native,
+browser and resource lanes serially with the original foreground/throttling policy.
+
+Set `KPLEX_NATIVE_QUIET_SECONDS=610` for the post-drain quiet control (`0` omits it). Optional
+`KPLEX_NATIVE_ARTIFACT_DIR`, `KPLEX_NATIVE_SOURCE_ROOT` and `KPLEX_NATIVE_RUNTIME_REF` identify pinned
+builds. The driver uses natural folder/file/metadata events, observes actual qualification and
+fallback, and exercises an owned ordinary note, a valid native Excalidraw drawing and a native
+create/fill/rename sequence. The latter models the event pattern; it does not test Templater internals.
+Missing Excalidraw acceptance produces a partial result (exit 2), not a pass.
+
+Exact fixture/configuration restoration is required. Private reports include configuration backups;
+do not publish them without review. Current inputs are matched, but database histories are not
+restored or claimed identical. Source digests, storage calls, sampled memory and inclusive renderer
+CPU have distinct meanings; operation reductions alone do not establish a universal speedup.
+
+### Passive indexing diagnostics validation
+
+The native verifier allows 35 minutes for the complete serial portable suite. This aggregate
+limit includes the established large IndexedDB case's 14-minute deadline plus the other suites;
+individual test and native CLI deadlines are unchanged. A wrapper timeout is a failed verification,
+even if a Windows child process continues; let that owned child finish before starting another lane.
+
+See [the schema and collection guide](docs/INDEXING_DIAGNOSTICS.md) for retention, privacy and
+interpretation. `npm run verify:obsidian:support-report` exercises the actual Report bug controls
+and registered Copy index diagnostics command in the main window and a popout. Its programmatic
+command dispatch is distinct from trusted keyboard activation; physical-device clipboard remains
+separate acceptance. Use a fresh `KPLEX_HOST_REPORT_DIR` and the explicit Small-vault variables.
+
+Run `npm run bench:indexing-activity` on Node 22.22.2, serially after native/resource lanes, for
+the actual recorder versus no-op CPU, sampled allocations, retained-data observations and explicit
+copy cost. Amplified updates are not native indexing throughput; native timing noise cannot prove
+zero overhead. Do not enable detailed profiling or add per-file instrumentation to fill missing
+fields. Accelerated 24/48-hour tests validate bounded retention, not a day of real-device use.
+
 ### Fullscreen and Zen acceptance
 
 After `npm run verify:obsidian` stages the exact build, run

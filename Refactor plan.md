@@ -4463,3 +4463,107 @@ implementation patch independently verified outside temporary storage. Manifest 
 Originals retained; no raw evidence publication. Prerequisite CI passes; implementation CI is
 running, not yet acceptance. Native-runner20 contracts pass after tooling cleanup. Source and
 build unchanged by this documentation closeout. Draft/native/platform gaps above remain open.
+
+### 2026-10-17 — #173 accepted merge and #174 D0 checkpoint
+
+The maintainer authorized #173's merge with its recorded validation limits. It merged at
+`23aa44e`; #164 is closed with the requested comment referencing #173. Main was integrated
+without rewriting history into draft #174 at `d4d65cd`. Earlier draft-only instructions above
+describe their historical checkpoints; they do not undo this authorized merge.
+
+#174 D0 adds a fixed-memory session recorder and coarse source/phase observations, independently
+of any folder admission correction. No per-file diagnostic accounting, I/O, scheduling, persisted
+format or semantic behavior is added. Eight weak admission slots bound explicit-copy bookkeeping;
+actual terminal boundaries close phases even when pass detail is omitted. Default capture excludes
+the legacy detailed per-file patch marker. Full verification, installed types/lint/build and exact
+Obsidian smoke pass; all 19 final focused recorder/startup tests pass. Amplified Node 22.22.2 cost is
+about 0.55 microseconds per begin/end pair; the observed complete diagnostic data cut is 15,896 bytes.
+Native stable-path/frequency controls preserve source reads/parses/builds/saves; storage/CPU timing
+variance remains explicit. No native resource saving is attributed to diagnostics.
+
+The full-semantic-snapshot-only F prototype excludes natural source-backed Eager startup. A bounded
+physical-folder publication certificate is under review; it must not imply semantic/source authority.
+D2 public exports, final native controls/quiet window and two-hour soak remain pending. See
+[the report](docs/validation/local-folder-diagnostics-174-2026-10-17.md) and
+[diagnostic contract](docs/INDEXING_DIAGNOSTICS.md). C14 stays paused; #174 stays draft. Highest
+remaining acceptance risks are actual Windows create/report flows, macOS popout/interruption, and
+physical Android/iOS suspend/copy/extended-use behavior. No merge, release or personal-vault access.
+
+### 2026-10-17 — #174 bounded physical-folder checkpoint F2
+
+F2 keeps one native empty-folder wave local only with existing complete physical publication proof,
+exact parent/direct-member identity and the existing per-cause expiry. It does not grant source or
+semantic authority. Missing membership, interrupted/replaced ownership, partial bootstrap and
+On-demand remain conservative. No persisted format, scheduler or architecture milestone changes.
+The original full-semantic-only and absolute-opening-deadline candidates are rejected and preserved.
+The revised isolated build passes 36 real-IndexedDB/browser tests, actual types, affected lint,
+production build and main/indexing fixtures. Native eligible folder-plus-note work falls from
+92 to 2 source checks, 1,526 to 78 transactions and 1,499 to 58 source digests; fresh reads/parses
+remain one each. Inclusive CPU/drain improve in that observation, without a general speed or memory
+claim. The 610-second genuine quiet control and exact cleanup pass. See the consolidated #174 report.
+D2 integration and final V acceptance remain pending; #174 stays draft. Highest remaining risks:
+Windows actual report/Excalidraw flows, macOS interrupted/popout ownership, physical mobile
+suspend/resume and clipboard. C14 remains paused.
+
+### 2026-10-17 — #174 rapid absent-source rename completion
+
+Native create-empty/fill/rename exposed an existing local contract mismatch after F2 avoided the
+global recovery that masked it. Repository `absent` is successful fenced missing-head retirement;
+the adapter previously accepted only `activated`, stranding source/count/referrer completion.
+Accept both only for the current pass, matching old-path intent and continued native absence.
+No new scheduler, retry policy or weaker source proof. All38 focused real-IDB tests, actual
+main/indexing fixtures, types/lint/build and the formerly failing native pattern pass. A held
+second rename cannot lose its newer retirement intent. Normal Markdown and real Excalidraw
+acceptance and exact cleanup pass. D2 public reports also pass24 native cases after correcting
+test-only debugger and host-forwarding clipboard assumptions; final combined verification/quiet
+and bounded two-hour soak remain pending. Preserve failed controls; keep #174 draft and C14 paused.
+Remaining platform risks: Windows final lifecycle, macOS popout/interrupted waves and physical
+mobile suspend/resume, touch and clipboard. No merge, release or personal-vault access.
+
+### 2026-10-17 — #174 shared passive reports checkpoint D2
+
+D2 extends the existing report owners with one deeply frozen, branded activity capture shared by
+both exports. O(1) health getters read existing task flags, sizes and counters; no source acquisition,
+readiness write, timer, I/O or scheduler is introduced by capture. Static public build identity is
+resolved at build time. All eight locale disclosures are updated. Source review confirms canonical
+ownership, fixed retention, exception isolation, owner-window clipboard behavior and unchanged
+semantic policy; C14 remains paused.
+
+Final combined `verify:obsidian` passes on Node 22.22.2: architecture 7, core 128, main 960,
+UI 131, sources 334, browser sources 598; zero failures/skips, actual types/core/lint/build and exact
+Windows native smoke pass. The 20-minute aggregate-wrapper failure is retained; the clean 35-minute
+run leaves all individual test deadlines unchanged. Final integrated 610-second quiet and native
+Markdown/Excalidraw/create-fill-rename pass with restored baseline/configuration. A foreground-loss
+quiet attempt is excluded and retained. Actual native report/Settings/main/popout repeat completes
+23 recorded cases; optional real clipboard writing is pending to preserve non-plain-text formats.
+Earlier 24-case native control includes that real-write case. #172 and #161 native regressions pass.
+
+Amplified D cost is about 0.55 microseconds/pass pair; observed diagnostic data-root cut 16,816 bytes,
+with nonzero capture/serialization allocations. No native diagnostic CPU saving or memory saving is
+claimed. The separate bounded two-hour real soak and private durable evidence verification remain
+V gates before final recommendation. Highest remaining device checks: 24-hour Windows use,
+macOS popout/copy/interrupted folder waves, physical Android/iOS suspend/resume/clipboard/memory.
+Keep #174 draft; no merge, release, raw publication or personal-vault access.
+### 2026-10-17 — #174 bounded V closeout; long-session acceptance remains open
+
+D2 is pushed at `d6be473`. Full verification, exact Windows smoke, final 610-second quiet and
+ordinary Markdown/real Excalidraw/rapid rename cases pass. The final report lane completes 23
+recorded cases; its optional real clipboard write remains pending to preserve non-plain-text data.
+The earlier real-write control, all failed controls and cleanup evidence remain distinct.
+
+The real two-hour foreground soak is not accepted: one preflight fails before fixtures/captures;
+a bounded setup-only focus-settlement variant reaches an edit/capture and two unchanged-idle
+controls before losing foreground focus. Exact fixture/settings/mode/configuration restoration
+passes. Process-level checks identify pre-existing, non-test Chrome; no other applications are
+closed and no focus oracle is weakened. No further performance/code expansion is proposed.
+F: suitable for independent review within its narrow eligibility. D: revise acceptance before field
+distribution; code/cost/privacy/accelerated retention are verified, but the real multi-hour gate is
+unproven. Keep #174 draft; C14 stays paused. No merge, release or personal-vault access.
+
+Private durable evidence verification passes for 1,716 files / 103,633,691 bytes, followed by an
+independent re-read of every entry and 1,713 originals. The consolidated report records the location,
+manifest checksum and source identities. Nothing is published/deleted; transient handoffs and
+dependency junctions are excluded. The planning marker is removed after verification.
+Prioritized remaining checks: uninterrupted Windows two-hour then actual 24-hour use; macOS
+popout/copy/interrupted folder waves; physical Android/iOS suspend/resume, clipboard and memory.
+Runtime D2 CI also passes in 26m52s with the same zero-failure/skip suite counts. The 128-test lane is portable core; labels above are corrected. The maintainer confirms the machine is in use and explicitly defers the long foreground test; no further native takeover is authorized by this checkpoint.
