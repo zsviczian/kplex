@@ -13,6 +13,7 @@
  * Desktop thought bodies and expanded descendants export native Obsidian links; only regular
  * scene occurrences hold same-view relink authority. Touch and gates retain pointer ownership.
  * Explicit primary-modifier placeholder opening delegates folder choice to the native creation owner.
+ * Startup recovery remains eligible across visibility changes until its current check completes.
  */
 import { connectionActionAllowed, tagMembershipPair } from "./structuralConnectionActions";
 import { graphTagValue } from "../adapters/obsidian/tagMembership";
@@ -1029,10 +1030,11 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
         sourceReady: () => index.isCenterRecoverySourceReady(),
         localReady: () => index.hasLocalBaseline(),
         subscribe: changed => index.subscribePresentation(changed),
-        check: async (trigger, isCurrent) => {
+        check: /** A pending or retired attempt must not consume this view's startup recovery. */ async (trigger, isCurrent) => {
           if (!isCurrent() || !visible()) return true;
-          initialCenterChecked.current = true;
-          return index.recheckVisibleCenter(activePath, centerRelationCounts(recoveryNeighborhood.current), trigger, () => isCurrent() && visible());
+          const complete = await index.recheckVisibleCenter(activePath, centerRelationCounts(recoveryNeighborhood.current), trigger, () => isCurrent() && visible());
+          if (complete && isCurrent() && visible()) initialCenterChecked.current = true;
+          return complete;
         },
       });
     };

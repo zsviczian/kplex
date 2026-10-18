@@ -36,6 +36,8 @@
  * input left by cancelled foreground work; ambiguous revisions and observed edits still force I/O.
  * Restart metadata I/O rechecks background admission before fencing a source, allowing an active
  * foreground parser to finish its current input instead of abandoning it before the cache write.
+ * Requested readonly center previews reuse this body loader and its native/cache/parser fences,
+ * queueing optional parser persistence without acquiring neutral-source or semantic authority.
  */
 import { yieldToHostTask } from "./yieldToHostTask";
 import { canonicalTagPaths } from "../../core/graph/tagPaths";
@@ -1518,11 +1520,21 @@ export class ObsidianSourceAcquisition {
     if (body) this.counters.reusedBodies += 1;
     return body;
   }
+  /** Acquire only a requested center's parser input without waiting for optional cache persistence.
+   * The shared loader retains native/event/parser fences and cache reuse; this read grants no
+   * neutral-source or semantic authority. Cancellation and optional read/parser failures return
+   * null; a detached presentation request must not leak an unhandled native I/O rejection. */
+  async readRequestedBody(file: TFile, current: () => boolean): Promise<ParsedBodyMetadata | null> {
+    try { return await this.loadBody(file, current, false, false, false); }
+    catch { return null; }
+  }
   /** Load one current body, yielding background misses before native I/O and rechecking shared
    * cache inputs acquired by foreground work during awaited misses. Every retry preserves the
    * captured file/event/host lifetime; optional parser bodies never certify source durability.
-   * Foreground callers do not borrow P4 checkpoints or join its paused parser work. */
-  private async loadBody(file: TFile, current: () => boolean, requireCurrentParser = false, background = false): Promise<ParsedBodyMetadata | null> {
+   * Foreground callers do not borrow P4 checkpoints or join its paused parser work. Readonly
+   * center previews may use the existing write-behind queue instead of joining cache storage. */
+  private async loadBody(file: TFile, current: () => boolean, requireCurrentParser = false, background = false,
+    awaitBodyWrite = true): Promise<ParsedBodyMetadata | null> {
     const capture = this.capture(file); const valid = (): boolean => this.current(capture, current);
     if (background) await this.backgroundCheckpoint?.();
     if (!valid()) return null;
@@ -1560,6 +1572,11 @@ export class ObsidianSourceAcquisition {
     const body = await this.parse(text, background ? this.backgroundCheckpoint : undefined);
     if (!valid()) return null;
     // Versioned parser body cache remains an optional accelerator, not neutral-source durability.
+    if (!awaitBodyWrite) {
+      this.cache.queueBodyWrite(capture.physical.path, capture.physical.mtime, body);
+      this.notifyPresentationInputs(capture.physical.path, valid);
+      return valid() ? body : null;
+    }
     const saved = await this.cache.putBody(capture.physical.path, capture.physical.mtime, body);
     if (saved && valid()) this.notifyPresentationInputs(capture.physical.path, valid);
     return valid() ? body : null;

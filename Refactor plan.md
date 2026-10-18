@@ -5188,3 +5188,69 @@ Corrected runtime af31fc9 passes seven actual Settings cases in both On-demand a
 ### PR147 final acceptance (2026-10-18)
 
 Runtime af31fc9/tooling c7cd196: full verify architecture7/core130/main1061/UI177/sources334/browser623 plus real build and Obsidian lint pass. Actual native ontology7cases per On-demand/Eager, external6/style15/migration6/Markdown4 pass. Functional22-character burst commits once, zero draft-time policy/source work; no comparative resource/latency or Mac-freeze claim. Native broader hover is blocked by missing resolved-link fixture facts, touch9+reload pass but320px geometry reaches317.5px, Gate first case passes then source/semantic guard fails with incremental publication traces. Retain these unresolved failures; no weakened oracles/deadlines or unrelated runtime patch. All8locales/native controls/queue/core owners preserved; TSDoc and full diff reviewed. Private durable evidence169base+6supplement verified with source ZIP CRC/SHA; HANDOFFexcluded, originalsretained, no publication. Small107/88/config/workspace/follow owners restored, no controllers/dialogs/debugcapture. Maintainer now authorizes147merge then179/149/176 sequentially; no CI waiting/release/branchdelete/personalvault/comparative performance under load. Mac reporter/background, physical IME/touch, minimum-host/window-migration remain separate. See validation report.
+
+
+### 2026-10-18 — PR183 stationary current-center startup
+
+C14 remains accepted and structural refactoring paused. The maintainer authorized
+implementation on `2026-10-18-startup-center-investigation` at `d10cb46b`, with
+read-only personal-vault diagnostics, `main.js` deployment and Small-vault testing.
+The [startup validation record](docs/validation/startup-center-investigation-2026-10-18.md)
+preserves native failure evidence: after an interrupted reload the still-demanded
+center waits 72.167 s for all 37 children, while global source/cache work proceeds.
+The foreground owner waited on a whole-vault baseline and could drain after host
+finality rejection; the separate initial-recovery effect also consumed a pending
+attempt across hide/reveal.
+
+The existing compiler/parser/scheduler now prepare a finite readonly current-center
+cover at P1 before broad startup waits. Real changed host observations can refresh
+that coalesced finite phase while its canonical task still awaits the same baseline.
+Affected events retire the cover; unrelated host waves preserve it. Native identity,
+source/policy/demand and publication fences remain; no schema, semantic classifier,
+authority shortcut or scheduler is added. Private baseline retries admit only
+changed observations and also fence policy replacement. Recovery completes only
+after a current visible check succeeds.
+
+Primary regressions and the native-shaped sparse-host-wave control actually fail
+before their corrections. Candidate 1 passes complete verification but misses the
+native timing target; its failed control is preserved. Candidate 2 passes 105
+startup/foreground cases, real types/lint and four stationary native starts after
+two seven-second interruptions: complete 3-parent/37-child reads at 3.811/3.325 and
+3.669/3.318 s, before baseline/source readiness, exact mature-primary fingerprint
+and zero later regressions. Final full verify passes 7 architecture/130 core,
+1,068 Node/145 UI/334 portable source/630 IndexedDB browser cases, official lint,
+real types and production build. Normal bundle a47c87da51086d65acbad8286bf4e66e7aa93b79e04e03b75fbb0c8c49476414
+is installed in both authorized vaults; the 553-file verified receipt is
+880ec93a4821c95bcad8a4afddbf7fc701d30f32b9fd1285ea61a5a8b425e374.
+Standard exact-build Small command/render/error smoke passes. Four normal-bundle
+starts retain all primary DOM nodes at 6.804/3.961 and 6.612/5.595 seconds from
+reload, while cache metadata still loads, with seven-second interruptions. One
+earlier bounded CLI capture timeout has no established cause and remains recorded;
+subsequent foreground/incremental pairs pass without source or deadline changes.
+
+Both vaults' original data/workspace/enabled-list hashes match; Small content is
+unchanged. Its startup normalization/layout changes were restored through the
+native layout owner plus exact configuration bytes. No personal note-write command
+was issued. Installed hashes, observer/global/staging absence and unchanged verified
+inputs pass final audit. Optional screenshot export was rejected by automatic
+review and not retried. No commit, push, merge or release. Full-process interruption
+and physical mobile remain untested; evidence is renderer reload and ordinary-read/
+DOM output, not actual paint or a universal performance guarantee. Highest-value
+manual follow-up: actual exit/reopen followed by a second interruption after 5–10 seconds,
+with the same stationary 3-parent/37-child center and no navigation. No further code
+work or structural refactoring is queued.
+
+
+### 2026-10-18 — PR183 current-main reconciliation accepted
+
+Maintainer authorizes merge without CI wait, followed by main+fetch. Accepted fix
+e847a50 integrates main658793f (#181/#182) at e2e391f. Conflicts preserve both test
+registrations and append-only feature evidence. Recovery/hover lifetimes remain
+separate; incoming settings synchronously invalidate the same semantic policy.
+Full Node22.22.2 verify passes7/130/1069/165/334/632 groups, zero failures/skips,
+lint/types/real build; large20,015-owner oracle unchanged. Exact combined Small
+command/render/error smoke and byte-exact configuration/content restoration pass.
+All558 inputs match receiptf3d09d8a8e592be3bf40ad8a0f647b23f4a35ce3e61f01fb5ada7c6f4aa36131.
+See startup validation report for artifact identity and prior native limitations.
+Personal prior deployed build is not replaced during reconciliation. No new
+full-process/mobile or timing claim; C14 remains paused. Git merge identity is on183.
