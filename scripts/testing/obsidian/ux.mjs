@@ -6,28 +6,36 @@ import assert from "node:assert/strict";
 import { obsidianCliExecutable } from "./processTools.mjs";
 import { spawnNativeSync as spawnSync } from "./processTools.mjs";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Script } from "node:vm";
 import { validateTarget } from "./runner.mjs";
 import { gateCountScenarios, layoutEnhancementScenarios } from "./uxLayoutEnhancements.mjs";
 import { relationshipEnhancementScenarios } from "./uxRelationshipEnhancements.mjs";
+import { findEnhancementCleanup, findEnhancementSetup, findEnhancementScenarios } from "./uxFindEnhancements.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const vaultName = process.env.KPLEX_TEST_VAULT_NAME;
 const target = validateTarget({ vaultName, vaultPath: process.env.KPLEX_TEST_VAULT_PATH, configDir: process.env.KPLEX_TEST_CONFIG_DIR });
 const reportDir = process.env.KPLEX_HOST_REPORT_DIR;
 const layoutOnly = process.env.KPLEX_UX_LAYOUT_ONLY === "true";
-assert(!(layoutOnly && process.env.KPLEX_UX_DEVICE_ONLY === "true"), "Select layout-only or device-only verification separately");
+const findOnly = process.env.KPLEX_UX_FIND_ONLY === "true";
+if(findOnly)assert.equal(vaultName,"kplex-test-small","Find acceptance requires the explicit disposable small vault");
+assert([layoutOnly, findOnly, process.env.KPLEX_UX_DEVICE_ONLY === "true"].filter(Boolean).length <= 1, "Select layout-only, Find-only or device-only verification separately");
 assert(reportDir, "Set KPLEX_HOST_REPORT_DIR explicitly");
 mkdirSync(reportDir, { recursive: true });
-const report = { status: "running", startedAt: new Date().toISOString(), scenarios: [], target: vaultName, artifacts: {}, limits: ["Desktop Electron functional tests; no physical iPad trackpad or mobile WebView acceptance", "Trusted native pointer input for resize and gate/history; File Explorer drops use the real host payload and DOM handler", "Browser guest creation, sizing and teardown are asserted; remote login, video playback and sites blocking mobile iframes require separate acceptance", "Area settings menu uses Obsidian's public DOM mode; OS-native menu selection is not asserted"] };
-report.scope = layoutOnly ? "layout-and-typography-only" : process.env.KPLEX_UX_DEVICE_ONLY === "true" ? "device-only" : "full";
+const report = { status: "running", startedAt: new Date().toISOString(), node: process.version, scenarios: [], target: vaultName, artifacts: {}, limits: ["Desktop Electron functional tests; no physical iPad trackpad or mobile WebView acceptance", "Trusted native pointer input for resize and gate/history; File Explorer drops use the real host payload and DOM handler", "Browser guest creation, sizing and teardown are asserted; remote login, video playback and sites blocking mobile iframes require separate acceptance", "Area settings menu uses Obsidian's public DOM mode; OS-native menu selection is not asserted"] };
+report.scope = findOnly ? "global-find-and-tag-navigation-only" : layoutOnly ? "layout-and-typography-only" : process.env.KPLEX_UX_DEVICE_ONLY === "true" ? "device-only" : "full";
+if (findOnly) report.limits = ["Trusted native F4/Enter and pointer activation; literal text is delivered through the actual React input handler", "Search-only work is isolated from existing On-demand navigation/source admission", "Desktop Electron acceptance does not establish macOS or physical mobile behavior"];
 const dataPath = join(target.pluginDir, "data.json");
 const originalData = readFileSync(dataPath);
 const enabledPath = join(target.config, "community-plugins.json");
 const originalEnabled = readFileSync(enabledPath);
+const findConfiguration = findOnly ? ["workspace.json", "workspace-mobile.json", "hotkeys.json", "app.json", "appearance.json"].map(/** Keep private byte backups outside the emitted report. */ name => {
+  const path = join(target.config, name);
+  return { path, bytes: existsSync(path) ? readFileSync(path) : null, writable: name.startsWith("workspace") };
+}) : [];
 const controller = "__kplexUxRegression";
 // A retry must not reuse a retired mutation overlay's endpoint identity. Each owned fixture
 // has fresh paths; normal Vault cleanup remains responsible for removing its notes afterward.
@@ -109,6 +117,11 @@ const nativeController = `(()=>{
   const c=window.${controller}={p,settings:JSON.parse(JSON.stringify(p.settings)),owned:[],leaf:null,done:false,error:null,
     bounds:win.getBounds(),throttling:win.webContents.getBackgroundThrottling(),sidebars:{left:app.workspace.leftSplit.collapsed,right:app.workspace.rightSplit.collapsed},folder:${JSON.stringify(folder)},
     denseTarget:${JSON.stringify(process.env.KPLEX_UX_DENSE_TARGET || null)},scenarios:[],notices:[]};
+  if(${findOnly}){
+    c.findOnly=true;c.originalLayout=app.workspace.getLayout();c.originalPolicy=p.savedSettingsPolicy;
+    c.originalInventory=app.vault.getFiles().map(file=>file.path).sort();c.originalMode=p.index.isOnDemandMode();
+    c.originalOwners={linked:p.linkedDocumentLeaf,last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]};
+  }
   // The inactive-control fixture must not inherit persisted open intent onto its new leaf.
   // Preserve existing companion leaves and restore the captured settings during cleanup.
   p.settings.sidecarOpen=false;
@@ -881,7 +894,7 @@ const cleanup = `(()=>{const c=window.${controller};if(!c)return JSON.stringify(
   require("@electron/remote").getCurrentWindow().webContents.sendInputEvent({type:"mouseUp",x:0,y:0,button:"left",clickCount:1});
   for(const release of c.fixtureDemands??[])release();c.fixtureDemands=[];
   c.popoutLeaf?.detach();c.leaf?.detach();c.previousLeaf?.detach();
-  const unrelated=app.vault.getFileByPath(c.unrelated);if(unrelated&&c.owned.includes(c.unrelated))await app.vault.delete(unrelated,true);
+  const unrelated=c.unrelated?app.vault.getFileByPath(c.unrelated):null;if(unrelated&&c.owned.includes(c.unrelated))await app.vault.delete(unrelated,true);
   const fixture=app.vault.getFolderByPath(c.folder);if(fixture&&c.owned.includes(c.folder))await app.vault.delete(fixture,true);
   await c.until(()=>c.settingsWrites.size===0,"Retiring fixture still has active settings writes");await c.frames();
   c.p.settings=c.settings;await c.p.saveSettings(false,false);
@@ -1057,6 +1070,7 @@ try {
   await until(`JSON.stringify(window.${controller}.navigationMounted)`,"Owned navigation subscription frames did not settle",5000);
   // A previous stress run can leave a 20k-contributor center whose requested-scope decode
   // deliberately exceeds its budget. Select an existing small note before strict readiness.
+  if(!findOnly){
   const setupCenter=process.env.KPLEX_UX_SETUP_CENTER||"Welcome.md";
   if(evaluate(`JSON.stringify(Boolean(app.vault.getFileByPath(${JSON.stringify(setupCenter)})))`)){
     await until(`JSON.stringify(Boolean(app.plugins.plugins["k-plex"].index.getVaultSearchPage(${JSON.stringify(setupCenter)})))`,"Setup center did not become available",1_800_000);
@@ -1083,15 +1097,17 @@ try {
   await until(`JSON.stringify(window.${controller}.readinessRecovery.error?{error:window.${controller}.readinessRecovery.error}:window.${controller}.readinessRecovery.done&&window.${controller}.primaryReady())`, "Initial primary graph/current-view semantics did not settle", 1_800_000);
   report.startupReadiness=evaluate(`JSON.stringify((()=>{const c=window.${controller},center=c.root().querySelector(".kplex-role-center")?.dataset.kplexPath,page=c.p.index.get(center),target=c.authorityTargets.get(center);return {center,centerNeighbours:page?c.p.index.neighbourCount(page):null,mode:c.p.index.isOnDemandMode()?"on-demand":"eager",authorityPair:target?[center,target]:null,pairReady:target?c.p.index.isSemanticWriteReady(center,target):null,globalDependencies:c.p.index.sourceAcquisition.hasSemanticDependencies(),primaryReady:c.primaryReady(),failure:c.p.index.getSemanticPreparationFailure(),status:c.p.getIndexStatus(),aliasVocabularyPending:c.p.index.hasPendingSearchVocabulary(),source:c.p.index.getSourceAcquisitionCounters(),semantic:c.p.index.getSemanticPreparationDiagnostics()}})())`);
   if(report.setupCenter){assert.equal(report.startupReadiness.center,report.setupCenter,"Setup center is not rendered");assert.equal(report.startupReadiness.failure,null,"Ordinary setup center still has a terminal scope failure");}
+  }
   console.log("Index ready; creating the owned UX fixture");
   cli("dev:errors", "clear");
-  evaluate(setup);
+  evaluate(findOnly ? findEnhancementSetup : setup);
   await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "Fixture setup timed out",900000);
   console.log("Fixture ready; running "+report.scope+" UX workflows");
-  evaluate(layoutOnly ? layoutScenarios : scenarios);
+  evaluate(findOnly ? findEnhancementScenarios : layoutOnly ? layoutScenarios : scenarios);
   await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "UX scenarios timed out", 300_000);
   report.scenarios = evaluate(`JSON.stringify(window.${controller}.scenarios)`);
   report.fixtureReadiness=evaluate(`JSON.stringify(window.${controller}.fixtureReadiness)`);
+  if(findOnly)report.findWork=evaluate(`JSON.stringify(window.${controller}.findWork)`);
   report.enhancementPatchAttempts=evaluate(`JSON.stringify(window.${controller}.enhancementPatchAttempts??[])`);
   const errors = cli("dev:errors");
   assert(!errors || /^No errors captured\.?$/i.test(errors), errors);
@@ -1101,6 +1117,7 @@ try {
   report.status = "failed";report.error = error.stack;
   if (installed) try {
     report.scenarios=evaluate(`JSON.stringify(window.${controller}.scenarios)`);
+    if(findOnly)report.findWork=evaluate(`JSON.stringify(window.${controller}.findWork)`);
     report.failureState=evaluate(`JSON.stringify((()=>{const c=window.${controller},r=c.leaf?c.root():null;return {
       center:r?c.center():c.p.settings.lastActivePath,status:c.p.getIndexStatus(),activeClass:document.activeElement?.className,
       findOpen:r?.querySelector(".kplex-find button")?.getAttribute("aria-expanded"),
@@ -1127,15 +1144,28 @@ try {
 } finally {
   if (installed) try {
     if(evaluate(`JSON.stringify(Boolean(window.${controller}))`)){
-      evaluate(cleanup);
+      evaluate(findOnly ? findEnhancementCleanup : cleanup);
       await until(`JSON.stringify(window.${controller}.error?{error:window.${controller}.error}:window.${controller}.done)`, "UX cleanup timed out");
+      if(findOnly)report.findCleanup=evaluate(`JSON.stringify({cleanup:window.${controller}.findCleanup,layout:window.${controller}.findLayout})`);
     }
     evaluate(`(()=>{window.${controller}?.restorePairTrace?.();window.${controller}?.restoreSettingsWrites?.();delete window.${controller};return JSON.stringify(true)})()`);
-    writeFileSync(dataPath,originalData);
-    assert(readFileSync(dataPath).equals(originalData),"Original settings bytes were not restored");
-    assert(readFileSync(enabledPath).equals(originalEnabled),"Community plugin enablement changed");
+    if(!findOnly){writeFileSync(dataPath,originalData);assert(readFileSync(dataPath).equals(originalData),"Original settings bytes were not restored");assert(readFileSync(enabledPath).equals(originalEnabled),"Community plugin enablement changed");}
     report.cleanup="passed";
-  } catch(error) {report.cleanup=error.stack;report.status="failed"}
+  } catch(error) {report.cleanup=error.stack;report.status="failed";
+    if(findOnly)try{report.findCleanup=evaluate(`JSON.stringify({cleanup:window.${controller}?.findCleanup,layout:window.${controller}?.findLayout})`)}catch{}
+  }
+  if(findOnly&&installed)try{
+    // Native assertion failures do not skip exact byte restoration. Refuse to race a still-accepted
+    // settings write if native teardown itself could not finish; that remains a failed cleanup.
+    assert(evaluate(`JSON.stringify(!window.${controller}||window.${controller}.done&&window.${controller}.settingsWrites.size===0)`),"Find cleanup still owns accepted native settings writes");
+    writeFileSync(dataPath,originalData);assert(readFileSync(dataPath).equals(originalData),"Original settings bytes were not restored");
+    assert(readFileSync(enabledPath).equals(originalEnabled),"Community plugin enablement changed");
+    for(const backup of findConfiguration){
+      if(backup.writable){if(backup.bytes===null){if(existsSync(backup.path))rmSync(backup.path)}else writeFileSync(backup.path,backup.bytes)}
+      assert(backup.bytes===null?!existsSync(backup.path):readFileSync(backup.path).equals(backup.bytes),"Original Find configuration bytes were not restored: "+backup.path);
+    }
+    report.findConfigurationRestored=true;
+  }catch(error){report.findConfigurationError=String(error);report.status="failed"}
   // Wrapper lifetime is independent of fixture cleanup and its native async failures.
   if(installed)try{evaluate(`(()=>{window.${controller}?.restorePairTrace?.();window.${controller}?.restoreSettingsWrites?.();return JSON.stringify(true)})()`)}catch(error){report.traceCleanupError=error.message;report.status="failed"}
   if(report.status==="passed"&&process.env.KPLEX_UX_EMULATE_MOBILE==="true")try{await deviceMatrix()}catch(error){report.deviceError=error.stack;report.status="failed"}

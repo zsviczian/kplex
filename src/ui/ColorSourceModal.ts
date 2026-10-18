@@ -7,15 +7,14 @@ import {NATIVE_CANVAS_FILL, NATIVE_LINK_STROKE, NATIVE_LINK_TEXT, nodeColorFallb
 import {COMPASS_COLOR_VARIABLES, COMPASS_SEMANTIC_SLOTS} from "../core/plex/colorPreferences";
 import {semanticColorCss} from "../adapters/obsidian/colorPresentation";
 import {ColorScope} from "../adapters/obsidian/colorScope";
-import {Setting, SuggestModal, type App, type ButtonComponent} from "obsidian";
+import {Setting, type App, type ButtonComponent} from "obsidian";
 import {StyleEditorModal, type StyleCommitResult} from "./StyleEditorModal";
 import {ColorSourceEditor} from "./ColorSourceEditor";
 import {ColorPreview, type ColorPreviewOptions} from "./ColorPreview";
-import {collectionWindow} from "./components/collectionWindow";
+import {ColorSourceSuggest, type ColorSourceChoice} from "./ColorSourceSuggest";
 import {ColorSampleReader} from "../adapters/obsidian/colorSample";
 import {colorValueCss} from "../adapters/obsidian/colorPresentation";
 import {colorValuesEqual, formatLiteralColor, parseLiteralColor, type ColorValue} from "../core/contracts/colorValue";
-import type {SemanticColorPair} from "../core/plex/colorPreferences";
 
 export type ColorSourceModalOptions = ColorPreviewOptions & Readonly<{
   confirmation?: Readonly<{description: string; actionLabel: string}>;
@@ -27,26 +26,6 @@ export type ColorSourceModalOptions = ColorPreviewOptions & Readonly<{
   onSave: (source: ColorValue | undefined, isCurrent: () => boolean) => Promise<StyleCommitResult>;
   onClosed?: () => void;
 }>;
-
-/** Bounded native search covers every configured pair without mounting a large option collection. */
-class NamedColorSuggest extends SuggestModal<SemanticColorPair> {
-  private ambiguousNames = new Set<string>();
-  /** Search current preferences at each query; names are labels and stable IDs remain source identity. */
-  constructor(app: App, private readonly pairs: () => readonly SemanticColorPair[], private readonly chosen: (pair: SemanticColorPair) => void) { super(app); this.limit = 40; }
-  /** Search configured metadata only; no graph or note access belongs to a color chooser. */
-  getSuggestions(query: string): SemanticColorPair[] {
-    const text = query.trim().toLocaleLowerCase();
-    const pairs = this.pairs(), names = new Set<string>(); this.ambiguousNames.clear();
-    for (const pair of pairs) {if (names.has(pair.name)) this.ambiguousNames.add(pair.name); else names.add(pair.name);}
-    return [...collectionWindow(pairs.filter(pair => pair.name.toLocaleLowerCase().includes(text)), 40, 40).visible];
-  }
-  /** Render names as text so labels never become selectors, HTML or persisted IDs. */
-  renderSuggestion(pair: SemanticColorPair, element: HTMLElement): void {
-    element.setText(pair.name); if (this.ambiguousNames.has(pair.name)) element.createDiv({text: pair.id, cls: "suggestion-note"});
-  }
-  /** The owning source form fences callbacks after pending submission or retirement. */
-  onChooseSuggestion(pair: SemanticColorPair): void { this.chosen(pair); }
-}
 
 /** Explicit Save/Cancel shell with one live draft and lifetime-owned native/preview resources. */
 export class ColorSourceModal extends StyleEditorModal {
@@ -70,16 +49,31 @@ export class ColorSourceModal extends StyleEditorModal {
     const controls = this.contentEl.createDiv();
     this.preview = new ColorPreview(this.contentEl, {...this.options, onContextChange: () => this.editor?.refresh(true)}, this.options.initial);
     this.reader = new ColorSampleReader(this.options.sourceScope.ownerDocument);
-    this.editor = new ColorSourceEditor(controls, {
-      initial: this.options.initial, sourceScope: this.options.sourceScope, translate: t, preferences: this.options.preferences,
-      themeTokens: ["--text-normal", "--text-muted", "--text-faint", "--text-accent", "--text-accent-hover", "--text-on-accent", "--text-error", "--text-warning", "--text-success", "--text-selection", "--text-highlight-bg",
+    const themeTokens = ["--text-normal", "--text-muted", "--text-faint", "--text-accent", "--text-accent-hover", "--text-on-accent", "--text-error", "--text-warning", "--text-success", "--text-selection", "--text-highlight-bg",
         "--interactive-normal", "--interactive-hover", "--interactive-accent", "--interactive-accent-hover",
         "--background-primary", "--background-primary-alt", "--background-secondary", "--background-secondary-alt", "--background-modifier-border", "--background-modifier-border-hover", "--background-modifier-border-focus", "--background-modifier-hover", "--background-modifier-error", "--background-modifier-success",
         "--color-red", "--color-orange", "--color-yellow", "--color-green", "--color-cyan", "--color-blue", "--color-purple", "--color-pink",
         "--h1-color", "--h2-color", "--h3-color", "--h4-color", "--h5-color", "--h6-color", "--bold-color", "--italic-color", "--link-color", "--link-color-hover", "--link-external-color", "--tag-color", "--tag-background", "--tag-color-hover", "--tag-background-hover",
         "--checkbox-color", "--checkbox-color-hover", "--checkbox-border-color", "--checklist-done-color", "--table-border-color", "--table-header-background", "--table-row-background-hover", "--code-normal", "--code-background", "--code-comment", "--code-function", "--code-keyword", "--code-string", "--code-tag", "--code-value", "--graph-line", "--graph-node", "--graph-node-tag", "--graph-node-attachment", "--graph-node-unresolved", "--graph-node-focused", "--graph-node-highlight", "--graph-line-highlight",
-        "--kplex-semantic-origin", "--kplex-semantic-development", "--kplex-semantic-support", "--kplex-semantic-challenge"].map(variable => ({variable, label: variable})),
-      chooseNamed: chosen => { const chooser = new NamedColorSuggest(this.app, () => this.options.preferences().palette, chosen); chooser.setPlaceholder(t("colors.searchColors")); chooser.open(); return () => chooser.close(); },
+        "--kplex-semantic-origin", "--kplex-semantic-development", "--kplex-semantic-support", "--kplex-semantic-challenge"].map(variable => ({variable, label: variable}));
+    this.editor = new ColorSourceEditor(controls, {
+      initial: this.options.initial, sourceScope: this.options.sourceScope, translate: t, preferences: this.options.preferences,
+      themeTokens,
+      chooseNamed: chosen => {
+        const chooser = new ColorSourceSuggest(this.app, this.options, () => {
+          const pairs = this.options.preferences().palette, names = new Set<string>(), ambiguous = new Set<string>();
+          for (const pair of pairs) {if (names.has(pair.name)) ambiguous.add(pair.name); else names.add(pair.name);}
+          return pairs.map(pair => ({label: pair.name, detail: ambiguous.has(pair.name) ? pair.id : undefined, color: {kind: "palette" as const, id: pair.id}, value: pair}));
+        }, chosen);
+        chooser.open(); return () => chooser.close();
+      },
+      chooseTheme: (current, chosen) => {
+        const choices: ColorSourceChoice<string | null>[] = themeTokens.map(token => ({label: token.label, color: {kind: "theme", variable: token.variable}, value: token.variable}));
+        if (current && !themeTokens.some(token => token.variable === current)) choices.unshift({label: current, color: {kind: "theme", variable: current}, value: current});
+        choices.unshift({label: t("colors.advanced"), value: null});
+        const chooser = new ColorSourceSuggest(this.app, this.options, () => choices, chosen);
+        chooser.open(); return () => chooser.close();
+      },
       fixedSeed: source => {
         source ??= this.options.inherit?.();
         if (typeof source === "string" && parseLiteralColor(source)) return source;

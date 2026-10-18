@@ -232,7 +232,7 @@ test("nested native source editors retain origin-only CSS and live palette previ
   const app={workspace:{on:()=>({}),offref:()=>{}}},plugin={settings,translator:t,index:{subscribePresentation:callback=>{listeners.add(callback);return()=>listeners.delete(callback)},allPages:()=>[],unassignedOntologyFields:()=>[]},updateStyleSettings:async()=>{writes++;throw Error('Unexpected write')}};
   const tab=new sourceModules.KplexSettingTab(app,attachThemeOwners(plugin));tab.containerEl.style.setProperty('--Local-only','#789abc');tab.openNodeStyleEditor('property','Type');const parent=sourceModules.TestModal.instances.at(-1);
   parent.contentEl.querySelector('button[aria-label="Background"]').click();let child=sourceModules.TestModal.instances.at(-1);
-  input(child.contentEl.querySelector('.kplex-color-source-editor select'),'theme','change');input(child.contentEl.querySelectorAll('select')[1],'custom','change');const variable=[...child.contentEl.querySelectorAll('label')].find(label=>label.textContent.includes('CSS variable name')).querySelector('input');input(variable,'--Local-only');variable.dispatchEvent(new Event('blur'));
+  input(child.contentEl.querySelector('.kplex-color-source-editor select'),'theme','change');chooseThemeColor(child,null);const variable=[...child.contentEl.querySelectorAll('label')].find(label=>label.textContent.includes('CSS variable name')).querySelector('input');input(variable,'--Local-only');variable.dispatchEvent(new Event('blur'));
   if([...child.contentEl.querySelectorAll('button')].find(b=>b.textContent==='Use color').disabled)throw Error('Origin-only CSS lost through native modal');child.retire();
   const original=sourceModules.ThemePreviewSampler.prototype.sample;sourceModules.ThemePreviewSampler.prototype.sample=function(...args){samples++;return original.apply(this,args)};
   parent.contentEl.querySelector('button[aria-label="Background"]').click();child=sourceModules.TestModal.instances.at(-1);await waitFor(()=>child.contentEl.querySelector('.kplex-color-preview-canvas')?.style.getPropertyValue('--_kplex-preview-node-fill'));const before=samples;
@@ -302,7 +302,7 @@ test("Compass editor preserves inherited and zero intensity, child drafts, failu
   const range=modal.contentEl.querySelector('input[type=range]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(range,'0');range.dispatchEvent(new Event('input',{bubbles:true}));await wait(30);
   if(modal.draft.intensity!==0||!modal.draft.enabled)throw Error('Explicit zero/toggle not retained');
   const north=modal.contentEl.querySelector('.kplex-style-row button');north.click();const child=TestModal.instances.at(-1);
-  const select=child.contentEl.querySelector('.kplex-color-source-editor select');input(select,'named','change');child.contentEl.querySelector('.kplex-color-source-editor button').click();const chooser=TestModal.instances.at(-1);chooser.onChooseSuggestion(preferences.palette[0]);chooser.close();button(child.contentEl,t('colors.useColor')).click();await wait(20);
+  const select=child.contentEl.querySelector('.kplex-color-source-editor select');input(select,'named','change');child.contentEl.querySelector('.kplex-color-source-editor button').click();const chooser=TestModal.instances.at(-1);chooser.selectSuggestion(chooser.getSuggestions('Tint')[0],new MouseEvent('click'));button(child.contentEl,t('colors.useColor')).click();await wait(20);
   if(writes||modal.draft.fills.north?.id!=='tint')throw Error('Child draft reached storage or lost identity');
   button(modal.contentEl,t('common.cancel')).click();if(writes||preferences.compass.enabled||preferences.compass.intensity!==undefined)throw Error('Cancel changed preferences');
   modal=open();await wait(40);modal.draft.enabled=true;modal.draft.intensity=0;reject=true;button(modal.contentEl,t('common.save')).click();await wait(30);if(!modal.modalEl.isConnected||modal.modalEl.getAttribute('aria-busy')!=='false'||modal.draft.intensity!==0)throw Error('Rejected draft lost');
@@ -423,11 +423,32 @@ test("alpha formatting stays readable without changing untouched literal intent 
 test("theme choices include complete Obsidian colors and empty adoption cannot write",async()=>{
  assert.equal(await scenario(`(async()=>{
   const t=sourceModules.createTranslator('en'),options={title:'Color',initial:'#123456',sourceScope:scope,translate:t,target:{kind:'canvas'},preferences:()=>preferences,nodeStyle:()=>({}),linkStyle:()=>({}),background:()=>undefined,onSave:async()=>({refreshPending:false})};
-  const modal=new sourceModules.ColorSourceModal({},options);modal.open();const values=[...modal.contentEl.querySelectorAll('select')[1].options].map(o=>o.value);
-  for(const key of ['--color-red','--color-blue','--color-yellow','--color-pink','--h1-color','--tag-background','--code-normal','--graph-node'])if(!values.includes(key))throw Error('Missing theme choice '+key);
-  if(values.some(key=>key.endsWith('-rgb')))throw Error('Raw channel tuple offered');modal.close();
+  const modal=new sourceModules.ColorSourceModal({},options);modal.open();input(modal.contentEl.querySelector('select'),'theme','change');modal.contentEl.querySelector('.kplex-theme-color-choice').click();const chooser=sourceModules.TestModal.instances.at(-1);
+  for(const key of ['--color-red','--color-blue','--color-yellow','--color-pink','--h1-color','--tag-background','--code-normal','--graph-node'])if(!chooser.getSuggestions(key).some(item=>item.value===key))throw Error('Missing theme choice '+key);
+  if(chooser.getSuggestions('-rgb').length)throw Error('Raw channel tuple offered');modal.close();
   let writes=0;const adoption=new sourceModules.ColorAdoptionModal({},options,[],async()=>{writes++;return{refreshPending:false}},()=>{});adoption.open();
   const save=[...adoption.contentEl.querySelectorAll('button')].find(el=>el.textContent===t('colors.adoptConfirm'));if(!save.disabled||!adoption.contentEl.textContent.includes(t('colors.alreadyNative')))throw Error('Empty adoption unclear');save.click();if(writes)throw Error('Empty adoption wrote');adoption.close();return true;
+ })()`),true);
+});
+
+test("native color choices show bounded paired swatches for theme, local custom and named identities",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const t=sourceModules.createTranslator('en');let writes=0;
+  scope.style.setProperty('--Local-Custom','#12345680');scope.style.setProperty('--not-a-color','12px');
+  const options={title:'Color',initial:{kind:'theme',variable:'--Local-Custom'},sourceScope:scope,translate:t,target:{kind:'canvas'},preferences:()=>preferences,nodeStyle:()=>({}),linkStyle:()=>({}),background:()=>undefined,onSave:async()=>{writes++;return{refreshPending:false}}};
+  const modal=new sourceModules.ColorSourceModal({},options);modal.open();modal.contentEl.querySelector('.kplex-theme-color-choice').click();let chooser=sourceModules.TestModal.instances.at(-1);
+  const show=query=>{chooser.contentEl.empty();const items=chooser.getSuggestions(query);for(const item of items)chooser.renderSuggestion(item,chooser.contentEl.createDiv());return items};
+  show('Local Custom');await waitFor(()=>chooser.contentEl.querySelectorAll('.kplex-color-swatch').length===2&&[...chooser.contentEl.querySelectorAll('.kplex-color-swatch')].every(el=>el.style.getPropertyValue('--kplex-color-swatch')));
+  if(![...chooser.contentEl.querySelectorAll('.kplex-color-swatch')].every(el=>Math.abs(sourceModules.parseLiteralColor(el.style.getPropertyValue('--kplex-color-swatch')).alpha-128/255)<1/255))throw Error('Custom alpha or originating scope lost '+JSON.stringify([...chooser.contentEl.querySelectorAll('.kplex-color-swatch')].map(el=>el.style.getPropertyValue('--kplex-color-swatch'))));
+  for(const query of ['--text-normal','--color-green','--Local-Custom']){const items=show(query);await waitFor(()=>chooser.contentEl.querySelectorAll('.kplex-color-swatch').length===items.length*2)}
+  if(chooser.swatches.rows.size!==1||writes)throw Error('Repeated query retained old rows or wrote settings');
+  const original=modal.editor.getValue();chooser.close();chooser.onChooseSuggestion({value:'--text-normal'});if(!sourceModules.colorValuesEqual(original,modal.editor.getValue()))throw Error('Cancelled choice completed');
+  chooseThemeColor(modal,'--text-normal');if(modal.editor.getValue().variable!=='--text-normal'||writes)throw Error('Native close-before-choice dropped identity or wrote');
+  preferences.palette=Array.from({length:100},(_,i)=>({id:'p'+i,name:i<2?'Shared name':'Pair '+i,light:'#11223300',dark:'#aabbcc80'}));input(modal.contentEl.querySelector('select'),'named','change');modal.contentEl.querySelector('.kplex-color-source-editor button').click();chooser=sourceModules.TestModal.instances.at(-1);
+  if(chooser.getSuggestions('').length!==40)throw Error('Unbounded palette');const pair=chooser.getSuggestions('Shared name');if(pair.length!==2||pair[0].detail!=='p0'||pair[1].detail!=='p1')throw Error('Ambiguous stable identities missing');
+  chooser.contentEl.empty();for(const item of pair)chooser.renderSuggestion(item,chooser.contentEl.createDiv());await waitFor(()=>chooser.contentEl.querySelectorAll('.kplex-color-swatch').length===4);
+  const colors=[...chooser.contentEl.querySelectorAll('.kplex-color-swatch')].map(el=>sourceModules.parseLiteralColor(el.style.getPropertyValue('--kplex-color-swatch'))?.alpha);if(JSON.stringify(colors)!==JSON.stringify([0,128/255,0,128/255]))throw Error('Named pair alpha lost '+JSON.stringify(colors));
+  chooser.selectSuggestion(pair[1],new MouseEvent('click'));if(modal.editor.getValue().id!=='p1'||writes)throw Error('Named source flattened or persisted early');modal.retire();await new Promise(r=>setTimeout(r,30));if(document.querySelector('iframe[sandbox]')||scope.querySelector('.kplex-color-draft-scope')||window.migrationListeners)throw Error('Choice resources leaked');return true;
  })()`),true);
 });
 

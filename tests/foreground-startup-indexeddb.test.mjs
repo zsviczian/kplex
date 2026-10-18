@@ -7,7 +7,7 @@ import { hostOracle, collect } from "./support/cachedSourceFixture.mjs";
 import { fullCenterIndex, centerGateSettings } from "./support/requestedCenterGateFixture.mjs";
 
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
-  "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
+  "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts", "src/ui/components/centerWatchdog.ts"]);
 
 const initialize = `(() => {
   const M=sourceModules,assert=Object.assign((v,m)=>ok(v,m),{equal});
@@ -396,3 +396,141 @@ for(const change of ['mtime','same-mtime-size','membership','policy']) {
     }finally{await browser.cleanup()}
   });
 }
+
+/** Keep one unchanged visible demand across saved-preview restore and delayed source authority. */
+for(const policy of [false,true])for(const order of ['before','after'])test('stationary offline-changed center receives current host relations before source authority ('+order+', policy '+policy+')',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('stationary-offline-'+${JSON.stringify(order)});let index,release,unblock;
+   try{
+    if(${JSON.stringify(policy)})settings.hierarchy={...settings.hierarchy,rightFriends:['New challenger']};
+    f.metadata.get('A.md').frontmatter.Parent='[[C]]';f.files.get('A.md').stat.mtime++;
+    const gate=new Promise(resolve=>unblock=resolve);
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);
+    index.sourceAcquisition.reconcile=async(...args)=>{await gate;return reconcile(...args)};
+    if(${JSON.stringify(order)}==='before')release=index.acquireSemanticDemand('A.md');
+    const restoring=index.restorePersistedSnapshot(['A.md']);
+    if(${JSON.stringify(order)}==='after')release=index.acquireSemanticDemand('A.md');
+    const restored=await deadline(restoring,'saved preview');ok(restored.restored,'Saved preview actually publishes');
+    await deadline((async()=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()]);})(),'stationary local task drain');
+    const parents=index.getNeighborhood('A.md')?.parents.map(n=>n.page.path);
+    equal(parents,['C.md'],'Stationary center has current host parent without navigation or background source closure');
+    ok(!index.isSemanticWriteReady('A.md','C.md'),'Host preview grants no pair write authority');
+    unblock();await deadline(index.adoptStartupSources(),'eventual current source closure');
+    await deadline(index.ensureSemanticScope('A.md'),'eventual stationary scope');
+    equal(index.getNeighborhood('A.md').parents.map(n=>n.page.path),['C.md'],'Eventual canonical stationary center remains current');return true;
+   }finally{unblock?.();release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+
+test('center watchdog repaints a canonical stationary view without semantic/source/snapshot work and keeps its receipt',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('center-watchdog-current');let index,release;
+   try{
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    release=index.acquireSemanticDemand('A.md');ok((await index.restorePersistedSnapshot(['A.md'])).restored,'Actual warm restore');await index.waitForSnapshotHydration();await index.adoptStartupSources();await index.ensureSemanticScope('A.md');
+    ok(index.hasCurrentCanonicalCenter('A.md'),'Current complete center proof');const before=index.getSemanticRevision();let acquisitions=0,reads=0,snapshots=0,presentations=0;
+    const acquire=index.sourceAcquisition.acquire.bind(index.sourceAcquisition);index.sourceAcquisition.acquire=(...args)=>{acquisitions++;return acquire(...args)};
+    const read=f.app.vault.read.bind(f.app.vault);f.app.vault.read=(...args)=>{reads++;return read(...args)};
+    const write=index.indexedDb.writeSnapshot.bind(index.indexedDb);index.indexedDb.writeSnapshot=(...args)=>{snapshots++;return write(...args)};
+    const stop=index.subscribePresentation(()=>presentations++);
+    ok(await index.recheckVisibleCenter('A.md',[0,0,0,0,0],'initial',()=>true),'Watchdog reads current canonical coverage');stop();
+    equal([acquisitions,reads,snapshots,index.getSemanticRevision()-before],[0,0,0,0],'Repaint is presentation-only');equal(presentations,1,'Exactly one corrective notification');
+    const receipt=index.getIndexDiagnostics().find(item=>item.reason==='center-watchdog:repainted');ok(receipt,'Repair is shareable');equal(receipt.centerCheck.before[0],1,'Available Parent count');equal(receipt.centerCheck.presented[0],0,'Stale rendered Parent count');equal(receipt.centerCheck.coverageAfter,'canonical','Coverage is explicit');
+    for(let i=0;i<40;i++)index.noteBuildDecision('per-file-patch','fixture',i);
+    equal(index.getIndexDiagnostics().length,20,'Diagnostic ring stays bounded');ok(index.getIndexDiagnostics().some(item=>item.reason==='center-watchdog:repainted'),'Background traffic cannot erase the latest useful receipt');await index.diagnosticWriteTask;
+    ok((await f.cache.readIndexDiagnostics()).some(item=>item.reason==='center-watchdog:repainted'),'Receipt uses existing durable diagnostics');return true;
+   }finally{release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+test('center watchdog refreshes late host relationships while global source authority is held',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('center-watchdog-pending');let index,release,unblock;
+   try{
+    settings.hierarchy={...settings.hierarchy,rightFriends:['Changed challenger policy']};
+    const gate=new Promise(resolve=>unblock=resolve);index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await gate;return reconcile(...args)};
+    release=index.acquireSemanticDemand('A.md');ok((await deadline(index.restorePersistedSnapshot(['A.md']),'preview')).restored,'Saved preview');
+    await deadline((async()=>{while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()])})(),'initial center');
+    const visible=index.getNeighborhood('A.md'),presented=[visible.parents.length,visible.children.length,visible.leftFriends.length,visible.rightFriends.length,visible.siblings.length];
+    equal(visible.parents.map(node=>node.page.path),['B.md'],'Initial stationary view');
+    // Model a late host cache observation whose normal foreground notification was missed.
+    f.metadata.get('A.md').frontmatter.Parent='[[C]]';f.app.metadataCache.resolvedLinks['A.md']={'C.md':1};f.files.get('A.md').stat.mtime++;
+    let builds=0;index.rebuild=async()=>{builds++;throw Error('Watchdog requested a full build')};
+    const complete=await deadline(index.recheckVisibleCenter('A.md',presented,'initial',()=>true),'bounded local watchdog');
+    equal(complete,false,'Local paint is not global authority');equal(builds,0,'No full build');equal(index.getNeighborhood('A.md').parents.map(node=>node.page.path),['C.md'],'Same center updates from current host metadata without navigation');
+    ok(!index.isSemanticWriteReady('A.md','C.md'),'Watchdog does not weaken write proof');const receipt=index.getIndexDiagnostics().filter(item=>item.centerCheck).at(-1);equal(receipt.centerCheck.sourceReadyBefore,false,'Held source closure recorded');ok(receipt.centerCheck.coverageAfter!=='canonical','Local repair is not represented as complete');equal(receipt.centerCheck.outcome,'repaired','Changed role counts recorded');
+    unblock();await deadline(index.waitForSnapshotHydration(),'hydration');await deadline(index.adoptStartupSources(),'source closure');await deadline(index.ensureSemanticScope('A.md'),'canonical center');ok(await index.recheckVisibleCenter('A.md',presented,'source-ready',()=>true),'Single readiness follow-up');equal(index.getNeighborhood('A.md').parents.map(node=>node.page.path),['C.md'],'Canonical result preserved');return true;
+   }finally{unblock?.();release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+for(const cancellation of ['navigation','same-stat-source-revision','file-replacement'])test('center watchdog rejects stale repair completion after '+cancellation,async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('center-watchdog-fence-${cancellation}');let index,release,unblock,finish;
+   try{
+    let source=0,owns=true,entered;settings.hierarchy={...settings.hierarchy,rightFriends:['Changed challenger policy']};
+    const sourceGate=new Promise(resolve=>unblock=resolve);index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>source},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await sourceGate;return reconcile(...args)};
+    release=index.acquireSemanticDemand('A.md');await index.restorePersistedSnapshot(['A.md']);while(index.onDemandTasks.size)await Promise.all([...index.onDemandTasks.values()]);
+    const reached=new Promise(resolve=>entered=resolve),gate=new Promise(resolve=>finish=resolve),preview=index.publishHostMetadataPreview.bind(index);
+    index.publishHostMetadataPreview=async(...args)=>{await preview(...args);entered();await gate};
+    const task=index.recheckVisibleCenter('A.md',[0,0,0,0,0],'initial',()=>owns);await deadline(reached,'held preview');
+    if('${cancellation}'==='navigation')owns=false;
+    if('${cancellation}'==='same-stat-source-revision')source++;
+    if('${cancellation}'==='file-replacement')f.files.set('A.md',Object.assign(Object.create(Object.getPrototypeOf(f.files.get('A.md'))),f.files.get('A.md')));
+    let notifications=0;const stop=index.subscribePresentation(()=>notifications++);finish();await deadline(task,'retired repair');stop();
+    equal(notifications,0,'Retired continuation does not repaint or acquire its next scope');equal(index.getIndexDiagnostics().filter(row=>row.centerCheck).at(-1).centerCheck.outcome,'cancelled','Exact stale lifetime is diagnosed');return true;
+   }finally{finish?.();unblock?.();release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+test('stationary startup watchdog follows a late real local baseline while source inventory remains held',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('late-local-watchdog');let index,release,stop,first,second,source;
+   const build=M.GraphBuilder.prototype.buildStructuralBaseline;
+   try{
+    settings.hierarchy={...settings.hierarchy,rightFriends:['Changed challenger policy']};
+    f.metadata.get('A.md').frontmatter.Large='x'.repeat(20000);f.files.get('A.md').stat.mtime++;
+    const firstGate=new Promise(r=>first=r),secondGate=new Promise(r=>second=r),sourceGate=new Promise(r=>source=r);let baselines=0;
+    M.GraphBuilder.prototype.buildStructuralBaseline=async function(...args){const ordinal=++baselines;await(ordinal===1?firstGate:secondGate);return build.apply(this,args)};
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await sourceGate;return reconcile(...args)};
+    let requests=0;const request=index.ensureOnDemandCenter.bind(index);index.ensureOnDemandCenter=(...args)=>{requests++;return request(...args)};
+    await index.primePhysicalSearchCatalog();release=index.acquireSemanticDemand('A.md');await deadline((async()=>{while(!baselines)await new Promise(r=>setTimeout(r,0))})(),'first baseline');
+    const timers=new Map();let serial=0,initialFinished=false;
+    stop=M.startCenterWatchdog({schedule:run=>{const id=++serial;timers.set(id,run);return()=>timers.delete(id)},localReady:()=>index.hasLocalBaseline(),sourceReady:()=>index.isCenterRecoverySourceReady(),subscribe:fn=>index.subscribePresentation(fn),check:async(trigger,current)=>{const complete=await index.recheckVisibleCenter('A.md',[0,0,0,0,0],trigger,current);if(trigger==='initial')initialFinished=true;return complete}});
+    const fire=()=>{const [id,run]=timers.entries().next().value;timers.delete(id);run()};fire();
+    await index.publishHostMetadataPreview('A.md');equal(index.getNeighborhood('A.md')?.parents.length??0,0,'Oversized paint-preview metadata leaves the direct Parent absent');
+    await deadline((async()=>{while(requests<2)await new Promise(r=>setTimeout(r,0))})(),'watchdog joined original center owner');
+    const restoring=index.restorePersistedSnapshot(['A.md']);first();
+    await deadline((async()=>{while(!initialFinished||baselines<2)await new Promise(r=>setTimeout(r,0))})(),'pending first check and replacement baseline').catch(error=>{throw Error(error.message+' '+JSON.stringify({baselines,initialFinished,timers:timers.size,baselineReady:index.hasLocalBaseline(),arbitration:Boolean(index.eagerPreviewArbitration),tasks:index.onDemandTasks.size,source:index.isCenterRecoverySourceReady(),decisions:index.getIndexDiagnostics(),phase:index.getSnapshotHydrationDiagnostics()}))});
+    equal(index.getIndexDiagnostics().filter(row=>row.centerCheck).at(-1).centerCheck.outcome,'pending','Real retired startup owner produced the reported pending state');
+    equal(timers.size,0,'No polling while local baseline is held');ok(!index.hasLocalBaseline(),'Replacement local baseline remains held');
+    second();await deadline((async()=>{while(!index.hasLocalBaseline()||!timers.size)await new Promise(r=>setTimeout(r,0))})(),'local readiness notification');
+    ok(!index.isCenterRecoverySourceReady(),'Global source inventory remains held');fire();
+    await deadline((async()=>{while(!index.getIndexDiagnostics().some(row=>row.centerCheck?.trigger==='local-ready'&&row.centerCheck.outcome!=='checking'))await new Promise(r=>setTimeout(r,0))})(),'local milestone repair');
+    equal(index.getNeighborhood('A.md').parents.map(node=>node.page.path),['B.md'],'Stationary center has complete direct host Parent without navigation');
+    const receipt=index.getIndexDiagnostics().filter(row=>row.centerCheck?.trigger==='local-ready').at(-1);equal(receipt.centerCheck.sourceReadyAfter,false,'Local repair does not claim global source readiness');equal(timers.size,0,'No timer loop after local work');
+    stop();source();await deadline(restoring,'release held source inventory');return true;
+   }finally{first?.();second?.();source?.();stop?.();release?.();index?.destroy();M.GraphBuilder.prototype.buildStructuralBaseline=build;f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});

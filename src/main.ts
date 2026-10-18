@@ -24,7 +24,12 @@
  * restore before native reveal, release, migration or teardown without persisting zero dimensions.
  * New-file relationship additions persist against native file identities independently of semantic
  * indexing; current host metadata drives subsequent graph reconciliation and editor completion.
+ * Creation dialogs choose vault-relative destinations from folder metadata; explicit placeholder
+ * relocation approves bounded native reference occurrences and retains partial-write recovery locally.
  */
+import { tagMembershipPair } from "./ui/structuralConnectionActions";
+import { graphTagValue } from "./adapters/obsidian/tagMembership";
+import { StructuralNodeDropActions } from "./ui/StructuralNodeDropActions";
 import { mergeGraphLensDefinitions } from "./lens/GraphLens";
 import { appearanceColorReferences } from "./core/contracts/appearance";
 import { requireNamedColor } from "./core/plex/colorEditing";
@@ -76,6 +81,7 @@ import { SupportClipboardSession } from "./application/supportClipboard";
 import { SupportReportModal } from "./adapters/obsidian/SupportReportModal";
 import { readSupportCustomizations } from "./adapters/obsidian/supportEnvironment";
 import { PartialRelatedFileError } from "./adapters/obsidian/relatedFileOutcome";
+import { capturePlaceholderRelocation, applyPlaceholderRelocation, assertPlaceholderRelocationTarget, placeholderReference, type PlaceholderRelocation } from "./adapters/obsidian/placeholderRelocation";
 import { ActionManager, type ActionContext, type ActionImplementations, type SidecarFoldRoute, type SidecarFoldTarget } from "./application/ActionManager";
 import { frontmatterDeclarationKey } from "./application/frontmatterUnlink";
 import { ACTION_BY_ID, ACTION_RELATION_ROLES, type ActionId, type ActionOutcome, type ActionRequest, type Availability } from "./core/plex/actions";
@@ -237,6 +243,7 @@ export default class KplexPlugin extends Plugin {
   private readonly managedMetadataWrites = new Map<string, number>();
   /** Pending saved relationship observers release on unload, rename/delete or actual convergence. */
   private readonly relationshipWriteCancels = new Set<() => void>();
+  private structuralDrops: StructuralNodeDropActions | null = null;
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
   private readonly managedCreatedPaths = new Map<string, number>();
   private readonly managedCreatedFiles = new WeakSet<TFile>();
@@ -506,7 +513,7 @@ export default class KplexPlugin extends Plugin {
         const noteCount = this.app.vault.getMarkdownFiles().length;
         const largeIosExpensiveRebuild = !this.index.isOnDemandMode() && Platform.isIosApp && !restored.fresh && !this.index.hasPendingSnapshotHydration() &&
           (!restored.restored || !this.index.hasIncrementalRestorePatch()) && noteCount > 5000;
-        if (!largeIosExpensiveRebuild) void this.ensureInitialIndex();
+        if (!largeIosExpensiveRebuild) void this.finishStartupIndexPreparation();
       })();
     });
   }
@@ -563,6 +570,8 @@ export default class KplexPlugin extends Plugin {
   /** Release action publications, surface registrations and host resources before index teardown. */
   onunload(): void {
     this.unloading = true;
+    this.structuralDrops?.dispose();
+    this.structuralDrops = null;
     this.settingsTab?.disposeActionSettings();
     this.settingsTab = null;
     for (const dialog of this.actionDialogs.keys()) dialog.close();
@@ -1098,6 +1107,20 @@ export default class KplexPlugin extends Plugin {
     this.notifyIndexStatus();
   }
 
+  /**
+   * Join initialization after restore classification, then queue any still-uncovered startup work.
+   * A visible view can finish the local baseline while Sidecar/snapshot restore awaits; its resolved
+   * initialization promise cannot retire a later restore backlog. Reuse normal reconciliation
+   * rather than declaring that backlog clean or starting a second initialization owner.
+   */
+  private async finishStartupIndexPreparation(): Promise<void> {
+    await this.ensureInitialIndex();
+    if (!this.unloading && this.initialIndexComplete && this.indexDirty && this.hasVisibleKplexSurface()) {
+      this.scheduleRebuild("startup:post-initial-backlog");
+    }
+  }
+
+  /** Join the existing startup authority; only a complete initial index retains the settled task. */
   private async ensureInitialIndex(): Promise<void> {
     if (this.unloading) return;
     if (this.initialIndexTask) {
@@ -1862,6 +1885,8 @@ export default class KplexPlugin extends Plugin {
       async () => { await run(); return { status: "completed" }; };
     operation("surface.open-tab", completed(() => this.activateView()),
       /** Preserve device-specific command visibility. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
+    operation("surface.new-tab", completed(() => this.createPlexTab()),
+      /** Additional tabs share the existing desktop/tablet surface policy. */ () => isGraphTabCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
     operation("surface.open-popout", completed(() => this.activateViewInPopout()),
       /** Phone/tablet surfaces do not publish an available desktop popout operation. */ () => isPopoutCommandAvailable(readObsidianPresentationEnvironment(window.activeWindow ?? window)) ? enabled : { state: "disabled", reasonKey: "actions.deviceUnavailable" });
     operation("surface.open-sidepanel", completed(() => this.activateSidepanel()));
@@ -2010,6 +2035,7 @@ export default class KplexPlugin extends Plugin {
     const previousPolicy = this.savedSettingsPolicy;
     const effects = classifySettingsChange(previousPolicy ?? next, next);
     const consentOnly = effects.changedKeys.length === 1 && effects.changedKeys[0] === "allowRemoteNodeImages";
+    const layoutOnly = effects.changedKeys.length === 1 && effects.changedKeys[0] === "layoutProfiles";
     const appearanceChanged = effects.changedKeys.some(/** Legacy imperative saves delegate appearance synchronization to the one queued owner. */ key => STYLE_SETTINGS_KEYS.some(/** This is the appearance-write inventory, not the theme schema. */ field => field === key));
     const queuedAppearance = appearanceChanged && (this.settings.appearanceThemes || this.settings.appearanceThemesFuture !== undefined);
     // The appearance queue owns its durable policy baseline. Advancing it here would make a
@@ -2027,10 +2053,10 @@ export default class KplexPlugin extends Plugin {
     if (this.unloading) return;
     await this.index.refreshPresentationSettings();
     if (effects.semanticInvalidation) await this.index.refreshSemanticSettings();
-    // Device typography changes reuse the existing graph and cannot expand a requested scope.
+    // Device typography and physical layout profiles reuse the graph without expanding a requested scope.
     // Style dictionaries/order also reuse semantic coverage. Preserve the legacy refresh
     // for other render changes and mixed writes, which may change requested scopes.
-    else if (effects.render && !effects.typographyOnly && !effects.paintOnly && !consentOnly && !isStyleOnlySettingsChange(effects) && !effects.changedKeys.every(/** Non-color theme geometry uses presentation/layout only. */ key => STYLE_SETTINGS_KEYS.some(/** Lens behavior keeps its existing separate settings owner. */ field => field === key))) await this.index.refreshSemanticSettings();
+    else if (effects.render && !effects.typographyOnly && !effects.paintOnly && !consentOnly && !layoutOnly && !isStyleOnlySettingsChange(effects) && !effects.changedKeys.every(/** Non-color theme geometry uses presentation/layout only. */ key => STYLE_SETTINGS_KEYS.some(/** Lens behavior keeps its existing separate settings owner. */ field => field === key))) await this.index.refreshSemanticSettings();
     // Workflow-only callers can still request their historical view notification. Changed settings
     // use the separate presentation channel and never pretend relationship evidence changed.
     if ((!effects.render || effects.typographyOnly) && notifyIndex) this.index.notifyPresentation();
@@ -4082,6 +4108,14 @@ export default class KplexPlugin extends Plugin {
     await this.app.workspace.revealLeaf(leaf);
   }
 
+  /** Create an adjacent Plex tab group, without reusing an existing tab or startup surface preference. */
+  async createPlexTab(): Promise<void> {
+    this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
+    const leaf = this.app.workspace.getLeaf("split");
+    await leaf.setViewState({ type: KPLEX_VIEW_TYPE, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
   /** Activate the native K-Plex sidepanel and report host-opening failures through localized notices. */
   async activateSidepanel(): Promise<void> {
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
@@ -4193,7 +4227,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Open a graph page through its supported host target and localize product feedback; semantic identities remain unchanged. */
-  async openPage(page: GraphPage, ownerDocument = this.app.workspace.containerEl.ownerDocument): Promise<void> {
+  async openPage(page: GraphPage, ownerDocument = this.app.workspace.containerEl.ownerDocument, options: { chooseFolder?: boolean; preserveCenter?: boolean } = {}): Promise<void> {
     if (page.url) {
       openExternalUrl(page.url, ownerDocument);
       return;
@@ -4206,7 +4240,7 @@ export default class KplexPlugin extends Plugin {
       new Notice(this.translator(page.isFolder ? "notice.folder" : "notice.tag", { name: page.isTag ? `#${page.name}` : page.name }), 1600);
       return;
     }
-    await this.createGhostNote(page);
+    await this.createGhostNote(page, options.chooseFolder === true, options.preserveCenter === true);
   }
 
   /** Render facets and styles under the same prepared policy, including during async refresh. */
@@ -4253,13 +4287,14 @@ export default class KplexPlugin extends Plugin {
     return activeLayoutProfile(this.settings, surface, readObsidianPresentationEnvironment());
   }
 
+  /** Persist physical layout preferences and notify presentation without invalidating relationship evidence. */
   async updateLayoutProfile(surface: KplexViewSurface, patch: Partial<KplexLayoutProfile>): Promise<void> {
     const environment = readObsidianPresentationEnvironment();
     const key = layoutProfileKey(surface, environment);
     const current = activeLayoutProfile(this.settings, surface, environment);
     this.settings.layoutProfiles[key] = { ...current, ...patch };
     await this.saveSettings(false, false);
-    this.index.notify();
+    this.index.notifyPresentation();
   }
 
   isPinned(path: string): boolean { return this.settings.pinnedNodes.includes(path); }
@@ -4609,7 +4644,8 @@ export default class KplexPlugin extends Plugin {
     return canonical;
   }
 
-  private allOntologyFields(): string[] {
+  /** Enumerate selectable relationship fields while preserving their configured direction. */
+  allOntologyFields(): string[] {
     const h = this.settings.hierarchy;
     return [...h.parents, ...h.children, ...h.leftFriends, ...h.rightFriends, ...h.previous, ...h.next];
   }
@@ -4898,7 +4934,7 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Persist an existing-target relationship under exact current pair authority, then await canonical saved publication. */
-  async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string): Promise<RelationshipWriteResult> {
+  async createRelationToPage(origin: GraphPage, semanticRole: RelationshipRole, target: GraphPage, selectedField: string, referenceOverride?: string): Promise<RelationshipWriteResult> {
     return this.index.withForegroundPriority(async () => {
       const originPath = origin.path;
       const targetPath = target.path;
@@ -4917,7 +4953,7 @@ export default class KplexPlugin extends Plugin {
       }
 
       if (origin.file?.extension === "md") {
-        await this.writeRelationship(origin.file, target, selectedField);
+        await this.writeRelationship(origin.file, target, selectedField, referenceOverride);
         await this.publishSavedRelationship(origin.path, target.path);
       } else if (target.file?.extension === "md") {
         const inverseField = this.inverseOntologyField(selectedField, semanticRole);
@@ -5034,8 +5070,8 @@ export default class KplexPlugin extends Plugin {
     });
   }
 
-  /** Derive a portable physical filename from a freely entered display title. */
-  validateRelatedNoteName(rawName: string): { stem: string; valid: boolean; error: string | null; existing: TFile | null } {
+  /** Derive a portable physical filename; an explicit folder uses exact lookups and permits matching basenames elsewhere. */
+  validateRelatedNoteName(rawName: string, targetFolder?: string): { stem: string; valid: boolean; error: string | null; existing: TFile | null } {
     const displayName = rawName.trim();
     if (!displayName) return { stem: "", valid: false, error: this.translator("note.validation.type"), existing: null };
 
@@ -5049,6 +5085,12 @@ export default class KplexPlugin extends Plugin {
     if (!stem || stem === "." || stem === "..") stem = "Untitled";
     if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(stem)) stem = `${stem}-note`;
 
+    if (targetFolder !== undefined) {
+      const prefix = targetFolder ? `${targetFolder}/` : "";
+      const existing = [".md", ".excalidraw.md", ".excalidraw"].map(/** A selected destination needs only exact native lookups, never a vault scan. */ extension =>
+        this.app.vault.getFileByPath(`${prefix}${stem}${extension}`)).find(/** Ignore absent alternatives without broadening native identity. */ file => file !== null) ?? null;
+      return { stem, valid: true, error: null, existing };
+    }
     const normalized = stem.toLocaleLowerCase();
     const existing = this.app.vault.getFiles().find((file) => {
       const lowerName = file.name.toLocaleLowerCase();
@@ -5060,6 +5102,25 @@ export default class KplexPlugin extends Plugin {
     }) ?? null;
 
     return { stem, valid: true, error: null, existing };
+  }
+
+  /** Validate a vault-relative destination before folder creation or unresolved-link persistence. */
+  validateNoteFolderPath(rawPath: string): { folderPath: string; error: string | null } {
+    const path = rawPath.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+    const invalid = path.split("/").some(/** Physical paths retain valid Obsidian characters; link representability is a separate commit check. */ part =>
+      part === "." || part === ".." || [...part].some(character => (character.codePointAt(0) ?? 0) < 0x20 || '<>:"|?*'.includes(character)));
+    if (invalid) return { folderPath: path, error: this.translator("folderPicker.invalid") };
+    const folderPath = path ? normalizePath(path) : "";
+    const occupant = folderPath ? this.app.vault.getFileByPath(folderPath) : null;
+    return { folderPath, error: occupant ? this.translator("folderPicker.fileConflict") : null };
+  }
+
+  /** Apply Obsidian's new-note location preference to the captured origin, independently of the active editor. */
+  newRelatedNoteFolder(origin: GraphPage, rawName: string, kind: GhostMaterializationKind = "markdown"): string {
+    const validation = this.validateRelatedNoteName(rawName, "");
+    const proposedName = `${validation.stem || "Untitled"}${kind === "excalidraw" ? ".excalidraw.md" : ".md"}`;
+    const parent = this.app.fileManager.getNewFileParent(origin.file?.path ?? origin.path, proposedName);
+    return parent.path === "/" ? "" : parent.path;
   }
 
   isExcalidrawAvailable(): boolean {
@@ -5785,7 +5846,8 @@ export default class KplexPlugin extends Plugin {
 
   /** Resolve source locations for pair evidence while keeping actual note content untouched and localizing unavailable-source feedback. */
   async relationshipEvidenceLocations(evidence: RelationEvidence): Promise<Array<{ path: string; line: number; label: string }>> {
-    const file = this.app.vault.getFileByPath(evidence.declaredByPath);
+    const membership = evidence.sourceKind === "tag-tree" ? tagMembershipPair(this.index.get(evidence.sourcePath), this.index.get(evidence.targetPath)) : null;
+    const file = membership?.note.file ?? this.app.vault.getFileByPath(evidence.declaredByPath);
     if (!file || file.extension !== "md") return [];
 
     const positions: Array<{ path: string; line: number; label: string }> = [];
@@ -5794,6 +5856,14 @@ export default class KplexPlugin extends Plugin {
       if (positions.some((item) => item.line === safeLine && item.label === label)) return;
       positions.push({ path: file.path, line: safeLine, label });
     };
+
+    if (membership) {
+      const tag = graphTagValue(membership.tag)?.toLocaleLowerCase();
+      for (const occurrence of this.app.metadataCache.getFileCache(file)?.tags ?? []) {
+        if (occurrence.tag.replace(/^#/, "").toLocaleLowerCase() === tag) add(occurrence.position.start.line, this.translator("evidence.navigateLine", { line: occurrence.position.start.line + 1 }));
+      }
+      return positions;
+    }
 
     if (evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url"
       || evidence.sourceKind === "property-url" && evidence.line !== undefined) {
@@ -5840,7 +5910,8 @@ export default class KplexPlugin extends Plugin {
 
     const groups = new Map<string, { file: TFile; evidences: RelationEvidence[] }>();
     for (const evidence of evidences) {
-      const file = this.app.vault.getFileByPath(evidence.declaredByPath);
+      const membership = evidence.sourceKind === "tag-tree" ? tagMembershipPair(this.index.get(evidence.sourcePath), this.index.get(evidence.targetPath)) : null;
+      const file = membership?.note.file ?? this.app.vault.getFileByPath(evidence.declaredByPath);
       if (!file || file.extension !== "md") continue;
       const group = groups.get(file.path) ?? { file, evidences: [] };
       group.evidences.push(evidence);
@@ -5914,6 +5985,14 @@ export default class KplexPlugin extends Plugin {
         } else if ((evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url" || evidence.sourceKind === "property-url") && evidence.line) {
           const range = paragraphRange(evidence.line - 1);
           sections = [make(range.start, range.end, this.translator("evidence.paragraphAroundLine", { line: evidence.line }))];
+        } else if (evidence.sourceKind === "tag-tree") {
+          const locations = await this.relationshipEvidenceLocations(evidence);
+          const seen = new Set<number>();
+          for (const location of locations) {
+            if (seen.has(location.line)) continue;
+            seen.add(location.line);
+            sections.push(make(location.line, location.line, this.translator("evidence.navigateLine", { line: location.line + 1 })));
+          }
         } else if (evidence.sourceKind === "obsidian-link" || evidence.sourceKind === "unresolved-link") {
           const locations = await this.relationshipEvidenceLocations(evidence);
           const seen = new Set<string>();
@@ -6072,11 +6151,17 @@ export default class KplexPlugin extends Plugin {
     }
   }
 
-  /** Create and materialize a folder child using the existing optimistic/index reconciliation workflow and localized feedback. */
+  /** Create a child with exact destination collision checks and existing optimistic/index reconciliation. */
   async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind, capturedFolder?: TFolder): Promise<GraphPage | null> {
     return this.index.withForegroundPriority(async () => {
       if (!folder.isFolder) return null;
-      const validation = this.validateRelatedNoteName(rawName);
+      const folderPath = folder.path === "folder:/"
+        ? ""
+        : folder.path.startsWith("folder:")
+          ? normalizePath(folder.path.slice("folder:".length))
+          : "";
+      const currentFolderPath = capturedFolder?.path ?? folderPath;
+      const validation = this.validateRelatedNoteName(rawName, currentFolderPath === "/" ? "" : currentFolderPath);
       if (!validation.valid) {
         new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
         return null;
@@ -6086,12 +6171,6 @@ export default class KplexPlugin extends Plugin {
         return null;
       }
 
-      const folderPath = folder.path === "folder:/"
-        ? ""
-        : folder.path.startsWith("folder:")
-          ? normalizePath(folder.path.slice("folder:".length))
-          : "";
-      const currentFolderPath = capturedFolder?.path ?? folderPath;
       /** Check again inside queued work and after the shared file creator's awaited folder check. */
       const current = (): boolean => !this.unloading && (!capturedFolder ||
         (capturedFolder === this.app.vault.getRoot() ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(capturedFolder.path)) === capturedFolder);
@@ -6108,6 +6187,29 @@ export default class KplexPlugin extends Plugin {
   openCreateInFolderModal(folder: GraphPage, hostLeaf?: WorkspaceLeaf): void {
     if (!folder.isFolder) return;
     new CreateFolderNoteModal(this, folder, hostLeaf).open();
+  }
+
+  /** Reuse one plugin-owned metadata queue for assignment and unlink, including actions from other windows. */
+  private structuralDropOwner(): StructuralNodeDropActions {
+    this.structuralDrops ??= new StructuralNodeDropActions(this.app, this.translator,
+      /** Reuse exact-file saved-metadata observation and plugin cancellation ownership. */ (file, fields, mutate) => this.mutateCreatedNodeMetadata(file, fields, mutate), () => this.settings.noteTypeField);
+    return this.structuralDrops;
+  }
+
+  /** Handle explicit structural drops without changing ontology relationship semantics. */
+  openStructuralNodeDrop(origin: GraphPage, target: GraphPage, options: {immediateMove?: boolean} = {}): boolean {
+    return !this.unloading && this.structuralDropOwner().open(origin, target, options);
+  }
+
+  /** Reuse the structural assignment dialog for an explicit connector conversion. */
+  changeTagAssignment(note: GraphPage, tag: GraphPage, toNoteType: boolean, current: () => boolean): boolean {
+    return !this.unloading && this.structuralDropOwner().assign(note, tag, toNoteType ? "note-type" : "tag", true, current);
+  }
+
+  /** Remove only YAML tag membership; body tags remain source evidence and are never rewritten here. */
+  async unlinkTagMembership(note: GraphPage, tag: GraphPage, current: () => boolean): Promise<boolean> {
+    if (this.unloading) return false;
+    return this.structuralDropOwner().unlink(note, tag, current);
   }
 
   private configuredDisplayNameField(): string | null {
@@ -6188,9 +6290,11 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Create a related file for the selected origin while preserving folder/name validation and localized product feedback. */
-  async createNewRelatedFileForOrigin(origin: GraphPage, rawName: string, kind: GhostMaterializationKind, rawAlias = ""): Promise<TFile | null> {
+  async createNewRelatedFileForOrigin(origin: GraphPage, rawName: string, kind: GhostMaterializationKind, rawAlias = "", selectedFolder?: string): Promise<TFile | null> {
     return this.index.withForegroundPriority(async () => {
-      const validation = this.validateRelatedNoteName(rawName);
+      const destination = this.validateNoteFolderPath(selectedFolder ?? this.newRelatedNoteFolder(origin, rawName, kind));
+      if (destination.error) throw new Error(destination.error);
+      const validation = this.validateRelatedNoteName(rawName, destination.folderPath);
       if (!validation.valid) {
         new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
         return null;
@@ -6200,14 +6304,7 @@ export default class KplexPlugin extends Plugin {
         return null;
       }
 
-      // FileManager.getNewFileParent is the public Obsidian API that applies the user's new-note
-      // location preference. Resolve it against the relationship origin rather than whichever editor
-      // tab happens to be active while the modal is open.
-      const proposedName = kind === "excalidraw" ? `${validation.stem}.excalidraw.md` : `${validation.stem}.md`;
-      const sourcePath = origin.file?.path ?? origin.path;
-      const configuredParent = this.app.fileManager.getNewFileParent(sourcePath, proposedName);
-      const configuredFolder = configuredParent.path === "/" ? "" : configuredParent.path;
-      const file = await this.createNewFileInFolder(validation.stem, kind, configuredFolder);
+      const file = await this.createNewFileInFolder(validation.stem, kind, destination.folderPath);
       if (!file) return null;
       try {
         const displayName = await this.writeCreatedNodeDisplayName(file, rawName);
@@ -6316,10 +6413,10 @@ export default class KplexPlugin extends Plugin {
     });
   }
 
-  private placeholderPath(stem: string): string {
-    // A placeholder has no physical location yet. Keep its graph/link identity pathless until the
-    // user materializes it, at which point Obsidian's new-note rules determine the real folder.
-    return stem.trim();
+  /** Retain an explicitly selected unresolved destination without manufacturing native folders. */
+  private placeholderPath(stem: string, folderPath = ""): string {
+    // A selected destination is part of the unresolved link; no physical folder or note is created.
+    return folderPath ? `${folderPath}/${stem.trim()}` : stem.trim();
   }
 
   /** Create an unresolved related node without manufacturing a real file; localize its product feedback. */
@@ -6328,9 +6425,13 @@ export default class KplexPlugin extends Plugin {
     semanticRole: RelationshipRole,
     rawName: string,
     selectedField: string,
+    selectedFolder?: string,
+    rawAlias = "",
   ): Promise<GraphPage | null> {
     return this.index.withForegroundPriority(async () => {
-      const validation = this.validateRelatedNoteName(rawName);
+      const destination = selectedFolder === undefined ? null : this.validateNoteFolderPath(selectedFolder);
+      if (destination?.error) throw new Error(destination.error);
+      const validation = this.validateRelatedNoteName(rawName, destination?.folderPath);
       if (!validation.valid) {
         new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
         return null;
@@ -6344,10 +6445,12 @@ export default class KplexPlugin extends Plugin {
         return null;
       }
 
-      const path = this.placeholderPath(validation.stem);
+      const path = this.placeholderPath(validation.stem, destination?.folderPath);
+      const alias = rawAlias.trim() || validation.stem;
+      const reference = placeholderReference(this.app, origin.file, path, alias, this.translator("folderPicker.placeholderUnsupported"));
       const existing = this.index.get(path);
       if (existing) {
-        const result = await this.createRelationToPage(origin, semanticRole, existing, selectedField);
+        const result = await this.createRelationToPage(origin, semanticRole, existing, selectedField, reference);
         return result.state === "saved-published" ? result.page : null;
       }
 
@@ -6361,7 +6464,7 @@ export default class KplexPlugin extends Plugin {
       if (!(await this.index.prepareRelationshipPair(origin.path, provisional.path, provisional))) throw new Error(this.translator("relation.preparingRelationship"));
       const currentOrigin = this.index.get(origin.path);
       if (currentOrigin?.file !== origin.file) throw new Error(this.translator("relation.preparingRelationship"));
-      await this.writeRelationship(origin.file, provisional, selectedField);
+      await this.writeRelationship(origin.file, provisional, selectedField, reference);
       const target = this.index.insertVirtualPage(path);
       await this.publishSavedRelationship(origin.path, target.path);
       return this.index.get(target.path) ?? target;
@@ -6421,31 +6524,67 @@ export default class KplexPlugin extends Plugin {
     }));
   }
 
-  /** Promote the selected placeholder and its navigation coordinates before opening its created file. */
+  /** Validate a destination, retain accepted reference/file writes, and promote coordinates before opening only the still-current invocation. */
   private async materializeGhostPage(
     page: GraphPage,
     stem: string,
     kind: GhostMaterializationKind,
     folderPath: string,
     rawDisplayName = page.name,
+    retainedFile?: TFile,
+    continuation: { relocation?: PlaceholderRelocation } = {},
+    current: () => boolean = () => true,
+    preserveCenter = false,
   ): Promise<boolean> {
-    const oldPath = page.path;
-    const file = await this.createNewFileInFolder(stem, kind, folderPath);
+    const retainedPlan = retainedFile ? continuation.relocation : undefined;
+    const oldPath = retainedPlan?.oldPath ?? page.path;
+    const destination = this.validateNoteFolderPath(folderPath);
+    if (destination.error) throw new Error(destination.error);
+    const originalFolder = oldPath.includes("/") ? oldPath.slice(0, oldPath.lastIndexOf("/")) : null;
+    const relocates = originalFolder !== null && originalFolder !== destination.folderPath;
+    const changed = this.translator("ghost.relocationChanged");
+    // A pathful link cannot follow an in-memory endpoint remap. Approve exact native occurrences
+    // before creation; the shared literal grammar refuses destinations it cannot represent.
+    const sources = retainedPlan ? retainedPlan.sources.map(/** A retry keeps the exact originally approved source identities. */ source => source.file)
+      : relocates ? this.referencingMarkdownFiles(page) : [];
+    const relocation = retainedPlan ?? (relocates ? await capturePlaceholderRelocation(this.app, oldPath, sources, changed) : null);
+    if (relocation) continuation.relocation = relocation;
+    if (!current() && !retainedFile) return false;
+    const referenceHost = relocation?.sources[0]?.file ?? retainedFile;
+    if (relocates && !referenceHost) throw new Error(changed);
+    if (relocates && referenceHost) placeholderReference(this.app, referenceHost,
+      `${destination.folderPath ? destination.folderPath + "/" : ""}${stem}`, stem, this.translator("folderPicker.placeholderUnsupported"));
+    if (relocation) assertPlaceholderRelocationTarget(relocation,
+      `${destination.folderPath ? destination.folderPath + "/" : ""}${stem}${kind === "excalidraw" ? ".excalidraw.md" : ".md"}`,
+      this.translator("ghost.relocationUnsupported"));
+    if (this.unloading || retainedFile && this.app.vault.getFileByPath(retainedFile.path) !== retainedFile) throw new Error(changed);
+    if (retainedFile && (retainedFile.parent?.path === "/" ? "" : retainedFile.parent?.path) !== destination.folderPath) throw new Error(changed);
+    const file = retainedFile ?? await this.createNewFileInFolder(stem, kind, destination.folderPath);
     if (!file) return false;
-
-    await this.writeCreatedNodeDisplayName(file, rawDisplayName);
-    await this.rememberNewNodeDefaultType(kind);
-    const wasCenter = this.settings.lastActivePath === oldPath;
-    if (!this.index.materializeFile(oldPath, file)) return false;
-    const navigationChanged = this.remapNavigationPaths(oldPath, file.path);
-    if (wasCenter) this.notifyNavigation(file.path);
-    if (navigationChanged) await this.saveSettings(false, false);
-    await this.openInDocumentLeaf(file);
-    return true;
+    try {
+      if ((file.parent?.path === "/" ? "" : file.parent?.path) !== destination.folderPath) throw new Error(changed);
+      if (relocation) await applyPlaceholderRelocation(this.app, relocation, file, /** Native replacement identities never inherit a dismissed placeholder's write authority. */ () => !this.unloading
+        && !this.app.metadataCache.getFirstLinkpathDest(oldPath, sources[0]?.path ?? ""), changed);
+      await this.writeCreatedNodeDisplayName(file, rawDisplayName);
+      await this.rememberNewNodeDefaultType(kind);
+      const target = relocation?.target;
+      if (target && (target.file !== file || file.path !== target.path || this.app.vault.getFileByPath(target.path) !== file)) throw new Error(changed);
+      const wasCenter = this.settings.lastActivePath === oldPath;
+      if (!this.index.materializeFile(oldPath, file)) throw new Error(changed);
+      const navigationChanged = this.remapNavigationPaths(oldPath, file.path);
+      // Another Plex may own lastActivePath. In-place creation must never broadcast its new
+      // center to unrelated surfaces; each mounted App follows its own canonical identity remap.
+      if (!preserveCenter && wasCenter && current()) this.notifyNavigation(file.path);
+      if (navigationChanged) await this.saveSettings(false, false);
+      // Opening a document can trigger follow-active-note synchronization. In-place creation
+      // promotes the endpoint and its saved references without issuing that navigation request.
+      if (current() && !preserveCenter) await this.openInDocumentLeaf(file);
+      return true;
+    } catch (error) { throw error instanceof PartialRelatedFileError ? error : new PartialRelatedFileError(file, error); }
   }
 
   /** Materialize the requested ghost note through the existing vault/index workflow and localize user-visible validation and failures. */
-  async createGhostNote(page: GraphPage): Promise<void> {
+  async createGhostNote(page: GraphPage, chooseFolder = false, preserveCenter = false): Promise<void> {
     if (page.file) {
       await this.openInDocumentLeaf(page.file);
       return;
@@ -6453,34 +6592,35 @@ export default class KplexPlugin extends Plugin {
     if (page.url || page.isFolder || page.isTag) return;
 
     const rawLeafName = page.path.split("/").pop() ?? page.name;
-    const validation = this.validateRelatedNoteName(rawLeafName);
+    const validation = this.validateRelatedNoteName(rawLeafName, "");
     if (!validation.valid) {
       new Notice(validation.error ?? this.translator("notice.placeholderInvalidName"), 3000);
       return;
     }
-    if (validation.existing) {
-      await this.openInDocumentLeaf(validation.existing);
-      return;
-    }
-
     const locations = this.ghostCreationLocations(page, validation.stem);
+    if (!chooseFolder && locations.length === 1) {
+      const existing = this.validateRelatedNoteName(rawLeafName, locations[0].folderPath).existing;
+      if (existing) { if (!preserveCenter) await this.openInDocumentLeaf(existing); return; }
+    }
     const excalidrawAvailable = this.isExcalidrawAvailable();
     const defaultKind: GhostMaterializationKind = this.settings.newNodeDefaultType === "excalidraw" && excalidrawAvailable
       ? "excalidraw"
       : "markdown";
 
-    if (locations.length === 1 && !excalidrawAvailable) {
-      await this.materializeGhostPage(page, validation.stem, "markdown", locations[0].folderPath, rawLeafName);
+    if (!chooseFolder && locations.length === 1 && !excalidrawAvailable) {
+      await this.materializeGhostPage(page, validation.stem, "markdown", locations[0].folderPath, rawLeafName, undefined, {}, undefined, preserveCenter);
       return;
     }
 
+    const continuation: { relocation?: PlaceholderRelocation } = {};
     new MaterializeGhostModal(
       this.app,
       validation.stem,
       locations,
       excalidrawAvailable,
       defaultKind,
-      (kind, folderPath) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName),
+      (kind, folderPath, retainedFile, current) => this.materializeGhostPage(page, validation.stem, kind, folderPath, rawLeafName, retainedFile, continuation, current, preserveCenter),
+      chooseFolder,
     ).open();
   }
 

@@ -1660,3 +1660,45 @@ test('URL parent sorting follows live display-name fields without repeating evid
     return true;
   }finally{o.close();}
 })()`));
+
+for (const mode of ['on-demand','eager']) test('a superseded local host cover retries before a new-target patch fallback can strand a stationary center ('+mode+')',async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('local-cover-url-epoch-race-${mode}',{indexingMode:${JSON.stringify(mode)},lastActivePath:'Anchor.md'});const{f,index}=o;let release,unblock;
+  try{
+    f.add('Anchor.md','');ok(await index.initializeOnDemandBaseline(),'Existing local structural baseline');
+    f.add('A.md','',{Parent:'[[B]]'});f.add('B.md','');f.app.metadataCache.resolvedLinks['A.md']={'B.md':1};
+    index.hostPreview.refreshSource('A.md');await index.primePhysicalSearchCatalog();
+    ok(!index.state.pages.has('A.md')&&!index.state.pages.has('B.md'),'Native late-created endpoints are not an invented canonical baseline');
+    const build=index.hostPreview.build.bind(index.hostPreview),patch=index.patchMarkdownPaths.bind(index),outcomes=[],attemptWork=[];
+    let entered,first=true,attempts=0;const reached=new Promise(resolve=>entered=resolve),hold=new Promise(resolve=>unblock=resolve);
+    index.hostPreview.build=async(...args)=>{if(args[0]==='A.md'&&args[1]?.completeHostCover){attempts++;attemptWork.push([f.reads.length,o.parses.length]);if(first){first=false;entered();await hold;}}return build(...args)};
+    index.patchMarkdownPaths=(...args)=>{const result=patch(...args);void result.then(value=>outcomes.push(value.outcome));return result};
+    index.rebuild=()=>{throw Error('Local cover recovery must not request a full build')};
+    release=index.acquireSemanticDemand('A.md');await reached;
+    ok(index.search('B',10,'vault-files').some(page=>page.path==='B.md'),'Foreground physical Find remains available while host preparation is held');
+    const epoch=index.onDemandGateRevisions.get('A.md')??0;
+    index.publishUrlSearch(new Set(['A.md']));equal(index.onDemandGateRevisions.get('A.md'),epoch+1,'Actual URL publication supersedes the captured host cover');
+    unblock();await settleDemand(index);
+    ok(outcomes.includes('needs-rebuild'),'Actual ordinary patch conservatively refuses the absent target baseline');
+    equal(index.getNeighborhood('A.md').parents.map(node=>node.page.path),['B.md'],'Stationary demand gets the current host Parent despite patch fallback');
+    equal(attempts,2,'Only the superseded host preparation retries; no polling owner');
+    equal(attemptWork,[[0,0],[0,0]],'The host-only retry adds no Markdown reads or parsing');
+    equal(index.onDemandTasks.size,0,'Actual demand drains after the current cover publishes');
+    ok(!index.isSemanticWriteReady('A.md','B.md'),'Local host read does not manufacture canonical write authority');
+    equal(o.inventoryStarts,0,'No global inventory is started');return true;
+  }finally{unblock?.();release?.();o.close();}
+})()`));
+
+for (const mode of ['on-demand','eager']) test('retiring demand stops a superseded local host cover without retrying or publishing its stale result ('+mode+')',async()=>scenario(`(async()=>{
+  const o=await onDemandFixture('local-cover-retired-demand-${mode}',{indexingMode:${JSON.stringify(mode)}});const{f,index}=o;let release,unblock;
+  try{
+    f.add('A.md','',{Parent:'[[B]]'});f.add('B.md','');f.app.metadataCache.resolvedLinks['A.md']={'B.md':1};
+    ok(await index.initializeOnDemandBaseline(),'Baseline');
+    const build=index.hostPreview.build.bind(index.hostPreview);let entered,attempts=0;
+    const reached=new Promise(resolve=>entered=resolve),hold=new Promise(resolve=>unblock=resolve);
+    index.hostPreview.build=async(...args)=>{if(args[0]==='A.md'&&args[1]?.completeHostCover){attempts++;entered();await hold;}return build(...args)};
+    release=index.acquireSemanticDemand('A.md');await reached;index.publishUrlSearch(new Set(['A.md']));
+    release();release=null;unblock();await settleDemand(index);
+    equal(attempts,1,'A retired view cannot retry host preparation');ok(!index.onDemandHostScopes.has('A.md'),'No stale local cover is published');
+    equal(f.reads.length,0,'Canceled host-only preparation reads no note body');equal(o.inventoryStarts,0,'No global inventory');return true;
+  }finally{unblock?.();release?.();o.close();}
+})()`));

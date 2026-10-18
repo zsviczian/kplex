@@ -7,8 +7,9 @@
  * The final image boundary rechecks consent before producing a src, including retained cached props.
  * A separately referenced accessible name avoids Obsidian's competing node tooltip; visible labels
  * retain the compact browser title, while gate hints and explicit page previews keep their owners.
+ * Optional native body dragging preserves embedded editor input and delegates its host payload.
  */
-import { useId, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useId, type CSSProperties, type DragEvent as ReactDragEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { GateSide, NodeVisual, PositionedNode } from "../types";
 import { nodePaint, nodePaintFallbacks } from "../index/style";
 import type { KplexSettings } from "../settings";
@@ -42,6 +43,9 @@ export function ThoughtNode({
   onHoverPreview,
   onGatePointerDown,
   onNodePointerDown,
+  nativeDraggable = false,
+  onNativeDragStart,
+  onNativeDragEnd,
   onContextMenu,
   sectionFold,
   visual,
@@ -60,14 +64,17 @@ export function ThoughtNode({
   dragging?: boolean;
   flair?: boolean;
   connectionState?: ConnectionDragState;
-  onActivate: (node: PositionedNode) => void;
-  onOpen: (node: PositionedNode) => void;
+  onActivate: (node: PositionedNode, event: MouseEvent<HTMLDivElement>) => void;
+  onOpen: (node: PositionedNode, event: MouseEvent<HTMLDivElement>) => void;
   onHoverNode: (node: PositionedNode, event: ReactPointerEvent) => void;
   onHoverGate: (node: PositionedNode, gate: GateSide, event: ReactPointerEvent) => void;
   onHoverEnd: () => void;
   onHoverPreview: (node: PositionedNode, target: HTMLElement, event: PointerEvent) => void;
   onGatePointerDown: (node: PositionedNode, gate: GateSide, event: ReactPointerEvent<HTMLSpanElement>) => void;
   onNodePointerDown: (node: PositionedNode, event: ReactPointerEvent<HTMLDivElement>) => void;
+  nativeDraggable?: boolean;
+  onNativeDragStart?: (node: PositionedNode, event: ReactDragEvent<HTMLDivElement>) => void;
+  onNativeDragEnd?: () => void;
   onContextMenu?: (node: PositionedNode, event: MouseEvent<HTMLDivElement>) => void;
   visual?: NodeVisual;
   content?: ReactNode;
@@ -96,7 +103,7 @@ export function ThoughtNode({
   const label = `${prefix}${node.label}`;
   const max = effectiveLabelLimit(style.maxLabelLength ?? 30, node.role === "center");
   const display = label.length > max ? `${label.slice(0, Math.max(1, max - 1))}…` : label;
-  const click = (e: MouseEvent) => { e.stopPropagation(); onActivate(node); };
+  const click = (e: MouseEvent<HTMLDivElement>) => { e.stopPropagation(); onActivate(node, e); };
   const paint = nodePaint(style, nodePaintFallbacks(node));
   const gateSize = gateDiameter(style);
   const nodeCss = {
@@ -140,6 +147,17 @@ export function ThoughtNode({
     data-kplex-path={node.page.path}
     data-kplex-keyboard-id={keyboardId}
     aria-current={keyboardSelected ? "true" : undefined}
+    draggable={nativeDraggable}
+    onDragStart={/** Only the thought body delegates outbound dragging; embedded editors own their events. */ (event: ReactDragEvent<HTMLDivElement>) => {
+      const target = event.target as Element;
+      if (target.closest(".kplex-thought-embedded-content")) return;
+      if (!nativeDraggable || target.closest("button, [data-kplex-gate]")) {
+        event.preventDefault();
+        return;
+      }
+      onNativeDragStart?.(node, event);
+    }}
+    onDragEnd={/** Native completion may already have released the host; the caller's cleanup is idempotent. */ () => onNativeDragEnd?.()}
     onPointerDown={(e: ReactPointerEvent<HTMLDivElement>) => { onNodePointerDown(node, e); }}
     onPointerEnter={(e: ReactPointerEvent<HTMLDivElement>) => {
       onHoverNode(node, e);
@@ -150,7 +168,7 @@ export function ThoughtNode({
     }}
     onPointerLeave={() => { onHoverEnd(); }}
     onClick={click}
-    onDoubleClick={(e: MouseEvent<HTMLDivElement>) => { e.stopPropagation(); onOpen(node); }}
+    onDoubleClick={(e: MouseEvent<HTMLDivElement>) => { e.stopPropagation(); onOpen(node, e); }}
     onContextMenu={(e: MouseEvent<HTMLDivElement>) => {
       const target = e.target as Element;
       if (target.closest("button, [data-kplex-gate]")) {
@@ -213,14 +231,14 @@ export function ThoughtNode({
     />}
     {GATES.map((gate) => {
       const stat = node.gateStats[gate];
-      const gateDisabled = node.page.isTag || (node.page.isFolder && gate !== "bottom");
+      const gateDisabled = Boolean(node.page.transient);
       const gateLabel = physicalPositionLabel(gate, translate);
       const gateHint = node.page.isTag
         ? translate("node.gateTagDisabled", { gate: gateLabel })
         : node.page.isFolder
           ? gate === "bottom"
             ? translate("node.gateFolderChild")
-            : translate("node.gateFolderDisabled", { gate: gateLabel })
+            : translate("moveNode.gate")
           : stat.hasAny || stat.complete === false
             ? translate("node.gateVisible", { gate: gateLabel, count: stat.visibleCount })
             : translate("node.gateEmpty", { gate: gateLabel });
@@ -237,6 +255,8 @@ export function ThoughtNode({
           onPointerDown={(e: ReactPointerEvent<HTMLSpanElement>) => { onGatePointerDown(node, gate, e); }}
           onClick={(e: MouseEvent<HTMLSpanElement>) => e.stopPropagation()}
           aria-label={gateTitle}
+          data-kplex-control-tooltip
+          data-kplex-tooltip-requires-alt={settings.gateTooltipRequiresAlt !== false ? "true" : undefined}
           data-tooltip-position="top"
         />
         {settings.showNeighborCount && (stat.visibleCount > 0 || stat.complete === false) && <span className="kplex-gate-count">{

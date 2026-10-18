@@ -28,6 +28,17 @@ function start(phasePath){
  const docs=()=>[...new Set([document,tab.containerEl.ownerDocument])];
  const button=(root,key)=>[...root.querySelectorAll('button')].find(el=>el.textContent.trim()===p.translator(key));
  const input=(el,value,type='input')=>{el.value=value;el.dispatchEvent(new el.ownerDocument.defaultView.Event(type,{bubbles:true}))};
+ /** Exercise the shared native searchable chooser through its actual input and result rows. */
+ const chooseVariable=async(dialog,value,preview=true)=>{
+  dialog.contentEl.querySelector('.kplex-theme-color-choice').click();const doc=dialog.modalEl.ownerDocument;
+  await until(()=>doc.querySelector('.prompt-input'),'Native color chooser missing');
+  const query=doc.querySelector('.prompt-input');input(query,value);
+  await until(()=>[...doc.querySelectorAll('.suggestion-item')].some(row=>row.querySelector('.suggestion-content')?.firstElementChild?.textContent===value),'Native color result missing');
+  const row=[...doc.querySelectorAll('.suggestion-item')].find(row=>row.querySelector('.suggestion-content')?.firstElementChild?.textContent===value);
+  if(preview)await until(()=>row.querySelectorAll('.kplex-color-swatch').length===2&&[...row.querySelectorAll('.kplex-color-swatch')].every(el=>el.style.getPropertyValue('--kplex-color-swatch')||el.textContent==='?'),'Native variable swatches missing');
+  const colors=[...row.querySelectorAll('.kplex-color-swatch')].map(el=>el.style.getPropertyValue('--kplex-color-swatch'));
+  row.dispatchEvent(new row.ownerDocument.defaultView.MouseEvent('mousedown',{bubbles:true,cancelable:true,button:0}));row.click();await until(()=>!query.isConnected,'Native color selection did not close');return colors;
+ };
  const open=async()=>{tab.openCanvasColorEditor();await until(()=>docs().some(doc=>doc.querySelector('.kplex-color-modal')),'Native color editor missing');const dialog=[...tab.colorDialogs].at(-1);check(dialog,'Owned dialog missing');c.dialogs.push(dialog);return dialog};
  const observe=(owner,name,counter)=>{const previous=owner[name];owner[name]=function(...args){c.counts[counter]++;return previous.apply(this,args)};c.restores.push(()=>owner[name]=previous)};
  const passed=(name,details={})=>c.cases.push({name,...details});
@@ -74,16 +85,20 @@ function start(phasePath){
    observe(p,'saveData','writes');
    let dialog=await open(),root=dialog.contentEl;
    const initialWrites=c.counts.writes,initial=JSON.stringify(p.settings.backgroundColor);
-   const text=root.querySelector('input[type=text]');input(text,'#12');text.dispatchEvent(new text.ownerDocument.defaultView.Event('blur'));
+   input(root.querySelector('.kplex-color-source-editor select'),'fixed','change');const text=root.querySelector('.kplex-literal-editor input[type=text]');input(text,'#12');text.dispatchEvent(new text.ownerDocument.defaultView.Event('blur'));
    check(button(root,'common.save').disabled,'Partial color admitted');check(c.counts.writes===initialWrites,'Opening or typing wrote');
    button(root,'common.cancel').click();await until(()=>!dialog.modalEl.isConnected,'Cancel did not close');check(JSON.stringify(p.settings.backgroundColor)===initial,'Cancel changed source');
    passed('open, partial text and Cancel make zero writes');
    dialog=await open();button(dialog.contentEl,'common.save').click();await until(()=>!dialog.modalEl.isConnected,'Unchanged Save did not close');check(c.counts.writes===initialWrites,'Unchanged Save wrote');passed('unchanged Save closes without a write');
-   dialog=await open();root=dialog.contentEl;const number=root.querySelector('input[type=number]');input(number,'0');button(root,'common.save').click();await until(()=>!dialog.modalEl.isConnected,'Zero-alpha Save did not close');check(p.settings.backgroundColor.endsWith('00')||p.settings.backgroundColor==='transparent'||/[,/]\s*0\s*\)/.test(p.settings.backgroundColor),'Zero alpha lost');passed('native opacity zero commits explicitly');
+   dialog=await open();root=dialog.contentEl;input(root.querySelector('.kplex-color-source-editor select'),'fixed','change');const number=root.querySelector('input[type=number]');input(number,'0');button(root,'common.save').click();await until(()=>!dialog.modalEl.isConnected,'Zero-alpha Save did not close');check(p.settings.backgroundColor.endsWith('00')||p.settings.backgroundColor==='transparent'||/[,/]\s*0\s*\)/.test(p.settings.backgroundColor),'Zero alpha lost');passed('native opacity zero commits explicitly');
    await p.updateStyleSettings(draft=>{draft.colorPreferences.palette.push({id:'checkpoint-pair',name:'Checkpoint pair',light:'#11223340',dark:'#aabbcc80'});draft.backgroundColor={kind:'palette',id:'checkpoint-pair'}});
-   dialog=await open();root=dialog.contentEl;const selects=root.querySelectorAll('select');input(selects[0],'theme','change');input(selects[1],'--text-normal','change');check(!button(root,'common.save').disabled,'Valid native theme source rejected');
+   dialog=await open();root=dialog.contentEl;input(root.querySelector('select'),'theme','change');await chooseVariable(dialog,'--text-normal');check(!button(root,'common.save').disabled,'Valid native theme source rejected');
    await until(()=>root.querySelectorAll('.kplex-color-preview-canvas').length===2&&root.querySelector('.kplex-color-preview-canvas').style.getPropertyValue('--_kplex-preview-canvas'),'Paired native preview did not paint');
    check(c.counts.writes===initialWrites+2,'Preview wrote settings');button(root,'common.save').click();await until(()=>!dialog.modalEl.isConnected,'Theme Save did not close');check(p.settings.backgroundColor.kind==='theme'&&p.settings.backgroundColor.variable==='--text-normal','Reference flattened');passed('theme source previews and persists identity');
+   dialog=await open();root=dialog.contentEl;const variable='--kplex-native-color-preview',colorScope=dialog.options.sourceScope,openingVariable=colorScope.style.getPropertyValue(variable),openingPriority=colorScope.style.getPropertyPriority(variable),customWrites=c.counts.writes;
+   colorScope.style.setProperty(variable,'rgba(12, 34, 56, 0.5)');c.restores.push(()=>{if(openingVariable)colorScope.style.setProperty(variable,openingVariable,openingPriority);else colorScope.style.removeProperty(variable)});
+   await chooseVariable(dialog,p.translator('colors.advanced'),false);const custom=root.querySelector('.kplex-color-source-editor input[type=text]');input(custom,variable);custom.dispatchEvent(new custom.ownerDocument.defaultView.Event('blur'));
+   const customColors=await chooseVariable(dialog,variable);check(customColors.length===2&&customColors.every(Boolean)&&dialog.editor.getValue().variable===variable&&!button(root,'common.save').disabled,'Native custom variable preview/source lost');check(c.counts.writes===customWrites,'Custom preview wrote settings');button(root,'common.cancel').click();await until(()=>!dialog.modalEl.isConnected,'Custom preview Cancel did not close');passed('actual custom CSS variable entry, searchable paired swatches and Cancel without persistence',{previewColors:customColors});
    app.setting.close();await wait(150);
    await p.updateStyleSettings(draft=>{draft.backgroundColor={kind:'palette',id:'checkpoint-pair'}});await wait(100);
    const graph=[...document.querySelectorAll('.kplex-plex')].find(el=>el.getBoundingClientRect().width>10);check(graph,'Visible Plex required');
@@ -117,8 +132,8 @@ function start(phasePath){
    check(p.settings.standardStyleDefaults==='native','Deleted standard reference would backfill on restart');
    const deleteWork=Object.fromEntries(Object.entries(c.counts).filter(([key])=>key!=='writes').map(([key,value])=>[key,value-deleteBefore[key]]));check(Object.values(deleteWork).every(value=>value===0),'Named replacement requested graph work '+JSON.stringify(deleteWork));passed('in-use native deletion atomically clears standard/custom references without source work',{work:deleteWork});manager.retire();
    const beforeSemantic=c.counts.writes;tab.openSemanticColor('origin');dialog=[...tab.colorDialogs].at(-1);c.dialogs.push(dialog);root=dialog.contentEl;
-   input(root.querySelector('.kplex-color-source-editor select'),'theme','change');input(root.querySelectorAll('select')[1],'--kplex-semantic-origin','change');check(button(root,'common.save').disabled,'Native semantic self-cycle admitted');
-   input(root.querySelectorAll('select')[1],'--text-normal','change');check(!button(root,'common.save').disabled,'Valid semantic source rejected');button(root,'common.cancel').click();check(c.counts.writes===beforeSemantic,'Semantic preview wrote settings');passed('native semantic editor rejects cycles and Cancel writes nothing');
+   input(root.querySelector('.kplex-color-source-editor select'),'theme','change');await chooseVariable(dialog,'--kplex-semantic-origin');check(button(root,'common.save').disabled,'Native semantic self-cycle admitted');
+   await chooseVariable(dialog,'--text-normal');check(!button(root,'common.save').disabled,'Valid semantic source rejected');button(root,'common.cancel').click();check(c.counts.writes===beforeSemantic,'Semantic preview wrote settings');passed('native semantic editor rejects cycles and Cancel writes nothing');
    await p.updateStyleSettings(draft=>{draft.baseNodeStyle.textColor='#12345680'});const geometry={...p.settings.baseNodeStyle};delete geometry.textColor;
    tab.openStandardColor('baseNodeStyle','textColor');dialog=[...tab.colorDialogs].at(-1);c.dialogs.push(dialog);input(dialog.contentEl.querySelector('.kplex-color-source-editor select'),'inherit','change');button(dialog.contentEl,'common.save').click();await until(()=>!dialog.modalEl.isConnected,'Standard Default Save did not close');
    const durable=await p.loadData();check(durable.standardStyleDefaults==='native'&&!Object.hasOwn(durable.baseNodeStyle,'textColor')&&JSON.stringify(geometry)===JSON.stringify(p.settings.baseNodeStyle),'Standard Default lost persistence/geometry');passed('native standard Default persists its absence policy without changing other fields');

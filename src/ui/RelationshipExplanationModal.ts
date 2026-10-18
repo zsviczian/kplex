@@ -5,6 +5,7 @@
  * fences own reads and child setup/confirmation UI through a narrow close capability;
  * saved writes remain plugin-owned.
  */
+import { connectionActionAllowed } from "./structuralConnectionActions";
 import { Modal, Notice, setIcon, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
 import type { RelationshipSourceSection } from "../main";
@@ -193,7 +194,7 @@ export class RelationshipExplanationModal extends Modal {
       target = this.plugin.index.get(evidence.declaredTargetPath);
       storagePath = evidence.declaredByPath;
     }
-    if (!semanticRole || !source || !target) return;
+    if (!semanticRole || !source || !target || !connectionActionAllowed("relationship.relink", source, target)) return;
 
     const actionLabel = this.plugin.translator(hasExplicitOntology ? "explain.addOntology" : "explain.specifyOntology");
     const button = row.createEl("button", { text: actionLabel, cls: "mod-cta", attr: { type: "button" } });
@@ -216,7 +217,7 @@ export class RelationshipExplanationModal extends Modal {
 
   /** Reuse confirmed additive Hidden writes for the inspected pair, preserving all source links. */
   private addHiddenAction(parent: HTMLElement): void {
-    if (!this.plugin.hideRelationship) return;
+    if (!this.plugin.hideRelationship || !connectionActionAllowed("relationship.hide", this.plugin.index.get(this.explanation.sourcePath), this.plugin.index.get(this.explanation.targetPath))) return;
     const generation = this.loadGeneration;
     const button = iconButton(parent,"eye-off",this.plugin.translator("hide.title"), /** Parent close or refresh retires confirmation authority. */ () => {
       if (!this.isCurrent(generation) || this.operation !== "idle") return;

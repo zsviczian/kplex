@@ -37,5 +37,5 @@ test('all production hover targets forward the pointer modifier to one owner; pr
  assert.match(graph,/scheduleHoverIntent\(\{ kind: "gate", path: baseNode.page.path, gate \}, event\)/);
  assert.match(node,/onHoverNode\(node, e\)/);assert.match(node,/onHoverGate\(node, gate, e\)/);
  const themes=readFileSync('src/core/plex/appearanceThemes.ts','utf8');
- assert(!themes.includes('hoverHighlightRequiresAlt'));assert(!themes.includes('areaOutlineRequiresAlt'));
+ assert(!themes.includes('hoverHighlightRequiresAlt'));assert(!themes.includes('areaOutlineRequiresAlt'));assert(!themes.includes('gateTooltipRequiresAlt'));
 });

@@ -1,4 +1,4 @@
-# Standing instructions — preserve this header
+# Standing instructions Ã¢â‚¬â€ preserve this header
 
 This is a temporary handoff document between agents. The development of the solution involves agents with access to Obsidian CLI and a full development environment with all node packages installed, but also agents with more limited access. Development is done in "ping-pong" between these two types of agents. Agents should use this document to pass instructions and status from one another, such as instructions for testing/validation, or instructions for development work that can only be done in a full environment.
 
@@ -19,47 +19,39 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR #174 — final validation return
+# PR177 â€” final creation/layout checkpoint
 
-Main-agent implementation/review is complete through runtime D2 d6be473; documentation head
-before final V is c12c369. Branch: 2026-10-17-local-folder-diagnostics. #173 merged at 23aa44e,
-#164 closed with the requested comment; main integrated without history rewrite at d4d65cd.
-D0 786e91c / F2 b4bb401 / F3 ebe26cc / D2 d6be473 are independently reviewable.
-Keep #174 draft. No merge/release, personal-vault access, branch deletion or raw publication.
+Branch2026-10-17-navigation-and-native-drag, base41fd2f8. No subagents. Keep draft;
+commit/push authorized; no merge/release or personal-vault access. Small only.
+No comparative performance tests while HandBrake encodes. No native driver active.
 
-Full Node 22.22.2 verify:obsidian passes: architecture 7, core 128, main 960, UI 131, sources 334,
-browser sources 598, zero failures/skips; installed types, core boundaries, official lint,
-production build and exact Windows smoke. Runtime D2 CI passes in 26m52s and c12c369 CI in 32m8s.
-Final documentation needs only content/link/whitespace/diff checks and final pushed-head CI.
-Exact main SHA-256: d46b370199b0a2b06347266308e539f3a71a9e83459d50934be4b38bbc067ebc,
-built at ebe26cc plus archived D2 patch a52fe34a0be2f1ed658be6d12a7194c2c257f840e983f349d7316d528e094e78.
-Runtime/tooling remain unchanged; final CI is recorded in the PR after completion.
+Delivered: common CreationCompletionSelect in folder/related dialogs; native
+styling; exact-folder duplicates; materialization suggestions initially closed;
+one context-only Simplified layout checkbox below columns, using LayoutCheckbox
+shared with Wrap and existing device/surface writer. Native setter feedback is
+guarded. Startup ba8ad7e remains unchanged. All8 locale labels reused.
 
-F2 reduces the eligible frozen combined wave from 92 to 2 source checks, 1,526/2,920 to 78/202
-transactions/requests, 1,499 to 58 digests; both read/parse once, with zero full/catalog builds or
-snapshot saves. Inclusive CPU/drain improve in that observation, sampled memory is higher and no
-universal speedup/memory saving is claimed. Exact membership/identity/epoch/CAS/finality and
-conservative fallback remain. F3 fixes absent-head retirement without erasing newer rename intent.
-D adds bounded coarse accounting/shared safe exports/O(1) health/eight-locale disclosure. Independent
-amplified cost is ~0.55 microseconds/pass pair; observed diagnostic data-root cut 16,816 bytes.
-No receipt/schema/parser/compiler/scheduler redesign, per-file hot instrumentation or idle resource.
+Full baseline1792341320441 passes; final affected1792343479987 passes7/130/lint/
+206/build/native smoke after last runtime change. Final main SHA3fbbe208b0498657a6f11d7b3d71655e15416ececce38d34315e2e9bdb790670;
+CSS433605d6f9a88b23e4ac35940de23afd2b37faf7102d3e978a077259ff281801.
+Folders1792343825848 passes12; layout1792344017489 passes7 including context
+isolation and zero source/index work. Four visual captures1792344082616; wide
+light/narrow dark inspected. Sanity1792344084125 restores107files/88Markdown,
+exact artifacts, no controllers/dialogs, desktop and CLI capture off.
 
-38 focused real-IDB cases, #172 held-P3 and #161's 28 variants pass. Final 610-second quiet,
-ordinary Markdown, actual Excalidraw and create/fill/rename pass with exact cleanup.
-The maintainer-authorized real two-hour retry now passes 120.34 minutes, five natural edit/drain/
-capture checkpoints and 235 unchanged-idle controls/240 foreground samples. It owns and releases
-a temporary display-awake lease to prevent the existing 15-minute host timeout; no settings,
-simulated input, throttle or focus oracle changes. All earlier failed controls remain evidence.
-Startup retention/privacy/capacity/capture purity and exact restoration pass. Same aged session
-then passes 23 actual Settings/main/popout report cases; summaries 4,758 bytes, index reports 6,438.
-Optional real clipboard writing remains pending to preserve rich formats; controlled distinct-owner
-commands and earlier plain-text native control pass. No active native/resource lane remains.
+Raw failures remain private, including initial native setter feedback, driver
+setup/selector/root/overlay errors and1 unattributed acquisition in earlier
+1792343791614. Final strict guarded counts pass, not a universal efficiency claim.
+Visual failed close lookups were repaired via owned Cancel; final cleanup verified.
+No runtime/test changes since final successful build except native driver fixes.
+Whole-app Settings-close freeze remains unreproduced; do not claim it fixed.
+macOS/minimum host/physical mobile and existing OS-gesture gaps remain.
 
-F: ship within eligibility. D: ship with platform limitations, for independent review. Actual 24-hour
-Windows use, macOS popout/copy/interrupted folder waves and physical Android/iOS suspend/resume,
-clipboard/memory remain unrun. Next action is maintainer review, not more optimization.
-See docs/validation/local-folder-diagnostics-174-2026-10-17.md and docs/INDEXING_DIAGNOSTICS.md.
-The original verified private evidence remains immutable; the separately verified final-evidence-soak-complete copy
-preserves the completed soak and aged report (1,748 files / 105,424,389 bytes; all entries and
-1,745 source originals independently rechecked). Manifest SHA-256:
-d32a6e8df72e67d322966bc2fe817ec3a8bd87f67acd6e3b33e20d249eafb077. No originals are deleted; never archive handoffs.
+Saved/pushed runtime checkpoint0ab6091fc3c2b28a76fcebef65428dc1c4335978.
+Private backup outside Temp1792344165311 verified859files/57,075,484bytes;
+sourceZIP543 CRC/per-file SHA, HANDOFF excluded. MANIFEST
+df19b953c9845889c841cd0a4c153c8e5be6fbba5897cc08d5ff845a05f235ea.
+Originals/prior backups intact; no raw publication. Remote0ab6091 CI is running,
+previous41fd2f8 green; no final-head green claim. Docs-only pin changes no runtime.
+Finish pushing docs pin/update draft body, then return. No further work authorized
+by this handoff. Report and Refactor plan.md contain actual evidence/limitations.
