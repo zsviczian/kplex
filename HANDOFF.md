@@ -19,31 +19,34 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR182 final evidence closeout
+# PR182 completed; paused for maintainer testing
 
-181 mergedmainc0cd100;182draftbranch2026-10-18-live-settings-sync, integration
-8b0fdbd, runtime validated dbe531732bfd76b1e7c1a10c20b3a56ac5128554. Full
-npm run verify PASS:architecture7/core130/main1061/UI162/sources334/browser623,
-no failures/skips, actual Node22.22.2 build/types/lint. Portable receipt hashes
-exact source/log/artifacts; main.js75177091ce58f6e70a214954fb33224767e75208ea8defa32bf8bcc9af48e425.
+181 mergedmainc0cd100. Current182branch2026-10-18-live-settings-sync remainsdraft;
+main integrated8b0fdbd. Runtime dbe531732bfd76b1e7c1a10c20b3a56ac5128554 fully
+verified; native-tooling checkpointf7424d808f87cd051987f105f7cf330df475b4e7.
+Closeout afterthat is documentation only. Do not merge/release/start141/147 or
+resume C14 structural work. No active assignment or background benchmark.
 
-Native Windows1.14.4 Small: migration actual import/managers/render/reload passes;
-unchanged native oracle reused hash-verified full portable receipt. External
-file callback lane passes6cases each in actual on-demand/eager,1settingsread
-and0note reads/parses/acquisitions/semantic/builds/saves during paint receipt;
-real ontology updates all stationary rendered parents, native editor identity/
-leaf/caret retained. Existing styleOperations15cases pass. Two native focus
-failures were oracle setup:requested line0 became actual4 before delivery, and
-remained4 afterward with zero focus events. New tool retains bounded facts and
-compares actual before/after cursor; NO runtime correction or assertion removal.
-All failed runs/controls retained privately.
+Full verify PASS Node22.22.2:architecture7/core130/main1061/UI162/sources334/browser623,
+zero failures/skips, official lint and actual build/types.16 focused production
+settings scenarios and2 failing negative controls. Exact Windows1.14.4 Small:
+external actualcallback6cases each in on-demand/eager;styleOperations15;native
+migration6. Presentation receipt1settingsread,0note/source/semantic/build/saves.
+Genuine ontology updated stationary rendered parents with native editor identity,
+leaf/caret retained. Failed trials preserved, including focus-oracle setup error
+(actual cursor4 before/after, not requested0). No runtime changes after full verify.
 
-Opening Small settings/workspace/config restored byte-exact after whole suite,
-107files/88Markdown, originalon-demand, no owned controllers/pending adoption.
-Debuggeroff, exact installed build. Source runtime unchanged since full verification;
-only native tool proof/diagnostics changed. Syntax/native checks pass.
+Small opening settings/workspace/config byte-exact, originalon-demand,107files/88md,
+no controllers/dialogs/pendingadoption/debugger. Exact main.js
+75177091ce58f6e70a214954fb33224767e75208ea8defa32bf8bcc9af48e425 installed.
+Private durable evidence outsideTemp:
+%LOCALAPPDATA%/KplexValidation/live-settings-sync-182-20261018-1792354136115
+98files/12419738bytes,2source ZIP CRC/entry SHA checks and copied file verification;
+MANIFEST SHA2564151640803f1ddf7641a1e3305ada346df8f78ed14b253486b5e401090ca970c.
+Originals retained, none published; HANDOFF and scripts containing it excluded.
+Final report docs/validation/live-settings-sync-182-2026-10-18.md contains identities,
+actual results, deliberate conflict policy, costs, failures and reproduction.
 
-Remaining: verify durable private evidence backup excluding HANDOFF/temp scripts
-containing it; finalize report and PR actual outcomes, commit/push then PAUSE.
-Keep182draft; no merge/release/141/147, personal vault or comparative benchmark.
-Manual gaps real macOS-Windows Sync, minimum1.13/configoverride, physical mobile.
+Remaining manual acceptance:real macOS-WindowsSync,minimum1.13/configoverride,
+physical mobile/tablet. CI not awaited; PR staysdraft. Maintainer requestedpause
+after182; no personal-vault access or comparative performance permitted.
