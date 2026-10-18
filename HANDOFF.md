@@ -19,14 +19,29 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR147 combined validation after main183
+# PR147 accepted closeout; next PR179
 
-Latest maintainer authorization: complete147 and merge with interveningmain changes, then179/149/176 sequentially, each validatedcompleted PR merged. No CI waiting/release/branchdeletion/personalvault/subagents/comparativeperformance underencodingload. ForegroundSmall authorized; native/browser driversserial. Node22.22.2.
+Maintainer authorizes completing/merging147 with intervening main, then179/149/176
+in sequence, each validated checkpoint committed/pushed and completed PR merged.
+No CI wait, release, branch deletion, personal vault, receipt/reader-sharing work
+or comparative performance under competing encoding load. Native/browser serial;
+Node22.22.2. No subagents used; root performs implementation/review/host validation.
 
-147runtime af31fc9/tooling c7cd196, docs32b7961 were fullyverified and pushed: full7/130/1061/177/334/623 + realbuild/lint; CI atc7 green19m22s. Nativeontology7peractualOn-demand/Eager, external6/style15/migration6/Markdown4 pass. Broaderhover missingnative resolved-linkfacts, touch9+reloadpass/317.5pxgeometryfail, Gatefirstcasepass thensemantic51->60/source31 guardedfailure with actualincrementalpublicationtraces. Gatealreadywaits1s genuineinitialdrain; causeunproven. Don'tforcegraph/currentflags orweakenoracles. Detailsreport docs/validation/ontology-input-147-2026-10-18.md. Rawprivate durable169base+6supplement verifiedat LOCALAPPDATA/KplexValidation/ontology-input-147-20261018-1792359600964. Originalsretained/unpublished/HANDOFFexcluded. Smalloriginal107/88/config/workspace/owners restored, finalno controllers/dialogs/debugger/mobile; installedoldtestedmain615f388c... .
+147 runtime af31fc9 integrated main183 at1137fc1: full verify7/130/1069/180/334/632
+plus lint/build pass. Native ontology7 each actual On-demand/Eager, external6,
+style15, migration6, Markdown4 pass. Gate readiness helper b392d14 passes native11
+and runner20 with original strict oracles/deadlines. Gate revision guard remains
+failed (10 combined incremental publications); old touch geometry gap retained.
+Not a reproduced whole-renderer freeze. Report records all limits and private
+verified backups; no raw evidence published/deleted. Small107/88, exact config,
+workspace/follow owners restored; no owned controllers/dialogs/debugger/mobile.
 
-Finalmergeguardcaught newmain28dbdbf PR183 afterverification. Mergeinprogress now resolved3conflicts: package tests mustkeepboth startup-center-observer andontology-input entries/nativecommand; Refactorplan preservebothappend-onlyledgers; thistransienthandoff preservesheader. Runtimefiles automegeclean:183sourceAcquisition/read-onlyrequestedBody, GraphIndexstartupcenterpriority, PlexGraphrecoveryvisibility. No prior147resultsclaimcombinedacceptance.
-
-Next commit/pushintegration, run fullverify oncleancombinedtree thenstageexactbuild andaffectednativeontology7x2, external/style/migration and183requestedstartupcenterlane asapplicable; preservehistorical failures, checkifnewstartupbodycoverchangeshoverfixtureoutcome withoutforcingfacts. Updatefinalreport/PRwithactualcombinedsource/results/privatebackup then147ready/authorizedmergewithoutCIwait/no branchdelete. Fetchmainbeforemergeagainandintegratenewrealruntimechangesifany. Thenmain/fetch179branch2026-10-18-settings-save-liveness; retargetfromold177baseifneeded; integratewithoutrewrite. Follow179causalbeforehardening, actualproductionowners/heartbeat/overlap, no incidentalmissinggraph==freeze claim. Then149branch2026-10-12-issue-115-label-sharpness;176branch2026-10-17-warm-start-rebuilds causal-gatedno rejectedreceipt/readersharing/broadarchitecture. OtherPRruntimeworknotstarted.
-
-Combined acceptance update19Oct: clean1137fc1 fullverify passes7/130/1069/180/334/632 plus realbuild/lint. Exactstagedmain96ae2f09... ownontology7x2/external6/style15/migration6/Markdown4 pass. Broaderhover progressedthrough7corecases; nonzero readiness read previousnode4edgeframe. Privatebothgate-readinesscontrol passes11, promotedonly2settled-edgepredicates/comments in sharedcrosslinkPeek; actualrepo lane11 and20runner tests pass. EveryexactID/orientation/geometry/no-work assertion anddeadline unchanged; no productionchangeafter1137. CombinedGate stillfails revisionguard, preserveunresolved. Source/toolcheckpoint thenrestoreSmall/debug state, newprivateverifiedcombinedbackup, finalreportactualdata/oldhistory, pushdocs andmerge147withfreshmain guard. Then179/149/176 authorizedsequentialmerge.
+New main148 metadata integrated atb794bff, no production source change; metadata58,
+check and realbuild pass. Built JS differs from native1137 only in public build ID,
+byte equality after normalization verified. Both package test inventories kept.
+Finish docs/review/push, fresh main guard, ready/authorized147merge without CIwait.
+Then switch main/fetch179 existing2026-10-18-settings-save-liveness, integrate main
+without rewrite/retarget as needed. Read actual PR: causal production-owner traces
+before liveness hardening; bounded source/presentation ownership, no new scheduler.
+Then149 label sharpness and176 warm-start rebuilds, each causal gated. Neither has
+implementation yet; do not claim freeze/sharpness/performance fixes without proof.

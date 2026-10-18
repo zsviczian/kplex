@@ -2,9 +2,9 @@
 
 All seven relationship-field textareas now retain local drafts and commit after
 750 ms idle or confirmed-text field/page exit. Persistence precedes live semantic
-publication. Integrated `main@658793f` without rewriting (`183a948`); runtime fix
-`af31fc9`, fully verified runtime/tooling `c7cd196`. Final documentation leaves
-those inputs unchanged. The maintainer authorized merge and continuation to #179,
+publication. Runtime correction `af31fc9` is integrated with main #183 at
+`1137fc1`, with native gate-readiness tooling at `b392d14`. Subsequent integration
+`b794bff` adds main #148 release metadata without changing production source. The maintainer authorized merge and continuation to #179,
 #149 and #176 on 2026-10-18. No release, branch deletion or personal-vault access.
 
 ## Finding and delivered behavior
@@ -21,7 +21,7 @@ session, on a three-note fixture with main, sidepanel and popout views:
 
 | Work | During typing, both modes | Final On-demand commit | Final Eager commit |
 | --- | ---: | ---: | ---: |
-| Durable writes | 0 | 1 | 1 |
+| Settings writes | 0 | 1 | 1 |
 | Policy invalidations / semantic refresh calls | 0 / 0 | 1 / 1 | 1 / 1 |
 | Presentation refresh calls | 0 | 1 | 1 |
 | Source acquisitions | 0 | 3 | 0 |
@@ -56,10 +56,15 @@ now keeps the validated unchanged predecessor and any genuine incoming candidate
 ## Verification and limits
 
 Node 22.22.2, real dependencies and installed Obsidian types: `npm run verify` passes
-architecture 7, core 130, main 1061, UI 177, portable sources 334 and source/IndexedDB
-browser 623, plus official Obsidian lint and production build. These group totals
+architecture 7, core 130, main 1069, UI 180, portable sources 334 and source/IndexedDB
+browser 632 at clean combined `1137fc1`, plus official Obsidian lint and production
+build. After #148 integration, its 58 release-metadata tests, metadata check and
+real build pass; both test inventories remain present. Production source is
+identical to `1137fc1`; rebuilt JavaScript differs only in its public build ID
+(verified byte equality after replacing that one identifier). These group totals
 include overlapping coverage. [CI at `c7cd196`](https://github.com/zsviczian/kplex/actions/runs/39165780593)
-also passes (19m22s); the final documentation-head CI is not awaited. Fourteen focused browser regressions cover the
+also passes (19m22s); this is historical CI, not final-head CI. Final-head CI is
+not awaited, as requested. Fourteen focused browser regressions cover the
 production controls/writer, concurrency, no-view saves, storage/supersession,
 composition and teardown. Removing idle submission or the field guard makes its
 negative-control test fail; source bytes restore exactly.
@@ -72,17 +77,22 @@ Exact Windows 11 / Obsidian 1.14.4 (installer 1.14.0), Electron 43.3.0 native ac
 | Ontology Settings, actual On-demand and Eager | 7 cases each pass: trusted typing/caret, stationary Parent in three views, page exit/reopen, storage Retry, synthetic composition, refresh-pending, no-view save and plugin reload |
 | External settings / style operations / migration | 6 / 15 / 6 cases pass |
 | Markdown autosave and Parent removal | 4 normal/embedded-editor cases pass |
-| Touch | 9 functional cases and preference reload pass; geometry setup fails at 317.5x599.86 instead of 320x600 |
-| Hover | Stops before assertions: parsed synthetic wikilink/physical target exist, native resolved-link records and rendered relation absent; fresh identities, native opening and foreground controls also fail |
-| Gate/filter | Keep/crosslinks-on case passes; later unchanged-revision guard fails (semantic 51 to 60, source 31 unchanged), with incremental-file publication traces after a genuine pre-filter quiet interval |
+| Touch (historical `c7cd196`) | 9 functional cases and preference reload pass; geometry setup fails at 317.5x599.86 instead of 320x600 |
+| Hover, combined build | 11 cases pass, including canonical preview orientation/geometry in main and popout; three measured preview intervals show zero reads/parses/acquisitions, semantic events, search work or settings writes |
+| Gate/filter | Unchanged source/semantic-revision guard still fails after initial quiet; combined run records 10 incremental-file publications and no completed scenario. Earlier `c7cd196` completed Keep/crosslinks-on before its later guard failed. Cause remains unproven |
 
-The combined matrix is **not wholly green**. Its hover, geometry and gate failures
-are preserved without relaxed assertions/deadlines, forced source-current stamps
-or unrelated runtime patches. They do not exercise the new ontology writer;
-their causes remain unproven. Review the publication traces with #179's separate
-post-save liveness investigation; do not equate them with a reproduced renderer
-freeze. Native migration keeps its original oracle; a private adapter reuses the
-completed full run after checking revision, clean tree and artifact/log hashes.
+The combined matrix is **not wholly green**. Gate and historical touch-geometry
+failures remain preserved, without forced source-current stamps or unrelated
+runtime patches. Review the publication traces in #179; they do not prove a
+whole-renderer freeze. Earlier hover trials lacked native resolved-link fixture
+facts. The combined run progressed, then exposed native input arriving after a
+previous node's preview was sampled. Two readiness predicates now wait for the
+expected canonical set; all independent exact-edge/orientation/geometry/no-work
+assertions and deadlines remain unchanged. A private negative trial and successful
+control are retained; the repository lane passes 11 cases and tooling tests 20.
+This is a test-driver correction, not a production hover change. Native migration
+keeps its original oracle; its adapter reuses the completed full run only after
+checking identical clean revision and artifact/log hashes.
 
 Original 107 files / 88 Markdown notes, configuration bytes, workspace and follow owners are
 restored. Final sanity confirms exact installed artifacts, no owned controllers
@@ -107,9 +117,13 @@ script; no manual cache stamping or extra build is needed. Plugin reload is not
 whole-process restart; synthetic events are not physical IME/clipboard acceptance.
 
 Tested main.js SHA-256:
-`615f388c2156369d0f3d1a44a7960d5422e562535d735a0a1a22b31d05056eed`.
+`96ae2f09efce197dfacecf0fa29760f1867bcd719b6714979283752f5e453cee`
+(native-tested `1137fc1`). Metadata-integrated build at `b794bff`:
+`321f0e227219ba4e1ca67f1ce9a808174963651ba95e0686e84c6b8336344ce8`;
+only the public build identifier differs. Installed Small-vault build remains the
+exact native-tested artifact.
 Full verification log SHA-256:
-`467e3b42a20bf8552e494f9a02d9d018e6ddbd620b92ce44f658db15a56cef34`.
+`1f859e2d204ba0510a2b121a08202d95ea135d33e2cb88da1df6e197db5465df`.
 
 All raw runs, failures, negative controls, exact source/build references, fixture
 instructions and configuration backups remain private at
@@ -121,3 +135,13 @@ published or deleted. `MANIFEST.json` SHA-256:
 `ed1b5a7af03d6ba7956c15c4f5ad1bb69f2a74e72fa887cbe1472b3993aa4dd1`;
 `FINAL_RECEIPT.json` SHA-256:
 `862499ae790484bbe733e419067d5ac01b769bb776f88e51ca4c0d79c3c867d0`.
+
+The final combined evidence backup is private at
+`%LOCALAPPDATA%/KplexValidation/ontology-input-147-combined-20261019-1792362256007`:
+256 files, 14,944,140 bytes, verified per-file SHA-256, source ZIP 555 entries with
+CRC/member checks. It includes the completed combined trials, failures and exact
+source/build references through `b392d14`. Manifest SHA-256:
+`e6aeaa7eba1af0bb77159b81c94e8233a59aa847d945fd2c160d75eb8ab5d90a`.
+The earlier immutable backup and original raw files remain intact. No evidence is
+published; HANDOFF is excluded. The later metadata-only checks have separate
+private logs and a normalized-bundle equality receipt.

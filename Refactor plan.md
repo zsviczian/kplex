@@ -5277,3 +5277,8 @@ See docs/validation/release-metadata-129-2026-10-18.md for public provenance, ar
 hashes and limits. No native/vault work, release/tag or manual test needed for this
 scope. Hosted attestation/publication unexercised; C14 remains paused. Git identity
 belongs to148; no further feature/refactoring work queued.
+
+
+### PR147 final evidence and main148 integration (2026-10-19)
+
+Combined full verification at1137fc1 and exact native acceptance are recorded in docs/validation/ontology-input-147-2026-10-18.md. Private durable combined backup256files/14,944,140bytes with555-entry source ZIP CRC/member SHA passes; originals retained, no publication, HANDOFF excluded. Main148 integrated atb794bff without production-source change; metadata58/check/build pass and bundle equality after public build-ID normalization verified. Both package inventories preserved. Native ontology7permode/external6/style15/migration6/Markdown4/hover11 pass; runner20 pass. Gate revision guard and historical touch geometry remain explicit gaps, not reproduced whole-renderer freeze. User authorizes147 merge then179/149/176 sequentially; no CIwait/release/personalvault or broad refactoring. Remaining manual acceptance: reporter macOS/background contention; physical IME/touch; minimum-host Settings window migration. C14 remains paused.
