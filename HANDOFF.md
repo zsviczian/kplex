@@ -19,23 +19,27 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR183 main reconciliation — accepted, inactive
+# PR148 release metadata — accepted, inactive
 
-Implementation e847a50; combined integration e2e391ffe895c2ce6ae3bf7aafea1a247930adc9
-includes main658793f (#181/#182). Maintainer authorizes immediate PR183 merge after
-local checks without waiting GitHub CI, then main+fetch. All code work is complete.
-No refactoring or new feature is queued; C14 remains paused.
+Maintainer authorizes implementation/immediate merge148 after183, no GitHub CI
+wait, then main+fetch. Branch2026-10-12-issue-129-release-metadata includes main28dbdbf
+at integration42fe00d3fade0ef0dcdd1693e86e68879de68c01. All code work is complete;
+main validator owns only final authorized Git publication/merge. C14 remains paused.
 
-- [x] Preserve both feature/test/ledger histories and independently review lifetimes.
-- [x] Full npm run verify on Node22.22.2 passes7/130/1069/165/334/632 groups,
-  zero failures/skips, real build/types and official lint.
-- [x] Exact combined-build Small command/render/error smoke passes. Fresh original
-  settings/workspace/enabled bytes restored and all78 content files unchanged.
-- [x] All558 verified inputs unchanged at independent closeout audit; deployed
-  Small main a709657e06d8f893d185fbc933967266e50007424ccbab751e1410c8c286ff68.
+- [x] Root package/lock version0.1.3 and AGPL-3.0-only; explicit README grant.
+  Obsidian1.13.0 retained. LICENSE and all341 dependency records unchanged.
+- [x] Restore nine historical version-map entries from actual published/tagged
+  manifests, all minimum1.13.0; remove unsupported1.0.0 and plan-only marker.
+- [x] Shared metadata owner/CLI used by verify and release before attestation,
+  with strict stable/v/prerelease selection and exact shipped-manifest validation.
+- [x] Independent architecture/TSDoc/workflow/source review and focused58/58 tests.
+  Trailing-newline and implicit GitHub-output writes corrected before input freeze.
+- [x] Full Node22.22.2 npm run verify via shared helper passes7/130/1127/165/334/632
+  groups, zero failures/skips/cancellation, official lint/real typings/build.
+- [x] Actual built-artifact no-publish stable/beta and wrong-tag/no-write checks pass.
+  All565 inputs frozen, canonical digest560c3bd41bc3a66d2768673dc814001d5dd82d18f559a8e79f66a01a5e0b564d.
 
-Main validator owns only authorized Git publication/merge and the newly assigned
-PR148 metadata work after PR183 completes. Final Git identity belongs to PR183.
-Durable results and prior personal-vault/native limitations are in
-[the validation report](docs/validation/startup-center-investigation-2026-10-18.md).
-No personal deployment in this reconciliation; no note edits or screenshots.
+Durable source/artifact identity, public historical provenance, actual commands and
+limits: docs/validation/release-metadata-129-2026-10-18.md. Private evidence under
+/private/tmp/kplex148-release-evidence/. No native/vault mutation or release/tag.
+No manual test needed for this scope. No further implementation/refactoring queued.

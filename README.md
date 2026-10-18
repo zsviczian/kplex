@@ -461,3 +461,7 @@ Community discussion and announcements are also available through the [Sketch Yo
 K-Plex is developed independently. If it is useful to you and you would like to support continued development, you can do so here:
 
 **[Support K-Plex on Ko-fi](https://ko-fi.com/zsolt)**
+
+## License
+
+K-Plex is licensed under the **GNU Affero General Public License, version 3 only** (`AGPL-3.0-only`); see [LICENSE](LICENSE). Commercial use is permitted under that license. Covered derivatives must preserve its license and applicable source-sharing requirements, including the requirements for modified versions used over a network. Third-party components retain their own licenses.

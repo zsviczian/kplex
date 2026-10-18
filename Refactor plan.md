@@ -5216,3 +5216,22 @@ All558 inputs match receiptf3d09d8a8e592be3bf40ad8a0f647b23f4a35ce3e61f01fb5ada7
 See startup validation report for artifact identity and prior native limitations.
 Personal prior deployed build is not replaced during reconciliation. No new
 full-process/mobile or timing claim; C14 remains paused. Git merge identity is on183.
+
+
+### 2026-10-18 — PR148 release metadata accepted
+
+After183 merged at28dbdbf, maintainer authorizes completing/immediately merging148
+without CI wait, then main+fetch. Existing branch integrates main at42fe00d. Root
+package/lock versions align with existing0.1.3 manifests; project license becomes
+AGPL-3.0-only with explicit README grant. LICENSE and all341 dependency records,
+Obsidian1.13.0, runtime/bundler/manifests, old tests/actions/permissions unchanged.
+All nine historical asset/tag manifests prove1.13.0 map entries; unsupported1.0.0
+removed. One shared metadata policy drives read-only verification and selected
+release-dist validation before attestation/publication. Focused58 tests and full
+Node22.22.2 verify7/130/1127/165/334/632 pass with no failures/skips, lint/types/build.
+Actual-build temporary no-publish stable/beta and wrong-tag/no-write checks pass;
+all565 inputs frozen (digest560c3bd41bc3a66d2768673dc814001d5dd82d18f559a8e79f66a01a5e0b564d).
+See docs/validation/release-metadata-129-2026-10-18.md for public provenance, artifact
+hashes and limits. No native/vault work, release/tag or manual test needed for this
+scope. Hosted attestation/publication unexercised; C14 remains paused. Git identity
+belongs to148; no further feature/refactoring work queued.
