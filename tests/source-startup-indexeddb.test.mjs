@@ -488,6 +488,10 @@ for (const { cancel, retry } of [{ cancel: false, retry: false }, { cancel: true
           ok(!index.state.pages.has('Orphan.png'),'Physical search does not publish a canonical graph page');
           ok(!index.semanticScopes.get('Orphan.png')?.completePaths.has('Orphan.png'),'Physical filename does not certify a semantic scope');
           if(cancel){
+            // The finite P1 preflight now precedes fallback admission. Drain its genuine live
+            // foreground owners before isolating late source-authority cancellation; otherwise
+            // policy invalidation legitimately readmits that still-pending visible demand.
+            await wait(()=>index.onDemandTasks.size===0&&index.onDemandBaselineTask===null);
             if(retry){unblock();await wait(()=>index.startupSourceAuthorityWaiter!==null)}
             const pending=index.waitForSnapshotHydration();index.invalidateSemanticPolicy();equal((await pending).restored,false,'Cancelled startup');
             const state=index.state,diagnostics=index.getSnapshotHydrationDiagnostics();unblock();await new Promise(r=>setTimeout(r,100));
@@ -751,8 +755,11 @@ test("late Eager bootstrap cannot certify an old-policy snapshot over a current 
         index.publishSnapshotPreview=async(...args)=>{
           ok(index.sourceBackedSemantics,'Changed-policy candidate already selected source strategy');
           ok(!index.sourceAcquisition.hasSemanticDependencies(),'Source closure remains behind targeted preview');
-          release=index.acquireSemanticDemand('A.md');baseline=index.onDemandBaselineTask;
-          ok(baseline,'Real partial-Eager fallback admitted after classification');return preview(...args);
+          release=index.acquireSemanticDemand('A.md');
+          // Admit the actual public P2 producer explicitly. Demand first prepares a finite P1
+          // cover now, so synchronously reading its future baseline task is not an admission.
+          baseline=index.initializeOnDemandBaseline();
+          ok(baseline===index.onDemandBaselineTask,'Real partial-Eager fallback admitted after classification');return preview(...args);
         };
         let entered;const reached=new Promise(r=>entered=r),hold=new Promise(r=>unblock=r);
         const evidence=index.indexedDb.iterateSnapshotEvidence.bind(index.indexedDb);

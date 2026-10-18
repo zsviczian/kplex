@@ -5047,3 +5047,54 @@ excluded. MANIFEST SHA-256
 `7ff510049d3231bfc828952bd70731c2d9fd18ae477d1080fed4d1513b9cb5d0`.
 Originals remain in Temp; nothing raw published. CI runs asynchronously; no final
 CI-green claim or merge recommendation replaces the deferred combined checks.
+
+
+### 2026-10-18 — PR183 stationary current-center startup
+
+C14 remains accepted and structural refactoring paused. The maintainer authorized
+implementation on `2026-10-18-startup-center-investigation` at `d10cb46b`, with
+read-only personal-vault diagnostics, `main.js` deployment and Small-vault testing.
+The [startup validation record](docs/validation/startup-center-investigation-2026-10-18.md)
+preserves native failure evidence: after an interrupted reload the still-demanded
+center waits 72.167 s for all 37 children, while global source/cache work proceeds.
+The foreground owner waited on a whole-vault baseline and could drain after host
+finality rejection; the separate initial-recovery effect also consumed a pending
+attempt across hide/reveal.
+
+The existing compiler/parser/scheduler now prepare a finite readonly current-center
+cover at P1 before broad startup waits. Real changed host observations can refresh
+that coalesced finite phase while its canonical task still awaits the same baseline.
+Affected events retire the cover; unrelated host waves preserve it. Native identity,
+source/policy/demand and publication fences remain; no schema, semantic classifier,
+authority shortcut or scheduler is added. Private baseline retries admit only
+changed observations and also fence policy replacement. Recovery completes only
+after a current visible check succeeds.
+
+Primary regressions and the native-shaped sparse-host-wave control actually fail
+before their corrections. Candidate 1 passes complete verification but misses the
+native timing target; its failed control is preserved. Candidate 2 passes 105
+startup/foreground cases, real types/lint and four stationary native starts after
+two seven-second interruptions: complete 3-parent/37-child reads at 3.811/3.325 and
+3.669/3.318 s, before baseline/source readiness, exact mature-primary fingerprint
+and zero later regressions. Final full verify passes 7 architecture/130 core,
+1,068 Node/145 UI/334 portable source/630 IndexedDB browser cases, official lint,
+real types and production build. Normal bundle a47c87da51086d65acbad8286bf4e66e7aa93b79e04e03b75fbb0c8c49476414
+is installed in both authorized vaults; the 553-file verified receipt is
+880ec93a4821c95bcad8a4afddbf7fc701d30f32b9fd1285ea61a5a8b425e374.
+Standard exact-build Small command/render/error smoke passes. Four normal-bundle
+starts retain all primary DOM nodes at 6.804/3.961 and 6.612/5.595 seconds from
+reload, while cache metadata still loads, with seven-second interruptions. One
+earlier bounded CLI capture timeout has no established cause and remains recorded;
+subsequent foreground/incremental pairs pass without source or deadline changes.
+
+Both vaults' original data/workspace/enabled-list hashes match; Small content is
+unchanged. Its startup normalization/layout changes were restored through the
+native layout owner plus exact configuration bytes. No personal note-write command
+was issued. Installed hashes, observer/global/staging absence and unchanged verified
+inputs pass final audit. Optional screenshot export was rejected by automatic
+review and not retried. No commit, push, merge or release. Full-process interruption
+and physical mobile remain untested; evidence is renderer reload and ordinary-read/
+DOM output, not actual paint or a universal performance guarantee. Highest-value
+manual follow-up: actual exit/reopen followed by a second interruption after 5–10 seconds,
+with the same stationary 3-parent/37-child center and no navigation. No further code
+work or structural refactoring is queued.

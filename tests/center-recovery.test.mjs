@@ -9,9 +9,39 @@ const source=ts.createSourceFile('src/ui/App.tsx',readFileSync('src/ui/App.tsx',
 let publicationEffect;
 function visit(node){if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'&&node.arguments[0]?.getFullText(source).includes('Publications settle a pending native identity'))publicationEffect=node.arguments[0].getText(source);ts.forEachChild(node,visit)}
 visit(source);assert(publicationEffect,'Actual App publication owner exists');
+const plexSource=ts.createSourceFile('src/ui/PlexGraph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+let recoveryEffect;
+/** Extract the production view lifetime rather than recreating its attempted/completed flags. */
+function findRecovery(node){if(ts.isCallExpression(node)&&node.expression.getText(plexSource)==='useEffect'&&node.arguments[0]?.getFullText(plexSource).includes('Check the initial stationary center'))recoveryEffect=node.arguments[0].getText(plexSource);ts.forEachChild(node,findRecovery)}
+findRecovery(plexSource);assert(recoveryEffect,'Actual PlexGraph recovery owner exists');
 const bundle=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`
 export {startCenterWatchdog} from './src/ui/components/centerWatchdog';export {sanitizeCenterRecoveryDiagnostic} from './src/core/contracts/centerRecovery';
-import React,{useState,useEffect,useLayoutEffect} from 'react';import {createRoot} from 'react-dom/client';import {flushSync} from 'react-dom';
+import {startCenterWatchdog} from './src/ui/components/centerWatchdog';
+import React,{useState,useEffect,useLayoutEffect,useRef} from 'react';import {createRoot} from 'react-dom/client';import {flushSync} from 'react-dom';
+/** Exercise the actual mounted view effect across a pending check and native hide/reveal. */
+export async function recoveryAfterReveal(mode='pending'){
+ const element=document.body.appendChild(document.createElement('div')),root=createRoot(element);
+ const timers=new Map(),listeners=new Set(),visibility=new Set();let serial=0,visible=true,local=false,calls=[];
+ const set=window.setTimeout,clear=window.clearTimeout;
+ window.setTimeout=(run,delay)=>{if(delay!==3000)return set(run,delay);const id=++serial;timers.set(id,run);return id};
+ window.clearTimeout=id=>{if(!timers.delete(id))clear(id)};
+ const plugin={isKplexLeafVisible:()=>visible,subscribeKplexVisibility:fn=>{visibility.add(fn);return()=>visibility.delete(fn)}};
+ let finish;
+ const index={hasLocalBaseline:()=>local,isCenterRecoverySourceReady:()=>false,subscribePresentation:fn=>{listeners.add(fn);return()=>listeners.delete(fn)},recheckVisibleCenter:async(path,counts,trigger,current)=>{calls.push(trigger);if(mode==='retired-complete'&&calls.length===1)return new Promise(resolve=>finish=resolve);return mode==='healthy'}};
+ const hostLeaf={},activePath='Center.md',centerRelationCounts=()=>[0,0,0,0,0];
+ /** Mount the extracted production effect with actual React refs and cleanup. */
+ function Surface(){const viewport=useRef(element),initialCenterChecked=useRef(false),recoveryCenter=useRef(activePath),recoveryNeighborhood=useRef(null);useEffect(${recoveryEffect},[]);return null}
+ /** Settle actual effect/promise callbacks without borrowing the intercepted recovery timers. */
+ const settle=()=>new Promise(resolve=>set(resolve,25));
+ /** Deliver only a timer scheduled by the production watchdog. */
+ const fire=async()=>{const entry=timers.entries().next().value;if(!entry)return false;const[id,run]=entry;timers.delete(id);run();await settle();return true};
+ try{
+  flushSync(()=>root.render(<Surface/>));await settle();await fire();
+  visible=false;for(const fn of visibility)fn();finish?.(true);await settle();local=true;for(const fn of listeners)fn();
+  visible=true;for(const fn of visibility)fn();await fire();
+  return {calls:[...calls],timers:timers.size,listeners:listeners.size};
+ }finally{flushSync(()=>root.unmount());element.remove();window.setTimeout=set;window.clearTimeout=clear;if(timers.size||listeners.size||visibility.size)throw Error('View recovery leaked resources')}
+}
 export async function reproduce(channel){
  const events={semantic:new Set(),presentation:new Set()},file={path:'Center.md'},page={path:'Center.md',file};let children=2,sourceCalls=0,renders=0;
  const plugin={index:{subscribe:fn=>{events.semantic.add(fn);return()=>events.semantic.delete(fn)},get:()=>page,insertCreatedFile:()=>{throw Error('Unexpected admission')}},app:{vault:{getFileByPath:()=>file}},isKplexLeafVisible:()=>true,isManagedCreatedFile:()=>false};
@@ -20,6 +50,14 @@ export async function reproduce(channel){
  const element=document.body.appendChild(document.createElement('div')),root=createRoot(element);flushSync(()=>root.render(<Surface/>));await new Promise(resolve=>setTimeout(resolve,40));const count=Number(element.querySelector('div').textContent);flushSync(()=>root.unmount());element.remove();return {count,renders,sourceCalls,listeners:events.semantic.size+events.presentation.size};
 }`},bundle:true,write:false,format:'iife',globalName:'sourceModules',platform:'browser'});
 for(const channel of ['semantic','presentation'])test('App catches '+channel+' publication between initial render and subscription',async()=>{const browser=await chromiumHarness(bundle.outputFiles[0].text);try{const result=await browser.evaluate(`sourceModules.reproduce(${JSON.stringify(channel)})`);assert.equal(result.count,7,'Stationary center must catch child publication without navigation or watchdog');assert.equal(result.sourceCalls,0);assert.equal(result.listeners,0)}finally{await browser.cleanup()}});
+
+for(const mode of ['pending','retired-complete','healthy'])test('actual PlexGraph recovery owns '+mode+' checks across hide and reveal',async()=>{
+ const browser=await chromiumHarness(bundle.outputFiles[0].text);try{
+  const result=await browser.evaluate(`sourceModules.recoveryAfterReveal(${JSON.stringify(mode)})`);
+  assert.deepEqual(result.calls,mode==='healthy'?['initial']:['initial','initial'],'Only a completed live attempt may retire recovery across native visibility changes');
+  assert.equal(result.timers,0);assert.equal(result.listeners,mode==='healthy'?0:1,'Only an incomplete visible center retains its readiness subscription');
+ }finally{await browser.cleanup()}
+});
 
 
 test('startup watchdog checks once, waits for real readiness and stops after one follow-up',async()=>{
