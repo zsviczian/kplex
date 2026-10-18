@@ -164,7 +164,7 @@ test("CSS hooks, variables, SVG markers and owning-document selectors use the K-
     }
   }
   for (const variable of ["panel", "panel-2", "line", "muted", "text", "accent"])
-    assert(css.includes(`--kplex-${variable}:`), `missing CSS variable ${variable}`);
+    assert(css.includes(`var(--kplex-${variable},`), `missing inheritable CSS variable ${variable}`);
   const graph = readFileSync(join(root, "src/ui/PlexGraph.tsx"), "utf8");
   for (const marker of ["arrow", "triangle", "dot", "bar"]) {
     assert(graph.includes(`id="kplex-${marker}"`), `missing SVG marker ${marker}`);
@@ -211,6 +211,7 @@ test("commands are registered once with canonical IDs and unchanged availability
       removeCommand() { throw new Error("Initialization must not remove commands"); },
       translator: (key) => key,
       activateView: () => activations.push("open"),
+      createPlexTab: () => activations.push("new-tab"),
       rebuildIndex: (force) => activations.push(["rebuild", force]),
       activateViewInPopout: () => activations.push("popout"),
       activateSidepanel: () => activations.push("sidepanel"),
@@ -229,9 +230,9 @@ test("commands are registered once with canonical IDs and unchanged availability
     registerPluginCommands(plugin, device);
     assert.equal(new Set(commands.map((command) => command.id)).size, commands.length);
     assert(commands.every((command) => command.id.startsWith("kplex-")));
-    assert.equal(commands.length, 31, "22 preserved commands and nine new defaults including Wander must publish");
+    assert.equal(commands.length, 32, "Preserved commands and the explicit additional Plex tab command must publish");
     plugin.actionPublisher.sync(plugin.settings.actionPreferences);
-    assert.equal(commands.length, 31, "Repeated reconciliation must not duplicate stable IDs");
+    assert.equal(commands.length, 32, "Repeated reconciliation must not duplicate stable IDs");
     assert.equal(commands.filter(command => typeof command.editorCheckCallback === "function").length, 9);
     assert(commands.every(command => command.hotkeys === undefined), "Local defaults must not become global host hotkeys");
     const byId = (id) => {
@@ -245,6 +246,11 @@ test("commands are registered once with canonical IDs and unchanged availability
     assert.deepEqual(activations, [], "Availability checks must not execute the action");
     assert.equal(open.checkCallback(false), allowed);
     assert.deepEqual(activations.splice(0), allowed ? ["open"] : []);
+    const newTab = byId("kplex-new-tab");
+    assert.equal(newTab.checkCallback(true), allowed);
+    assert.deepEqual(activations, [], "Checking the new-tab action must not allocate a native leaf");
+    assert.equal(newTab.checkCallback(false), allowed);
+    assert.deepEqual(activations.splice(0), allowed ? ["new-tab"] : []);
     const popout = byId("kplex-open-popout");
     assert.equal(popout.checkCallback(true), device === "desktop");
     assert.equal(popout.checkCallback(false), device === "desktop");

@@ -5,29 +5,49 @@
  */
 import { spawnNativeSync as spawnSync, obsidianCliExecutable } from "./processTools.mjs";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Script } from "node:vm";
 import { validateTarget } from "./runner.mjs";
+import { runFolderCreationWorkflows, verifyFolderCreationRestart } from "./folderCreationWorkflows.mjs";
 
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const vaultName = process.env.KPLEX_TEST_VAULT_NAME;
+const selectedScenario = process.env.KPLEX_ACTION_WORKFLOW_SCENARIO;
+if (selectedScenario && selectedScenario !== "folder-creation") throw new Error("Unknown action workflow scenario");
+const folderCreationOnly = selectedScenario === "folder-creation";
+if (folderCreationOnly && vaultName !== "kplex-test-small") throw new Error("Folder creation acceptance requires kplex-test-small");
 const target = validateTarget({ vaultName, vaultPath: process.env.KPLEX_TEST_VAULT_PATH, configDir: process.env.KPLEX_TEST_CONFIG_DIR });
 const reportDir = process.env.KPLEX_HOST_REPORT_DIR;
 if (!reportDir) throw new Error("Set KPLEX_HOST_REPORT_DIR explicitly");
+if (folderCreationOnly) {
+  if (existsSync(reportDir) && readdirSync(reportDir).length) throw new Error("Use a fresh report directory");
+  const location = relative(target.vault, resolve(reportDir));
+  if (!isAbsolute(location) && location !== ".." && !location.startsWith(".." + sep)) throw new Error("Private evidence must remain outside the vault");
+}
 mkdirSync(reportDir, { recursive: true });
 const configuration = ["data.json", "community-plugins.json", "hotkeys.json"].map((name, index) => {
   const path = join(index === 0 ? target.pluginDir : target.config, name);
-  return { path, bytes: existsSync(path) ? readFileSync(path) : null, writable: index === 0 };
+  return { path, bytes: existsSync(path) ? readFileSync(path) : null, writable: index === 0 || folderCreationOnly && index === 1 };
 });
 const companionSettingsPath = join(target.config, "plugins", "obsidian-excalidraw-plugin", "data.json");
 if (existsSync(companionSettingsPath)) configuration.push({ path: companionSettingsPath, bytes: readFileSync(companionSettingsPath), writable: true });
+if (folderCreationOnly) {
+  for (const name of ["workspace.json", "appearance.json"]) {
+    const path = join(target.config, name); configuration.push({ path, bytes: existsSync(path) ? readFileSync(path) : null, writable: true });
+  }
+  mkdirSync(join(reportDir, "private"));
+  for (const [index, item] of configuration.entries()) if (item.bytes) writeFileSync(join(reportDir, "private", `configuration-${index}.bin`), item.bytes);
+  for (const name of ["actionWorkflows.mjs", "folderCreationWorkflows.mjs"]) writeFileSync(join(reportDir, name), readFileSync(new URL(name, import.meta.url)));
+}
 if (!configuration[0].bytes || !configuration[1].bytes) throw new Error("Initialized disposable plugin settings and enablement are required");
 const report = { status: "running", startedAt: new Date().toISOString(), node: process.version, target: vaultName, artifacts: {},
   limitations: ["Desktop Electron UI and trusted renderer keyboard input; no physical keyboard/IME/touch or screen-reader acceptance", "H26 is conditional on an installed enabled Excalidraw companion", "Existing-target semantic writes are asserted through native metadata and exact source files; no whole-vault semantic oracle is inferred"] };
 let installed = false;
+report.scenario = selectedScenario ?? "all";
 let ownedController = false;
+let nativeCleanupComplete = false;
 const runToken = `action-workflows-${process.pid}-${Date.now()}`;
 
 /** Keep native CLI arguments out of a shell and reject eval errors even when Obsidian exits zero. */
@@ -73,7 +93,7 @@ function readProgress(code, deadline) {
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 /** Install one disposable native controller; no production globals or diagnostic APIs are added. */
-function nativeWorkflowProbe(runToken) {
+function nativeWorkflowProbe(runToken, folderScenario) {
   if (window.__kplexActionTest || window.__kplexActionWorkflows) throw new Error("Another native action driver is active");
   const p = app.plugins.plugins["k-plex"];
   if (!p?.actionManager) throw new Error("Exact action-manager build is not loaded");
@@ -82,6 +102,11 @@ function nativeWorkflowProbe(runToken) {
   remote.app.show?.(); remote.app.focus({ steal: true }); nativeWindow.show(); nativeWindow.moveTop(); nativeWindow.focus();
   const c = window.__kplexActionWorkflows = { p, runToken, originalSettings: JSON.parse(JSON.stringify(p.settings)), originalLeaf: app.workspace.getMostRecentLeaf(),
     nativeWindow, folder: `Kplex-Action-Workflows-${Date.now()}`, owned: [], wrappers: [], leaves: [], dialogs: new Set(), scenarios: [], done: false, cancelled: false };
+  if (folderScenario) {
+    c.folderCreationOnly = true; c.originalLayout = app.workspace.getLayout(); c.originalSavedPolicy = p.savedSettingsPolicy;
+    c.originalInventory = app.vault.getFiles().map(file => file.path).sort(); c.originalBounds = nativeWindow.getBounds(); c.originalMinimum = nativeWindow.getMinimumSize();
+    c.originalOwners = { linked: p.linkedDocumentLeaf, last: p.lastDocumentLeaf, recent: [...p.recentLeafHistory], sidecars: [...p.sidecarLeaves] };
+  }
   /** All resources remain controller-owned until independent cleanup finishes. */
   const run = async () => {
     /** Give each failed prerequisite an actionable native assertion. */
@@ -177,7 +202,13 @@ function nativeWorkflowProbe(runToken) {
     };
     const submit = async element => { await until(() => element.querySelector('button[data-kplex-primary-action="true"]')?.disabled === false, "Canonical composer submit unavailable"); element.querySelector('button[data-kplex-primary-action="true"]').click(); await until(() => !element.isConnected, "Canonical composer did not settle", 30000); };
     const ontology = async (origin, target, role) => {
-      await until(() => app.metadataCache.getFileCache(origin)?.frontmatter?.[p.defaultOntologyField(role)], "Explicit role property not published");
+      check(origin.path.startsWith(c.folder + "/"), "Ontology probe must read only its owned fixture");
+      const expectedField = p.defaultOntologyField(role);
+      const cacheHadTarget = JSON.stringify(app.metadataCache.getFileCache(origin)?.frontmatter?.[expectedField] ?? []).includes(target.basename);
+      const diskHadTarget = (await app.vault.read(origin)).includes(target.basename);
+      (c.metadataArrivalReceipts ??= []).push({ role, cacheHadTarget, diskHadTarget });
+      check(diskHadTarget, `Saved ${role} source lacks the requested target`);
+      await until(() => JSON.stringify(app.metadataCache.getFileCache(origin)?.frontmatter?.[expectedField] ?? []).includes(target.basename), "Exact saved ontology target not published");
       const field = p.defaultOntologyField(role), value = app.metadataCache.getFileCache(origin).frontmatter[field];
       check(JSON.stringify(value).includes(target.basename), `Wrong ${role} target/storage`);
       if (role === "previous" || role === "next") {
@@ -197,10 +228,12 @@ function nativeWorkflowProbe(runToken) {
     preferences.localBindings["search.focus"] = [{ match: "key", value: "F4", modifiers: [] }];
     preferences.publishedCommands["relationship.create-selected.child"] = true; preferences.publishedCommands["relationship.create-center.child"] = true;
     await p.updateActionPreferences(preferences); await p.saveSettings(false, false);
-    c.a = await create("Workflow-Origin-A"); c.editorFile = await create("Workflow-Editor-B");
+    c.a = await create("Workflow-Origin-A"); if (!folderScenario) c.editorFile = await create("Workflow-Editor-B");
     c.host = app.workspace.getLeaf("tab"); c.leaves.push(c.host); await c.host.setViewState({ type: "k-plex-react-view", active: true }); await app.workspace.revealLeaf(c.host);
-    c.surfaceId = await surface(c.host); c.editor = app.workspace.getLeaf("tab"); c.leaves.push(c.editor); await c.editor.openFile(c.editorFile);
+    c.surfaceId = await surface(c.host);
+    if (!folderScenario) { c.editor = app.workspace.getLeaf("tab"); c.leaves.push(c.editor); await c.editor.openFile(c.editorFile); }
     await center(c.a.path); focus(c.host);
+    if (folderScenario) return folderScenario({ c, p, check, delay, until, scenario, input, key, close, configureComposer, dispatch, center, focus, root, remote, nativeWindow, pickNode });
 
     await scenario("H10-C-picker-six-semantic-roles", async () => {
       const roles = ["parent", "child", "left", "right", "previous", "next"];
@@ -503,7 +536,7 @@ function nativeWorkflowProbe(runToken) {
       await assertBackgroundComposer("excalidraw");
       return { modes: ["excalidraw", "markdown", "excalidraw"], fixture: file.path, composerOrigin: sharedCenter, backgroundReopens: 0, canonicalToggle: "ExcalidrawAutomate.toggleViewMode" };
     });
-    return { scenarios: c.scenarios, trustedNativeKeys: c.trustedKeys ?? 0, canonicalRelationshipWrites: c.relationshipWrites, createdFiles: c.created.length };
+    return { scenarios: c.scenarios, trustedNativeKeys: c.trustedKeys ?? 0, canonicalRelationshipWrites: c.relationshipWrites, createdFiles: c.created.length, metadataArrivalReceipts: c.metadataArrivalReceipts };
   };
   c.timer = window.setTimeout(() => { c.task = run().then(value => { c.done = true; c.value = value; }, error => { c.done = true; c.error = String(error); }); }, 50);
   return JSON.stringify({ started: true, fixtureFolder: c.folder });
@@ -516,14 +549,21 @@ try {
     const hash = path => createHash("sha256").update(readFileSync(path)).digest("hex");
     report.artifacts[name] = hash(join(root, "dist", name));
     if (report.artifacts[name] !== hash(join(target.pluginDir, name))) throw new Error(`Installed ${name} differs from the exact staged build`);
+    if (folderCreationOnly) writeFileSync(join(reportDir, "private", name), readFileSync(join(root, "dist", name)));
   }
-  cli("dev:errors", "clear"); installed = true; const started = evaluate(`(${nativeWorkflowProbe.toString()})(${JSON.stringify(runToken)})`); ownedController = true; report.fixtureFolder = started.fixtureFolder;
+  cli("dev:errors", "clear"); installed = true; const started = evaluate(`(${nativeWorkflowProbe.toString()})(${JSON.stringify(runToken)},${folderCreationOnly ? runFolderCreationWorkflows.toString() : "null"})`); ownedController = true; report.fixtureFolder = started.fixtureFolder;
   const deadline = Date.now() + 600000;
   while (true) {
-    await wait(500); const state = readProgress("JSON.stringify({done:window.__kplexActionWorkflows?.done,error:window.__kplexActionWorkflows?.error,value:window.__kplexActionWorkflows?.value,scenarios:window.__kplexActionWorkflows?.scenarios,sidebarReadiness:window.__kplexActionWorkflows?.sidebarReadiness,pickerBefore:window.__kplexActionWorkflows?.pickerBefore,pickerSelection:window.__kplexActionWorkflows?.pickerSelection,paletteAvailability:window.__kplexActionWorkflows?.paletteAvailability,folderOriginProof:window.__kplexActionWorkflows?.folderOriginProof,folderSaveReadiness:window.__kplexActionWorkflows?.folderSaveReadiness,contextReadiness:window.__kplexActionWorkflows?.contextReadiness,overflowReveal:window.__kplexActionWorkflows?.overflowReveal,companionTransitions:window.__kplexActionWorkflows?.companionTransitions})", deadline);
+    await wait(500); const state = readProgress("JSON.stringify({done:window.__kplexActionWorkflows?.done,error:window.__kplexActionWorkflows?.error,value:window.__kplexActionWorkflows?.value,scenarios:window.__kplexActionWorkflows?.scenarios,folderCreation:window.__kplexActionWorkflows?.folderCreation,sidebarReadiness:window.__kplexActionWorkflows?.sidebarReadiness,pickerBefore:window.__kplexActionWorkflows?.pickerBefore,pickerSelection:window.__kplexActionWorkflows?.pickerSelection,paletteAvailability:window.__kplexActionWorkflows?.paletteAvailability,folderOriginProof:window.__kplexActionWorkflows?.folderOriginProof,folderSaveReadiness:window.__kplexActionWorkflows?.folderSaveReadiness,contextReadiness:window.__kplexActionWorkflows?.contextReadiness,overflowReveal:window.__kplexActionWorkflows?.overflowReveal,companionTransitions:window.__kplexActionWorkflows?.companionTransitions})", deadline);
     report.progress = state; writeFileSync(join(reportDir, "report.json"), JSON.stringify(report, null, 2));
     if (state.done) { if (state.error) throw new Error(state.error); report.result = state.value; break; }
     if (Date.now() > deadline) throw new Error("Native workflow acceptance deadline");
+  }
+  if (folderCreationOnly) {
+    cli("plugin:disable", "id=k-plex"); cli("plugin:enable", "id=k-plex");
+    evaluate(`(()=>{const c=window.__kplexActionWorkflows;if(!c||c.runToken!==${JSON.stringify(runToken)})throw Error('Owned restart controller missing');c.restartTask=(${verifyFolderCreationRestart.toString()})(${JSON.stringify(report.result.restartExpectation)}).then(value=>{c.restartResult=value;c.restartDone=true},error=>{c.restartError=String(error);c.restartDone=true});return JSON.stringify({started:true})})()`);
+    const end=Date.now()+100000;
+    while(true){await wait(500);const state=evaluate("JSON.stringify({done:window.__kplexActionWorkflows?.restartDone,error:window.__kplexActionWorkflows?.restartError,result:window.__kplexActionWorkflows?.restartResult})");if(state.done){if(state.error)throw Error(state.error);report.restart=state.result;break}if(Date.now()>end)throw Error('Focused folder restart deadline')}
   }
   const errors = cli("dev:errors"); if (errors && !/^No errors captured\.?$/i.test(errors)) throw new Error(`Native JavaScript errors: ${errors}`);
   report.status = "passed";
@@ -533,31 +573,47 @@ finally {
     if (installed) {
       const cleanupStart = evaluate(`(()=>{const c=window.__kplexActionWorkflows;if(!c||c.runToken!==${JSON.stringify(runToken)})return JSON.stringify({absent:true});c.cancelled=true;window.clearTimeout(c.timer);c.cleanup=(async()=>{
         const errors=[],attempt=async fn=>{try{await fn()}catch(error){errors.push(String(error))}};
-        await attempt(()=>c.task);
+        await attempt(()=>c.task);await attempt(()=>c.restartTask);if(c.folderCreationOnly&&app.plugins.plugins['k-plex'])c.p=app.plugins.plugins['k-plex'];
+        for(const [dialog]of c.p.actionDialogs)if(c.dialogs.has(dialog.modalEl))await attempt(()=>dialog.close());
         for(const dialog of c.dialogs)await attempt(async()=>{if(!dialog.isConnected)return;(dialog.querySelector('.modal-close-button')??dialog.closest('.modal-container')?.querySelector('.modal-close-button'))?.click();if(dialog.isConnected){dialog.querySelector('input,button')?.focus();c.nativeWindow.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});c.nativeWindow.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'})}const end=Date.now()+5000;while(dialog.isConnected){if(Date.now()>end)throw Error('Owned dialog remained connected');await new Promise(resolve=>window.setTimeout(resolve,25))}});
+        if(c.folderCreationOnly)await attempt(async()=>{const deadline=Date.now()+90000;while(c.acceptedWrites?.size){if(Date.now()>deadline)throw Error('Accepted native writes did not settle; preserve fixtures');await new Promise(resolve=>window.setTimeout(resolve,50))}});
+        if(c.folderCreationOnly&&c.acceptedWrites?.size)throw Error(errors.join('; '));
         for(const release of c.wrappers.reverse())await attempt(release);
         for(const leaf of [...new Set(c.leaves)].reverse())await attempt(()=>leaf?.detach());
         await attempt(()=>c.p.updateActionPreferences(c.originalSettings.actionPreferences));Object.assign(c.p.settings,c.originalSettings);
         if(c.companion)c.companion.settings.rank=c.originalCompanionRank;
-        for(const path of [...new Set(c.owned)].sort((a,b)=>b.length-a.length))await attempt(async()=>{const item=app.vault.getAbstractFileByPath(path);if(item)await app.vault.delete(item,true)});
+        for(const path of [...new Set(c.owned)].sort((a,b)=>b.length-a.length))await attempt(async()=>{const item=app.vault.getAbstractFileByPath(path);if(!item)return;if(c.folderCreationOnly){if(c.originalInventory.includes(path))throw Error('Refusing to delete pre-existing file: '+path);if('children'in item&&item.children.length)throw Error('Unknown children remain in owned folder: '+path)}await app.vault.delete(item,'children'in item||!c.folderCreationOnly)});
         if(c.originalSettings.lastActivePath)await attempt(()=>c.p.notifyNavigation(c.originalSettings.lastActivePath));
         if(c.originalLeaf?.view.containerEl.isConnected)await attempt(()=>app.workspace.setActiveLeaf(c.originalLeaf,{focus:true}));
         await attempt(()=>c.p.saveSettings(false,false));await attempt(()=>c.p.settingsWriteQueue);
+        if(c.folderCreationOnly)await attempt(async()=>{
+          await app.workspace.changeLayout(c.originalLayout);const leaves=[];app.workspace.iterateAllLeaves(leaf=>leaves.push(leaf));const rebind=old=>old?leaves.find(leaf=>leaf.id===old.id)??null:null;
+          c.p.linkedDocumentLeaf=rebind(c.originalOwners.linked);c.p.lastDocumentLeaf=rebind(c.originalOwners.last);c.p.recentLeafHistory=c.originalOwners.recent.map(rebind).filter(Boolean);
+          c.p.sidecarLeaves.clear();for(const [oldHost,oldNote]of c.originalOwners.sidecars){const host=rebind(oldHost),note=rebind(oldNote);if(host&&note)c.p.sidecarLeaves.set(host,note)}
+          c.p.savedSettingsPolicy=c.originalSavedPolicy;c.nativeWindow.setMinimumSize(...c.originalMinimum);c.nativeWindow.setBounds(c.originalBounds);
+          c.inventoryRestored=JSON.stringify(app.vault.getFiles().map(file=>file.path).sort())===JSON.stringify(c.originalInventory);if(!c.inventoryRestored)throw Error('Original file inventory did not restore');
+          await c.p.settingsWriteQueue;
+          const restoreUtility=async node=>{if(node?.type==='leaf'&&['backlink','outgoing-link','localgraph'].includes(node.state?.type)){const leaf=app.workspace.getLeafById(node.id);if(!leaf)throw Error('Original native utility leaf missing');await leaf.setViewState(node.state)}for(const child of node?.children??[])await restoreUtility(child)};
+          for(const key of ['main','left','right'])await restoreUtility(c.originalLayout[key]);
+        });
         if(app.vault.getFolderByPath(c.folder))errors.push('Owned fixture folder remains');if(errors.length)throw Error(errors.join('; '));return true;
       })().then(()=>{c.cleaned=true},error=>{c.cleanupError=String(error)});return JSON.stringify({cleanupStarted:true})})()`);
-      if (cleanupStart.absent) report.cleanup = { controllerAbsent: true };
+      if (cleanupStart.absent) { report.cleanup = { controllerAbsent: true }; nativeCleanupComplete = true; }
       else {
       ownedController = true;
       const deadline = Date.now() + 90000;
       while (true) { await wait(500); const state = evaluate("JSON.stringify({cleaned:window.__kplexActionWorkflows?.cleaned,error:window.__kplexActionWorkflows?.cleanupError})"); if (state.error) throw new Error(state.error); if (state.cleaned) break; if (Date.now() > deadline) throw new Error("Native workflow cleanup deadline"); }
-      report.cleanup = evaluate("(()=>{const c=window.__kplexActionWorkflows;const remaining=c.owned.filter(path=>app.vault.getAbstractFileByPath(path)).length;const dialogs=[...c.dialogs].filter(dialog=>dialog.isConnected).length;if(!remaining&&!dialogs)delete window.__kplexActionWorkflows;return JSON.stringify({remainingOwned:remaining,remainingDialogs:dialogs,controllerRemoved:!window.__kplexActionWorkflows})})()");
+      report.cleanup = evaluate("(()=>{const c=window.__kplexActionWorkflows;const remaining=c.owned.filter(path=>app.vault.getAbstractFileByPath(path)).length;const dialogs=[...c.dialogs].filter(dialog=>dialog.isConnected).length;const inventoryRestored=c.inventoryRestored??null;if(!remaining&&!dialogs)delete window.__kplexActionWorkflows;return JSON.stringify({remainingOwned:remaining,remainingDialogs:dialogs,inventoryRestored,controllerRemoved:!window.__kplexActionWorkflows})})()");
       if (report.cleanup.remainingOwned || report.cleanup.remainingDialogs || !report.cleanup.controllerRemoved) throw new Error("Native workflow resources survived cleanup");
+      if (folderCreationOnly && !report.cleanup.inventoryRestored) throw new Error("Folder acceptance inventory did not restore");
+      nativeCleanupComplete = true;
       }
     }
   } catch (error) { report.status = "failed"; report.cleanupError = String(error); }
   try {
+    if (folderCreationOnly && ownedController && !nativeCleanupComplete) throw new Error("Native cleanup is incomplete; private backups retained without overwriting live configuration");
     for (const item of configuration) {
-      if (ownedController && item.writable) writeFileSync(item.path, item.bytes);
+      if (ownedController && item.writable) { if (item.bytes) writeFileSync(item.path, item.bytes); else if (folderCreationOnly && existsSync(item.path)) unlinkSync(item.path); }
       if (item.bytes ? !readFileSync(item.path).equals(item.bytes) : existsSync(item.path)) throw new Error(`Configuration bytes changed: ${item.path}`);
     }
     report.configurationRestored = true;

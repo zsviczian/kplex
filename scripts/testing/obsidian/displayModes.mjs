@@ -2,7 +2,7 @@
  * Exact-build native fullscreen/Zen acceptance in an explicit disposable small vault. Owns
  * temporary panes, mode/input probes, preference/layout restoration and evidence. Desktop mobile
  * emulation checks layout/routing only; this driver does not establish physical touch or paint latency.
- * The macOS lane rejects Windows toolbar reservations; real Windows control/DPI acceptance is separate.
+ * Desktop checks follow the selected host's platform chrome; physical control/DPI acceptance remains separate.
  */
 import assert from "node:assert/strict";
 import { obsidianCliExecutable } from "./processTools.mjs";
@@ -52,6 +52,7 @@ async function ready() {
 /** Exercise actual view/controller/action owners and retain exact cleanup even after failure. */
 function installDesktopProbe(token) {
   const remote = require("@electron/remote"), owner = remote.getCurrentWindow(), p = app.plugins.plugins["k-plex"];
+  const isWindows = require("process").platform === "win32";
   if (!p?.actionManager || window.__kplexDisplayModesProbe) throw Error("Loaded plugin and no competing controller required");
   if (app.setting.isOpen || document.querySelector(".modal-container .modal, .modal-container .prompt")) throw Error("An unowned dialog is open");
   if (remote.powerMonitor.getSystemIdleState(10) === "locked") throw Error("Unlocked native session required");
@@ -165,7 +166,13 @@ function installDesktopProbe(token) {
         for (const button of originalRoot.querySelectorAll(".kplex-zoom-controls button")) { const r = button.getBoundingClientRect(); check(r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight + 1 && button.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)), "A graph control is clipped or covered"); }
         if (fullscreen) { const r = rect(original.view.contentEl); check(Math.abs(r.x) < 1 && Math.abs(r.y) < 1 && Math.abs(r.width - innerWidth) < 1 && Math.abs(r.height - innerHeight) < 1, "Fullscreen does not cover owning application viewport"); check(!document.fullscreenElement, "Browser fullscreen was invoked");
           const overlay = original.view.contentEl.parentElement;
-          check(!overlay.classList.contains("kplex-windows-fullscreen") && !overlay.style.getPropertyValue("--kplex-window-controls-inset"), "Mac fullscreen acquired Windows chrome state");
+          const inset = overlay.style.getPropertyValue("--kplex-window-controls-inset").trim();
+          if (isWindows) {
+            check(overlay.classList.contains("kplex-windows-fullscreen"), "Windows fullscreen did not acquire its chrome lease");
+            const pixels = inset.endsWith("px") ? inset.slice(0, -2).trim() : "", value = pixels ? Number(pixels) : NaN;
+            // Hidden or native-frame controls legitimately reserve zero and may leave no declaration.
+            check(!inset || Number.isFinite(value) && value >= 0, "Windows fullscreen has an invalid control inset");
+          } else check(!overlay.classList.contains("kplex-windows-fullscreen") && !inset, "Non-Windows fullscreen acquired Windows chrome state");
         }
         else check(original.view.contentEl.parentElement === originalParent && JSON.stringify(rect(original.view.containerEl)) === JSON.stringify(nativeLeaf), "Original native pane position/dimensions not restored");
         check(JSON.stringify(app.workspace.getLayout()) === layout, "Mode toggle changed native workspace configuration");

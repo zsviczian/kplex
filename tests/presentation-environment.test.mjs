@@ -203,7 +203,21 @@ test("File Explorer drag adapter accepts one current Markdown file and rejects u
   assert.equal(fileExplorerDrag.getDraggedFile(app), canvas, "Canvas files are navigation targets");
 
   app.dragManager.draggable = { type: "link", file: note };
-  assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "editor/internal link drags are outside the File Explorer scope");
+  assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), null, "a file attached to an incomplete link payload is not a native resolved link");
+
+  app.dragManager.draggable = { type: "link", file: note, linktext: note.path, sourcePath: "" };
+  assert.equal(fileExplorerDrag.getDraggedFile(app), note, "actual Bases link shape uses the same canonical file route");
+  app.dragManager.draggable = { type: "link", file: image, linktext: "diagram.png", sourcePath: "Assets/Index.md" };
+  assert.equal(fileExplorerDrag.getDraggedFile(app), image, "resolved note/attachment links preserve host-relative resolution");
+  for (const payload of [
+    { type: "link", file: null, linktext: "Missing", sourcePath: "" },
+    { type: "link", linktext: "https://example.com", sourcePath: "" },
+    { type: "link", file: note, linktext: "", sourcePath: "" },
+    { type: "link", file: note, linktext: note.path },
+  ]) {
+    app.dragManager.draggable = payload;
+    assert.equal(fileExplorerDrag.getDraggedFile(app), null, "unresolved, external and incomplete link drags stay inert");
+  }
 
   app.dragManager.draggable = { type: "file", file: { path: note.path } };
   assert.equal(fileExplorerDrag.getDraggedMarkdownFile(app), note, "the adapter should resolve the current Vault file by path");
@@ -276,6 +290,41 @@ test("Obsidian adapter preserves form-factor routing and leaves mobile keyboard 
   assert.equal(desktop.keyConvention, "macos");
   assert.equal(desktop.inputModes.keyboard, true);
   assert.equal(desktop.hostActions.popout, true);
+});
+
+test("Obsidian adapter ignores a closed popout hint while preserving a live owner's capabilities", () => {
+  const previousWindow = globalThis.window;
+  const previousPlatform = { ...hostFixture.platform };
+  const mainWindow = {
+    closed: false, screen: { width: 1400, height: 900 },
+    navigator: { maxTouchPoints: 0 }, matchMedia: () => ({ matches: true }),
+  };
+  const closedPopout = {
+    closed: true,
+    get navigator() { throw new Error("Retired window was read"); },
+    matchMedia: () => null,
+  };
+  try {
+    globalThis.window = mainWindow;
+    Object.assign(hostFixture.platform, { isMobile: true, isPhone: undefined, isTablet: undefined });
+    const recovered = hostFixture.adapter.readObsidianPresentationEnvironment(closedPopout);
+    assert.equal(recovered.device, "tablet");
+    assert.equal(recovered.inputModes.pointer, true);
+    assert.equal(recovered.inputModes.touch, false);
+    const livePopout = {
+      closed: false, screen: { width: 390, height: 844 },
+      navigator: { maxTouchPoints: 5 }, matchMedia: () => ({ matches: false }),
+    };
+    const owned = hostFixture.adapter.readObsidianPresentationEnvironment(livePopout);
+    assert.equal(owned.device, "phone");
+    assert.equal(owned.inputModes.pointer, false);
+    assert.equal(owned.inputModes.touch, true);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    for (const key of Object.keys(hostFixture.platform)) delete hostFixture.platform[key];
+    Object.assign(hostFixture.platform, previousPlatform);
+  }
 });
 
 test("input modes coexist independently of device class", () => {
@@ -497,7 +546,7 @@ test("URL expansion normalizes videos, preserves private Vimeo tokens and reject
 function compileGraphPresentation() {
   const temp = mkdtempSync(join(tmpdir(), "kplex-graph-presentation-"));
   for (const relative of ["src/index/GraphPresentation.ts", "src/adapters/obsidian/yieldToHostTask.ts",
-    "src/core/contracts/fieldName.ts", "src/core/graph/presentation.ts", "src/core/graph/settings.ts", "src/core/graph/settingsPolicy.ts"]) {
+    "src/core/contracts/appearance.ts", "src/core/contracts/colorValue.ts", "src/core/contracts/fieldName.ts", "src/core/graph/presentation.ts", "src/core/graph/settings.ts", "src/core/graph/settingsPolicy.ts"]) {
     const output = join(temp, relative.replace(/\.ts$/, ".js"));
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, ts.transpileModule(readFileSync(join(root, relative), "utf8"), {

@@ -10,6 +10,10 @@
  * source readiness; the repository owns observer isolation and closed-lifetime fencing.
  * Snapshot decoding and mobile write batches release CPU slices through host event tasks; connection
  * opening, delayed body writes and failure recovery retain their actual timed waits.
+ * Chunk readers accept a cheap private-record lifetime guard independently of full caller value
+ * validation at storage/yield boundaries. Legacy cursors retain a full guard on every host task.
+ * Finite boundary codes let the caller explain its first failed guard without exposing stored
+ * records or changing admission, transaction ordering or cancellation behavior.
  * Valid queued parsed bodies are optional cache hits before and during persistence; they grant no
  * durability or neutral-source authority. A successful flush retires only its exact queued records.
  * Settings-only maintenance estimates logical payloads through sequential cursors. Purging ends
@@ -20,6 +24,7 @@
  * may retire unabortable storage work without allowing a late consumer publication.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
+import {sanitizeCenterRecoveryDiagnostic, type CenterRecoveryDiagnostic} from "../core/contracts/centerRecovery";
 import { sanitizeChangedSettingKeys, type SettingDiagnosticKey } from "../core/graph/settingsPolicy";
 import { Platform } from "obsidian";
 import { NeutralSourceRepository, SOURCE_HEAD_STORE, SOURCE_CHUNK_STORE, SOURCE_POSTING_STORE,
@@ -76,11 +81,12 @@ export type IndexDiagnosticEntry = {
   completedMarkdownFiles?: number;
   durationMs?: number;
   changedKeys?: SettingDiagnosticKey[];
+  centerCheck?: CenterRecoveryDiagnostic;
 };
 
 /** Revalidate stored history and public exports without copying arbitrary diagnostic fields. */
 export function sanitizeIndexDiagnostics(entries: readonly unknown[]): IndexDiagnosticEntry[] {
-  return entries.flatMap((item): IndexDiagnosticEntry[] => {
+  const all = entries.flatMap((item): IndexDiagnosticEntry[] => {
     if (!isUnknownRecord(item) || typeof item.at !== "number" || !Number.isFinite(item.at) || typeof item.reason !== "string" ||
       !/^[a-z0-9:|_-]{1,240}$/.test(item.reason) ||
       (item.stage !== "restore" && item.stage !== "reconcile" && item.stage !== "build" && item.stage !== "persist")) return [];
@@ -91,13 +97,27 @@ export function sanitizeIndexDiagnostics(entries: readonly unknown[]): IndexDiag
     }
     const changedKeys = sanitizeChangedSettingKeys(item.changedKeys);
     if (changedKeys.length) sanitized.changedKeys = changedKeys;
+    const centerCheck = sanitizeCenterRecoveryDiagnostic(item.centerCheck);
+    if (centerCheck) sanitized.centerCheck = centerCheck;
     return [sanitized];
-  }).slice(-20);
+  });
+  const recent = all.slice(-20);
+  // Keep the latest two nontrivial center receipts shareable after later background patch traffic.
+  for (const entry of all.filter(item => item.centerCheck && item.centerCheck.outcome !== "healthy").slice(-2).reverse()) {
+    if (recent.includes(entry)) continue;
+    const replace = recent.findIndex(item => !item.centerCheck);
+    if (replace < 0) break;
+    recent.splice(replace, 1); recent.unshift(entry);
+  }
+  return recent;
 }
 
 /** Path-free reason codes for an unsuccessful snapshot stream. */
 export type SnapshotReadFailureReason = "storage-unavailable" | "missing-chunk" | "invalid-chunk" |
   "invalid-record" | "read-error" | "cancelled";
+
+/** Existing snapshot suspension/decoding boundaries, exposed only as finite diagnostic codes. */
+export type SnapshotReadOperation = "guard" | "open" | "checkpoint" | "transaction" | "record" | "task" | "chunk";
 
 /** Path-free reason codes for a failed generation write. */
 export type SnapshotWriteFailureReason = "storage-unavailable" | "cancelled" | "quota-exceeded" | "write-error";
@@ -326,6 +346,11 @@ export class KplexIndexedDbCache {
   private newerDatabase = false;
   private maintenanceReads = new Set<IDBTransaction>();
   private purgePromise: Promise<boolean> | null = null;
+
+  /** Read retained body-write state only; queued includes the current batch until its ordinary commit. */
+  getActivityState(): Readonly<{queuedBodies: number; writerActive: boolean}> {
+    return {queuedBodies: this.queuedBodyWrites.size, writerActive: this.bodyWriteInFlight};
+  }
 
   /** Share one connection owner. The injected checkpoint belongs to broad cache maintenance (P4);
    * caller-specific URL restore overrides it with P3 and foreground point reads never borrow it. */
@@ -713,39 +738,50 @@ export class KplexIndexedDbCache {
     return meta.schema >= 3 && Number.isInteger(meta.pageChunkCount) && Number.isInteger(meta.evidenceChunkCount);
   }
 
+  /** Stream pages with full boundary checks; a separate record guard is for private synchronous decoding only. */
   async iterateSnapshotPages(
     meta: IndexedDbSnapshotMeta,
     onPage: (page: PersistedPage) => void,
-    isCurrent: () => boolean = () => true,
+    isCurrent: (operation?: SnapshotReadOperation) => boolean = () => true,
     onFailure?: (reason: SnapshotReadFailureReason) => void,
+    isRecordCurrent: (operation?: SnapshotReadOperation) => boolean = isCurrent,
   ): Promise<boolean> {
     if (meta.schema >= 3 && Number.isInteger(meta.pageChunkCount)) {
-      return this.iterateChunks(meta.generation, "pages", meta.pageChunkCount ?? 0, (value) => onPage(value as PersistedPage), isCurrent, onFailure);
+      return this.iterateChunks(meta.generation, "pages", meta.pageChunkCount ?? 0, (value) => onPage(value as PersistedPage), isCurrent, onFailure, isRecordCurrent);
     }
     return this.iteratePages(meta.generation, onPage, isCurrent, onFailure);
   }
 
+  /** Stream evidence privately, preserving full storage/task guards and legacy cursor reentry validation. */
   async iterateSnapshotEvidence(
     meta: IndexedDbSnapshotMeta,
     onEvidence: (evidence: PersistedEvidenceDeclaration) => void,
-    isCurrent: () => boolean = () => true,
+    isCurrent: (operation?: SnapshotReadOperation) => boolean = () => true,
     onFailure?: (reason: SnapshotReadFailureReason) => void,
+    isRecordCurrent: (operation?: SnapshotReadOperation) => boolean = isCurrent,
   ): Promise<boolean> {
     if (meta.schema >= 3 && Number.isInteger(meta.evidenceChunkCount)) {
-      return this.iterateChunks(meta.generation, "evidence", meta.evidenceChunkCount ?? 0, (value) => onEvidence(value as PersistedEvidenceDeclaration), isCurrent, onFailure);
+      return this.iterateChunks(meta.generation, "evidence", meta.evidenceChunkCount ?? 0, (value) => onEvidence(value as PersistedEvidenceDeclaration), isCurrent, onFailure, isRecordCurrent);
     }
     return this.iterateEvidence(meta.generation, onEvidence, isCurrent, onFailure);
   }
 
+  /**
+   * Decode bounded transaction batches, validating caller values after every suspension. Records
+   * remain private until the caller's final full guard; callbacks that reenter public code must
+   * validate there. The record guard defaults to the full guard for all other consumers.
+   */
   private async iterateChunks(
     generation: string,
     kind: "pages" | "evidence",
     chunkCount: number,
     onValue: (value: PersistedPage | PersistedEvidenceDeclaration) => void,
-    isCurrent: () => boolean,
+    isCurrent: (operation?: SnapshotReadOperation) => boolean,
     onFailure?: (reason: SnapshotReadFailureReason) => void,
+    isRecordCurrent: (operation?: SnapshotReadOperation) => boolean = isCurrent,
   ): Promise<boolean> {
     const db = await this.open();
+    if (!isCurrent("open")) { onFailure?.("cancelled"); return false; }
     if (!db || !db.objectStoreNames.contains(SNAPSHOT_CHUNK_STORE)) {
       onFailure?.("storage-unavailable");
       return false;
@@ -757,7 +793,7 @@ export class KplexIndexedDbCache {
       let sliceStartedAt = performance.now();
       for (let start = 0; start < chunkCount; start += readBatch) {
         await this.backgroundCheckpoint?.();
-        if (!isCurrent()) { onFailure?.("cancelled"); return false; }
+        if (!isCurrent("checkpoint")) { onFailure?.("cancelled"); return false; }
         const end = Math.min(chunkCount, start + readBatch);
         const tx = this.openTransaction(db, SNAPSHOT_CHUNK_STORE, "readonly");
         const done = transactionDone(tx);
@@ -766,6 +802,7 @@ export class KplexIndexedDbCache {
           requestResult(store.get([generation, kind, start + offset])) as Promise<SnapshotChunkRecord | undefined>
         ));
         await done;
+        if (!isCurrent("transaction")) { onFailure?.("cancelled"); return false; }
         for (const chunk of chunks) {
           if (!chunk) { onFailure?.("missing-chunk"); return false; }
           if (chunk.generation !== generation || chunk.kind !== kind || !Array.isArray(chunk.values)) {
@@ -776,13 +813,14 @@ export class KplexIndexedDbCache {
           for (const value of chunk.values) {
             try { onValue(value); } catch { onFailure?.("invalid-record"); return false; }
             processed += 1;
-            if (processed % 128 === 0 && !isCurrent()) { onFailure?.("cancelled"); return false; }
+            if (processed % 128 === 0 && !isRecordCurrent("record")) { onFailure?.("cancelled"); return false; }
           }
           if (performance.now() - sliceStartedAt >= (Platform.isMobile ? 6 : 8)) {
             await yieldToHostTask();
+            if (!isCurrent("task")) { onFailure?.("cancelled"); return false; }
             await this.backgroundCheckpoint?.();
             sliceStartedAt = performance.now();
-            if (!isCurrent()) { onFailure?.("cancelled"); return false; }
+            if (!isCurrent("checkpoint")) { onFailure?.("cancelled"); return false; }
           }
         }
       }

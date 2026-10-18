@@ -35,6 +35,33 @@ test('every hover waits even after a warm hint; top fits below and bottom flips 
  }finally{await host.cleanup()}
 });
 
+test('gate modifier withholds hints, accepts a stationary Alt/Option press, and hides on release or live preference change',async()=>{
+ const host=await chromiumHarness(result.outputFiles[0].text);
+ try{await fixture(host);
+  const data=await host.evaluate(`(async()=>{
+   const gate=document.querySelector('#top');gate.dataset.kplexControlTooltip='';gate.dataset.kplexTooltipRequiresAlt='true';
+   fire('#top','pointerover');await pause(720);const ordinary=read();
+   document.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Alt',altKey:true}));await pause(250);const early=read();await pause(470);const held=read();
+   document.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Alt',altKey:false}));const released=read();
+   delete gate.dataset.kplexTooltipRequiresAlt;await pause(720);const optedOut=read();
+   gate.dataset.kplexTooltipRequiresAlt='true';await pause(40);const optedIn=read();
+   document.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Alt',altKey:true}));await pause(720);const renewed=read();window.dispatchEvent(new Event('blur'));const blurred=read();
+   const accessible=gate.getAttribute('aria-label'),nativeSuppressed=getComputedStyle(gate).getPropertyValue('--no-tooltip').trim();window.release();
+   document.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Alt',altKey:true}));await pause(720);return{ordinary,early,held,released,optedOut,optedIn,renewed,blurred,accessible,nativeSuppressed,retired:read()};
+  })()`);
+  assert.equal(data.ordinary,null);assert.equal(data.early,null);assert.equal(data.held.text,'Top control');assert.equal(data.released,null);assert.equal(data.optedOut.text,'Top control');assert.equal(data.optedIn,null);assert.equal(data.renewed.text,'Top control');assert.equal(data.blurred,null);assert.equal(data.accessible,'Top control');assert.equal(data.nativeSuppressed,'true');assert.equal(data.retired,null);
+ }finally{await host.cleanup()}
+});
+
+test('a child gate prefers above even with room below, retaining viewport fallback',async()=>{
+ const host=await chromiumHarness(result.outputFiles[0].text);
+ try{await fixture(host);
+  const data=await host.evaluate(`(async()=>{const gate=document.querySelector('#top');gate.dataset.kplexGate='bottom';gate.dataset.tooltipPosition='top';gate.style.top='180px';fire('#top','pointerover');await pause(720);const preferred=read(),r=gate.getBoundingClientRect();fire('#top','pointerout');gate.style.top='10px';fire('#top','pointerover');await pause(720);const fallback=read(),edge=gate.getBoundingClientRect();return{preferred,gateTop:r.top,fallback,gateBottom:edge.bottom}})()`);
+  assert.equal(data.preferred.above,true);assert(data.preferred.bottom<=data.gateTop-8);
+  assert.equal(data.fallback.above,false);assert(data.fallback.top>=data.gateBottom+8);
+ }finally{await host.cleanup()}
+});
+
 test('range wrapper supplies measured help; quick crossing, clicking, scrolling and removal cancel work',/** Input labels remain accessible while the longer wrapper hint owns hover. */async()=>{
  const host=await chromiumHarness(result.outputFiles[0].text);
  try{await fixture(host);
@@ -64,5 +91,14 @@ test('a marked canvas boundary flips bottom controls above even when the window 
  try{await fixture(host);
   const data=await host.evaluate(`(async()=>{const pane=document.createElement('section');pane.setAttribute('data-kplex-tooltip-boundary','');pane.style.cssText='position:fixed;top:150px;left:20px;width:220px;height:100px';document.querySelector('main').append(pane);const control=document.querySelector('#bottom');control.style.position='absolute';pane.append(control);fire('#bottom','pointerover');await pause(720);const r=control.getBoundingClientRect(),b=pane.getBoundingClientRect();return{hint:read(),controlTop:r.top,boundaryTop:b.top,boundaryBottom:b.bottom,viewport:innerHeight}})()`);
   assert(data.viewport-data.boundaryBottom>50);assert.equal(data.hint.above,true);assert(data.hint.bottom<=data.controlTop-8);assert(data.hint.top>=data.boundaryTop+8);
+ }finally{await host.cleanup()}
+});
+
+test('dedicated callouts replace generic hover/touch hints and retain the long-press click guard', async()=>{
+ const host=await chromiumHarness(result.outputFiles[0].text);
+ try{await fixture(host);
+  const data=await host.evaluate(`(async()=>{const button=document.querySelector('#top');button.dataset.kplexTooltip='callout';let opened=0,clicks=0;button.addEventListener('kplex-control-long-press',()=>opened++);button.addEventListener('click',()=>clicks++);fire('#top','pointerover');await pause(720);const hover=read();button.removeAttribute('aria-label');const label=document.createElement('span');label.id='status-name';label.textContent='Current index status';document.querySelector('main').append(label);button.setAttribute('aria-labelledby',label.id);const touch={pointerType:'touch',clientX:50,clientY:20};fire('#top','pointerdown',null,touch);await pause(510);const long=read(),longOpened=opened;fire('#top','pointerup',null,touch);button.click();const consumed=clicks;button.click();const nextTap=clicks;fire('#top','pointerdown',null,{...touch,pointerId:2});fire('#top','pointermove',null,{...touch,pointerId:2,clientX:80});await pause(510);fire('#top','pointerup',null,{...touch,pointerId:2});return{hover,long,longOpened,opened,consumed,nextTap,accessibleName:document.getElementById(button.getAttribute('aria-labelledby')).textContent}})()`);
+  assert.equal(data.hover,null);assert.equal(data.long,null);assert.equal(data.longOpened,1);assert.equal(data.opened,1);
+  assert.equal(data.consumed,0);assert.equal(data.nextTap,1);assert.equal(data.accessibleName,'Current index status');
  }finally{await host.cleanup()}
 });

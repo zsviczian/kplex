@@ -1,19 +1,21 @@
 /**
- * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations; the modal owns focus, suggestions and cleanup, and consumes localized copy.
+ * Native Obsidian shell and shared React composer for related-note creation. The plugin owns mutations; the modal owns focus, suggestions, failure-only recovery and cleanup, and consumes localized copy. Recovery retains the exact durable file and displays the failure reason without enabling fresh creation.
  */
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, type TFile, type Scope, type WorkspaceLeaf } from "obsidian";
-import { createElement, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type KplexPlugin from "../main";
 import type { GraphPage, RelationshipRole } from "../types";
 import { FuzzySearchInput, fuzzyFilterStrings } from "./FuzzySearchInput";
+import { FolderPathInput } from "./FolderPathInput";
 import { readObsidianPresentationEnvironment } from "../adapters/obsidian/presentationEnvironment";
 import { enableDraggableDialog } from "./components/DraggableDialog";
 import { ObsidianIcon } from "./ObsidianIcon";
 import { fitMobileModalToViewport } from "./mobileModalViewport";
 import { PartialRelatedFileError } from "../adapters/obsidian/relatedFileOutcome";
 import type { CompletionIntent } from "../core/plex/actions";
+import { CreationCompletionSelect, creationCompletionValue } from "./features/CreationCompletionSelect";
 
 /**
  * Confirmed saved relationship state; a pending publication remains a committed vault write.
@@ -69,13 +71,17 @@ function RelatedNoteComposer({
   hostLeaf?: WorkspaceLeaf;
   session: NewRelatedNoteModal;
 }) {
-  const [role, setRole] = useState<RelationshipRole>(initialRole);
+  const [roleFilter, setRoleFilter] = useState<RelationshipRole | "all">(initialRole);
   const [query, setQuery] = useState(/** Preselect the historical endpoint without requiring a second search. */ () => fixedTarget ? plugin.index.titleFor(fixedTarget) : "");
   const [alias, setAlias] = useState("");
   const [aliasFocused, setAliasFocused] = useState(false);
   const [noteTyped, setNoteTyped] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<GraphPage | null>(fixedTarget ?? null);
   const [ontology, setOntology] = useState(() => plugin.defaultOntologyField(initialRole));
+  const assignedRole = plugin.ontologyRoleForField(ontology);
+  const knownRole = assignedRole === "parent" || assignedRole === "child" || assignedRole === "left" || assignedRole === "right"
+    || assignedRole === "previous" || assignedRole === "next" ? assignedRole : null;
+  const role = roleFilter === "all" ? knownRole ?? initialRole : roleFilter;
   const [ontologyTyped, setOntologyTyped] = useState(false);
   const [browseOntology, setBrowseOntology] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -83,11 +89,17 @@ function RelatedNoteComposer({
   const [continuation, setContinuation] = useState<CompletionIntent>(session.continuation);
   const [savedPending, setSavedPending] = useState<GraphPage | null>(null);
   const [partialFile, setPartialFile] = useState<TFile | null>(null);
+  const [partialFailure, setPartialFailure] = useState<string | null>(null);
   const [editAfterCreate, setEditAfterCreate] = useState(() => plugin.settings.editNewNodeAfterCreate);
   const excalidrawAvailable = plugin.isExcalidrawAvailable();
   const [defaultCreateType, setDefaultCreateType] = useState<"markdown" | "excalidraw">(() =>
     plugin.settings.newNodeDefaultType === "excalidraw" && excalidrawAvailable ? "excalidraw" : "markdown",
   );
+  const [folderOverride, setFolderOverride] = useState<string | null>(null);
+  const folderPaths = useMemo(/** Capture only folder metadata once for this native dialog; no note/source work. */ () =>
+    plugin.app.vault.getAllFolders(true).map(folder => folder.path === "/" ? "/" : folder.path), [plugin]);
+  const folderPath = folderOverride ?? plugin.newRelatedNoteFolder(origin, query, defaultCreateType);
+  const folderValidation = plugin.validateNoteFolderPath(folderPath);
 
   useEffect(/** Track same-file target renames for this bounded composer, without a permanent identity index. */ () => {
     const rename = plugin.app.vault.on("rename", /** Refresh the chosen target's displayed path while retaining its exact captured file identity. */ file => {
@@ -98,20 +110,20 @@ function RelatedNoteComposer({
     return /** Retire only the rename subscription from this selected-target render. */ () => plugin.app.vault.offref(rename);
   }, [plugin, selectedTarget]);
 
-  const noteResults = useMemo(() => {
-    const trimmed = query.trim();
-    if (!noteTyped || !trimmed) return [];
-    return plugin.index.search(trimmed, 48).filter((page) => isNoteTarget(page, origin.path)).slice(0, 18);
-  }, [plugin, origin.path, query, noteTyped]);
+  const getNoteResults = useCallback(/** Filename-only selection needs no graph visibility evaluation or prepared incidence. */ (value: string) => {
+    const trimmed = value.trim();
+    return trimmed ? plugin.index.search(trimmed, 48, "vault-files").filter((page) => isNoteTarget(page, origin.path)).slice(0, 18) : [];
+  }, [plugin, origin.path]);
 
+  const ontologyFields = roleFilter === "all" ? plugin.allOntologyFields() : plugin.ontologyFieldsForRole(role);
   const ontologyResults = useMemo(
     /** Explicit disclosure shows every role-appropriate field; typing retains fuzzy ranking. */
     () => browseOntology
-      ? fuzzyFilterStrings(plugin.ontologyFieldsForRole(role), "", Number.MAX_SAFE_INTEGER)
+      ? fuzzyFilterStrings(ontologyFields, "", Number.MAX_SAFE_INTEGER)
       : ontologyTyped && ontology.trim()
-        ? fuzzyFilterStrings(plugin.ontologyFieldsForRole(role), ontology, 18)
+        ? fuzzyFilterStrings(ontologyFields, ontology, 18)
         : [],
-    [plugin, role, ontology, ontologyTyped, browseOntology],
+    [ontologyFields, ontology, ontologyTyped, browseOntology],
   );
 
   const webUrl = useMemo(() => {
@@ -124,10 +136,10 @@ function RelatedNoteComposer({
       return null;
     }
   }, [query]);
-  const nameValidation = useMemo(() => plugin.validateRelatedNoteName(query), [plugin, query]);
+  const nameValidation = useMemo(() => plugin.validateRelatedNoteName(query, folderValidation.folderPath), [plugin, query, folderValidation.folderPath]);
 
   useEffect(() => {
-    setRole(initialRole);
+    setRoleFilter(initialRole);
     setOntology(plugin.defaultOntologyField(initialRole));
     setOntologyTyped(false);
     setBrowseOntology(false);
@@ -135,6 +147,10 @@ function RelatedNoteComposer({
 
   /** Validate remembered ontology before mutation; completion revalidates captured endpoints afterward. */
   const prepareField = async (): Promise<string | null> => {
+    if (roleFilter === "all" && !knownRole) {
+      new Notice(plugin.translator("addRelated.chooseDirection"), 1800);
+      return null;
+    }
     const field = ontology.trim();
     if (!field) {
       new Notice(plugin.translator("addRelated.enterOntologyField"), 1800);
@@ -143,14 +159,14 @@ function RelatedNoteComposer({
     return plugin.rememberRelationshipOntology(role, field);
   };
 
-  /** Complete only the still-current invocation; another resets only after confirmed publication. */
-  const complete = async (page: GraphPage, intent: CompletionIntent, createdFile: boolean): Promise<void> => {
-    onCommitted?.({ state: "saved-published", page });
+  /** Complete a durable save for the current invocation; new-file writes can finish while graph reconciliation is pending. */
+  const complete = async (page: GraphPage, intent: CompletionIntent, createdFile: boolean, state: RelatedNoteCommit["state"] = "saved-published"): Promise<void> => {
+    onCommitted?.({ state, page });
     if (!session.canComplete()) return;
     plugin.requestNodeFlair(page.path);
     if (intent === "another") {
       setSelectedTarget(null); setQuery(""); setAlias(""); setNoteTyped(false); setAliasFocused(false);
-      setPartialFile(null); setOntologyTyped(false); setBrowseOntology(false);
+      setPartialFile(null); setPartialFailure(null); setOntologyTyped(false); setBrowseOntology(false);
       session.focusName();
       return;
     }
@@ -189,10 +205,13 @@ function RelatedNoteComposer({
     }
     if (!session.isSessionOpen()) return;
     const existingFile = error instanceof PartialRelatedFileError ? error.file : file;
-    if (existingFile) setPartialFile(existingFile);
-    new Notice(existingFile
-      ? plugin.translator("addRelated.partialCreation", { path: existingFile.path, error: error instanceof Error ? error.message : String(error) })
-      : plugin.translator("addRelated.createFailed", { error: error instanceof Error ? error.message : String(error) }), 5000);
+    const detail = error instanceof Error ? error.message : String(error);
+    if (existingFile) {
+      setPartialFile(existingFile);
+      setPartialFailure(detail);
+      return;
+    }
+    new Notice(plugin.translator("addRelated.createFailed", { error: detail }), 5000);
   };
 
   /** Link the captured note, with validity checked after remembered ontology awaits. */
@@ -211,32 +230,31 @@ function RelatedNoteComposer({
 
   /** Create once; retained partial files are linked explicitly on recovery instead of created again. */
   const createNew = async (kind: "markdown" | "excalidraw", intent: CompletionIntent = continuation) => {
-    if (selectedTarget || webUrl || (!partialFile && (!nameValidation.valid || nameValidation.existing)) || !beginWrite()) return;
+    if (selectedTarget || webUrl || folderValidation.error || (!partialFile && (!nameValidation.valid || nameValidation.existing)) || !beginWrite()) return;
     let file: TFile | null = partialFile;
     try {
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
       const currentOrigin = refreshCapturedPage(plugin, origin);
-      if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias);
+      if (!file) file = await plugin.createNewRelatedFileForOrigin(currentOrigin, query, kind, alias, folderPath);
       if (!file) return;
       if (!session.isSessionOpen()) return;
       if (plugin.app.vault.getFileByPath(file.path) !== file) throw new Error(plugin.translator("addRelated.endpointChanged"));
-      setPartialFile(file);
-      setDefaultCreateType(kind); void plugin.rememberNewNodeDefaultType(kind);
-      const page = await plugin.linkNewRelatedFile(refreshCapturedPage(plugin, origin), role, file, field, alias, query, Boolean(partialFile));
-      await complete(page, intent, true);
+      // Retain recovery state only after a failure. A durable file is normal progress while linking.
+      if (!partialFile) { setDefaultCreateType(kind); void plugin.rememberNewNodeDefaultType(kind); }
+      const result = await plugin.linkNewRelatedFile(refreshCapturedPage(plugin, origin), role, file, field, alias, query, Boolean(partialFile));
+      await complete(result.page, intent, true, result.state);
     } catch (error) { reportFailure(error, undefined, file ?? undefined); }
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
   };
 
   /** Save an unresolved target through the existing writer without materializing a file. */
   const createPlaceholder = async (intent: CompletionIntent = continuation) => {
-    if (selectedTarget || webUrl || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
+    if (selectedTarget || webUrl || folderValidation.error || !nameValidation.valid || nameValidation.existing || !beginWrite()) return;
     try {
-      if (alias.trim()) new Notice(plugin.translator("addRelated.placeholderAliasNotSaved"), 4000);
       const field = await prepareField();
       if (!field || !session.isSessionOpen()) return;
-      const page = await plugin.createPlaceholderRelatedPage(refreshCapturedPage(plugin, origin), role, nameValidation.stem, field);
+      const page = await plugin.createPlaceholderRelatedPage(refreshCapturedPage(plugin, origin), role, nameValidation.stem, field, folderPath, alias);
       if (page) await complete(page, intent === "edit" ? "return" : intent, false);
     } catch (error) { reportFailure(error); }
     finally { busyRef.current = false; session.setWriting(false); if (session.isSessionOpen()) setBusy(false); }
@@ -284,13 +302,13 @@ function RelatedNoteComposer({
     setOntology(value);
   };
 
-  const createAvailable = !savedPending && !selectedTarget && !webUrl && (Boolean(partialFile) || nameValidation.valid && !nameValidation.existing);
+  const createAvailable = !savedPending && !partialFile && !selectedTarget && !webUrl && !folderValidation.error && nameValidation.valid && !nameValidation.existing;
   const placeholderAvailable = createAvailable && origin.file?.extension === "md";
   const webLinkAvailable = !selectedTarget && Boolean(webUrl) && origin.file?.extension === "md";
   const noteSearch = createElement(FuzzySearchInput<GraphPage>, {
     value: query,
     onChange: onNoteChange,
-    results: noteResults,
+    getResults: getNoteResults,
     onChoose: chooseExisting,
     getKey: (page: GraphPage) => page.path,
     getLabel: (page: GraphPage) => plugin.index.titleFor(page),
@@ -445,21 +463,23 @@ function RelatedNoteComposer({
           ),
   );
 
+  const completionValue = creationCompletionValue(continuation, !selectedTarget && !webUrl && editAfterCreate);
   const editToggle = !selectedTarget && !webUrl ? createElement(
     "label",
     { className: "kplex-create-edit-toggle" },
     createElement("span", { className: "kplex-create-edit-copy" }, createElement("strong", null, plugin.translator("addRelated.openForEditing"))),
     createElement(
       "span",
-      { className: `checkbox-container${editAfterCreate ? " is-enabled" : ""}` },
+      { className: `checkbox-container${completionValue === "edit" ? " is-enabled" : ""}` },
       createElement("input", {
         type: "checkbox",
-        checked: editAfterCreate,
+        checked: completionValue === "edit",
         disabled: busy || Boolean(savedPending) || Boolean(partialFile),
         "aria-label": plugin.translator("addRelated.openNewForEditing"),
         onChange: (event: { currentTarget: HTMLInputElement }) => {
           const enabled = event.currentTarget.checked;
           setEditAfterCreate(enabled);
+          setContinuation("configured");
           plugin.settings.editNewNodeAfterCreate = enabled;
           void plugin.saveSettings(false, false);
         },
@@ -467,30 +487,52 @@ function RelatedNoteComposer({
     ),
   ) : null;
 
-  const completionSelect = createElement("label", null,
-    createElement("span", null, plugin.translator("addRelated.completionMode")),
-    createElement("select", {
-      value: continuation, disabled: busy || Boolean(savedPending), "aria-label": plugin.translator("addRelated.completionMode"),
-      onChange: /** Keep explicit intent local to this invocation. */ (event: { currentTarget: HTMLSelectElement }) => setContinuation(event.currentTarget.value as CompletionIntent),
-    }, ...(["configured", "return", "another", "follow", "edit"] as const)
-      .filter(/** URLs and unresolved notes do not support an editor completion. */ intent => intent !== "edit" || Boolean(selectedTarget?.file || !webUrl))
-      .map(/** Localized finite choices cannot inject executable preferences. */ intent => createElement("option", { key: intent, value: intent }, plugin.translator(`addRelated.completion.${intent}`)))),
-  );
-  const recovery = savedPending ? createElement("div", { role: "status" },
-    plugin.translator("addRelated.savedPending"),
-    createElement("button", { type: "button", onClick: /** Reconcile saved content without reissuing its mutation. */ () => {
+  const completionSelect = createElement(CreationCompletionSelect, {
+      translate: plugin.translator, intent: continuation, editAfterCreate: !selectedTarget && !webUrl && editAfterCreate,
+      canEdit: Boolean(selectedTarget?.file || !webUrl), disabled: busy || Boolean(savedPending),
+      onChange: setContinuation,
+  });
+  const recovery = savedPending ? createElement("div", { className: "kplex-add-related-recovery", role: "status" },
+    createElement("div", null, plugin.translator("addRelated.savedPending")),
+    createElement("div", { className: "kplex-add-related-recovery-actions" },
+      createElement("button", { type: "button", onClick: /** Reconcile saved content without reissuing its mutation. */ () => {
       void plugin.index.prepareRelationshipPair(origin.file?.path ?? origin.path, savedPending.path).then(/** Clear the form only after explicit confirmed reconciliation. */ ready => {
         if (!ready || !session.isSessionOpen()) return;
-        setSavedPending(null); setPartialFile(null); setSelectedTarget(null); setQuery(""); setAlias(""); setNoteTyped(false); session.focusName();
+        setSavedPending(null); setPartialFile(null); setPartialFailure(null); setSelectedTarget(null); setQuery(""); setAlias(""); setNoteTyped(false); session.focusName();
       }).catch(/** Keep saved status and input on an unsuccessful reconciliation. */ () => {});
-    } }, plugin.translator("addRelated.refreshSaved")),
-  ) : partialFile ? createElement("div", { role: "status" },
-    plugin.translator("addRelated.recoverFile", { path: partialFile.path }),
-    createElement("button", { type: "button", disabled: busy || Boolean(savedPending), onClick: /** Recover the existing file relationship rather than creating a duplicate. */ () => submit() }, plugin.translator("addRelated.linkCreatedFile")),
-    createElement("button", { type: "button", onClick: /** Deliberately inspect the retained file in the supported editor. */ () => { void plugin.openInDocumentLeaf(partialFile); } }, plugin.translator("addRelated.openCreatedFile")),
+    } }, plugin.translator("addRelated.refreshSaved"))),
+  ) : partialFile ? createElement("div", { className: "kplex-add-related-recovery", role: "alert" },
+    createElement("div", null, plugin.translator("addRelated.recoverFile", { path: partialFile.path })),
+    partialFailure ? createElement("div", { className: "kplex-add-related-recovery-reason" }, plugin.translator("addRelated.failureReason", { error: partialFailure })) : null,
+    createElement("div", { className: "kplex-add-related-recovery-actions" },
+      createElement("button", { type: "button", disabled: busy || Boolean(savedPending), onClick: /** Recover the existing file relationship rather than creating a duplicate. */ () => submit() }, plugin.translator("addRelated.linkCreatedFile")),
+      createElement("button", { type: "button", disabled: busy, onClick: /** Deliberately inspect the retained file in the supported editor. */ () => { void plugin.openInDocumentLeaf(partialFile); } }, plugin.translator("addRelated.openCreatedFile"))),
   ) : null;
-  const controlRow = createElement("div", { className: "kplex-add-related-control-row" }, ontologySearch, editToggle, completionSelect);
+  const roleChoices = [
+    ["all", "addRelated.allDirections"], ["child", "role.child"], ["parent", "role.parent"],
+    ["left", "role.friend"], ["right", "role.challenger"], ["previous", "role.previous"], ["next", "role.next"],
+  ] as const;
+  const roleSelect = createElement("select", {
+    className: "kplex-add-related-role-select", value: roleFilter,
+    "aria-label": plugin.translator("addRelated.relationshipType"), disabled: busy || Boolean(savedPending) || Boolean(partialFile),
+    onChange: /** All browses existing assignments; a specific direction retains explicit new-field assignment. */ (event: { currentTarget: HTMLSelectElement }) => {
+      if (busyRef.current) return;
+      const choice = roleChoices.find(([value]) => value === event.currentTarget.value);
+      if (!choice) return;
+      setRoleFilter(choice[0]);
+      if (choice[0] !== "all") setOntology(plugin.defaultOntologyField(choice[0]));
+      setOntologyTyped(false); setBrowseOntology(false);
+    },
+  }, ...roleChoices.map(([value, key]) => createElement("option", { key: value, value }, plugin.translator(key))));
+  const controlRow = createElement("div", { className: "kplex-add-related-control-row" }, roleSelect, ontologySearch);
+  const footer = createElement("div", { className: "kplex-add-related-footer" }, completionSelect, editToggle);
   const composeRow = createElement("div", { className: "kplex-add-related-compose-row" }, nameEditor, actionArea);
+  const folderRow = !selectedTarget && !webUrl ? createElement("div", { className: "kplex-create-folder-row" },
+    createElement("span", { className: "kplex-create-folder-caption" }, plugin.translator("folderPicker.label")),
+    createElement(FolderPathInput, {
+      value: folderPath, onChange: setFolderOverride, folders: folderPaths, translate: plugin.translator,
+      disabled: busy || Boolean(savedPending) || Boolean(partialFile), resultsOwnerId: session.suggestionOwnerId,
+    })) : null;
 
   let statusText: string | null = null;
   let statusError = false;
@@ -504,7 +546,10 @@ function RelatedNoteComposer({
       statusText = alias.trim() ? plugin.translator("addRelated.webAliasStatus", { alias: alias.trim() }) : plugin.translator("addRelated.webStatus");
     }
   } else if (noteTyped && query.trim()) {
-    if (nameValidation.error) {
+    if (folderValidation.error) {
+      statusText = folderValidation.error;
+      statusError = true;
+    } else if (nameValidation.error) {
       statusText = nameValidation.error;
       statusError = true;
     } else if (nameValidation.existing) {
@@ -514,7 +559,7 @@ function RelatedNoteComposer({
     }
   }
 
-  const status = statusText
+  const status = statusText && !partialFile && !savedPending
     ? createElement("div", { className: `kplex-add-related-create-hint${statusError ? " is-error" : ""}` }, statusText)
     : null;
 
@@ -523,8 +568,10 @@ function RelatedNoteComposer({
     { className: "kplex-add-related-form" },
     controlRow,
     composeRow,
+    folderRow,
     status,
     recovery,
+    footer,
   );
 }
 
@@ -538,7 +585,6 @@ export class NewRelatedNoteModal extends Modal {
   private releaseDesktopDrag: (() => void) | null = null;
   private nativeHandlers: Array<ReturnType<Scope["register"]>> = [];
   private opened = false;
-  private writing = false;
   private completing = false;
   private closingForCompletion = false;
   private nameFocusFrame: number | null = null;
@@ -575,7 +621,10 @@ export class NewRelatedNoteModal extends Modal {
   }
 
   /** Protect role changes during the exact asynchronous save, independently of React state. */
-  setWriting(writing: boolean): void { this.writing = writing; }
+  setWriting(writing: boolean): void {
+    const select = this.contentEl.querySelector<HTMLSelectElement>(".kplex-add-related-role-select");
+    if (select) select.disabled = writing;
+  }
 
   /** A close cancels unstarted work; completed disk writes remain truthful after dismissal.
    * @remarks Native Modal owns an `isOpen` boolean, so session readiness uses a distinct name.
@@ -718,24 +767,10 @@ export class NewRelatedNoteModal extends Modal {
     this.contentEl.empty(); this.root = createRoot(this.contentEl); this.renderComposer();
   }
 
-  /** Announce captured origin beside the accessible six-role selector. */
+  /** Keep the native draggable title separate from editable form controls. */
   private renderTitle(): void {
     this.titleEl.empty(); this.titleEl.addClass("kplex-add-related-title");
     this.titleEl.createSpan({ text: this.plugin.translator("addRelated.originTitle", { origin: this.plugin.index.titleFor(this.origin) }) });
-    const roleSelect = this.titleEl.createEl("select", { cls: "kplex-add-related-role-select", attr: { "aria-label": this.plugin.translator("addRelated.relationshipType") } });
-    const roleChoices = [
-      { value: "child", label: this.plugin.translator("role.child") }, { value: "parent", label: this.plugin.translator("role.parent") },
-      { value: "left", label: this.plugin.translator("role.friend") }, { value: "right", label: this.plugin.translator("role.challenger") },
-      { value: "previous", label: this.plugin.translator("role.previous") }, { value: "next", label: this.plugin.translator("role.next") },
-    ] as const;
-    for (const choice of roleChoices) roleSelect.createEl("option", { text: choice.label, attr: { value: choice.value } });
-    roleSelect.value = this.role;
-    roleSelect.addEventListener("change", /** Keep only valid finite roles and do not change role while a mutation is in flight. */ () => {
-      const choice = roleChoices.find(/** Ignore unknown selector values rather than casting a gate role. */ item => item.value === roleSelect.value);
-      if (this.writing) { roleSelect.value = this.role; return; }
-      if (!choice || choice.value === this.role) return;
-      this.role = choice.value; this.renderComposer();
-    });
   }
 
   /** Reuse one React root so another and same-file rename retain form configuration. */

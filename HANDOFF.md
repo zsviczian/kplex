@@ -1,4 +1,4 @@
-# Standing instructions — preserve this header
+# Standing instructions ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â preserve this header
 
 This is a temporary handoff document between agents. The development of the solution involves agents with access to Obsidian CLI and a full development environment with all node packages installed, but also agents with more limited access. Development is done in "ping-pong" between these two types of agents. Agents should use this document to pass instructions and status from one another, such as instructions for testing/validation, or instructions for development work that can only be done in a full environment.
 
@@ -16,16 +16,26 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 
 
+
 ---
 
-# PR141 - Accepted publication checkpoint
+# PR183 main reconciliation — accepted, inactive
 
-State: inactive implementation handoff; root reviewed and accepted combined scope for authorized commit/push/merge/closure of originalPR141. Branch2026-10-11-issue-128-delete-cleanup-scope, validationHEADf0ce0467ecd0697247fd2e8360c72ad65e92da00, integratedmain001170c9615c0ee6672fa1a472df55203c907d0f. Original tree retained in recovery stash276d2932aeb7c323bbb780a35ff5b5877105ee0c. Final Git publication identity is verified in PR141 aftercommit. No competing PR; originalissue128 linked.
+Implementation e847a50; combined integration e2e391ffe895c2ce6ae3bf7aafea1a247930adc9
+includes main658793f (#181/#182). Maintainer authorizes immediate PR183 merge after
+local checks without waiting GitHub CI, then main+fetch. All code work is complete.
+No refactoring or new feature is queued; C14 remains paused.
 
-Approved changes: configured-ontology default deletion, explicit arbitrary property Remove/Hide consent, retained body/inline links and navigable partial results. Directional Hidden consent follows selected central/write note, preserves original links and inverse visibility. User wording retained. Shared source-owned referenceParams annotations56literal/127plain across183entries produce once-only double quotes across locales; values stay opaque, no role/count/shortcut heuristics, no catalog cloning. Locale tag prefix mechanical only; actual field tooltip distinguished from descriptive source kind. Latestmain rename/menu implementation preserved.
+- [x] Preserve both feature/test/ledger histories and independently review lifetimes.
+- [x] Full npm run verify on Node22.22.2 passes7/130/1069/165/334/632 groups,
+  zero failures/skips, real build/types and official lint.
+- [x] Exact combined-build Small command/render/error smoke passes. Fresh original
+  settings/workspace/enabled bytes restored and all78 content files unchanged.
+- [x] All558 verified inputs unchanged at independent closeout audit; deployed
+  Small main a709657e06d8f893d185fbc933967266e50007424ccbab751e1410c8c286ff68.
 
-Independent root review and validation complete: architecture7/core94/portable710/browserUI60/portableSources334/browserIndexedDB442 allpass, zero failures/cancellations/skips/todos. Official Obsidian lint, actual installed-type production build and exact-artifact native render pass. Serial exact-artifact native deletion20, rename36observations(on-demand/eager), menu14includingpopout/migration/retirement pass. Source/artifact hashes match finalproductiongate. Original88notes/rawconfig restored, no ownedfixture/controllers/modals. Main.js 8c39cca6feddb3402fc0f9e98606c597b56cc70e38372d1447df5a301044d3df.
-
-Durable evidence: docs/validation/delete-cleanup-release-2026-10-12.json; olderfeature reports retain original receipts/limitations. Physical phone/macOS/OS-native menu backend not claimed passed. User authorizes publication despite prior stated phone limitation. No unrelated refactor/schema/parser change, generated artifacts tracked or archivedhandoff.
-
-Next root workflow: publish this accepted snapshot to existingPR141, merge/verifyclosed, switchmain/fetch/fastforward. Then execute separately requested unassisted Windows investigation on updatedmain, checking implementation inventories and versions before standaloneUI test, strictnativegate, renameacceptance and three serial historical-startup runs. Preserve Mac failures and deadlines; Windows diagnostic evidence belongs in a separate report, never substitute premerge results.
+Main validator owns only authorized Git publication/merge and the newly assigned
+PR148 metadata work after PR183 completes. Final Git identity belongs to PR183.
+Durable results and prior personal-vault/native limitations are in
+[the validation report](docs/validation/startup-center-investigation-2026-10-18.md).
+No personal deployment in this reconciliation; no note edits or screenshots.

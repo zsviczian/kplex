@@ -13,6 +13,13 @@
  * Only independent URL-owner staging activates canonical target/kind facts; ordinary Markdown
  * reconciliation keeps its existing iteration and never creates a whole-graph derived index.
  * URL-only pruning uses canonical lazy existence; ordinary Markdown retains its ordered iterator.
+ * Sources with matching fingerprints publish field/cache/mtime changes without cloning adjacency
+ * or adding evidence layers. Map-depth maintenance stays independent of maintenance for new forks.
+ * URL-only staging borrows replace-only facets; owned adjacency forks preserve ordering and bounded
+ * private delta replay. Display isolation and exact live ownership are separately certified by GraphIndex.
+ * Genuine ordinary Markdown edits may flatten bounded positive evidence overrides above one immutable
+ * root. Private patch forks preserve the full compactor's eight-patch maintenance/order cadence;
+ * tombstones, activated metadata and larger retained payload use the unchanged standalone fallback.
  */
 import { yieldToHostTask } from "../adapters/obsidian/yieldToHostTask";
 import { Platform, TFile, type App } from "obsidian";
@@ -28,6 +35,7 @@ import type { KplexIndexedDbCache } from "./IndexedDbCache";
 import type { EvidenceProvenance, EvidenceSourceKind, RelationEvidenceStore } from "./RelationEvidence";
 import { resolveEvidencePair } from "./RelationResolver";
 import { createGraphState, getGraphPage, type GraphState } from "./GraphState";
+import { isUrlAdjacencyMap, UrlAdjacencyMap } from "./UrlAdjacencyMap";
 import { perfNow } from "../util/perf";
 import { NormalizedGraphCompiler, type CompiledGraphNode, type CompiledRelationEvidence, type GraphCompilerSourceRead, type PortableGraphCompilation, type PortableNodeCompilation } from "../core/graph/compiler";
 import { graphCompilerSettingsFromLegacy } from "../adapters/obsidian/graphContracts";
@@ -81,6 +89,9 @@ export type PatchFileCommit = Readonly<{
 
 export type PatchFilePublisher = (commit: PatchFileCommit, publishPreparedState: () => void) => void;
 
+/** A live URL owner alone can certify exclusive adjacency at synchronous commit. */
+export type UrlAdjacencyPrivacy = (path: string, neighbours: Map<string, Relation>) => boolean;
+
 type FileRevision = {
   path: string;
   mtime: number;
@@ -106,7 +117,7 @@ const FILE_OWNED_EVIDENCE = new Set<EvidenceSourceKind>([
 /** Small copy-on-write map used only while staging one incremental file patch. Reads fall through
  * to the published map; writes/deletes stay private until commit. */
 const MAX_PATCH_OVERLAY_DEPTH = 8;
-/** Existing synchronous map-publication scale also bounds private evidence bucket replay. */
+/** Existing synchronous publication scale bounds evidence buckets and total URL neighbor replay. */
 const MAX_SYNCHRONOUS_PATCH_CHANGES = 1024;
 
 class PatchOverlayMap<K, V> extends Map<K, V> {
@@ -115,7 +126,9 @@ class PatchOverlayMap<K, V> extends Map<K, V> {
   private readonly clonedBaseKeys = new Set<K>();
   readonly depth: number;
 
-  constructor(private readonly base: Map<K, V>, private cloneOnRead?: (value: V) => V) {
+  /** Stage clones lazily; initialize first insertions and retire discarded private values before publication. */
+  constructor(private readonly base: Map<K, V>, private cloneOnRead?: (value: V) => V,
+    private initializeNew?: (value: V) => void, private retireValue?: (value: V) => void) {
     super();
     this.depth = base instanceof PatchOverlayMap ? base.depth + 1 : 1;
   }
@@ -141,19 +154,27 @@ class PatchOverlayMap<K, V> extends Map<K, V> {
     return clone;
   }
 
+  /** Apply a private write; initialize only first insertion, leaving canonical replacement untouched. */
   override set(key: K, value: V): this {
+    const previous = this.retireValue && this.local.get(key);
+    if (!this.base.has(key) && !this.local.has(key)) this.initializeNew?.(value);
+    if (previous !== undefined && previous !== value) this.retireValue?.(previous);
     if (this.base.has(key)) this.clonedBaseKeys.add(key);
     this.removed.delete(key);
     this.local.set(key, value);
     return this;
   }
+  /** Retire a removed private value before dropping its last local staging reference. */
   override delete(key: K): boolean {
     const existed = this.has(key);
+    if (this.local.has(key)) this.retireValue?.(this.local.get(key)!);
     this.local.delete(key);
     if (this.base.has(key)) this.removed.add(key);
     return existed;
   }
+  /** Retire all local private values before shadowing the captured base. */
   override clear(): void {
+    if (this.retireValue) for (const value of this.local.values()) this.retireValue(value);
     this.local.clear();
     for (const key of this.base.keys()) this.removed.add(key);
   }
@@ -203,20 +224,27 @@ class PatchOverlayMap<K, V> extends Map<K, V> {
   }
   /** Published overlays must become read-only views over their base. Clone-on-read is a staging
    * behavior only; leaving it enabled would make ordinary graph reads mutate the published map. */
-  seal(): this { this.cloneOnRead = undefined; return this; }
+  seal(): this { this.cloneOnRead = undefined; this.initializeNew = undefined; this.retireValue = undefined; return this; }
 }
 
 function isPatchOverlayMap<K, V>(map: Map<K, V>): map is PatchOverlayMap<K, V> {
   return map instanceof PatchOverlayMap;
 }
 
-function cloneGraphPage(page: GraphPage): GraphPage {
+/**
+ * Stage scalars and a private adjacency map. Only the isolated URL lane borrows array facets:
+ * every writer in that lane replaces arrays, including later aggregate alias publication. Ordinary
+ * Markdown callers retain their existing copied facets and no array mutation capability is added.
+ * Known owned URL maps fork without copying; unknown adjacency is copied before private writes.
+ */
+function cloneGraphPage(page: GraphPage, shareArrayFacets = false, privateAdjacency = false): GraphPage {
   return {
     ...page,
-    neighbours: new Map(page.neighbours),
-    aliases: [...page.aliases],
-    tags: [...page.tags],
-    styleTags: [...page.styleTags],
+    neighbours: privateAdjacency && page.url ? isUrlAdjacencyMap(page.neighbours)
+      ? page.neighbours.fork() : UrlAdjacencyMap.copyOf(page.neighbours) : new Map(page.neighbours),
+    aliases: shareArrayFacets ? page.aliases : [...page.aliases],
+    tags: shareArrayFacets ? page.tags : [...page.tags],
+    styleTags: shareArrayFacets ? page.styleTags : [...page.styleTags],
     transient: page.transient ? { ...page.transient } : undefined,
   };
 }
@@ -302,25 +330,34 @@ export class GraphBuilder {
   }
 
 
-  private createPatchState(state: GraphState, forkEvidence = true): GraphState {
+  /** Prepare private map/evidence overlays; URL-only replace-only facets may borrow their arrays. */
+  private createPatchState(state: GraphState, forkEvidence = true, shareArrayFacets = false, privateAdjacency = false): GraphState {
     return {
-      pages: new PatchOverlayMap(state.pages, cloneGraphPage),
+      pages: new PatchOverlayMap(state.pages, /** Clone only this lane's permitted mutable page fields. */ page => cloneGraphPage(page, shareArrayFacets, privateAdjacency),
+        /** New URL maps become owned before any relationship is inserted; document maps stay native. */ page => {
+          if (privateAdjacency && page.url && !isUrlAdjacencyMap(page.neighbours)) page.neighbours = UrlAdjacencyMap.copyOf(page.neighbours);
+        }, privateAdjacency ? /** Pruned/replaced private maps must not escape retirement by leaving the local entries list. */ page => {
+          if (isUrlAdjacencyMap(page.neighbours) && state.pages.get(page.path)?.neighbours !== page.neighbours) page.neighbours.discard();
+        } : undefined),
       lowercasePathMap: new PatchOverlayMap(state.lowercasePathMap),
-      evidence: forkEvidence ? state.evidence.fork() : state.evidence,
+      evidence: forkEvidence ? state.evidence.forkForPatch() : state.evidence,
       discoveredFields: new PatchOverlayMap(state.discoveredFields, (value) => ({ ...value })),
     };
   }
 
   /** Bound retained copy-on-write history before starting another transaction. Compaction builds
-   * complete private replacements and publishes them together only after all checkpoints pass. */
-  private async compactPublishedPatchLayers(state: GraphState): Promise<boolean> {
+   * complete private replacements and publishes them together only after all checkpoints pass.
+   * @param includeEvidence A source with a matching fingerprint adds no evidence layer, leaving it intact;
+   * independent map-depth maintenance still runs for large field-discovery publications.
+   * @param sparseEvidence Only genuine ordinary Markdown edits opt into bounded positive override compaction. */
+  private async compactPublishedPatchLayers(state: GraphState, includeEvidence = true, sparseEvidence = false): Promise<boolean> {
     const pageOverlay = isPatchOverlayMap(state.pages) && state.pages.depth >= MAX_PATCH_OVERLAY_DEPTH
       ? state.pages : null;
     const lowercaseOverlay = isPatchOverlayMap(state.lowercasePathMap) && state.lowercasePathMap.depth >= MAX_PATCH_OVERLAY_DEPTH
       ? state.lowercasePathMap : null;
     const fieldOverlay = isPatchOverlayMap(state.discoveredFields) && state.discoveredFields.depth >= MAX_PATCH_OVERLAY_DEPTH
       ? state.discoveredFields : null;
-    const compactEvidence = state.evidence.depth >= MAX_PATCH_OVERLAY_DEPTH;
+    const compactEvidence = includeEvidence && state.evidence.depth >= MAX_PATCH_OVERLAY_DEPTH;
     if (!pageOverlay && !lowercaseOverlay && !fieldOverlay && !compactEvidence) return this.isCurrent();
 
     const pages = pageOverlay ? await pageOverlay.flattenCooperative(() => this.yieldToHost()) : state.pages;
@@ -331,8 +368,9 @@ export class GraphBuilder {
     const discoveredFields = fieldOverlay
       ? await fieldOverlay.flattenCooperative(() => this.yieldToHost()) : state.discoveredFields;
     if (!discoveredFields) return false;
-    const evidence = compactEvidence
-      ? await state.evidence.compactCooperative(() => this.yieldToHost()) : state.evidence;
+    const evidence = compactEvidence ? sparseEvidence
+      ? await state.evidence.compactOrdinaryPatchCooperative(/** Retain the ordinary caller's scheduling and lifetime fence. */ () => this.yieldToHost())
+      : await state.evidence.compactCooperative(() => this.yieldToHost()) : state.evidence;
     if (!evidence || !this.isCurrent()) return false;
 
     state.pages = pages;
@@ -357,13 +395,30 @@ export class GraphBuilder {
 
   /** Publish a fully staged file patch. All expensive parsing/evidence/resolution work happens in
    * the private overlay first; this short final section only preserves existing GraphPage identity
-   * and swaps the evidence transaction. URL-only callers may confirm exclusive evidence ownership
-   * here, after all awaits; bounded child adoption never mutates a retained published generation. */
+   * and swaps the evidence transaction. URL-only callers independently confirm exclusive evidence
+   * and adjacency ownership here, after all awaits; retained displayed maps never receive replay. */
   private commitPatchState(live: GraphState, staged: GraphState,
-    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean): void {
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean, canAdoptAdjacency?: UrlAdjacencyPrivacy): void {
     const pages = staged.pages as PatchOverlayMap<string, GraphPage>;
     const lowercase = staged.lowercasePathMap as PatchOverlayMap<string, string>;
     const fields = staged.discoveredFields as PatchOverlayMap<string, { name: string; count: number }>;
+    // Validate every child before changing any canonical identity. Admission is one total budget,
+    // independent of page count; neither ownership nor safety follows from evidence inequality.
+    const adopted = canAdoptAdjacency ? new Map<GraphPage, UrlAdjacencyMap<string, Relation>>() : undefined;
+    if (adopted && canAdoptAdjacency) {
+      const parents = new Map<Map<string, Relation>, number>();
+      for (const [, , parent] of pages.existingLocalEntries()) parents.set(parent.neighbours, (parents.get(parent.neighbours) ?? 0) + 1);
+      let budget = MAX_SYNCHRONOUS_PATCH_CHANGES;
+      for (const [path, child, parent] of pages.existingLocalEntries()) {
+        const map = child.neighbours;
+        if (!isUrlAdjacencyMap(map)) continue;
+        if (!map.isCurrent()) throw new Error("Stale private URL adjacency at publication");
+        const base = parent.neighbours;
+        if (isUrlAdjacencyMap(base) && parents.get(base) === 1 && base.canAdopt(map, budget) && canAdoptAdjacency(path, base)) {
+          adopted.set(child, base); budget -= map.replayCost;
+        }
+      }
+    }
 
     // Very large edits (for example a note containing ten thousand distinct external URLs) can
     // touch enough page keys that replaying every staged Map mutation would itself become the
@@ -374,7 +429,18 @@ export class GraphBuilder {
     // staged fields into those identities and make the overlay reference them before publication.
     // New pages can be published directly; deleted pages need no identity preservation.
     for (const [path, stagedPage, publishedPage] of pages.existingLocalEntries()) {
-      publishGraphPage(publishedPage, stagedPage);
+      const map = stagedPage.neighbours, parent = adopted?.get(stagedPage);
+      if (parent && isUrlAdjacencyMap(map)) {
+        parent.adopt(map, MAX_SYNCHRONOUS_PATCH_CHANGES);
+        // Retained private child wrappers are retired, never reassigned to the mutable parent.
+        publishGraphPage(publishedPage, { ...stagedPage, neighbours: parent });
+      } else {
+        if (isUrlAdjacencyMap(map)) {
+          if (isUrlAdjacencyMap(publishedPage.neighbours)) publishedPage.neighbours.freeze();
+          map.freezeBase();
+        }
+        publishGraphPage(publishedPage, stagedPage);
+      }
       pages.set(path, publishedPage);
     }
 
@@ -393,6 +459,27 @@ export class GraphBuilder {
     }
     if (!canAdoptEvidence?.(live.evidence)
       || !live.evidence.adoptPrivateFork(staged.evidence, MAX_SYNCHRONOUS_PATCH_CHANGES)) live.evidence = staged.evidence;
+  }
+
+  /** Compact only touched URL maps privately; cancellation leaves canonical storage unchanged. */
+  private async compactUrlAdjacency(staged: GraphState): Promise<boolean> {
+    const pages = staged.pages as PatchOverlayMap<string, GraphPage>;
+    for (const [, page] of pages.localEntries()) {
+      const map = page.neighbours;
+      if (!isUrlAdjacencyMap(map) || !map.needsCompaction(MAX_PATCH_OVERLAY_DEPTH)) continue;
+      const flattened = await map.flattenCooperative(/** Compaction yields after each bounded copied chunk. */ () => this.yieldToHost(true));
+      if (!flattened) return false;
+      page.neighbours = flattened; map.discard();
+    }
+    return this.isCurrent();
+  }
+
+  /** Release cancelled/consumed private wrappers; a published replacement retains its own storage. */
+  private disposeUrlAdjacency(live: GraphState, staged: GraphState): void {
+    for (const [path, page] of (staged.pages as PatchOverlayMap<string, GraphPage>).localEntries()) {
+      const map = page.neighbours;
+      if (isUrlAdjacencyMap(map) && live.pages.get(path)?.neighbours !== map) map.discard();
+    }
   }
 
   private materializePreparedNode(state: GraphState, node: CompiledGraphNode): boolean {
@@ -625,6 +712,7 @@ export class GraphBuilder {
    * otherwise `null` so the coordinator can retain the previous published graph.
    */
   async build(options: Readonly<{ acquireSources?: boolean }> = {}): Promise<GraphState | null> {
+    this.plugin.startupDiagnostics?.recordWork("fullBuildStarts");
     const compiler = this.createFullCompiler();
     const structuralRead = await this.collectStructuralSources(compiler);
     if (!structuralRead) return null;
@@ -686,93 +774,99 @@ export class GraphBuilder {
    * patch preparer and origin-lifetime reconciliation are shared with ordinary Markdown patches;
    * existing inline/property grammar is restricted to external targets; unrelated note relations and source inventory are not acquired here.
    * Private copy-on-write staging is committed only after exact native file/lifetime checks.
-   * Optional evidence adoption is authorized only by a live privacy check during that commit.
+   * Evidence and adjacency adoption require independent live privacy checks during that commit.
    * This isolated lane opts into cooperatively activated target/kind facts before origin reconciliation.
    * @returns Paths affected by the synchronous publication, or null after supersession.
    */
   async patchUrlReferences(state: GraphState, file: TFile, body: ParsedBodyMetadata, publisher: PatchFilePublisher, cachedFrontmatter?: Record<string, unknown>,
-    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean): Promise<Set<string> | null> {
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean, canAdoptAdjacency?: UrlAdjacencyPrivacy): Promise<Set<string> | null> {
     const revision = this.captureFileRevision(file), sourcePath = revision.path;
     if (!this.isCurrent() || !(await this.compactPublishedPatchLayers(state))) return null;
-    const staged = this.createPatchState(state, true);
-    if (!staged.pages.has(sourcePath)) this.addPage(staged, this.createPage({ path: sourcePath, name: file.basename, file }));
-    const source = entityFactForFile(file);
-    const preparer = new NormalizedSourcePatchPreparer(nodeId(sourcePath), this.fullCompilerSettings(),
-      this.patchCompilerRuntime(), this.patchReadPort(staged));
-    const boundary = { generation: sourceGeneration(`url-owner:${sourcePath}:${revision.mtime}`),
-      snapshotRevision: sourceSnapshotRevision(`url-owner:${sourcePath}:${revision.mtime}`) };
-    const read = preparer.beginRead(boundary);
-    const entityBatch = { boundary, sequence: 0, final: body.urls.length === 0, records: [source] };
-    if (!(await preparer.acceptBatch(read, entityBatch))) return null;
-    for (let start = 0, sequence = 1; start < body.urls.length; start += 256, sequence++) {
-      const records = body.urls.slice(start, start + 256).map(/** Preserve canonical identity and lexical provenance. */
-        reference => normalizedBodyUrl(source.entity, source.sourceRevision, reference));
-      if (!(await preparer.acceptBatch(read, { boundary, sequence, final: start + 256 >= body.urls.length, records }))) return null;
-    }
-    if (!preparer.completeRead(read, boundary)) return null;
-    const references = new ObsidianReferenceSourceCollector(
-      { metadataCache: this.app.metadataCache, resolvedLinkCount: this.metadataSourceHost.resolvedLinkCount },
-      { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => 0 }, file,
-      mergeFileMetadata(this.app.metadataCache.getFileCache(file) ?? (cachedFrontmatter ? { frontmatter: cachedFrontmatter } : null), body), { externalOnly: true });
-    if (!(await this.collectPatchFinalSource(preparer, references))) return null;
-    const result = await preparer.finish();
-    if (result.outcome !== "prepared" || !this.fileRevisionMatches(file, revision)) return null;
-    const affected = new Set<string>([sourcePath]), urls = new Set<string>();
-    for (const item of staged.evidence.declarationsTouchingIterator(sourcePath)) {
-      affected.add(item.declaredTargetPath);
-      if (item.sourceKind !== "url-origin" && staged.pages.get(item.declaredTargetPath)?.url) urls.add(item.declaredTargetPath);
-    }
-    if (await staged.evidence.removeDeclarationsTouchingCooperative(sourcePath,
-      /** This isolated graph contains only the owner's canonical external URL evidence. */
-      item => item.declaredByPath === sourcePath && FILE_OWNED_EVIDENCE.has(item.sourceKind), () => this.yieldToHost()) === null) return null;
-    const origins = new Map<string, string>();
-    if (!(await this.applyPreparedSourcePatch(staged, sourcePath, result.patch, affected, origins, "patch"))) return null;
-    for (const path of affected) if (staged.pages.get(path)?.url) urls.add(path);
-    if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, origins, affected, true))) return null;
-    for (const path of affected) if (path !== sourcePath) {
-      this.resolvePatchEvidencePair(staged, sourcePath, path);
-      this.resolvePatchEvidencePair(staged, path, sourcePath);
-    }
-    if (!(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected, false, true))) return null;
-    if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) return null;
-    // No await below: URL source evidence, incidence and shared origin lifetimes publish together.
-    this.publishUrlPatch(state, staged, sourcePath, affected, publisher, canAdoptEvidence);
-    return affected;
+    const staged = this.createPatchState(state, true, true, Boolean(canAdoptAdjacency));
+    try {
+      if (!staged.pages.has(sourcePath)) this.addPage(staged, this.createPage({ path: sourcePath, name: file.basename, file }));
+      const source = entityFactForFile(file);
+      const preparer = new NormalizedSourcePatchPreparer(nodeId(sourcePath), this.fullCompilerSettings(),
+        this.patchCompilerRuntime(), this.patchReadPort(staged));
+      const boundary = { generation: sourceGeneration(`url-owner:${sourcePath}:${revision.mtime}`),
+        snapshotRevision: sourceSnapshotRevision(`url-owner:${sourcePath}:${revision.mtime}`) };
+      const read = preparer.beginRead(boundary);
+      const entityBatch = { boundary, sequence: 0, final: body.urls.length === 0, records: [source] };
+      if (!(await preparer.acceptBatch(read, entityBatch))) return null;
+      for (let start = 0, sequence = 1; start < body.urls.length; start += 256, sequence++) {
+        const records = body.urls.slice(start, start + 256).map(/** Preserve canonical identity and lexical provenance. */
+          reference => normalizedBodyUrl(source.entity, source.sourceRevision, reference));
+        if (!(await preparer.acceptBatch(read, { boundary, sequence, final: start + 256 >= body.urls.length, records }))) return null;
+      }
+      if (!preparer.completeRead(read, boundary)) return null;
+      const references = new ObsidianReferenceSourceCollector(
+        { metadataCache: this.app.metadataCache, resolvedLinkCount: this.metadataSourceHost.resolvedLinkCount },
+        { isCurrent: this.isCurrent, checkpoint: () => this.yieldToHost(), sourceRevision: () => 0 }, file,
+        mergeFileMetadata(this.app.metadataCache.getFileCache(file) ?? (cachedFrontmatter ? { frontmatter: cachedFrontmatter } : null), body), { externalOnly: true });
+      if (!(await this.collectPatchFinalSource(preparer, references))) return null;
+      const result = await preparer.finish();
+      if (result.outcome !== "prepared" || !this.fileRevisionMatches(file, revision)) return null;
+      const affected = new Set<string>([sourcePath]), urls = new Set<string>();
+      for (const item of staged.evidence.declarationsTouchingIterator(sourcePath)) {
+        affected.add(item.declaredTargetPath);
+        if (item.sourceKind !== "url-origin" && staged.pages.get(item.declaredTargetPath)?.url) urls.add(item.declaredTargetPath);
+      }
+      if (await staged.evidence.removeDeclarationsTouchingCooperative(sourcePath,
+        /** This isolated graph contains only the owner's canonical external URL evidence. */
+        item => item.declaredByPath === sourcePath && FILE_OWNED_EVIDENCE.has(item.sourceKind), () => this.yieldToHost()) === null) return null;
+      const origins = new Map<string, string>();
+      if (!(await this.applyPreparedSourcePatch(staged, sourcePath, result.patch, affected, origins, "patch"))) return null;
+      for (const path of affected) if (staged.pages.get(path)?.url) urls.add(path);
+      if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, origins, affected, true))) return null;
+      for (const path of affected) if (path !== sourcePath) {
+        this.resolvePatchEvidencePair(staged, sourcePath, path);
+        this.resolvePatchEvidencePair(staged, path, sourcePath);
+      }
+      if (!(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected, false, true))) return null;
+      if (!(await this.compactUrlAdjacency(staged))) return null;
+      if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) return null;
+      // No await below: URL source evidence, incidence and shared origin lifetimes publish together.
+      this.publishUrlPatch(state, staged, sourcePath, affected, publisher, canAdoptEvidence, canAdoptAdjacency);
+      return affected;
+    } finally { this.disposeUrlAdjacency(state, staged); }
   }
 
   /**
    * Retire a URL owner privately while preserving shared origins and remaining contributors.
-   * The optional privacy capability is checked only during the synchronous evidence commit.
+   * Independent evidence/adjacency privacy capabilities are checked only during synchronous commit.
    * Selective canonical facts activate only on its private URL-only staging generation.
    */
   async removeUrlOwner(state: GraphState, path: string, publisher: PatchFilePublisher,
-    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean): Promise<Set<string> | null> {
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean, canAdoptAdjacency?: UrlAdjacencyPrivacy): Promise<Set<string> | null> {
     if (!(await this.compactPublishedPatchLayers(state))) return null;
-    const staged = this.createPatchState(state, true), affected = new Set<string>([path]), urls = new Set<string>();
-    for (const item of staged.evidence.declarationsTouchingIterator(path)) {
-      affected.add(item.declaredTargetPath);
-      if (item.sourceKind !== "url-origin" && staged.pages.get(item.declaredTargetPath)?.url) urls.add(item.declaredTargetPath);
-    }
-    if (await staged.evidence.removeDeclarationsTouchingCooperative(path,
-      /** URL-only owner removal never erases shared synthetic origin declarations. */
-      item => item.declaredByPath === path && FILE_OWNED_EVIDENCE.has(item.sourceKind), () => this.yieldToHost()) === null) return null;
-    staged.pages.delete(path); staged.lowercasePathMap.delete(path.toLowerCase());
-    for (const target of affected) if (target !== path) staged.pages.get(target)?.neighbours.delete(path);
-    if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, new Map(), affected, true))
-      || !(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected, false, true)) || !this.isCurrent()) return null;
-    this.publishUrlPatch(state, staged, path, affected, publisher, canAdoptEvidence);
-    return affected;
+    const staged = this.createPatchState(state, true, true, Boolean(canAdoptAdjacency)), affected = new Set<string>([path]), urls = new Set<string>();
+    try {
+      for (const item of staged.evidence.declarationsTouchingIterator(path)) {
+        affected.add(item.declaredTargetPath);
+        if (item.sourceKind !== "url-origin" && staged.pages.get(item.declaredTargetPath)?.url) urls.add(item.declaredTargetPath);
+      }
+      if (await staged.evidence.removeDeclarationsTouchingCooperative(path,
+        /** URL-only owner removal never erases shared synthetic origin declarations. */
+        item => item.declaredByPath === path && FILE_OWNED_EVIDENCE.has(item.sourceKind), () => this.yieldToHost()) === null) return null;
+      staged.pages.delete(path); staged.lowercasePathMap.delete(path.toLowerCase());
+      for (const target of affected) if (target !== path) staged.pages.get(target)?.neighbours.delete(path);
+      if (!(await this.reconcilePreparedUrlOriginsCooperative(staged, urls, new Map(), affected, true))
+        || !(await this.pruneUnusedUrlNodesCooperative(staged, urls, affected, false, true)) || !this.isCurrent()) return null;
+      if (!(await this.compactUrlAdjacency(staged))) return null;
+      this.publishUrlPatch(state, staged, path, affected, publisher, canAdoptEvidence, canAdoptAdjacency);
+      return affected;
+    } finally { this.disposeUrlAdjacency(state, staged); }
   }
 
   /** Enforce exactly-once URL publication; caller privacy is evaluated within the synchronous commit. */
   private publishUrlPatch(live: GraphState, staged: GraphState, sourcePath: string, affected: Set<string>, publisher: PatchFilePublisher,
-    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean): void {
+    canAdoptEvidence?: (evidence: RelationEvidenceStore) => boolean, canAdoptAdjacency?: UrlAdjacencyPrivacy): void {
     let accepting = true, published = false;
     try {
       publisher({ sourcePath, touchedPagePaths: affected, semanticChanged: true }, /** Commit only during the publisher call. */
         () => {
           if (!accepting || published) throw new Error("URL publisher callback expired or already used");
-          published = true; this.commitPatchState(live, staged, canAdoptEvidence);
+          published = true; this.commitPatchState(live, staged, canAdoptEvidence, canAdoptAdjacency);
         });
     } finally { accepting = false; }
     if (!published) throw new Error("URL publisher did not publish synchronously");
@@ -805,6 +899,7 @@ export class GraphBuilder {
    * Final physical/host/source fences discard all private nodes on interruption.
    */
   async buildSourceNodeCatalog(onProgress?: () => void): Promise<GraphState | null> {
+    this.plugin.startupDiagnostics?.recordWork("nodeCatalogStarts");
     const acquisition = this.sourceAcquisition;
     if (!acquisition?.hasSemanticDependencies()) return null;
     const maintenance = acquisition.getMaintenanceRevision();
@@ -1360,6 +1455,8 @@ export class GraphBuilder {
    * left a hot body/fingerprint cache entry behind. Structural vault changes remain the caller's
    * responsibility. Cancellation still retains previously committed sources; progress is durable
    * through neutral source heads without pausing ingestion to serialize a full graph.
+   * Matching source fingerprints retain adjacency and evidence; field discovery, mtime, hot body
+   * and fingerprint still publish together after source acquisition and exact revision/lifetime checks.
    */
   async patchMarkdownFiles(
     state: GraphState,
@@ -1475,29 +1572,28 @@ export class GraphBuilder {
       const previousSignature = discoveryMode === "rebuild" || options.forceRecompile
         ? undefined
         : this.semanticFingerprints.get(sourcePath) ?? previousEntry?.semanticSignature;
-      if (!(await this.compactPublishedPatchLayers(state)) || !this.fileRevisionMatches(file, revision)) {
+      if (!(await this.compactPublishedPatchLayers(state, previousSignature !== signature, true)) || !this.fileRevisionMatches(file, revision)) {
         return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       }
       const stagedState = this.createPatchState(state, previousSignature !== signature);
-      const stagedPage = getGraphPage(stagedState, sourcePath);
-      if (!stagedPage) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
 
       if (previousSignature === signature) {
-        // Even semantic no-ops stage their small metadata/cache-visible mutations. Cancellation can
-        // therefore never leave a half-updated discovered-field table or mtime behind.
+        // Only field discovery needs an overlay. The existing canonical page receives its scalar
+        // mtime at commit; reading it through the staging map would clone all of its unchanged
+        // adjacency/arrays. No shared page value is mutated during awaited source/field preparation.
         const meta = mergeFileMetadata(this.app.metadataCache.getFileCache(file), body);
         if (!(await this.applyFieldNameSourceFacts(stagedState, file, meta))) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         }
-        stagedPage.mtime = revision.mtime;
         if (!this.isCurrent() || !this.fileRevisionMatches(file, revision)) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         }
         if (!(await this.yieldToHost(true)) || !this.fileRevisionMatches(file, revision)) {
           return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
         }
-        publishFileCommit(false, () => {
+        publishFileCommit(false, /** Publish metadata/cache together without an adjacency write. */ () => {
           this.commitPatchState(state, stagedState);
+          page.mtime = revision.mtime;
           if (retiredEndpoints) this.sourceAcquisition?.acknowledgeNodeImpacts(sourcePath, retiredEndpoints);
           this.rememberFieldCache(sourcePath, { mtime: revision.mtime, body, semanticSignature: signature });
           this.semanticFingerprints.set(sourcePath, signature);
@@ -1507,6 +1603,8 @@ export class GraphBuilder {
         continue;
       }
 
+      const stagedPage = getGraphPage(stagedState, sourcePath);
+      if (!stagedPage) return { ok: false, cancelled: true, rebuildRequired: false, touchedPagePaths, semanticChanges, semanticNoops };
       const topologyChanged = this.topologySignature(previousSignature) !== this.topologySignature(signature);
       const affected = new Set<string>();
       const oldTagPaths = new Set<string>();

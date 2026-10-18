@@ -132,6 +132,10 @@ function installProbe() {
     await until(() => document.querySelector(".kplex-delete-node-modal") || done, "Delete confirmation never opened");
     const modal = document.querySelector(".kplex-delete-node-modal");
     check(modal, `Delete skipped fresh scope consent: ${JSON.stringify(outcome)}`);
+    // Property overrides are now behind a native disclosure. Open it before using
+    // those controls so acceptance exercises the current visible consent surface.
+    const review = modal.querySelector("details");
+    if (configure && review) review.open = true;
     c.lastChoices = [...modal.querySelectorAll("[data-kplex-delete-field]")].map(row => ({sourcePath:row.dataset.kplexDeleteSource,field:row.dataset.kplexDeleteField,choice:row.querySelector("select")?.value}));
     check(modal.textContent.includes(item.page.name), "Delete confirmation omitted target");
     if (configure) await configure(modal);
@@ -155,6 +159,13 @@ function installProbe() {
   };
   /** Exercise real connector consent, its changing direction, and the selected note's canonical result. */
   const hideFromContext = async (item, cancel = false, saveInTarget = false) => {
+    const menuOwner = p, originalMenu = menuOwner.showKplexMenuAtPosition;
+    // Select the inspectable host backend without replacing coordinates or actions.
+    menuOwner.showKplexMenuAtPosition = function(menu, ...args) {
+      menu.setUseNativeMenu(false);
+      return originalMenu.call(this, menu, ...args);
+    };
+    try {
     const sourceFile = saveInTarget ? item.targetFile : item.sources[0];
     const oppositePath = saveInTarget ? item.sources[0].path : item.targetPath;
     const targetBytes = await app.vault.read(item.targetFile), targetBody = await body(item.targetFile);
@@ -238,6 +249,7 @@ function installProbe() {
       await viewVisible(sourceFile.path, oppositePath, false);
     }
     } finally { owner.hideRelationship = original; }
+    } finally { menuOwner.showKplexMenuAtPosition = originalMenu; }
   };
   /** Check generic property-only ghost/evidence without substituting a live physical file. */
   const ghost = async (item, source) => {
@@ -310,9 +322,10 @@ function installProbe() {
       showCrossLinks: false, renderSiblings: false, showPageNodes: true, showVirtualNodes: true,
       showInferredNodes: true, inferAllLinksAsFriends: false, applyPowerFilter: false, animationSpeed: 0 });
     p.settings.deletePromptInitialized = false; p.settings.confirmFileDelete = true;
+    p.settings.removeOntologyLinksOnDelete = true;
     await p.setDocumentSyncMode("off"); await p.saveSettings(); await p.activateView(); await p.index.refreshSemanticSettings();
 
-    const mixed = await fixture("default", [["owner", item => yaml({ Parent: `[[${item.targetPath}]]`,
+    const mixed = await fixture("default", [["owner", item => yaml({ Parent: `[[${item.targetPath}]]`, hidden: `[[${item.targetPath}]]`,
       arbitrary: `[[${item.targetPath}]]`, list: [`[[${item.targetPath}]]`, `[[${item.other.path}]]`, `[[${item.targetPath}]]`],
       nested: { reference: `[[${item.targetPath}]]`, keep: 7 } }, `# Body retained\n[[${item.targetPath}]]\nParent:: [[${item.targetPath}]]\n`)]]);
     p.settings.navigationHistory = [mixed.other.path, mixed.targetPath]; p.settings.lastActivePath = mixed.targetPath;
@@ -328,6 +341,7 @@ function installProbe() {
     c.defaultReceipt = {outcome,remaining,choices:c.lastChoices,ontology:p.allOntologyFields(),
       report:document.querySelector(".kplex-remaining-references-modal")?.textContent??null};
     check(!Object.hasOwn(remaining, "Parent"), "Default retained configured ontology");
+    check(!Object.hasOwn(remaining, "hidden"), "Default retained configured Hidden ontology");
     for (const key of ["arbitrary", "list", "nested"]) equal(remaining[key], before[key], `Default touched ${key}`);
     await bodiesUnchanged(mixed);
     const reportModal = document.querySelector(".kplex-remaining-references-modal");
@@ -337,6 +351,18 @@ function installProbe() {
     await until(() => app.workspace.getLeavesOfType("markdown").some(leaf => leaf.view.file === mixed.sources[0]), "Native property source navigation failed");
     passed("default-ontology-and-inline-navigation", { outcome: outcome.status, survivingProperties: Object.keys(remaining), lastActivePath: p.settings.lastActivePath });
     await closeReports();
+
+    p.settings.removeOntologyLinksOnDelete = false; await p.saveSettings(false, false);
+    const disabled = await fixture("cleanup-disabled", [["owner", item => yaml({ Parent: `[[${item.targetPath}]]`,
+      hidden: `[[${item.targetPath}]]`, arbitrary: `[[${item.targetPath}]]` }, `# Body retained\n[[${item.targetPath}]]\n`)]]);
+    outcome = await deleteWithDialog(disabled, modal => {
+      check(modal.textContent.includes(p.translator("delete.cleanup.disabled")), "Disabled preference omitted from consent");
+      check([...modal.querySelectorAll("select[data-kplex-delete-choice]")].every(select => select.value === "keep"), "Disabled cleanup proposed a property write");
+    });
+    check(!app.vault.getFileByPath(disabled.targetPath), "Disabled cleanup did not trash the file");
+    equal(await app.vault.read(disabled.sources[0]), disabled.original.get(disabled.sources[0].path).bytes, "Disabled cleanup rewrote source bytes");
+    passed("cleanup-preference-off-preserves-all-source-bytes", { outcome: outcome.status }); await closeReports();
+    p.settings.removeOntologyLinksOnDelete = true; await p.saveSettings(false, false);
 
     p.settings.deletePromptInitialized = true; p.settings.confirmFileDelete = false; await p.saveSettings(false, false);
     const propertyOnly = await fixture("property-only", [["owner", item => yaml({ arbitrary: `[[${item.targetPath}]]` })]]);
@@ -363,10 +389,12 @@ function installProbe() {
     passed("cancel-no-write");
 
     const selected = await fixture("selective", [["owner", item => yaml({ Parent: `[[${item.targetPath}]]`,
-      removeMe: [`[[${item.targetPath}]]`, `[[${item.other.path}]]`, `[[${item.targetPath}]]`], keepMe: `[[${item.targetPath}]]` })]]);
+      removeMe: [`[[${item.targetPath}]]`, `[[${item.other.path}]]`, `[[${item.targetPath}]]`], keepMe: `[[${item.targetPath}]]` })],
+      ["other-note", item => yaml({ removeMe: `[[${item.targetPath}]]` })]]);
     outcome = await deleteWithDialog(selected, modal => choose(modal, selected.sources[0], "removeMe", "remove"));
     equal(properties(selected.sources[0]).removeMe, [`[[${selected.other.path}]]`], "Selected removal lost unrelated occurrence");
     equal(properties(selected.sources[0]).keepMe, `[[${selected.targetPath}]]`, "Selected removal touched unselected field");
+    equal(await app.vault.read(selected.sources[1]), selected.original.get(selected.sources[1].path).bytes, "Selected removal changed another note");
     await bodiesUnchanged(selected); passed("explicit-extra-field-removal", { outcome: outcome.status }); await closeReports();
 
     const hidden = await fixture("delete-hide", [["owner", item => yaml({ arbitrary: `[[${item.targetPath}]]` })]]);

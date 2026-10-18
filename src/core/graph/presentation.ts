@@ -36,3 +36,14 @@ export function tagDisplayName(semanticPath: string, showFullTagName: boolean): 
   const parts = tagPath.split("/");
   return showFullTagName ? tagPath : parts[parts.length - 1] ?? tagPath;
 }
+
+/** A tag-backed single Note Type changes presentation only; tag membership keeps its existing semantics. */
+export function isNoteTypeTagConnection(source: Readonly<{isTag: boolean; path: string; noteType: string | null}>,
+  target: Readonly<{isTag: boolean; path: string; noteType: string | null}>): boolean {
+  if (source.isTag === target.isTag) return false;
+  const tag = source.isTag ? source : target, note = source.isTag ? target : source;
+  return unwrapNoteType(note.noteType)?.toLocaleLowerCase() === tagDisplayName(tag.path, true).replace(/^#/, "").toLocaleLowerCase();
+}
+
+/** Reserved appearance override; never added to the ontology or persisted relationship evidence. */
+export const NOTE_TYPE_TAG_LINK_STYLE = "k-plex:note-type-tag";

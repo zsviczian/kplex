@@ -12,14 +12,14 @@ type TranslationValue<K extends EnglishKey> = SourceEntry<K> extends { readonly 
   ? Readonly<Record<string, string>>
   : string;
 
-/** New feature copy ships in English until reviewed translations are supplied; existing keys stay exhaustive. */
-type EnglishFallbackKey = Extract<EnglishKey, `delete.cleanup.${string}` | `hide.${string}` | `indexing.${string}` | `hotkeys.${string}` | `wander.${string}` | `actions.${string}` | `addRelated.completion.${string}` | "addRelated.endpointChanged" | "addRelated.partialCreation" | "addRelated.originTitle" | "addRelated.completionMode" | "addRelated.savedPending" | "addRelated.refreshSaved" | "addRelated.recoverFile" | "addRelated.linkCreatedFile" | "addRelated.openCreatedFile" | "addRelated.closedBeforeLink" | "node.gateLocalCount" | "node.gateCachedCount" | "node.gateHostUnavailable"
+/** Historical English-fallback allowances remain compatible; maintained Sidecar attachment/folding copy requires every supported translation. */
+type EnglishFallbackKey = Exclude<Extract<EnglishKey, `styles.operation.${string}` | `indexing.${string}` | `hotkeys.${string}` | `wander.${string}` | `actions.${string}` | `addRelated.completion.${string}` | "addRelated.endpointChanged" | "addRelated.partialCreation" | "addRelated.originTitle" | "addRelated.completionMode" | "addRelated.savedPending" | "addRelated.refreshSaved" | "addRelated.recoverFile" | "addRelated.linkCreatedFile" | "addRelated.openCreatedFile" | "addRelated.closedBeforeLink" | "node.gateLocalCount" | "node.gateCachedCount" | "node.gateHostUnavailable"
   | "filter.sourcePropertyUrl" | "graph.sourcePropertyUrl" | "graph.typeSelectionStatus" | "graph.typeSelectionCount" | "explain.sourcePropertyUrl"
   | "explain.summarySourcePropertyUrl" | "references.propertyUrl" | "explain.summaryDatePropertyPolicy" | `settings.datePropertyRelations.${string}`
   | "settings.ui.allowRemoteNodeImages" | "settings.ui.allowRemoteNodeImages.help"
-  | "graph.evidenceFieldDecision" | "graph.evidenceFieldDecisionOverridden">;
+  | "graph.evidenceFieldDecision" | "graph.evidenceFieldDecisionOverridden">, Extract<EnglishKey, `actions.view.sidecar.attach-${string}` | "actions.view.sidecar.collapse-plex" | "actions.view.sidecar.collapse-plex.description">>;
 
-/** Existing translations remain required; the explicitly listed new feature keys may use source English. */
+/** Maintained translations are required; only the explicitly retained historical allowances may fall back to English. */
 export type LocaleTranslationMap = {
   readonly [K in Exclude<EnglishKey, EnglishFallbackKey>]: TranslationValue<K>;
 } & { readonly [K in EnglishFallbackKey]?: TranslationValue<K> };

@@ -1,0 +1,374 @@
+{
+  "done": true,
+  "status": "passed",
+  "cases": [
+    {
+      "side": "right",
+      "flow": "to-leaf",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-right-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        },
+        {
+          "flow": "to-plex",
+          "icon": "svg-icon lucide-arrow-big-left-dash kplex-lucide",
+          "label": "Attach adjacent pane and center its note in K-Plex"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 570.5,
+        "y": 40,
+        "width": 526.5,
+        "height": 835,
+        "top": 40,
+        "right": 1097,
+        "bottom": 875,
+        "left": 570.5
+      }
+    },
+    {
+      "side": "right",
+      "flow": "to-plex",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-right-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        },
+        {
+          "flow": "to-plex",
+          "icon": "svg-icon lucide-arrow-big-left-dash kplex-lucide",
+          "label": "Attach adjacent pane and center its note in K-Plex"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 570.5,
+        "y": 40,
+        "width": 526.5,
+        "height": 835,
+        "top": 40,
+        "right": 1097,
+        "bottom": 875,
+        "left": 570.5
+      }
+    },
+    {
+      "side": "right",
+      "flow": "empty",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-right-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 570.5,
+        "y": 40,
+        "width": 526.5,
+        "height": 835,
+        "top": 40,
+        "right": 1097,
+        "bottom": 875,
+        "left": 570.5
+      }
+    },
+    {
+      "side": "below",
+      "flow": "to-leaf",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-down-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        },
+        {
+          "flow": "to-plex",
+          "icon": "svg-icon lucide-arrow-big-up-dash kplex-lucide",
+          "label": "Attach adjacent pane and center its note in K-Plex"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 44,
+        "y": 477.5,
+        "width": 1053,
+        "height": 397.5,
+        "top": 477.5,
+        "right": 1097,
+        "bottom": 875,
+        "left": 44
+      }
+    },
+    {
+      "side": "below",
+      "flow": "to-plex",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-down-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        },
+        {
+          "flow": "to-plex",
+          "icon": "svg-icon lucide-arrow-big-up-dash kplex-lucide",
+          "label": "Attach adjacent pane and center its note in K-Plex"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 44,
+        "y": 477.5,
+        "width": 1053,
+        "height": 397.5,
+        "top": 477.5,
+        "right": 1097,
+        "bottom": 875,
+        "left": 44
+      }
+    },
+    {
+      "side": "below",
+      "flow": "empty",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-down-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 44,
+        "y": 477.5,
+        "width": 1053,
+        "height": 397.5,
+        "top": 477.5,
+        "right": 1097,
+        "bottom": 875,
+        "left": 44
+      }
+    },
+    {
+      "side": "left",
+      "flow": "to-leaf",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-left-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        },
+        {
+          "flow": "to-plex",
+          "icon": "svg-icon lucide-arrow-big-right-dash kplex-lucide",
+          "label": "Attach adjacent pane and center its note in K-Plex"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 44,
+        "y": 40,
+        "width": 526.5,
+        "height": 835,
+        "top": 40,
+        "right": 570.5,
+        "bottom": 875,
+        "left": 44
+      }
+    },
+    {
+      "side": "left",
+      "flow": "to-plex",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-left-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        },
+        {
+          "flow": "to-plex",
+          "icon": "svg-icon lucide-arrow-big-right-dash kplex-lucide",
+          "label": "Attach adjacent pane and center its note in K-Plex"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 44,
+        "y": 40,
+        "width": 526.5,
+        "height": 835,
+        "top": 40,
+        "right": 570.5,
+        "bottom": 875,
+        "left": 44
+      }
+    },
+    {
+      "side": "left",
+      "flow": "empty",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-left-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 44,
+        "y": 40,
+        "width": 526.5,
+        "height": 835,
+        "top": 40,
+        "right": 570.5,
+        "bottom": 875,
+        "left": 44
+      }
+    },
+    {
+      "side": "above",
+      "flow": "to-leaf",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-up-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        },
+        {
+          "flow": "to-plex",
+          "icon": "svg-icon lucide-arrow-big-down-dash kplex-lucide",
+          "label": "Attach adjacent pane and center its note in K-Plex"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 44,
+        "y": 40,
+        "width": 1053,
+        "height": 397.5,
+        "top": 40,
+        "right": 1097,
+        "bottom": 437.5,
+        "left": 44
+      }
+    },
+    {
+      "side": "above",
+      "flow": "to-plex",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-up-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        },
+        {
+          "flow": "to-plex",
+          "icon": "svg-icon lucide-arrow-big-down-dash kplex-lucide",
+          "label": "Attach adjacent pane and center its note in K-Plex"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 44,
+        "y": 40,
+        "width": 1053,
+        "height": 397.5,
+        "top": 40,
+        "right": 1097,
+        "bottom": 437.5,
+        "left": 44
+      }
+    },
+    {
+      "side": "above",
+      "flow": "empty",
+      "status": "passed",
+      "arrows": [
+        {
+          "flow": "to-leaf",
+          "icon": "svg-icon lucide-arrow-big-up-dash kplex-lucide",
+          "label": "Attach adjacent pane and open the K-Plex note"
+        }
+      ],
+      "leafCountUnchanged": true,
+      "contentCorrect": true,
+      "subsequentSync": true,
+      "detachPreservesPane": true,
+      "paneRect": {
+        "x": 44,
+        "y": 40,
+        "width": 1053,
+        "height": 397.5,
+        "top": 40,
+        "right": 1097,
+        "bottom": 437.5,
+        "left": 44
+      }
+    }
+  ],
+  "cleaned": true,
+  "leafCountRestored": true,
+  "visibility": {
+    "hidden": false,
+    "focused": true
+  },
+  "errors": "No errors captured.",
+  "artifactHashes": {
+    "main.js": "8e5774688abb4e576ebe3243ea0def808a4edadb4ecdaadccac179d6ccc8d187",
+    "styles.css": "e8c9279e8904888aa71d5dd2b01f320d5b32fd10e15feb0b9a9576a34f11cea3",
+    "manifest.json": "0beacdb94adc4a0ec318d69dba87fcb4dc9c1a86784058db341fdefe0dfb4250"
+  },
+  "settingsPreservedAtStaging": true,
+  "branch": "PR-cleanup",
+  "head": "186aec3aa6565a7014897b206c1f8cc0e9b9dba1",
+  "physicalAndroidValidated": false
+}

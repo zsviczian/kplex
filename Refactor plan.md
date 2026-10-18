@@ -3945,3 +3945,1274 @@ The maintainer authorized committing and publishing the validated batch, creatin
 - Explicit custom pointer-geometry constraint satisfied: graph overlay/world conversion and native-fullscreen geometry bodies match HEAD; CSS unchanged. Exact native resize fits match companion references. Trusted30×10pixel drawing pan at non-unit Plex zoom maps correctly and survives later resizing. No native Canvas transform changes.
 - Full verify passed architecture7/core88/aggregate626/UI53/sources333/real IndexedDB428/lint/build/stage/native smoke. Frozen full aggregate/UI checks preceded final empty-scene/fluid-editor/loading guards; final affected83, lint and native graph7/drawing27/Wander17 passed afterward. TSDoc-only final rebuild emitted identical bytes. Failed missing-transpile-input and native pointer-location receipts retained; assertions/deadlines preserved. Final native cleanup/configuration/no-error audits pass.
 - Uncommitted branch/base unchanged plex-wandering / 85edbbc8ea505651610674bded3375764ad690fa; final main81c69f9799bc681766269bd8f2e9c01554479702eae270a196128027b9c794bf,40-input ledger438b66dce1bf3743fbec69037c1065b64e4c577fcc1aa4c7f2d07bbade383e3a. Exact built/installed bytes match, empty index and whitespace passed;49 deliverable files including9 docs. No publication authority or structural checkpoint advanced. [Durable validation and two prioritized physical-touch/Windows-theme/popout drawing checks](docs/validation/adaptive-fit-2026-10-11.md); no new native large-vault graph-fit or paint claim.
+
+### 2026-10-14 — PR #153 indexing performance closeout
+
+- Maintainer accepts the measured A→B5 tradeoff: warm URL reconstruction median 25,895.8→13,807.2 ms (46.7% shorter), retained graph median 34,200,172→36,853,296 bytes (+2,653,124). Largest unforced flush median 32.2→35.3 ms remains a limitation. A already includes the earlier no-op/hydration fixes; this is not a PR-base or full-startup timing claim. Further optimization work is stopped.
+- Existing semantic/compiler, staging, publication and storage owners remain. No schema/settings/dependency/source-authority/cadence change; private ownership, immutable readable generations, bounded fallbacks and atomic source publication stay protected. C14 remains accepted; C15–C26 remain paused.
+- [Final performance report](docs/validation/indexing-performance-153-2026-10-14.md) consolidates outcomes, architecture, scope and deferred opportunities. Complete checkpoint reports, raw successful/failed/preliminary receipts, source snapshots and local outputs were archived separately and downloaded/verified before removal: 1,312 entries, 49,597,930 payload bytes, immutable archive commit 0b4ea8d82cab46ea744cacb6478a0fa2139aa734. Transient handoff removed, no handoff archived. Useful regressions/benchmarks retained; redundant staging-only counter removed.
+- Fresh post-cleanup full verification passes: architecture7/core128/indexing-general824/UI63/portable-sources334/real-browser495, no failures/skips, official lint, actual types, production build, exact-artifact native smoke and six foreground cases. All three artifact hashes remain B5; original workspace/configuration bytes/throttling restore. Archive coverage, source hashes, new local links, whitespace and unrelated-diff checks pass. Required remaining acceptance: physical iOS/Android startup/navigation/memory, macOS restart/edit/rename/delete/popout, and longer settled-memory sessions; Windows 64-edit collection checks do not substitute. See the report for precise expected outcomes. Cross-owner persistence batching remains deferred on its smaller measured isolated benefit; no new queue or structural extraction is started.
+
+### 2026-10-14 — PR #163 bounded warm snapshot recovery checkpoint
+
+- Integrated accepted #153 through `3c10ce9`. A genuine unchanged source publication rejects the saved-graph candidate at its first open guard and previously starts source inventory plus a global node catalog. A single newly fenced attempt now requires bounded file-only publication accounting and saved/current semantic fingerprints before any replacement. Other publications, changed/missing proof, physical/policy changes, unload/purge and further supersession retain rejection/fallback. No scheduler/schema/compiler/authority/watchdog change; C14 accepted, C15–C26 paused.
+- Run-scoped first-failure/attempt/route diagnostics expose scalar enums/counters only. Existing guard negatives remain. Full Node 22.22.2 verify/native staging passes architecture7/core128/general825/UI63/portable334/browser509, lint/types/production build and native smoke, with no failures/skips. Six native foreground cases and a small-vault application reload pass. Three controlled coordinator trials remove one recovery inventory/catalog per trial; median 430.5→305.4 ms, not a vault-startup timing claim.
+- [Validation record](docs/validation/warm-restart-snapshot-reuse-163-2026-10-14.md) distinguishes the reproduced mechanism from the historical personal-vault trigger, which the old build did not record. Personal observation was aggregate-only with no note/configuration/cache changes or reload. Native large-vault measurements remain in progress; no final merge/device acceptance is claimed. Prioritized remaining checks: unchanged large-vault application restart series; macOS restart/edit/rename/delete/popout; physical iOS/Android startup/navigation/memory.
+- The maintainer explicitly approved publishing the initial raw evidence. Archive branch `pr-163-startup-evidence` at `3f698ada48cd5cbab0f9b1302644637b2130110e` contains 36 entries / 2,143,914 ZIP bytes; the GitHub-downloaded archive, exact entry set, CRCs, byte counts and every checksum pass. Source snapshots/build identities, actual artifacts, failed/excluded trials and completed verification/comparison receipts are retained separately from the PR tree. No vault configuration backups or note/cache payloads were published. Native scale evidence is not part of this initial archive.
+
+### 2026-10-14 — PR #163 active-generation and watchdog validation checkpoint
+
+- Retry eligibility belongs only to the complete active generation, never a checkpoint reached after a corrupt active chunk. Admitting the new attempt is not progress and cannot reset the existing inactivity clock. Regressions retain canonical target identity and exercise real held URL work, foreground precedence and later invalidations. No source-authority, compiler, schema or scheduler policy change; C14 accepted, C15–C26 paused.
+- Frozen Node 22.22.2 full verification passes architecture7/core128/general825/UI63/portable334/browser512, official lint, installed types, real production build and exact-artifact native smoke, with no failures/skips. The expanded focused suite passes110; six final exact-build native foreground cases pass with configuration restored. Main `f9604ff12ee599c1fe64a6dcc68cefa4f10daee80c7167d090137a7fa7f39e85` is unchanged by the final explanatory comments. Three frozen coordinator trials remove one inventory/catalog per trial; median416.5→303.4ms (27.2%), not a whole-startup timing.
+- A genuine large-vault application reload independently reproduces first rejection at the checkpoint guard: fresh active snapshot, zero records, file publications1→7, source revision0/policy1. Its 20,088-owner/108,217-node/197,561-declaration setup is a real complete compiler/save, not a partial-cache surrogate. Source authority closes at1,028.4s; hydration fails at1,153.8s. The ordinary coordinator rebuilds/saves, but readiness remains incomplete at1,384.9s with a later decode-budget diagnostic. Preserve this as a failed baseline, not a successful denominator. The native driver now distinguishes full graph presence from saved hydration and recognizes stable idle-incomplete outcomes; its expected-negative native control passes with actual visible demand and cleanup.
+- Temporary plan marker removed after initial archive verification; all raw follow-up evidence remains local pending final archival. [Validation record](docs/validation/warm-restart-snapshot-reuse-163-2026-10-14.md) retains attribution and limitations. Matched candidate profile and three unchanged production application reloads remain pending; macOS, physical mobile and full Electron-process restart remain separate acceptance gaps. No deeper cache-throughput work is started.
+
+### 2026-10-14 — PR #163 genuine structural-publication checkpoint
+
+- Native validation exposes an additional real producer: the existing body-free structural/host baseline publishes once before the five source commits. File-only accounting correctly refuses that unaccounted publication but misses the actual startup sequence. A red real-IDB regression now drives the genuine producer. One explicit receipt belongs only to that producer; at most one baseline plus file commits, 256 total, can admit one new attempt. Changed/missing source fingerprints, unrelated snapshot publishers and reentrant extra publication still reject. No diagnostic label grants admission and no source/write authority is renewed.
+- The corrected native profile passes: complete cached navigation27.2424s, complete saved hydration30.0268s (108,217 pages/relations and197,561 declarations), source authority/strict readiness1,027.854s; polling confirms idle ready1,030.171s. All20,088 bodies reused, zero source reads/parses/repairs and URL-owner reads, all observed focus checks pass. Later host observations still cause one conservative cached full build; existing finality and reactive behavior are preserved. Baseline failed after19m13.8s and remained incomplete when observation ended23m04.9s; no successful native baseline denominator or speedup percentage is claimed.
+- Full Node22.22.2 verification passes architecture7/core128/general825/UI63/portable334/browser517, official lint, actual types, production build and exact-artifact native smoke, no failures/skips; focused115 and six exact-build native foreground cases pass with configuration restored. Main `e5994ecce833d5e3e17ad3615fec740ffa45aa3e87066e0c58b7f8d501440a0b`. Genuine structural-plus-file coordinator trials eliminate one recovery admission/catalog per trial; median412.5→318.9ms (22.7%), not native startup. Original failed first-candidate traces/bundles remain preserved.
+- Measured limitations remain material: native source validation still takes about17min; unforced profiled heap reaches2.35GB during the later rebuild (failed baseline805MB), ending443/414MB respectively. Different coverage/paths and unforced samples do not establish retained overhead. Three normal production restarts and final evidence curation remain pending. Physical mobile memory, macOS and full-process restart remain separate acceptance; C14 accepted and C15–C26 paused. No broader source-throughput, memory or scheduling optimization is started. See the single [validation report](docs/validation/warm-restart-snapshot-reuse-163-2026-10-14.md).
+
+### 2026-10-14 — PR #163 production restart validation and closeout
+
+- Three sequential exact-production application reloads pass with detailed profiling disabled: cached-navigation median24.500s, full saved-hydration median27.776s, first-ready median17m49.746s and settled-idle median17m51.939s. Every run restores108,217 pages/relations and197,561 declarations, retains20,088 fingerprints, and performs zero source reads/parses/repairs or URL-owner reads. Cached-body reuse counters20,088/20,092/20,092 count operations, including repeated checks. All observed focus/throttling checks pass. The failed baseline remains a failed control; no native speedup percentage is claimed.
+- The existing host-observation fence and one conservative cached full build remain. Source validation still takes17–18min. Production unforced sampled heap maxima2.356/1.047/1.048GB and final samples591/536/629MB are a material mobile concern, not retained-overhead measurements. No further throughput, memory, scheduling, schema or architectural change is started; C14 accepted and C15–C26 paused.
+- Full verification remains valid for unchanged runtime8e32857: architecture7/core128/general825/UI63/portable334/browser517, focused115 and native foreground6, plus lint/installed types/production build/exact native smoke, no failures/skips. Final disposable audits pass: verified production artifacts, loaded/enabled plugins, normal throttling and no owned controllers/heartbeat/staged files. Large-vault settings/enabled-list bytes restore exactly; all awake leases are released; generated fixture checksum is unchanged. No original workspace backup exists for this driver, so exact workspace restoration is not claimed. Passive personal audit confirms unchanged artifact/startup timestamp; no personal note contents were accessed or modified, and no personal deployment/reload occurred.
+- One concise [final report](docs/validation/warm-restart-snapshot-reuse-163-2026-10-14.md) retains findings, measurements, scope, reproduction and deferred opportunities. The approved initial public archive is unchanged. Supplemental evidence is locally verified:122 entries/5,244,249 ZIP bytes, SHA-256c934df0d327c4d1963f4a154b07a941924ef3c5566364f22c389cffe8163724b; separate publication consent is pending. Complete raw successful/failed streams, source/artifacts and cleanup receipts remain preserved outside the PR tree; no temporary handoff remains.
+- Remaining prioritized acceptance: (1) Windows full Electron-process restart with other vaults safely closed must restore the saved graph and reach honest readiness; (2) macOS restart/edit/rename/delete/popout must retain canonical graph updates and unload cleanup; (3) physical iOS/Android startup/navigation must retain responsiveness and adequate memory headroom, especially large Eager graphs. Keep the PR draft pending applicable acceptance or explicit maintainer waiver; no merge/release.
+
+### 2026-10-15 — PR #163 supplemental evidence publication
+
+- The maintainer explicitly approved the exact supplemental ZIP, SHA-256 `c934df0d327c4d1963f4a154b07a941924ef3c5566364f22c389cffe8163724b`: 122 entries / 5,244,249 bytes. [Public evidence and reproduction instructions](https://github.com/zsviczian/kplex/tree/0196c1eb8eab0d2bcc3ba2959646a8edb272150a) preserve the initial archive unchanged. Both archives were downloaded from GitHub and checked for exact entry sets, CRCs, byte counts and every file checksum. Public SHA256SUMS entries pass; a normal follow-up commit corrects Git newline conversion so the standalone manifest matches the embedded bytes exactly. No approved ZIP changed.
+- Updated the final report and PR evidence links. Documentation-only content/link/whitespace and scope checks apply; runtime, artifacts and prior full/native verification remain unchanged. No additional Obsidian access or vault modification is needed. C14 remains accepted; C15–C26 paused. The three platform/device acceptance gaps and material startup/memory limitations above remain; retain draft status, with no merge/release or further optimization.
+
+### 2026-10-15 — PR #165 final bounded resource closeout
+
+| Checkpoint | Outcome and retained reference |
+| --- | --- |
+| Merged #163 baseline | `a86b4a0` integrates main `8df393a`; architecture and #153/#163 behavior preserved. |
+| Duplicate-read/progress correction | Independently reviewable `d0d16fb`; the same focused logic is retained after upstream integration. |
+| Optional snapshot/source receipt | **Deferred**; prototype and three failing provenance tests preserved at `9124f5b`. |
+| Resource decision | `ed9fe3d` bounds scope, `b8e6c12` curates after verified preservation, `2fec9b1` records mixed results, `f9704a3` records all six accepted trials. |
+
+- Authenticate exact selected resolution once in its existing canonical comparison; retain all physical/head/host/policy/integrity/cancellation fences and conservative changed-selection/alias-maintenance paths. Progress uses the existing callback; five fixed-size lifetime counters distinguish work starts from activated saves. No format/schema/purge/parser/scheduler or structural refactor ships. C14 accepted; C15–C26 paused.
+- Three accepted M/A observations each pass raw-stream foreground/PID/visible-demand/input controls, genuine drain and610s quiet with no unfinished work or quiet violations. A focus-interrupted middle observation (84 bad samples) is preserved/excluded, with one bounded replacement; no additional experiments follow. Actual host replay/raw graph order differences remain explicit. Median transactions456,319→437,355 (−4.2%), requests1,038,747→1,000,806 (−3.7%), source chunk/posting reads123,333→103,256 (−16.3%), digest calls450,351→390,120 (−13.4%) and hash UTF16 units829,613,548→656,378,120 (−20.9%). Read-write transactions, one build/save per arm and183,261-byte peak decode do not improve. Fresh reads/parses/repairs remain0.
+- No native CPU/startup or attributable retained-memory win: medians CPU316.015→321.047s (+1.6%), drain1,027.176→1,067.599s (+3.9%), mixed pair directions/ranges; two-GC main heap405.531→406.739MB effectively unchanged. Sampled heap/RSS medians are lower with overlapping ranges, not proven peaks or allocation totals. Real-IDB AB/BA/AB independently proves the128-owner resolver-wave reduction2,698→2,570transactions and256→128 resolution authentications; clean905transactions/5,277-byte decode unchanged. Native counts are not physical disk bytes, whole-app CPU or energy.
+- Receipt remains rejected regardless of timings: whole-vault128KiB restriction excludes ordinary large-prose/drawing mixed fixtures; normal prose/semantic edit saves lose eligibility through two restarts; three fresh-read same-stat probes can certify stale host-owned YAML/wiki/tag facts. The separately reproduced second-connection final-promotion race was fenced in the prototype but does not fix provenance. All B creation/fallback/failure/exclusion evidence remains; no cap raised, owner omitted, post-edit build forced or replacement receipt architecture proposed.
+- Final Node22.22.2 full12 verification passes architecture7/core128/general829/UI63/portable334/browser524, official lint, installed types, real build and exact-artifact Windows smoke, zero failures/skips/JS errors. Main4813b60d; manifest/styles unchanged. Six exact-build foreground cases pass with inventory held/zero broad flushes; cleaned driver passes final functional small-vault reload. Receipt-only helper/actions are removed; standalone lost-foreground status now fails after preserving full observations, matching existing coordinator policy.
+- Both authorized fixtures end loaded with verified uninstrumented PR artifacts, original on-demand settings and enabled-list bytes restored, counts20,088/88 and no owned controllers/probes. Workspace-byte restoration is not proven. Awake lease released; no power-plan change or personal-vault access. Raw originals remain intact; verified pre-cleanup archive preserves historical documents and final raw/source/build evidence is packaged separately with checksums/CRC. No archive publication is authorized or performed. [Final report](docs/validation/background-index-efficiency-165-2026-10-15.md) · [evidence/reproduction index](docs/validation/background-index-efficiency-165-evidence.md).
+- **Single deferred follow-up:** existing source-reader lease/head-selection transaction work (~166k median pin/release-store transactions,38% ofA total; body reconciliation ~11minutes). Isolate exclusive CPU/wait cost before proposing bounded reuse; no implementation here. Remaining acceptance, in priority order: (1) lower-powered/full-process desktop resource/responsiveness; (2) physical iOS/Android startup/navigation/suspend-resume and memory; (3) macOS changed-source/interrupted-validation/cleanup. Keep PR165 draft for maintainer review; no merge/release or further optimization.
+
+- After explicit maintainer approval, `9af675e` cleanly integrates main `b29833c` (#168) into the draft branch. The focused PR-specific runtime diff remains six files. Frozen M/A performance evidence and the verified archive remain unchanged; combined-tree functional validation is separate from the measured #163 baseline. PR165 remains draft, with no merge into main or release.
+
+- Approved-base integration validation: Node22.22.2 full13 passes architecture7/core128/general838/UI63/portable334/browser525, lint/installed types/real build/exact Windows smoke, zero failures/skips/JS errors. Six exact-combined-build foreground cases pass with source inventory held and zero broad flushes. Both disposable fixtures retain original on-demand settings/enablement bytes and all three verified combined-build artifacts; cleanup/count checks pass and the awake lease is released. No additional performance trial was run. The immutable original archive is unchanged; a separately verified local integration supplement preserves source/artifacts/logs/CI failures/restoration metadata, with no publication. Integrated-head CI attempt1 failed during existing Chromium launch before hotkey-search assertions; preserve that result separately and require current-head CI acceptance. PR165 remains draft, without merge into main/release or further implementation.
+
+### 2026-10-15 — PR #158 implementation, checkpoint A
+
+- Explicit maintainer implementation authorization includes updating the existing branch from current main. `689399d` integrates `main@867ef55`; active styling handoff wins its documented modify/delete conflict. Runtime source initially matches main exactly, including merged #165/#168. #154/#147/#149 remain separate open PRs; no duplicate fixes or C15–C26 work. PR remains draft; no merge/release/issue closure.
+- Native chrome consumes Obsidian surfaces, text, controls, borders and shadows. Public K-Plex aliases are fallbacks at consumers instead of masked root declarations, preserving inherited body and view-local overrides and detached Sidecar controls. Canvas/graph factory color defaults, typed references, migration and editor delivery remain checkpoint B/C work; existing saved literals are untouched. Layout, hit targets and graph semantics are unchanged.
+- Preview-only `ThemePreviewSampler` snapshots already loaded accessible CSS into one bounded, script-free, resource-blocked isolated document per open-editor revision; no live graph dependency or global appearance mutation. Active colors are sampled live. Unreadable/oversized CSS, context mismatch and inline host-mode colors explicitly estimate unavailable alternate context. Supersession/disposal retire frames and pending load listeners/timers.
+- Seven focused real-Chromium tests pass: inherited native paint/elevation and literal preservation, public scopes/reset/detached controls, actual body-qualified mode parity/modern colors/accent, resource blockade, cancellation, bounds/inaccessible sheets and inline-mode honesty. Existing slider/tooltip checks also pass (17 tests before the additional inline-mode case). Node 22.22.2 types and targeted official lint pass before that final confidence refinement; full verification follows.
+- Native feasibility passes six Default/Minimal/Things × main/popout combinations after actual host mode switches, using pinned local public theme CSS without external URLs/imports. Source references/checksums and minimized token receipts are retained locally. Both appearance/workspace bytes, mode, owned popout/styles/controllers restore. This validates sampling, not complete native palette UI, physical touch or all community themes. Full exact-artifact acceptance is recorded below.
+- Residual manual priorities: (1) physical iOS/Android picker/touch and appearance changes preserve readable colors and alpha; (2) visual contrast across community/high-contrast themes retains gate/selection distinctions; (3) main/popout/settings migration retires previews and applies the correct owning document. Automate equivalent desktop checks during B–E.
+
+- Final A verification: `verify:obsidian` on Node 22.22.2 passes all 1,902 tests (7 architecture /128 core /838 general /70 UI-browser /334 source /525 source-browser), official lint, real production build and exact staged Obsidian smoke. Six native foreground scenarios pass with zero foreground full flushes; fixture/controller cleanup converges and original settings/enabled-plugin bytes compare equal. Final production sampler source also matches actual switches in all six Default/Minimal/Things × main/popout cases on the staged CSS. Windows Obsidian 1.14.4/Electron 43.3.0 evidence does not replace minimum-host/macOS/physical-mobile acceptance. The temporary awake lease is released; no power policy changed. See the evolving [styling validation report](docs/validation/native-styling-158-2026-10-15.md).
+
+### 2026-10-15 — PR #158 implementation, checkpoint B
+
+- Extend existing appearance contracts with literal/theme/palette identities, exact literal alpha, stable named-pair IDs, finite semantic-cycle checks and optional compass preferences. No semantic graph, source/snapshot format or scheduler change. Ordinary RGB edits now preserve alpha; untouched references/literals remain exact.
+- Reuse the current serialized style queue for all appearance-owned fields; each edit captures latest state, validates before storage and publishes only committed unchanged-owner fields. Future color payloads remain verbatim/read-only on normal writes and foreign imports; palette preferences cannot be replaced by a graph import. Existing graph colors/defaults remain unchanged here; native fresh defaults, adoption and editor/paint integration are C work.
+- Node 22.22.2: architecture/core/type/lint pass; full verification passes 1,910 tests and exact-build native smoke. Fourteen exact-native style-operation cases pass and restore configuration bytes. The native legacy-import lane passes all six scenarios, including rendered appearance and reload. Its fixture now acquires/releases the existing on-demand source lease; unchanged readiness assertions pass without a forced build. Initial failures/controls remain in verified local evidence. Original configuration/enabled-plugin bytes and runtime values restore, owned fixtures/controllers are absent and the awake lease is released. Live editor/paint integration and minimum-host/macOS/physical-mobile acceptance remain pending. Highest-risk next workflows are reference editing across overlapping saves and main/popout theme changes; physical native-picker/touch and community-theme visual contrast need separate acceptance.
+
+### 2026-10-16 — PR #158 checkpoint C1: shared source editor and paint boundary
+
+Delivered the host-bound shared source/literal editor, exact alpha/partial-input handling, paired bounded previews, scoped reference bindings and paint-only publication within existing owners. A real IndexedDB regression exposed duplicate preparation/stale final paint; the existing captured policy now permits only paint drift and rebinds current paint synchronously without removing any source/generation fence. C14 architecture remains unchanged. Full Node22.22.2 verification: 1,927 passing tests, official lint/types/build/exact staged native smoke. Native source/style/theme lanes: 6/14/6 passing. Zero measured source/parser/acquisition/semantic/search/cache work for named paint and mode changes; no native CPU/memory claim. Verified local evidence and exact artifacts are in the evolving [validation report](docs/validation/native-styling-158-2026-10-15.md). C2/D/E remain pending; keep draft. Highest-probability residual risks: native picker/focus and moving windows (Windows/macOS separately), physical mobile touch/theme switching, and community/high-contrast readability.
+
+### 2026-10-16 — PR #158 C2: integrated palette, sources and adoption
+
+Delivered searchable exact paired colors, atomic settings-only replacement/deletion, shared standard/custom/lens source controls, explicit native-color adoption and fresh-versus-legacy absence policy. Baseline-aware queued edits preserve concurrent unedited fields and unsupported future lens payloads. Bounded appearance subscriptions/swatches and stable occurrence paint caching retain existing architecture. Native validation caught and corrected root canvas deletion publication and nested native dialog dismissal. Node22.22.2 full verification passes 1,947 tests, lint/types/build/staged smoke; native color/style/migration/theme lanes pass 12/14/6/6. Operation counts show no source/parser/acquisition/semantic/search/visual/neighborhood work for tested paint changes; no CPU/memory saving claimed. Original disposable state restored; verified unpublished evidence and failures are linked in the evolving validation report. C14 remains accepted, C15–C26 paused. D Compass and E closeout remain; PR draft, no merge/release. Residual manual priorities: OS picker/focus/window migration (Windows/macOS separately), physical iOS/Android touch/theme behavior, community/high-contrast readability.
+
+### 2026-10-16 ? PR #158 checkpoint D: viewport Compass
+
+Four bounded viewport polygons reuse the camera RAF and exact center-motion poses; no new scheduler, geometry policy or graph work. All 1,956 tests, lint/types/build and exact Windows smoke pass; native color/style/migration/sampler lanes pass 16/14/6/6 with restored disposable state. Verified unpublished raw evidence and failed controls are indexed in the styling report. C14 remains accepted; C15–C26 paused. Maintainer testing identifies actual Settings-window preview/actions and presentation gaps; these remain explicitly pending alongside counterpart recommendations and navigation improvements. Keep draft. Prioritized residual manual acceptance: community-theme Settings/readability, macOS native picker/window migration, physical mobile touch/theme changes.
+
+### 2026-10-16 — PR #158 E1: real Settings page ownership
+
+Reproduced detached declarative tab root causing inert canvas/tint actions and missing paired contexts. Existing tab now reacquires its visible native subpage in the same document; bounded preview owner and lazy lifetime fences remain. All22 color-editor browser tests, lint/types/real build and17 exact native color/Compass cases pass; original disposable configuration restored. No graph/source/scheduler/schema change; C14 accepted, C15–C26 paused. See styling report. Remaining Settings presentation/recommendation work is pending. Manual priorities: custom-theme Settings readability, macOS picker/window lifecycle, physical mobile touch.
+
+### 2026-10-16 — PR #158 E2: explicit counterpart and readable previews
+
+Shared controls add reversible HSL-lightness suggestions, display-only alpha rounding, broader complete theme choices, meaningful pair/adoption copy and correct transparent-card composition. Existing source identity, disk-first queue and native lifetime remain.49 browser/localization checks, lint/types/real build and18 exact native cases pass with restored disposable state. Raw before-control preserved; see styling report. No graph/schema/scheduler/refactor expansion. C14 accepted; C15–C26 paused. Settings strips/navigation remain active. Manual priorities: subjective community-theme readability, macOS picker/window behavior, physical mobile touch.
+
+### 2026-10-16 — PR #158 E3: paired Settings presentation
+
+Colors/Labels are separate native subpages. Standard style overview and field actions share paired swatches/strips with parent editors and the palette; semantic direction labels are explained without changing IDs. One bounded sampler per visible page, cached across palette-only updates, follows native row/window cleanup.50 browser/localization checks, indexing/settings-independence fixture, lint/types/build and19 exact native cases pass;14 style-operation cases pass before final stable-field cleanup. E2 remote missing-module fixture failure is corrected; full final verification/current-head CI remain required. Raw evidence and limits are in the styling report. C14 accepted; C15–C26 paused. Manual priorities remain custom-theme visual review, macOS native-window/picker lifecycle and physical mobile touch.
+
+### 2026-10-16 — PR #158 E4: stable Settings theme context
+
+Native CSS refresh replaces subpages underneath open drafts. Existing Settings owner now separates stable same-document theme context from transient action-page opening guards. Actual main/popout/Settings × Default/Minimal/Things matrix passes9 combinations with real mode parity; zero measured source/graph work after initial view activation.19 color/Compass and14 style-operation exact native cases,3 focused regressions, lint/types/build pass; configuration restores. Failed controls preserved in the styling report. Full final verification/migration/remote CI remain pending. C14 accepted, C15–C26 paused; no scheduler/schema/graph redesign. Manual priorities remain custom-theme visual acceptance, macOS picker/window lifecycle, physical mobile touch.
+
+### 2026-10-16 — PR #158 final field accessibility and fixture ports
+
+Repeated paired Edit actions now carry distinct localized field names. All19 exact native color/Compass cases pass with that assertion and restored configuration. Non-browser form fixtures retain actual queue behavior while visual CSS decoration stays an explicit finite port; all52 durable form/queue assertions pass, including completed timer cancellation ports. Full1's fixture failures and full2's single pre-assertion source bundle-load timeout are preserved. The exact unchanged source case passes directly; final full rerun and matching native acceptance remain required. C14 accepted; C15–C26 paused. Manual priorities remain minimum-host/community-theme visual review, macOS native picker/window lifetime and physical mobile touch.
+
+### 2026-10-16 — PR #158 final Windows acceptance and documentation closeout
+
+Frozen runtime `701fd62` passes full Node22.22.2 verification:1,963 tests (7/128/859/106/334/529), official lint, installed types, real build and exact Windows smoke. Matching native color/Compass19, style14, migration6, actual-view theme9 and held-inventory foreground6 pass; zero broad foreground flushes. Implementation CI passes. All four disposable configuration files, original runtime keys and saved workspace restore; local graph ready11/88, owned notes/controllers/frames absent, awake lease released. Actual Gruvbox observations in authorized testvault preserve the existing build/open Settings and configuration hashes; no personal vault or note payload is accessed by that diagnostic.
+
+Concise final findings, user/theme-author guides and reproducible evidence index replace planning-only material. The temporary issue155 marker is removed after verified preservation. A–D archives and the3,953,297-byte/237-entry final supplement are verified and copied to durable local storage, unpublished; SHA437eef0034c44a7e887a705d8eadab7316e6e14ab29fd4c499c1b522293bf9aa. All failed controls remain. No CPU/memory/energy claim, schema/cache/scheduler change or additional optimization. C14 accepted; C15–C26 paused. Keep draft, no merge/release/issue closure. Remaining manual priorities: physical mobile picker/touch/resume; macOS picker/Settings/popout lifecycle; minimum1.13 runtime and community/high-contrast visual acceptance. Style-manager metadata remains deferred.
+
+
+### 2026-10-16 — PR #158 extension F1: named appearance model
+
+| Extension checkpoint | State and evidence |
+| --- | --- |
+| F1 — Theme model / source reset | Validated: Node22.22.2 full `npm run verify`,1,969 tests, architecture/core/official lint/installed types/actual production build |
+| F2 — Compass UX correction |66 focused tests, official lint/build,20 exact native cases and outer restoration pass |
+| F3 — Theme queue / migration / ownership | Integrated; build/native20 pass, broad verification plus corrected on-demand suite recorded in extension report |
+| F4 — Shared managers / locales |131 affected/19 runner, architecture/core/lint/build,27 exact native cases and restoration pass; final F5 pending |
+| F5 — Full/native acceptance | Clean1,993-test full run; native6 migration/14 style/9 theme/27 color/6 foreground and restoration pass; retained intermittent Windows failures qualify acceptance, keep draft |
+| F6 — Compatibility persistence |103 affected tests/build, two matched native migration→style sequences,9 theme/27 color/6 foreground pass; new full verification pending |
+| F7 — Durable compatibility policy |Clean1,997-test full verification/lint/types/build/exact smoke; native6 migration/15 style/9 preview/27 color/6 foreground/restoration pass; draft CI/platform review |
+
+Portable version1 JSON library captures finite base/semantic records and only stable-ID lens colors. Independent migration choices, immutable factory identity/copy-on-write, metadata operations, reset invariants and future-data rejection have six focused production-owner tests. Helpers remain unconnected to startup/UI; no native feature acceptance is claimed. Successful first-run ExcaliBrain import must produce selected User theme and native-base/factory choices; fresh/no-import starts with factory only. C14 accepted; C15–C26 paused. Full raw log `%TEMP%/kplex-158-themes-foundation-verify-1.log` is local/unpublished. No manual check is needed for this inactive pure foundation; integration/native, physical mobile, macOS and minimum-host/visual acceptance remain pending. The extension report records scope and the maintainer's subsequent Compass UX feedback.
+
+
+### 2026-10-16 — PR #158 extension F2: directional-tint usability
+
+Existing Compass draft keeps its durable Save/Cancel; only the body scrolls and actions remain visible. Editor and Settings overview share the same four directional source chains, including private named pairs and semantic defaults. Whole-percent display/inherited value and eight-locale Save explanation remove ambiguity. Native Light default rises5→7%; explicit percentages/CSS keep precedence. The preview delegates intensity to the production owner. Node22.22.2 focused66, official lint/real types/build and exact native20 pass. A real Settings scroll/parity case extends the existing native lane; the first missing-Plex prerequisite failure is retained, followed by unchanged acceptance after normal command activation. All four initial config files, runtime and workspace restore;106 files, owned notes/controllers absent, test artifacts retained. Pure foundation’s committed prose encoding is repaired without runtime change. Full integrated verification remains pending. C14 accepted; C15–C26 paused. Manual priorities: preferred community-theme Light visibility; macOS picker/modal/popout lifecycle; physical mobile scrolling/touch. The native driver automates the available Windows equivalent; no screenshot is counted as interaction/performance acceptance.
+
+
+### 2026-10-16 — PR #158 extension F3: durable themes and editor activation ownership
+
+One existing queued appearance writer now owns the version1 library, selected effective appearance, first-run/migration/legacy import and factory copy-on-write. Persist before publication; no sampled RGB backups, new writer/scheduler or semantic ownership. Every theme-owned native editor, graph background and lens draft captures selected ID plus activation epoch; stale A→B→A drafts stay read-only for explicit discard. Accepted writes complete in queue order, with field merging, duplicate/Cancel exclusion and saved-refresh recovery retained. Native scalars bind at mount and replace stale callbacks. Lens reconciliation preserves global behavior and existing IDs.
+
+Build/types, official lint,7 architecture/128 core/874 general/110 UI/334 source tests and exact native20 pass. The full source-browser run preserves527 passes/two missing-dependency failures in its extracted on-demand fixture; the fixture is repaired and its entire73-test suite passes on rerun, without weakening zero-acquisition/authority assertions. All1,982 current cases have passing broad/focused coverage. The extension report records the actual rerun outcome and does not claim a clean single-command full verification. All failed controls remain local/unpublished. Original native runtime/workspace/config bytes restore (106 files), no owned fixtures/controllers. F4/F5 and clean final full/native validation remain pending. C14 accepted; C15–C26 paused. Manual priorities: physical mobile drafts/scrolling/touch; macOS Settings/popout lifecycle; minimum-host/community-theme visual review. No personal vault, archive publication, merge or release.
+
+
+### 2026-10-16 — PR #158 extension F4: native named themes and scoped reset
+
+Extracted only real shared list/search/window/row/action mechanics into StyleManagerList, consumed by both existing managers and named themes. Native theme header/CRUD, per-row private paired summaries, factory guards, durable dismissal, same ColorAdoptionModal/scoped reset and base shortcut,8 locales and APPEARANCE guide preserve existing pages/pickers/Compass. Immediate native rows follow actual Settings document adoption; unsubmitted editor drafts retain their opening identity/activation fence. Stable owning-body sampling survives transient root replacement. No new persistence owner, scheduler or semantic/index changes.
+
+Node22.22.2:131 affected tests,19 native-runner tests,7 architecture/128 core, focused official lint/actual types/build and27 native cases pass. Native theme phase:12 successful writes;0 reads/parses/acquisitions/semantic refreshes/search/visual invalidations;3 neighborhood recomputations for genuine non-color differences, inactive metadata0 graph work;250ms quiet window. This is functional operation evidence, not CPU/energy savings. Runtime/workspace/four config bytes restore,106 files, no owned notes/controllers. Failed controls1–6 remain: native test thenable assimilation and real row-adoption/detached-preview bugs were diagnosed and fixed with regressions; scoped Small-only recovery1–3 verified exact owned note bytes/config. Large was diagnostic-only, no personal-vault access or whole-app restart. Raw/private evidence local and unpublished. F5 clean full/affected native/CI and format-read-only review remain. C14 accepted; C15–C26 paused. Manual priorities: physical mobile draft/picker/touch; macOS Settings/popout lifecycle; minimum-host/community-theme visual review. Keep draft, no merge/release.
+
+
+### 2026-10-16 — PR #158 extension F5: full verification and native review record
+
+Existing editor shell makes future theme libraries visibly read-only; existing queue preserves raw data. Finite indexing fixture includes the new managers. Clean Node22.22.2 full verification passes1,993 tests, official lint/types/production build. Exact final Windows lanes pass6 migration/14 style/9 theme combinations/27 color-theme-reset/6 foreground. Theme phase12 writes,0 added source/semantic/search/visual work,3 non-color neighborhoods; inactive metadata0 graph. No CPU/memory claim.
+
+Acceptance is qualified by preserved failed controls: first full/CI missing fixture modules (corrected); one late native Settings Save timeout requiring scoped Small-window recovery; two preview runs with4 unexplained neighborhoods despite9 matching combinations. Traced and original retries pass unchanged assertions; no proven native cause or runtime fix claimed. Final outer runtime/workspace/four exact config bytes restore,106 files, owned notes/controllers absent; raw/private evidence local/unpublished. See extension report for hashes and reproduction. C14 accepted; C15–C26 paused. Keep draft, no merge/release. Manual priorities: physical mobile drafts/pickers/touch/resume; macOS Settings/popout lifecycle; minimum1.13/community/high-contrast visuals. Retained Windows intermittents remain review limitations.
+
+
+### 2026-10-16 — PR #158 extension F6: coherent compatibility snapshots
+
+A production regression fails before correction (2 writes rather than3): replacing settings with a prior coherent root/library appearance makes the inner draft look unchanged, so saveSettings can omit the requested durable write. The compatibility facade now explicitly persists that existing snapshot through the same queue; ordinary no-op editor saves remain no-ops. Native migration cleanup independently verifies complete live/durable appearance and ontology/library after reload. No new writer/scheduler.
+
+103 affected tests, real types/build, two matched native6 migration/14 style sequences,9 theme combinations/27 colors/6 foreground and exact outer restoration pass on new main SHA96b13e20e1e5630cd460988abb6ceb7002f0a0253d6f9254c9a84ada259b5b52. New full verification/CI pending. Earlier timeout reproduced after migration on20cae21; matched fixed sequences pass, but exact event-loop cause remains unproven. All failed controls/source identities/raw evidence preserved, private backups unpublished; second scoped Small-window recovery201/227 restores four files, no notes deleted. Final outer fixture106/runtime/workspace/config restores. C14 accepted; structural refactor paused. Keep draft, no merge/release. Risk priorities: legacy import/restoration and stale-draft durability, then physical mobile/macOS/minimum-host/visual acceptance.
+
+
+### 2026-10-16 — PR #158 extension F7: retry and overlapping workflow durability
+
+Production regressions prove stale selected-theme persistence after a rejected imperative edit, both on retry and under a queued workflow save. The existing appearance queue now records its exact compatibility policy only after storage succeeds; the facade leaves that baseline with the queue. No additional writer/tracker/all-theme comparison. Ordinary unchanged editor saves stay no-ops. A rollback-only prototype fails the workflow-overlap check and is preserved locally with exact build/canonical reconstruction patch/checksums, never shipped.
+
+106 affected tests/types/build and exact native6 migration/15 style/9 preview/27 color/6 foreground pass on main5f5c81d1581aae1688a4d2efdae2b7bbffb27d993e9cf5c4f9444ec84c09fdb3. New native style case verifies failed imperative color retry, coherent durable library and reload with0 semantic/source work. Original106-file runtime/workspace/four config bytes restore, no owned fixtures/controllers. Superseded full run intentionally stopped at its owned portable test process tree before staging; retained as incomplete. Fresh full/CI pending. C14 accepted, later refactor paused. Keep draft, no merge/release/public archive. Manual risks remain physical mobile/macOS/minimum-host/visual review and historical Windows controls; event-loop cause not claimed proven.
+
+
+### 2026-10-16 — PR #158 final local acceptance and evidence closeout
+
+Frozen runtime3131bac passes clean Node22.22.2 strict verification:1,997 tests (7 architecture/128 core/879 general/120 UI/334 source/529 source-browser),0 failures/skips/cancellations, official lint/installed types/real production build and exact native smoke. Matching main5f5c81d1581aae1688a4d2efdae2b7bbffb27d993e9cf5c4f9444ec84c09fdb3 passes6 native migration/15 style/9 theme combinations/27 color-theme-reset/6 foreground; restored live/durable migration appearance and failed compatibility retry/reload are asserted. Original runtime/workspace/four exact config bytes/106 files restore; no owned notes/controllers. Theme phase12writes/0 source-semantic-search-visual/3 real non-color neighborhoods, inactive metadata0 graph; no CPU/memory claim.
+
+Final report consolidates architecture, scope, versioned model/lifecycle, full/native evidence, raw reproduction and limitations. Two verified local evidence directories hold64+102 files, private backups excluded; canonical45-source receipt binds3131bac and artifacts. All failed controls, rejected rollback-only prototype and interrupted run retained, unpublished. Exact historical native event-loop cause remains unproven; do not erase failures with retry passes. No runtime change after frozen verification; no manifest/lockfile/README change. C14 accepted; later refactor paused. Keep draft, no merge/release/public archive. Manual priorities: physical mobile picker/touch/scroll/resume; macOS Settings/popout/picker; minimum1.13/community/high-contrast visual acceptance. Follow PR CI; no further implementation/optimization queued.
+
+
+## Alt/Option hover highlighting (2026-10-16)
+
+| Checkpoint | Status / evidence |
+| --- | --- |
+| H1 — Shared modifier-gated hover | `a16719e`: full2,003/lint/types/build/exact smoke and CI pass; default delay preserved, eight locales, no semantic/theme policy change. |
+| H2 — Native hover validation and closeout | Seven actual Settings/main/popout cases plus cleanup pass,0 observed source/semantic/search calls; original106-file fixture and four config bytes restored. Initial broader failures retained below. |
+| H3 — Requested Small-vault retest | Unchanged touch driver passes8 gestures/reload/geometry/cleanup after releasing idle CLI debugger. Gate canonical fixture binding fixed;5 display cases pass, unchanged no-source-work assertion fails reproducibly (+1 check/revision,0 reads/parses/builds). Runtime unchanged; keep #170 draft. |
+
+### 2026-10-16 — H1: optional modifier hover
+
+PR #158 merged at b9d3527 with explicit maintainer authorization; fetched/updated main before creating 2026-10-16-alt-hover-highlight. Scoped new global Boolean defaults off, strict migration and foreign-import isolation. Shared surface-owned HoverHighlight replaces only the existing delayed hover owner for nodes/gates/connectors, with immediate modifier entry/stationary key transitions and cancellation on leave, blur, navigation, policy changes and teardown. Preserve direct drag/touch ownership, existing evidence tooltips and all theme styling. No semantic policy or theme schema changes; workflow save/presentation path only. Eight locales use environment-aware modifier names.
+
+Actual build and focused checks pass on Node22.22.2. First full run failed an unchanged menu browser-startup/loading assertion; focused retry passes. Full retry and exact native Settings/main/popout/touch/gate lanes pending, not yet acceptance. C14 accepted; later refactoring remains paused. Highest remaining risk: actual modifier delivery/focus across Settings and popouts. macOS Option/menu and physical mobile/hardware-keyboard behavior require separate coverage.
+
+
+### 2026-10-16 — H2: exact-build hover acceptance and bounded closeout
+
+Runtime remains a16719e; full2,003 and CI pass. Exact d5958787 build passes7 actual Settings/trusted hover cases in main/popout and complete cleanup. Corrected native probe only: preserve current focus during keys, choose visible fixture gate, await existing popout readiness, release listeners before closing their document and rebind original workspace owners. No production change after full verification.0 body reads/parses/acquisitions/semantic/search in measured intervals; no CPU/memory claim. Final restoration matches original settings keys/four exact config files/106 files/no owned fixtures or controllers; validated build retained.
+
+Failed controls preserved, including first full Chromium startup failure, native probe focus/gate/readiness/closed-window cleanup failures and rejected capture prototype. Broader touch lane fails plugin readiness across emulation before cases; explicit same-build enable and final restoration recover desktop. Both broader gate runs cancel their setup patch without observed source/policy/metadata change, before gate assertions; fixture cleanup passes. Causes remain unproven; no assertion weakening, semantic fix or further architecture work. See docs/validation/alt-hover-highlight-2026-10-16.md and local58-file evidence manifest/source receipt. Keep #170 draft; no merge/release. Highest remaining risks: unresolved broader native harness acceptance, macOS Option/menu/popout and physical mobile touch/external-keyboard behavior.
+
+
+### 2026-10-16 — H3: requested touch/gate rerun in Small
+
+Revalidated exact d5958787 build against dist and106-file Small. Original gate setup cancellation repeats; source trace stops before acquisition of Note A. Actual fixture receipts show3 readable foreground pages absent from canonical patch state. Native setup now uses the existing idempotent insertion owner for every owned Markdown file; no new production code, scheduler, full build or weakened assertion. Regression executes actual binding block; all20 native-runner tests pass on Node22.22.2. Both native drivers pass syntax checks and diff is clean.
+
+Original touch retry reaches debugger-owner guard: idle CLI debugger attached, no DevTools/live test. Public installed dev:debug off releases that owner; unchanged driver passes8 trusted range cases, reload, geometry and all cleanup/restoration. Earlier reload-readiness issue not reproduced, cause still unproven. Both corrected gate runs pass5 visual cases but fail no-source-work on clear: +1 acquisition.checked/+1 semantic revision, stable source revision,0 fresh reads/parses/rebuild/body-read/requested-neighborhood-degree-pair calls. Do not infer a full rebuild or wrong gate display; source of validation/publication remains unproven. Leave PR #170 draft; do not implement a broader semantic/performance change as part of retesting.
+
+Original settings/layout/bounds/four config bytes/CLI debugger state/106 files restore; no owned notes/controllers, same artifacts. Local29-file retest manifest/source receipt and old evidence retained, unpublished; private backups separate. Updated validation report and CONTRIBUTING make current acceptance and debugger prerequisite explicit. macOS and physical-mobile acceptance remain separate.
+
+
+## Plex interaction fixes and features (2026-10-16)
+
+| Checkpoint | Status |
+| --- | --- |
+| I0: authorized #170 merge and main update | Complete: CI retry passed, #170 merged at `3294bea`; fetched/fast-forwarded main and created `2026-10-16-plex-interaction-updates`. |
+| I1: interaction and central-file implementation | Complete: final full 2,044 tests/lint/types/build/exact smoke, 14 native interaction cases and 7 main/popout hover cases pass. All seven requests implemented; native-observed admission-key and stale readable-identity fixes included. |
+| I2: evidence and draft PR closeout | Local closeout complete: original vault restored, 110 evidence files plus 6 private files verified; source checkpoint `6835353` pushed and draft #171 opened. CI pending at closeout; resource/platform gaps remain explicit. No merge/release. |
+| I3: compact node tooltip follow-up | Complete locally: preserve browser title/accessibility; remove duplicate host node hint using existing aria-labelledby pattern. Full2,045, focused9, native node5/interaction14/hover7 pass; original vault restored. Draft/no merge; prior gaps remain. |
+
+### 2026-10-16: I0, authorized hover PR merge
+
+The maintainer explicitly requested creating/merging the hover PR before starting the interaction
+batch. PR #170's existing head was already published; its complete CI retry passes at
+https://github.com/zsviczian/kplex/actions/runs/38929685957/job/117113490279 . Main merged #170,
+fetched and fast-forwarded local main to `3294bea18093b33791830fb55d97d53c6e3c980a`, then created
+the new feature branch. The earlier H3 draft status is historical; its known Quick lens resource
+limitation remains recorded. C14 stays accepted; no structural refactoring resumed.
+
+
+### 2026-10-16: I1, validated Plex interaction implementation
+
+Main independently reviewed the scoped materialization, modifier/localization and Properties
+returns, fixed bounded defects and ran final verification against the actual installed host/types.
+Transparent scroll surfaces, displayed-gate geometry, separate modifier policies, additive sibling
+drops, resolved Bases navigation/linking, immediate placeholder reconciliation and central-file
+Properties integration extend existing owners. No new graph classifier, scheduler, storage format,
+source acquisition path, dependency or release version. Four sibling writes preserve their shared
+parent; native held-build conversion removes the old rendered ghost and retains exactly one real
+node. Properties tracks both file and editable metadata identities across held native loads,
+pinning, unsupported files and popouts without changing focus/history or emitting file-open.
+
+Native repetition exposed an obsolete settled gate task: cleanup used a mutable page path rather
+than its admission key. Capturing the coordinate fixes proof/retirement and preserves zero-read
+count behavior across both rename and materialization. A real separately published host-preview
+regression also establishes and rejects stale placeholder intent. Final 2,044 tests, official lint,
+installed types, real build/exact smoke, 14 interaction cases and 7 hover cases pass; no failure,
+skip or cancellation in the final verification groups. Exact runtime is `852d2c8e`.
+
+Touch passes 8 trusted gestures/reload/geometry; a second exact native interaction run passes all
+14 cases and cleanup. Final restoration matches original 107 files/settings/layout/bounds/four
+configuration files/debugger state, with no active/pending work. Broader gate/filter resource
+acceptance fails in both normal and isolated runs before the complete matrix: recorded oracle-to-
+failure +9 checks/+9 semantic publications, source revision unchanged and zero fresh reads/parses/
+builds. This is not a per-toggle measurement and does not establish a CPU cost or cause. The
+assertion remains unchanged; keep the PR draft and defer separate readmission investigation.
+Remaining closeout: verified local evidence, source receipts and draft PR. Highest-priority platform checks are actual macOS Option/menu/popout
+behavior and physical mobile touch/external-keyboard/Properties behavior. Desktop emulation is
+not device acceptance. The existing Quick lens resource gate remains independent; no optimization
+or structural C15+ work is authorized by this checkpoint.
+
+
+### 2026-10-16: I2, local evidence and draft PR closeout
+
+Implementation checkpoint `6835353ccb82ee7cbee1f63c65470e51c62ab00e` is pushed; draft
+https://github.com/zsviczian/kplex/pull/171 contains all seven requests, measured native results
+and unaccepted limits. Final diff has no dependency/lockfile, manifest/version, generated artifact,
+foreign repository, note payload or unrelated production changes. New regression/native tooling
+is reusable; one-off probes remain outside the PR. No assertion was weakened.
+
+Verified local evidence is `%LOCALAPPDATA%/kplex-validation/pr-171/`: 110 entries/12,724,181 bytes,
+with source blobs tied to `6835353` and exact final artifacts. Independent second verification
+passes every checksum; six private configuration/raw-touch files are copied and verified in the
+separate private sibling. Original evidence remains intact; HANDOFF is excluded and nothing is
+published as an archive. Source-receipt SHA-256 is
+`a6dc7a75eff5e09a165af9d4d5be4ba1c56eee96310b5819d70518505afd555d`.
+
+Original 107-file inventory, runtime settings keys, layout/bounds, four configuration files and
+CLI debugger state restore; validated runtime remains installed, with no active/pending preparation
+or test controllers. The new area preference inherits its default while original persisted choices
+are preserved. Feature acceptance passes Windows; keep draft because the broader resource lane
+and actual macOS/physical-device acceptance remain unaccepted. Investigating the filter readmission/
+publication activity is separate follow-up, with no CPU cause or savings established here. CI is
+running at closeout. Source is frozen; no automatic C15+ work, merge or release.
+
+### 2026-10-16: I3, compact node tooltip and accessibility
+
+At parent `08f620f`, native hover confirms an inner browser title plus a separate Obsidian styled
+hint from the outer aria-label. ThoughtNode now reuses existing useId/accessible-name/aria-labelledby
+presentation; full localized label/path accessibility remains, and compact titles, gates and explicit
+page previews retain their owners. No CSS/shared tooltip timers, graph work or settings changes.
+Browser regression covers ordinary/image modes and repeated occurrences; renderer fixtures use
+actual React rendering for the new hook. Main independently reviewed the scoped offline return.
+
+Full strict verification passes 2,045 tests/lint/types/build/exact smoke; focused9, native node5,
+interaction14 and hover7 pass. Runtime `fbe9eaa3`; original107 files/settings/layout/bounds/config
+bytes/debugger restore, no active/pending preparation. Native node checks also fail as expected on
+old runtime852d. A complete-control run passes12 then fails on the obsolete background-modal
+selector; retain it as unaccepted, and use the explicit node-only driver scope for this follow-up.
+Runtime/tests stayed frozen after full verification; only driver scope/docs changed, followed by
+syntax and actual native acceptance. Earlier checkpoint CI passes; new push CI remains pending.
+Evidence is a separate verified local supplement; original evidence remains intact, no publication.
+Actual macOS and physical-device behavior and the earlier gate/filter resource gap remain pending.
+Keep draft; no merge/release or C15+ work.
+
+
+### 2026-10-16: PR169 R0/R1, base integration and measurement-only checkpoint
+
+User accepted #171 and explicitly authorized its merge. FinalCI succeeded onf71428f; #171 merged
+atd40a339. Main was fetched/fast-forwarded; PR169 branch merged main at69fa58a and was pushed.
+Relative main, only the planning marker remained. Auto-review initially rejected the necessary
+ready transition based on superseded draft instructions; a retry with current explicit merge
+authorization and the verified GitHub prerequisite passed. #169 remains draft/no merge/release.
+
+Production source-reader logic remains unchanged. Existing measurement owners now expose bounded
+actual reader/lease attribution, conservative drain, shape/repetition fixtures and partial evidence.
+Main independently passed2observer contracts,18small shape/wave cases and6single-chunk doubling
+cases; offline18detailed/18counts agreed exactly. Large dense setup hit the unchanged60s CDP deadline;
+retain failure and avoid scaling that fixture further. CPU Node-inspector connect is unsupported;
+its attempted hook was removed. Existing native CLI/CDP sampling/source-map attribution passes
+against500real head-only reads. No primary timing is compared to the historical #165 medians.
+
+Reopened authorized large fixture20,088 Markdown/9,062,067bytes is explicitly notSynthetic-Scale-v2.
+Current-main preparation completed; original artifacts/configuration are privately backed up.
+Small original107files/build/configuration restored with no owned probe/CPU state. Nativepilot/GateM
+pending; no resource benefit or shipping verdict yet. New personal-vault grant is indexing-only,
+main.js deployment and sanitized aggregates; it has not been used. See the single evolving
+validation report `docs/validation/source-reader-efficiency-169-2026-10-16.md`.
+
+### 2026-10-17: PR #169 R2, defer production reader sharing at Gate M
+
+The current-main diagnostic control reconciled 20,088 cached sources with zero fresh Vault reads,
+parses or repairs. Genuine drain occurred at 1,089.981 seconds; observer-interval renderer CPU
+was 327.187 seconds. Source-family leases created/retired 82,770/82,770, peak live one; no unknown
+retirements, overflow or decode reservations remained. Quiet-window/final verification pending.
+
+The proposed shared reader removes one net transaction per eligible owner: theoretical 20,088
+of 435,325 overall (4.61%). Entire metadata inspections occupied 34.643 seconds of inclusive
+awaited time and must still authenticate metadata in the candidate. Two short CPU windows show
+only four lifetime-bookkeeping leaf samples each; native asynchronous storage cost remains
+unisolated. No affirmative material net-resource benefit is established. Defer production changes
+and the expensive candidate acceptance series; this is inconclusive benefit, not proof of no cost.
+Keep reusable measurement protection. No production reader/finality, schema, scheduler or receipt
+change. The separate highest-value storage investigation is the observed full compile/snapshot
+rewrite (one each; about 279 MB encoded page/chunk payload), without assuming it unnecessary.
+No new optimization is authorized by this finding. Only disposable vaults used; no personal access.
+See the concise PR #169 validation report for reproduction, failures and platform limitations.
+
+### 2026-10-17: PR #169 R3, validated measurement closeout
+
+Full Node 22.22.2 verification passed 2,046 tests (7/128/906/128/334/543), zero failures/skips,
+Obsidian lint/types/build and exact native smoke; shipping main remains fbe9eaa3, unchanged
+from accepted main. No source/runtime diff. The 610.633-second quiet window added zero IDB
+transactions/digests/builds/saves; all readers/leases/decode drained, foreground samples valid.
+Inclusive native renderer CPU was 327.968 seconds to drain and 333.968 through quiet; shorter
+probe-interval CPU 327.187 seconds is not substituted for the lifecycle. No resource saving claimed.
+
+Pinned generator verifies all 20,000 generated notes byte for byte; 88 public help checksums saved.
+Both disposable fixtures have original artifacts/configuration and inventories; large runtime
+settings/layout/bounds and small pre-smoke workspace bytes restored. Owned probes/debugger cleaned.
+Personal-vault authorization unused. Local ignored evidence ZIP: 83 files/84 entries, 22,719,434
+bytes; CRC/size/per-file SHA-256 pass, archive SHA-256
+4f0739d70445593203f3377811737c636dcff1c53a14f05c1e093f77300243f5. Raw originals remain.
+No archive publication or backup/payload/handoff inclusion. Temporary planning marker removed.
+
+Defer production reader sharing at Gate M: small operation opportunity, no established material
+net-resource win. No candidate acceptance series or manual production-change test required; actual
+macOS/mobile/lower-powered and mixed-size resource acceptance remain unavailable, not passed.
+CI passed code checkpoint 0333fc4 (38971221162); final documentation-head CI tracked separately.
+A Windows default-codepage failure interrupted the first ledger update after writing the report;
+the standing handoff header is restored byte-for-byte from 0333fc4 with explicit UTF-8, and this
+entry completes that update. Production/test/tool scopes remain unchanged after verification.
+Keep #169 draft; no merge/release, next optimization or C15+ work authorized by this closeout.
+
+
+### 2026-10-17: #169 authorized merge closeout; #172 owns implementation
+
+Reverified the unchanged 22,719,434-byte evidence ZIP: all84 entries/83 file sizes+hashes and CRCs
+pass; SHA2564f0739d70445593203f3377811737c636dcff1c53a14f05c1e093f77300243f5.
+Byte-identical durable backup is under LOCALAPPDATA/kplex-validation/pr-169, outside temporary
+storage. Originals remain intact; no raw traces added to Git, publication or extra consolidation.
+Final-headf794a067 CI38977394989 passes; this closeout changes documentation only, with final
+closeout CI recorded on the PR. No production src diff/indexing change or demonstrated improvement.
+The maintainer explicitly authorizes merging169 without branch deletion/release. Next work is172,
+including all161 acceptance variants, focused causal reproductions before fixes, and no personal
+vault access. Keep172 draft; do not merge, close161 manually, revive receipt/reader sharing or
+resume structural C15+ work. See the consolidated report for accepted results and limitations.
+
+
+### 2026-10-17: #169 merged; #172 causal checkpoint and provisional discovery
+
+Authorized #169 merge completed at9381c38 after exact-head d8afda8 CI39009347730 passed.
+The measured result remains no production indexing change or demonstrated performance gain;
+verified original archive/durable backup preserved, unpublished. Existing #172 branch integrated
+that main through merge612a0c8 and was pushed without rewriting history; draft/Closes161 retained.
+
+Focused accepted-main reproductions confirm missing external filename availability during an
+active On-demand coordinator, stationary demand stranded behind a real unrelated patch, and
+both actual Create EX ghost-history variants with graph/pinned-file disagreement. A later native
+Parent:: edit reproduces inferred-child misclassification. Exact deployed source/artifact,
+failed/excluded controls, private evidence and pending acceptance are recorded in
+[the172 validation report](docs/validation/indexing-live-updates-172-2026-10-17.md).
+
+Checkpoint A corrects unmanaged Markdown create discovery through existing provisional physical
+availability when canonical insertion is not currently admitted. Managed creation, dirty epoch,
+patch backlog and source/write authority remain unchanged. Node22.22.2 indexing harness passes;
+full verification and exact-build native acceptance remain pending. B/liveness and borrowed-read
+corrections are separately in progress, not included in this independently reviewable checkpoint.
+No scheduler/parser/schema/receipt/reader-sharing change, personal-vault access or C15+ refactor.
+Highest-probability remaining workflow risk is loss of provisional discovery across old publication
+or a stale visible editor/graph scope. Main-window external creation, popout demand/hide/reveal,
+macOS native sync and physical mobile suspend/resume require separate coverage before final claims.
+
+
+### 2026-10-17: #172 checkpoint B ? live demand and native endpoint continuity
+
+Existing completion owners now readmit only still-live build-blocked center demand; exact native
+neighbors remain addressable through current local scopes without acquiring source/write proof.
+Finite native event additions survive older graph/search publication until canonical membership
+catches up. A reproduced retained-scope Find mask is corrected only for current physical search
+identity; semantic validation and suppression policy remain unchanged. Independent review added
+the failing real-IDB search regression before the minimal correction.
+
+Node 22.22.2 full verify, installed typings, official lint, production build and exact-build Small
+Obsidian smoke pass. All 103 On-demand tests and 560 source-browser cases pass. Two final native
+Create EX runs cover both #161 variants, 16 full navigation cycles and four stationary Parent/Child
+edits, with correct explicit roles/solid links, first-click pinned agreement and complete cleanup.
+Two earlier browser-load failures and their isolated successful reruns remain private evidence;
+no deadline was relaxed. Artifact/source identities and limitations are in the #172 report.
+
+Verified private durable evidence contains 37 files; originals remain, no archive/publication.
+Checkpoint A full CI39011260178 is green. #172 remains draft with Closes #161; no merge/release,
+receipt, source-validation relaxation, scheduler replacement or C15+ refactor. Next: genuine P3
+held Find/recent-sync controls, existing-note composer discovery and short Eager invalidation
+causal observations. Highest remaining workflow risks are external creation during unrelated
+background publication and window-lifetime changes. Windows main-window cases are exercised;
+macOS/Linux, popout migration and physical mobile suspend/resume need separate acceptance.
+
+
+### 2026-10-17: #172 native closeout and bounded invalidation decision
+
+Checkpoint B40c4f84 is pushed and passes full CI39014152315. The existing native foreground
+owner now retains real P3-held external Find/local-completion/recent-sync coverage and an actual
+physical-only existing-note composer control. Final native lane passes with15s foreground bounds,
+selected-renderer/throttling guards and all active source/storage/scheduler queues drained. The
+existing six inventory-held mutation scenarios pass after native surface readiness is awaited.
+An earlier initial-DOM setup failure and successful diagnostic replay are retained; no production
+fix or relaxed assertion is attributed to that failure. Native shell contract tests20/20 pass.
+
+Two actual Eager candidate pilots and one accepted-main runtime control isolate inherited folder
+wave amplification: existing-folder note2 source checks/77IDBtransactions/197requests versus new
+folder+note92checks/1527transactions/2925requests. Each note reads/parses once, with no full
+graph build or snapshot write. Counts match across builds; sequential CPU/memory/elapsed samples
+with different cache histories demonstrate no efficiency improvement. Both candidate traces show
+uncovered folder activity causing natural resolved?host-revision globalization. Preserve that
+conservative contract. Highest-value separate follow-up is proving narrowly complete new-folder
+creation waves before source-local narrowing, with unknown/concurrent/expired/rename/delete and
+extra-close safeguards retained. No such runtime change is included.
+
+The source/artifact/evidence report records the limits, failed controls and two verified private
+manifests (37-file B,34-file native causal closeout); originals remain, no archive/publication.
+Temporary planning marker removed. #172 stays draft with Closes #161; no merge/manual issue
+closure/release/personal-vault access. C14 structural pause remains. Windows #161 four variants/
+16fullcycles/four explicit edits pass; highest remaining acceptance priorities are Linux/macOS
+actual Create EX and interruption, popout/reveal lifetimes, and physical mobile suspend/resume.
+
+
+### 2026-10-17: #173 prerequisite ? declined native animation acquisition
+
+A native folding/migration trial exposed a null Web Animation return followed by a secondary
+cancel failure from the retained null owner. ElementMotion now retires the old animation/pose
+before replacement and admits only a successfully acquired animation. Callers already ignore
+the return; no timing, transforms, graph semantics or source policy change. Three actual-source
+regressions cover null acquisition, null replacement followed by a valid successor, and unchanged
+valid completion ownership; existing Chromium interpolation/replacement checks remain green.
+
+Node 22.22.2 full verification, installed typings, official scanner, production build and strict
+Small-vault native staging pass. The complete folding feature remains under independent native
+acceptance on the existing #173 draft branch. The null return's underlying host cause is not proven;
+this checkpoint fixes retention and teardown only. C14 structural refactoring remains paused.
+Highest remaining workflow risks are interrupted layout motion and cross-window teardown;
+Windows native migration is exercised, while physical macOS/mobile motion needs separate coverage.
+
+
+### 2026-10-17: #173 safe native tab-group folding checkpoint
+
+The stable fold action now toggles a captured native pair independently of graph readiness.
+Existing Sidecar/fold owners retain native documents, tabs, pins and allocation; bounded sessions
+install group-level recovery before hiding and restore before release/reveal/remount/migration.
+Explicit absence/finite ambiguity and stale ownership/window/generation captures cannot retarget.
+Two direct groups in an isolated native split are supported on all edges; unsafe three-group or
+partial nested layouts remain expanded. A separately reproduced late startup adoption race now
+fences both awaited boundaries. Eight locales and contributor/user documentation are updated.
+No semantic/index/source/settings-schema/scheduler changes; C14 structural pause remains.
+
+Final Node 22.22.2 full verification and strict staging pass: 937 portable, 131 Chromium, 334 source
+contracts and 560 source-browser checks, actual types/scanner/build. Native persistence passes all
+five checks, including trusted 62/38 divider allocation and forced selected-renderer interruption
+followed by disabled startup. Display-mode and 38-sample Sidecar navigation lanes pass. Clean fold
+intervals add zero counted file opens/reads/writes or semantic/source work; no CPU/paint claim.
+
+Draft acceptance remains incomplete: final folding passes 36 functional cases but captures an
+Obsidian zoom-status exception during companion popout closure. A matched no-preceding-fold
+control is clean; removing remote diagnostic proxies does not resolve the error. Broader action
+recorder coverage fails after 13 passing groups; relationship workflow failure also reproduces on
+the merged #172 baseline. Preserve these outcomes, original failed controls and private evidence;
+see docs/validation/safe-plex-folding-173-2026-10-17.md. Keep #173 draft and #164 open. No merge/release.
+Highest risks: focused companion-popout closure, physical desktop group drag/multi-monitor, and
+full application/macOS/Linux/physical-tablet lifecycle. These need separate acceptance; Windows
+Electron automation and renderer interruption do not establish physical-device/full-process safety.
+
+Private evidence closeout: implementation checkpoint `5e53eb6` pushed; 749 manifest files plus
+implementation patch independently verified outside temporary storage. Manifest SHA-256
+`8c5461f9f5b18f30de8a34df295fa2c458326ea303a0af10ec37017306efbd26`.
+Originals retained; no raw evidence publication. Prerequisite CI passes; implementation CI is
+running, not yet acceptance. Native-runner20 contracts pass after tooling cleanup. Source and
+build unchanged by this documentation closeout. Draft/native/platform gaps above remain open.
+
+### 2026-10-17 — #173 accepted merge and #174 D0 checkpoint
+
+The maintainer authorized #173's merge with its recorded validation limits. It merged at
+`23aa44e`; #164 is closed with the requested comment referencing #173. Main was integrated
+without rewriting history into draft #174 at `d4d65cd`. Earlier draft-only instructions above
+describe their historical checkpoints; they do not undo this authorized merge.
+
+#174 D0 adds a fixed-memory session recorder and coarse source/phase observations, independently
+of any folder admission correction. No per-file diagnostic accounting, I/O, scheduling, persisted
+format or semantic behavior is added. Eight weak admission slots bound explicit-copy bookkeeping;
+actual terminal boundaries close phases even when pass detail is omitted. Default capture excludes
+the legacy detailed per-file patch marker. Full verification, installed types/lint/build and exact
+Obsidian smoke pass; all 19 final focused recorder/startup tests pass. Amplified Node 22.22.2 cost is
+about 0.55 microseconds per begin/end pair; the observed complete diagnostic data cut is 15,896 bytes.
+Native stable-path/frequency controls preserve source reads/parses/builds/saves; storage/CPU timing
+variance remains explicit. No native resource saving is attributed to diagnostics.
+
+The full-semantic-snapshot-only F prototype excludes natural source-backed Eager startup. A bounded
+physical-folder publication certificate is under review; it must not imply semantic/source authority.
+D2 public exports, final native controls/quiet window and two-hour soak remain pending. See
+[the report](docs/validation/local-folder-diagnostics-174-2026-10-17.md) and
+[diagnostic contract](docs/INDEXING_DIAGNOSTICS.md). C14 stays paused; #174 stays draft. Highest
+remaining acceptance risks are actual Windows create/report flows, macOS popout/interruption, and
+physical Android/iOS suspend/copy/extended-use behavior. No merge, release or personal-vault access.
+
+### 2026-10-17 — #174 bounded physical-folder checkpoint F2
+
+F2 keeps one native empty-folder wave local only with existing complete physical publication proof,
+exact parent/direct-member identity and the existing per-cause expiry. It does not grant source or
+semantic authority. Missing membership, interrupted/replaced ownership, partial bootstrap and
+On-demand remain conservative. No persisted format, scheduler or architecture milestone changes.
+The original full-semantic-only and absolute-opening-deadline candidates are rejected and preserved.
+The revised isolated build passes 36 real-IndexedDB/browser tests, actual types, affected lint,
+production build and main/indexing fixtures. Native eligible folder-plus-note work falls from
+92 to 2 source checks, 1,526 to 78 transactions and 1,499 to 58 source digests; fresh reads/parses
+remain one each. Inclusive CPU/drain improve in that observation, without a general speed or memory
+claim. The 610-second genuine quiet control and exact cleanup pass. See the consolidated #174 report.
+D2 integration and final V acceptance remain pending; #174 stays draft. Highest remaining risks:
+Windows actual report/Excalidraw flows, macOS interrupted/popout ownership, physical mobile
+suspend/resume and clipboard. C14 remains paused.
+
+### 2026-10-17 — #174 rapid absent-source rename completion
+
+Native create-empty/fill/rename exposed an existing local contract mismatch after F2 avoided the
+global recovery that masked it. Repository `absent` is successful fenced missing-head retirement;
+the adapter previously accepted only `activated`, stranding source/count/referrer completion.
+Accept both only for the current pass, matching old-path intent and continued native absence.
+No new scheduler, retry policy or weaker source proof. All38 focused real-IDB tests, actual
+main/indexing fixtures, types/lint/build and the formerly failing native pattern pass. A held
+second rename cannot lose its newer retirement intent. Normal Markdown and real Excalidraw
+acceptance and exact cleanup pass. D2 public reports also pass24 native cases after correcting
+test-only debugger and host-forwarding clipboard assumptions; final combined verification/quiet
+and bounded two-hour soak remain pending. Preserve failed controls; keep #174 draft and C14 paused.
+Remaining platform risks: Windows final lifecycle, macOS popout/interrupted waves and physical
+mobile suspend/resume, touch and clipboard. No merge, release or personal-vault access.
+
+### 2026-10-17 — #174 shared passive reports checkpoint D2
+
+D2 extends the existing report owners with one deeply frozen, branded activity capture shared by
+both exports. O(1) health getters read existing task flags, sizes and counters; no source acquisition,
+readiness write, timer, I/O or scheduler is introduced by capture. Static public build identity is
+resolved at build time. All eight locale disclosures are updated. Source review confirms canonical
+ownership, fixed retention, exception isolation, owner-window clipboard behavior and unchanged
+semantic policy; C14 remains paused.
+
+Final combined `verify:obsidian` passes on Node 22.22.2: architecture 7, core 128, main 960,
+UI 131, sources 334, browser sources 598; zero failures/skips, actual types/core/lint/build and exact
+Windows native smoke pass. The 20-minute aggregate-wrapper failure is retained; the clean 35-minute
+run leaves all individual test deadlines unchanged. Final integrated 610-second quiet and native
+Markdown/Excalidraw/create-fill-rename pass with restored baseline/configuration. A foreground-loss
+quiet attempt is excluded and retained. Actual native report/Settings/main/popout repeat completes
+23 recorded cases; optional real clipboard writing is pending to preserve non-plain-text formats.
+Earlier 24-case native control includes that real-write case. #172 and #161 native regressions pass.
+
+Amplified D cost is about 0.55 microseconds/pass pair; observed diagnostic data-root cut 16,816 bytes,
+with nonzero capture/serialization allocations. No native diagnostic CPU saving or memory saving is
+claimed. The separate bounded two-hour real soak and private durable evidence verification remain
+V gates before final recommendation. Highest remaining device checks: 24-hour Windows use,
+macOS popout/copy/interrupted folder waves, physical Android/iOS suspend/resume/clipboard/memory.
+Keep #174 draft; no merge, release, raw publication or personal-vault access.
+### 2026-10-17 — #174 bounded V closeout; long-session acceptance remains open
+
+D2 is pushed at `d6be473`. Full verification, exact Windows smoke, final 610-second quiet and
+ordinary Markdown/real Excalidraw/rapid rename cases pass. The final report lane completes 23
+recorded cases; its optional real clipboard write remains pending to preserve non-plain-text data.
+The earlier real-write control, all failed controls and cleanup evidence remain distinct.
+
+The real two-hour foreground soak is not accepted: one preflight fails before fixtures/captures;
+a bounded setup-only focus-settlement variant reaches an edit/capture and two unchanged-idle
+controls before losing foreground focus. Exact fixture/settings/mode/configuration restoration
+passes. Process-level checks identify pre-existing, non-test Chrome; no other applications are
+closed and no focus oracle is weakened. No further performance/code expansion is proposed.
+F: suitable for independent review within its narrow eligibility. D: revise acceptance before field
+distribution; code/cost/privacy/accelerated retention are verified, but the real multi-hour gate is
+unproven. Keep #174 draft; C14 stays paused. No merge, release or personal-vault access.
+
+Private durable evidence verification passes for 1,716 files / 103,633,691 bytes, followed by an
+independent re-read of every entry and 1,713 originals. The consolidated report records the location,
+manifest checksum and source identities. Nothing is published/deleted; transient handoffs and
+dependency junctions are excluded. The planning marker is removed after verification.
+Prioritized remaining checks: uninterrupted Windows two-hour then actual 24-hour use; macOS
+popout/copy/interrupted folder waves; physical Android/iOS suspend/resume, clipboard and memory.
+Runtime D2 CI also passes in 26m52s with the same zero-failure/skip suite counts. The 128-test lane is portable core; labels above are corrected. The maintainer confirms the machine is in use and explicitly defers the long foreground test; no further native takeover is authorized by this checkpoint.
+
+### 2026-10-17 — #174 final V: real two-hour foreground acceptance
+
+The maintainer makes foreground available. A preserved retry passes one edit/capture and 28 idle
+controls, then loses focus around the host's existing 900-second display timeout without recent
+user input. A separately pinned test-only driver owns a temporary Electron display-awake lease;
+no OS settings, simulated input, production policy or foreground assertion changes.
+
+The exact unchanged d46b3701 artifact passes 120.34 real minutes in the actual On-demand session:
+five natural semantic edits/publications/drains/captures at 0/30/60/90/120 minutes, 240 foreground
+samples and 235 unchanged-idle controls. Startup facts, capacity, reader purity and privacy pass;
+summary bytes are 4,705–4,758. Fixed capacities remain unchanged, no active pass/phase at drain.
+This low-activity native case does not replace accelerated rollover/storm tests or prove 24-hour use.
+All fixture/settings/configuration restoration and clock/controller/display-lease release pass.
+The same aged session then passes the actual Settings/main/popout support lane's 23 recorded
+cases: 4,758-byte summaries, 6,438-byte index reports, one owned capture/write, zero wrong-owner
+writes and no guarded effects. Optional real writing remains pending to preserve rich formats.
+
+F: ship within documented eligibility. D: ship with documented platform limitations, independently
+of F's savings. The consolidated report preserves all failures, costs, source/build identities and
+inclusive native resource limitations. Full runtime verification and D2/current documentation CI
+pass; these final report edits change no runtime/tooling. Keep #174 draft; C14 remains paused.
+Remaining priorities: actual 24-hour Windows reports; macOS copy/popout/interrupted folder wave;
+physical Android/iOS suspend/resume, clipboard and memory. No merge/release or personal-vault access.
+
+The separate final-evidence-soak-complete private copy verifies 1,748 files / 105,424,389 bytes;
+independent re-read checks every entry and 1,745 source originals. Manifest SHA-256:
+d32a6e8df72e67d322966bc2fe817ec3a8bd87f67acd6e3b33e20d249eafb077.
+The original 1,716-file archive is independently reverified unchanged. Neither copy nor originals
+are published/deleted; temporary handoffs and dependency junctions remain excluded.
+
+### 2026-10-18 — navigation and native drag feature checkpoint
+
+The maintainer authorizes merging #174 and a new feature branch. #174 is merged
+at `8f702d9c6dfcb70921a1bd5c15087af70e7f2156`; feature work continues on
+`2026-10-17-navigation-and-native-drag`. C14 remains accepted and structural
+refactoring paused. No receipt, indexing optimization, new source owner or schema
+is introduced.
+
+Existing search/relation presentation exposes tag hierarchy and folder/tag Find;
+profile/layout policy owns the six combined-left preferences and independent-area
+seam correction. Native outbound link dragging is isolated behind the reviewed
+Obsidian DragManager boundary. One folder component serves creation and explicit
+placeholder materialization, retaining name-first quick creation. A destination
+change uses bounded, native-approved reference edits and exact-text/identity
+guards; accepted writes remain recoverable after a partial failure. Existing
+duplicate/relink policy is preserved rather than inferred from an alias override.
+
+Review/focused tests pass, including 97 creation/relationship checks after the
+final delegation correction. Full portable verification and exact-build native
+smoke/staging pass; focused native feature validation is next. Actual counts,
+artifact identities, zero-work interval definitions,
+failed controls and platform acceptance belong in
+[the feature report](docs/validation/navigation-and-native-drag-2026-10-18.md).
+No merge or release of the new feature branch is authorized.
+
+The first actual Find lane exposes an intermediate-tag edge lost by a narrower
+On-demand host cover: canonical Person owns the Müller child tag, while the local
+direct-note cover omits it. Read selection now retains existing canonical
+structural tag incidence/evidence within the established native baseline. Exact
+pair, retained/current scope and suppression precedence remain intact; no source
+pass or write completeness is added. The actual GraphIndex regression covers
+shared-member retention and final deletion. Focused tag/host tests pass 118/118;
+native Find passes eight guarded searches and six navigations, with zero guarded
+read/parse/acquisition/build/snapshot/inventory operations and exact restoration.
+Other native feature lanes and final combined verification remain in progress.
+
+The next native-driven correction checkpoint keeps layout-only saves on the
+presentation channel (including the existing profile writer), uses plain HTML
+tag text with finite cross-Plex identity, reserves modified placeholder first
+clicks, restores materialization action labels and preserves native literal wiki
+targets during bounded relocation. Uncertain YAML quoting fails before creation;
+no second grammar or source scheduler is introduced. Focused tests pass 226/226
+and the real-types build passes. Native layout passes all six durable settings,
+three surfaces and zero semantic/source/storage work. Five Markdown drop types
+and cross-Plex navigation handlers pass. Trusted body-drag completion and folder
+restart remain pending; failed native transport trials/recovery are preserved.
+See the feature report for actual evidence and the pre-existing-source ordinary
+moving-placeholder double-click limitation. C14 remains accepted and paused.
+
+Native completion checkpoint: seven folder scenarios plus an actual plugin reload
+preserve native resolution, explicit destination/alias, canonical endpoint and
+source provenance; all fixtures/configuration restore. The native drag lane passes
+all five Markdown and cross-Plex kinds, popout handlers, gate geometry and trusted
+body start/drop delivery using captured Chromium data. Its finite CDP transport
+is reused by the existing interaction lane, whose 14 assertions pass. Touch/range,
+reload and pane geometry pass under desktop emulation. No physical OS/mobile
+acceptance is inferred. A separate existing On-demand gate/filter guard fails:
+cross-link-only saves take the legacy semantic-refresh path and repatch requested
+coverage despite unchanged source counters. Main has the same source path; no
+native baseline trial or fix is claimed. Preserve that failure as a scoped future
+opportunity, rather than broadening this feature or weakening its assertion.
+
+Native reference-safety checkpoint: the explicit placeholder relocation adapter
+now distinguishes literal wiki percentages from once-decoded Markdown targets,
+with exact native cache agreement and conservative serializer refusal. A bounded
+native probe confirmed the host shapes; four focused tests reproduce the previous
+defect. All 49 composer/materialization tests, Obsidian lint and real-types build
+pass. The eight actual native folder scenarios plus reload pass, including three
+retargeted space references, three untouched percent-literal references and exact
+surrounding bytes; inventory/configuration restore. This does not change general
+index/parser semantics or reopen structural refactoring. Final combined checks
+remain pending. Prioritized remaining acceptance: macOS modifier/folder workflow,
+physical mobile interaction, and actual OS drag across windows/applications.
+
+
+Final navigation/creation acceptance (2026-10-18): clean runtime/test source
+ac22f45 passes architecture 7/7, core 130/130, Node 1,013/1,013, UI 131/131,
+source 334/334 and browser 598/598,
+Obsidian lint, real-types production build and exact native staging/error smoke.
+Serial exact-build Find, eight folder workflows/reload, ten combined layout/drag
+cases, fourteen legacy assertions and touch emulation pass; all fixtures/config
+restore. Final sanity confirms 107 files/88 Markdown, no owned controllers/dialogs
+and restored desktop/console state. Isolated presentation/payload/typing work is
+zero; ordinary navigation/mutations remain separate. Private durable evidence has
+403 verified files, originals retained and no publication; source archive excludes
+HANDOFF. The feature report records source/build hashes, failed controls, the
+unrelated gate/filter guard failure, conservative relocation limits and the three
+prioritized physical OS/macOS/device acceptance checks. No further implementation,
+architectural checkpoint, merge or release is authorized. PR #177 remains draft.
+
+### 2026-10-18 — PR #177 feedback: creation and navigation UX
+
+The shared filename suggester now supplies readable, wide folder suggestions in
+both actual creation dialogs, with partial root-path matching and no extra icon,
+disclosure or help paragraph. New-tab actions reuse the existing device policy:
+desktop/tablet expose the plus and command; phone retains side-panel-only opening.
+Simplified layout is first in Plex behavior's Layout & sizing group. Modified
+single-click creates placeholders in place, without global center broadcasts;
+each surface follows only its accepted ghost's canonical identity remap.
+Properties repairs stop after three attempts per unchanged intent. Counterexamples
+prove the old retry hazard; the maintainer's intermittent freeze remains unproven.
+
+Combined working-tree validation passes architecture7/core130, Obsidian lint,
+Node1029/UI131/source334/browser598, actual-types production build, and serial
+exact-build Find, folder, layout, legacy, drag and touch-emulation lanes. Native
+Settings, two-Plex materialization and phone availability/no-allocation are exercised.
+Two below-normal Windows aggregate attempts exceed the unchanged35-minute wrapper
+deadline: preserve those failures separately from their completed passing children.
+The folder guard now reports navigation/opening preparation separately from zero
+typing/selection/Cancel work; native dispatch availability is checked independently
+of its success-return convention. No assertion is relaxed. All owned fixtures,
+configuration/workspace, desktop mode and opening console state restore;107files/
+88Markdown remain. Final-head CI/standard-priority verification remain pending.
+C14 remains accepted/paused. Remaining prioritized acceptance is physical OS drag,
+macOS/minimum-host modifiers/IME, and physical phone/tablet interaction; see the
+feature report. No merge or release; PR #177 stays draft.
+
+### 2026-10-18 — PR #177 feedback: Find and early structural availability
+
+GraphIndex retains one merged projection per visible/physical search scope until
+real vocabulary/owner changes; eight typed/repeated queries over1000 partial rows
+prepare one1000-row projection instead of eight. The existing24-result cap stays.
+Startup's existing native inventory supplies loaded metadata tags and empty folders;
+selected tag covers reuse the structural collector/compiler with existing budgets.
+Complete canonical counts outrank capped previews. Shared ancestry/last-witness
+retirement and actual yielded delete/rename/replacement/late-event races are covered.
+Only availability tolerates unrelated source revisions: restore's source fence and
+all native identity checks remain strict. Newer finite file/folder events survive
+an older publication. No source acquisition policy/schema/receipt/scheduler change.
+
+The preceding combined checks/native acceptance cover this exact runtime too.
+Search operation-count savings are proven; native CPU/heap/startup savings are not.
+Tag lookup retention/metadata traversal adds real work, and selected early tags
+perform bounded compilation. Remaining indexing speed and physical-platform gaps
+are not solved by this checkpoint. C14 remains accepted/paused; final CI and the
+standard-priority aggregate retry are recorded through the PR. Keep PR #177 draft.
+
+Closeout evidence: runtime/test/driver source d86fea3 is pushed; all six exact-build
+native lanes pass, with original107/88inventory, configuration/workspace and console
+state restored. The new private208-file backup verifies all copies,524 source ZIP
+entries/CRCs and its manifest checksum; old evidence/originals remain untouched,
+HANDOFF excluded and nothing raw published. The feature report records both below-
+normal aggregate deadline failures, harness corrections and remaining acceptance.
+The maintainer reports Resolve has finished; final clean-source standard-priority
+verification and final-head CI are recorded through the draft PR, with unchanged
+deadlines and no further runtime changes or performance experiments.
+
+
+### 2026-10-18 ? PR #177 relationship-composer follow-up
+
+Direction and ontology share a form row; completion/edit controls move to a compact
+bottom-right footer. The visible completion selector resolves the existing
+configured intent instead of exposing an opaque label. All reuses the current
+relationship vocabulary and field-direction owner; unassigned new fields require
+an explicit direction. Native session fencing, writes and recovery stay with the
+existing owners. All eight locales are updated.
+
+Shared FuzzySuggester lazy providers now own visibility gating and memoized ranking;
+Find consumes that owner instead of keeping a second focus-gating implementation.
+The composer uses the existing physical-file search projection, retaining bounded
+results/prefix reuse and avoiding graph visibility work for file selection. No
+semantic index/storage/acquisition owner, scheduler or schema changes. Initial
+ranking remains linear; no native large-vault performance saving is established.
+Focused 100-check pass includes real Chromium interactions and provider call counts.
+Full verify passes (architecture7/core130/Node1032/UI131/source334/browser598,
+lint/build/native smoke). Native folder/composer10+reload, action8/51trusted keys,
+Find8queries/6navigations and visual captures pass; original107/88fixture and
+configuration are restored. Native driver-only fixes retain failed receipts and
+wait for exact saved-target metadata with the original deadline plus disk proof.
+Final source/CI/private evidence references are recorded through the draft PR.
+C14 remains accepted/paused. Highest-risk manual follow-up is narrow mobile footer
+layout and macOS modifier/IME handling; Windows automation cannot prove physical
+mobile or macOS behavior. No merge/release.
+
+### 2026-10-18 — PR #177 saved-target and structural-drop follow-up
+
+History/pins reuse Find's type icon vocabulary and retain complete tag hierarchy.
+Explicit saved-tag drops and Unlink reuse native frontmatter mutation plus the
+existing exact-cache/body write observer; inline tags remain source evidence.
+Structural context actions share one capability policy across menus, keyboard
+dispatch and details. Folder/file-tree membership cannot be unlinked or hidden.
+Physical gate-to-folder drops use a captured, revalidated FileManager move behind
+native confirmation, retaining child-gate empty-space creation. No parallel
+ontology classifier, source writer, scheduler or schema was introduced.
+
+The existing document tooltip owner now handles a default-on gate Alt/Option
+preference, including stationary modifier press/release, live opt-out, blur and
+exact listener cleanup. Preference remains global, outside appearance themes and
+semantic policy. All eight locales are updated.
+
+Focused checks pass 183 cases and the indexing fixture. Native Small passes six
+structural cases and eight gate/main/popout/return cases with exact inventory and
+configuration restoration. Cancel performs zero host/index work. The corrected broader
+tooltip lane passes all 24 controls/menu/color-editor/window-migration cases; its
+prior 15-case stale-selector failure remains preserved. Full verify passes architecture7/core130, lint,
+Node1048/UI132/source334/browser598, actual production build and native smoke. Evidence and
+exact artifact references live in the feature validation report. No comparative
+performance tests were run while the maintainer encodes videos. C14 stays paused.
+
+Separate queued work: investigate the reported `--h1-color` parent-style Save
+freeze, expose existing per-style border-width/gate-radius fields, and reproduce
+the saved-preview stationary-center restart symptom. The supplied aggregate
+diagnostics authorize no personal-vault access and do not prove a color-induced
+semantic invalidation. Preserve these separate checkpoints and original receipts.
+
+
+### 2026-10-18 ? Color-source chooser previews and node-style dimensions
+
+Completed the scoped appearance checkpoint on PR177. Theme/current custom CSS
+variables and named pairs share one native SuggestModal and the existing paired
+ColorSwatchList;40 mounted rows/registrations, text-safe labels, exact identities,
+alpha and source-document ownership, close/discard and A-to-B-to-A fences. Node
+styles expose existing strokeWidth/gateRadius fields with inheritance, explicit
+zero border, exact unchanged legacy values and queued field-level merging.
+Non-color edits keep the established layout policy. No production index, source,
+compiler, scheduler or schema change; C14 remains paused. Eight locales/docs updated.
+
+Full verify:obsidian passes architecture7/core130/lint/Node1048/UI135/source334/
+browser602, actual build and native smoke. Native color/theme28 and style15 cases
+pass; two focused single-Plex Properties-closed/open Save/restart variants pass,
+including actual Settings, persisted/rendered dimensions and stationary Parent.
+Detailed artifacts, failed controls and private receipt references are in the
+feature report. No comparative performance tests; exact107/88 inventory restored.
+
+The maintainer has reproduced the startup partial-children symptom again on this
+build. Neither that issue nor the intermittent style Save freeze is declared
+fixed by Small positive cases. The next separately authorized checkpoint is a
+bounded visible-center watchdog/recheck with existing diagnostic receipts, plus
+causal startup handoff investigation. No personal-vault access; no broad indexing
+or receipt experiment. Risk-based remaining acceptance: actual intermittent
+restart/freeze workflow, macOS, minimum host, physical phone/tablet, OS drag and
+prior separately documented gate/filter and moving-placeholder limitations.
+
+### 2026-10-18 — Initial-center subscription catch-up and bounded recovery
+
+PR177 follow-up to5fe9c80. A real React reproduction confirms publication between
+first render and subscription attachment leaves2 rendered children instead of7.
+The existing App publication owner now subscribes then refreshes immediately;
+identity/materialization logic remains in that owner. A separate initial-visible-
+center watchdog checks after3s and admits at most one source-ready follow-up.
+Existing preview/local/requested-scope owners perform repair; no polling loop,
+new scheduler, full-build request, note write or snapshot rewrite. File/source/
+policy/demand/window fences retire stale completions. Current canonical stale-view
+repair requires no source acquisition/read/semantic revision/snapshot write.
+
+Existing diagnostic persistence/export owners retain sanitized counts, flags,
+coverage and outcomes, with a20-entry ring and latest2 non-healthy center entries
+protected. No paths/content/errors in production receipts, no DB schema change,
+no new settings writer. Documentation distinguishes historical receipts and local
+read coverage from current activity and canonical/write authority. C14 stays paused.
+
+Full verify:obsidian passes architecture7/core130/lint/Node1049/UI140/source334/
+browser607, actual build/native smoke. Native style15, live-updates foreground,
+support exports24 and Properties-closed/open Save/reload/actual timer recovery4
+each pass. Report records exact sources/artifacts, retained failed extractor and
+native setup controls, and two unresolved pre-reload fixture Parent timeouts.
+Those two Properties-open failures are not erased by later passes. Watchdog and
+subscription fix do not establish resolution of every startup or Save-freeze cause.
+
+Risk-based remaining manual acceptance: affected full application restart while
+stationary plus Copy index diagnostics; intermittent style Save with Properties;
+macOS/minimum host and physical phone/tablet lifecycle. No personal-vault access,
+comparative performance work, receipt experiment, merge or release. Raw evidence
+remains private with verified backup outside Temp; never archive HANDOFF.md.
+
+### 2026-10-18 — Tag/Note Type actions, native moves and view-local center presentation
+
+PR177 follow-up to8f65dd5; C14 refactoring remains paused. The existing structural
+interaction owner now composes symmetric tag/Markdown assignment, one selected
+Note Type, explicit keep/replace, connector conversion and tag unlink through its
+per-file metadata queue/observer. Central folder/file pairs share captured native
+move planning and the same final checks with/without modifier confirmation.
+No parser/compiler/source/index schema or ontology classifier change.
+
+| Checkpoint scope | State | Evidence |
+| --- | --- | --- |
+| Tag/type/move interactions | Implemented; Windows native passed |12 actual native cases, including choice, saved targets, conversions, conflict decisions, cross-Plex/native-link delivery, Cancel and native moves. |
+| Adjacent tabs and independent center modes | Implemented; Windows native passed |6 layout/surface cases, actual controls and native leaf restore; mode snapshots contain only two scalars and preserve inherited profile settings. |
+| Shared style dimensions | Implemented; Windows native passed |Native SliderComponent rows/value/inheritance reused by node/link editors; full native style matrix15, focused35 and locale/lint checks. |
+| Late local startup wakeup | Causal functional control passed |Real GraphIndex/IDB retired-owner/replacement-baseline fixture fails at8f65dd5 and passes candidate while source inventory remains held. Initial/local/global checks stay finite. |
+| Final feature verification | Passed with explicit open native failures |Full1792334769085:7/130/lint/1058/142/334/608/build/native smoke. Native12/6/15/6/8 and closed/open4 pass; Sidecar recovery-drain and combined Properties Parent failures remain open, not passes. |
+
+The initial startup check can finish pending before the local baseline is ready;
+a local-ready follow-up now reuses the existing repair owner rather than waiting
+only for global authority. Production diagnostics retain a distinct sanitized
+trigger. This does not establish every intermittent startup/freeze cause fixed.
+
+The reported gate-radius/Settings-close freeze with a normal node and Markdown
+Sidecar remains unreproduced. A separately confirmed native scalar lifetime bug
+is corrected: removed/adopted/closed Settings controls cannot refresh or submit
+new writes, while accepted disk operations finish. Real Chromium fails on the
+retired slider access before the correction, then passes all13 appearance cases
+including actual document adoption and concurrency. Native Sidecar probes cover
+trusted range/title-bar clicks and delayed saves; passes do not erase the report.
+
+Native failures remain evidence: Modal.selection collided with undocumented host
+focus state; selectedType now has separate ownership. Settings and Plex documents
+can differ. Prototype-spreading inherited profile settings lost semantic/style
+fields; centerViewSettings now preserves the prototype, with explicit regression.
+Fixture focus, clipped split targets and deferred restored-leaf setup were corrected
+without removing stale-continuation, trusted-gesture or restore assertions. One
+empty-view run was stopped and independently cleaned/restored. All originals and
+prior private backups remain; no raw publication or personal-vault access.
+
+Risk-based remaining acceptance: the supplied macOS/full-process stationary
+startup case, OS-native dragging and physical phone/tablet/minimum-host behavior.
+Prior Properties-open reconciliation timeouts and the reported Save freeze remain
+unresolved/reproducibly bounded only where described in the validation report.
+No comparative performance claim, receipt experiment, merge or release.
+
+Final exact-artifact native Sidecar+Properties probe1792336295440 passes actual
+style Save/Settings close but retains a missing Parent while local status is ready,
+with no active semantic/on-demand work. Sidecar-only1792336216068 passes Save,
+stationary Parent/plugin restart and actual timer receipt, then fails the separate
+synthetic recovery-fixture idle prerequisite. Cleanup/configuration pass in both.
+Preserve these failures and investigate the confirmed missing-relation reproduction
+separately from the feature checkpoint; no freeze or complete startup fix claimed.
+
+Feature checkpoint1941b48 is pushed. Private evidence backup1792336531810 verifies
+583 files/36,151,035 bytes and source ZIP541 entries/CRCs/per-file SHA-256,
+HANDOFF excluded; manifestba61eb5d95513393ae661ee6ca351023bd5dfdacd5e86e6421ff623ba38f7937.
+Originals/prior backups retained, nothing raw published. Remote CI is in progress.
+
+### 2026-10-18 — Stationary host-cover and startup-backlog corrections
+
+C14 remains paused. PR177's follow-up fixes two causally traced races within
+GraphIndex's existing local publication owner and main's existing startup/rebuild
+coordinator. No new scheduler, source format, receipt, parser, classifier or broad
+optimization. Private functional traces use only Small's owned synthetic notes.
+
+1. A valid URL publication advances a demanded center's gate epoch during private
+   complete-host preparation. The guard refuses that result, but a late-created
+   target also makes the ordinary canonical patch return needs-rebuild. Previously
+   the current demand drained without publishing its Parent. Retry only the
+   superseded private preparation under the same live demand and all original
+   finality/file/policy/budget checks. Retired demand and unchanged unavailable
+   results stop. Old dd4ef63 source fails the two real IDB recovery regressions;
+   candidate passes, with both cancellation controls remaining green.
+2. A visible local baseline can finish while persisted Markdown Sidecar restore
+   awaits. Later restore classification adds startup:no-snapshot after the initial
+   task has already resolved, stranding dirty status without work. Startup now
+   joins the original task then schedules remaining visible/complete/live backlog
+   through the existing rebuild queue. Never clear newer dirty source paths or
+   manufacture a ready result. Closed/incomplete/unloaded/clean gates are covered.
+
+Host-cover-only full1792337424909 passes7/130/lint/1058/142/334/612/build/native
+smoke. Native combined Sidecar+Properties now restores stationary Parent, while
+both that and Sidecar-only still fail the later genuine-idle prerequisite. Trace
+1792339143489 establishes the second cause above. Those failed receipts remain
+private and unchanged. Combined final verification1792339241307 passes
+7/130/lint/1058/142/334/612/build/native smoke on Node22.22.2. The exact-build
+reference matrix now passes4 checks in all4 pane combinations, including genuine
+idle/recovery. Styles15, Sidecar trusted gate-close8, foreground held-P3 live
+updates, structural12 and layout6 pass. Sanity1792340561280 confirms restored
+107files/88Markdown, no controllers/dialogs and CLI capture off. Final artifacts
+and exact native receipts are in the validation report; source matches the run.
+
+No comparative performance or personal-vault access. Per-attempt budgets remain;
+total retry work follows actual churn, not a fixed latency/resource guarantee.
+The complete-app Save/Settings-close freeze is still unreproduced. Remaining
+manual acceptance: affected full-process startup/freeze, macOS/minimum host and
+physical mobile/native drag behavior. No merge/release or final platform claim.
+
+Saved/pushed checkpointba8ad7e7b1ad7d714edc2340f330e5f706e723d3. Verified private
+backup1792340626104 contains685files/38,971,887bytes and source ZIP541 entries,
+CRCs/per-file hashes; HANDOFF excluded. MANIFEST
+57c5c60589a7ce06d73d55ed49323eb8cb0d9d8cec1025381351eafe2b8ff8d5.
+Originals/prior backups retained; no raw publication. Exact-head remote CI is
+running when recorded, not claimed green. PR remains draft.
+
+### 2026-10-18 PR177 � shared completion and context layout follow-up
+
+One CreationCompletionSelect now owns the actual caption/dropdown in both creation
+shells. It shows the resolved outcome, keeps explicit choices local, and uses common
+native styling. Guard ToggleComponent.setValue reflection because the real host
+invokes onChange on changed values. Native user toggle persistence is retained.
+Folder creation passes the exact current destination through all validation paths,
+allowing parent/nested matching basenames while refusing exact collisions. Initial
+materialization suggestions reuse the existing closed-focus policy.
+
+LayoutCheckbox is shared by Wrap labels and one Simplified layout checkbox beneath
+Parents/Children. Existing context writer, environment and eight-locale copy remain
+owners. A shared surface route keeps popout reads/writes aligned with main-tab
+arrangement, retaining independent density. No new preference/indexing owner.
+
+Full1792341320441 plus final affected1792343479987 (7/130/lint/206/build/native smoke)
+pass on Node22.22.2. Final Windows folders12/layout7 pass exact artifact3fbbe208;
+layout source/storage/build/semantic counters0. Four native visual captures, two
+inspected, plus final sanity1792344084125 verify original107files/88Markdown,
+no dialogs/controllers and capture off. Retain failed controls and the earlier
+unattributed1-acquisition typing interval, not universal efficiency claims. No
+comparative performance or personal-vault access. Report carries exact hashes,
+receipts and driver corrections. Remaining risk: whole-app Settings-close freeze
+still unreproduced; macOS/minimum host and physical mobile/touch require separate
+acceptance. Highest-priority manual checks: affected full-process startup, native
+Settings close with Markdown Sidecar, and physical-device layout controls. Keep
+draft/no merge/release. Private originals/verified earlier backups remain intact.
+
+Validated creation/layout checkpoint: `0ab6091fc3c2b28a76fcebef65428dc1c4335978`.
+Verified private backup outside Temp:
+`%LOCALAPPDATA%/KplexValidation/structural-drops-177-20261018-1792344165311`;
+859files/57,075,484bytes; source ZIP543 entries with CRC/per-file SHA verification,
+HANDOFF excluded. MANIFEST SHA-256
+`df19b953c9845889c841cd0a4c153c8e5be6fbba5897cc08d5ff845a05f235ea`.
+Originals and prior backups retained; nothing raw published. Remote0ab6091 CI is
+in progress when recorded; previous41fd2f8 CI passed. A docs-only evidence pin
+changes no validated runtime. Keep PR177 draft.
+
+### 2026-10-18 PR180 � stationary Markdown saves
+
+Merged accepted PR177 to main4396768; integrated main into the existing180 branch
+without rewriting history (1160cb2). Native Sidecar/central-editor autosaves
+reproduce body parents temporarily demoted to children, lost DOM and126 animations
+per3saves. The accepted read priority keeps the exact prior canonical/body owner
+only while replacement work is active; policy/native identity/write fences remain.
+A first semantic-scope-only candidate had no effect and is retained as failed evidence.
+
+On-demand invalidation now distinguishes dirty source admission from the compiled
+policy token, restoring SourceFingerprint no-op use without skipping validation.
+Prepared view identity survives non-settings publications; ordinary scene geometry
+compares consumed values, strips paint via the existing owner and rebinds current
+pages. Sections keep conservative invalidation. No new scheduler/schema/receipt.
+
+Red controls independently fail for read retention, no-op policy and scene work.
+111affected owner tests,8final held-parser Eager/On-demand/same-stat/removal cases,
+143focused presentation/UI/follow/layout tests,7architecture/130core/full lint/real
+build pass. Strict native1792346311955 passes4 cases:3prose autosaves each in
+Sidecar and central editor give0semantic/0animation, retained DOM/focus and parent
+roles; actual parent removal/restoration passes. Native adaptive-fit1792346448185
+passes7positive relationship/navigation/camera controls. Exact main713b17c1 hash
+and source/read counts are recorded in docs/validation/markdown-save-continuity-180-2026-10-18.md.
+
+Per maintainer, defer full verify/native/platform/dependency matrix to147; keep180
+draft. No CPU/memory/latency claim. Source parsing/acquisition and many presentation
+notifications remain. Follow-up147 should attribute those passes before optimizing.
+No personal vault, comparative performance test, release or180merge. Remaining
+manual priorities: combined property-lens/section/provenance matrix, independent
+popouts/macOS and physical mobile. Separate Settings-close freeze stays in179.
+
+Checkpoint `256c6cc7bb15952b5ec58609f21798c5e10f07fa` is committed/pushed.
+The final policy/lifetime subset passes35 tests after the same-stat/policy guards.
+Sanity1792346630038 repeats original fixture counts, exact hashes and capture-off
+restoration after the seven native positive controls. Verified private evidence:
+`%LOCALAPPDATA%/KplexValidation/markdown-saves-180-20261018-1792346670447`;
+42 files/6,996,864bytes; source ZIP544 entries, CRC/per-file SHA verified; HANDOFF
+excluded. MANIFEST SHA-256
+`7ff510049d3231bfc828952bd70731c2d9fd18ae477d1080fed4d1513b9cb5d0`.
+Originals remain in Temp; nothing raw published. CI runs asynchronously; no final
+CI-green claim or merge recommendation replaces the deferred combined checks.
+
+
+### 2026-10-18 PR181 — Alt/Option crosslink preview
+
+| Checkpoint | Result |
+| --- | --- |
+| Main integration | Main177/180 incorporated without rewriting; draft181 targets main@e95d3db through7d0a014. |
+| Shared owners | Optional trusted mouse feedback in HoverHighlight; focused appendVisibleCrossLinks, existing gates/style/paint/lifecycle. No indexing/settings/schema change; C14 remains paused. |
+| Focused checks | 60 hover/layout/UI +2 Eager/On-demand source-backed +23 gate/tooltip/motion;7architecture/130core/full lint/real build pass. Two projection/Find-highlight controls fail as expected; restored bytes. |
+| Native checks | Exact build1792348138137; native1792348226865 passes11: four gates/incoming, both modes, enabled dedup, zero opacity, main/popout and blur. Guarded reads/parses/acquisition/semantic/search/settings writes0; setup separate. |
+| Maintainer boundary | Complete/push181 then pause for maintainer testing/merge. Keep draft. No147 implementation, merge, release, personal vault or comparative performance test. Full/platform matrix pending. |
+
+Projection uses eligible displayed persistent endpoints; modifier changes do not
+enter geometry or semantic gate-count dependencies. Preserve canonical orientation
+through earlier incident reciprocal lookups, not all-pairs or a second classifier.
+Expanded minis keep their separate non-connection-hover policy. Extra hits passive.
+
+Report: docs/validation/alt-hover-crosslinks-181-2026-10-18.md. Initial UI fixture
+lacked explicit null peek input (59/60); corrected fixture passes60. Final sanity
+1792348322853 restores107files/88Markdown, configuration/workspace, no controllers/
+dialogs, desktop/captureoff. No CPU/memory/latency comparison. Remaining manual:
+native lens/section/scroll provenance; actual Eager/drag/paint; macOS/migration/
+physical devices. Maintainer will test181 before its merge or the next work package.
+
+181runtime checkpoint e8e8814744ebc8eb1beb43a8674a5951b91be9be committed/pushed.
+Private verified backup1792348500765:38files/8645196bytes, sourceZIP545entries,
+CRC/per-fileSHA pass, HANDOFF excluded. Manifest381e9879634ca0a01b5f04df9bf08af2b39bb4fa7aad8d98188a9321931d95c8.
+Originals retained/private. Pause for maintainer testing; no next task started.
+
+
+### 2026-10-18 PR181 child-gate tooltip follow-up
+
+Shared LongPressTooltip now honors existing data-tooltip-position=top rather than
+always preferring below; viewport/canvas fallback retained. Gates already request
+top, no new control/settings/strings.8browser tooltip checks, full lint/real build/
+exact stage1792349032305 and8native node-only cases1792349051302 pass, including
+child gate above in main/popout/return. Sanity1792349085739 restores107files/88md,
+config/workspace/captureoff. Installed main f40ff506c3a8990c98493d46b77ef1e4cebdb219085ed3a278812d0f1bc19a0d.
+Existing crosslink validation not rerun; no indexing or CSS change. Remain paused
+for maintainer testing/merge; no next PR. macOS/physical acceptance still separate.
+
+
+### 2026-10-18 PR182 settings reconciliation checkpoint
+
+181 merged mainc0cd100 under explicit authorization/no CIwait. Existing182branch
+updated through8b0fdbd without rewriting. Added public external callback and one
+settings reconciliation adapter on the existing disk queue, detached root intents/
+remote owner epochs, exact preflight and retained in-flight receipt evidence. No
+recursive merge, sync backend, persisted conflict schema, indexing or C15 refactor.
+Native declaration controls reuse host update/renderer, with transient stale-event
+keys; themes/actions/lenses use existing owners. All8locales updated.12production-
+method deterministic Chromium cases and real build pass; prior97affected tests and
+33sync/localization pass. Initial four unsafe array accesses corrected with unknown
+guards; lint passes. Full/native event delivery still pending; not merge-ready.
+Maintainer requires completion/push182 then pause; no141/147, personal vault, merge
+or release. Native receipts/platform and final regression coverage remain next.
+
+
+### PR182 validation checkpoint - 2026-10-18
+
+Live settings:16 focused production-boundary Chromium cases and real build/types pass;
+exact durable read-back, detached accepted state and stale action publication guards
+complete. Prior native candidate passed5 actual callback/control/view/semantic/recovery
+cases with exact configuration restore; final exact-build repeat and full verification
+remain pending. Two full harness failures retained and corrected (compile inventory,
+finite Notice stub). Reusable Small native lane added; temporary planning marker removed.
+C14 structural work remains paused; no indexing/parser/cache changes or performance claim.
+Manual gaps remain real two-device Sync, minimum host/config override, physical mobile.
+
+
+### PR182 native acceptance checkpoint - 2026-10-18
+
+Runtime dbe5317 passes full verify (7/130/1061/162/334/623 test groups, no skips),
+real build/types/official lint. Exact Windows Small native migration passes;6 live
+external-callback cases pass each in actual on-demand and eager;15 existing native
+style-operation cases pass. Paint receipt:1 settings read,0 note/source/semantic/
+build/write work. Genuine ontology refresh and native foreground preserved.
+Two focus-oracle failures retained: frontmatter moved requested line0 to actual4
+before reception; observed before/after caret4 and editor identity unchanged,
+zero focus events. Validator now compares observed stable caret and retains bounded
+failure facts; production runtime unchanged. Opening configuration/workspace exact,
+107files/88Markdown, original mode restored and no controllers. Durable evidence and
+final docs/PR closeout next, then pause. C14 remains paused. Manual gaps:real two-device
+Sync, minimum1.13/configoverride and physical mobile; no merge/release authorized.
+
+
+### PR182 delivered and paused - 2026-10-18
+
+Feature source/runtime dbe5317 and native tooling f7424d8 accepted for maintainer
+testing; full verification7/130/1061/162/334/623 groups all pass, no skips. Exact
+Small Windows1.14.4 real externalcallback6cases in each actual on-demand/eager mode,
+style operations15 and migration6 pass. Native correct policy/foreground delivery,
+zero note/source/semantic/build/write work for presentation receipt (1settingsread).
+Private durable evidence verified98files/12419738bytes outsideTemp, two source ZIPs
+CRC/entrySHA verified, originals intact, HANDOFF excluded, nothing published.
+Manifest4151640803f1ddf7641a1e3305ada346df8f78ed14b253486b5e401090ca970c.
+Opening Small workspace/config bytes and originalmode restored,107files/88Markdown,
+no controllers/debugger. Final docs/validation/live-settings-sync-182-2026-10-18.md
+records source, work counts, failure controls, distributed race limits and reproduction.
+No CPU/memory improvement claim, indexing/scheduler/schema change or personal access.
+Keep182draft, CI not awaited; PAUSED per maintainer, no141/147, merge orrelease.
+Manual gaps real macOS-WindowsSync, minimum1.13/configoverride andphysicalmobile.
+C14 refactoring remains paused.
+
+
+### 2026-10-18 — PR183 stationary current-center startup
+
+C14 remains accepted and structural refactoring paused. The maintainer authorized
+implementation on `2026-10-18-startup-center-investigation` at `d10cb46b`, with
+read-only personal-vault diagnostics, `main.js` deployment and Small-vault testing.
+The [startup validation record](docs/validation/startup-center-investigation-2026-10-18.md)
+preserves native failure evidence: after an interrupted reload the still-demanded
+center waits 72.167 s for all 37 children, while global source/cache work proceeds.
+The foreground owner waited on a whole-vault baseline and could drain after host
+finality rejection; the separate initial-recovery effect also consumed a pending
+attempt across hide/reveal.
+
+The existing compiler/parser/scheduler now prepare a finite readonly current-center
+cover at P1 before broad startup waits. Real changed host observations can refresh
+that coalesced finite phase while its canonical task still awaits the same baseline.
+Affected events retire the cover; unrelated host waves preserve it. Native identity,
+source/policy/demand and publication fences remain; no schema, semantic classifier,
+authority shortcut or scheduler is added. Private baseline retries admit only
+changed observations and also fence policy replacement. Recovery completes only
+after a current visible check succeeds.
+
+Primary regressions and the native-shaped sparse-host-wave control actually fail
+before their corrections. Candidate 1 passes complete verification but misses the
+native timing target; its failed control is preserved. Candidate 2 passes 105
+startup/foreground cases, real types/lint and four stationary native starts after
+two seven-second interruptions: complete 3-parent/37-child reads at 3.811/3.325 and
+3.669/3.318 s, before baseline/source readiness, exact mature-primary fingerprint
+and zero later regressions. Final full verify passes 7 architecture/130 core,
+1,068 Node/145 UI/334 portable source/630 IndexedDB browser cases, official lint,
+real types and production build. Normal bundle a47c87da51086d65acbad8286bf4e66e7aa93b79e04e03b75fbb0c8c49476414
+is installed in both authorized vaults; the 553-file verified receipt is
+880ec93a4821c95bcad8a4afddbf7fc701d30f32b9fd1285ea61a5a8b425e374.
+Standard exact-build Small command/render/error smoke passes. Four normal-bundle
+starts retain all primary DOM nodes at 6.804/3.961 and 6.612/5.595 seconds from
+reload, while cache metadata still loads, with seven-second interruptions. One
+earlier bounded CLI capture timeout has no established cause and remains recorded;
+subsequent foreground/incremental pairs pass without source or deadline changes.
+
+Both vaults' original data/workspace/enabled-list hashes match; Small content is
+unchanged. Its startup normalization/layout changes were restored through the
+native layout owner plus exact configuration bytes. No personal note-write command
+was issued. Installed hashes, observer/global/staging absence and unchanged verified
+inputs pass final audit. Optional screenshot export was rejected by automatic
+review and not retried. No commit, push, merge or release. Full-process interruption
+and physical mobile remain untested; evidence is renderer reload and ordinary-read/
+DOM output, not actual paint or a universal performance guarantee. Highest-value
+manual follow-up: actual exit/reopen followed by a second interruption after 5–10 seconds,
+with the same stationary 3-parent/37-child center and no navigation. No further code
+work or structural refactoring is queued.
+
+
+### 2026-10-18 — PR183 current-main reconciliation accepted
+
+Maintainer authorizes merge without CI wait, followed by main+fetch. Accepted fix
+e847a50 integrates main658793f (#181/#182) at e2e391f. Conflicts preserve both test
+registrations and append-only feature evidence. Recovery/hover lifetimes remain
+separate; incoming settings synchronously invalidate the same semantic policy.
+Full Node22.22.2 verify passes7/130/1069/165/334/632 groups, zero failures/skips,
+lint/types/real build; large20,015-owner oracle unchanged. Exact combined Small
+command/render/error smoke and byte-exact configuration/content restoration pass.
+All558 inputs match receiptf3d09d8a8e592be3bf40ad8a0f647b23f4a35ce3e61f01fb5ada7c6f4aa36131.
+See startup validation report for artifact identity and prior native limitations.
+Personal prior deployed build is not replaced during reconciliation. No new
+full-process/mobile or timing claim; C14 remains paused. Git merge identity is on183.

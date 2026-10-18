@@ -1,0 +1,38 @@
+# Explicit attachment of adjacent Sidecar panes
+
+When no Sidecar is open, the configured edge offers directional attachment controls for the visible eligible tab in one adjacent group. The outward arrow opens the current K-Plex note in the pane; the inward arrow centers the pane's existing note in K-Plex. The maintainer confirmed that empty panes expose only the outward action. Left/right/above/below use Lucide arrow-big-left/right/up/down-dash contextually. Both actions pin the existing native leaf as the Sidecar; attachment controls disappear immediately on acquisition. Subsequent navigation and close/move/fold/detach use the existing managed companion lifecycle.
+
+Geometry alone never acquires ownership. Hidden tabs, embedded editors, other Plex views, already-managed companions and ambiguous multiple groups sharing an edge are ineligible. Normal Open still creates its own companion. Inward attachment preserves the native file and Markdown mode, and reuses App's existing exact-file follow/demand handover for partial indexing. Empty/folder/tag/ghost centers cannot overwrite a native pane. Existing indexed Web Viewer targets are supported through the current URL identity lookup. No CSS, index schema, semantic classification or defaults changed.
+
+The host owns selection/acquisition/rollback and persists the companion identity. The small host-free `SidecarAttachControls` component owns only presentation and directional icons. Both controls dispatch catalog-backed actions with fresh availability; workspace layout, active-tab and file-open events refresh offers. The documented ownership policy and Sidecar position setting copy now distinguish normal opening from explicit attachment.
+
+## Verification
+
+Branch `PR-cleanup`, HEAD `186aec3aa6565a7014897b206c1f8cc0e9b9dba1`; feature and previous patches remain uncommitted. No commit/push/merge/release actions ran. Node 22.22.2. Implementation checkpoint source fingerprint (sorted filename + NUL + full file bytes + NUL for AGENTS.md, src/main.ts, src/ui/App.tsx, src/ui/features/SidecarAttachControls.tsx, src/core/plex/actions.ts, src/lang/en.ts, tests/action-host-integration.test.mjs, tests/sidecar-attach-controls.test.mjs and package.json): `0c06489f14f87bbb1cdeb03afb0fceec5c658f4770362d4d28b14adcd339740d`. Implementation checkpoint main.js SHA-256: `8e5774688abb4e576ebe3243ea0def808a4edadb4ecdaadccac179d6ccc8d187`.
+
+- `npm run build`: passed against the actual installed Obsidian typings.
+- Targeted `npx eslint src/main.ts src/ui/App.tsx src/ui/features/SidecarAttachControls.tsx src/core/plex/actions.ts src/lang/en.ts`: passed, no errors/warnings.
+- `node --test tests/action-host-integration.test.mjs tests/localization.test.mjs tests/action-foundation.test.mjs`: 108 passed. New actual-method cases cover visible/hidden/ambiguous edge selection, startup/move/sidepanel exclusion, empty reverse rejection, outward population, inward content preservation, overlapping acquisition, failure rollback and moved-pane completion.
+- `npm run check:architecture`: seven tests passed; 107 migrated roots, 195 reachable files, zero violations.
+- `node --test tests/sidecar-attach-controls.test.mjs`: one real-browser case passed, including icon/label assertions on all edges, empty-pane eligibility, trusted pointer activation and removed controls. Registered in `npm test`.
+- Exact three-artifact deployment to CLI-confirmed `kplex-test-small`: matched built bytes; `data.json` preserved at staging.
+- Native installed-build validation: **12/12 passed** using trusted Electron clicks, all four edges × outward/inward/empty. Each observed correct icons, fresh ownership, disappearing controls, unchanged native leaf count, correct initial content, subsequent graph-to-pane follow, and detach preserving the adopted pane. Inward cases preserved Reading mode.
+- Native error capture: **No errors captured.** This run does not resolve the previously observed #25 ResizeObserver error gate.
+- Cleanup removed only test-created panes, restored the pre-probe workspace/workflow state, released temporary demand and removed the controller; native leaf count returned to baseline. Existing Section Tree/Note Y fixtures were used; no notes were created or edited. Production vault/sibling repositories were untouched.
+
+Extended indexing/performance suites were not repeated for this focused workspace/UI feature. Physical Android, screen-reader interaction and popout-native attachment were not performed in this run; the new component uses existing tooltip/keyboard/owner-document infrastructure. If testing on an Android tablet with split panes, check stationary tap attachment and that long press only shows the hint until a later tap.
+
+## Evidence
+
+[Native receipt](sidecar-attachment-2026-10-13.json) records each direction/content case and artifact identity. Build, lint, host, architecture, browser and native logs are under `/private/tmp/kplex-sidecar-attach-*.log`. Test-only controller/runner and staging receipt are `/private/tmp/kplex-sidecar-attach-native.js`, `/private/tmp/kplex-sidecar-attach-native-runner.mjs` and `/private/tmp/kplex-sidecar-attach-stage.json`. The captured pre-attachment screenshot at `/private/tmp/kplex-sidecar-attach-native.png` was visually inspected: the open control and both arrows sit on the shared edge.
+
+The first build caught an over-broad existing type predicate narrowing the candidate to never; corrected with the existing native view-type constants. One fixture closure was corrected to read the mutable test view state. Browser startup initially required sandbox escalation for its local loopback listener; the same assertions passed after escalation. The installed CLI uses `vault:info` instead of the older test-tool `vault info=path` command; staging verified its explicit path before writes. No production assertions were weakened.
+
+
+## Localization completion
+
+The initial implementation omitted the non-English entries. The attachment action labels/descriptions and changed Sidecar position description are now translated in all eight supported languages: English, German, French, Spanish, Dutch, Japanese, Traditional Chinese and Russian. Stable keys, parameters, product names and user content are preserved. The four attachment action keys are excluded from the legacy optional-action fallback allowance, so missing future translations fail the real type-checked build. The existing locale-coverage test now asserts these five entries differ from English in every non-English catalog and resolve through the actual translator.
+
+Node 22.22.2: `node --test tests/localization.test.mjs` passed 22/22; `npx eslint 'src/lang/*.ts'` passed without warnings/errors; `npm run build` passed. The three artifacts were deployed to CLI-confirmed `kplex-test-small`, preserving `data.json` at staging. The exact installed build passed the same 12 native attachment cases in the host's configured English locale, with no errors captured; temporary panes/controller/demand were removed and workspace/workflow state restored. Other locales were verified through compiled catalogs and the real translator, without changing Obsidian's language preference. Extended/performance tests were not repeated.
+
+Current main.js SHA-256: `0f0cd0f18df4ad80baec64b6dd876196868aa5141aa7577982d8a4c26081dcde`. CSS/manifest are unchanged. [Localization and exact-build receipt](sidecar-attachment-locales-2026-10-13.json). Logs: `/private/tmp/kplex-sidecar-locales-test.log`, `-lint.log`, `-build.log`, `-native.log`; exact staging receipt: `/private/tmp/kplex-sidecar-locales-stage.json`. The original implementation receipt above remains historical.

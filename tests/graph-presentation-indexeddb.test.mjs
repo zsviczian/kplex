@@ -18,7 +18,7 @@ const initialize = `(() => {
       inferAllLinksAsFriends:false,inverseInfer:false,showFullTagName:true,tagStyleList:['#card','#drawing'],
       indexingMode:'on-demand',urlIndexingMode:'background',lastActivePath:file.path,pinnedNodes:[]};
     let revision=0;const index=new sourceModules.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>revision,
-      startupDiagnostics:{mark:()=>{},count:()=>{},phase:()=>{}}},f.app);
+      startupDiagnostics:{mark:()=>{},count:()=>{},phase:()=>{},recordWork:/** Presentation fixture discards aggregate work receipts. */()=>{}}},f.app);
     index.scheduleOrphanCleanup=()=>{};
     ok(await index.initializeOnDemandBaseline(),'Production structural baseline');
     const page=index.state.pages.get(file.path),clone={...page,tags:[],styleTags:[...page.styleTags]};
@@ -199,4 +199,55 @@ test('repeated ephemeral visible facade reacquisition settles without a presenta
     equal(emitted,0,'Stable facade values cannot feed back into render emissions');equal(index.getSemanticRevision(),semantic,'Stable retries never notify semantics');equal(f.reads.length,0,'No repeated body acquisition');equal(f.parses.length,0,'No repeated acquisition parses');equal(index.getVisiblePresentationDiagnostics().demanded,0,'All finite facade leases released');
     equal(cacheBatches,12,'Each explicit facade lease performs one finite cache-only batch, with no self-triggered extra batches');off();return true;
   }finally{release?.();o.close();}
+})()`));
+
+test("paint during a held presentation read must not repeat cache-only preparation",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('paint-held-facets',{},[]);const{f,file,index,settings}=o;let release;
+ const original=index.indexedDb.getBodies.bind(index.indexedDb);let batches=0,searches=0;const search=index.prepareSearchIndex.bind(index);
+ try{
+  await f.cache.putBody(file.path,file.stat.mtime,sourceModules.parseBodyMetadata(''));index.fieldCache.delete(file.path);
+  const entered=new Promise(resolve=>{index.indexedDb.getBodies=async requests=>{const result=await original(requests);batches++;if(batches===1){resolve();await new Promise(done=>release=done)}return result}});
+  index.prepareSearchIndex=(...args)=>{searches++;return search(...args)};
+  const reads=f.reads.length,parses=f.parses.length,pending=index.preparePresentationPublication(index.state,()=>true);
+  await entered;settings.baseNodeStyle={...settings.baseNodeStyle,textColor:'#12345680'};await index.refreshPresentationSettings();release();const prepared=await pending;
+  ok(prepared,'Prepared current publication');equal(batches,1,'Paint cannot repeat whole presentation cache preparation');equal(searches,1,'Search preparation remains one normal pass');equal(f.reads.length,reads,'No extra Markdown reads');equal(f.parses.length,parses,'No extra parsing');return true;
+ }finally{release?.();index.indexedDb.getBodies=original;index.prepareSearchIndex=search;o.close()}
+})()`));
+
+test("paint between prepared return and final acceptance retains the latest colors",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('paint-accept-boundary',{},[]);const{f,file,index,settings}=o;
+ try{await f.cache.putBody(file.path,file.stat.mtime,sourceModules.parseBodyMetadata(''));settings.baseNodeStyle={...settings.baseNodeStyle,textColor:'#112233'};
+  const prepared=await index.preparePresentationPublication(index.state,()=>true);ok(prepared,'Prepared publication');settings.baseNodeStyle={...settings.baseNodeStyle,textColor:'#aabbcc'};await index.refreshPresentationSettings();index.acceptPresentation(prepared);
+  equal(index.withPreparedPresentationSettings(settings).baseNodeStyle.textColor,'#aabbcc','Final acceptance must not restore stale paint');return true;
+ }finally{o.close()}
+})()`));
+
+test("prepared view identity survives source notifications while geometry, consent and future keys remain live",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('stable-prepared-view',{},[]);const{index,settings}=o;
+ try{
+  const first=index.withPreparedPresentationSettings(settings);
+  equal(index.withPreparedPresentationSettings(settings)===first,true,'Unchanged read reuses the settings facade');
+  settings.compactingFactor=3;const density=index.withPreparedPresentationSettings(settings);
+  ok(density!==first&&density.compactingFactor===3,'Real geometry change gets a current facade');
+  settings.allowRemoteNodeImages=true;const allowed=index.withPreparedPresentationSettings(settings);
+  ok(allowed!==density&&allowed.allowRemoteNodeImages,'Live image consent takes effect immediately');
+  settings.allowRemoteNodeImages=false;ok(!index.withPreparedPresentationSettings(settings).allowRemoteNodeImages,'Revocation never waits for prepared policy');
+  settings.futureWorkflow='preserved';const future=index.withPreparedPresentationSettings(settings);equal(future.futureWorkflow,'preserved','Unknown future values retained');
+  settings.futureWorkflow='updated';equal(index.withPreparedPresentationSettings(settings).futureWorkflow,'updated','Future scalar changes are not frozen');
+  const before=index.withPreparedPresentationSettings(settings);index.presentationSettings={...index.presentationSettings,baseNodeStyle:{maxLabelLength:44}};
+  const after=index.withPreparedPresentationSettings(settings);ok(after!==before,'New prepared generation invalidates facade');equal(after.baseNodeStyle.maxLabelLength,44,'New prepared fields apply');return true;
+ }finally{o.close()}
+})()`));
+
+test("mixed geometry and paint changes retain conservative presentation preparation retry",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('paint-held-mixed',{},[]);const{f,file,index,settings}=o;let release;
+ const original=index.indexedDb.getBodies.bind(index.indexedDb);let batches=0,searches=0;const search=index.prepareSearchIndex.bind(index);
+ try{
+  await f.cache.putBody(file.path,file.stat.mtime,sourceModules.parseBodyMetadata(''));index.fieldCache.delete(file.path);
+  const entered=new Promise(resolve=>{index.indexedDb.getBodies=async requests=>{const result=await original(requests);batches++;if(batches===1){resolve();await new Promise(done=>release=done)}return result}});
+  index.prepareSearchIndex=(...args)=>{searches++;return search(...args)};
+  const reads=f.reads.length,parses=f.parses.length,pending=index.preparePresentationPublication(index.state,()=>true);
+  await entered;settings.baseNodeStyle={...settings.baseNodeStyle,fontSize:24,textColor:'#12345680'};await index.refreshPresentationSettings();release();const prepared=await pending;
+  ok(prepared,'Prepared current publication');equal(batches,2,'Mixed geometry changes retain their existing retry');equal(searches,1,'Search preparation remains one normal pass');equal(f.reads.length,reads,'No extra Markdown reads');equal(f.parses.length,parses,'No extra parsing');return true;
+ }finally{release?.();index.indexedDb.getBodies=original;index.prepareSearchIndex=search;o.close()}
 })()`));

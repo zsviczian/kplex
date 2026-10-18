@@ -844,6 +844,38 @@ function splitInternalSubpath(rawTarget: string): { rawTarget: string; subpath?:
   return subpath ? { rawTarget, subpath } : { rawTarget };
 }
 
+/** Ephemeral literal spans for an explicitly approved edit; never part of persisted source/graph DTOs. */
+export type InternalLinkToken = Readonly<{
+  start: number;
+  end: number;
+  targetStart: number;
+  targetEnd: number;
+  rawTarget: string;
+  kind: "wiki" | "markdown";
+}>;
+
+/**
+ * Expose the existing literal property-link grammar's target spans for selective native edits.
+ * This does not classify Markdown source: callers must approve each token through native cache
+ * references/positions before changing text, so code, comments and unrelated strings stay untouched.
+ */
+export function* iterateInternalLinkTokens(value: string): IterableIterator<InternalLinkToken> {
+  for (const [pattern, kind] of [[WIKI_LINK_RE, "wiki"], [MARKDOWN_LINK_RE, "markdown"]] as const) {
+    const expression = new RegExp(pattern.source, pattern.flags);
+    let match: RegExpExecArray | null;
+    while ((match = expression.exec(value)) !== null) {
+      const captured = match[1];
+      if (!captured || /^https?:\/\//i.test(captured)) continue;
+      const offset = kind === "wiki" ? 2 : match[0].indexOf("](") + 2;
+      const leading = captured.length - captured.trimStart().length;
+      const rawTarget = captured.trim();
+      if (!rawTarget) continue;
+      yield { start: match.index, end: match.index + match[0].length, targetStart: match.index + offset + leading,
+        targetEnd: match.index + offset + captured.trimEnd().length, rawTarget, kind };
+    }
+  }
+}
+
 /**
  * Extract literal property-value link references without resolving them through Obsidian. Host
  * destination selection belongs to the adapter; this shared grammar keeps legacy edit/image

@@ -2,7 +2,8 @@
  * Tests K-Plex normalized-source compilation against the preserved migration golden and opaque
  * identity/revision contracts. Host-free transpiled modules and their temporary outputs are owned by the suite.
  * Arrow regressions retain neutral property inputs and reciprocal heading-link counts across
- * collection order. URL work-count probes forward real compiler operations and restore their temporary instrumentation.
+ * collection order. URL work-count probes forward real compiler operations and restore their temporary
+ * instrumentation; membership regressions retain metadata duplicates, cancellation and terminal cleanup.
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -14,6 +15,7 @@ import { loadPortableModules } from "./support/portableTypeScript.mjs";
 import { neutralizeLegacyReferenceFixtures } from "./support/referenceCandidateFixture.mjs";
 import { produceNormalizedFixtureRecords } from "./support/normalizedSourceFixture.mjs";
 import { applyDefaultDateRoleFixture } from "./support/dateRoleFixture.mjs";
+import { probeUrlAliasMembership } from "./support/urlAliasMembershipProbe.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const loaded = loadPortableModules(['src/core/graph/compiler.ts', 'src/core/graph/model.ts', 'src/core/graph/source.ts', 'src/core/graph/relations.ts', 'src/core/graph/evidence.ts']);
@@ -53,9 +55,11 @@ const boundary = (name = "fixture") => ({
   snapshotRevision: core.sourceSnapshotRevision(`${name}:snapshot`),
 });
 
+/** Consume bounded genuine source batches; optional instance observation never replaces compiler behavior. */
 async function compileRecords(records, options = {}) {
   records = neutralizeLegacyReferenceFixtures(records);
   const compiler = new core.NormalizedGraphCompiler(options.settings ?? settings, options.runtime ?? runtime(), options.projection ?? "graph");
+  options.observeCompiler?.(compiler);
   const readBoundary = options.boundary ?? boundary("compile");
   const read = compiler.beginRead(readBoundary);
   if (records.length === 0) {
@@ -76,6 +80,52 @@ async function compileRecords(records, options = {}) {
 }
 
 const stableSort = (items) => items.map((item) => JSON.stringify(item)).sort();
+
+for (const size of [256, 512, 1024, 2048, 4096]) {
+  test(`URL membership seeds once for ${size} distinct labels and alias vocabularies`, /** Preserve exact first-seen vocabulary and independent evidence while attributing actual membership work. */ async () => {
+    const source={id:core.nodeId('owner'),kind:'document',state:'materialized',semanticPath:'Owner.md',physicalPath:'Owner.md'};
+    const target={id:core.nodeId('URL'),kind:'url',state:'synthetic',semanticPath:'https://shared.example/path'},sourceRevision=core.sourceRevision('membership');
+    const records=[{kind:'entity',source,entity:source,sourceRevision,name:'Owner',url:null},
+      ...Array.from({length:size},/** Keep label order, case, repeated/raw alias exclusions and occurrence count. */ (_,n)=>({kind:'body-url',source,sourceRevision,target:{entity:target,rawTarget:target.semanticPath,resolvedBy:'url'},label:`Label ${n}`,aliases:[`Label ${n}`,'Common','Common',target.semanticPath]}))];
+    let probe,result;
+    try {
+      result=await compileRecords(records,{observeCompiler:/** Attach only to this private compiler's actual target array. */ compiler=>{probe=probeUrlAliasMembership(compiler,target.id);}});
+      assert.equal(probe.counts.includesEntries,0);assert.equal(probe.counts.seedEntries,2);
+      assert.equal(result.compiler.urlAliasMembership.size,0,'Finished compiler releases its temporary membership');
+    } finally {probe?.restore();}
+    assert.deepEqual(result.compilation.node(target.id).aliases,['Label 0','Common',...Array.from({length:size-1},/** Exact first-seen order, without sorting. */ (_,n)=>`Label ${n+1}`)]);
+    assert.equal([...result.compilation.declarations()].length,size);
+  });
+}
+
+test('interleaved semantic aliases retain duplicates and update URL membership', /** Metadata alias occurrence semantics remain independent of body-label deduplication. */ async()=>{
+  const target={id:core.nodeId('URL'),kind:'url',state:'synthetic',semanticPath:'https://shared.example/path'},sourceRevision=core.sourceRevision('metadata');
+  const body=/** Body labels deduplicate against the current complete alias vocabulary. */ label=>({kind:'body-url',source:target,sourceRevision,target:{entity:target,rawTarget:target.semanticPath,resolvedBy:'url'},label});
+  const metadata=/** Metadata occurrences retain their original duplicate multiplicity. */ value=>({kind:'semantic-metadata',source:target,sourceRevision,metadataKind:'alias',value});
+  const {compiler,compilation}=await compileRecords([body('First'),body('Second'),body('Third'),metadata('Metadata'),metadata('Metadata'),body('Metadata'),body('first'),body('First')]);
+  assert.deepEqual(compilation.node(target.id).aliases,['First','Second','Third','Metadata','Metadata','first']);
+  assert.equal(compilation.node(target.id).name,'First');assert.equal(compiler.urlAliasMembership.size,0);
+});
+
+test('dense metadata alias seeding cooperates, rejects and releases membership', /** Cancellation within initial membership construction cannot publish or retain partial state. */ async()=>{
+  let clock=0,current=true,yields=0;
+  const compiler=new core.NormalizedGraphCompiler(settings,runtime({now:/** Admit initial metadata before making the dense seed exceed its slice. */ ()=>clock,yield:async/** Cancel on the first actual seed checkpoint. */ ()=>{yields++;current=false;},isCurrent:/** Keep the terminal cancellation independent of the fake CPU clock. */ ()=>current}));
+  const target={id:core.nodeId('URL'),kind:'url',state:'synthetic',semanticPath:'https://shared.example/path'},sourceRevision=core.sourceRevision('dense-metadata'),b=boundary('dense-metadata'),read=compiler.beginRead(b);
+  for(let sequence=0;sequence<4;sequence++)assert(await compiler.acceptBatch(read,{boundary:b,sequence,final:false,records:Array.from({length:256},/** Real metadata occurrence ingestion seeds output before any URL membership exists. */ (_,n)=>({kind:'semantic-metadata',source:target,sourceRevision,metadataKind:'alias',value:`Alias ${sequence*256+n}`}))}));
+  clock=100;
+  assert.equal(await compiler.acceptBatch(read,{boundary:b,sequence:4,final:true,records:[{kind:'body-url',source:target,sourceRevision,target:{entity:target,rawTarget:target.semanticPath,resolvedBy:'url'},label:'New'}]}),false);
+  assert.equal(yields,1);assert.equal(compiler.urlAliasMembership.size,0);assert.equal(await compiler.finish(),null);
+});
+
+test('node-only compilation and rejected batches release populated URL membership', /** Both terminal projections discard the private index while preserving output vocabulary. */ async()=>{
+  const target={id:core.nodeId('URL'),kind:'url',state:'synthetic',semanticPath:'https://shared.example/path'},sourceRevision=core.sourceRevision('release');
+  const records=['First','Second','Third'].map(/** Three distinct labels force private membership before either terminal path. */ label=>({kind:'body-url',source:target,sourceRevision,target:{entity:target,rawTarget:target.semanticPath,resolvedBy:'url'},label}));
+  const {compiler,compilation}=await compileRecords(records,{projection:'nodes'});
+  assert.deepEqual(compilation.nodes.get(target.id).aliases,['First','Second','Third']);assert.equal(compiler.urlAliasMembership.size,0);
+  const rejected=new core.NormalizedGraphCompiler(settings,runtime()),b=boundary('reject-membership'),read=rejected.beginRead(b);
+  assert(await rejected.acceptBatch(read,{boundary:b,sequence:0,final:false,records}));assert.equal(rejected.urlAliasMembership.size,1);
+  assert.equal(await rejected.acceptBatch(read,{boundary:b,sequence:2,final:true,records:[]}),false);assert.equal(rejected.urlAliasMembership.size,0);
+});
 
 test("normalized compiler retains explicit arrow ownership across reciprocal heading-link input and batch order", async () => {
   const source = { id: core.nodeId("star"), kind: "document", state: "materialized", semanticPath: "A-Star.md", physicalPath: "A-Star.md" };
@@ -445,6 +495,29 @@ test("pathless tag membership preserves the producer's exact tag identity", asyn
   assert(compilation.node(source.id));
   assert.equal(compilation.node(source.id).semanticPath, undefined);
   assert.equal(compilation.evidenceBetween(source.id, target.id)[0].declaredById, source.id);
+});
+
+test("existing hierarchical tags expose both navigation directions and their direct note membership", async () => {
+  const rev = core.sourceRevision("hierarchical-navigation:1");
+  const leaf = { id: core.nodeId("opaque-person-tag"), kind: "tag", state: "materialized", semanticPath: "tag:Research/Person/Müller" };
+  const note = { id: core.nodeId("opaque-note"), kind: "document", state: "materialized", semanticPath: "People/Müller.md", physicalPath: "People/Müller.md" };
+  const { compilation } = await compileRecords([
+    { kind: "entity", source: note, sourceRevision: rev, entity: note, name: "Müller", url: null,
+      file: { name: "Müller.md", path: "People/Müller.md", extension: "md", mtime: 1 } },
+    { kind: "tag-tree", source: leaf, sourceRevision: rev,
+      target: { entity: note, rawTarget: "Müller", resolvedBy: "structural" }, membership: "entity-member", provenance: { rawValue: "#Research/Person/Müller" } },
+  ]);
+  const byPath = new Map([...compilation.nodes.values()].map(node => [node.semanticPath, node]));
+  const research = byPath.get("tag:Research"), person = byPath.get("tag:Research/Person"), müller = compilation.node(leaf.id);
+  assert(research && person && müller);
+  for (const [parent, child] of [[research, person], [person, müller]]) {
+    assert.equal([...parent.neighbours.values()].find(relation => relation.target.id === child.id).isChild, true);
+    assert.equal([...child.neighbours.values()].find(relation => relation.target.id === parent.id).isParent, true);
+    assert.equal(compilation.evidenceBetween(parent.id, child.id).length, 1);
+  }
+  assert.equal([...müller.neighbours.values()].find(relation => relation.target.id === note.id).isChild, true);
+  assert.equal([...compilation.node(note.id).neighbours.values()].find(relation => relation.target.id === leaf.id).isParent, true);
+  assert.equal(müller.id, leaf.id, "Tag hierarchy navigation keeps the host-supplied opaque leaf identity");
 });
 
 test("derived tag ancestors cannot overwrite unrelated opaque identities", async () => {
