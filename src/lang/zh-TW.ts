@@ -1269,6 +1269,9 @@ const traditionalChineseTranslations = {
   "tagAssignment.linkStyleHelp": "這些連線預設為一般標籤連線的兩倍粗細。",
   "moveNode.modifierTip": "拖曳時按住 {shortcut}，即可直接移動而不顯示此確認視窗。",
   "styles.inheritDimension": "使用基本 {name}",
+  "settingsSync.conflict": "設定已在其他裝置上變更。請重新開啟此控制項並再次套用變更。",
+  "settingsSync.loadFailed": "無法載入變更後的 K-Plex 設定。目前的設定將會保留。請檢查同步並重試。",
+  "settingsSync.refreshPending": "已收到設定。部分檢視無法更新。請重新開啟受影響的檢視。",
 } as const satisfies LocaleTranslationMap;
 
 export const traditionalChineseCatalog = buildLocaleCatalog(traditionalChineseTranslations);

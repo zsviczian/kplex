@@ -1269,6 +1269,9 @@ const japaneseTranslations = {
   "tagAssignment.linkStyleHelp": "ノートタイプのタグ接続は、既定で通常のタグ接続の2倍の太さになります。",
   "moveNode.modifierTip": "{shortcut} を押しながらドラッグすると、確認せずに移動できます。",
   "styles.inheritDimension": "基本の {name} を使用",
+  "settingsSync.conflict": "別のデバイスで設定が変更されました。このコントロールを開き直し、変更を適用し直してください。",
+  "settingsSync.loadFailed": "変更されたK-Plex設定を読み込めませんでした。現在の設定は保持されます。同期を確認して再試行してください。",
+  "settingsSync.refreshPending": "設定を受信しました。一部のビューを更新できませんでした。該当するビューを開き直してください。",
 } as const satisfies LocaleTranslationMap;
 
 export const japaneseCatalog = buildLocaleCatalog(japaneseTranslations);

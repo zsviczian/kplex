@@ -71,11 +71,12 @@ function probe(nodeOnly=false){
   check(!node.hasAttribute('aria-label')&&name?.textContent?.trim(),'Node accessible name lost or duplicate host tooltip retained');check(Boolean(label.getAttribute('title')),'Compact browser title lost');
   const inputOwner=doc.defaultView.require('@electron/remote').getCurrentWindow();inputOwner.focus();inputOwner.webContents.focus();await until(()=>doc.hasFocus(),'Node input window not focused');inputOwner.webContents.sendInputEvent({type:'mouseMove',x:0,y:0});await wait(150);move(label);await wait(2200);
   check(!doc.querySelector('.tooltip'),'Node still shows a competing styled hint');
-  const gate=[...node.querySelectorAll('[data-kplex-gate]')].find(el=>{const r=el.getBoundingClientRect();return el.contains(doc.elementFromPoint(Math.round(r.left+r.width/2),Math.round(r.top+r.height/2)))});check(gate,'Hit-testable gate required');move(gate);
+  const gate=node.querySelector('[data-kplex-gate="bottom"]');check(gate,'Child gate required');move(gate);
   const requiresAlt=p.settings.gateTooltipRequiresAlt!==false;
   if(requiresAlt){await wait(800);check(!doc.querySelector('.tooltip'),'Unmodified gate still shows a hint');inputOwner.webContents.sendInputEvent({type:'keyDown',keyCode:'Alt',modifiers:['alt']})}
   await until(()=>doc.querySelector('.kplex-control-tooltip'),'Shared gate hint lost');
   check(doc.querySelectorAll('.tooltip').length===1&&doc.querySelector('.tooltip').textContent===gate.getAttribute('aria-label'),'Gate hint changed or duplicated');
+  const hint=doc.querySelector('.tooltip'),hintRect=hint.getBoundingClientRect(),gateRect=gate.getBoundingClientRect();check(hint.classList.contains('mod-top')&&hintRect.bottom<=gateRect.top-7,'Child gate hint must appear above the gate');
   if(requiresAlt){inputOwner.webContents.sendInputEvent({type:'keyUp',keyCode:'Alt'});await until(()=>!doc.querySelector('.tooltip'),'Released gate modifier retained hint')}
   passed(id,{requiresAlt,stationaryModifier:requiresAlt,accessibleName:true,compactTitle:true,nodeStyledHints:0,gateStyledHints:1,observationMs:2200,browserTooltipPaint:'Browser chrome is outside the DOM; title retained, visual/device acceptance separate'});
   inputOwner.webContents.sendInputEvent({type:'mouseMove',x:0,y:0});await wait(150);

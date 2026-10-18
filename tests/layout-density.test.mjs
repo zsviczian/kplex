@@ -1,7 +1,8 @@
 /** Production density/profile migration and geometry checks; host shells are doubled, layout is real. */
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import ts from "typescript";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -299,6 +300,54 @@ test("clipped cross-link projection equals full-scene edges while querying only 
     const structural = projected.filter(edge => [edge.sourcePath, edge.targetPath].sort().join("/") === "P0.md/S0.md");
     if (visible.has("S0.md")) assert.equal(structural.length, 1, "Structural sibling edges are never duplicated");
   }
+});
+
+test("focused crosslinks preserve canonical orientation, exact gates, styles and bounded visible adjacency", () => {
+  const source=ts.createSourceFile('PlexGraph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+  const definition=source.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='gatesForEdge');assert(definition);
+  const gates=new Function(ts.transpileModule(definition.getText(source),{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText+';return gatesForEdge;')();
+  const pages=new Map(['Center','A','B','C','D','E','Synthetic'].map(name=>[name+'.md',page(name)]));
+  pages.get('Synthetic.md').transient={kind:'section-target',sourcePath:'Center.md',actualPath:'A.md',sectionId:'s'};
+  const pairs={
+    'A.md':[['B.md','child','ab',1],['C.md','parent','ac',2],['D.md','left','ad',1],['E.md','right','ae',2]],
+    'B.md':[['A.md','parent','ab',2],['C.md','left','unrelated',1]],
+    'C.md':[['A.md','child','ac',1],['B.md','right','unrelated',2]],
+    'D.md':[['A.md','right','ad',2]],'E.md':[['A.md','left','ae',1]],
+  };
+  const calls=[],linked={visibleRelationshipsWithin(node,targets){
+    assert.notEqual(node.path,'Synthetic.md');calls.push({source:node.path,targets:[...targets]});
+    return(pairs[node.path]??[]).filter(([path])=>targets.has(path)).map(([path,role,typeDefinition,linkDirection])=>({page:pages.get(path),role,typeDefinition,linkDirection,relationType:1}));
+  }};
+  const settings={...defaults,hierarchyLinkStyles:{ab:{strokeWidth:2.5,showLabel:true},ac:{strokeStyle:'dashed'},ad:{endArrowHead:'triangle'},ae:{fontSize:13}}};
+  const nodes=[...pages.values()].map((page,n)=>({page,x:n%2?-500:500,y:0}));
+  const full=[];geometry.appendVisibleCrossLinks(nodes,full,linked,settings,'Center.md');
+  assert.deepEqual(full.map(edge=>[edge.sourcePath,edge.targetPath,edge.role]),[
+    ['A.md','B.md','child'],['A.md','C.md','parent'],['A.md','D.md','left'],['A.md','E.md','right'],['B.md','C.md','left'],
+  ]);
+  // Independent endpoint expectations, not a second invocation of the new selector as oracle.
+  const expected={
+    'A.md':{top:['ac'],bottom:['ab'],left:['ad'],right:['ae']},
+    'B.md':{top:['ab'],bottom:[],left:['unrelated'],right:[]},
+    'C.md':{top:[],bottom:['ac'],left:[],right:['unrelated']},
+    'D.md':{top:[],bottom:[],left:[],right:['ad']},
+    'E.md':{top:[],bottom:[],left:['ae'],right:[]},
+  };
+  for(const path of Object.keys(expected))for(const gate of [null,'top','bottom','left','right']){
+    calls.length=0;const output=[];
+    geometry.appendVisibleCrossLinks(nodes,output,linked,settings,'Center.md',{path,accepts:edge=>!gate||edge.sourcePath===path&&gates(edge).source===gate||edge.targetPath===path&&gates(edge).target===gate});
+    const ids=gate?expected[path][gate]:Object.values(expected[path]).flat();
+    assert.deepEqual(output,full.filter(edge=>ids.includes(edge.typeDefinition)),path+'/'+gate+' must preserve exact normal directed/style output');
+    assert(calls.length<=1+(pairs[path]?.length??0),'Only the hovered adjacency and incident earlier endpoints may be queried');
+    assert(calls.every(call=>call.source===path||pairs[path].some(([other])=>other===call.source)),'Unrelated sources must not be queried');
+  }
+  for(const path of ['Center.md','Synthetic.md','Missing.md']){
+    calls.length=0;const output=[];geometry.appendVisibleCrossLinks(nodes,output,linked,settings,'Center.md',{path,accepts:()=>true});assert.deepEqual(output,[]);assert.equal(calls.length,0);
+  }
+  const clipped=nodes.filter(node=>['Center.md','A.md','B.md'].includes(node.page.path)),output=[];
+  geometry.appendVisibleCrossLinks(clipped,output,linked,settings,'Center.md',{path:'A.md',accepts:()=>true});assert.deepEqual(output.map(edge=>edge.typeDefinition),['ab']);
+  const structural={...full[0],id:'sibling-parent:A.md:B.md',isCrossLink:false},seeded=[structural];
+  geometry.appendVisibleCrossLinks(nodes,seeded,linked,settings,'Center.md',{path:'B.md',accepts:()=>true});
+  assert.equal(seeded.filter(edge=>edge.sourcePath==='A.md'&&edge.targetPath==='B.md').length,1,'Existing structural pairs cannot be duplicated');assert.equal(seeded[0],structural);
 });
 
 test("expanded scroll viewports and editable areas include actual child-box widths", () => {

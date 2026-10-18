@@ -1651,6 +1651,7 @@ class LegacySettingsImportModal extends StyleEditorModal {
 }
 
 type DeclarativeSettingKey =
+  | `received:${number}:${string}`
   | keyof KplexSettings
   | `layout.${PersistedLayoutDeviceClass}.${"leaf" | "sidepanel"}.lateralArrangement`
   | `typography.${PersistedLayoutDeviceClass}.${TypographyField}`
@@ -2750,7 +2751,8 @@ export class KplexSettingTab extends PluginSettingTab {
       if (!("control" in item) || !item.control) return item;
       const control = item.control;
       if (!/^(baseNodeStyle\.|centralNodeStyle\.|baseLinkStyle\.|backgroundColorHex$)/.test(control.key)
-        || (control.type !== "slider" && control.type !== "toggle" && control.type !== "dropdown")) return item;
+        || (control.type !== "slider" && control.type !== "toggle" && control.type !== "dropdown"))
+        return {...item, control: {...control, key: this.receivedControlKey(control.key) as DeclarativeSettingKey}};
       return {name: item.name, desc: item.desc, searchable: item.searchable, visible: item.visible, render: /** Recreate a scalar on activation; retired handlers cannot save into its replacement. */ (setting: Setting) => {
         let active = true, owner = this.kplexPlugin.captureAppearanceOwner(), generation = 0;
         let mounted: {pending: number; refresh: () => void} | null = null;
@@ -2828,7 +2830,7 @@ export class KplexSettingTab extends PluginSettingTab {
           name: translate("typography.deviceField", { device: translate(`typography.${device}`), field: names[field] }),
           desc: translate(field === "maxWidth" ? "typography.deviceWidthHelp" : "typography.deviceHelp"),
           render: /** Mount native controls without first-render writes, and update same-scope peers after live edits/reset. */ (setting: Setting) => {
-            const key = `typography.${device}.${field}`;
+            const key = this.receivedControlKey(`typography.${device}.${field}`);
             let refreshControl: () => void;
             if (field === "wrapNodeLabels") {
               setting.addToggle(/** Set the initial inherited value before installing the user-change callback. */ toggle => {
@@ -2845,7 +2847,9 @@ export class KplexSettingTab extends PluginSettingTab {
             }
             setting.addExtraButton(/** Delete only this supported override, preserving the other values/devices. */ button => {
               button.setIcon("rotate-ccw").setTooltip(translate("typography.resetField"))
-                .onClick(/** Restore inheritance through canonical persistence. */ () => { void this.kplexPlugin.resetTypographyOverride(device, field); });
+                  .onClick(/** A retired native reset must not remove a newly received override. */ () => {
+                    if (this.receivedControlCurrent(key)) void this.kplexPlugin.resetTypographyOverride(device, field);
+                  });
             });
             /** Explain state independently of the displayed number, including equal-to-default customization. */
             const refresh = (): void => {
@@ -2884,8 +2888,31 @@ export class KplexSettingTab extends PluginSettingTab {
       })));
   }
 
+  /** Map native control aliases to their established coherent settings owner. */
+  private receivedControlDomain(key: string): string {
+    if (key.startsWith("hierarchy.")) return "hierarchy";
+    if (key.startsWith("typography.")) return "typographyProfiles";
+    if (key.startsWith("layout.")) return "layoutProfiles";
+    if (key === "excludeFilepathsCsv") return "excludeFilepaths";
+    return key.split(".")[0];
+  }
+
+  /** Keep Obsidian's renderer/components while fencing delayed events from a replaced native row. */
+  private receivedControlKey(key: string): string {
+    const revision = this.kplexPlugin.receivedSettingsRevision?.(this.receivedControlDomain(key));
+    return revision === undefined ? key : `received:${revision}:${key}`;
+  }
+
+  /** Stale native handlers explain reapplication without mutating live state or rejecting an unobserved event promise. */
+  private receivedControlCurrent(key: string): boolean {
+    const alias = /^received:(\d+):(.+)$/.exec(key);
+    if (!alias || Number(alias[1]) === this.kplexPlugin.receivedSettingsRevision?.(this.receivedControlDomain(alias[2]))) return true;
+    new Notice(this.kplexPlugin.translator("settingsSync.conflict")); return false;
+  }
+
   /** Read shared controls or device overrides without turning an inherited value into a saved customization. */
   getControlValue(key: string): unknown {
+    key = key.replace(/^received:\d+:/, "");
     const arrangementKey = this.lateralArrangementKey(key);
     if (arrangementKey) return this.kplexPlugin.settings.layoutProfiles[arrangementKey]?.lateralArrangement === "left";
     const typography = this.typographyKey(key);
@@ -2915,6 +2942,8 @@ export class KplexSettingTab extends PluginSettingTab {
 
   /** Apply every declarative control through the plugin's shared settings-impact classifier. */
   async setControlValue(key: string, value: unknown, owner?: AppearanceOwner): Promise<void> {
+    if (!this.receivedControlCurrent(key)) return;
+    key = key.replace(/^received:\d+:/, "");
     const arrangementKey = this.lateralArrangementKey(key);
     if (arrangementKey) {
       const current = this.kplexPlugin.settings.layoutProfiles[arrangementKey] ?? DEFAULT_LAYOUT_PROFILES[arrangementKey];

@@ -5049,6 +5049,109 @@ Originals remain in Temp; nothing raw published. CI runs asynchronously; no fina
 CI-green claim or merge recommendation replaces the deferred combined checks.
 
 
+### 2026-10-18 PR181 — Alt/Option crosslink preview
+
+| Checkpoint | Result |
+| --- | --- |
+| Main integration | Main177/180 incorporated without rewriting; draft181 targets main@e95d3db through7d0a014. |
+| Shared owners | Optional trusted mouse feedback in HoverHighlight; focused appendVisibleCrossLinks, existing gates/style/paint/lifecycle. No indexing/settings/schema change; C14 remains paused. |
+| Focused checks | 60 hover/layout/UI +2 Eager/On-demand source-backed +23 gate/tooltip/motion;7architecture/130core/full lint/real build pass. Two projection/Find-highlight controls fail as expected; restored bytes. |
+| Native checks | Exact build1792348138137; native1792348226865 passes11: four gates/incoming, both modes, enabled dedup, zero opacity, main/popout and blur. Guarded reads/parses/acquisition/semantic/search/settings writes0; setup separate. |
+| Maintainer boundary | Complete/push181 then pause for maintainer testing/merge. Keep draft. No147 implementation, merge, release, personal vault or comparative performance test. Full/platform matrix pending. |
+
+Projection uses eligible displayed persistent endpoints; modifier changes do not
+enter geometry or semantic gate-count dependencies. Preserve canonical orientation
+through earlier incident reciprocal lookups, not all-pairs or a second classifier.
+Expanded minis keep their separate non-connection-hover policy. Extra hits passive.
+
+Report: docs/validation/alt-hover-crosslinks-181-2026-10-18.md. Initial UI fixture
+lacked explicit null peek input (59/60); corrected fixture passes60. Final sanity
+1792348322853 restores107files/88Markdown, configuration/workspace, no controllers/
+dialogs, desktop/captureoff. No CPU/memory/latency comparison. Remaining manual:
+native lens/section/scroll provenance; actual Eager/drag/paint; macOS/migration/
+physical devices. Maintainer will test181 before its merge or the next work package.
+
+181runtime checkpoint e8e8814744ebc8eb1beb43a8674a5951b91be9be committed/pushed.
+Private verified backup1792348500765:38files/8645196bytes, sourceZIP545entries,
+CRC/per-fileSHA pass, HANDOFF excluded. Manifest381e9879634ca0a01b5f04df9bf08af2b39bb4fa7aad8d98188a9321931d95c8.
+Originals retained/private. Pause for maintainer testing; no next task started.
+
+
+### 2026-10-18 PR181 child-gate tooltip follow-up
+
+Shared LongPressTooltip now honors existing data-tooltip-position=top rather than
+always preferring below; viewport/canvas fallback retained. Gates already request
+top, no new control/settings/strings.8browser tooltip checks, full lint/real build/
+exact stage1792349032305 and8native node-only cases1792349051302 pass, including
+child gate above in main/popout/return. Sanity1792349085739 restores107files/88md,
+config/workspace/captureoff. Installed main f40ff506c3a8990c98493d46b77ef1e4cebdb219085ed3a278812d0f1bc19a0d.
+Existing crosslink validation not rerun; no indexing or CSS change. Remain paused
+for maintainer testing/merge; no next PR. macOS/physical acceptance still separate.
+
+
+### 2026-10-18 PR182 settings reconciliation checkpoint
+
+181 merged mainc0cd100 under explicit authorization/no CIwait. Existing182branch
+updated through8b0fdbd without rewriting. Added public external callback and one
+settings reconciliation adapter on the existing disk queue, detached root intents/
+remote owner epochs, exact preflight and retained in-flight receipt evidence. No
+recursive merge, sync backend, persisted conflict schema, indexing or C15 refactor.
+Native declaration controls reuse host update/renderer, with transient stale-event
+keys; themes/actions/lenses use existing owners. All8locales updated.12production-
+method deterministic Chromium cases and real build pass; prior97affected tests and
+33sync/localization pass. Initial four unsafe array accesses corrected with unknown
+guards; lint passes. Full/native event delivery still pending; not merge-ready.
+Maintainer requires completion/push182 then pause; no141/147, personal vault, merge
+or release. Native receipts/platform and final regression coverage remain next.
+
+
+### PR182 validation checkpoint - 2026-10-18
+
+Live settings:16 focused production-boundary Chromium cases and real build/types pass;
+exact durable read-back, detached accepted state and stale action publication guards
+complete. Prior native candidate passed5 actual callback/control/view/semantic/recovery
+cases with exact configuration restore; final exact-build repeat and full verification
+remain pending. Two full harness failures retained and corrected (compile inventory,
+finite Notice stub). Reusable Small native lane added; temporary planning marker removed.
+C14 structural work remains paused; no indexing/parser/cache changes or performance claim.
+Manual gaps remain real two-device Sync, minimum host/config override, physical mobile.
+
+
+### PR182 native acceptance checkpoint - 2026-10-18
+
+Runtime dbe5317 passes full verify (7/130/1061/162/334/623 test groups, no skips),
+real build/types/official lint. Exact Windows Small native migration passes;6 live
+external-callback cases pass each in actual on-demand and eager;15 existing native
+style-operation cases pass. Paint receipt:1 settings read,0 note/source/semantic/
+build/write work. Genuine ontology refresh and native foreground preserved.
+Two focus-oracle failures retained: frontmatter moved requested line0 to actual4
+before reception; observed before/after caret4 and editor identity unchanged,
+zero focus events. Validator now compares observed stable caret and retains bounded
+failure facts; production runtime unchanged. Opening configuration/workspace exact,
+107files/88Markdown, original mode restored and no controllers. Durable evidence and
+final docs/PR closeout next, then pause. C14 remains paused. Manual gaps:real two-device
+Sync, minimum1.13/configoverride and physical mobile; no merge/release authorized.
+
+
+### PR182 delivered and paused - 2026-10-18
+
+Feature source/runtime dbe5317 and native tooling f7424d8 accepted for maintainer
+testing; full verification7/130/1061/162/334/623 groups all pass, no skips. Exact
+Small Windows1.14.4 real externalcallback6cases in each actual on-demand/eager mode,
+style operations15 and migration6 pass. Native correct policy/foreground delivery,
+zero note/source/semantic/build/write work for presentation receipt (1settingsread).
+Private durable evidence verified98files/12419738bytes outsideTemp, two source ZIPs
+CRC/entrySHA verified, originals intact, HANDOFF excluded, nothing published.
+Manifest4151640803f1ddf7641a1e3305ada346df8f78ed14b253486b5e401090ca970c.
+Opening Small workspace/config bytes and originalmode restored,107files/88Markdown,
+no controllers/debugger. Final docs/validation/live-settings-sync-182-2026-10-18.md
+records source, work counts, failure controls, distributed race limits and reproduction.
+No CPU/memory improvement claim, indexing/scheduler/schema change or personal access.
+Keep182draft, CI not awaited; PAUSED per maintainer, no141/147, merge orrelease.
+Manual gaps real macOS-WindowsSync, minimum1.13/configoverride andphysicalmobile.
+C14 refactoring remains paused.
+
+
 ### 2026-10-18 — PR183 stationary current-center startup
 
 C14 remains accepted and structural refactoring paused. The maintainer authorized

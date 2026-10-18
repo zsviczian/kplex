@@ -1281,6 +1281,9 @@ const russianTranslations = {
   "tagAssignment.linkStyleHelp": "По умолчанию эти связи вдвое толще обычных связей тегов.",
   "moveNode.modifierTip": "Удерживайте {shortcut} при перетаскивании, чтобы переместить без подтверждения.",
   "styles.inheritDimension": "Использовать базовое значение {name}",
+  "settingsSync.conflict": "Настройки изменены на другом устройстве. Откройте этот элемент управления заново и повторно примените изменение.",
+  "settingsSync.loadFailed": "Не удалось загрузить изменённые настройки K-Plex. Текущие настройки сохранены. Проверьте синхронизацию и повторите попытку.",
+  "settingsSync.refreshPending": "Настройки получены. Некоторые представления не удалось обновить. Откройте нужное представление заново.",
 } as const satisfies LocaleTranslationMap;
 
 export const russianCatalog = buildLocaleCatalog(russianTranslations);
