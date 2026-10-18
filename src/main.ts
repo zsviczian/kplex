@@ -3,6 +3,8 @@
  * Remote node image consent publishes synchronously before persistence and never requests semantics.
  * Style-manager drafts commit on the settings disk queue before live publication; style-only
  * completion refreshes cached presentation without clearing or reacquiring semantic scopes.
+ * Durable/live publication releases editors through one bounded optional-refresh completion lease;
+ * pending native work neither replays disk writes nor accumulates one task per settings edit.
  * Appearance identities use that same queue. Unsupported color containers persist verbatim and
  * remain read-only; palette validation and semantic-cycle checks precede any durable write.
  * Unsuccessful source-backed startup adoption reports incomplete coverage rather than implying
@@ -44,6 +46,7 @@ import { FileView, ItemView, MarkdownView, Menu, Notice, Platform, Plugin, TFile
 import { captureSettingsPolicy, classifySettingsChange, isStyleOnlySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
 import { removeMarkdownZoomModes, renameMarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { GraphIndex } from "./index/GraphIndex";
+import {SavedSettingsRefresh} from "./adapters/obsidian/savedSettingsRefresh";
 import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition, type StyleSettingsDraft, type StyleCommitResult, type EditableHierarchyKey } from "./settings";
 import { STYLE_SETTINGS_KEYS } from "./core/contracts/appearance";
 import { cyclicSemanticColorSlots, migrateColorPreferences } from "./core/plex/colorPreferences";
@@ -167,6 +170,7 @@ export default class KplexPlugin extends Plugin {
   private settingsTab: KplexSettingTab | null = null;
   private actionPreferenceQueue: Promise<void> = Promise.resolve();
   private settingsWriteQueue: Promise<void> = Promise.resolve();
+  private savedSettingsRefresh: SavedSettingsRefresh | undefined;
   private settingsReconciliation?: SettingsReconciliation;
   private settingsWriteContext?: {intent: SettingsWriteIntent; before: SettingsSnapshot};
   private externalSettingsPending = false;
@@ -584,6 +588,7 @@ export default class KplexPlugin extends Plugin {
   /** Release action publications, surface registrations and host resources before index teardown. */
   onunload(): void {
     this.unloading = true;
+    this.savedSettingsRefresh?.close();
     this.settingsReconciliation?.dispose();
     this.settingsTab?.disposeOntologySettings();
     this.externalSettingsRefresh++;
@@ -1817,8 +1822,7 @@ export default class KplexPlugin extends Plugin {
       console.error("K-Plex saved ontology publication failed", error); return {refreshPending: true};
     }
     if (this.unloading || !changed || !this.index) return {refreshPending: false};
-    try {await this.index.refreshPresentationSettings(); await this.index.refreshSemanticSettings(); return {refreshPending: false};}
-    catch (error) {console.error("K-Plex saved ontology refresh failed", error); return {refreshPending: true};}
+    return this.refreshSavedSettings(true);
   }
 
   /** Serialize valid workflow preferences including overlaps; failed storage never installs a draft or touches indexing. */
@@ -1856,6 +1860,16 @@ export default class KplexPlugin extends Plugin {
     const result = this.actionPreferenceQueue.then(apply);
     this.actionPreferenceQueue = result.catch(/** A failed draft does not poison later explicit retries. */ () => undefined);
     return result;
+  }
+
+  /** Finish durable saves through one optional refresh lease; UI pending never means disk cancellation. */
+  private refreshSavedSettings(semantic: boolean): Promise<StyleCommitResult> {
+    this.savedSettingsRefresh ??= new SavedSettingsRefresh(/** Existing index owners retain atomic publication and source/demand fences. */ async (needsSemantic, current) => {
+      if (this.unloading || !current()) return;
+      await this.index.refreshPresentationSettings();
+      if (needsSemantic && !this.unloading && current()) await this.index.refreshSemanticSettings();
+    });
+    return this.savedSettingsRefresh.request(semantic);
   }
 
   /** Queue settings disk writes without allowing an older pending save to overwrite new actions. */
@@ -2044,8 +2058,8 @@ export default class KplexPlugin extends Plugin {
       console.error("K-Plex saved style publication failed", error); return {refreshPending: true};
     }
     if (this.unloading || !refresh) return {refreshPending};
-    try {await this.index.refreshPresentationSettings(); if (semantic) await this.index.refreshSemanticSettings(); return {refreshPending};}
-    catch (error) {console.error("K-Plex saved style presentation refresh failed", error); return {refreshPending: true};}
+    const completion = await this.refreshSavedSettings(semantic);
+    return {refreshPending: refreshPending || completion.refreshPending};
   }
 
   /** Navigate to the declarative shortcut page, including when optional commands are unpublished. */
@@ -2279,12 +2293,10 @@ export default class KplexPlugin extends Plugin {
       return;
     }
     if (this.unloading) return;
-    await this.index.refreshPresentationSettings();
-    if (effects.semanticInvalidation) await this.index.refreshSemanticSettings();
-    // Device typography and physical layout profiles reuse the graph without expanding a requested scope.
-    // Style dictionaries/order also reuse semantic coverage. Preserve the legacy refresh
-    // for other render changes and mixed writes, which may change requested scopes.
-    else if (effects.render && !effects.typographyOnly && !effects.paintOnly && !consentOnly && !layoutOnly && !isStyleOnlySettingsChange(effects) && !effects.changedKeys.every(/** Non-color theme geometry uses presentation/layout only. */ key => STYLE_SETTINGS_KEYS.some(/** Lens behavior keeps its existing separate settings owner. */ field => field === key))) await this.index.refreshSemanticSettings();
+    // Preserve the established coverage decision; optional completion cannot hold the disk queue or Settings close.
+    const needsSemantic = effects.semanticInvalidation || (effects.render && !effects.typographyOnly && !effects.paintOnly && !consentOnly && !layoutOnly && !isStyleOnlySettingsChange(effects) && !effects.changedKeys.every(/** Non-color theme geometry uses presentation/layout only. */ key => STYLE_SETTINGS_KEYS.some(/** Lens behavior keeps its separate owner. */ field => field === key)));
+    const completion = await this.refreshSavedSettings(needsSemantic);
+    if (completion.refreshPending && !this.unloading) new Notice(this.translator("settings.savedRefreshPending"));
     // Workflow-only callers can still request their historical view notification. Changed settings
     // use the separate presentation channel and never pretend relationship evidence changed.
     if ((!effects.render || effects.typographyOnly) && notifyIndex) this.index.notifyPresentation();

@@ -1273,6 +1273,7 @@ const dutchTranslations = {
   "tagAssignment.linkStyleHelp": "Deze verbindingen zijn standaard twee keer zo dik als gewone tagverbindingen.",
   "moveNode.modifierTip": "Houd {shortcut} ingedrukt tijdens het slepen om zonder deze bevestiging te verplaatsen.",
   "styles.inheritDimension": "Basiswaarde voor {name} gebruiken",
+  "settings.savedRefreshPending": "Instellingen opgeslagen. Open de instellingen opnieuw of herlaad K-Plex om de weergave te vernieuwen.",
   "settings.ontology.draftHelp": "Wijzigingen worden opgeslagen na een typepauze of wanneer je een veld verlaat.",
   "settings.ontology.saveFailed": "Relatievelden konden niet worden opgeslagen. Je concept blijft bewaard. Probeer opnieuw of verwerp het.",
   "settings.ontology.retry": "Opnieuw proberen",

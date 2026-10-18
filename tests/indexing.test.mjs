@@ -461,6 +461,7 @@ for (const file of [
   "src/adapters/obsidian/relationshipMetadataWrite.ts",
   "src/adapters/obsidian/settingsNavigation.ts",
   "src/adapters/obsidian/settingsReconciliation.ts",
+  "src/adapters/obsidian/savedSettingsRefresh.ts",
   "src/adapters/obsidian/settingsInput.ts",
   "src/adapters/obsidian/hiddenPropertyName.ts",
   "src/ui/StyleEditorModal.ts",

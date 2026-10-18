@@ -91,7 +91,7 @@ const artifacts = Object.fromEntries(
 );
 
 /** Run real style-manager operations with finite fault injection and exact native modal ownership. */
-function start(referenceOnly = false, referenceProperties = false, sidecarGateOnly = false, referenceSidecar = false, liveness = false) {
+function start(referenceOnly = false, referenceProperties = false, sidecarGateOnly = false, referenceSidecar = false, liveness = false, excalidrawSidecar = false) {
   const p = app.plugins.plugins["k-plex"],
     tab = p.settingsTab,
     remote = require("@electron/remote"),
@@ -455,6 +455,18 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
     await current.settingsWriteQueue;
     c.cleaned = true;
   };
+  /** Create only this probe's real drawing; preserve its generated payload and opt into native Markdown display. */
+  const drawing = async path => {
+    const ex=app.plugins.plugins['obsidian-excalidraw-plugin'];
+    check(ex?.createDrawing,'Enabled real Excalidraw companion required');
+    check(!app.vault.getFileByPath(path),'Drawing fixture collision');
+    const created=await ex.createDrawing(path,'');
+    c.fixtureFile=typeof created==='string'?app.vault.getFileByPath(created):created;
+    check(c.fixtureFile?.path===path,'Companion returned a non-owned drawing');
+    await app.fileManager.processFrontMatter(c.fixtureFile,/** Keep generated scene data and all other drawing metadata intact. */ fm=>{fm['excalidraw-open-md']=true});
+    await until(()=>app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter?.['excalidraw-plugin']&&app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter?.['excalidraw-open-md']===true,'Drawing Markdown metadata absent');
+    p.index.insertCreatedFile(c.fixtureFile);return c.fixtureFile;
+  };
   /** Execute the serial no-view/active-view and fault matrix, then report facts before retiring the controller. */
   const run = async () => {
     try {
@@ -477,11 +489,13 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       if (sidecarGateOnly) {
         const plex = app.workspace.getLeavesOfType("k-plex-react-view").find(leaf => p.isKplexLeafVisible(leaf));
         check(plex, "A visible main Plex is required");
-        const page = p.index.allPages().find(page => page.file?.extension === "md");
+        if(excalidrawSidecar)await drawing(key+'-'+Date.now()+'.excalidraw.md');
+        const page = excalidrawSidecar ? p.index.get(c.fixtureFile.path) : p.index.allPages().find(page => page.file?.extension === "md");
         check(page, "A physical Markdown center is required");
         app.workspace.setActiveLeaf(plex, {focus: true}); p.notifyNavigation(page.path);
         await p.openSidecar(plex, page);
         await until(() => p.isSidecarOpen(plex), "Sidecar did not open");
+        if(excalidrawSidecar)check(p.sidecarLeaves.get(plex)?.view.getViewType()==='markdown'&&p.sidecarLeaves.get(plex)?.view.file===c.fixtureFile,'Real drawing Sidecar must be Markdown, not drawing editor');
         await until(() => !p.index.onDemandTasks.size && !p.index.hasActiveSemanticPreparation(), "Sidecar setup demand did not drain");
         const before = {...c.counts};
         for (const radius of [8, 2, 6.5, 5]) {
@@ -561,11 +575,14 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
       }
       if(referenceOnly){
         check(p.settings.noteTypeField,'Configured style field required');
-        const path=key+'-'+Date.now()+'.md';check(!app.vault.getFileByPath(path),'Reference fixture collision');
+        const path=key+'-'+Date.now()+(excalidrawSidecar?'.excalidraw.md':'.md');check(!app.vault.getFileByPath(path),'Reference fixture collision');
         const parentPath=path.replace(/\.md$/,'-parent.md'),parentField=p.settings.hierarchy.parents[0];
         check(parentField&&parentField!==p.settings.noteTypeField&&!app.vault.getFileByPath(parentPath),'Independent Parent fixture required');
         c.fixtureParentFile=await app.vault.create(parentPath,'');
-        c.fixtureFile=await app.vault.create(path,'---\n'+JSON.stringify(p.settings.noteTypeField)+': '+JSON.stringify(key)+'\n'+JSON.stringify(parentField)+': '+JSON.stringify('[['+parentPath+']]')+'\n---\n');
+        if(excalidrawSidecar){
+          await drawing(path);
+          await app.fileManager.processFrontMatter(c.fixtureFile,/** Add the same semantic fixture fields without replacing the actual drawing. */ fm=>{fm[p.settings.noteTypeField]=key;fm[parentField]='[['+parentPath+']]'});
+        }else c.fixtureFile=await app.vault.create(path,'---\n'+JSON.stringify(p.settings.noteTypeField)+': '+JSON.stringify(key)+'\n'+JSON.stringify(parentField)+': '+JSON.stringify('[['+parentPath+']]')+'\n---\n');
         await until(()=>app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter?.[p.settings.noteTypeField]===key,'Style fixture metadata absent');
         const plex=app.workspace.getLeavesOfType('k-plex-react-view').find(l=>p.isKplexLeafVisible(l));check(plex,'Single main Plex required');
         for(const leaf of [...app.workspace.getLeavesOfType('k-plex-react-view'),...app.workspace.getLeavesOfType('k-plex-sidepanel-view')])if(leaf!==plex)leaf.detach();
@@ -577,6 +594,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
           const center = p.index.get(path); check(center?.file === c.fixtureFile, "Physical Sidecar fixture center missing");
           await p.openSidecar(plex, center);
           await until(() => p.isSidecarOpen(plex), "Reference Sidecar did not open");
+          if(excalidrawSidecar)check(p.sidecarLeaves.get(plex)?.view.getViewType()==='markdown'&&p.sidecarLeaves.get(plex)?.view.file===c.fixtureFile,'Actual Excalidraw-as-Markdown Sidecar required');
         }
         await until(()=>!p.index.onDemandTasks.size&&!p.index.hasActiveSemanticPreparation(),'Style fixture demand did not drain');
         if(referenceProperties)await until(()=>c.properties.view.file===c.fixtureFile&&c.properties.view.modifyingFile===c.fixtureFile,'Native Properties did not adopt fixture');
@@ -642,7 +660,7 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
         const style=p.settings.noteTypeStyles[key],durable=(await stored()).noteTypeStyles[key];
         check(style.strokeWidth===3&&style.gateRadius===8&&durable.strokeWidth===3&&durable.gateRadius===8,'Native dimensions not persisted');
         await until(()=>{const center=[...document.querySelectorAll('.kplex-role-center')].find(el=>el.dataset.kplexPath===path);return center&&getComputedStyle(center).borderWidth==='3px'&&center.style.getPropertyValue('--kplex-gate-size')==='8.4px'},'Native dimension paint absent');
-        passed('actual Settings Node styles Border h1 reference child draft and parent Save',{source:expected,dimensions,counts:{writes:c.counts.writes-before.writes,presentations:c.counts.presentations-before.presentations,semantics:c.counts.semantics-before.semantics,acquisitions:c.counts.acquisitions-before.acquisitions},properties:referenceProperties,sidecar:referenceSidecar,testOwnedHeadingToken:c.testHeadingToken,context:'Actual Visual styling / Node styling subpages'});
+        passed('actual Settings Node styles Border h1 reference child draft and parent Save',{source:expected,dimensions,counts:{writes:c.counts.writes-before.writes,presentations:c.counts.presentations-before.presentations,semantics:c.counts.semantics-before.semantics,acquisitions:c.counts.acquisitions-before.acquisitions},properties:referenceProperties,sidecar:referenceSidecar,excalidrawSidecar,companionVersion:excalidrawSidecar?app.plugins.plugins['obsidian-excalidraw-plugin']?.manifest?.version:undefined,testOwnedHeadingToken:c.testHeadingToken,context:'Actual Visual styling / Node styling subpages'});
         app.setting.close();c.ownsSettings=false;
         await until(()=>p.index.getNeighborhood(path)?.parents.some(node=>node.page.path===parentPath),'Parent fixture did not reconcile');
         const restartAt=Date.now();await app.plugins.disablePlugin('k-plex');await app.plugins.enablePlugin('k-plex');const reloaded=app.plugins.plugins['k-plex'];
@@ -1130,7 +1148,7 @@ const report = {
   activation: "programmatic native manager/editor DOM",
 };
 try {
-  evaluate("JSON.stringify((" + start.toString() + ")("+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_PROPERTIES==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_SIDECAR_GATE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_SIDECAR==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_LIVENESS||false)+"))");
+  evaluate("JSON.stringify((" + start.toString() + ")("+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_PROPERTIES==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_SIDECAR_GATE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_SIDECAR==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_LIVENESS||false)+","+JSON.stringify(process.env.KPLEX_STYLE_EXCALIDRAW_SIDECAR==="true")+"))");
   const end = Date.now() + 180000;
   while (true) {
     await pause(100);

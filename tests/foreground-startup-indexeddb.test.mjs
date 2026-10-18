@@ -903,3 +903,30 @@ test("stationary plain-link host waves refresh finite cover before the same held
     await browser.cleanup();
   }
 });
+
+
+test('optional settings retry exhaustion cannot reject a valid hydrated snapshot or admit source recovery',async()=>{
+ const browser=await chromiumHarness(bundle);
+ try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('foreground-optional-settings-pending');let index,release;
+   try{
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const gate=new Promise(resolve=>release=resolve),reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);
+    index.sourceAcquisition.reconcile=async(...args)=>{await gate;return reconcile(...args)};
+    let recovery=0,retries=0,fail=false;const recover=index.restoreSourceBackedBaseline.bind(index),search=index.prepareSearchIndex.bind(index),evidence=index.indexedDb.iterateSnapshotEvidence.bind(index.indexedDb);
+    index.restoreSourceBackedBaseline=(...args)=>{recovery++;return recover(...args)};
+    index.prepareSearchIndex=(...args)=>{if(fail){retries++;return Promise.resolve(null)}return search(...args)};
+    const original=settings.showFullTagName;
+    index.indexedDb.iterateSnapshotEvidence=async(...args)=>{const result=await evidence(...args);settings.showFullTagName=!original;fail=true;return result};
+    const restored=await deadline(index.restorePersistedSnapshot(['A.md']),'trusted preview');ok(restored.restored,'Navigation preview remains valid');
+    const full=await deadline(index.waitForSnapshotHydration(),'optional-pending full hydration');ok(full.restored,'Optional failure does not reject source snapshot');
+    equal(recovery,0,'No source recovery admission');ok(retries>0&&retries<=8,'Actual optional retry budget reached');
+    ok(index.state.pages.get('A.md').neighbours.has('https://example.com/startup-evidence'),'Cached body-only relationships retained');
+    equal(index.presentationSettings.showFullTagName,original,'Coherent prior display policy remains prepared');equal(index.getSourceAcquisitionCounters().vaultReads,0,'No repair reads');
+    fail=false;await index.refreshPresentationSettings();equal(index.presentationSettings.showFullTagName,settings.showFullTagName,'Explicit later valid display retry converges');return true;
+   }finally{release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});

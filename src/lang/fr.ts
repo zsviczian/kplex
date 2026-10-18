@@ -1277,6 +1277,7 @@ const frenchTranslations = {
   "tagAssignment.linkStyleHelp": "Ces liens ont par défaut deux fois l’épaisseur des liens d’étiquettes ordinaires.",
   "moveNode.modifierTip": "Maintenez {shortcut} pendant le glissement pour déplacer sans cette confirmation.",
   "styles.inheritDimension": "Utiliser la valeur de base de {name}",
+  "settings.savedRefreshPending": "Paramètres enregistrés. Rouvrez les paramètres ou rechargez K-Plex pour actualiser l’affichage.",
   "settings.ontology.draftHelp": "Les modifications sont enregistrées après une pause de saisie ou lorsque vous quittez un champ.",
   "settings.ontology.saveFailed": "Impossible d’enregistrer les champs de relation. Votre brouillon est conservé. Réessayez ou abandonnez-le.",
   "settings.ontology.retry": "Réessayer",

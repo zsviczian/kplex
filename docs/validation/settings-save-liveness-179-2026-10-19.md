@@ -37,9 +37,10 @@ Raw logs remain private in Temp (`kplex-179-owner-red.log`,
 
 ## Bounded correction selected
 
-Keep preparation/publication in GraphIndex: finite retry attempts, a real host-task
-yield between attempts, unchanged source/policy/identity finality, coherent old
-publication on exhaustion and later explicit/current-input retry. No automatic
+Keep optional settings adaptation in GraphIndex: at most8 attempts, a64ms retry
+window after allowing an initial attempt and one retry, real host-task yields,
+unchanged source/policy/identity finality and coherent old publication on exhaustion.
+Later explicit valid input can retry. No automatic
 rebuild or source-read workaround. Make presentation dispatch snapshot-based and
 non-recursive, retaining stronger/keyed work while suppressing redundant feedback.
 
@@ -55,4 +56,36 @@ Scalar coalescing and mixed-effect classification remain unimplemented leads.
 
 ## Acceptance
 
-Implementation and final portable/native acceptance pending. Keep #179 draft.
+The bounded owner regressions pass, and the surrounding105 editor/presentation/
+external-settings/ontology cases pass before the final snapshot-specific addition.
+An overlap regression first caught an unnecessary second semantic refresh after a
+workflow save; separate semantic-obligation revision tracking corrects it without
+changing the existing oracle. The corrected overlap/unload checks3 pass. All23
+localization checks pass; the generic saved/pending notice is translated in8 locales.
+Real production build and official lint pass at the earlier candidate; full final
+verification and exact native candidate acceptance remain pending. Keep #179 draft.
+
+The completion lease waits at most200ms after durable/live publication. A held
+native operation remains one owned flight, with one coalesced newer obligation;
+no disk replay/cancellation or independent refresh task per edit. Repeated newer
+intent has an8-attempt convergence bound, then remains truthfully pending for
+explicit retry/reload. Unload fences follow-up effects and consumes late errors.
+Default copy-on-write, theme fencing, failed/uncertain storage and native modal
+submission ownership retain their existing owners and regression coverage.
+
+Only presentation notifications change: snapshot/removal semantics, isolated
+optional-subscriber errors and nonrecursive key/stronger-kind coalescing. Same
+publication feedback deduplicates; at most4 synchronous rounds precede one bounded
+host-task continuation for actual newer work. Semantic per-file publication is not
+made asynchronous.
+
+A separate uncommitted private/compiler-preparation cap was rejected during owner
+review: returning null would enter existing missing-cache recovery paths. It is
+restored to the exact baseline, not shipped. Private source SHA-256:
+`219d426ee872163784e5dc3c43b83091f4f3d020374636e6ba251e0bee27c96a`.
+No new source outcome protocol or #176 redesign is introduced. The one source-
+restore caller of optional settings adaptation now distinguishes its typed pending
+outcome from cache damage. A real IndexedDB regression proves retained body-only
+relations, zero source-recovery admission/body reads, and later valid display
+convergence. Compiler/source preparation retry contracts themselves remain a
+separate limitation; no whole-renderer-freeze resolution is claimed.

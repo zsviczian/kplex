@@ -1277,6 +1277,7 @@ const spanishTranslations = {
   "tagAssignment.linkStyleHelp": "Estas conexiones tienen por defecto el doble de grosor que las conexiones de etiquetas normales.",
   "moveNode.modifierTip": "Mantén {shortcut} al arrastrar para mover sin esta confirmación.",
   "styles.inheritDimension": "Usar {name} base",
+  "settings.savedRefreshPending": "Ajustes guardados. Vuelve a abrir los ajustes o recarga K-Plex para actualizar la vista.",
   "settings.ontology.draftHelp": "Los cambios se guardan tras una pausa al escribir o al salir del campo.",
   "settings.ontology.saveFailed": "No se pudieron guardar los campos de relación. Se conserva tu borrador. Reintenta o descártalo.",
   "settings.ontology.retry": "Reintentar",

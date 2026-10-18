@@ -1269,6 +1269,7 @@ const traditionalChineseTranslations = {
   "tagAssignment.linkStyleHelp": "這些連線預設為一般標籤連線的兩倍粗細。",
   "moveNode.modifierTip": "拖曳時按住 {shortcut}，即可直接移動而不顯示此確認視窗。",
   "styles.inheritDimension": "使用基本 {name}",
+  "settings.savedRefreshPending": "設定已儲存。請重新開啟設定或重新載入 K-Plex 以更新顯示。",
   "settings.ontology.draftHelp": "暫停輸入或離開欄位時，變更會自動儲存。",
   "settings.ontology.saveFailed": "無法儲存關係欄位。草稿已保留，請重試或捨棄。",
   "settings.ontology.retry": "重試",

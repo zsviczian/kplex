@@ -226,3 +226,26 @@ test("durable style Save releases its modal while one optional refresh is held a
   if(p.settings.noteTypeStyles.Project.strokeWidth!==14||refreshes!==end)throw Error('Late refresh changed durable state');return true;
  })()`),true);
 });
+
+
+test("optional refresh retires on unload and consumes a late rejection without replaying disk",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({noteTypeStyles:{Project:{strokeWidth:1}}});let reject,semantics=0,unhandled=0;
+  const onUnhandled=()=>unhandled++;window.addEventListener('unhandledrejection',onUnhandled);
+  p.index.refreshPresentationSettings=()=>new Promise((resolve,fail)=>reject=fail);p.index.refreshSemanticSettings=async()=>{semantics++};
+  const pending=p.refreshSavedSettings(true);await waitFor(()=>Boolean(reject));p.unloading=true;p.savedSettingsRefresh.close();reject(Error('Retired optional refresh'));
+  const result=await pending;await new Promise(r=>setTimeout(r,20));window.removeEventListener('unhandledrejection',onUnhandled);
+  if(!result.refreshPending||semantics||unhandled)throw Error('Retired refresh revived, misreported or rejected unobserved');return true;
+ })()`),true);
+});
+
+
+test("optional refresh exhaustion is pending and a later explicit request converges",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({});let calls=0;
+  p.index.refreshPresentationSettings=async()=>{calls++;if(calls<=8)void p.refreshSavedSettings(false)};
+  const first=await p.refreshSavedSettings(false);if(!first.refreshPending||calls!==8)throw Error('Optional feedback was unbounded or falsely complete');
+  p.index.refreshPresentationSettings=async()=>{calls++};const next=await p.refreshSavedSettings(false);
+  if(next.refreshPending||calls!==9)throw Error('Valid later explicit request was stranded');return true;
+ })()`),true);
+});

@@ -1281,6 +1281,7 @@ const russianTranslations = {
   "tagAssignment.linkStyleHelp": "По умолчанию эти связи вдвое толще обычных связей тегов.",
   "moveNode.modifierTip": "Удерживайте {shortcut} при перетаскивании, чтобы переместить без подтверждения.",
   "styles.inheritDimension": "Использовать базовое значение {name}",
+  "settings.savedRefreshPending": "Настройки сохранены. Откройте настройки снова или перезагрузите K-Plex для обновления вида.",
   "settings.ontology.draftHelp": "Изменения сохраняются после паузы ввода или выхода из поля.",
   "settings.ontology.saveFailed": "Не удалось сохранить поля связей. Черновик сохранён. Повторите попытку или отмените изменения.",
   "settings.ontology.retry": "Повторить",

@@ -1269,6 +1269,7 @@ const japaneseTranslations = {
   "tagAssignment.linkStyleHelp": "ノートタイプのタグ接続は、既定で通常のタグ接続の2倍の太さになります。",
   "moveNode.modifierTip": "{shortcut} を押しながらドラッグすると、確認せずに移動できます。",
   "styles.inheritDimension": "基本の {name} を使用",
+  "settings.savedRefreshPending": "設定を保存しました。表示を更新するには、設定を開き直すか K-Plex を再読み込みしてください。",
   "settings.ontology.draftHelp": "入力を一時停止するかフィールドを離れると、変更が保存されます。",
   "settings.ontology.saveFailed": "関係フィールドを保存できませんでした。下書きは保持されています。再試行するか破棄してください。",
   "settings.ontology.retry": "再試行",

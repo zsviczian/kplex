@@ -1054,3 +1054,21 @@ Set `KPLEX_ONTOLOGY_INPUT_MODE=eager` or `on-demand` to repeat in an actual chos
 session; the driver restores the original saved mode and session afterward. It
 also reloads the plugin and checks the final saved ontology and stationary Parent.
 See the [PR147 record](docs/validation/ontology-input-147-2026-10-18.md) for current results/limits.
+
+
+For settings-save liveness, set `KPLEX_STYLE_REFERENCE_ONLY=true` and
+`KPLEX_STYLE_LIVENESS=assert` on `verify:obsidian:style-operations`, after staging
+the exact build in Small. The existing reference/size editor lane then holds an
+earlier facet/search preparation and its later optional refresh while asserting
+durable Save, a dismissible editor, task heartbeats and stationary center. Use
+`observe` only to capture a baseline pending-editor observation; it is not fix
+acceptance. Holds are released in cleanup independently of assertions. Run the
+ordinary style-operation lane separately as a quiet/storage-failure control.
+
+Set `KPLEX_STYLE_REFERENCE_SIDECAR=true` with the reference lane to keep a managed
+Markdown Sidecar open. Add `KPLEX_STYLE_EXCALIDRAW_SIDECAR=true` for a real drawing
+created by the enabled companion, explicitly displayed as Markdown; the lane
+asserts this representation and records the companion version. The same drawing
+option works with `KPLEX_STYLE_SIDECAR_GATE_ONLY=true` for actual global gate-radius
+slider/Settings-close coverage. It never substitutes a plain Markdown note for
+that drawing case. All generated files remain probe-owned and are removed.

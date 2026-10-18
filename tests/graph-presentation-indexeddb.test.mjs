@@ -280,3 +280,16 @@ test("rejected production settings preparation has a finite retry budget and a l
  index.prepareSearchIndex=search;await index.refreshPresentationSettings();equal(index.presentationSettings.renderAlias,settings.renderAlias,'Explicit valid retry converges');return true;
  }finally{o.close()}
 })()`));
+
+
+test("presentation snapshot respects removal, subscriber failure, changed-key union and unload",async()=>scenario(`(async()=>{
+ const o=await presentationFixture('presentation-delivery-lifetimes');
+ try{const {index}=o,events=[];let calls=0,offRetired;
+ const off=index.subscribePresentation(event=>{events.push(event);if(++calls===1){offRetired();index.emitPresentation({kind:'paint',changedKeys:['baseNodeStyle']});index.emitPresentation({kind:'presentation',changedKeys:['noteTypeField']})}});
+ offRetired=index.subscribePresentation(()=>{throw Error('Retired listener revived')});
+ const faulty=index.subscribePresentation(()=>{throw Error('Controlled optional subscriber error')});let surviving=0;const survivor=index.subscribePresentation(()=>surviving++);
+ index.emitPresentation({kind:'paint',changedKeys:['backgroundColor']});equal(calls,2,'One coalesced nonrecursive followup');equal(surviving,2,'Optional failure does not block other live owners');
+ equal(events[1].kind,'presentation','Stronger kind preserved');ok(events[1].changedKeys.includes('baseNodeStyle')&&events[1].changedKeys.includes('noteTypeField'),'Nested changed keys preserved');
+ off();faulty();survivor();const retire=index.subscribePresentation(()=>index.destroy());index.subscribePresentation(()=>{throw Error('Post-unload listener called')});index.notifyPresentation();retire();return true;
+ }finally{o.close()}
+})()`));

@@ -1,4 +1,6 @@
 /**
+ * Optional presentation dispatch uses finite snapshots and nonrecursive coalescing. Settings-only
+ * retries preserve coherent predecessors and yield host tasks under one finite retry window.
  * Complete fresh physical ownership can qualify one observed empty-folder create before insertion;
  * the short source-local witness never turns partial presentation into negative inventory authority.
  * Touched canonical physical facets retire their cached exact-pair facade before selected reads.
@@ -156,6 +158,9 @@ import {
 /** Existing presentation channel distinguishes color repaint from scene/presentation work. */
 export type PresentationChange = Readonly<{kind: "paint" | "presentation"; changedKeys?: readonly import("../core/graph/settingsPolicy").SettingDiagnosticKey[]}>;
 const ORDINARY_PRESENTATION_CHANGE: PresentationChange = {kind: "presentation"};
+
+/** Optional settings churn is pending presentation, never evidence of a damaged source snapshot. */
+class PresentationSettingsPendingError extends Error {}
 
 type PreparedPresentationPublication = {
   /** Reuse the immutable preparation proof at final acceptance without another full encoding. */
@@ -503,6 +508,9 @@ export class GraphIndex {
   private presentationSettings: KplexSettings;
   private presentationStatuses = new WeakMap<GraphPage, PresentationStatus>();
   private presentationRun = 0;
+  private presentationDispatching = false;
+  private pendingPresentationEvent: PresentationChange | null = null;
+  private presentationDeliveryQueued = false;
   private presentationRevision = 0;
   /** Only mounted, actually visible pages retain optional presentation retry ownership. */
   private visiblePresentation = new Map<string, {
@@ -3053,9 +3061,49 @@ export class GraphIndex {
     return withPreparedPresentation(settings, this.presentationSettings);
   }
 
-  /** Notify visible views; hidden views catch up through their existing visibility subscription. */
+  /**
+   * Publish synchronously to the opening listener snapshot. Nested optional notifications coalesce;
+   * an unchanged feedback event cannot recurse, while stronger/keyed or new-publication work survives.
+   * Four rounds bound one dispatch; actual continuing input yields through one retained host task.
+   */
   private emitPresentation(event: PresentationChange = ORDINARY_PRESENTATION_CHANGE): void {
-    for (const listener of this.presentationListeners) listener(event);
+    if (this.diagnosticsClosed) return;
+    const pending = this.pendingPresentationEvent;
+    this.pendingPresentationEvent = pending ? {
+      kind: pending.kind === "presentation" || event.kind === "presentation" ? "presentation" : "paint",
+      changedKeys: pending.changedKeys && event.changedKeys ? [...new Set([...pending.changedKeys, ...event.changedKeys])] : undefined,
+    } : event;
+    if (this.presentationDispatching) return;
+    this.presentationDispatching = true;
+    const seen = new Set<string>();
+    const settings = this.presentationSettings, state = this.state;
+    try {
+      for (let round = 0; round < 4 && this.pendingPresentationEvent && !this.diagnosticsClosed; round += 1) {
+        const next = this.pendingPresentationEvent;
+        this.pendingPresentationEvent = null;
+        // Current synchronous subscribers cannot interleave awaited metadata. These tokens also
+        // distinguish real nested graph/settings publications from a redundant notify feedback.
+        const signature = JSON.stringify([next.kind, next.changedKeys ? [...next.changedKeys].sort() : null,
+          this.publicationRevision, this.presentationRevision, this.semanticRevision,
+          this.plugin.getIndexSourceRevision(), this.presentationSettings === settings, this.state === state]);
+        if (seen.has(signature)) continue;
+        seen.add(signature);
+        for (const listener of [...this.presentationListeners]) {
+          if (this.diagnosticsClosed) break;
+          if (!this.presentationListeners.has(listener)) continue;
+          try {listener(next);} catch (error) {console.error("K-Plex optional presentation subscriber failed", error);}
+        }
+      }
+    } finally {this.presentationDispatching = false;}
+    if (this.pendingPresentationEvent && !this.presentationDeliveryQueued) {
+      this.presentationDeliveryQueued = true;
+      void yieldToHostTask().then(/** Keep one finite continuation; unload retires notifications before native I/O ends. */ () => {
+        this.presentationDeliveryQueued = false;
+        const next = this.pendingPresentationEvent;
+        this.pendingPresentationEvent = null;
+        if (next && !this.diagnosticsClosed) this.emitPresentation(next);
+      }).catch(/** Retain pending work for the next real notification if the host task channel closes. */ () => {this.presentationDeliveryQueued = false;});
+    }
   }
 
   /** Request a render-only update for legacy workflow controls without touching evidence. */
@@ -3093,14 +3141,26 @@ export class GraphIndex {
 
   /**
    * Prepare a settings-only refresh from cached inputs. A lightweight facet/search staging area is
-   * published in one synchronous step. No builder, patcher, parser, relationship cache or body read
+   * published in one synchronous step. Retry attempts share one finite budget and yield real host
+   * tasks; exhaustion preserves the coherent predecessor and reports pending to its caller. No builder, patcher, parser, relationship cache or body read
    * participates in presentation staging. Pending legacy alias upgrades retain their existing owner;
    * only meaningful facet/search changes supersede that work. Source publication/unload still fence it.
    */
   async refreshPresentationSettings(): Promise<void> {
     const run = ++this.presentationRun;
     const alive = (): boolean => !this.diagnosticsClosed && run === this.presentationRun;
+    const started = performance.now();
+    let attempts = 0;
     while (alive()) {
+      if (attempts >= 8 || (attempts > 1 && performance.now() - started >= 64)) {
+        this.recordIndexDiagnostic("restore", "presentation-settings-retry-pending", {modified: attempts});
+        throw new PresentationSettingsPendingError("Presentation settings remain pending after superseded preparation");
+      }
+      if (attempts++ > 0) {
+        await yieldToHostTask();
+        await this.workScheduler.checkpoint(INDEX_WORK_PRIORITY.visibleNeighborhood);
+        if (!alive()) return;
+      }
       const settings = capturePresentationSettings(this.plugin.settings);
       const policy = captureSettingsPolicy(settings);
       const effects = classifySettingsChange(captureSettingsPolicy(this.presentationSettings), policy);
@@ -4229,6 +4289,7 @@ export class GraphIndex {
     this.relationshipPairViews = new WeakMap();
     this.semanticPreparationFailures.clear();
     this.presentationListeners.clear();
+    this.pendingPresentationEvent = null;
     this.generation += 1;
     this.bodyWarmGeneration += 1;
     this.cancelSnapshotHydration?.();
@@ -4737,7 +4798,11 @@ export class GraphIndex {
       if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
       if (relationsHydrated) {
         if (classifySettingsChange(captureSettingsPolicy(this.presentationSettings), captureSettingsPolicy(this.plugin.settings)).render) {
-          await this.refreshPresentationSettings();
+          try {await this.refreshPresentationSettings();} catch (error) {
+            // A valid source snapshot must not become a cache-miss/full-build obligation merely
+            // because optional display adaptation exhausted its budget. Keep prepared old policy.
+            if (!(error instanceof PresentationSettingsPendingError)) throw error;
+          }
           if (!isCurrent()) return { restored: false, fresh: false, createdAt: meta.createdAt };
         }
         this.publishRestoredState(next, null, true, currentSemantics, true, physicalFoldersRevision);

@@ -19,21 +19,32 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR179 causal checkpoint
+# PR179 candidate; final verification
 
-Root/main agent implements and validates with Node22.22.2, installed deps, Chromium,
-Obsidian Small107/88. No subagents/personal vault/comparative performance/release.
-147 merged60d2239;179 integration3bc489c retargetedmain/pushed, no history rewrite.
-Only prior own change was plan marker; resolved stale177 conflicts to exact main.
-User authorizes validated179 merge then149 then176. Do not wait CI.
+Main/root agent implements/reviews/validates; no subagents.147 merged60d2239,
+179 integrated main3bc489c and causal checkpoint7f5d17d pushed. User authorizes
+validated179merge, then149 then176 sequentially; no CIwait/release/personalvault,
+comparative performance under encoding load, new receipt/schema/scheduler/archives.
 
-Four actual-owner red regressions and native overlap observations recorded in
-settings-save-liveness-179-2026-10-19.md. Native five control cases pass with config
-restored: durable1write/editorPendingtrue/25heartbeats while prior facet/search and
-optional refresh held. Initial wrong-facet/search prerequisite failure retained.
-No original renderer freeze reproduced. Next implement bounded preparation retries,
-finite snapshot/nonrecursive presentation notification, and truthful durable Save
-release with one optional refresh flight; existing writer/fences/UX remain owners.
-Do not patch other leads without causal proof. Then fullverify/exact native both
-modes/Sidecar variants/lifecycle, preserve gaps, finalreport/cleanup/merge.149/176
-not started. All raw traces private, no new evidence archive authorized.
+Four original production-owner red regressions are now green. Surrounding105 cases
+pass before final boundary/copy additions;23 localization checks pass; prior lint/
+realbuild pass. Candidate adds one optional completion lease (disk writer unchanged),
+8-attempt settings adaptation with task yields, finite nonrecursive presentation
+notification. Semantic revision tracking prevents redundant replay in an existing
+ontology overlap regression. Exact native candidate/fullfinal checks pending.
+
+Private/compiler preparation cap experiment restored to exact baseline after source
+review found null would trigger cache recovery; no private compiler retry redesign.
+One restore caller catches only typed optional-settings pending, retaining valid
+source snapshot. Actual IndexedDB proof plus budget/explicit-retry tests3 pass.
+Prototype remains private in Temp with SHA inreport, not in shipped code.
+
+Native baseline actual Settings overlap5 cases pass: durable1write, editor still
+pending,25heartbeats while actual earlier facet/search and later refresh held.
+First wrong-facet search prerequisite failed and remains rawprivate. Existing
+styleOperations now supports LIVENESS=assert/observe and actual companion drawing
+as Markdown via EXCALIDRAW_SIDECAR, with existing cleanup. Small107/88/config restored.
+Next fullverify oncleancommittedcandidate, stageexactbuild, serial native quiet/
+overlap On-demand+Eager, main/popout/Sidecar plain vsrealdrawing andPropertiesfactor,
+held/failed disk+close/unload/reload; recordactual limits. Do not claim wholeapp
+freeze reproduced. Remove planmarker done.149/176 not started; eachcausalgated.

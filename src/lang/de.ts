@@ -1273,6 +1273,7 @@ const germanTranslations = {
   "tagAssignment.linkStyleHelp": "Tag-Verbindungen für Notiztypen sind standardmäßig doppelt so breit wie normale Tag-Verbindungen.",
   "moveNode.modifierTip": "Halte beim Ziehen {shortcut} gedrückt, um ohne diese Bestätigung zu verschieben.",
   "styles.inheritDimension": "Basiswert für {name} verwenden",
+  "settings.savedRefreshPending": "Einstellungen gespeichert. Öffne die Einstellungen erneut oder lade K-Plex neu, um die Anzeige zu aktualisieren.",
   "settings.ontology.draftHelp": "Änderungen werden nach einer Eingabepause oder beim Verlassen eines Felds gespeichert.",
   "settings.ontology.saveFailed": "Beziehungsfelder konnten nicht gespeichert werden. Dein Entwurf bleibt erhalten. Versuche es erneut oder verwirf ihn.",
   "settings.ontology.retry": "Erneut versuchen",
