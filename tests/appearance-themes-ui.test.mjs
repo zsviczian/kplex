@@ -208,3 +208,21 @@ test("theme reset and manager previews retain the stable owning Settings body af
   manager.retire();tab.disposeActionSettings();await new Promise(r=>setTimeout(r,20));if(document.querySelector('iframe[sandbox]')||p.appearanceThemeListeners.size||window.migrationListeners)throw Error('Stable preview ownership leaked');return true;
  })()`),true);
 });
+
+
+test("durable style Save releases its modal while one optional refresh is held and later edits stay bounded",async()=>{
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({noteTypeStyles:{Project:{strokeWidth:1}}}),t=p.translator;
+  const tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);let release,refreshes=0;
+  const refresh=p.index.refreshPresentationSettings;p.index.refreshPresentationSettings=async()=>{refreshes++;await new Promise(resolve=>release=resolve);await refresh()};
+  tab.openNodeStyleEditor('property','Project');const modal=sourceModules.TestModal.instances.at(-1);
+  input(modal.contentEl.querySelector('input[aria-label="'+t('filter.borderWidth')+'"]'),'2');
+  [...modal.contentEl.querySelectorAll('button')].find(el=>el.textContent===t('common.save')).click();
+  await waitFor(()=>p.settings.noteTypeStyles.Project.strokeWidth===2);await new Promise(r=>setTimeout(r,300));
+  if(modal.modalEl.isConnected)throw Error('Durable editor remains trapped by optional refresh');
+  const writes=p.writes.length;for(let n=0;n<12;n++)await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.strokeWidth=3+n});
+  if(p.writes.length!==writes+12||refreshes!==1)throw Error('Held optional work blocked writes or accumulated refresh tasks');
+  const end=refreshes;release();p.index.refreshPresentationSettings=refresh;await new Promise(r=>setTimeout(r,30));
+  if(p.settings.noteTypeStyles.Project.strokeWidth!==14||refreshes!==end)throw Error('Late refresh changed durable state');return true;
+ })()`),true);
+});

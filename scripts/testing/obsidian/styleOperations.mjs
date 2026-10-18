@@ -91,7 +91,7 @@ const artifacts = Object.fromEntries(
 );
 
 /** Run real style-manager operations with finite fault injection and exact native modal ownership. */
-function start(referenceOnly = false, referenceProperties = false, sidecarGateOnly = false, referenceSidecar = false) {
+function start(referenceOnly = false, referenceProperties = false, sidecarGateOnly = false, referenceSidecar = false, liveness = false) {
   const p = app.plugins.plugins["k-plex"],
     tab = p.settingsTab,
     remote = require("@electron/remote"),
@@ -612,7 +612,26 @@ function start(referenceOnly = false, referenceProperties = false, sidecarGateOn
           const field=root.querySelector('input[aria-label="'+p.translator(label)+'"]');check(field,'Native size input absent');
           field.value=String(value);field.dispatchEvent(new field.ownerDocument.defaultView.Event('input',{bubbles:true}));
         }
-        record('reference-parent-save','start');await save(root);record('reference-parent-save','end');
+        if(liveness){
+          let releasePrevious,releaseRefresh,heartbeats=0;const beat=window.setInterval(()=>heartbeats++,10);
+          const search=p.index.prepareSearchIndex,refresh=p.index.refreshPresentationSettings;
+          let entered=false,held=false;
+          // Hold actual facet-changing preparation; another durable style Save must not own its disk queue.
+          p.index.prepareSearchIndex=async function(...args){if(!entered){entered=true;await new Promise(resolve=>releasePrevious=resolve)}return search.apply(this,args)};
+          p.settings.showFullTagName=!p.settings.showFullTagName;
+          const previous=p.index.refreshPresentationSettings();
+          try{
+            await until(()=>entered,'Earlier facet-changing preparation did not enter');
+            p.index.refreshPresentationSettings=async function(...args){held=true;await new Promise(resolve=>releaseRefresh=resolve);return refresh.apply(this,args)};
+            record('overlap-parent-save','start');button(root,'common.save').click();
+            await until(()=>held,'Saved operation did not enter held optional refresh');await wait(300);
+            const observed={editorPending:root.isConnected,heartbeats,durable:Boolean((await stored()).noteTypeStyles[key]),earlierPreparationHeld:Boolean(releasePrevious),writes:c.counts.writes-before.writes};
+            check(observed.durable&&heartbeats>0,'Hold must distinguish durable Save from a starved renderer');
+            passed('controlled overlap and held optional refresh observation',observed);
+            if(liveness==='assert')check(!root.isConnected,'Durably saved editor remains trapped by optional refresh');
+          }finally{window.clearInterval(beat);releaseRefresh?.();releasePrevious?.();p.index.prepareSearchIndex=search;p.index.refreshPresentationSettings=refresh;await previous;}
+          await until(()=>!root.isConnected,'Released overlap Save did not close');record('overlap-parent-save','end');
+        }else{record('reference-parent-save','start');await save(root);record('reference-parent-save','end');}
         const expected={kind:'theme',variable:'--h1-color'};
         check(JSON.stringify(p.settings.noteTypeStyles[key]?.borderColor)===JSON.stringify(expected),'Reference did not publish');
         check(JSON.stringify((await stored()).noteTypeStyles[key]?.borderColor)===JSON.stringify(expected),'Reference did not persist');
@@ -1111,7 +1130,7 @@ const report = {
   activation: "programmatic native manager/editor DOM",
 };
 try {
-  evaluate("JSON.stringify((" + start.toString() + ")("+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_PROPERTIES==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_SIDECAR_GATE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_SIDECAR==="true")+"))");
+  evaluate("JSON.stringify((" + start.toString() + ")("+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_PROPERTIES==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_SIDECAR_GATE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_SIDECAR==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_LIVENESS||false)+"))");
   const end = Date.now() + 180000;
   while (true) {
     await pause(100);
