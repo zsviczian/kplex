@@ -1273,6 +1273,14 @@ const germanTranslations = {
   "tagAssignment.linkStyleHelp": "Tag-Verbindungen für Notiztypen sind standardmäßig doppelt so breit wie normale Tag-Verbindungen.",
   "moveNode.modifierTip": "Halte beim Ziehen {shortcut} gedrückt, um ohne diese Bestätigung zu verschieben.",
   "styles.inheritDimension": "Basiswert für {name} verwenden",
+  "settings.ontology.draftHelp": "Änderungen werden nach einer Eingabepause oder beim Verlassen eines Felds gespeichert.",
+  "settings.ontology.saveFailed": "Beziehungsfelder konnten nicht gespeichert werden. Dein Entwurf bleibt erhalten. Versuche es erneut oder verwirf ihn.",
+  "settings.ontology.retry": "Erneut versuchen",
+  "settings.ontology.discard": "Gespeicherte Felder verwenden",
+  "settings.ontology.conflict": "Diese Felder wurden während der Bearbeitung geändert. Verwende die gespeicherten Felder, bevor du weiterbearbeitest.",
+  "settingsSync.conflict": "Die Einstellungen wurden auf einem anderen Gerät geändert. Öffne dieses Steuerelement erneut und wende deine Änderung nochmals an.",
+  "settingsSync.loadFailed": "Die geänderten K-Plex-Einstellungen konnten nicht geladen werden. Deine aktuellen Einstellungen bleiben erhalten. Prüfe die Synchronisierung und versuche es erneut.",
+  "settingsSync.refreshPending": "Einstellungen empfangen. Einige Ansichten konnten nicht aktualisiert werden. Öffne die betroffene Ansicht erneut.",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

@@ -1,4 +1,4 @@
-/** Exact-build Settings and trusted mouse/modifier acceptance; owns only two disposable notes. */
+/** Exact-build Settings and trusted mouse/modifier acceptance; owns only disposable hover fixtures. */
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {obsidianCliExecutable,spawnNativeSync} from './processTools.mjs';
 import {validateTarget} from './runner.mjs';
+import {acceptCrosslinkPeek} from './crosslinkPeek.mjs';
 const root=fileURLToPath(new URL('../../..',import.meta.url));
 const vaultName=process.env.KPLEX_TEST_VAULT_NAME;assert.equal(vaultName,'kplex-test-small');
 const target=validateTarget({vaultName,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
@@ -20,7 +21,7 @@ const backups=['plugins/k-plex/data.json','community-plugins.json','workspace.js
 const artifacts=Object.fromEntries(['main.js','styles.css','manifest.json'].map(name=>{const bytes=readFileSync(join(root,'dist',name));assert(bytes.equals(readFileSync(join(target.pluginDir,name))),'Stale installed '+name);return[name,createHash('sha256').update(bytes).digest('hex')]}));
 
 /** Actual Settings navigation plus real SVG/node/gate targets in each owning Electron renderer. */
-function start(){
+function start(acceptCrosslinkPeek){
  const p=app.plugins.plugins['k-plex'],tab=p.settingsTab;
  if(window.__kplexHoverProbe||app.setting.isOpen)throw Error('Clean native prerequisites required');
  const c=window.__kplexHoverProbe={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{linked:p.linkedDocumentLeaf,last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},cases:[],diagnostics:[],events:[],restores:[],releases:[],owned:[],done:false,counts:{reads:0,parses:0,acquisitions:0,semantics:0,search:0}};
@@ -89,7 +90,8 @@ function start(){
    const target=rootOf(main).querySelector(`.kplex-thought[data-kplex-path="${other}"] .kplex-thought-text`);await leave(main);move(main,target);await wait(100);check(highlighted(main)===0,'Default highlighting did not wait');await until(()=>highlighted(main)>0,'Default delay failed');await leave(main);check(highlighted(main)===0,'Default leave failed');
    c.cases.push('actual Settings durable on/off and default delayed hover restored');
    for(const name of Object.keys(c.counts))c.counts[name]+=c.mainCounts[name];
-   check(Object.values(c.counts).every(value=>value===0),'Hover/settings performed source or semantic/search work '+JSON.stringify(c.counts));c.result={cases:c.cases,counts:c.counts,excludedViewSetupCounts:c.excludedViewSetupCounts,notes:app.vault.getFiles().length};
+   check(Object.values(c.counts).every(value=>value===0),'Hover/settings performed source or semantic/search work '+JSON.stringify(c.counts));c.result={cases:c.cases,counts:{...c.counts},excludedViewSetupCounts:c.excludedViewSetupCounts,notes:app.vault.getFiles().length};
+   c.result.crosslinkPeek=await acceptCrosslinkPeek({p,c,main,path,other,check,wait,until,focus,rootOf,move,key,leave,toggle});
   }catch(error){c.error=String(error.stack||error)}
   finally{
    try{
@@ -102,16 +104,16 @@ function start(){
   }
  })();return true;
 }
-const sourceFiles=['src/ui/components/hoverHighlight.ts','src/ui/PlexGraph.tsx','src/ui/ThoughtNode.tsx','src/settings.ts',...['en','de','es','fr','nl','ja','ru','zh-TW'].map(locale=>'src/lang/'+locale+'.ts')];
+const sourceFiles=['src/ui/components/hoverHighlight.ts','src/ui/PlexGraph.tsx','src/ui/layout.ts','styles.css','src/ui/ThoughtNode.tsx','src/settings.ts','scripts/testing/obsidian/crosslinkPeek.mjs',...['en','de','es','fr','nl','ja','ru','zh-TW'].map(locale=>'src/lang/'+locale+'.ts')];
 const source={base:spawnNativeSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8',timeout:10000}).stdout.trim(),files:Object.fromEntries(sourceFiles.map(name=>[name,createHash('sha256').update(readFileSync(join(root,name))).digest('hex')]))};
 const report={source,status:'running',node:process.version,host:process.platform,startedAt:new Date().toISOString(),artifacts};
 try{
- report.obsidian=cli('version');evaluate('('+start.toString()+')()');const end=Date.now()+180000;
+ report.obsidian=cli('version');evaluate('('+start.toString()+')('+acceptCrosslinkPeek.toString()+')');const end=Date.now()+180000;
  while(true){await new Promise(r=>setTimeout(r,300));const state=evaluate('JSON.stringify((()=>{const c=window.__kplexHoverProbe;return{done:c?.done,error:c?.error,cleanupError:c?.cleanupError,result:c?.result,cases:c?.cases,diagnostics:c?.diagnostics,events:c?.events}})())');if(state.done){report.result=state.result;report.cases=state.cases;report.diagnostics=state.diagnostics;report.events=state.events;assert(!state.error&&!state.cleanupError,state.error||state.cleanupError);report.status='passed';break}assert(Date.now()<end,'Native hover deadline')}
 }catch(error){report.status='failed';report.error=String(error);process.exitCode=1}
 finally{
  try{const deadline=Date.now()+25000;while(true){const state=evaluate('JSON.stringify((()=>{const c=window.__kplexHoverProbe;if(!c)return{absent:true};if(!c.done){c.cancelled=true;return{pending:true}}if(!c.cleaned)throw Error(c.cleanupError||"Cleanup incomplete");delete window.__kplexHoverProbe;return{removed:true}})())');if(!state.pending)break;assert(Date.now()<deadline,'Controller still running; preserve configuration until drained');await new Promise(r=>setTimeout(r,150))}for(const backup of backups)writeFileSync(join(target.config,backup.name),backup.bytes);report.configurationBytesRestored=backups.every(backup=>readFileSync(join(target.config,backup.name)).equals(backup.bytes))}
  catch(error){report.status='failed';report.cleanupError=String(error);process.exitCode=1}
- report.completedAt=new Date().toISOString();writeFileSync(join(output,'hover-highlight-native.json'),JSON.stringify(report,null,2)+'\n');writeFileSync(join(output,'driver-source.mjs'),readFileSync(new URL(import.meta.url)));
+ report.completedAt=new Date().toISOString();writeFileSync(join(output,'hover-highlight-native.json'),JSON.stringify(report,null,2)+'\n');writeFileSync(join(output,'driver-source.mjs'),readFileSync(new URL(import.meta.url)));writeFileSync(join(output,'crosslink-peek-source.mjs'),readFileSync(new URL('./crosslinkPeek.mjs',import.meta.url)));
 }
 console.log(JSON.stringify(report));

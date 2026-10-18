@@ -27,9 +27,19 @@ Build output must appear in `dist/` and contain:
 
 The plugin ID is `k-plex`.
 
+### Release metadata
+
+The project grant is **AGPL-3.0-only**. Keep `LICENSE` verbatim and preserve third-party license records. Root `package.json`, the top-level lockfile and its root package entry share the manifest's numeric release version and package name; the project license agrees between `package.json` and the lockfile's root package entry. Dependency records remain unchanged when correcting metadata. The exact Obsidian dependency and locked version match `minAppVersion` (currently `1.13.0`).
+
+Ordinary builds ship `manifest.json`. Both manifests use the same numeric `x.y.z` version and minimum; `manifest-beta.json` may have a different description. This follows [Obsidian's numeric manifest-version format](https://docs.obsidian.md/Reference/Manifest). Release tags accept one optional lowercase `v`: a tag such as `v0.1.3` selects stable, while `0.1.3-beta-1` or `v0.1.3-rc.1` selects beta. The numeric tag base must match both manifests and npm roots. Prerelease identifiers follow SemVer, including its numeric leading-zero rule; build metadata (`+...`) is unsupported. The shipped manifest keeps the numeric base, so its version agrees with the bundle identity embedded by the ordinary build.
+
+`versions.json` maps evidenced published numeric versions to their actual minimum Obsidian versions. Its nine initial entries (`0.0.1`–`0.0.5`, `0.1.0`–`0.1.3`) were checked against both public release assets and tagged manifests; all require `1.13.0`. Add the next intended release's numeric base and minimum when updating metadata; do not invent historical releases.
+
+Run `npm run check:release` for a read-only consistency check (included in `npm run verify`), and `node scripts/check-release-metadata.mjs --dist` after an ordinary build to check its exact shipped manifest. For a local no-publish release check, build first, then run `node scripts/check-release-metadata.mjs --tag v0.1.3-beta-1 --prepare-dist`, substituting the intended matching tag. This validates the ordinary build before selecting beta and validates the resulting manifest; it never creates a tag or release. Rebuild before checking another channel. The release workflow uses the same owner after building and before attestation/publication, and consumes its validated prerelease output. Malformed metadata/tags or mismatched shipped manifests fail before preparation writes.
+
 Do not consider a change complete until it builds against the real installed Obsidian typings. A local stub harness is useful for fast checks but is not authoritative.
 
-`npm run check:architecture` checks migrated-layer imports and its negative fixtures. `npm run check:core` type-checks the host-free core with no DOM/Node ambient types and runs clean-process core contract tests. `npm run lint:obsidian` runs the official Obsidian ESLint plugin. `npm run verify` runs the architecture and core lanes, Obsidian lint, all non-host tests, then the production build. No Obsidian installation is needed for these commands. Browser-bearing test lanes run with `--test-concurrency=1` so independent Chromium instances do not compete for startup resources on CI; assertion deadlines and test coverage remain unchanged. The C03 button DOM test needs a local Chrome/Chromium-family executable; set `KPLEX_TEST_BROWSER` to its absolute path if discovery fails. The full/incremental semantic engine is portable, while legacy host binding and much of the application/UI remain migration seams; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the checkpoint ledger in [Refactor plan.md](Refactor%20plan.md). Review every Obsidian lint warning and avoid introducing new ones. L00 established the English catalog; L01 migrates legacy copy and enforces known presentation sinks with negative fixtures.
+`npm run check:release` validates shared release metadata. `npm run check:architecture` checks migrated-layer imports and its negative fixtures. `npm run check:core` type-checks the host-free core with no DOM/Node ambient types and runs clean-process core contract tests. `npm run lint:obsidian` runs the official Obsidian ESLint plugin. `npm run verify` runs release metadata validation, the architecture and core lanes, Obsidian lint, all non-host tests, then the production build. No Obsidian installation is needed for these commands. Browser-bearing test lanes run with `--test-concurrency=1` so independent Chromium instances do not compete for startup resources on CI; assertion deadlines and test coverage remain unchanged. The C03 button DOM test needs a local Chrome/Chromium-family executable; set `KPLEX_TEST_BROWSER` to its absolute path if discovery fails. The full/incremental semantic engine is portable, while legacy host binding and much of the application/UI remain migration seams; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the checkpoint ledger in [Refactor plan.md](Refactor%20plan.md). Review every Obsidian lint warning and avoid introducing new ones. L00 established the English catalog; L01 migrates legacy copy and enforces known presentation sinks with negative fixtures.
 
 SI3 source storage has two focused lanes: `npm run test:sources` exercises production codecs, storage-degraded facts, host acquisition and GraphBuilder integration; `npm run test:sources:browser` exercises real Chromium IndexedDB, including a fresh browser-process restart. Both are included in `npm test`. The same `KPLEX_TEST_BROWSER` setting selects Chromium (`KPLEX_CHROMIUM` is also accepted). Missing or administratively blocked browser access fails that lane, rather than substituting a mock. See [the source repository contract](docs/SOURCE_REPOSITORY.md) for current Review limitations.
 
@@ -106,7 +116,11 @@ never substitutes direct K-Plex materialization for external creation. The drive
 drawings and restores settings, workspace and configuration bytes even on failure. Run it serially
 after exact-build staging; Linux, macOS and physical-device acceptance remain separate.
 
-After exact-build staging, `npm run verify:obsidian:hover-highlight` checks the actual **Plex behavior** Settings toggle, durable saves, trusted mouse/modifier activation on nodes, gates and connectors in main/popout windows, and restored default delayed hover in `kplex-test-small`. Use the same three explicit vault variables and a fresh report directory. The lane owns two temporary notes, restores settings/workspace/configuration bytes and releases listeners/controllers. It counts body reads/parses/acquisitions and semantic/search calls during the tested Settings/hover intervals; fixture and popout initialization are recorded separately. Windows Electron input does not replace macOS Option/menu or physical-device acceptance. Run native drivers serially.
+After exact-build staging, `npm run verify:obsidian:hover-highlight` checks the actual **Plex behavior** Settings toggle, durable saves, trusted mouse/modifier activation on nodes, gates and connectors in main/popout windows, and restored default delayed hover in `kplex-test-small`. Use the same three explicit vault variables and a fresh report directory. The lane owns six temporary notes, restores settings/workspace/configuration bytes and releases listeners/controllers. Its shared `crosslinkPeek.mjs` fixture also checks disabled-crosslink node/four-gate/incoming previews, stationary and held Alt, both hover settings, zero opacity, enabled-crosslink deduplication, geometry/count stability and independent main/popout previews with blur cleanup. It counts body reads/parses/acquisitions and semantic/search calls during guarded hover intervals, plus settings writes during the new preview intervals; fixture, preference and popout initialization are recorded separately. Windows Electron input does not replace macOS Option/menu or physical-device acceptance. Run native drivers serially. See the [PR181 validation record](docs/validation/alt-hover-crosslinks-181-2026-10-18.md) for results and the combined matrix deferred to PR147.
+
+`npm run verify:obsidian:external-settings` uses the same exact-build, explicit Small-vault variables and fresh report directory. It writes synthetic incoming snapshots to the actual plugin data file from the driver process; it never manually invokes `onExternalSettingsChange`. The lane checks real callback delivery, main/sidebar/popout paint, native Settings refresh and retired handlers, command publication, an unrelated local save, real received ontology policy and stationary rendered parents, native editor focus/caret, and torn-file recovery without echo saves. Counts distinguish settings-file reads from note reads/source work. Three owned notes, settings/workspace/configuration, views and forwarding observers are restored; debounced native layout saves drain before byte restoration. Raw configuration backups stay private. Controlled two-instance ordering in `tests/external-settings.test.mjs` complements this Windows lane; actual two-device Sync, minimum-host and physical mobile acceptance remain separate. See the [PR182 validation record](docs/validation/live-settings-sync-182-2026-10-18.md).
+
+The default uses the current index session. To check the other actual session, set `KPLEX_EXTERNAL_SETTINGS_MODE=eager` or `on-demand`; the driver reloads only the selected disposable plugin before setup and restores/reloads its original settings afterward. Each run also receives the opposite stored mode and proves that receipt alone leaves the active session unchanged. Run the two functional lanes serially; they are not comparative timing benchmarks.
 
 `npm run verify:obsidian:interaction-updates` uses the same exact-build prerequisites and explicit Small-vault variables. It checks the actual area-outline Settings toggle, stationary Alt transitions, scroll transparency, gate-to-gate draft geometry, sibling additions through the relationship composer, actual Bases link dragstart/drop, placeholder materialization during a held build, and native File properties following and overlap recovery in main/popout windows. It owns a bounded synthetic folder, restores workspace/settings/window geometry and checks the original file inventory. Setup rebuilds are excluded from presentation-only resource claims. Run this lane serially; desktop input does not establish physical mobile or macOS acceptance.
 
@@ -1000,6 +1014,17 @@ restart and physical mobile touch remain separate acceptance. See the
 
 ## Navigation and embedded drawing fit acceptance
 
+For focused Markdown autosave continuity, use the same exact-build disposable-vault
+setup and run `scripts/testing/obsidian/adaptiveFit.mjs` with
+`KPLEX_MARKDOWN_SAVE_ONLY=true` and a fresh `KPLEX_HOST_REPORT_DIR`. Keep
+`KPLEX_MARKDOWN_SAVE_OBSERVE_ONLY` false for acceptance; true records a baseline
+without asserting the no-op contract. The shared owner restores fixtures/settings/
+workspace and snapshots the serialized helper. It checks native Sidecar and central
+source-editor autosaves, intermediate parent roles, DOM/focus and real parent
+removal. Functional work counts are not controlled CPU/memory benchmarks. See the
+[PR180 validation record](docs/validation/markdown-save-continuity-180-2026-10-18.md)
+for the deferred combined matrix and platform limits.
+
 After exact-build staging, run `npm run verify:obsidian:adaptive-fit` with the three explicit
 disposable `kplex-test-small` vault variables and a fresh `KPLEX_HOST_REPORT_DIR`. The driver
 uses ordinary native frontmatter changes and source/index publication to check central-node
@@ -1018,3 +1043,14 @@ physical touch or perceived paint.
 `tests/viewport-fit.test.mjs` compiles actual fit math, the native resize coordinator and graph
 camera/layout callbacks. `tests/embedded-markdown-default.test.mjs` checks native-controller wiring
 and cleanup with finite host doubles; native lanes remain authoritative for real geometry.
+
+After exact-build staging, `npm run verify:obsidian:ontology-input` uses the three explicit
+Small-vault variables and a fresh report directory. It observes trusted native Settings typing,
+idle/blur/close submission, stationary ontology semantics in main/sidebar/popout, explicit
+storage recovery, synthetic composition/paste and no-view saving. Counts separate drafts from
+committed policy work; no comparative resource claim is made. The lane restores three owned
+notes, configuration/workspace and native observers. Keep backups private and run serially.
+Set `KPLEX_ONTOLOGY_INPUT_MODE=eager` or `on-demand` to repeat in an actual chosen
+session; the driver restores the original saved mode and session afterward. It
+also reloads the plugin and checks the final saved ontology and stationary Parent.
+See the [PR147 record](docs/validation/ontology-input-147-2026-10-18.md) for current results/limits.

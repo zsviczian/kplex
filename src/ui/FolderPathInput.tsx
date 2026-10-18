@@ -14,11 +14,13 @@ export type FolderPathInputProps = {
   translate: Translator;
   disabled?: boolean;
   autoFocus?: boolean;
+  /** Native materialization may prefill/focus a destination without opening suggestions. */
+  openResultsOnFocus?: boolean;
   resultsOwnerId?: string;
 };
 
 /** Keep normal quick-create focus in the name field; folders disclose only while deliberately edited. */
-export function FolderPathInput({ value, onChange, folders, translate, disabled, autoFocus, resultsOwnerId }: FolderPathInputProps) {
+export function FolderPathInput({ value, onChange, folders, translate, disabled, autoFocus, openResultsOnFocus = true, resultsOwnerId }: FolderPathInputProps) {
   // Vault-relative inventory paths omit a root slash. Keep that input spelling out of search
   // matching/highlighting while retaining the user's destination text for native validation.
   const query = value.replaceAll("\\", "/").replace(/^\/+/, "");
@@ -34,6 +36,6 @@ export function FolderPathInput({ value, onChange, folders, translate, disabled,
     className: "kplex-folder-path-input", icon: "", disabled, autoFocus,
     floating: true, floatingMode: "viewport", maxFloatingHeight: 320, minFloatingWidth: 560, resultsOwnerId,
     resultsClassName: "kplex-folder-path-results", matchingQuery: query,
-    preferSuggestionOnModifiedEnter: true, openResultsOnFocus: true,
+    preferSuggestionOnModifiedEnter: true, openResultsOnFocus,
   });
 }

@@ -4920,3 +4920,365 @@ Feature checkpoint1941b48 is pushed. Private evidence backup1792336531810 verifi
 583 files/36,151,035 bytes and source ZIP541 entries/CRCs/per-file SHA-256,
 HANDOFF excluded; manifestba61eb5d95513393ae661ee6ca351023bd5dfdacd5e86e6421ff623ba38f7937.
 Originals/prior backups retained, nothing raw published. Remote CI is in progress.
+
+### 2026-10-18 — Stationary host-cover and startup-backlog corrections
+
+C14 remains paused. PR177's follow-up fixes two causally traced races within
+GraphIndex's existing local publication owner and main's existing startup/rebuild
+coordinator. No new scheduler, source format, receipt, parser, classifier or broad
+optimization. Private functional traces use only Small's owned synthetic notes.
+
+1. A valid URL publication advances a demanded center's gate epoch during private
+   complete-host preparation. The guard refuses that result, but a late-created
+   target also makes the ordinary canonical patch return needs-rebuild. Previously
+   the current demand drained without publishing its Parent. Retry only the
+   superseded private preparation under the same live demand and all original
+   finality/file/policy/budget checks. Retired demand and unchanged unavailable
+   results stop. Old dd4ef63 source fails the two real IDB recovery regressions;
+   candidate passes, with both cancellation controls remaining green.
+2. A visible local baseline can finish while persisted Markdown Sidecar restore
+   awaits. Later restore classification adds startup:no-snapshot after the initial
+   task has already resolved, stranding dirty status without work. Startup now
+   joins the original task then schedules remaining visible/complete/live backlog
+   through the existing rebuild queue. Never clear newer dirty source paths or
+   manufacture a ready result. Closed/incomplete/unloaded/clean gates are covered.
+
+Host-cover-only full1792337424909 passes7/130/lint/1058/142/334/612/build/native
+smoke. Native combined Sidecar+Properties now restores stationary Parent, while
+both that and Sidecar-only still fail the later genuine-idle prerequisite. Trace
+1792339143489 establishes the second cause above. Those failed receipts remain
+private and unchanged. Combined final verification1792339241307 passes
+7/130/lint/1058/142/334/612/build/native smoke on Node22.22.2. The exact-build
+reference matrix now passes4 checks in all4 pane combinations, including genuine
+idle/recovery. Styles15, Sidecar trusted gate-close8, foreground held-P3 live
+updates, structural12 and layout6 pass. Sanity1792340561280 confirms restored
+107files/88Markdown, no controllers/dialogs and CLI capture off. Final artifacts
+and exact native receipts are in the validation report; source matches the run.
+
+No comparative performance or personal-vault access. Per-attempt budgets remain;
+total retry work follows actual churn, not a fixed latency/resource guarantee.
+The complete-app Save/Settings-close freeze is still unreproduced. Remaining
+manual acceptance: affected full-process startup/freeze, macOS/minimum host and
+physical mobile/native drag behavior. No merge/release or final platform claim.
+
+Saved/pushed checkpointba8ad7e7b1ad7d714edc2340f330e5f706e723d3. Verified private
+backup1792340626104 contains685files/38,971,887bytes and source ZIP541 entries,
+CRCs/per-file hashes; HANDOFF excluded. MANIFEST
+57c5c60589a7ce06d73d55ed49323eb8cb0d9d8cec1025381351eafe2b8ff8d5.
+Originals/prior backups retained; no raw publication. Exact-head remote CI is
+running when recorded, not claimed green. PR remains draft.
+
+### 2026-10-18 PR177 � shared completion and context layout follow-up
+
+One CreationCompletionSelect now owns the actual caption/dropdown in both creation
+shells. It shows the resolved outcome, keeps explicit choices local, and uses common
+native styling. Guard ToggleComponent.setValue reflection because the real host
+invokes onChange on changed values. Native user toggle persistence is retained.
+Folder creation passes the exact current destination through all validation paths,
+allowing parent/nested matching basenames while refusing exact collisions. Initial
+materialization suggestions reuse the existing closed-focus policy.
+
+LayoutCheckbox is shared by Wrap labels and one Simplified layout checkbox beneath
+Parents/Children. Existing context writer, environment and eight-locale copy remain
+owners. A shared surface route keeps popout reads/writes aligned with main-tab
+arrangement, retaining independent density. No new preference/indexing owner.
+
+Full1792341320441 plus final affected1792343479987 (7/130/lint/206/build/native smoke)
+pass on Node22.22.2. Final Windows folders12/layout7 pass exact artifact3fbbe208;
+layout source/storage/build/semantic counters0. Four native visual captures, two
+inspected, plus final sanity1792344084125 verify original107files/88Markdown,
+no dialogs/controllers and capture off. Retain failed controls and the earlier
+unattributed1-acquisition typing interval, not universal efficiency claims. No
+comparative performance or personal-vault access. Report carries exact hashes,
+receipts and driver corrections. Remaining risk: whole-app Settings-close freeze
+still unreproduced; macOS/minimum host and physical mobile/touch require separate
+acceptance. Highest-priority manual checks: affected full-process startup, native
+Settings close with Markdown Sidecar, and physical-device layout controls. Keep
+draft/no merge/release. Private originals/verified earlier backups remain intact.
+
+Validated creation/layout checkpoint: `0ab6091fc3c2b28a76fcebef65428dc1c4335978`.
+Verified private backup outside Temp:
+`%LOCALAPPDATA%/KplexValidation/structural-drops-177-20261018-1792344165311`;
+859files/57,075,484bytes; source ZIP543 entries with CRC/per-file SHA verification,
+HANDOFF excluded. MANIFEST SHA-256
+`df19b953c9845889c841cd0a4c153c8e5be6fbba5897cc08d5ff845a05f235ea`.
+Originals and prior backups retained; nothing raw published. Remote0ab6091 CI is
+in progress when recorded; previous41fd2f8 CI passed. A docs-only evidence pin
+changes no validated runtime. Keep PR177 draft.
+
+### 2026-10-18 PR180 � stationary Markdown saves
+
+Merged accepted PR177 to main4396768; integrated main into the existing180 branch
+without rewriting history (1160cb2). Native Sidecar/central-editor autosaves
+reproduce body parents temporarily demoted to children, lost DOM and126 animations
+per3saves. The accepted read priority keeps the exact prior canonical/body owner
+only while replacement work is active; policy/native identity/write fences remain.
+A first semantic-scope-only candidate had no effect and is retained as failed evidence.
+
+On-demand invalidation now distinguishes dirty source admission from the compiled
+policy token, restoring SourceFingerprint no-op use without skipping validation.
+Prepared view identity survives non-settings publications; ordinary scene geometry
+compares consumed values, strips paint via the existing owner and rebinds current
+pages. Sections keep conservative invalidation. No new scheduler/schema/receipt.
+
+Red controls independently fail for read retention, no-op policy and scene work.
+111affected owner tests,8final held-parser Eager/On-demand/same-stat/removal cases,
+143focused presentation/UI/follow/layout tests,7architecture/130core/full lint/real
+build pass. Strict native1792346311955 passes4 cases:3prose autosaves each in
+Sidecar and central editor give0semantic/0animation, retained DOM/focus and parent
+roles; actual parent removal/restoration passes. Native adaptive-fit1792346448185
+passes7positive relationship/navigation/camera controls. Exact main713b17c1 hash
+and source/read counts are recorded in docs/validation/markdown-save-continuity-180-2026-10-18.md.
+
+Per maintainer, defer full verify/native/platform/dependency matrix to147; keep180
+draft. No CPU/memory/latency claim. Source parsing/acquisition and many presentation
+notifications remain. Follow-up147 should attribute those passes before optimizing.
+No personal vault, comparative performance test, release or180merge. Remaining
+manual priorities: combined property-lens/section/provenance matrix, independent
+popouts/macOS and physical mobile. Separate Settings-close freeze stays in179.
+
+Checkpoint `256c6cc7bb15952b5ec58609f21798c5e10f07fa` is committed/pushed.
+The final policy/lifetime subset passes35 tests after the same-stat/policy guards.
+Sanity1792346630038 repeats original fixture counts, exact hashes and capture-off
+restoration after the seven native positive controls. Verified private evidence:
+`%LOCALAPPDATA%/KplexValidation/markdown-saves-180-20261018-1792346670447`;
+42 files/6,996,864bytes; source ZIP544 entries, CRC/per-file SHA verified; HANDOFF
+excluded. MANIFEST SHA-256
+`7ff510049d3231bfc828952bd70731c2d9fd18ae477d1080fed4d1513b9cb5d0`.
+Originals remain in Temp; nothing raw published. CI runs asynchronously; no final
+CI-green claim or merge recommendation replaces the deferred combined checks.
+
+
+### 2026-10-18 PR181 — Alt/Option crosslink preview
+
+| Checkpoint | Result |
+| --- | --- |
+| Main integration | Main177/180 incorporated without rewriting; draft181 targets main@e95d3db through7d0a014. |
+| Shared owners | Optional trusted mouse feedback in HoverHighlight; focused appendVisibleCrossLinks, existing gates/style/paint/lifecycle. No indexing/settings/schema change; C14 remains paused. |
+| Focused checks | 60 hover/layout/UI +2 Eager/On-demand source-backed +23 gate/tooltip/motion;7architecture/130core/full lint/real build pass. Two projection/Find-highlight controls fail as expected; restored bytes. |
+| Native checks | Exact build1792348138137; native1792348226865 passes11: four gates/incoming, both modes, enabled dedup, zero opacity, main/popout and blur. Guarded reads/parses/acquisition/semantic/search/settings writes0; setup separate. |
+| Maintainer boundary | Complete/push181 then pause for maintainer testing/merge. Keep draft. No147 implementation, merge, release, personal vault or comparative performance test. Full/platform matrix pending. |
+
+Projection uses eligible displayed persistent endpoints; modifier changes do not
+enter geometry or semantic gate-count dependencies. Preserve canonical orientation
+through earlier incident reciprocal lookups, not all-pairs or a second classifier.
+Expanded minis keep their separate non-connection-hover policy. Extra hits passive.
+
+Report: docs/validation/alt-hover-crosslinks-181-2026-10-18.md. Initial UI fixture
+lacked explicit null peek input (59/60); corrected fixture passes60. Final sanity
+1792348322853 restores107files/88Markdown, configuration/workspace, no controllers/
+dialogs, desktop/captureoff. No CPU/memory/latency comparison. Remaining manual:
+native lens/section/scroll provenance; actual Eager/drag/paint; macOS/migration/
+physical devices. Maintainer will test181 before its merge or the next work package.
+
+181runtime checkpoint e8e8814744ebc8eb1beb43a8674a5951b91be9be committed/pushed.
+Private verified backup1792348500765:38files/8645196bytes, sourceZIP545entries,
+CRC/per-fileSHA pass, HANDOFF excluded. Manifest381e9879634ca0a01b5f04df9bf08af2b39bb4fa7aad8d98188a9321931d95c8.
+Originals retained/private. Pause for maintainer testing; no next task started.
+
+
+### 2026-10-18 PR181 child-gate tooltip follow-up
+
+Shared LongPressTooltip now honors existing data-tooltip-position=top rather than
+always preferring below; viewport/canvas fallback retained. Gates already request
+top, no new control/settings/strings.8browser tooltip checks, full lint/real build/
+exact stage1792349032305 and8native node-only cases1792349051302 pass, including
+child gate above in main/popout/return. Sanity1792349085739 restores107files/88md,
+config/workspace/captureoff. Installed main f40ff506c3a8990c98493d46b77ef1e4cebdb219085ed3a278812d0f1bc19a0d.
+Existing crosslink validation not rerun; no indexing or CSS change. Remain paused
+for maintainer testing/merge; no next PR. macOS/physical acceptance still separate.
+
+
+### 2026-10-18 PR182 settings reconciliation checkpoint
+
+181 merged mainc0cd100 under explicit authorization/no CIwait. Existing182branch
+updated through8b0fdbd without rewriting. Added public external callback and one
+settings reconciliation adapter on the existing disk queue, detached root intents/
+remote owner epochs, exact preflight and retained in-flight receipt evidence. No
+recursive merge, sync backend, persisted conflict schema, indexing or C15 refactor.
+Native declaration controls reuse host update/renderer, with transient stale-event
+keys; themes/actions/lenses use existing owners. All8locales updated.12production-
+method deterministic Chromium cases and real build pass; prior97affected tests and
+33sync/localization pass. Initial four unsafe array accesses corrected with unknown
+guards; lint passes. Full/native event delivery still pending; not merge-ready.
+Maintainer requires completion/push182 then pause; no141/147, personal vault, merge
+or release. Native receipts/platform and final regression coverage remain next.
+
+
+### PR182 validation checkpoint - 2026-10-18
+
+Live settings:16 focused production-boundary Chromium cases and real build/types pass;
+exact durable read-back, detached accepted state and stale action publication guards
+complete. Prior native candidate passed5 actual callback/control/view/semantic/recovery
+cases with exact configuration restore; final exact-build repeat and full verification
+remain pending. Two full harness failures retained and corrected (compile inventory,
+finite Notice stub). Reusable Small native lane added; temporary planning marker removed.
+C14 structural work remains paused; no indexing/parser/cache changes or performance claim.
+Manual gaps remain real two-device Sync, minimum host/config override, physical mobile.
+
+
+### PR182 native acceptance checkpoint - 2026-10-18
+
+Runtime dbe5317 passes full verify (7/130/1061/162/334/623 test groups, no skips),
+real build/types/official lint. Exact Windows Small native migration passes;6 live
+external-callback cases pass each in actual on-demand and eager;15 existing native
+style-operation cases pass. Paint receipt:1 settings read,0 note/source/semantic/
+build/write work. Genuine ontology refresh and native foreground preserved.
+Two focus-oracle failures retained: frontmatter moved requested line0 to actual4
+before reception; observed before/after caret4 and editor identity unchanged,
+zero focus events. Validator now compares observed stable caret and retains bounded
+failure facts; production runtime unchanged. Opening configuration/workspace exact,
+107files/88Markdown, original mode restored and no controllers. Durable evidence and
+final docs/PR closeout next, then pause. C14 remains paused. Manual gaps:real two-device
+Sync, minimum1.13/configoverride and physical mobile; no merge/release authorized.
+
+
+### PR182 delivered and paused - 2026-10-18
+
+Feature source/runtime dbe5317 and native tooling f7424d8 accepted for maintainer
+testing; full verification7/130/1061/162/334/623 groups all pass, no skips. Exact
+Small Windows1.14.4 real externalcallback6cases in each actual on-demand/eager mode,
+style operations15 and migration6 pass. Native correct policy/foreground delivery,
+zero note/source/semantic/build/write work for presentation receipt (1settingsread).
+Private durable evidence verified98files/12419738bytes outsideTemp, two source ZIPs
+CRC/entrySHA verified, originals intact, HANDOFF excluded, nothing published.
+Manifest4151640803f1ddf7641a1e3305ada346df8f78ed14b253486b5e401090ca970c.
+Opening Small workspace/config bytes and originalmode restored,107files/88Markdown,
+no controllers/debugger. Final docs/validation/live-settings-sync-182-2026-10-18.md
+records source, work counts, failure controls, distributed race limits and reproduction.
+No CPU/memory improvement claim, indexing/scheduler/schema change or personal access.
+Keep182draft, CI not awaited; PAUSED per maintainer, no141/147, merge orrelease.
+Manual gaps real macOS-WindowsSync, minimum1.13/configoverride andphysicalmobile.
+C14 refactoring remains paused.
+
+
+### PR147 ontology input checkpoint - 2026-10-18
+
+182merged658793f;147branchintegrated183a948/pushed withoutrewrite. NativeSmall
+baseline14trustedinputscause12writes/semanticinvalidations/refreshes,35acquisitions,
+0parses; no Macfreeze orcomparative resourceclaim. Seven nativefields reusebounded
+750msidle/blur draftmodel and finite atomic field writer on182 settingsqueue.
+Persistbeforelivepolicy; actualsemanticrefresh outsidequeue, noindexschedulerchange.
+13focusedproduction-boundaryChromium cases pass; affected94beforefinal3edgecases,
+latestontology/localization36 pass. Realbuild/types/officiallint pass after sandbox
+retry and typedMap correction. Negativeidle/fieldguards controls failcorrectly and
+restoreexactsource. Reusablenative lane added, NOTyetexecuted; fullverify pending.
+Report docs/validation/ontology-input-147-2026-10-18.md; keepdraft/no merge/release.
+Manualgaps actualMaclarge-vault/contention,physicaltouch/IME/minimumhost. C14paused.
+
+
+### PR147 unchanged read-back correction - 2026-10-18
+
+Checkpoint3743bfb nativeSmall showed22trustedinputs with0drafttime graph/storage
+work,1idlewrite/semanticrefresh and3acquisitions,stationaryParent3views andcaret
+retained; close/reopenpassed. ExplicitRetryfailed. Redrepro provedunchanged
+failed-write readback normalized anacceptedorderedlist andmanufactured remote
+ownerchange. NarrowSettingsReconciliation guard skipsthat reinterpretation while
+preserving genuinecaptureddataduringfailedwrite.14ontology+17external=31tests
+green, actualbuild/types/lintpass. Nativefailedtrialandredreproretainedprivate.
+Repeatexactnativelane/fullverify next; no CPUimprovementclaim or indexingrefactor.
+Keepdraft/no merge/release/personalvault. C14paused; platformgaps unchanged.
+
+
+### PR147 native acceptance checkpoint (2026-10-18)
+
+Corrected runtime af31fc9 passes seven actual Settings cases in both On-demand and Eager sessions: trusted typing/caret, stationary parents in three views, page exit, failed storage Retry, composition, refresh-pending, no-view persistence and plugin restart. Counts exclude restart. Reusable lane now owns actual mode selection/restoration and reload. Removed temporary issue144 marker. Full verification and combined Windows regression lanes remain pending; Mac/physical IME/minimum-host acceptance remains separate. No indexing/compiler/scheduler or performance campaign.
+
+
+### PR147 final acceptance (2026-10-18)
+
+Runtime af31fc9/tooling c7cd196: full verify architecture7/core130/main1061/UI177/sources334/browser623 plus real build and Obsidian lint pass. Actual native ontology7cases per On-demand/Eager, external6/style15/migration6/Markdown4 pass. Functional22-character burst commits once, zero draft-time policy/source work; no comparative resource/latency or Mac-freeze claim. Native broader hover is blocked by missing resolved-link fixture facts, touch9+reload pass but320px geometry reaches317.5px, Gate first case passes then source/semantic guard fails with incremental publication traces. Retain these unresolved failures; no weakened oracles/deadlines or unrelated runtime patch. All8locales/native controls/queue/core owners preserved; TSDoc and full diff reviewed. Private durable evidence169base+6supplement verified with source ZIP CRC/SHA; HANDOFFexcluded, originalsretained, no publication. Small107/88/config/workspace/follow owners restored, no controllers/dialogs/debugcapture. Maintainer now authorizes147merge then179/149/176 sequentially; no CI waiting/release/branchdelete/personalvault/comparative performance under load. Mac reporter/background, physical IME/touch, minimum-host/window-migration remain separate. See validation report.
+
+
+### 2026-10-18 — PR183 stationary current-center startup
+
+C14 remains accepted and structural refactoring paused. The maintainer authorized
+implementation on `2026-10-18-startup-center-investigation` at `d10cb46b`, with
+read-only personal-vault diagnostics, `main.js` deployment and Small-vault testing.
+The [startup validation record](docs/validation/startup-center-investigation-2026-10-18.md)
+preserves native failure evidence: after an interrupted reload the still-demanded
+center waits 72.167 s for all 37 children, while global source/cache work proceeds.
+The foreground owner waited on a whole-vault baseline and could drain after host
+finality rejection; the separate initial-recovery effect also consumed a pending
+attempt across hide/reveal.
+
+The existing compiler/parser/scheduler now prepare a finite readonly current-center
+cover at P1 before broad startup waits. Real changed host observations can refresh
+that coalesced finite phase while its canonical task still awaits the same baseline.
+Affected events retire the cover; unrelated host waves preserve it. Native identity,
+source/policy/demand and publication fences remain; no schema, semantic classifier,
+authority shortcut or scheduler is added. Private baseline retries admit only
+changed observations and also fence policy replacement. Recovery completes only
+after a current visible check succeeds.
+
+Primary regressions and the native-shaped sparse-host-wave control actually fail
+before their corrections. Candidate 1 passes complete verification but misses the
+native timing target; its failed control is preserved. Candidate 2 passes 105
+startup/foreground cases, real types/lint and four stationary native starts after
+two seven-second interruptions: complete 3-parent/37-child reads at 3.811/3.325 and
+3.669/3.318 s, before baseline/source readiness, exact mature-primary fingerprint
+and zero later regressions. Final full verify passes 7 architecture/130 core,
+1,068 Node/145 UI/334 portable source/630 IndexedDB browser cases, official lint,
+real types and production build. Normal bundle a47c87da51086d65acbad8286bf4e66e7aa93b79e04e03b75fbb0c8c49476414
+is installed in both authorized vaults; the 553-file verified receipt is
+880ec93a4821c95bcad8a4afddbf7fc701d30f32b9fd1285ea61a5a8b425e374.
+Standard exact-build Small command/render/error smoke passes. Four normal-bundle
+starts retain all primary DOM nodes at 6.804/3.961 and 6.612/5.595 seconds from
+reload, while cache metadata still loads, with seven-second interruptions. One
+earlier bounded CLI capture timeout has no established cause and remains recorded;
+subsequent foreground/incremental pairs pass without source or deadline changes.
+
+Both vaults' original data/workspace/enabled-list hashes match; Small content is
+unchanged. Its startup normalization/layout changes were restored through the
+native layout owner plus exact configuration bytes. No personal note-write command
+was issued. Installed hashes, observer/global/staging absence and unchanged verified
+inputs pass final audit. Optional screenshot export was rejected by automatic
+review and not retried. No commit, push, merge or release. Full-process interruption
+and physical mobile remain untested; evidence is renderer reload and ordinary-read/
+DOM output, not actual paint or a universal performance guarantee. Highest-value
+manual follow-up: actual exit/reopen followed by a second interruption after 5–10 seconds,
+with the same stationary 3-parent/37-child center and no navigation. No further code
+work or structural refactoring is queued.
+
+
+### 2026-10-18 — PR183 current-main reconciliation accepted
+
+Maintainer authorizes merge without CI wait, followed by main+fetch. Accepted fix
+e847a50 integrates main658793f (#181/#182) at e2e391f. Conflicts preserve both test
+registrations and append-only feature evidence. Recovery/hover lifetimes remain
+separate; incoming settings synchronously invalidate the same semantic policy.
+Full Node22.22.2 verify passes7/130/1069/165/334/632 groups, zero failures/skips,
+lint/types/real build; large20,015-owner oracle unchanged. Exact combined Small
+command/render/error smoke and byte-exact configuration/content restoration pass.
+All558 inputs match receiptf3d09d8a8e592be3bf40ad8a0f647b23f4a35ce3e61f01fb5ada7c6f4aa36131.
+See startup validation report for artifact identity and prior native limitations.
+Personal prior deployed build is not replaced during reconciliation. No new
+full-process/mobile or timing claim; C14 remains paused. Git merge identity is on183.
+
+
+### PR147 integrated main183 and native-input readiness (2026-10-19)
+
+Integrated main28dbdbf without rewrite at1137fc1; preserved both package test inventories and append-only ledgers. Full combined7/130/1069/180/334/632 plus realbuild/lint pass. Native ownontology7permode/external6/style15/migration6/Markdown4 pass on exact96ae2f09... artifact. Hover native transport exposed previous-node preview before queued gate input; first private incoming-only control failed earlier gate, then both settled-set waits pass11. Promoted two readiness predicates in shared native helper, preserving exact independent edge/orientation/geometry/no-work assertions and deadlines; actual repository lane11 and20 runner tests pass. No production source changed after1137. Gate revision failure remains unresolved with incremental patch traces; old touch317.5px geometry gap retained. Record these limits, do not call them reproduced whole-app freezes. Final private backup/docs and authorized147merge next, then179/149/176.
+
+### 2026-10-18 — PR148 release metadata accepted
+
+After183 merged at28dbdbf, maintainer authorizes completing/immediately merging148
+without CI wait, then main+fetch. Existing branch integrates main at42fe00d. Root
+package/lock versions align with existing0.1.3 manifests; project license becomes
+AGPL-3.0-only with explicit README grant. LICENSE and all341 dependency records,
+Obsidian1.13.0, runtime/bundler/manifests, old tests/actions/permissions unchanged.
+All nine historical asset/tag manifests prove1.13.0 map entries; unsupported1.0.0
+removed. One shared metadata policy drives read-only verification and selected
+release-dist validation before attestation/publication. Focused58 tests and full
+Node22.22.2 verify7/130/1127/165/334/632 pass with no failures/skips, lint/types/build.
+Actual-build temporary no-publish stable/beta and wrong-tag/no-write checks pass;
+all565 inputs frozen (digest560c3bd41bc3a66d2768673dc814001d5dd82d18f559a8e79f66a01a5e0b564d).
+See docs/validation/release-metadata-129-2026-10-18.md for public provenance, artifact
+hashes and limits. No native/vault work, release/tag or manual test needed for this
+scope. Hosted attestation/publication unexercised; C14 remains paused. Git identity
+belongs to148; no further feature/refactoring work queued.
+
+
+### PR147 final evidence and main148 integration (2026-10-19)
+
+Combined full verification at1137fc1 and exact native acceptance are recorded in docs/validation/ontology-input-147-2026-10-18.md. Private durable combined backup256files/14,944,140bytes with555-entry source ZIP CRC/member SHA passes; originals retained, no publication, HANDOFF excluded. Main148 integrated atb794bff without production-source change; metadata58/check/build pass and bundle equality after public build-ID normalization verified. Both package inventories preserved. Native ontology7permode/external6/style15/migration6/Markdown4/hover11 pass; runner20 pass. Gate revision guard and historical touch geometry remain explicit gaps, not reproduced whole-renderer freeze. User authorizes147 merge then179/149/176 sequentially; no CIwait/release/personalvault or broad refactoring. Remaining manual acceptance: reporter macOS/background contention; physical IME/touch; minimum-host Settings window migration. C14 remains paused.

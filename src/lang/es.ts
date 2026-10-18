@@ -1277,6 +1277,14 @@ const spanishTranslations = {
   "tagAssignment.linkStyleHelp": "Estas conexiones tienen por defecto el doble de grosor que las conexiones de etiquetas normales.",
   "moveNode.modifierTip": "Mantén {shortcut} al arrastrar para mover sin esta confirmación.",
   "styles.inheritDimension": "Usar {name} base",
+  "settings.ontology.draftHelp": "Los cambios se guardan tras una pausa al escribir o al salir del campo.",
+  "settings.ontology.saveFailed": "No se pudieron guardar los campos de relación. Se conserva tu borrador. Reintenta o descártalo.",
+  "settings.ontology.retry": "Reintentar",
+  "settings.ontology.discard": "Usar los campos guardados",
+  "settings.ontology.conflict": "Estos campos cambiaron mientras los editabas. Usa los campos guardados antes de seguir editando.",
+  "settingsSync.conflict": "Los ajustes cambiaron en otro dispositivo. Vuelve a abrir este control y aplica tu cambio de nuevo.",
+  "settingsSync.loadFailed": "No se pudieron cargar los ajustes modificados de K-Plex. Se conservan los ajustes actuales. Comprueba la sincronización e inténtalo de nuevo.",
+  "settingsSync.refreshPending": "Ajustes recibidos. Algunas vistas no se pudieron actualizar. Vuelve a abrir la vista afectada.",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

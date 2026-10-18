@@ -40,7 +40,11 @@
  * leaking intermediate adjacency into unrelated renders. Stable published-only relation targets
  * advance at that same boundary; their latest maps never retain a chain of old displayed graphs. Local foreground scopes retain read-only
  * current certificates across strategy transfer until a durable center replacement is certified.
- * Finite visible presentation demand repairs native/cache facets at P2 on actual input events;
+ * Finite current-center body/host covers publish read-only at P1 before any whole-vault baseline
+ * or optional saved-preview arbitration. Visible presentation demand repairs native/cache facets
+ * at P2 on actual input events;
+ * demanded host-input events can refresh that coalesced finite cover while the same canonical
+ * request awaits broad startup work. Unrelated host waves retain already-published readonly cover.
  * pending values retain known styling and released surfaces retire callbacks without vault polling.
  * Optional alias owners join current requested preparations and their existing supersession retries
  * before changing repository fences; exact failed-demand records prevent repetitive background retries.
@@ -466,15 +470,20 @@ export class GraphIndex {
   private onDemandPartialState = false;
   private onDemandBaselineTask: Promise<boolean> | null = null;
   private onDemandTasks = new Map<string, Promise<void>>();
+  /** Finite P1 presentation phases can finish/restart independently of their canonical task's broad waits. */
+  private onDemandPreviewTasks = new Map<string, Promise<void>>();
   /** Only actual build-blocked demands wait for that owner's completion; no timer or retry loop. */
   private onDemandBuildWaiters = new Map<string, number>();
-  private onDemandIndexed = new Map<string, { file: TFile; mtime: number; size: number; policyRevision: number }>();
+  private onDemandIndexed = new Map<string, { file: TFile; mtime: number; size: number; policyRevision: number; dirty?: boolean }>();
   /** Bounded fresh snapshot acceleration remains presentation-only until its owners are canonicalized. */
   private onDemandCachedScopes = new Map<string, ReturnType<typeof createGraphState>>();
   /** Host-known frontmatter overrides cover all direct host contributors, independently of body-owner caps. */
   private onDemandHostScopes = new Map<string, ReturnType<typeof createGraphState>>();
   /** Existing local read certificates survive strategy transfer, never authorizing source-backed writes. */
-  private localScopeCertificates = new WeakMap<ReturnType<typeof createGraphState>, Readonly<{ sourceRevision: number; policyRevision: number; files: ReadonlyMap<TFile, FileRevision> }>>();
+  private localScopeCertificates = new WeakMap<ReturnType<typeof createGraphState>, Readonly<{
+    sourceRevision: number; policyRevision: number; demandRevision: number;
+    files: ReadonlyMap<TFile, FileRevision>;
+  }>>();
   private retainedLocalScopes = new Map<string, Readonly<{ state: ReturnType<typeof createGraphState>; sourceRevision: number; policyRevision: number; cached: boolean }>>();
   private localHandoverStarts = 0;
   private localHandoverCompletions = 0;
@@ -784,6 +793,8 @@ export class GraphIndex {
    * Publish the body-free physical/host graph without processing unrelated Markdown owners.
    * Account only this actual producer in an early restore window. Reentrant extra publications
    * cannot borrow its receipt; all captured physical/policy and source-fingerprint checks remain.
+   * A changed host/source observation retries private preparation under this same live owner;
+   * policy replacement retires that owner, and unchanged failures never create a retry timer.
    */
   initializeOnDemandBaseline(seedPaths: readonly string[] = []): Promise<boolean> {
     if (this.onDemandBaselineReady) return Promise.resolve(true);
@@ -792,11 +803,13 @@ export class GraphIndex {
     this.semanticFingerprints.clear();
     for (const entry of this.fieldCache.values()) delete entry.semanticSignature;
     this.cancelPendingPersistence();
-    const run = ++this.generation, baselineRevision = this.onDemandBaselineRevision;
-    const physicalFoldersRevision = this.hostStructuralRevision;
+    const run = ++this.generation, baselineRevision = this.onDemandBaselineRevision, policyRevision = this.semanticPolicyRevision;
     const current = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && run === this.generation
-      && baselineRevision === this.onDemandBaselineRevision && this.usesLocalForeground();
-    const task = this.withForegroundPriority(async () => {
+      && baselineRevision === this.onDemandBaselineRevision && policyRevision === this.semanticPolicyRevision
+      && this.usesLocalForeground();
+    /** Keep each private attempt unchanged; only observed host/source supersession admits another. */
+    const prepare = async (): Promise<boolean> => {
+      const physicalFoldersRevision = this.hostStructuralRevision;
       this.sourceAcquisition.start();
       const builder = new GraphBuilder(this.plugin, this.app, this.fieldCache, this.metadataParser,
         this.indexedDb, current, this.semanticFingerprints, this.sourceAcquisition,
@@ -827,6 +840,17 @@ export class GraphIndex {
       this.plugin.startupDiagnostics?.mark("on-demand-baseline-ready");
       this.emitPresentation();
       return true;
+    };
+    const task = this.withForegroundPriority(/** Retain P2 only for this producer's actual private attempts. */ async () => {
+      while (current()) {
+        const source = this.plugin.getIndexSourceRevision(), host = this.hostPreview.observationRevision();
+        const ready = await prepare();
+        if (ready || !current() || source === this.plugin.getIndexSourceRevision()
+          && host === this.hostPreview.observationRevision()) return ready;
+        // A resolver wave can retire the builder while its live demand stays current. Keep that
+        // request with this existing producer instead of draining until navigation or source closure.
+      }
+      return false;
     }, 2);
     this.onDemandBaselineTask = task;
     void task.finally(() => { if (this.onDemandBaselineTask === task) this.onDemandBaselineTask = null; });
@@ -840,9 +864,13 @@ export class GraphIndex {
     return task;
   }
 
-  /** Canonicalize center first, then at most 63 direct host candidates through the ordinary patch owner. */
+  /** Prepare finite readonly center incidence before joining broad startup work, then canonicalize
+   * the center and at most 63 direct host candidates through the ordinary patch owner. */
   private ensureOnDemandCenter(centerPath: string): Promise<void> {
     if (!this.usesLocalForeground() || this.diagnosticsClosed || this.persistentCachePurged) return Promise.resolve();
+    // A canonical owner may still await global startup work when a new native observation arrives.
+    // Coalesce its finite presentation phase independently, before joining that broad promise.
+    const preview = this.onDemandBaselineReady ? undefined : this.ensureOnDemandCenterPreview(centerPath);
     const existing = this.onDemandTasks.get(centerPath);
     if (existing) return existing;
     const demand = this.semanticDemandRevision.get(centerPath) ?? 0;
@@ -851,12 +879,14 @@ export class GraphIndex {
       && baselineRevision === this.onDemandBaselineRevision
       && policy === this.semanticPolicyRevision && demand === (this.semanticDemandRevision.get(centerPath) ?? 0);
     const task = (async () => {
-      if (this.eagerPreviewArbitration) await this.eagerPreviewArbitration.task;
       if (!current()) return;
-      const cached = this.onDemandCachedScopes.get(centerPath);
-      if (cached && this.onDemandCachedSourceRevision === this.plugin.getIndexSourceRevision()
-        && [...cached.pages.values()].every(page => !page.file || this.app.vault.getFileByPath(page.path) === page.file
-          && Boolean(this.snapshotFileRevisions.get(page) && fileRevisionMatches(page.file, this.snapshotFileRevisions.get(page)!)))) return;
+      if (this.hasCurrentOnDemandCachedScope(centerPath)) return;
+      // The requested body/host read never joins the broad structural compiler or optional
+      // cache classification it must be able to pre-empt. Its result has presentation authority only.
+      if (preview) await preview;
+      if (!current()) return;
+      if (this.eagerPreviewArbitration) await this.eagerPreviewArbitration.task;
+      if (!current() || this.hasCurrentOnDemandCachedScope(centerPath)) return;
       if (!(await this.initializeOnDemandBaseline()) || !current()) return;
       if (/^https?:\/\//i.test(centerPath)) {
         this.ensureUrlTarget(centerPath); void this.startBackgroundUrlIndex(); return;
@@ -873,7 +903,7 @@ export class GraphIndex {
           const file = this.app.vault.getFileByPath(path);
           if (!file || file.extension !== "md") continue;
           const token = this.onDemandIndexed.get(path);
-          if (token?.file === file && token.mtime === file.stat.mtime && token.size === file.stat.size
+          if (!token?.dirty && token?.file === file && token.mtime === file.stat.mtime && token.size === file.stat.size
             && token.policyRevision === policy) continue;
           const revision = captureFileRevision(file);
           if (this.building) {
@@ -885,7 +915,7 @@ export class GraphIndex {
           if (this.state.pages.get(path)?.file !== file) this.insertCreatedFile(file);
           if (!current() || this.app.vault.getFileByPath(path) !== file || !fileRevisionMatches(file, revision)) return;
           const result = await this.patchMarkdownPaths([path], {
-            useDurableCache: true, forceRecompile: token?.policyRevision !== policy, isCurrent: current,
+            useDurableCache: true, forceRecompile: token?.file !== file || token.policyRevision !== policy, isCurrent: current,
           });
           if (!current() || result.outcome !== "patched" || !fileRevisionMatches(file, revision)
             || this.app.vault.getFileByPath(path) !== file) return;
@@ -915,6 +945,85 @@ export class GraphIndex {
     return task;
   }
 
+  /** Exact saved incidence supplies current readonly cover without another requested body read. */
+  private hasCurrentOnDemandCachedScope(centerPath: string): boolean {
+    const cached = this.onDemandCachedScopes.get(centerPath);
+    return Boolean(cached && this.onDemandCachedSourceRevision === this.plugin.getIndexSourceRevision()
+      && [...cached.pages.values()].every(page => !page.file || this.app.vault.getFileByPath(page.path) === page.file
+        && Boolean(this.snapshotFileRevisions.get(page) && fileRevisionMatches(page.file, this.snapshotFileRevisions.get(page)!))));
+  }
+
+  /** Coalesce the current center's finite P1 presentation phase, independently of global baseline
+   * and saved-cache waits in its canonical task. Only actual demand/policy/host observations can
+   * readmit private work; unchanged guarded input and already-current cover never self-poll. */
+  private ensureOnDemandCenterPreview(centerPath: string): Promise<void> {
+    const existing = this.onDemandPreviewTasks.get(centerPath);
+    if (existing) return existing;
+    const scope = this.onDemandHostScopes.get(centerPath);
+    if (this.hasCurrentCanonicalCenter(centerPath) || this.hasCurrentOnDemandCachedScope(centerPath)
+      || scope && this.semanticPage(centerPath) === scope.pages.get(centerPath)) return Promise.resolve();
+    /** A released view, strategy handover or completed baseline retires only this finite phase. */
+    const live = (): boolean => !this.diagnosticsClosed && !this.persistentCachePurged && !this.onDemandBaselineReady
+      && this.usesLocalForeground() && this.semanticDemandCounts.has(centerPath);
+    const task = (/** Retry only observed lifetime changes after the finite private pass releases its lease. */ async () => {
+      while (live()) {
+        const demand = this.semanticDemandRevision.get(centerPath) ?? 0;
+        const policy = this.semanticPolicyRevision, baseline = this.onDemandBaselineRevision;
+        /** A changed observed lifetime retries after the retired private pass releases its P1 lease. */
+        const current = (): boolean => live() && demand === (this.semanticDemandRevision.get(centerPath) ?? 0)
+          && policy === this.semanticPolicyRevision && baseline === this.onDemandBaselineRevision;
+        await this.withForegroundPriority(
+          /** The existing bounded body/compiler owner acquires only the actual center's input. */
+          () => this.prepareOnDemandCenterPreview(centerPath, current), INDEX_WORK_PRIORITY.currentNode);
+        if (current()) return;
+      }
+    })().catch(/** Optional readonly preparation cannot reject a detached input-event observer. */ () => undefined).finally(
+      /** Release only this exact finite owner, then notify readers without starting another pass. */ () => {
+        if (this.onDemandPreviewTasks.get(centerPath) === task) this.onDemandPreviewTasks.delete(centerPath);
+        this.emitPresentation();
+      });
+    this.onDemandPreviewTasks.set(centerPath, task);
+    return task;
+  }
+
+  /** Read only this physical center's current body and compile its bounded host cover at P1.
+   * Actual source/host observations may retire private work while demand stays live; retry only
+   * those changed tokens. Missing metadata/guarded input is terminal for the unchanged observation.
+   * The existing local scope publisher owns finality and read-only publication, never canonical state. */
+  private async prepareOnDemandCenterPreview(centerPath: string, current: () => boolean): Promise<void> {
+    while (current() && !this.hasCurrentCanonicalCenter(centerPath)) {
+      const file = this.app.vault.getFileByPath(centerPath);
+      if (!file || file.extension !== "md" || !this.app.metadataCache.getFileCache(file)) return;
+      const physical = captureFileRevision(file), source = this.plugin.getIndexSourceRevision();
+      const host = this.hostPreview.observationRevision(), metadata = this.app.metadataCache.getFileCache(file);
+      const maintenance = this.sourceAcquisition.getMaintenanceRevision();
+      const event = this.sourceAcquisition.getFileRevision(file);
+      /** Close exact native identity and event/cache observations around every awaited body/compiler step. */
+      const selectedCurrent = (): boolean => current() && this.app.vault.getFileByPath(centerPath) === file
+        && source === this.plugin.getIndexSourceRevision() && host === this.hostPreview.observationRevision()
+        && maintenance === this.sourceAcquisition.getMaintenanceRevision()
+        && file.path === centerPath && fileRevisionMatches(file, physical)
+        && event === this.sourceAcquisition.getFileRevision(file)
+        && metadata === this.app.metadataCache.getFileCache(file);
+      const body = await this.sourceAcquisition.readRequestedBody(file, selectedCurrent);
+      if (!current() || this.hasCurrentCanonicalCenter(centerPath)) return;
+      // A source/host wave can cancel the loader independently of this still-live demand.
+      // Re-admit against its changed observation rather than draining permanently or polling.
+      if (source !== this.plugin.getIndexSourceRevision() || host !== this.hostPreview.observationRevision()
+        || maintenance !== this.sourceAcquisition.getMaintenanceRevision()
+        || !selectedCurrent()) continue;
+      if (!body) return;
+      await this.publishOnDemandHostScope(centerPath, selectedCurrent, INDEX_WORK_PRIORITY.currentNode,
+        /** The finite preview acquires no neighbor bodies; existing hot/cache owners remain reusable. */
+        path => path === centerPath ? body : undefined);
+      if (!current() || this.hasCurrentCanonicalCenter(centerPath)) return;
+      if (source !== this.plugin.getIndexSourceRevision() || host !== this.hostPreview.observationRevision()
+        || maintenance !== this.sourceAcquisition.getMaintenanceRevision()
+        || !selectedCurrent()) continue;
+      return;
+    }
+  }
+
   /** Readmit finite unmet demand when its real build owner settles, without awaiting that owner.
    * A policy/baseline change takes fresh tokens on admission; only the original live demand owns
    * this notification. Keep a marker while its older task retires so either completion order wakes
@@ -942,41 +1051,58 @@ export class GraphIndex {
       name: page.name, url: page.url, semanticMtime: page.mtime };
   }
 
-  /** Compile available local host/body facts before display truncation, preserving canonical precedence. */
-  private async publishOnDemandHostScope(centerPath: string, current: () => boolean): Promise<void> {
-    const revision = this.onDemandGateRevisions.get(centerPath) ?? 0;
-    const source = this.plugin.getIndexSourceRevision(), hostRevision = this.hostPreview.observationRevision();
-    const scopedCurrent = (): boolean => current() && hostRevision === this.hostPreview.observationRevision()
-      && source === this.plugin.getIndexSourceRevision()
-      && revision === (this.onDemandGateRevisions.get(centerPath) ?? 0);
-    const scope = await this.hostPreview.build(centerPath, { completeHostCover: true,
-      entityForPath: path => this.onDemandEntityFact(path),
-      additionalPaths: this.state.pages.get(centerPath)?.neighbours.keys(), isCurrent: scopedCurrent,
-      checkpoint: () => this.workScheduler.checkpoint(2),
-      /** Only exact live hot bodies are selected; missing bodies stay absent, never trigger reads. */
-      bodyForPath: path => {
-        const file = this.app.vault.getFileByPath(path), hot = this.fieldCache.get(path);
-        if (file && hot?.mtime === file.stat.mtime && !this.sourceAcquisition.needsBodyRead(file)) return hot.body;
-        const owner = this.urlOwners.get(path);
-        return owner?.file === file && owner.mtime === file?.stat.mtime && owner.size === file?.stat.size
-          && owner.event === (this.urlOwnerEvents.get(path) ?? 0) ? this.urlOwnerBodies.get(path) : undefined;
-      },
-    });
-    if (!scopedCurrent()) return;
-    if (!scope) {
-      this.onDemandHostScopes.delete(centerPath);
-      this.onDemandUnavailableCounts.set(centerPath, { sourceRevision: source, hostRevision, signature: this.semanticCoverageSignature(), revision });
+  /** Compile available local host/body facts before display truncation, preserving canonical precedence.
+   * The caller carries its actual P1/P2 lane and may supply an already-fenced requested body;
+   * this publisher acquires no body itself and retains only readonly local presentation proof. */
+  private async publishOnDemandHostScope(centerPath: string, current: () => boolean,
+    workPriority: IndexWorkPriority = INDEX_WORK_PRIORITY.visibleNeighborhood,
+    requestedBody?: (path: string) => ParsedBodyMetadata | undefined): Promise<void> {
+    // An observed host/source/URL epoch can retire private preparation without retiring its
+    // live demand. Retry that preparation within the existing owner, rather than draining with
+    // an absent cover when a conservative canonical patch cannot admit a new target yet.
+    while (current()) {
+      const revision = this.onDemandGateRevisions.get(centerPath) ?? 0;
+      const compilerSignature = JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings));
+      const coverageSignature = this.semanticCoverageSignature();
+      const source = this.plugin.getIndexSourceRevision(), hostRevision = this.hostPreview.observationRevision();
+      const scopedCurrent = (): boolean => current() && hostRevision === this.hostPreview.observationRevision()
+        && source === this.plugin.getIndexSourceRevision()
+        && revision === (this.onDemandGateRevisions.get(centerPath) ?? 0);
+      const scope = await this.hostPreview.build(centerPath, { completeHostCover: true,
+        entityForPath: path => this.onDemandEntityFact(path),
+        additionalPaths: this.state.pages.get(centerPath)?.neighbours.keys(), isCurrent: scopedCurrent,
+        checkpoint: () => this.workScheduler.checkpoint(workPriority),
+        /** Only exact live hot bodies are selected; missing bodies stay absent, never trigger reads. */
+        bodyForPath: path => {
+          const requested = requestedBody?.(path);
+          if (requested) return requested;
+          const file = this.app.vault.getFileByPath(path), hot = this.fieldCache.get(path);
+          if (file && hot?.mtime === file.stat.mtime && !this.sourceAcquisition.needsBodyRead(file)) return hot.body;
+          const owner = this.urlOwners.get(path);
+          return owner?.file === file && owner.mtime === file?.stat.mtime && owner.size === file?.stat.size
+            && owner.event === (this.urlOwnerEvents.get(path) ?? 0) ? this.urlOwnerBodies.get(path) : undefined;
+        },
+      });
+      if (!scopedCurrent()) continue;
+      if (compilerSignature !== JSON.stringify(graphCompilerSettingsFromLegacy(this.plugin.settings))
+        || coverageSignature !== this.semanticCoverageSignature()) continue;
+      if (!scope) {
+        this.onDemandHostScopes.delete(centerPath);
+        this.onDemandUnavailableCounts.set(centerPath, { sourceRevision: source, hostRevision, signature: this.semanticCoverageSignature(), revision });
+        this.emitPresentation();
+        return;
+      }
+      this.onDemandUnavailableCounts.delete(centerPath);
+      this.onDemandHostScopes.set(centerPath, scope.state);
+      const files = new Map<TFile, FileRevision>();
+      for (const page of scope.state.pages.values()) if (page.file) files.set(page.file, captureFileRevision(page.file));
+      this.localScopeCertificates.set(scope.state, { sourceRevision: source, policyRevision: this.semanticPolicyRevision,
+        demandRevision: this.semanticDemandRevision.get(centerPath) ?? 0, files });
+      for (const page of scope.state.pages.values()) this.hostPreviewSettings.set(page, scope.settings);
+      this.relationViewCache = new WeakMap();
       this.emitPresentation();
       return;
     }
-    this.onDemandUnavailableCounts.delete(centerPath);
-    this.onDemandHostScopes.set(centerPath, scope.state);
-    const files = new Map<TFile, FileRevision>();
-    for (const page of scope.state.pages.values()) if (page.file) files.set(page.file, captureFileRevision(page.file));
-    this.localScopeCertificates.set(scope.state, { sourceRevision: source, policyRevision: this.semanticPolicyRevision, files });
-    for (const page of scope.state.pages.values()) this.hostPreviewSettings.set(page, scope.settings);
-    this.relationViewCache = new WeakMap();
-    this.emitPresentation();
   }
 
   /** Preserve fresh finite cached semantic pairs while untouched owners remain physically current.
@@ -1094,10 +1220,17 @@ export class GraphIndex {
     return page.neighbours.has(targetPath);
   }
 
+  /** Retire same-stat admission without discarding the policy of already compiled source semantics.
+   * A real edit must validate/parse again, but its existing fingerprint can still prove a no-op. */
+  private markOnDemandSourceDirty(path: string): void {
+    const previous = this.onDemandIndexed.get(path);
+    if (previous) previous.dirty = true;
+  }
+
   /** Canonicalize one visible source ahead of unrelated dirty files; background builds retain their progress. */
   refreshVisibleMarkdownPath(path: string): Promise<void> {
     if (this.usesLocalForeground()) {
-      this.onDemandIndexed.delete(path);
+      this.markOnDemandSourceDirty(path);
       for (const center of this.semanticDemandCounts.keys()) if (center === path || this.hasReadableNeighbour(center, path)) {
         this.semanticDemandRevision.set(center, (this.semanticDemandRevision.get(center) ?? 0) + 1);
       }
@@ -1317,7 +1450,7 @@ export class GraphIndex {
       for (const [center, scope] of this.onDemandCachedScopes) {
         if (scope.pages.has(changedPath) || affectedTargets.has(center)) this.onDemandCachedScopes.delete(center);
       }
-      this.onDemandIndexed.delete(changedPath);
+      this.markOnDemandSourceDirty(changedPath);
       let visible = false;
       for (const center of this.semanticDemandCounts.keys()) {
         if (center !== changedPath && !affectedTargets.has(center) && !this.hasReadableNeighbour(center, changedPath)) continue;
@@ -1833,7 +1966,7 @@ export class GraphIndex {
 
   /** True while the requested semantic policy has no coherent prepared publication for active demand. */
   hasPendingSemanticPreparation(): boolean {
-    if (this.usesLocalForeground()) return this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0
+    if (this.usesLocalForeground()) return this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0 || this.onDemandPreviewTasks.size > 0
       || this.onDemandGateTasks.size > 0 || this.onDemandBuildWaiters.size > 0;
     if (this.pendingStructuralTasks > 0) return true;
     const maintenanceRevision = this.sourceAcquisition.getMaintenanceRevision();
@@ -1914,7 +2047,8 @@ export class GraphIndex {
   }
 
   /** Actual local tasks are separate from optional absent global authority. */
-  private hasOnDemandWork(): boolean { return this.usesLocalForeground() && (this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0 || this.onDemandGateTasks.size > 0); }
+  private hasOnDemandWork(): boolean { return this.usesLocalForeground() && (this.onDemandBaselineTask !== null || this.onDemandTasks.size > 0
+    || this.onDemandPreviewTasks.size > 0 || this.onDemandGateTasks.size > 0); }
 
   /** Return one current demanded failure reason without exposing paths or trusting historical aggregate counters. */
   getSemanticPreparationFailure(): string | null {
@@ -2676,6 +2810,31 @@ export class GraphIndex {
     if (this.retiredHostTagPaths.has(path)) return undefined;
     const tagPreview = this.hostPreviewScopes.get(path)?.pages.get(path);
     if (tagPreview?.isTag && !this.hasCurrentCanonicalTag(path)) return tagPreview;
+    // A finite current-center cover is independently readable while the global baseline is
+    // still private. Its captured source/file certificate grants no global or write readiness.
+    // Unrelated host waves preserve published cover; affected native events retire its map/demand token.
+    const foreground = !this.onDemandBaselineReady && this.usesLocalForeground()
+      ? this.onDemandHostScopes.get(path) : undefined;
+    const foregroundCertificate = foreground && this.localScopeCertificates.get(foreground);
+    if (foreground && foregroundCertificate && this.semanticDemandCounts.has(path)
+      && foregroundCertificate.sourceRevision === currentSourceRevision
+      && foregroundCertificate.policyRevision === this.semanticPolicyRevision
+      && foregroundCertificate.demandRevision === (this.semanticDemandRevision.get(path) ?? 0)) {
+      let filesCurrent = true;
+      for (const [file, revision] of foregroundCertificate.files) if (this.app.vault.getFileByPath(file.path) !== file
+        || !fileRevisionMatches(file, revision)) { filesCurrent = false; break; }
+      const page = foreground.pages.get(path);
+      if (filesCurrent && page) return this.mergeOnDemandCachedPage(page);
+    }
+    // A pending replacement may have only host link facts while body-defined roles await parsing.
+    // Keep the exact center's prior compiled read presentation during that task. Its old source/
+    // maintenance stamps still fail every currentness/write check; a current scope above wins.
+    const predecessor = this.state.pages.get(path), priorBody = this.fieldCache.get(path);
+    if (this.onDemandTasks.has(path) && predecessor?.file && priorBody
+      && this.onDemandIndexed.get(path)?.policyRevision === this.semanticPolicyRevision
+      && predecessor.file.path === path && this.app.vault.getFileByPath(path) === predecessor.file
+      && priorBody.mtime === predecessor.mtime
+      && (priorBody.mtime !== predecessor.file.stat.mtime || this.sourceAcquisition.needsBodyRead(predecessor.file))) return predecessor;
     if (this.usesLocalForeground() && this.onDemandBaselineReady) {
       // A native baseline contains all host edges, while the early preview is deliberately capped.
       // Counts must never be limited by that preview/candidate cap.
@@ -4047,6 +4206,7 @@ export class GraphIndex {
     this.onDemandHostScopes.clear();
     this.onDemandIndexed.clear();
     this.onDemandTasks.clear();
+    this.onDemandPreviewTasks.clear();
     this.onDemandBuildWaiters.clear();
     this.onDemandGateTasks.clear();
     this.onDemandGateCounts = new WeakMap();

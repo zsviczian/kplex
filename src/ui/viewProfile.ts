@@ -2,7 +2,8 @@
  * Host view projection combines surface density, scoped lateral arrangement and sparse device typography. Root settings
  * inherit prepared dictionaries; an explicit device width applies to base and center styles before
  * tag/note-type precedence. Pop-out arrangement follows the same device's main-tab choice while
- * density remains independently scoped. Sparse reset restores shared role styles. No graph/default mutations occur.
+ * density remains independently scoped. Read/write arrangement routing shares that surface rule.
+ * Sparse reset restores shared role styles. No graph/default mutations occur.
  */
 import type { PresentationEnvironment } from "../core/contracts/presentationEnvironment";
 import { layoutProfileKey as portableLayoutProfileKey, persistedLayoutDeviceClass, selectLayoutProfile } from "../core/plex/viewPresentation";
@@ -13,6 +14,11 @@ import type { KplexSettings, KplexLayoutProfile, KplexViewSurface } from "../set
 /** Select the stable persisted device/surface key from explicit or current host environment facts. */
 export function layoutProfileKey(surface: KplexViewSurface, environment = readObsidianPresentationEnvironment()): string {
   return portableLayoutProfileKey(surface, environment);
+}
+
+/** Arrangement has six device/surface scopes: pop-outs share the current device's main-tab choice. */
+export function lateralArrangementSurface(surface: KplexViewSurface): "leaf" | "sidepanel" {
+  return surface === "popout" ? "leaf" : surface;
 }
 
 type EffectiveSettingsCacheEntry = {
@@ -37,8 +43,7 @@ export function effectiveViewSettings(settings: KplexSettings, surface: KplexVie
   const key = layoutProfileKey(surface, environment);
   const profile = settings.layoutProfiles[key];
   // Pop-outs keep their own density, but the six device/surface controls own arrangement.
-  const lateralArrangement = (surface === "popout"
-    ? settings.layoutProfiles[layoutProfileKey("leaf", environment)] : profile)?.lateralArrangement ?? "split";
+  const lateralArrangement = settings.layoutProfiles[layoutProfileKey(lateralArrangementSurface(surface), environment)]?.lateralArrangement ?? "split";
   const override = settings.typographyProfiles?.[persistedLayoutDeviceClass(environment.device)];
   if (!profile && !override && lateralArrangement === "split") return settings;
   const typography = effectiveTypography({ baseFontSize: settings.baseFontSize, wrapNodeLabels: settings.wrapNodeLabels,

@@ -26,8 +26,12 @@
  * indexing; current host metadata drives subsequent graph reconciliation and editor completion.
  * Creation dialogs choose vault-relative destinations from folder metadata; explicit placeholder
  * relocation approves bounded native reference occurrences and retains partial-write recovery locally.
+ * Ontology text drafts persist one guarded field through the existing settings queue before live
+ * semantic publication; slow refresh remains outside the disk queue and cannot replay failed saves.
  */
 import { tagMembershipPair } from "./ui/structuralConnectionActions";
+import {SettingsReconciliation, type SettingsSnapshot, type SettingsWriteIntent} from "./adapters/obsidian/settingsReconciliation";
+import {assertExternalSettingsRecord} from "./adapters/obsidian/settingsInput";
 import { graphTagValue } from "./adapters/obsidian/tagMembership";
 import { StructuralNodeDropActions } from "./ui/StructuralNodeDropActions";
 import { mergeGraphLensDefinitions } from "./lens/GraphLens";
@@ -40,7 +44,7 @@ import { FileView, ItemView, MarkdownView, Menu, Notice, Platform, Plugin, TFile
 import { captureSettingsPolicy, classifySettingsChange, isStyleOnlySettingsChange, type SettingsPolicy } from "./core/graph/settingsPolicy";
 import { removeMarkdownZoomModes, renameMarkdownZoomModes } from "./core/plex/markdownZoomPreferences";
 import { GraphIndex } from "./index/GraphIndex";
-import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition, type StyleSettingsDraft, type StyleCommitResult } from "./settings";
+import { DEFAULT_SETTINGS, KplexSettingTab, migrateAndMergeSettings, importExcaliBrainGraphSettings, type DocumentSyncMode, type KplexSettings, type KplexLayoutProfile, type KplexViewSurface, type SidecarPosition, type StyleSettingsDraft, type StyleCommitResult, type EditableHierarchyKey } from "./settings";
 import { STYLE_SETTINGS_KEYS } from "./core/contracts/appearance";
 import { cyclicSemanticColorSlots, migrateColorPreferences } from "./core/plex/colorPreferences";
 import { KPLEX_VIEW_TYPE, KPLEX_SIDEPANEL_VIEW_TYPE, KplexView, KplexSidepanelView } from "./ui/KplexView";
@@ -163,6 +167,15 @@ export default class KplexPlugin extends Plugin {
   private settingsTab: KplexSettingTab | null = null;
   private actionPreferenceQueue: Promise<void> = Promise.resolve();
   private settingsWriteQueue: Promise<void> = Promise.resolve();
+  private settingsReconciliation?: SettingsReconciliation;
+  private settingsWriteContext?: {intent: SettingsWriteIntent; before: SettingsSnapshot};
+  private externalSettingsPending = false;
+  private externalSettingsQueued = false;
+  private externalSettingsRefresh = 0;
+  private externalSettingsNeedsSemantic = false;
+  private externalSettingsFailureNotified = false;
+  private externalSettingsReceived = false;
+  private externalSettingsRetryTimers = new Map<number, () => void>();
   private appearanceThemeActivation = 0;
   private appearanceThemeListeners = new Set<() => void>();
   /** A future version remains intact on disk; editing its conservative fallback is disabled. */
@@ -315,12 +328,13 @@ export default class KplexPlugin extends Plugin {
     this.actionPreferenceMigrationSkipped = actionMigration.skippedDefaults;
     this.actionPreferenceMigrationIssueCount = actionMigration.issues.length;
     this.savedSettingsPolicy = captureSettingsPolicy(this.settings);
+    this.initializeSettingsReconciliation(ownData);
     const initializedChanged = alreadyKplex && !ownRecord?.kplexInitialized;
     if (initializedChanged) {
       this.settings.kplexInitialized = true;
     }
     if (hasOwnData && (initializedChanged || actionMigration.migrated)) {
-      await this.persistSettingsSnapshot();
+      try {await this.persistSettingsSnapshot(true);} catch {this.reportExternalSettingsFailure();}
     }
 
     this.startupDiagnostics.mark("settings-loaded");
@@ -432,14 +446,14 @@ export default class KplexPlugin extends Plugin {
       void (async () => {
         if (this.unloading) return;
         this.installPreRestoreChangeFence();
-        const legacySettings = !alreadyKplex ? this.runningKplexSettings() : null;
+        const legacySettings = !alreadyKplex && !this.externalSettingsReceived ? this.runningKplexSettings() : null;
         // First-use migration follows the actual loaded-data/import state. Never persist pristine
         // factory presets before a running ExcaliBrain appearance has had its existing import path.
-        await this.updateStyleSettings(/** Initialization captures effective migrated appearance without editing it. */ () => {}, this.captureAppearanceOwner(), {
+        try {await this.updateStyleSettings(/** Initialization captures effective migrated appearance without editing it. */ () => {}, this.captureAppearanceOwner(), {
           initializeThemes: {existing: hasOwnData || legacySettings !== null},
           ...(legacySettings === null ? {} : {legacyImport: legacySettings}),
-        });
-        if (legacySettings !== null) new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
+        });} catch (error) {if (!this.externalSettingsReceived) throw error;}
+        if (legacySettings !== null && !this.externalSettingsReceived) new Notice(this.translator("notice.excaliBrainSettingsImported"), 2600);
 
         if (this.unloading) return;
         this.layoutReady = true;
@@ -513,7 +527,7 @@ export default class KplexPlugin extends Plugin {
         const noteCount = this.app.vault.getMarkdownFiles().length;
         const largeIosExpensiveRebuild = !this.index.isOnDemandMode() && Platform.isIosApp && !restored.fresh && !this.index.hasPendingSnapshotHydration() &&
           (!restored.restored || !this.index.hasIncrementalRestorePatch()) && noteCount > 5000;
-        if (!largeIosExpensiveRebuild) void this.ensureInitialIndex();
+        if (!largeIosExpensiveRebuild) void this.finishStartupIndexPreparation();
       })();
     });
   }
@@ -570,6 +584,11 @@ export default class KplexPlugin extends Plugin {
   /** Release action publications, surface registrations and host resources before index teardown. */
   onunload(): void {
     this.unloading = true;
+    this.settingsReconciliation?.dispose();
+    this.settingsTab?.disposeOntologySettings();
+    this.externalSettingsRefresh++;
+    for (const [timer, resolve] of this.externalSettingsRetryTimers) {window.clearTimeout(timer); resolve();}
+    this.externalSettingsRetryTimers.clear();
     this.structuralDrops?.dispose();
     this.structuralDrops = null;
     this.settingsTab?.disposeActionSettings();
@@ -1107,6 +1126,20 @@ export default class KplexPlugin extends Plugin {
     this.notifyIndexStatus();
   }
 
+  /**
+   * Join initialization after restore classification, then queue any still-uncovered startup work.
+   * A visible view can finish the local baseline while Sidecar/snapshot restore awaits; its resolved
+   * initialization promise cannot retire a later restore backlog. Reuse normal reconciliation
+   * rather than declaring that backlog clean or starting a second initialization owner.
+   */
+  private async finishStartupIndexPreparation(): Promise<void> {
+    await this.ensureInitialIndex();
+    if (!this.unloading && this.initialIndexComplete && this.indexDirty && this.hasVisibleKplexSurface()) {
+      this.scheduleRebuild("startup:post-initial-backlog");
+    }
+  }
+
+  /** Join the existing startup authority; only a complete initial index retains the settled task. */
   private async ensureInitialIndex(): Promise<void> {
     if (this.unloading) return;
     if (this.initialIndexTask) {
@@ -1609,8 +1642,188 @@ export default class KplexPlugin extends Plugin {
     return Boolean(command && this.actionPublisher?.registeredIds().includes(command.id));
   }
 
+  /** Establish the single file reconciliation owner without replaying startup, imports or workspace restoration. */
+  private initializeSettingsReconciliation(raw: unknown): void {
+    this.settingsReconciliation = new SettingsReconciliation(raw,
+      this.settingsSnapshotForPersistence(this.settings.actionPreferencesFuture ?? this.settings.actionPreferences), {
+        read: /** Plugin.loadData follows the host's actual config/plugin location. */ () => this.loadData() as Promise<unknown>,
+        normalize: /** A missing/torn file cannot become a pristine defaults snapshot. */ incoming => {
+          assertExternalSettingsRecord(incoming);
+          const next = migrateAndMergeSettings(structuredClone(incoming));
+          const actions = migrateActionPreferences(incoming, readObsidianPresentationEnvironment().keyConvention);
+          next.actionPreferences = actions.preferences;
+          this.externalSettingsReceived = true;
+          this.externalSettingsFailureNotified = false;
+          return this.settingsSnapshotForPersistence(next.actionPreferencesFuture ?? next.actionPreferences, next);
+        },
+        install: /** Publication is synchronous; graph/native refresh is deliberately outside the disk queue. */ snapshot => this.installExternalSettings(snapshot),
+        schedule: /** Coalesce receipts on the existing queue without recursively submitting a local write. */ () => this.queueExternalSettingsAdoption(),
+        failed: /** Report no payloads or paths; later valid notifications can recover. */ () => this.reportExternalSettingsFailure(),
+        conflict: /** Event saves can report a refused local intent without an unhandled rejection. */ () => {
+          const error = new Error(this.translator("settingsSync.conflict")); error.name = "SettingsConflictError"; return error;
+        },
+        wait: /** Release bounded retry tasks explicitly on unload as well as normal timeout. */ ms => new Promise(resolve => {
+          const timers = this.externalSettingsRetryTimers ??= new Map();
+          const timer = window.setTimeout(/** A completed retry no longer retains its owning plugin. */ () => {timers.delete(timer); resolve();}, ms);
+          timers.set(timer, resolve);
+        }),
+      });
+    if (this.externalSettingsPending) {this.externalSettingsPending = false; this.settingsReconciliation.notice();}
+  }
+
+  /** Obsidian 1.5.7+ delivers configuration-file replacements here, outside normal Vault modify events. */
+  onExternalSettingsChange(): void {
+    if (this.unloading) return;
+    if (!this.settingsReconciliation) {this.externalSettingsPending = true; return;}
+    this.settingsReconciliation.notice();
+  }
+
+  /** Serialize adoption with writes while leaving potentially slow presentation preparation outside that queue. */
+  private queueExternalSettingsAdoption(): void {
+    if (this.unloading || this.externalSettingsQueued || !this.settingsReconciliation) return;
+    this.externalSettingsQueued = true;
+    const result = this.settingsWriteQueue.then(/** This is a read/adopt job, not a call to any save path. */ () => this.settingsReconciliation?.prepare(false));
+    this.settingsWriteQueue = result.then(/** Release the coalescing lease after synchronous settings publication. */ () => {this.externalSettingsQueued = false;},
+      /** An invalid receipt does not poison later local writes or valid notifications. */ () => {this.externalSettingsQueued = false; this.reportExternalSettingsFailure();});
+  }
+
+  /** Bound user feedback to one persistent failure episode; no settings values enter diagnostics. */
+  private reportExternalSettingsFailure(): void {
+    if (this.unloading || this.externalSettingsFailureNotified) return;
+    this.externalSettingsFailureNotified = true;
+    new Notice(this.translator("settingsSync.loadFailed"));
+  }
+
+  /** Install coherent own-settings data and invalidate only relevant open editor owners, including same-ID replacements. */
+  private installExternalSettings(snapshot: SettingsSnapshot): void {
+    if (this.unloading) return;
+    const previous = this.settings, next = migrateAndMergeSettings(snapshot);
+    const actions = migrateActionPreferences(snapshot, readObsidianPresentationEnvironment().keyConvention);
+    next.actionPreferences = actions.preferences;
+    const changed = Object.keys({...previous, ...next}).filter(/** Compare JSON meaning without whole-file timestamps or permanent hash suppression. */ key =>
+      !appearanceThemes.themeValuesEqual(Reflect.get(previous, key), Reflect.get(next, key)));
+    const appearanceChanged = previous.appearanceThemes?.selectedId !== next.appearanceThemes?.selectedId
+      || STYLE_SETTINGS_KEYS.some(/** Inactive preset renames do not retire a dirty active editor. */ key => !appearanceThemes.themeValuesEqual(previous[key], next[key]))
+      || !appearanceThemes.themeValuesEqual(previous.appearanceThemesFuture, next.appearanceThemesFuture);
+    const before = captureSettingsPolicy(previous), effects = classifySettingsChange(before, captureSettingsPolicy(next));
+    this.settings = next;
+    this.savedSettingsPolicy = captureSettingsPolicy(next);
+    this.actionPreferenceUnsupportedVersion = actions.unsupportedVersion;
+    this.actionPreferenceMigrationSkipped = actions.skippedDefaults;
+    this.actionPreferenceMigrationIssueCount = actions.issues.length;
+    this.externalSettingsFailureNotified = false;
+    if (appearanceChanged) this.appearanceThemeActivation++;
+    let refreshPending = false;
+    /** A failed native subscriber cannot prevent other accepted-settings consumers from converging. */
+    const notify = (listeners: Iterable<() => void>): void => {
+      for (const listener of [...listeners]) try {listener();} catch {refreshPending = true;}
+    };
+    if (appearanceChanged || changed.includes("appearanceThemes")) notify(this.appearanceThemeListeners);
+    if (changed.includes("graphLenses")) for (const listener of [...this.graphLensListeners]) try {listener(next.graphLenses);} catch {refreshPending = true;}
+    if (changed.includes("actionPreferences") || changed.includes("actionPreferencesFuture")) {
+      try {if (this.actionPublisher?.sync(next.actionPreferences).failures.length) refreshPending = true;} catch {refreshPending = true;}
+      notify(this.actionPreferenceListeners);
+    }
+    const metadataOnly = changed.every(/** These have dedicated subscribers; they need no general page or scene replacement. */ key => ["appearanceThemes", "actionPreferences", "actionPreferencesFuture"].includes(key));
+    if (!metadataOnly) try {this.settingsTab?.update();} catch {refreshPending = true;}
+    if (this.index && effects.nodeVisuals) this.index.invalidateNodeVisuals();
+    if (this.index && changed.includes("allowRemoteNodeImages")) this.index.notifyPresentation();
+    if (this.index && effects.semanticInvalidation) this.index.invalidateSemanticPolicy();
+    this.externalSettingsNeedsSemantic ||= effects.semanticInvalidation;
+    const generation = ++this.externalSettingsRefresh;
+    // Starting a promise here never holds the disk queue for graph/source or native view work.
+    void Promise.resolve().then(/** Current views keep their center/editor/camera; subscriptions publish only effective settings. */ async () => {
+      if (this.unloading || generation !== this.externalSettingsRefresh || !this.index) return;
+      if (effects.render) await this.index.refreshPresentationSettings();
+      if (this.unloading || generation !== this.externalSettingsRefresh) return;
+      if (this.externalSettingsNeedsSemantic) {
+        this.externalSettingsNeedsSemantic = false;
+        try {await this.index.refreshSemanticSettings();} catch (error) {this.externalSettingsNeedsSemantic = true; throw error;}
+      } else if (!effects.render && !metadataOnly) this.index.notifyPresentation();
+      if (refreshPending) new Notice(this.translator("settingsSync.refreshPending"));
+    }).catch(/** Settings are already adopted; a failed refresh is not permission to roll back or resave them. */ () => {
+      if (!this.unloading) new Notice(this.translator("settingsSync.refreshPending"));
+    });
+  }
+
+  /** Expose only a domain epoch for existing editor/control lifetimes, never the persistence baseline. */
+  receivedSettingsRevision(domain: string): number | undefined {return this.settingsReconciliation?.revision(domain);}
+
+  /** Existing recorders capture their opening remote owner while keeping drafts out of live state. */
+  receivedSettingsOwner(domain: string): () => boolean {return this.settingsReconciliation?.owner(domain) ?? (/** Finite pre-startup host consumers retain their existing lifetime. */ () => !this.unloading);}
+
+  /** Read a transaction's accepted base plus only its submitted imperative roots, excluding later queued controls. */
+  private settingsForWrite(intent = this.settingsWriteContext?.intent): KplexSettings {
+    if (!intent || !this.settingsReconciliation) return this.settings;
+    const next = migrateAndMergeSettings(this.settingsReconciliation.view(intent));
+    // Imperative compatibility controls have not yet recorded their root edits into the selected
+    // theme. Preserve those finite inputs for updateStyleSettings to make that pair coherent.
+    for (const edit of intent.edits) if (STYLE_SETTINGS_KEYS.some(/** Only appearance roots need pre-recording projection precedence. */ key => key === edit.key))
+      Object.assign(next, {[edit.key]: appearanceThemes.copyThemeValue(edit.after)});
+    return next;
+  }
+
+  /** Every settings save route uses the existing writer, now with one shared rebase and conflict boundary. */
+  private async writeSettingsSnapshot(snapshot: SettingsSnapshot, startupMigration = false): Promise<void> {
+    const context = this.settingsWriteContext;
+    if (context && this.settingsReconciliation) await this.settingsReconciliation.commit(context.intent, context.before, snapshot,
+      /** Plugin.saveData remains the sole actual file writer. */ next => this.saveData(next), startupMigration);
+    else await this.saveData(snapshot);
+  }
+
+  /**
+   * Commit only the requested ontology field against its opening value and remote owner. No draft
+   * enters live settings or semantic invalidation before durable storage. Other local fields merge
+   * at the existing queue boundary; already accepted saves may finish after their native row closes.
+   */
+  async updateOntologyField(field: EditableHierarchyKey, value: readonly string[], expected: readonly string[], current: () => boolean): Promise<StyleCommitResult> {
+    const submitted = [...value], opening = [...expected];
+    let persisted = false, changed = false;
+    try {
+      await this.enqueueSettingsWrite(/** Prepare from the latest accepted snapshot, not a stale textarea's whole hierarchy. */ async () => {
+        const source = this.settingsForWrite();
+        // Own migration may sort/resolve ontology precedence in its effective view. A finite edit
+        // must compare and retain the actual accepted lists, not rewrite other roles as a side effect.
+        // This internal snapshot has already crossed own-settings validation/serialization.
+        const hierarchy = this.settingsWriteContext && this.settingsReconciliation
+          ? this.settingsReconciliation.view(this.settingsWriteContext.intent).hierarchy as KplexSettings["hierarchy"] : source.hierarchy;
+        if (this.unloading || !current() || !appearanceThemes.themeValuesEqual(hierarchy[field], opening)) {
+          const error = new Error(this.translator("settings.ontology.conflict")); error.name = "SettingsConflictError"; throw error;
+        }
+        if (appearanceThemes.themeValuesEqual(opening, submitted)) return;
+        const next = {...source, hierarchy: {...hierarchy, [field]: submitted}};
+        const policy = captureSettingsPolicy(next);
+        await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
+        persisted = true;
+        if (this.unloading) return;
+        // A newer imperative caller may already hold a submitted edit to this same field. Preserve
+        // its live value; its captured queue intent still owns its subsequent persistence.
+        if (appearanceThemes.themeValuesEqual(this.settings.hierarchy[field], hierarchy[field]))
+          this.settings.hierarchy = {...this.settings.hierarchy, [field]: [...submitted]};
+        const key = `hierarchy.${field}` as const;
+        this.savedSettingsPolicy = {values: {...(this.savedSettingsPolicy ?? captureSettingsPolicy(this.settings)).values, [key]: policy.values[key]}};
+        this.index?.invalidateSemanticPolicy(); changed = true;
+      });
+    } catch (error) {
+      if (!persisted) {
+        // The shared preflight also refuses missing/torn data. An unchanged opening field/owner
+        // makes that a retryable storage refusal, not permission to discard a user's valid draft.
+        if (error instanceof Error && error.name === "SettingsConflictError" && current()
+          && appearanceThemes.themeValuesEqual(this.settings.hierarchy[field], opening)) {
+          const unavailable = new Error(error.message); unavailable.name = "SettingsStorageError"; throw unavailable;
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+      console.error("K-Plex saved ontology publication failed", error); return {refreshPending: true};
+    }
+    if (this.unloading || !changed || !this.index) return {refreshPending: false};
+    try {await this.index.refreshPresentationSettings(); await this.index.refreshSemanticSettings(); return {refreshPending: false};}
+    catch (error) {console.error("K-Plex saved ontology refresh failed", error); return {refreshPending: true};}
+  }
+
   /** Serialize valid workflow preferences including overlaps; failed storage never installs a draft or touches indexing. */
   updateActionPreferences(next: ActionPreferencesV1): Promise<void> {
+    const owner = this.settingsReconciliation?.owner("actionPreferences");
     const convention = readObsidianPresentationEnvironment(window.activeWindow ?? window).keyConvention;
     const validated = sanitizeActionPreferences(next, false, convention, true);
     // Explicit edits retain both local assignments and inherited defaults. Migration-only safety
@@ -1624,13 +1837,16 @@ export default class KplexPlugin extends Plugin {
     const apply = async (): Promise<void> => {
       if (this.unloading) throw new Error(this.translator("actions.surface-unavailable"));
       await this.enqueueSettingsWrite(/** Commit preference memory before releasing the common persistence queue. */ async () => {
-        await this.saveData(this.settingsSnapshotForPersistence(draft));
+        if (owner && !owner()) throw new Error(this.translator("settingsSync.conflict"));
+        await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(draft, this.settingsForWrite()));
         if (!this.unloading) this.settings.actionPreferences = draft;
       });
       if (this.unloading) return;
-      this.actionPreferenceMigrationSkipped = [];
-      this.actionPreferenceMigrationIssueCount = 0;
-      const publication = this.actionPublisher?.sync(draft);
+      if (!owner || owner()) {
+        this.actionPreferenceMigrationSkipped = [];
+        this.actionPreferenceMigrationIssueCount = 0;
+      }
+      const publication = this.actionPublisher?.sync(this.settings.actionPreferences);
       for (const listener of this.actionPreferenceListeners) listener();
       if (publication?.failures.length) {
         console.error("K-Plex action publication failed", publication.failures);
@@ -1644,7 +1860,21 @@ export default class KplexPlugin extends Plugin {
 
   /** Queue settings disk writes without allowing an older pending save to overwrite new actions. */
   private enqueueSettingsWrite(write: () => Promise<void>): Promise<void> {
-    const result = this.settingsWriteQueue.then(write);
+    const owner = this.settingsReconciliation;
+    const intent = owner?.capture(this.settingsSnapshotForPersistence(this.settings.actionPreferencesFuture ?? this.settings.actionPreferences));
+    const result = this.settingsWriteQueue.then(/** Reconcile before preparing an unstarted local snapshot, not behind a stale backlog. */ async () => {
+      if (!owner || !intent) return write();
+      try {
+        try {await owner.prepare();} catch (error) {
+          if (error instanceof Error && error.name === "SettingsConflictError") throw error;
+          const unavailable = new Error(this.translator("settingsSync.loadFailed")); unavailable.name = "SettingsConflictError"; throw unavailable;
+        }
+        owner.assertCurrent(intent);
+        const source = this.settingsForWrite(intent);
+        this.settingsWriteContext = {intent, before: this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, source)};
+        await write();
+      } finally {this.settingsWriteContext = undefined; owner.finish(intent);}
+    });
     this.settingsWriteQueue = result.catch(/** The caller reports its failure; subsequent saves remain possible. */ () => undefined);
     return result;
   }
@@ -1657,10 +1887,15 @@ export default class KplexPlugin extends Plugin {
   }
 
   /** Persist live settings at the queued boundary, preserving an unsupported future schema verbatim. */
-  private persistSettingsSnapshot(): Promise<void> {
-    return this.enqueueSettingsWrite(/** Capture after earlier workflow saves have actually committed. */ () => this.saveData(
-      this.settingsSnapshotForPersistence(this.settings.actionPreferencesFuture ?? this.settings.actionPreferences),
-    ));
+  private persistSettingsSnapshot(startupMigration = false): Promise<void> {
+    return this.enqueueSettingsWrite(/** Only this submitted workflow intent crosses the shared boundary. */ () => {
+      if (startupMigration && this.externalSettingsReceived) {
+        this.settings.kplexInitialized = this.settingsForWrite({edits: [], versions: new Map()}).kplexInitialized;
+        return Promise.resolve();
+      }
+      const source = this.settingsForWrite();
+      return this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, source), startupMigration);
+    });
   }
 
   /** Capture the selected identity plus activation epoch; A→B→A never revives an old draft. */
@@ -1726,10 +1961,11 @@ export default class KplexPlugin extends Plugin {
     if (!this.isAppearanceOwnerCurrent(owner)) throw new Error("Appearance editor belongs to an earlier theme activation");
     let persisted = false, refresh = false, semantic = false, refreshPending = false;
     try { await this.enqueueSettingsWrite(/** Prepare only when this operation owns the existing settings disk queue. */ async () => {
+      if (options.initializeThemes && this.externalSettingsReceived) return;
       if (!this.isAppearanceOwnerCurrent(owner)) throw new Error("Appearance editor belongs to an earlier theme activation");
-      const source = this.settings;
+      const source = this.settingsForWrite();
       if (source.appearanceThemesFuture !== undefined && !options.initializeThemes) throw new Error("Newer appearance themes are read-only");
-      const importing = "legacyImport" in options;
+      const importing = "legacyImport" in options && !(options.initializeThemes && this.externalSettingsReceived);
       const working = importing ? importExcaliBrainGraphSettings(options.legacyImport, source) : source;
       const before = captureSettingsPolicy(source);
       const draft = structuredClone(Object.fromEntries(STYLE_SETTINGS_KEYS.map(
@@ -1773,8 +2009,9 @@ export default class KplexPlugin extends Plugin {
         && key !== "appearanceThemes" && key !== "appearanceThemesFuture" && !appearanceThemes.themeValuesEqual(Reflect.get(source, key), Reflect.get(working, key)))
         .map(/** Detach only a changed imported root's comparison token. */ key => ({key, before: appearanceThemes.copyThemeValue(Reflect.get(source, key) as unknown), after: Reflect.get(working, key) as unknown})) : [];
       if (!options.persistExistingChanges && (library || options.initializeThemes) && !effects.changedKeys.length && !libraryChanged && !importedFields.length && next.kplexInitialized === source.kplexInitialized) return;
-      await this.saveData(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
+      await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
       persisted = true;
+      if (this.unloading) return;
       const current = captureSettingsPolicy(this.settings), values = {...(this.savedSettingsPolicy ?? current).values};
       for (const key of STYLE_SETTINGS_KEYS) {
         if (!effects.changedKeys.includes(key) || current.values[key] !== before.values[key]) continue;
@@ -2032,10 +2269,15 @@ export default class KplexPlugin extends Plugin {
       this.index.notifyPresentation();
     }
     if (effects.semanticInvalidation) this.index.invalidateSemanticPolicy();
-    if (queuedAppearance)
-      await this.updateStyleSettings(/** Existing callers already published their imperative fields; persist their coherent snapshot even if its library matches. */ () => {},
+    try {
+      if (queuedAppearance) await this.updateStyleSettings(/** Existing callers already published their imperative fields; persist their coherent snapshot even if its library matches. */ () => {},
         this.captureAppearanceOwner(), {persistExistingChanges: true});
-    else await this.persistSettingsSnapshot();
+      else await this.persistSettingsSnapshot();
+    } catch (error) {
+      if (!(error instanceof Error) || error.name !== "SettingsConflictError") throw error;
+      if (!this.unloading) new Notice(error.message);
+      return;
+    }
     if (this.unloading) return;
     await this.index.refreshPresentationSettings();
     if (effects.semanticInvalidation) await this.index.refreshSemanticSettings();
@@ -5417,10 +5659,10 @@ export default class KplexPlugin extends Plugin {
           return;
         }
         if (this.suggestHiddenOntologyField() !== field) { changed = true; return; }
-        const source = this.settings;
+        const source = this.settingsForWrite();
         const hierarchyBefore = JSON.stringify(source.hierarchy);
         const next = { ...source, hierarchy: { ...source.hierarchy, hidden: [...source.hierarchy.hidden, field] } };
-        await this.saveData(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
+        await this.writeSettingsSnapshot(this.settingsSnapshotForPersistence(source.actionPreferencesFuture ?? source.actionPreferences, next));
         persisted = true;
         // A settings edit/import that occurred during storage owns its newer hierarchy. Never
         // restore the captured hierarchy over it or turn an already-used field into Hidden.
@@ -6137,11 +6379,17 @@ export default class KplexPlugin extends Plugin {
     }
   }
 
-  /** Create and materialize a folder child using the existing optimistic/index reconciliation workflow and localized feedback. */
+  /** Create a child with exact destination collision checks and existing optimistic/index reconciliation. */
   async createNewNodeInFolder(folder: GraphPage, rawName: string, kind: GhostMaterializationKind, capturedFolder?: TFolder): Promise<GraphPage | null> {
     return this.index.withForegroundPriority(async () => {
       if (!folder.isFolder) return null;
-      const validation = this.validateRelatedNoteName(rawName);
+      const folderPath = folder.path === "folder:/"
+        ? ""
+        : folder.path.startsWith("folder:")
+          ? normalizePath(folder.path.slice("folder:".length))
+          : "";
+      const currentFolderPath = capturedFolder?.path ?? folderPath;
+      const validation = this.validateRelatedNoteName(rawName, currentFolderPath === "/" ? "" : currentFolderPath);
       if (!validation.valid) {
         new Notice(validation.error ?? this.translator("note.validation.enterValid"), 2800);
         return null;
@@ -6151,12 +6399,6 @@ export default class KplexPlugin extends Plugin {
         return null;
       }
 
-      const folderPath = folder.path === "folder:/"
-        ? ""
-        : folder.path.startsWith("folder:")
-          ? normalizePath(folder.path.slice("folder:".length))
-          : "";
-      const currentFolderPath = capturedFolder?.path ?? folderPath;
       /** Check again inside queued work and after the shared file creator's awaited folder check. */
       const current = (): boolean => !this.unloading && (!capturedFolder ||
         (capturedFolder === this.app.vault.getRoot() ? this.app.vault.getRoot() : this.app.vault.getFolderByPath(capturedFolder.path)) === capturedFolder);

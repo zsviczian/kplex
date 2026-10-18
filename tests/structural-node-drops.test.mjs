@@ -1,13 +1,14 @@
-/** Exercise real structural-drop owners with finite native effects; native lanes verify host grammar/gestures. */
+/** Exercise real structural-drop owners with finite native effects; native lanes verify host grammar/gestures.
+ * Canonical temporary paths keep the exported host stub identical to its Obsidian import on macOS. */
 import assert from 'node:assert/strict';
 import {test,after} from 'node:test';
 import {build} from 'esbuild';
-import {mkdtempSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
+import {mkdtempSync,realpathSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import ts from 'typescript';
-const root=fileURLToPath(new URL('..',import.meta.url)),temp=mkdtempSync(join(tmpdir(),'kplex-structural-drops-'));
+const root=fileURLToPath(new URL('..',import.meta.url)),temp=realpathSync(mkdtempSync(join(tmpdir(),'kplex-structural-drops-')));
 after(()=>rmSync(temp,{recursive:true,force:true}));
 const stub=`export class TFolder {};
 export const Platform={isMobile:false,isWin:true};

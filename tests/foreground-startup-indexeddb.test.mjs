@@ -470,7 +470,10 @@ test('center watchdog refreshes late host relationships while global source auth
     let builds=0;index.rebuild=async()=>{builds++;throw Error('Watchdog requested a full build')};
     const complete=await deadline(index.recheckVisibleCenter('A.md',presented,'initial',()=>true),'bounded local watchdog');
     equal(complete,false,'Local paint is not global authority');equal(builds,0,'No full build');equal(index.getNeighborhood('A.md').parents.map(node=>node.page.path),['C.md'],'Same center updates from current host metadata without navigation');
-    ok(!index.isSemanticWriteReady('A.md','C.md'),'Watchdog does not weaken write proof');const receipt=index.getIndexDiagnostics().filter(item=>item.centerCheck).at(-1);equal(receipt.centerCheck.sourceReadyBefore,false,'Held source closure recorded');ok(receipt.centerCheck.coverageAfter!=='canonical','Local repair is not represented as complete');equal(receipt.centerCheck.outcome,'repaired','Changed role counts recorded');
+    ok(!index.isSemanticWriteReady('A.md','C.md'),'Watchdog does not weaken write proof');const receipt=index.getIndexDiagnostics().filter(item=>item.centerCheck).at(-1);equal(receipt.centerCheck.sourceReadyBefore,false,'Held source closure recorded');ok(receipt.centerCheck.coverageAfter!=='canonical','Local repair is not represented as complete');
+    // Replacing one Parent with another keeps role counts unchanged. The finite body cover now
+    // also retains the existing body URL rather than dropping it to manufacture a count repair.
+    equal(receipt.centerCheck.before,receipt.centerCheck.after,'Same-role replacement preserves every role count');equal(receipt.centerCheck.outcome,'pending','Unchanged counts retain honest pending global authority');
     unblock();await deadline(index.waitForSnapshotHydration(),'hydration');await deadline(index.adoptStartupSources(),'source closure');await deadline(index.ensureSemanticScope('A.md'),'canonical center');ok(await index.recheckVisibleCenter('A.md',presented,'source-ready',()=>true),'Single readiness follow-up');equal(index.getNeighborhood('A.md').parents.map(node=>node.page.path),['C.md'],'Canonical result preserved');return true;
    }finally{unblock?.();release?.();index?.destroy();f.close()}
   })()`),true);
@@ -500,7 +503,7 @@ for(const cancellation of ['navigation','same-stat-source-revision','file-replac
  }finally{await browser.cleanup()}
 });
 
-test('stationary startup watchdog follows a late real local baseline while source inventory remains held',async()=>{
+test('stationary startup watchdog retains finite center reads across a late real local baseline',async()=>{
  const browser=await chromiumHarness(bundle);try{
   assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
   assert.equal(await browser.evaluate(`(async()=>{
@@ -518,11 +521,11 @@ test('stationary startup watchdog follows a late real local baseline while sourc
     const timers=new Map();let serial=0,initialFinished=false;
     stop=M.startCenterWatchdog({schedule:run=>{const id=++serial;timers.set(id,run);return()=>timers.delete(id)},localReady:()=>index.hasLocalBaseline(),sourceReady:()=>index.isCenterRecoverySourceReady(),subscribe:fn=>index.subscribePresentation(fn),check:async(trigger,current)=>{const complete=await index.recheckVisibleCenter('A.md',[0,0,0,0,0],trigger,current);if(trigger==='initial')initialFinished=true;return complete}});
     const fire=()=>{const [id,run]=timers.entries().next().value;timers.delete(id);run()};fire();
-    await index.publishHostMetadataPreview('A.md');equal(index.getNeighborhood('A.md')?.parents.length??0,0,'Oversized paint-preview metadata leaves the direct Parent absent');
+    await index.publishHostMetadataPreview('A.md');equal(index.getNeighborhood('A.md')?.parents.length??0,1,'Finite center cover already exposes the Parent independently of the held baseline');
     await deadline((async()=>{while(requests<2)await new Promise(r=>setTimeout(r,0))})(),'watchdog joined original center owner');
     const restoring=index.restorePersistedSnapshot(['A.md']);first();
     await deadline((async()=>{while(!initialFinished||baselines<2)await new Promise(r=>setTimeout(r,0))})(),'pending first check and replacement baseline').catch(error=>{throw Error(error.message+' '+JSON.stringify({baselines,initialFinished,timers:timers.size,baselineReady:index.hasLocalBaseline(),arbitration:Boolean(index.eagerPreviewArbitration),tasks:index.onDemandTasks.size,source:index.isCenterRecoverySourceReady(),decisions:index.getIndexDiagnostics(),phase:index.getSnapshotHydrationDiagnostics()}))});
-    equal(index.getIndexDiagnostics().filter(row=>row.centerCheck).at(-1).centerCheck.outcome,'pending','Real retired startup owner produced the reported pending state');
+    equal(index.getIndexDiagnostics().filter(row=>row.centerCheck).at(-1).centerCheck.outcome,'repainted','Stale presented counts repaint from the independent finite cover');
     equal(timers.size,0,'No polling while local baseline is held');ok(!index.hasLocalBaseline(),'Replacement local baseline remains held');
     second();await deadline((async()=>{while(!index.hasLocalBaseline()||!timers.size)await new Promise(r=>setTimeout(r,0))})(),'local readiness notification');
     ok(!index.isCenterRecoverySourceReady(),'Global source inventory remains held');fire();
@@ -533,4 +536,370 @@ test('stationary startup watchdog follows a late real local baseline while sourc
    }finally{first?.();second?.();source?.();stop?.();release?.();index?.destroy();M.GraphBuilder.prototype.buildStructuralBaseline=build;f.close()}
   })()`),true);
  }finally{await browser.cleanup()}
+});
+
+/** A current center's finite host/body cover must not join unrelated whole-vault compilation. */
+for (const surface of ["frontmatter", "body", "cached-body"]) {
+  test(`stationary dense ${surface} center becomes readable before a held whole-vault baseline`, async () => {
+    const browser = await chromiumHarness(bundle);
+    try {
+      assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+      assert.equal(await browser.evaluate(initialize), true);
+      assert.equal(await browser.evaluate(`(async () => {
+        const M = sourceModules, { f, settings } = await startupSeed('finite-center-before-baseline-${surface}');
+        const build = M.GraphBuilder.prototype.buildStructuralBaseline;
+        let index, releaseDemand, releaseBaseline, releaseSources, unsubscribe;
+        let baselineEntered = false, baselineReleased = false;
+        const baselineGate = new Promise(resolve => { releaseBaseline = resolve; });
+        const sourceGate = new Promise(resolve => { releaseSources = resolve; });
+        try {
+          const targets = Array.from({ length: 37 }, (_, ordinal) => 'Use case ' + String(ordinal + 1).padStart(2, '0'));
+          const links = targets.map(path => '[[' + path + ']]');
+          // The finite cover accepts this ordinary note. The frontmatter control exceeds only
+          // the tiny first-paint budget; the body control has small ordinary frontmatter and
+          // hides aggregate inferred edges so only actual body ontology can satisfy the check.
+          const frontmatter = f.metadata.get('A.md').frontmatter;
+          if (${JSON.stringify(surface)} === 'frontmatter') {
+            frontmatter.Large = 'x'.repeat(20000);
+            frontmatter.Child = links;
+          }
+          else f.texts.set('A.md', 'Child:: ' + links.join(' '));
+          f.files.get('A.md').stat.mtime++;
+          if (${JSON.stringify(surface)} === 'cached-body') {
+            ok(await f.cache.putBody('A.md', f.files.get('A.md').stat.mtime, M.parseBodyMetadata(f.texts.get('A.md'))), 'Current parsed body is genuinely persisted');
+          }
+          f.app.metadataCache.unresolvedLinks = { 'A.md': Object.fromEntries(targets.map(path => [path, 1])) };
+          settings.indexingThrottle = 'responsive';
+          settings.renderSiblings = false;
+          settings.showFolderNodes = false;
+          settings.showInferredNodes = false;
+          f.reads.length = 0;
+          f.parses.length = 0;
+
+          // Hold the actual producer before it can prepare or publish any all-vault state.
+          // Neither the body/cache/source owners nor the canonical compiler are substituted.
+          M.GraphBuilder.prototype.buildStructuralBaseline = async function (...args) {
+            baselineEntered = true;
+            await baselineGate;
+            return build.apply(this, args);
+          };
+          index = new M.GraphIndex({ app: f.app, settings, getIndexSourceRevision: () => 0 }, f.app);
+          index.scheduleOrphanCleanup = () => {};
+          const reconcile = index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);
+          index.sourceAcquisition.reconcile = async (...args) => { await sourceGate; return reconcile(...args); };
+          await index.primePhysicalSearchCatalog();
+          let available;
+          const readable = new Promise(resolve => { available = resolve; });
+          const observe = () => {
+            const children = index.getNeighborhood('A.md')?.children.map(node => node.page.path) ?? [];
+            if (targets.every(path => children.includes(path))) available();
+          };
+          unsubscribe = index.subscribePresentation(observe);
+          releaseDemand = index.acquireSemanticDemand('A.md');
+          await deadline((async () => {
+            while (!baselineEntered) await new Promise(resolve => setTimeout(resolve, 0));
+          })(), 'real all-vault baseline admission');
+          observe();
+          await deadline(readable, 'finite current-center ${surface} cover before all-vault baseline').catch(error => {
+            throw new Error(error.message + ' ' + JSON.stringify({
+              baselineReleased, localBaseline: index.hasLocalBaseline(), sourceReady: index.isCenterRecoverySourceReady(),
+              reads: f.reads.length, children: index.getNeighborhood('A.md')?.children.length ?? 0,
+            }));
+          });
+          equal(baselineReleased, false, 'No global baseline work was released');
+          equal(index.hasLocalBaseline(), false, 'Finite readability does not pretend the global baseline completed');
+          equal(index.isCenterRecoverySourceReady(), false, 'Global semantic source inventory remains held');
+          equal(index.getNeighborhood('A.md').children.map(node => node.page.path).sort(), [...targets].sort(), 'All 37 unresolved children are readable while stationary');
+          equal(index.isSemanticWriteReady('A.md', 'B.md'), false, 'Readonly finite cover grants no relationship write authority');
+          ok(f.reads.every(path => path === 'A.md'), 'Foreground body acquisition is confined to the actual center');
+          if (${JSON.stringify(surface)} === 'body') equal(f.reads, ['A.md'], 'Body-only children use the real bounded center acquisition once');
+          if (${JSON.stringify(surface)} === 'cached-body') {
+            equal(f.reads, [], 'Current warm parser input avoids native body reads');
+            equal(index.getSourceAcquisitionCounters().parses, 0, 'Current warm parser input avoids parsing');
+          }
+          return true;
+        } finally {
+          unsubscribe?.();
+          releaseDemand?.();
+          index?.destroy();
+          baselineReleased = true;
+          releaseBaseline?.();
+          releaseSources?.();
+          M.GraphBuilder.prototype.buildStructuralBaseline = build;
+          f.close();
+        }
+      })()`), true);
+    } finally {
+      await browser.cleanup();
+    }
+  });
+}
+
+/** Held native I/O closes the real parser/publication fences on release and changed observations. */
+for (const interruption of ["navigation", "unload", "source-wave"]) {
+  test(`finite center preview rejects a held body after ${interruption}`, async () => {
+    const browser = await chromiumHarness(bundle);
+    try {
+      assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+      assert.equal(await browser.evaluate(initialize), true);
+      assert.equal(await browser.evaluate(`(async () => {
+        const M = sourceModules, { f, settings } = await startupSeed('finite-held-body-${interruption}');
+        const build = M.GraphBuilder.prototype.buildStructuralBaseline;
+        const nativeRead = f.app.vault.cachedRead;
+        let index, releaseDemand, releaseBody, releaseBaseline, entered, owner;
+        const bodyGate = new Promise(resolve => { releaseBody = resolve; });
+        const baselineGate = new Promise(resolve => { releaseBaseline = resolve; });
+        const bodyEntered = new Promise(resolve => { entered = resolve; });
+        let sourceRevision = 0, reads = 0;
+        try {
+          f.texts.set('A.md', 'Child:: [[Current body child]]');
+          f.files.get('A.md').stat.mtime++;
+          settings.showInferredNodes = false;
+          settings.showFolderNodes = false;
+          settings.renderSiblings = false;
+          f.reads.length = 0;
+          f.app.vault.cachedRead = async file => {
+            const text = await nativeRead(file);
+            if (file.path === 'A.md' && ++reads === 1) { entered(); await bodyGate; }
+            return text;
+          };
+          M.GraphBuilder.prototype.buildStructuralBaseline = async function (...args) {
+            await baselineGate;
+            return build.apply(this, args);
+          };
+          index = new M.GraphIndex({ app: f.app, settings, getIndexSourceRevision: () => sourceRevision }, f.app);
+          index.scheduleOrphanCleanup = () => {};
+          await index.primePhysicalSearchCatalog();
+          releaseDemand = index.acquireSemanticDemand('A.md');
+          await deadline(bodyEntered, 'real requested native body read');
+          owner = index.onDemandTasks.get('A.md');
+          ok(owner, 'The existing finite demand owner retains the pending native read');
+          if (${JSON.stringify(interruption)} !== 'source-wave') {
+            if (${JSON.stringify(interruption)} === 'navigation') releaseDemand();
+            else index.destroy();
+            releaseBody();
+            await deadline(owner, 'retired body owner');
+            ok(!index.onDemandHostScopes.has('A.md'), 'Late native result cannot republish a retired center scope');
+            equal(index.getSourceAcquisitionCounters().parses, 0, 'Cancelled native result is rejected before parsing');
+          } else {
+            // A changed source stamp retires the first read while the exact same demand stays
+            // live. There is no navigation, source-ready signal or second demand to rescue it.
+            sourceRevision++;
+            releaseBody();
+            await deadline((async () => {
+              while (!index.getNeighborhood('A.md')?.children.some(node => node.page.path === 'Current body child')) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+              }
+            })(), 'same-demand readmission after changed source observation');
+            equal(reads, 2, 'One genuinely changed observation admits one replacement native read');
+            equal(index.getSourceAcquisitionCounters().parses, 1, 'Only the current native result reaches the canonical parser');
+            equal(index.hasLocalBaseline(), false, 'Source-wave recovery is independent of held global baseline');
+            equal(index.isCenterRecoverySourceReady(), false, 'Source-wave recovery grants no global source authority');
+          }
+          equal(index.isSemanticWriteReady('A.md', 'B.md'), false, 'Neither cancellation path grants semantic write authority');
+          return true;
+        } finally {
+          releaseDemand?.();
+          index?.destroy();
+          releaseBody?.();
+          releaseBaseline?.();
+          M.GraphBuilder.prototype.buildStructuralBaseline = build;
+          f.app.vault.cachedRead = nativeRead;
+          f.close();
+        }
+      })()`), true);
+    } finally {
+      await browser.cleanup();
+    }
+  });
+}
+
+/** The actual host collector rejects its mixed map; its existing baseline owner must retain demand. */
+test("local baseline retries a real host-link finality rejection without another demand or source-ready signal", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(initialize), true);
+    assert.equal(await browser.evaluate(`(async () => {
+      const M = sourceModules, { f, settings } = await startupSeed('baseline-host-finality-retry');
+      const build = M.GraphBuilder.prototype.buildStructuralBaseline;
+      const finalize = M.ObsidianHostLinkSourceCollector.prototype.finalize;
+      let index, builds = 0, changed = false, rejected = false;
+      try {
+        index = new M.GraphIndex({ app: f.app, settings, getIndexSourceRevision: () => 0 }, f.app);
+        index.scheduleOrphanCleanup = () => {};
+        M.GraphBuilder.prototype.buildStructuralBaseline = async function (...args) {
+          builds++;
+          return build.apply(this, args);
+        };
+        M.ObsidianHostLinkSourceCollector.prototype.finalize = async function (...args) {
+          const alter = this.startingSourcePath === null && !changed;
+          if (alter) {
+            changed = true;
+            f.app.metadataCache.resolvedLinks['A.md']['B.md']++;
+            index.refreshVisibleHostMetadataPreviews('C.md');
+          }
+          const result = await finalize.apply(this, args);
+          if (alter) rejected = result === null;
+          return result;
+        };
+        ok(await deadline(index.initializeOnDemandBaseline(['A.md']), 'same-owner baseline host-wave recovery'), 'Actual replacement baseline publishes');
+        equal(rejected, true, 'The production collector rejected the first mixed host-link family');
+        equal(builds, 2, 'One changed observation admits exactly one replacement private pass');
+        equal(index.hasLocalBaseline(), true, 'Existing baseline readiness is eventually published');
+        ok(index.getNeighborhood('A.md')?.children.some(node => node.page.path === 'B.md'), 'Current host relationships remain readable');
+        equal(index.isCenterRecoverySourceReady(), false, 'Local baseline grants no global source authority');
+        equal(f.reads, [], 'Baseline recovery reads no Markdown bodies');
+        return true;
+      } finally {
+        index?.destroy();
+        M.GraphBuilder.prototype.buildStructuralBaseline = build;
+        M.ObsidianHostLinkSourceCollector.prototype.finalize = finalize;
+        f.close();
+      }
+    })()`), true);
+  } finally {
+    await browser.cleanup();
+  }
+});
+
+/** A policy token can retire a private baseline even when no ordinary builder advanced generation. */
+test("semantic policy invalidation rejects a held real local baseline without a generation change", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(initialize), true);
+    assert.equal(await browser.evaluate(`(async () => {
+      const M = sourceModules, { f, settings } = await startupSeed('baseline-semantic-policy-fence');
+      const build = M.GraphBuilder.prototype.buildStructuralBaseline;
+      let index, releaseBuild, entered;
+      const gate = new Promise(resolve => { releaseBuild = resolve; });
+      const reached = new Promise(resolve => { entered = resolve; });
+      try {
+        index = new M.GraphIndex({ app: f.app, settings, getIndexSourceRevision: () => 0 }, f.app);
+        index.scheduleOrphanCleanup = () => {};
+        M.GraphBuilder.prototype.buildStructuralBaseline = async function (...args) {
+          entered();
+          await gate;
+          return build.apply(this, args);
+        };
+        const baseline = index.initializeOnDemandBaseline(), state = index.state;
+        await deadline(reached, 'real local baseline producer admission');
+        const generation = index.generation;
+        index.invalidateSemanticPolicy();
+        equal(index.generation, generation, 'No ordinary active builder advances the generation');
+        releaseBuild();
+        equal(await deadline(baseline, 'policy-retired local baseline'), false, 'Old-policy baseline cannot publish');
+        ok(index.state === state, 'Policy-retired producer leaves published graph identity unchanged');
+        equal(index.hasLocalBaseline(), false, 'Retired baseline grants no current readiness');
+        equal(index.isCenterRecoverySourceReady(), false, 'Retired baseline grants no source authority');
+        return true;
+      } finally {
+        index?.destroy();
+        releaseBuild?.();
+        M.GraphBuilder.prototype.buildStructuralBaseline = build;
+        f.close();
+      }
+    })()`), true);
+  } finally {
+    await browser.cleanup();
+  }
+});
+
+/** Native host maps can close after a successful sparse cover while its canonical owner awaits P2. */
+test("stationary plain-link host waves refresh finite cover before the same held baseline and retain unrelated observations", async () => {
+  const browser = await chromiumHarness(bundle);
+  try {
+    assert.equal(await browser.evaluate(contributorBrowserInitialize), true);
+    assert.equal(await browser.evaluate(initialize), true);
+    assert.equal(await browser.evaluate(`(async () => {
+      const M = sourceModules, { f, settings } = await startupSeed('finite-host-map-wave');
+      const build = M.GraphBuilder.prototype.buildStructuralBaseline;
+      let index, releaseDemand, releaseBuild, entered;
+      const gate = new Promise(resolve => { releaseBuild = resolve; });
+      const reached = new Promise(resolve => { entered = resolve; });
+      try {
+        const children = Array.from({ length: 37 }, (_, ordinal) => 'Plain use case ' + ordinal);
+        f.texts.set('A.md', children.map(path => '[[' + path + ']]').join(' '));
+        f.metadata.get('A.md').frontmatter = { Parent: ['[[B]]', '[[C]]'] };
+        f.files.get('A.md').stat.mtime++;
+        f.add('D.md', '[[A]]');
+        f.add('Unrelated.md', '');
+        f.app.metadataCache.resolvedLinks = { 'A.md': { 'B.md': 1, 'C.md': 1 } };
+        f.app.metadataCache.unresolvedLinks = {};
+        settings.showFolderNodes = false;
+        settings.renderSiblings = false;
+        settings.showInferredNodes = true;
+        f.reads.length = 0;
+        M.GraphBuilder.prototype.buildStructuralBaseline = async function (...args) {
+          entered();
+          await gate;
+          return build.apply(this, args);
+        };
+        index = new M.GraphIndex({ app: f.app, settings, getIndexSourceRevision: () => 0 }, f.app);
+        index.scheduleOrphanCleanup = () => {};
+        let previewActive = 0, previewMaximum = 0, previews = 0;
+        const prepare = index.prepareOnDemandCenterPreview.bind(index);
+        index.prepareOnDemandCenterPreview = async (...args) => {
+          previews++;
+          previewMaximum = Math.max(previewMaximum, ++previewActive);
+          try { return await prepare(...args); } finally { previewActive--; }
+        };
+        const waitFor = async (predicate, label) => deadline((async () => {
+          while (!predicate()) {
+            if (index.diagnosticsClosed) return;
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        })(), label);
+        await index.primePhysicalSearchCatalog();
+        releaseDemand = index.acquireSemanticDemand('A.md');
+        await deadline(reached, 'real held all-vault baseline admission');
+        equal(index.getNeighborhood('A.md').parents.length, 2, 'Initial native host projection succeeds sparsely');
+        equal(index.getNeighborhood('A.md').children.length, 0, 'Plain wiki links require the actual host link facts');
+        const canonicalOwner = index.onDemandTasks.get('A.md');
+
+        // Feed the same actual host/source event owners as startup metadata acquisition. The
+        // existing canonical task remains pending on its unchanged global baseline promise.
+        f.app.metadataCache.unresolvedLinks['A.md'] = Object.fromEntries(children.map(path => [path, 1]));
+        f.app.metadataCache.resolvedLinks['D.md'] = { 'A.md': 1 };
+        for (const path of ['A.md', 'D.md']) {
+          f.app.metadataCache.trigger('changed', f.files.get(path));
+          index.refreshVisibleHostMetadataPreviews(path);
+        }
+        await waitFor(() => {
+          const visible = index.getNeighborhood('A.md');
+          return visible?.parents.length === 3 && visible.children.length === 37;
+        }, 'stationary 3-parent 37-child finite host-wave recovery before global baseline');
+        ok(index.onDemandTasks.get('A.md') === canonicalOwner, 'No replacement canonical request or navigation rescues the center');
+        equal(index.hasLocalBaseline(), false, 'Global baseline remains held');
+        equal(index.isCenterRecoverySourceReady(), false, 'No global source-ready signal rescues the center');
+
+        const cover = index.get('A.md'), completedPreviews = previews;
+        f.metadata.get('Unrelated.md').hostTags = ['#late/host-tag'];
+        f.app.metadataCache.trigger('changed', f.files.get('Unrelated.md'));
+        equal(index.refreshVisibleHostMetadataPreviews('Unrelated.md'), false, 'Unrelated loaded metadata has no center impact');
+        ok(index.get('A.md') === cover, 'Unrelated host revision retains the current readonly cover');
+        equal(index.getNeighborhood('A.md').children.length, 37, 'Unrelated startup waves cannot erase the usable center');
+        equal(previews, completedPreviews, 'Unrelated observations schedule no extra P1 center compiler');
+
+        delete f.app.metadataCache.unresolvedLinks['A.md'][children[0]];
+        f.app.metadataCache.trigger('changed', f.files.get('A.md'));
+        index.refreshVisibleHostMetadataPreviews('A.md');
+        await waitFor(() => index.getNeighborhood('A.md')?.children.length === 36, 'current negative host observation');
+        ok(!index.getNeighborhood('A.md').children.some(node => node.page.path === children[0]), 'Actual center removal replaces cached positive incidence');
+        equal(previewMaximum, 1, 'Finite center work is coalesced across source/host observations');
+        ok(f.reads.every(path => path === 'A.md'), 'Host waves acquire no unrelated note bodies');
+        equal(index.isSemanticWriteReady('A.md', 'B.md'), false, 'Finite host recovery grants no semantic write authority');
+        return true;
+      } finally {
+        releaseDemand?.();
+        index?.destroy();
+        releaseBuild?.();
+        M.GraphBuilder.prototype.buildStructuralBaseline = build;
+        f.close();
+      }
+    })()`), true);
+  } finally {
+    await browser.cleanup();
+  }
 });

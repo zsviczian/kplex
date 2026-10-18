@@ -5237,6 +5237,14 @@ export const englishCatalog = {
   "tagAssignment.linkStyleHelp": {"message":"Note Type tag links default to twice the width of ordinary tag links.","context":"Explicit tag membership, single Note Type assignment and native folder moves.","params":[],"referenceParams":[]},
   "moveNode.modifierTip": {"message":"Hold {shortcut} while dragging to move immediately without this confirmation.","context":"Explicit structural tag assignment and physical folder moves.","params":["shortcut"],"referenceParams":[]},
   "styles.inheritDimension": {"message":"Use base {name}","context":"Native shared style sliders and relationship-manager discovery.","params":["name"],"referenceParams":[]},
+  "settings.ontology.draftHelp": {"message":"Changes are saved after you pause typing or leave a field.","context":"Ontology field editing: local typing with idle or blur save.","params":[],"referenceParams":[]},
+  "settings.ontology.saveFailed": {"message":"Could not save relationship fields. Your draft is kept. Retry or discard it.","context":"Ontology draft storage failure feedback.","params":[],"referenceParams":[]},
+  "settings.ontology.retry": {"message":"Retry","context":"Explicitly retry saving an ontology draft.","params":[],"referenceParams":[]},
+  "settings.ontology.discard": {"message":"Use saved fields","context":"Discard an ontology draft and load current saved values.","params":[],"referenceParams":[]},
+  "settings.ontology.conflict": {"message":"These fields changed while you were editing. Use saved fields before editing again.","context":"Ontology draft superseded by another local or remote settings surface.","params":[],"referenceParams":[]},
+  "settingsSync.conflict": {"message":"Settings changed on another device. Reopen this control and reapply your change.","context":"Live external settings reconciliation, conflict and recovery feedback.","params":[],"referenceParams":[]},
+  "settingsSync.loadFailed": {"message":"Could not load changed K-Plex settings. Your current settings are kept. Check sync and try again.","context":"Live external settings reconciliation, conflict and recovery feedback.","params":[],"referenceParams":[]},
+  "settingsSync.refreshPending": {"message":"Settings received. Some views could not refresh. Reopen the affected view.","context":"Live external settings reconciliation, conflict and recovery feedback.","params":[],"referenceParams":[]},
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

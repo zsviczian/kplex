@@ -82,6 +82,7 @@ export class MaterializeGhostModal extends Modal {
     for (const { button, kind } of this.buttons) button.setDisabled(this.creating || this.partialKind !== null && kind !== this.partialKind);
     this.folderRoot?.render(createElement(MaterializationFolderInput, {
       value: this.selectedFolderPath, folders: this.folderPaths, translate: this.translate, autoFocus: this.focusFolder,
+      openResultsOnFocus: false,
       disabled: this.creating || this.partialFile !== null,
       onChange: /** A busy or accepted partial operation retains its exact destination. */ value => {
         if (!this.creating && !this.partialFile) this.selectedFolderPath = value;

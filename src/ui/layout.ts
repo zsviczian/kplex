@@ -16,6 +16,7 @@ import type { GraphPage, Neighborhood, Neighbour, NodeStyle, PositionedEdge, Pos
 import { RelationType } from "../types";
 import { resolveLinkStyle, resolveNodeStyle } from "../index/style";
 import type { GraphIndex } from "../index/GraphIndex";
+import { appearanceWithoutColors } from "../core/contracts/appearance";
 
 /** Bound a geometry input to its supported presentation interval. */
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
@@ -90,6 +91,52 @@ export type PlexScene = {
   zoneAreas: Partial<Record<ScrollZone, ZoneAreaBounds>>;
   sectionTreeEdges?: SectionTreeEdge[];
 };
+
+/** Ordinary geometry policy only. The existing appearance projection removes paint fields;
+ * inactive themes, workflow settings and lens behavior never enter this finite layout key. */
+export function sceneLayoutPolicyKey(settings: KplexSettings): string {
+  return JSON.stringify([
+    settings.baseFontSize, settings.childColumns, settings.childMaxHeight, settings.compactingFactor,
+    settings.compactView, settings.friendMaxHeight, settings.graphDepth, settings.horizontalCompactingFactor,
+    settings.lateralArrangement, settings.maxItemCount, settings.minLinkLength, settings.parentColumns,
+    settings.parentMaxHeight, settings.siblingMaxHeight, settings.siblingRelativeSize, settings.wrapNodeLabels,
+    ...(["baseNodeStyle", "centralNodeStyle", "baseLinkStyle", "inferredLinkStyle", "folderLinkStyle", "tagLinkStyle", "hierarchyLinkStyles"] as const)
+      .map(/** Compare the active prepared style policy, preserving every supported non-color field. */ key => appearanceWithoutColors(key, settings[key])),
+  ]);
+}
+
+/** Snapshot bounded ordinary-geometry inputs. Source clocks/provenance do not position nodes;
+ * ordered membership, labels, winning styles and relations do. Settings, semantic crosslinks
+ * and section projections retain their separate caller-owned invalidation. */
+export function neighborhoodSceneKey(neighborhood: Neighborhood | null, index: Pick<GraphIndex, "titleFor">, settings: KplexSettings): string {
+  if (!neighborhood) return "";
+  const node = (page: GraphPage, relation: Neighbour | null, role: Role | "center"): unknown => [
+    page.path, page.isFolder, page.isTag, Boolean(page.file), page.url, page.noteType,
+    index.titleFor(page), appearanceWithoutColors("baseNodeStyle", resolveNodeStyle(page, relation, role, settings)),
+    relation?.relationType, relation?.typeDefinition, relation?.linkDirection,
+  ];
+  return JSON.stringify([node(neighborhood.center, null, "center"),
+    ...(["parents", "children", "leftFriends", "rightFriends", "siblings"] as const).map(
+      /** Preserve exact rendered order, including sorting and filtered candidate admission. */ key => neighborhood[key].map(row => node(row.page, row, row.role)),
+    )]);
+}
+
+/** Rebind reused ordinary geometry to current read pages. Coordinate reuse must never retain
+ * an old mtime/property/filter context or replaced native file as the displayed endpoint. */
+export function bindSceneNeighborhood(scene: PlexScene, neighborhood: Neighborhood | null): PlexScene {
+  if (!neighborhood) return scene;
+  const pages = new Map([neighborhood.center, ...neighborhood.parents.map(row => row.page),
+    ...neighborhood.children.map(row => row.page), ...neighborhood.leftFriends.map(row => row.page),
+    ...neighborhood.rightFriends.map(row => row.page), ...neighborhood.siblings.map(row => row.page)]
+    .map(page => [page.path, page]));
+  let changed = false;
+  const nodes = scene.nodes.map(node => {
+    const page = pages.get(node.page.path);
+    if (!page || page === node.page) return node;
+    changed = true; return {...node, page};
+  });
+  return changed ? {...scene, nodes} : scene;
+}
 
 /** Keep the gate visually subordinate while preserving the legacy style radius. */
 export function gateDiameter(style: NodeStyle): number {
@@ -730,13 +777,16 @@ function appendSiblingParentLinks(
 
 /** Append semantic links between supplied visible persistent nodes, preserving existing structural
  * pairs. Mutates only the caller-owned edge array; the caller chooses full-scene or clipped membership.
- * Iterating adjacency avoids an O(visible²) pair scan and never queries section/transient sources. */
+ * Iterating adjacency avoids an O(visible²) pair scan and never queries section/transient sources.
+ * A focus reads only that endpoint's adjacency plus earlier incident endpoints to retain the
+ * ordinary projection's canonical orientation. It never acquires absent source information. */
 export function appendVisibleCrossLinks(
   nodes: PositionedNode[],
   edges: PositionedEdge[],
   index: GraphIndex,
   settings: KplexSettings,
   centerPath: string,
+  focus?: Readonly<{ path: string; accepts: (edge: PositionedEdge) => boolean }>,
 ): void {
   const visibleByPath = new Map<string, GraphPage>();
   for (const node of nodes) {
@@ -757,27 +807,49 @@ export function appendVisibleCrossLinks(
       : `${edge.targetPath}\u0000${edge.sourcePath}`;
     seenPairs.add(pairKey);
   }
-  for (const source of visibleByPath.values()) {
-    for (const relation of index.visibleRelationshipsWithin(source, visiblePaths)) {
-      if (source.path === relation.page.path) continue;
-      const pairKey = source.path < relation.page.path
-        ? `${source.path}\u0000${relation.page.path}`
-        : `${relation.page.path}\u0000${source.path}`;
-      if (seenPairs.has(pairKey)) continue;
-      seenPairs.add(pairKey);
-      edges.push({
-        id: `cross:${source.path}:${relation.page.path}:${relation.role}`,
-        sourcePath: source.path,
-        targetPath: relation.page.path,
-        role: relation.role,
-        relationType: relation.relationType,
-        typeDefinition: relation.typeDefinition,
-        direction: relation.linkDirection,
-        style: resolveLinkStyle(relation, settings, source),
-        isCrossLink: true,
-      });
-    }
+  /** Both ordinary and focused projection share identity, styling and structural deduplication. */
+  const append = (source: GraphPage, relation: Neighbour): void => {
+    if (source.path === relation.page.path) return;
+    const pairKey = source.path < relation.page.path
+      ? `${source.path}\u0000${relation.page.path}`
+      : `${relation.page.path}\u0000${source.path}`;
+    if (seenPairs.has(pairKey)) return;
+    seenPairs.add(pairKey);
+    const edge: PositionedEdge = {
+      id: `cross:${source.path}:${relation.page.path}:${relation.role}`,
+      sourcePath: source.path,
+      targetPath: relation.page.path,
+      role: relation.role,
+      relationType: relation.relationType,
+      typeDefinition: relation.typeDefinition,
+      direction: relation.linkDirection,
+      style: resolveLinkStyle(relation, settings, source),
+      isCrossLink: true,
+    };
+    if (!focus || focus.accepts(edge)) edges.push(edge);
+  };
+  if (!focus) {
+    for (const source of visibleByPath.values()) for (const relation of index.visibleRelationshipsWithin(source, visiblePaths)) append(source, relation);
+    return;
   }
+  const target = visibleByPath.get(focus.path);
+  if (!target) return;
+  const order = new Map([...visibleByPath.keys()].map((path, position) => [path, position]));
+  const candidates: { source: GraphPage; relation: Neighbour }[] = [];
+  for (const relation of index.visibleRelationshipsWithin(target, visiblePaths)) {
+    if (relation.page.path === target.path) continue;
+    const other = visibleByPath.get(relation.page.path);
+    if (!other) continue;
+    // The normal projection emits the first displayed endpoint's directed view. A reciprocal
+    // lookup preserves that exact role/style/orientation when the hovered node is the target.
+    if (order.get(other.path)! < order.get(target.path)!) {
+      const reciprocal = index.visibleRelationshipsWithin(other, new Set([target.path])).find(row => row.page.path === target.path);
+      if (reciprocal) { candidates.push({ source: other, relation: reciprocal }); continue; }
+    }
+    candidates.push({ source: target, relation });
+  }
+  candidates.sort((a, b) => order.get(a.source.path)! - order.get(b.source.path)!);
+  for (const candidate of candidates) append(candidate.source, candidate.relation);
 }
 
 /** Runtime layout for central-note heading expansion. Section headings form an outline tree

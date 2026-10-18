@@ -9,7 +9,7 @@
  * Row-local scope and separately observed command registration/assignment facts also survive native
  * global Settings search and update independently of local collision fingerprints.
  */
-import { setIcon, setTooltip, type Setting, type SettingDefinitionGroup, type SettingDefinitionRender, type ToggleComponent, SearchComponent } from "obsidian";
+import { Notice, setIcon, setTooltip, type Setting, type SettingDefinitionGroup, type SettingDefinitionRender, type ToggleComponent, SearchComponent } from "obsidian";
 import type KplexPlugin from "../main";
 import { ACTION_BY_ID, ACTION_CATALOG, type ActionId, type ActionMetadata } from "../core/plex/actions";
 import { ACTION_BINDING_DEFAULTS, actionBindingContexts, compileActionBindings, effectiveActionBindings, isActionPublished, matchesActionBinding, physicalBindingKeycap, type ActionPreferencesV1, type BindingConflict, type LocalBinding } from "../core/plex/actionPreferences";
@@ -256,8 +256,10 @@ export class ActionSettingsController {
   private record(owner: RowOwner | GroupOwner, choose: (binding: LocalBinding, captured?: readonly LocalBinding[]) => void): void {
     if (this.saving || "setting" in owner && this.unsupported()) return;
     this.recorder?.close();
+    const settingsOwner = this.plugin.receivedSettingsOwner?.("actionPreferences");
     this.recorderOwner = owner;
     this.recorder = new ShortcutRecorder(this.plugin, /** Ignore choices after the exact originating row or header is retired. */ (binding, captured) => {
+      if (settingsOwner && !settingsOwner()) {new Notice(this.plugin.translator("settingsSync.conflict")); return;}
       if ("setting" in owner ? this.rows.has(owner) && owner.setting.settingEl.isConnected : owner.live) choose(binding, captured);
     });
     this.recorder.open();
