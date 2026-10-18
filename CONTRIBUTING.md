@@ -1040,4 +1040,7 @@ idle/blur/close submission, stationary ontology semantics in main/sidebar/popout
 storage recovery, synthetic composition/paste and no-view saving. Counts separate drafts from
 committed policy work; no comparative resource claim is made. The lane restores three owned
 notes, configuration/workspace and native observers. Keep backups private and run serially.
+Set `KPLEX_ONTOLOGY_INPUT_MODE=eager` or `on-demand` to repeat in an actual chosen
+session; the driver restores the original saved mode and session afterward. It
+also reloads the plugin and checks the final saved ontology and stationary Parent.
 See the [PR147 record](docs/validation/ontology-input-147-2026-10-18.md) for current results/limits.

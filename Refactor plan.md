@@ -5178,3 +5178,8 @@ preserving genuinecaptureddataduringfailedwrite.14ontology+17external=31tests
 green, actualbuild/types/lintpass. Nativefailedtrialandredreproretainedprivate.
 Repeatexactnativelane/fullverify next; no CPUimprovementclaim or indexingrefactor.
 Keepdraft/no merge/release/personalvault. C14paused; platformgaps unchanged.
+
+
+### PR147 native acceptance checkpoint (2026-10-18)
+
+Corrected runtime af31fc9 passes seven actual Settings cases in both On-demand and Eager sessions: trusted typing/caret, stationary parents in three views, page exit, failed storage Retry, composition, refresh-pending, no-view persistence and plugin restart. Counts exclude restart. Reusable lane now owns actual mode selection/restoration and reload. Removed temporary issue144 marker. Full verification and combined Windows regression lanes remain pending; Mac/physical IME/minimum-host acceptance remains separate. No indexing/compiler/scheduler or performance campaign.

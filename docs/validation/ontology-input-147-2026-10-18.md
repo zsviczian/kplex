@@ -3,7 +3,8 @@
 Implementation checkpoint on `2026-10-12-issue-144-ontology-input`, integrated with
 `main@658793f` through merge `183a948` without rewriting. Addresses #144. Keep draft;
 no merge/release or personal-vault access. Full verification/native candidate
-acceptance remain pending at this checkpoint.
+full-chain acceptance remains pending at this checkpoint. Exact native acceptance
+passes seven cases in each of the actual On-demand and Eager sessions.
 
 ## Confirmed cause and bounded change
 
@@ -47,7 +48,7 @@ localized setting nodes.
 ## Checkpoint verification
 
 Node 22.22.2, real dependencies/Obsidian typings: build and official lint pass.
-13 focused real-Chromium cases exercise the actual native controls, shared draft
+14 focused real-Chromium cases exercise the actual native controls, shared draft
 and extracted production persistence methods. An affected run passed 94 tests
 before the final three edge cases/copy updates; final ontology/localization run
 passes 36. Final full chain and exact-native repetitions remain required.
@@ -78,8 +79,13 @@ remote hierarchy owner change. The narrow shared read-back guard now retains the
 already validated predecessor without reinterpretation and keeps any genuine
 incoming candidate. The regression is red before and green after; all 31 ontology
 and external-settings tests pass, including captured evidence during a failed
-write. Real build/types and lint pass. Final native repetition and full verification
-remain pending; the failed trial and red log are preserved.
+write. Real build/types and lint pass. Corrected runtime `af31fc9` passes seven native
+cases in both actual indexing modes, including plugin restart with the final saved
+policy and stationary rendered Parent. Each run restores original configuration
+bytes. Native typing causes zero draft-time work and one final durable policy
+commit; reload work is explicitly excluded from those counts. Full verification
+and the combined regression lanes remain pending; the failed trial and red log
+are preserved.
 
 Raw baseline and all checks are private under `%TEMP%/kplex-147-*`; no archive is
 published. Final closeout will pin tested source/artifacts and verified durable

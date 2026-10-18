@@ -19,37 +19,8 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR147 implementing; native Retry correction checkpoint
+# PR147 final verification in progress
 
-User authorized182merge then147;182merged658793f,147existingbranch
-2026-10-12-issue-144-ontology-input integratedmain183a948 thencheckpoint3743bfb.
-Keep147draft/no merge/release/personalvault/subagents/comparativeperformance.
-Only preparedSmall authorizedcurrentnative,107files/88Markdown, foregroundallowed.
-Node22.22.2 available; native/browserdriversserial.
+Merged182at658793f, integrated main into147without rewrite183a948. Runtime checkpoints3743bfb and af31fc9 pushed. Current reusable native lane passes7cases in both actual On-demand and Eager modes including restart; original config restored.14ontology+17external regression tests green, negative controls/red readback failure retained privately. No runtime changes after af31fc9.
 
-Bounded750msidle/blur native7fielddrafts and atomic updateOntologyField onexisting
-182queue; persistbeforeliveinvalidate, semanticrefreshoutside diskqueue. Noindex/
-parser/scheduler/schema change. Main clockmodel survivespageclosing; IMEpreedit
-notpublished, faileddraftretained Retry/UseSaved, owners fence remote/localconflicts,
-acceptedwritesoutlive rows; unloadstopsunsubmittedwork. All8locales/accessibility.
-
-13initialChromium+affected94+finalontology/localization36 passed; realbuild/lint
-pass aftertypedMapfix/sandboxescalation.2negativeidle/fieldguards redcorrectly with
-exactsourcebyte restoration. Nativebaseline14trustedinput caused12writes/semantic
-refreshes and35acquisitions,0parses; noactualMacfreezeorCPUcomparisonclaim.
-
-Exactnative3743bfb passed22trustedinput0drafttimework then1idlewrite/semantic
-refresh,3acquisitions,stationaryParentin3views/caretretained; close/reopenpassed.
-ThenactualRetryfailed. Reproducedredtest: unchangedfailed-write readbacknormalized
-acceptedunsortedlist and manufacturedremoteownerconflict. Fixoneguardinexisting
-SettingsReconciliation toskipnormalizing knownunchanged predecessor, retain genuine
-captureddataduringfailedwrite.14ontology+17external31green; realbuild/lintgreen.
-Allnativefailure/source/traceconfig preservedprivate; sourcecheckpointreport
-docs/validation/ontology-input-147-2026-10-18.md updatedtruthfully.
-
-Nextcommit/pushthisvalidatedfix; stageexactbuild andrepeatunchangednative lane.
-Thenfullverify plusapplicableexistingnativeSettings/style/hover/Markdownsave/
-gate-touch combinedacceptance from180/181. No performancecampaign or cachepurge.
-Finalcuratereport/removeissue144marker, durableprivatebackupverifyexcludingHANDOFF,
-updatePRactualoutcomes/limitations, commitpush thenreturndraft forusertest.
-No furtherPRautomatically. macOSactualreport/physicaltouchIME/minhostpending.
+Full npm run verify and combined Windows native lanes next; temporary issue144marker removed. Preserve failedfirstnative and allraw private evidence, verify durable backup outsideTemp, no publication/HANDOFFarchive. Keep147draft/no merge/release/personalvault/subagents/comparativeperformance. Foreground allowed; tests serial. Final report docs/validation/ontology-input-147-2026-10-18.md remains checkpoint until full/native final results. Return paused for maintainer testing.
