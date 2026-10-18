@@ -19,31 +19,31 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR182 validation checkpoint
+# PR182 final evidence closeout
 
-181 is merged as c0cd100; branch2026-10-18-live-settings-sync includes main
-through8b0fdbd, then runtime checkpointc0f10e9. Maintainer: finish182 then pause;
-keep draft, do not merge/release/start141 or147. No personal vault, subagents or
-comparative performance. Only Small native target authorized.
+181 mergedmainc0cd100;182draftbranch2026-10-18-live-settings-sync, integration
+8b0fdbd, runtime validated dbe531732bfd76b1e7c1a10c20b3a56ac5128554. Full
+npm run verify PASS:architecture7/core130/main1061/UI162/sources334/browser623,
+no failures/skips, actual Node22.22.2 build/types/lint. Portable receipt hashes
+exact source/log/artifacts; main.js75177091ce58f6e70a214954fb33224767e75208ea8defa32bf8bcc9af48e425.
 
-Sixteen production-boundary Chromium settings cases pass, including exact read-back
-after a durable write rejects, two-instance/noecho, stale owners, native events,
-dirty modal, pending writes and detached accepted baseline. Real build/types pass.
-Fifty combined action/sync cases passed before the new sixteenth case. Both negative
-controls fail correctly and restore source. Full attempts preserved: indexing
-compiled inventory omitted new files; then nine action stubs omitted Notice. Both
-corrected, focused tests green. Native corrected earlier candidate passes5cases:
-actual external-file callback, all3views, native controls, semantic update/torn
-recovery and exact config restore. Source changes since that trial REQUIRE final
-native repetition. No final full-chain pass claimed yet.
+Native Windows1.14.4 Small: migration actual import/managers/render/reload passes;
+unchanged native oracle reused hash-verified full portable receipt. External
+file callback lane passes6cases each in actual on-demand/eager,1settingsread
+and0note reads/parses/acquisitions/semantic/builds/saves during paint receipt;
+real ontology updates all stationary rendered parents, native editor identity/
+leaf/caret retained. Existing styleOperations15cases pass. Two native focus
+failures were oracle setup:requested line0 became actual4 before delivery, and
+remained4 afterward with zero focus events. New tool retains bounded facts and
+compares actual before/after cursor; NO runtime correction or assertion removal.
+All failed runs/controls retained privately.
 
-Next: final npm run verify, exact staging, external-settings native lane in actual
-on-demand and eager sessions; existing styleOperations lane; cleanup/sanity/private
-evidence backup and final report/PR. Reusable native lane now also asserts actual
-rendered stationary parents and native editor focus/caret. Keep raw failures and
-private config backups; never archive HANDOFF or publish evidence. Source report:
-docs/validation/live-settings-sync-182-2026-10-18.md (pending final validation).
+Opening Small settings/workspace/config restored byte-exact after whole suite,
+107files/88Markdown, originalon-demand, no owned controllers/pending adoption.
+Debuggeroff, exact installed build. Source runtime unchanged since full verification;
+only native tool proof/diagnostics changed. Syntax/native checks pass.
 
-Minimum host, real macOS-Windows Sync and physical mobile remain unavailable.
-No active native controller; browser tasks drained. Do not run native while full
-browser verification is active.
+Remaining: verify durable private evidence backup excluding HANDOFF/temp scripts
+containing it; finalize report and PR actual outcomes, commit/push then PAUSE.
+Keep182draft; no merge/release/141/147, personal vault or comparative benchmark.
+Manual gaps real macOS-Windows Sync, minimum1.13/configoverride, physical mobile.
