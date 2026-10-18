@@ -197,6 +197,33 @@ export async function runFolderCreationWorkflows(h) {
     check(await app.vault.read(c.a)===before,'Failed placeholder writer changed original note');return{injectedFailures:failures,unchanged:true};
   });
 
+  await scenario('folders-percent-literal-reference-isolation',async()=>{
+    const stem=`Percent space-${c.runToken}`,old=nativePath(stem),twin=nativePath(stem.replace(' ','%20'));
+    const target=path(createdFolder,stem);allowedPaths.add(target);
+    const encode=value=>value.split('/').map(part=>encodeURIComponent(part)).join('/');
+    const references=[`[[${old}|Space wiki]]`,`[[${twin}|Percent wiki]]`,
+      `[Space markdown](${encode(old)})`,`[Percent markdown](${encode(twin)})`];
+    await app.fileManager.processFrontMatter(c.a,frontmatter=>{
+      frontmatter.PercentReferences=[`[[${old}|Space YAML]]`,`[[${twin}|Percent YAML]]`];
+    });
+    await app.vault.process(c.a,text=>text+'\n'+references.join('\n')+'\n');
+    await until(()=>app.metadataCache.unresolvedLinks[c.a.path]?.[old]===3
+      &&app.metadataCache.unresolvedLinks[c.a.path]?.[twin]===3,'Native percent twins did not remain distinct');
+    await center(c.a.path);
+    await until(()=>p.index.get(old)&&!p.index.get(old).file,'Mixed-reference placeholder missing');
+    const before=await app.vault.read(c.a);
+    await p.createGhostNote(p.index.get(old),true);const element=await materializationDialog();
+    const field=folderInput(element);field.focus();input(field,createdFolder);await delay(50);await dismissSuggestions(field);
+    await confirmMaterialization(element);
+    const expected=before.replace(`[[${old}|Space YAML]]`,`[[${target}|Space YAML]]`)
+      .replace(`[[${old}|Space wiki]]`,`[[${target}|Space wiki]]`)
+      .replace(`[Space markdown](${encode(old)})`,`[Space markdown](${encode(target)})`);
+    check(await app.vault.read(c.a)===expected,'Relocation changed a distinct percent-literal reference or surrounding bytes');
+    await until(()=>app.metadataCache.resolvedLinks[c.a.path]?.[target]===3
+      &&app.metadataCache.unresolvedLinks[c.a.path]?.[twin]===3,'Native resolution lost relocated or percent-literal references');
+    return{nativeSpaceReferencesMoved:3,nativePercentLiteralReferencesPreserved:3,exactSourceBytes:true,actualFolderDialog:true};
+  });
+
   await scenario('folders-ordinary-placeholder-open',async()=>{
     const withDrawingChoice=p.isExcalidrawAvailable();await doubleClick(defaultGhost,false);
     if(withDrawingChoice){const element=await materializationDialog();check(folderInput(element).value===c.folder,'Ordinary choice lost placeholder metadata folder');
@@ -221,7 +248,7 @@ export async function runFolderCreationWorkflows(h) {
     return{modifierPrompt:true,cancelNoWrite:true,sharedSuggester:true,newDestination:true,durableAliasRetargeted:true};
   });
   await idle();
-  check(app.vault.getFiles().filter(file=>c.owned.includes(file.path)).length<=5,'Focused fixture exceeded five notes');
+  check(app.vault.getFiles().filter(file=>c.owned.includes(file.path)).length<=6,'Focused fixture exceeded six notes');
   return{scenarios:c.scenarios,trustedNativeKeys:c.trustedKeys??0,createdFiles:c.created.length,folderCreation:c.folderCreation,
     restartExpectation:{origin:c.a.path,target:path(nested,chosenGhost),oldPath:nativePath(chosenGhost),alias:'Friendly placeholder'},
     limitations:['Trusted Electron desktop input only; physical keyboard, touch, macOS Option and screen readers remain separate.',

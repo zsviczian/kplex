@@ -477,7 +477,7 @@ test("relocation preserves encoded heading and block suffixes", async () => {
   const owners=literalOwners();
   for(const suffix of ["%23Heading","%23%5Eblock","#Heading","#^block"]){
     const original=`[alias](Projects/Next${suffix})`,f=relocationFixture(original,[]);
-    f.cache.links=[{link:`Projects/Next${suffix}`,original,position:{start:{offset:0},end:{offset:original.length}}}];
+    f.cache.links=[{link:decodeURIComponent(`Projects/Next${suffix}`),original,position:{start:{offset:0},end:{offset:original.length}}}];
     const plan=await owners.capture(f.app,"Projects/Next",[],"changed");await owners.apply(f.app,plan,f.created,()=>true,"changed");
     assert.equal(f.texts.get(f.source.path),`[alias](Other/Next.md${suffix})`);
   }
@@ -562,7 +562,7 @@ test("special folder targets preserve typed frontmatter, body aliases and litera
   assert.deepEqual(owners.extract(app,{Child:[serialized],Enabled:true,Rank:2},source),[path]);
   const text="---\nChild: '[Alias](Projects/Next)'\nEnabled: true\nRank: 2\n---\n[Readable](Projects/Next%23Heading)\n";
   const f=relocationFixture(text,["[Alias](Projects/Next)"]),original="[Readable](Projects/Next%23Heading)",offset=text.indexOf(original);
-  f.cache.links=[{link:"Projects/Next%23Heading",original,position:{start:{offset},end:{offset:offset+original.length}}}];
+  f.cache.links=[{link:"Projects/Next#Heading",original,position:{start:{offset},end:{offset:offset+original.length}}}];
   f.files.delete(f.created.path);f.created.path=path+".md";f.files.set(f.created.path,f.created);
   const plan=await owners.capture(f.app,"Projects/Next",[],"changed");await owners.apply(f.app,plan,f.created,()=>true,"changed");
   const result=f.texts.get(f.source.path),target=encoded+".md";
@@ -692,4 +692,71 @@ test("materialization preflight rejects bracketed wiki paths and uncertain YAML 
   const single=relocationFixture("---\nChild: '[[Projects/Next|Alias]]'\n---\n");
   const plan=await owners.capture(single.app,"Projects/Next",[],"changed");
   assert.throws(()=>owners.preflight(plan,"Other/#Draft.md","unsupported"),/unsupported/);
+});
+
+
+/** Native cache observations decode Markdown exactly once, while wiki spelling stays literal. */
+test("relocation distinguishes wiki percent literals from Markdown decode-once targets", async () => {
+  const owners=literalOwners();
+  for(const wanted of ["Projects/Old note","Projects/Old%20note"]){
+    const values=[
+      {original:"[[Projects/Old note|Space]]",link:"Projects/Old note"},
+      {original:"[[Projects/Old%20note|Percent]]",link:"Projects/Old%20note"},
+      {original:"[Space](Projects/Old%20note%23Heading)",link:"Projects/Old note#Heading"},
+      {original:"[Percent](Projects/Old%2520note%23Heading)",link:"Projects/Old%20note#Heading"},
+    ];
+    const text=values.map(item=>item.original).join("\n"),f=relocationFixture(text,[]);
+    f.cache.links=values.map(item=>{const offset=text.indexOf(item.original);return{...item,position:{start:{offset},end:{offset:offset+item.original.length}}};});
+    f.app.metadataCache.unresolvedLinks={[f.source.path]:{"Projects/Old note":2,"Projects/Old%20note":2}};
+    const plan=await owners.capture(f.app,wanted,[],"changed");await owners.apply(f.app,plan,f.created,()=>true,"changed");
+    const expected=wanted.endsWith("%20note")
+      ? "[[Projects/Old note|Space]]\n[[Other/Next.md|Percent]]\n[Space](Projects/Old%20note%23Heading)\n[Percent](Other/Next.md%23Heading)"
+      : "[[Other/Next.md|Space]]\n[[Projects/Old%20note|Percent]]\n[Space](Other/Next.md%23Heading)\n[Percent](Projects/Old%2520note%23Heading)";
+    assert.equal(f.texts.get(f.source.path),expected);
+  }
+});
+
+/** Percent-encoded hash is an ordinary native wiki filename component, never a heading delimiter. */
+test("wiki literal percent-hash is replaced completely and frontmatter twins stay distinct", async () => {
+  const owners=literalOwners(),originals=["[[Projects/Old%23note|Literal]]","[[Projects/Old#note|Heading]]"];
+  const text=`---\nChild: ${JSON.stringify(originals)}\n---\n`,f=relocationFixture(text,originals);
+  f.cache.frontmatterLinks=[{original:originals[0],link:"Projects/Old%23note",key:"Child.0"},{original:originals[1],link:"Projects/Old#note",key:"Child.1"}];
+  f.app.metadataCache.unresolvedLinks={[f.source.path]:{"Projects/Old%23note":1,"Projects/Old":1}};
+  const plan=await owners.capture(f.app,"Projects/Old%23note",[],"changed");await owners.apply(f.app,plan,f.created,()=>true,"changed");
+  assert.equal(f.texts.get(f.source.path),text.replace(originals[0],"[[Other/Next.md|Literal]]"));
+});
+
+/** Inconsistent native/cache syntax and syntax-free catalogue candidates cannot silently authorize edits. */
+test("uncertain percent-literal provenance fails closed instead of skipping incoming sources", async () => {
+  const owners=literalOwners(),original="[[Projects/Old%20note|Literal]]",f=relocationFixture(original,[]);
+  f.app.metadataCache.unresolvedLinks={[f.source.path]:{"Projects/Old note":1}};
+  f.cache.links=[{original,link:"Projects/Old note",position:{start:{offset:0},end:{offset:original.length}}}];
+  await assert.rejects(owners.capture(f.app,"Projects/Old note",[],"changed"),/changed/);
+  f.cache.links[0].link="Projects/Old%20note";
+  await assert.rejects(owners.capture(f.app,"Projects/Old note",[],"changed"),/changed/);
+  assert.equal(f.texts.get(f.source.path),original);
+});
+
+/** Avoid a second URI decode and do not call the compatibility decoder native proof for wiki literals. */
+test("placeholder serializer rejects ambiguous percent wiki paths and decodes Markdown fallback only once", () => {
+  const owners=literalOwners(),source={path:"Origin.md"},app={metadataCache:{getFirstLinkpathDest:()=>null}};
+  assert.throws(()=>owners.serialize(app,source,"Projects/Old%20note","Alias","unsupported"),/unsupported/);
+  assert.equal(owners.serialize(app,source,"Projects [old]/Old%20note","Alias","unsupported"),"[Alias](Projects%20%5Bold%5D/Old%2520note)");
+});
+
+
+/** Raw-cache fallback is not native authority: getFirstLinkpathDest keeps its percentages literal. */
+test("raw or twice-decoded Markdown cache spellings cannot authorize a relocation", async () => {
+  const owners=literalOwners();
+  for(const [original,link,wanted]of [
+    ["[Alias](Projects/Old%20note)","Projects/Old%20note","Projects/Old note"],
+    ["[Alias](Projects/Old%2520note)","Projects/Old%2520note","Projects/Old%20note"],
+    ["[Alias](Projects/Old%2520note)","Projects/Old note","Projects/Old%20note"],
+  ]){
+    const f=relocationFixture(original,[]);
+    f.app.metadataCache.unresolvedLinks={[f.source.path]:{[wanted]:1}};
+    f.cache.links=[{original,link,position:{start:{offset:0},end:{offset:original.length}}}];
+    await assert.rejects(owners.capture(f.app,wanted,[],"changed"),/changed/);
+    assert.equal(f.texts.get(f.source.path),original);
+  }
 });

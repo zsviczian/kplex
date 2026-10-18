@@ -4659,3 +4659,15 @@ cross-link-only saves take the legacy semantic-refresh path and repatch requeste
 coverage despite unchanged source counters. Main has the same source path; no
 native baseline trial or fix is claimed. Preserve that failure as a scoped future
 opportunity, rather than broadening this feature or weakening its assertion.
+
+Native reference-safety checkpoint: the explicit placeholder relocation adapter
+now distinguishes literal wiki percentages from once-decoded Markdown targets,
+with exact native cache agreement and conservative serializer refusal. A bounded
+native probe confirmed the host shapes; four focused tests reproduce the previous
+defect. All 49 composer/materialization tests, Obsidian lint and real-types build
+pass. The eight actual native folder scenarios plus reload pass, including three
+retargeted space references, three untouched percent-literal references and exact
+surrounding bytes; inventory/configuration restore. This does not change general
+index/parser semantics or reopen structural refactoring. Final combined checks
+remain pending. Prioritized remaining acceptance: macOS modifier/folder workflow,
+physical mobile interaction, and actual OS drag across windows/applications.

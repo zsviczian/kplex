@@ -128,6 +128,21 @@ Actual On-demand navigation and note creation/retargeting are measured separatel
 and are expected to perform their normal work. This is not a claim of zero UI
 CPU/allocation cost or a startup/indexing speedup.
 
+Final source review found a native-identity defect in the new relocation path:
+decoding wiki percentages conflated space and literal `%20` filenames, and could
+treat literal wiki `%23` as a heading. A disposable native probe confirmed that
+Obsidian decodes Markdown once but retains wiki and cache-key percentages.
+Relocation now requires exact cache/token agreement with that syntax distinction;
+uncertain authority fails closed. The general index/parser policy is unchanged.
+Percent-escaped-looking wiki destinations are conservatively refused by the new
+placeholder serializer; no fallback decoding is accepted as native proof.
+Four targeted regressions fail on the previous implementation; all 49 composer
+tests pass after correction, as do lint and the real-types build. The native folder
+lane now passes eight scenarios: its mixed-reference case moves three approved
+space-target references, preserves three percent-literal references and every
+other source byte. Real plugin reload and complete fixture/config restoration
+also pass. Final combined verification will pin the committed correction.
+
 ## Remaining platform acceptance
 
 Windows Electron input and synthetic native-handler events do not establish

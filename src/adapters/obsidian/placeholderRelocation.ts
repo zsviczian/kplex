@@ -19,10 +19,12 @@ export type PlaceholderRelocation = {
   target: Readonly<{ file: TFile; path: string }> | null;
 };
 
-/** Mirror the established host resolver's URI/subpath handling without inventing a basename match. */
-function coordinate(raw: string): string {
+/** Native wiki paths retain literal percentages; Markdown targets decode exactly once before subpath removal. */
+function coordinate(raw: string, kind: InternalLinkToken["kind"] = "wiki"): string {
   let value = raw.trim();
-  try { value = decodeURIComponent(value); } catch { /* Existing host resolution also retains undecodable spellings. */ }
+  if (kind === "markdown") {
+    try { value = decodeURIComponent(value); } catch { /* An undecodable native spelling cannot acquire a different target. */ }
+  }
   return normalizePath(value.split("#", 1)[0]).replace(/\.md$/i, "");
 }
 
@@ -37,7 +39,11 @@ function encodeReferencePath(path: string): string {
 export function placeholderReference(app: App, source: TFile, path: string, alias: string, unsupported: string): string {
   const label = alias.trim() || path.split("/").pop() || path;
   const escaped = label.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
-  const reference = path.includes("]") || path.includes("[")
+  const markdown = path.includes("]") || path.includes("[");
+  // The legacy index facade decodes wiki paths. Do not claim that its fallback proves native
+  // identity for a percent-literal wiki coordinate; leave that uncertain spelling untouched.
+  if (!markdown && /%[\da-f]{2}/i.test(path)) throw new Error(unsupported);
+  const reference = markdown
     ? `[${escaped}](${encodeReferencePath(path)})`
     : `[[${path}|${label}]]`;
   const targets = extractLinksFromValue(app, reference, source);
@@ -64,6 +70,8 @@ export async function capturePlaceholderRelocation(app: App, oldPath: string, kn
   for (const sourcePath in unresolved) {
     const links = unresolved[sourcePath];
     let matches = false;
+    // Native unresolved keys are already canonical host spellings and keep literal percentages.
+    // Exact cached token syntax below still owns all replacement authority.
     for (const target in links) if (links[target] > 0 && coordinate(target) === wanted) { matches = true; break; }
     if (!matches) continue;
     const file = app.vault.getFileByPath(sourcePath);
@@ -82,12 +90,36 @@ export async function capturePlaceholderRelocation(app: App, oldPath: string, kn
     if (retained > SOURCE_DECODE_BUDGET_BYTES || file.path !== path || file.stat.mtime !== mtime || file.stat.size !== size
       || app.vault.getFileByPath(path) !== file || app.metadataCache.getFileCache(file) !== cache) throw new Error(changed);
     const replacements = new Map<number, Replacement>();
-    /** Native refs, not lexical resemblance in prose/code/comments, grant edit authority. */
-    const matches = (reference: Reference): boolean => coordinate(reference.link) === wanted
-      && app.metadataCache.getFirstLinkpathDest(reference.link.split("#", 1)[0], path) === null;
+    /** Exact original syntax owns identity; a cache spelling alone cannot decode a literal wiki path. */
+    const approveReference = (reference: Reference): InternalLinkToken | null => {
+      const cacheLiteral = coordinate(reference.link);
+      const possible = cacheLiteral === wanted;
+      let approved: InternalLinkToken | null = null;
+      for (const token of iterateInternalLinkTokens(reference.original)) {
+        if (!(token.start === 0 || token.start === 1 && reference.original.startsWith("!"))
+          || token.end !== reference.original.length) continue;
+        if (approved) throw new Error(changed);
+        approved = token;
+      }
+      if (!approved) {
+        if (possible) throw new Error(changed);
+        return null;
+      }
+      const target = coordinate(approved.rawTarget, approved.kind);
+      // Native cache.link has already decoded Markdown once and never decodes wiki paths.
+      // Applying a second decoder here would conflate distinct native percent-literal targets.
+      const agrees = cacheLiteral === target;
+      if (!agrees) {
+        if (possible || target === wanted) throw new Error(changed);
+        return null;
+      }
+      if (target !== wanted) return null;
+      if (app.metadataCache.getFirstLinkpathDest(target, path) !== null) throw new Error(changed);
+      return approved;
+    };
     /** Preserve the literal heading/block suffix while changing only its approved path substring. */
     const add = (token: InternalLinkToken, offset: number, frontmatter = false): void => {
-      const literalHash = token.rawTarget.indexOf("#"), encodedHash = token.rawTarget.toLocaleLowerCase().indexOf("%23");
+      const literalHash = token.rawTarget.indexOf("#"), encodedHash = token.kind === "markdown" ? token.rawTarget.toLocaleLowerCase().indexOf("%23") : -1;
       const hash = literalHash < 0 ? encodedHash : encodedHash < 0 ? literalHash : Math.min(literalHash, encodedHash);
       const end = hash < 0 ? token.targetEnd : token.targetStart + hash;
       const replacement = { start: offset + token.targetStart, end: offset + end, kind: token.kind, frontmatter };
@@ -98,17 +130,10 @@ export async function capturePlaceholderRelocation(app: App, oldPath: string, kn
     };
     /** Native body/embed arrays approve one actual reference at a time without deprecated iteration APIs or copying the lists. */
     const approveBodyReference = (reference: ReferenceCache): void => {
-      if (!matches(reference)) return;
+      const approved = approveReference(reference);
+      if (!approved) return;
       const start = reference.position.start.offset, end = reference.position.end.offset;
       if (text.slice(start, end) !== reference.original) throw new Error(changed);
-      let approved: InternalLinkToken | null = null;
-      for (const token of iterateInternalLinkTokens(reference.original)) {
-        if (coordinate(token.rawTarget) !== wanted || !(token.start === 0 || token.start === 1 && reference.original.startsWith("!"))
-          || token.end !== reference.original.length) continue;
-        if (approved) throw new Error(changed);
-        approved = token;
-      }
-      if (!approved) throw new Error(changed);
       add(approved, start);
     };
     for (const reference of cache.links ?? []) approveBodyReference(reference);
@@ -116,7 +141,7 @@ export async function capturePlaceholderRelocation(app: App, oldPath: string, kn
     const groups = new Map<string, number>();
     let frontmatterCount = 0;
     for (const reference of cache.frontmatterLinks ?? []) {
-      if (!matches(reference)) continue;
+      if (!approveReference(reference)) continue;
       frontmatterCount++;
       if (!groups.has(reference.original)) { retained += 128 + 2 * reference.original.length; if (retained > SOURCE_DECODE_BUDGET_BYTES) throw new Error(changed); }
       groups.set(reference.original, (groups.get(reference.original) ?? 0) + 1);
@@ -128,7 +153,7 @@ export async function capturePlaceholderRelocation(app: App, oldPath: string, kn
       const textPart = text.slice(position.start.offset, position.end.offset), observed = new Map<string, number>();
       frontmatterHasApostrophe = textPart.includes("'");
       for (const token of iterateInternalLinkTokens(textPart)) {
-        if (coordinate(token.rawTarget) !== wanted) continue;
+        if (coordinate(token.rawTarget, token.kind) !== wanted) continue;
         const original = textPart.slice(token.start, token.end), count = (observed.get(original) ?? 0) + 1, expected = groups.get(original);
         if (expected === undefined || count > expected) throw new Error(changed);
         observed.set(original, count); add(token, position.start.offset, true);
