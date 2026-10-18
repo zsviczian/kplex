@@ -1063,3 +1063,12 @@ counts, not comparative CPU/memory or latency measurements. No personal access o
 comparative performance tests. The previously reported whole-app Settings-close
 freeze remains unreproduced. macOS/minimum-host, physical mobile/touch/IME and the
 other platform/gesture limitations above remain open. Keep PR draft, no merge/release.
+Validated creation/layout checkpoint: `0ab6091fc3c2b28a76fcebef65428dc1c4335978`.
+Verified private backup outside Temp:
+`%LOCALAPPDATA%/KplexValidation/structural-drops-177-20261018-1792344165311`;
+859files/57,075,484bytes; source ZIP543 entries with CRC/per-file SHA verification,
+HANDOFF excluded. MANIFEST SHA-256
+`df19b953c9845889c841cd0a4c153c8e5be6fbba5897cc08d5ff845a05f235ea`.
+Originals and prior backups retained; nothing raw published. Remote0ab6091 CI is
+in progress when recorded; previous41fd2f8 CI passed. A docs-only evidence pin
+changes no validated runtime. Keep PR177 draft.

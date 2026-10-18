@@ -1,4 +1,4 @@
-# Standing instructions â€” preserve this header
+# Standing instructions Ã¢â‚¬â€ preserve this header
 
 This is a temporary handoff document between agents. The development of the solution involves agents with access to Obsidian CLI and a full development environment with all node packages installed, but also agents with more limited access. Development is done in "ping-pong" between these two types of agents. Agents should use this document to pass instructions and status from one another, such as instructions for testing/validation, or instructions for development work that can only be done in a full environment.
 
@@ -19,7 +19,7 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR177 — final creation/layout checkpoint
+# PR177 â€” final creation/layout checkpoint
 
 Branch2026-10-17-navigation-and-native-drag, base41fd2f8. No subagents. Keep draft;
 commit/push authorized; no merge/release or personal-vault access. Small only.
@@ -47,9 +47,11 @@ No runtime/test changes since final successful build except native driver fixes.
 Whole-app Settings-close freeze remains unreproduced; do not claim it fixed.
 macOS/minimum host/physical mobile and existing OS-gesture gaps remain.
 
-Next: diff check, commit/push this validated checkpoint; verify private backup
-outside Temp pinned to exact commit (exclude HANDOFF, retain originals); record
-its manifest and update draft PR body. Prior backup1792340626104 still verified.
-Do not publish raw evidence. Remote41fd2f8 CI is green; new head CI not yet known.
-Report: docs/validation/navigation-and-native-drag-2026-10-18.md. Source owner and
-limitations in Refactor plan.md. No further implementation authorized by handoff.
+Saved/pushed runtime checkpoint0ab6091fc3c2b28a76fcebef65428dc1c4335978.
+Private backup outside Temp1792344165311 verified859files/57,075,484bytes;
+sourceZIP543 CRC/per-file SHA, HANDOFF excluded. MANIFEST
+df19b953c9845889c841cd0a4c153c8e5be6fbba5897cc08d5ff845a05f235ea.
+Originals/prior backups intact; no raw publication. Remote0ab6091 CI is running,
+previous41fd2f8 green; no final-head green claim. Docs-only pin changes no runtime.
+Finish pushing docs pin/update draft body, then return. No further work authorized
+by this handoff. Report and Refactor plan.md contain actual evidence/limitations.
