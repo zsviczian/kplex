@@ -56,7 +56,24 @@ Theme and named-color choices open a searchable list with small Light/Dark swatc
 
 In a style, lens or tint editor, **Use color** updates its local draft. Select **Save** in the containing editor to keep the change. **Cancel** discards that draft. Opening, cancelling and saving an unchanged color make no settings write.
 
-Custom node styles also support **Border width** and **Gate radius**, in pixels. Leave either field empty to inherit the base style. Zero border width hides the border. These fields are saved with the selected theme alongside the style’s colors, icon and font size.
+Custom node styles support **Border width**, **Gate radius** and **Font size** sliders with visible values, in pixels. Use the adjacent reset icon to inherit the base value. Zero border width hides the border. These fields are saved with the selected theme alongside the style’s colors and icon. Link style editors use the same controls for line width and label size. In the relationship-style manager, select **All relationship fields**, then search for the field you want to configure.
+
+## Tag and Note Type links
+
+Ordinary tag links use **Colors → Standard colors → Tag link**. A tag that is also
+the note's selected **Note Type** inherits that link style with twice its line
+width. Customize this separately under **Link styling → Note Type tag links**;
+the existing link editor supports colors, width, line style, arrowheads and labels.
+**Reset** restores inheritance, including the doubled width. The override belongs
+to the selected K-Plex theme and uses the same named/native color sources.
+
+Assign a tag through a connector or tag drop and choose **Tag** or **Note Type**.
+The tag stays in the note's YAML `tags` list; Note Type additionally uses the
+configured **Style property**. Replacing a different type requires an explicit
+choice; the old type can remain as an ordinary tag. Connector context menus also
+offer conversion. This does not change the ontology or create a second kind of
+indexed tag relationship. If legacy property data cannot safely be represented as
+one type/tag, edit that property before replacing it.
 
 ## Manage named colors
 

@@ -73,7 +73,7 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag,
  };
  const captureAreas=async()=>{await areaMode();check(root().querySelectorAll('.kplex-area-frame').length>=4,'Area mode did not show frames');const result=Object.fromEntries(['parent','child','left','right'].map(zone=>[zone,root().querySelector('.kplex-area-frame.kplex-area-'+zone).getBoundingClientRect().toJSON()]));await areaMode();return result};
  /** Trusted pointer sequence, preserving mouse-button state between native events. */
- const drag=async(from,to,release=true)=>{const hit=root().ownerDocument.elementFromPoint(from.x,from.y);if(release&&hit?.closest('.kplex-thought[draggable="true"]')&&!hit.closest('[data-kplex-gate]')){const receipt=await htmlDrag({contents:native(c.leaf).webContents,from,to,input,wait,until});await frames();return receipt}input('mouseMove',from);await wait(80);input('mouseDown',from);await wait(80);input('mouseMove',to,['leftButtonDown']);await wait(180);if(release){input('mouseUp',to);await frames()}};
+ const drag=async(from,to,release=true,modifiers=[])=>{const hit=root().ownerDocument.elementFromPoint(from.x,from.y);if(release&&hit?.closest('.kplex-thought[draggable="true"]')&&!hit.closest('[data-kplex-gate]')){const receipt=await htmlDrag({contents:native(c.leaf).webContents,from,to,input,wait,until});await frames();return receipt}input('mouseMove',from,modifiers);await wait(80);input('mouseDown',from,modifiers);await wait(80);input('mouseMove',to,['leftButtonDown',...modifiers]);await wait(180);if(release){input('mouseUp',to,modifiers);await frames()}};
  /** Confirm the existing composer through its real primary button. */
  const confirm=async()=>{await until(()=>root().ownerDocument.querySelector('[data-kplex-primary-action="true"]'),'Composer absent');const button=root().ownerDocument.querySelector('[data-kplex-primary-action="true"]');check(!button.disabled,'Composer primary disabled');button.click();await until(()=>!button.isConnected,'Composer did not close')};
  c.task=(async()=>{
@@ -92,7 +92,7 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag,
    // This fixture requires the shared parent's actual child scope, independent of optional
    // sibling-enrichment timing. Join the existing bounded owner before measuring presentation.
    c.phase='initial-demand';await p.index.refreshOnDemandGraph([path('Center'),path('Parent')],false);
-   c.phase='initial-view';c.leaf=app.workspace.getLeaf('tab');c.leaves.push(c.leaf);native(c.leaf);await c.leaf.setViewState({type:'k-plex-react-view',active:true});await c.leaf.view.waitUntilReady();await navigate('Center');native(c.leaf);await wait(300);
+   c.phase='initial-view';c.leaf=app.workspace.getLeaf('tab');c.leaves.push(c.leaf);native(c.leaf);await c.leaf.setViewState({type:'k-plex-react-view',active:true});let viewReady=false;void c.leaf.view.waitUntilReady().then(()=>{viewReady=true});await until(()=>viewReady,'Native Plex did not render its ready surface');await navigate('Center');native(c.leaf);await wait(300);
    await until(()=>root().querySelectorAll('.kplex-role-child').length>=32&&root().querySelectorAll('.kplex-role-sibling').length===4&&!p.index.hasActiveSemanticPreparation()&&!p.index.hasPendingSemanticPreparation(),'Fixture graph and four sibling sources not settled');
    root().querySelector('button[aria-label="'+p.translator('graph.fitGraph')+'"]').click();await wait(350);
    const work={builds:0,semanticRefresh:0,acquisitions:0},stop=[];

@@ -4862,3 +4862,56 @@ stationary plus Copy index diagnostics; intermittent style Save with Properties;
 macOS/minimum host and physical phone/tablet lifecycle. No personal-vault access,
 comparative performance work, receipt experiment, merge or release. Raw evidence
 remains private with verified backup outside Temp; never archive HANDOFF.md.
+
+### 2026-10-18 — Tag/Note Type actions, native moves and view-local center presentation
+
+PR177 follow-up to8f65dd5; C14 refactoring remains paused. The existing structural
+interaction owner now composes symmetric tag/Markdown assignment, one selected
+Note Type, explicit keep/replace, connector conversion and tag unlink through its
+per-file metadata queue/observer. Central folder/file pairs share captured native
+move planning and the same final checks with/without modifier confirmation.
+No parser/compiler/source/index schema or ontology classifier change.
+
+| Checkpoint scope | State | Evidence |
+| --- | --- | --- |
+| Tag/type/move interactions | Implemented; Windows native passed |12 actual native cases, including choice, saved targets, conversions, conflict decisions, cross-Plex/native-link delivery, Cancel and native moves. |
+| Adjacent tabs and independent center modes | Implemented; Windows native passed |6 layout/surface cases, actual controls and native leaf restore; mode snapshots contain only two scalars and preserve inherited profile settings. |
+| Shared style dimensions | Implemented; Windows native passed |Native SliderComponent rows/value/inheritance reused by node/link editors; full native style matrix15, focused35 and locale/lint checks. |
+| Late local startup wakeup | Causal functional control passed |Real GraphIndex/IDB retired-owner/replacement-baseline fixture fails at8f65dd5 and passes candidate while source inventory remains held. Initial/local/global checks stay finite. |
+| Final feature verification | Passed with explicit open native failures |Full1792334769085:7/130/lint/1058/142/334/608/build/native smoke. Native12/6/15/6/8 and closed/open4 pass; Sidecar recovery-drain and combined Properties Parent failures remain open, not passes. |
+
+The initial startup check can finish pending before the local baseline is ready;
+a local-ready follow-up now reuses the existing repair owner rather than waiting
+only for global authority. Production diagnostics retain a distinct sanitized
+trigger. This does not establish every intermittent startup/freeze cause fixed.
+
+The reported gate-radius/Settings-close freeze with a normal node and Markdown
+Sidecar remains unreproduced. A separately confirmed native scalar lifetime bug
+is corrected: removed/adopted/closed Settings controls cannot refresh or submit
+new writes, while accepted disk operations finish. Real Chromium fails on the
+retired slider access before the correction, then passes all13 appearance cases
+including actual document adoption and concurrency. Native Sidecar probes cover
+trusted range/title-bar clicks and delayed saves; passes do not erase the report.
+
+Native failures remain evidence: Modal.selection collided with undocumented host
+focus state; selectedType now has separate ownership. Settings and Plex documents
+can differ. Prototype-spreading inherited profile settings lost semantic/style
+fields; centerViewSettings now preserves the prototype, with explicit regression.
+Fixture focus, clipped split targets and deferred restored-leaf setup were corrected
+without removing stale-continuation, trusted-gesture or restore assertions. One
+empty-view run was stopped and independently cleaned/restored. All originals and
+prior private backups remain; no raw publication or personal-vault access.
+
+Risk-based remaining acceptance: the supplied macOS/full-process stationary
+startup case, OS-native dragging and physical phone/tablet/minimum-host behavior.
+Prior Properties-open reconciliation timeouts and the reported Save freeze remain
+unresolved/reproducibly bounded only where described in the validation report.
+No comparative performance claim, receipt experiment, merge or release.
+
+Final exact-artifact native Sidecar+Properties probe1792336295440 passes actual
+style Save/Settings close but retains a missing Parent while local status is ready,
+with no active semantic/on-demand work. Sidecar-only1792336216068 passes Save,
+stationary Parent/plugin restart and actual timer receipt, then fails the separate
+synthetic recovery-fixture idle prerequisite. Cleanup/configuration pass in both.
+Preserve these failures and investigate the confirmed missing-relation reproduction
+separately from the feature checkpoint; no freeze or complete startup fix claimed.

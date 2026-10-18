@@ -46,6 +46,18 @@ test('watchdog cancellation fences held completion; healthy and terminal-ready c
  })()`),true)}finally{await browser.cleanup()}
 });
 
+test('late local baseline admits one repair before global source readiness, without polling',async()=>{
+ const browser=await chromiumHarness(bundle.outputFiles[0].text);try{assert.equal(await browser.evaluate(`(async()=>{
+  const timers=new Map(),listeners=new Set();let serial=0,local=false,source=false,calls=[];
+  const stop=sourceModules.startCenterWatchdog({schedule:run=>{const id=++serial;timers.set(id,run);return()=>timers.delete(id)},localReady:()=>local,sourceReady:()=>source,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)},check:async trigger=>{calls.push(trigger);return source}});
+  const fire=async()=>{const [id,run]=timers.entries().next().value;timers.delete(id);run();await Promise.resolve();await Promise.resolve()};
+  await fire();if(timers.size||calls.join()!=='initial')throw Error('Initial pending check must not poll');
+  local=true;for(let i=0;i<20;i++)for(const fn of listeners)fn();if(timers.size!==1)throw Error('Local baseline did not wake the stationary center independently of global sources');
+  await fire();if(calls.join()!=='initial,local-ready'||timers.size)throw Error('Local milestone repeated work');
+  source=true;for(const fn of listeners)fn();await fire();if(calls.join()!=='initial,local-ready,source-ready'||timers.size||listeners.size)throw Error('Finite source follow-up did not retire');stop();return true;
+ })()`),true)}finally{await browser.cleanup()}
+});
+
 test('center diagnostic accepts only bounded aggregate vectors and refuses getters/private fields',async()=>{
  const browser=await chromiumHarness(bundle.outputFiles[0].text);try{assert.equal(await browser.evaluate(`(()=>{
   const value={trigger:'initial',outcome:'pending',sourceReadyBefore:false,sourceReadyAfter:false,activeBefore:true,coverageBefore:'preview',coverageAfter:'local',presented:[0,2,0,0,0],before:[0,2,0,0,0],after:[0,7,0,0,0],path:'private.md',content:'private'};

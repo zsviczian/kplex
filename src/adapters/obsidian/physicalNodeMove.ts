@@ -41,3 +41,15 @@ export function revalidatePhysicalMove(app: App, plan: PhysicalMovePlan): Physic
   if (plan.source.path !== plan.sourcePath || plan.folder.path !== plan.folderPath) return { ok: false, reason: "changed" };
   return prepareNativeMove(app, plan.source, plan.folder);
 }
+
+/** Confirmed and modifier-authorized moves share the same final validation and native write. */
+export async function commitPhysicalMove(app: App, plan: PhysicalMovePlan): Promise<{ok: true; warning: boolean} | {ok: false; reason: PhysicalMoveFailure}> {
+  const prepared = revalidatePhysicalMove(app, plan);
+  if (!prepared.ok) return prepared;
+  try { await app.fileManager.renameFile(plan.source, plan.destination); return {ok: true, warning: false}; }
+  catch (error) {
+    // A native rename can commit before its subsequent link update rejects. Never retry that move.
+    if (plan.source.path === plan.destination && app.vault.getAbstractFileByPath(plan.destination) === plan.source) return {ok: true, warning: true};
+    throw error;
+  }
+}

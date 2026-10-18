@@ -11,13 +11,14 @@ test("node-style dimensions inherit, clear, merge concurrently, preserve legacy 
   const save=modal=>[...modal.contentEl.querySelectorAll('button')].find(el=>el.textContent===t('common.save')).click();
   const field=(modal,key)=>modal.contentEl.querySelector('input[aria-label="'+t(key)+'"]');
   let modal=open(),before=p.writes.length;save(modal);await waitFor(()=>!modal.modalEl.isConnected);if(p.writes.length!==before||p.settings.noteTypeStyles.Project.strokeWidth!==1.25||p.settings.noteTypeStyles.Project.gateRadius!==12)throw Error('Unchanged legacy dimensions normalized');
-  modal=open();if(field(modal,'filter.borderWidth').placeholder!=='2'||field(modal,'settings.ui.gate.radius').placeholder!=='6')throw Error('Inheritance placeholder wrong');
+  modal=open();if(field(modal,'filter.borderWidth').type!=='range'||field(modal,'settings.ui.gate.radius').type!=='range'||!field(modal,'filter.borderWidth').parentElement.querySelector('output'))throw Error('Native slider or visible dimension value absent');
   input(field(modal,'filter.borderWidth'),'0');input(field(modal,'settings.ui.gate.radius'),'8');await p.updateStyleSettings(d=>{d.noteTypeStyles.Project.fontSize=29});save(modal);await waitFor(()=>!modal.modalEl.isConnected);
   const style=p.settings.noteTypeStyles.Project;if(style.strokeWidth!==0||style.gateRadius!==8||style.fontSize!==29||style.icon!=='star'||style.borderColor.variable!=='--text-normal')throw Error('Dimension save lost zero or concurrent fields');
   const restarted=sourceModules.migrateAndMergeSettings(p.writes.at(-1));if(restarted.noteTypeStyles.Project.strokeWidth!==0||restarted.noteTypeStyles.Project.gateRadius!==8)throw Error('Dimensions lost on restart');
-  modal=open();input(field(modal,'filter.borderWidth'),'');input(field(modal,'settings.ui.gate.radius'),'');const store=p.saveData;p.saveData=async()=>{throw Error('Expected dimension disk failure')};save(modal);await waitFor(()=>modal.modalEl.getAttribute('aria-busy')==='false');if(!modal.modalEl.isConnected||p.settings.noteTypeStyles.Project.gateRadius!==8||field(modal,'filter.borderWidth').value!=='')throw Error('Failed write lost durable state/draft');p.saveData=store;save(modal);await waitFor(()=>!modal.modalEl.isConnected);
+  const inherit=(modal,key)=>field(modal,key).parentElement.querySelector('button[aria-label="'+t('styles.inheritDimension',{name:t(key)})+'"]').click();
+  modal=open();inherit(modal,'filter.borderWidth');inherit(modal,'settings.ui.gate.radius');const store=p.saveData;p.saveData=async()=>{throw Error('Expected dimension disk failure')};save(modal);await waitFor(()=>modal.modalEl.getAttribute('aria-busy')==='false');if(!modal.modalEl.isConnected||p.settings.noteTypeStyles.Project.gateRadius!==8||!field(modal,'filter.borderWidth').parentElement.querySelector('output').textContent.includes(t('colors.inherit')))throw Error('Failed write lost durable state/draft');p.saveData=store;save(modal);await waitFor(()=>!modal.modalEl.isConnected);
   if('strokeWidth' in p.settings.noteTypeStyles.Project||'gateRadius' in p.settings.noteTypeStyles.Project)throw Error('Empty dimensions did not restore inheritance');
-  modal=open();before=p.writes.length;input(field(modal,'filter.borderWidth'),'9');save(modal);await new Promise(r=>setTimeout(r,20));if(p.writes.length!==before||!modal.modalEl.isConnected)throw Error('Invalid changed dimension admitted');modal.retire();tab.disposeActionSettings();return true;
+  modal=open();input(field(modal,'filter.borderWidth'),'9');if(field(modal,'filter.borderWidth').value!=='8')throw Error('Native range failed to constrain the maximum');save(modal);await waitFor(()=>!modal.modalEl.isConnected);if(p.settings.noteTypeStyles.Project.strokeWidth!==8)throw Error('Bounded slider value lost');tab.disposeActionSettings();return true;
  })()`),true);
 });
 
@@ -150,7 +151,9 @@ test("immediate native theme/scalar rows follow document adoption, fence replace
  assert.equal(await scenario(`(async()=>{
   const p=await createAppearanceHost({baseLinkStyle:{strokeWidth:3}}),tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p),t=p.translator;
   const row=new sourceModules.Setting(scope).setName(t('themes.label')),release=tab.mountThemeControls(row),old=row.controlEl.querySelector('select');
-  const replacement=document.implementation.createHTMLDocument('Native Settings owner');replacement.body.append(row.settingEl);emitMigration(row.settingEl);
+  const frame=document.createElement('iframe');document.body.append(frame);const replacement=frame.contentDocument;
+  for(const name of ['createEl','createDiv','createSpan','setText','empty','addClass','setCssStyles','setCssProps','toggle','onWindowMigrated'])frame.contentWindow.HTMLElement.prototype[name]=HTMLElement.prototype[name];
+  replacement.body.append(row.settingEl);emitMigration(row.settingEl);
   if(row.controlEl.querySelector('select')===old||p.appearanceThemeListeners.size!==1)throw Error('Adopted header retired instead of rebinding');
   let count=p.writes.length;input(old,'default','change');await new Promise(r=>setTimeout(r,10));if(p.writes.length!==count)throw Error('Replaced pre-adoption header wrote');
   input(row.controlEl.querySelector('select'),'native-base','change');await waitFor(()=>p.settings.appearanceThemes.selectedId==='native-base');
@@ -159,7 +162,7 @@ test("immediate native theme/scalar rows follow document adoption, fence replace
   replacement.body.append(scalar.settingEl);emitMigration(scalar.settingEl);if(scalar.controlEl.querySelector('input')===retired)throw Error('Adopted scalar retained old realm handler');
   count=p.writes.length;input(retired,'6');await new Promise(r=>setTimeout(r,10));if(p.writes.length!==count)throw Error('Retired scalar event wrote');
   await p.updateStyleSettings(d=>{d.baseLinkStyle.strokeWidth=4});if(scalar.controlEl.querySelector('input').value!=='4')throw Error('Concurrent committed field did not refresh native peer');
-  input(scalar.controlEl.querySelector('input'),'5');await waitFor(()=>p.settings.baseLinkStyle.strokeWidth===5);stop();tab.disposeActionSettings();if(p.appearanceThemeListeners.size||window.migrationListeners)throw Error('Adopted row ownership leaked');return true;
+  input(scalar.controlEl.querySelector('input'),'5');await waitFor(()=>p.settings.baseLinkStyle.strokeWidth===5);stop();tab.disposeActionSettings();frame.remove();if(p.appearanceThemeListeners.size||window.migrationListeners)throw Error('Adopted row ownership leaked');return true;
  })()`),true);
 });
 
@@ -175,6 +178,23 @@ test("named-color deletion remaps only the active theme across base, semantic, C
   if(JSON.stringify(p.settings.appearanceThemes.themes.find(x=>x.id==='user'))!==JSON.stringify(inactive))throw Error('Inactive palette changed');
   const active=p.settings.appearanceThemes.themes.find(x=>x.id===p.settings.appearanceThemes.selectedId);if(active.appearance.base.backgroundColor.id!=='replacement'||active.appearance.semantic.colorPreferences.palette.length!==1)throw Error('Selected saved projection not synchronized');
   palette.retire();await p.updateAppearanceThemes({kind:'select',id:'user'});if(p.settings.backgroundColor.id!=='shared'||p.settings.colorPreferences.palette.length!==2||p.settings.graphLenses[0].style.node.textColor.id!=='shared'||p.settings.graphLenses[0].style.node.strokeWidth!==3||p.settings.graphLenses[0].enabled)throw Error('Theme-local palette/lens identity lost');tab.disposeActionSettings();return true;
+ })()`),true);
+});
+
+test("a queued native scalar save survives Settings removal without touching its retired slider or accepting later events", async () => {
+ assert.equal(await scenario(`(async()=>{
+  const p=await createAppearanceHost({baseNodeStyle:{gateRadius:5}}),tab=new sourceModules.KplexSettingTab({workspace:{on:()=>({}),offref:()=>{}}},p);
+  const row=new sourceModules.Setting(scope).setName('Gate radius');
+  const release=tab.bindThemeScalar({name:'Gate radius',control:{type:'slider',key:'baseNodeStyle.gateRadius',min:2,max:8,step:.5}}).render(row);
+  const slider=row.controlEl.querySelector('input'),descriptor=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');let touches=0;
+  Object.defineProperty(slider,'value',{get(){return descriptor.get.call(this)},set(value){touches++;descriptor.set.call(this,value)}});
+  const original=p.saveData;let finish,entered=false;p.saveData=async snapshot=>{entered=true;await new Promise(resolve=>{finish=resolve});return original.call(p,snapshot)};
+  input(slider,'8');await waitFor(()=>entered);row.settingEl.remove();const before=touches;finish();await p.settingsWriteQueue;await new Promise(resolve=>setTimeout(resolve,20));
+  if(p.settings.baseNodeStyle.gateRadius!==8||p.writes.at(-1).baseNodeStyle.gateRadius!==8)throw Error('Accepted save was canceled by Settings removal');
+  if(touches!==before)throw Error('Save completion touched the retired native slider');
+  p.saveData=original;const writes=p.writes.length;input(slider,'3');await new Promise(resolve=>setTimeout(resolve,20));
+  if(p.writes.length!==writes)throw Error('Detached native scalar accepted a new save');
+  release();tab.disposeActionSettings();return true;
  })()`),true);
 });
 

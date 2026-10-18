@@ -9,7 +9,7 @@ export const CENTER_COVERAGE = ["canonical", "local", "cached", "preview", "miss
 export type CenterCoverage = typeof CENTER_COVERAGE[number];
 export const CENTER_RECOVERY_OUTCOMES = ["checking", "healthy", "repainted", "repaired", "pending", "cancelled", "failed"] as const;
 export type CenterRecoveryDiagnostic = Readonly<{
-  trigger: "initial" | "source-ready";
+  trigger: "initial" | "local-ready" | "source-ready";
   outcome: typeof CENTER_RECOVERY_OUTCOMES[number];
   sourceReadyBefore: boolean;
   sourceReadyAfter: boolean;
@@ -37,7 +37,7 @@ export function sanitizeCenterRecoveryDiagnostic(value: unknown): CenterRecovery
       }
       return [next[0], next[1], next[2], next[3], next[4]];
     };
-    const trigger = ["initial", "source-ready"] as const;
+    const trigger = ["initial", "local-ready", "source-ready"] as const;
     const chosen = trigger.find(item => item === read("trigger")), outcome = CENTER_RECOVERY_OUTCOMES.find(item => item === read("outcome"));
     const coverageBefore = CENTER_COVERAGE.find(item => item === read("coverageBefore")), coverageAfter = CENTER_COVERAGE.find(item => item === read("coverageAfter"));
     const sourceReadyBefore = read("sourceReadyBefore"), sourceReadyAfter = read("sourceReadyAfter"), activeBefore = read("activeBefore");

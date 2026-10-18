@@ -4094,10 +4094,10 @@ export default class KplexPlugin extends Plugin {
     await this.app.workspace.revealLeaf(leaf);
   }
 
-  /** Create an independent Plex tab explicitly, without reusing an existing tab or startup surface preference. */
+  /** Create an adjacent Plex tab group, without reusing an existing tab or startup surface preference. */
   async createPlexTab(): Promise<void> {
     this.rememberDocumentLeaf(this.app.workspace.getMostRecentLeaf());
-    const leaf = this.app.workspace.getLeaf("tab");
+    const leaf = this.app.workspace.getLeaf("split");
     await leaf.setViewState({ type: KPLEX_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
   }
@@ -6178,13 +6178,18 @@ export default class KplexPlugin extends Plugin {
   /** Reuse one plugin-owned metadata queue for assignment and unlink, including actions from other windows. */
   private structuralDropOwner(): StructuralNodeDropActions {
     this.structuralDrops ??= new StructuralNodeDropActions(this.app, this.translator,
-      /** Reuse exact-file saved-metadata observation and plugin cancellation ownership. */ (file, fields, mutate) => this.mutateCreatedNodeMetadata(file, fields, mutate));
+      /** Reuse exact-file saved-metadata observation and plugin cancellation ownership. */ (file, fields, mutate) => this.mutateCreatedNodeMetadata(file, fields, mutate), () => this.settings.noteTypeField);
     return this.structuralDrops;
   }
 
   /** Handle explicit structural drops without changing ontology relationship semantics. */
-  openStructuralNodeDrop(origin: GraphPage, target: GraphPage): boolean {
-    return !this.unloading && this.structuralDropOwner().open(origin, target);
+  openStructuralNodeDrop(origin: GraphPage, target: GraphPage, options: {immediateMove?: boolean} = {}): boolean {
+    return !this.unloading && this.structuralDropOwner().open(origin, target, options);
+  }
+
+  /** Reuse the structural assignment dialog for an explicit connector conversion. */
+  changeTagAssignment(note: GraphPage, tag: GraphPage, toNoteType: boolean, current: () => boolean): boolean {
+    return !this.unloading && this.structuralDropOwner().assign(note, tag, toNoteType ? "note-type" : "tag", true, current);
   }
 
   /** Remove only YAML tag membership; body tags remain source evidence and are never rewritten here. */

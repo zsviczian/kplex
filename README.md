@@ -104,11 +104,15 @@ Navigating, editing, panning or using other controls pauses wandering. Select **
 
 The toolbar search box (**F4**) searches notes, folders, tags, attachments, Canvas files and indexed URLs. It matches display names, file names, aliases, paths and URL substrings using fuzzy matching. Exact and prefix matches rank above looser matches. Type **#** before a query to search tags only; result icons identify each kind of item. Centering a hierarchical tag shows its parent, child tags and associated notes, even when tags are hidden from ordinary note neighborhoods.
 
+Use the toolbar **+** or **New K-Plex tab** command to open another Plex in an adjacent tab group. Each view keeps its own central editor/normal-node choice and Markdown reading/editing mode, including when its workspace tab is restored.
+
 Drag a note, attachment, URL or placeholder node into a Markdown editor to insert its link, or into another K-Plex view to navigate or start a relationship. Tags are inserted as `#tag` text and can also be dragged between Plexes for navigation. Desktop node dragging uses Obsidian's native link handling; gates retain their connection gestures.
 
 History and pins show type icons and full tag paths. Drag a Markdown note onto a tag in either list to add that tag to the note's **tags** property.
 
-Drag a file or folder's gate onto a folder to move it there. K-Plex shows the source and destination for confirmation; Obsidian updates links according to your file settings. Dragging a folder's child gate onto empty space still creates a note inside that folder.
+Drag a file or folder's gate onto a folder to move it there. With a folder in the center, you can also drag its gate onto a file or attachment to bring that file into the folder. K-Plex shows the source and destination for confirmation; hold **Alt** (**Option** on macOS) while dragging to move immediately. Collision and folder-ancestry checks still apply, and Obsidian updates links according to your file settings. Dragging a folder's child gate onto empty space still creates a note inside that folder.
+
+Drag a tag's gate onto a Markdown note in the Plex, history or pins to assign it. You can also drop a tag from another Plex into a note's **Parents** area. Choose **Tag** or **Note Type** before saving. A note has one Note Type: when replacing it, choose whether to keep the current type or keep the new type, with the other remaining an ordinary tag. Right-click the tag connection to change between the two. Note Type tag links are twice as thick by default; customize them under **Visual styling → Link styling → Note Type tag links**.
 
 For a narrower Plex, open **Settings → K-Plex → Plex behavior → Simplified layout**, the first entry under **Layout & sizing**. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. Choose this separately for desktop, tablet and mobile, and for main tabs and side panels. Pop-outs use the main-tab choice for their device.
 

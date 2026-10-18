@@ -39,6 +39,9 @@ import { ColorAdoptionModal } from "./ui/ColorAdoptionModal";
 import { StyleColorControls, compassSwatchItem, type StyleColorContext } from "./ui/StyleColorControls";
 import { ColorPaletteModal } from "./ui/ColorPaletteModal";
 import { standardColorSlots, adoptStandardThemeColors, withoutStyleColorOverrides, mergeStyleDraft, requireNamedColor, STANDARD_NODE_COLOR_STYLES, STANDARD_LINK_COLOR_STYLES } from "./core/plex/colorEditing";
+import { NOTE_TYPE_TAG_LINK_STYLE } from "./core/graph/presentation";
+import { noteTypeTagDefaultStyle } from "./index/style";
+import { styleNumberSlider } from "./ui/styleNumberSlider";
 import {COMPASS_DIRECTIONS, SEMANTIC_COLOR_DEFAULTS} from "./core/plex/colorPreferences";
 import { ColorSourceModal } from "./ui/ColorSourceModal";
 import {
@@ -1075,25 +1078,18 @@ class NodeStyleModal extends StyleEditorModal {
     for (const colorField of NODE_COLOR_FIELDS) this.colors.add(form, this.translate(nodeColorLabel(colorField)), {kind: "node", field: colorField},
       () => colorDraft[colorField], value => { if (value === undefined) delete colorDraft[colorField]; else colorDraft[colorField] = value; }, () => context.nodeStyle()[colorField]);
 
-    const fontSize = form.createEl("input");
-    fontSize.type = "number";
-    fontSize.min = "8";
-    fontSize.max = "40";
-    fontSize.step = "1";
-    fontSize.value = String(this.initialStyle.fontSize ?? 18);
-    field(this.translate("styles.fontSize"), fontSize, this.translate("styles.fontSizeHelp"));
+    const fontSize = styleNumberSlider(form, this.translate, {label: this.translate("styles.fontSize"), initial: this.initialStyle.fontSize,
+      fallback: context.nodeStyle().fontSize ?? 18, min: 8, max: 40, step: 1, help: this.translate("styles.fontSizeHelp")});
 
-    /** Blank dimensions inherit; unchanged legacy values retain their exact supported record. */
+    /** Default restores inheritance; unchanged legacy dimensions retain their exact supported record. */
     const dimension = (key: "strokeWidth" | "gateRadius", label: PlainTranslationKey, min: number, max: number) => {
-      const input = form.createEl("input", {attr: {type: "number", min: String(min), max: String(max), step: "0.5"}});
-      const opening = this.initialStyle[key] === undefined ? "" : String(this.initialStyle[key]);
-      input.value = opening;
-      input.placeholder = String(context.nodeStyle()[key] ?? DEFAULT_NODE_STYLE[key]);
-      field(this.translate(label), input, this.translate("styles.sizeInheritance"));
-      return {input, opening, apply: (style: NodeStyle): void => {
-        if (input.value === opening) return;
-        if (!input.value.trim()) delete style[key];
-        else style[key] = Number(input.value);
+      const control = styleNumberSlider(form, this.translate, {label: this.translate(label), initial: this.initialStyle[key],
+        fallback: context.nodeStyle()[key] ?? DEFAULT_NODE_STYLE[key]!, min, max, step: 0.5, help: this.translate("styles.sizeInheritance")});
+      return {apply: (style: NodeStyle): void => {
+        const value = control.read();
+        if (value === this.initialStyle[key]) return;
+        if (value === undefined) delete style[key];
+        else style[key] = value;
       }};
     };
     const borderWidth = dimension("strokeWidth", "filter.borderWidth", 0, 8);
@@ -1122,11 +1118,10 @@ class NodeStyleModal extends StyleEditorModal {
       }
       // Saving appearance alone must not rewrite legacy key spelling or its matching position.
       const name = kind === "tag" && this.initialName !== null && nameInput.value === this.initialName ? this.initialName : normalized;
-      for (const {input, opening} of [borderWidth, gateRadius]) if (input.value !== opening && !input.reportValidity()) return;
       const style: NodeStyle = {
         ...colorDraft,
         icon: iconInput.value.trim() || undefined,
-        fontSize: fontSize.value === String(this.initialStyle.fontSize ?? 18) ? this.initialStyle.fontSize : Math.max(8, Math.min(40, Number(fontSize.value) || 18)),
+        fontSize: fontSize.read(),
         // Keep an absent label prefix inherited unless the user changes the input.
         ...(kind === "tag" && prefixInput.value !== (this.initialStyle.prefix ?? "") ? { prefix: prefixInput.value } : {}),
       };
@@ -1159,6 +1154,7 @@ class OntologyLinkStyleModal extends StyleEditorModal {
     private onReset: (isCurrent: () => boolean) => Promise<StyleCommitResult>,
     private colorContext?: StyleColorContext,
     private onClosed?: () => void,
+    private structuralTag = false,
   ) {
     super(app);
   }
@@ -1170,7 +1166,7 @@ class OntologyLinkStyleModal extends StyleEditorModal {
     this.modalEl.addClass("kplex-style-editor-modal");
     this.contentEl.addClass("kplex-style-editor");
     this.contentEl.createEl("p", {
-      text: this.translate("styles.linkEditorHelp"),
+      text: this.translate(this.structuralTag ? "tagAssignment.linkStyleHelp" : "styles.linkEditorHelp"),
     });
 
     const effective = { ...this.baseStyle, ...this.initialStyle };
@@ -1188,13 +1184,8 @@ class OntologyLinkStyleModal extends StyleEditorModal {
     for (const colorField of LINK_COLOR_FIELDS) this.colors.add(form, this.translate(linkColorLabel(colorField)), {kind: "link", field: colorField},
       () => colorDraft[colorField], value => { if (value === undefined) delete colorDraft[colorField]; else colorDraft[colorField] = value; }, () => context.linkStyle()[colorField]);
 
-    const strokeWidth = form.createEl("input");
-    strokeWidth.type = "number";
-    strokeWidth.min = "0.5";
-    strokeWidth.max = "8";
-    strokeWidth.step = "0.5";
-    strokeWidth.value = String(effective.strokeWidth ?? 1);
-    field(this.translate("styles.lineWidth"), strokeWidth);
+    const strokeWidth = styleNumberSlider(form, this.translate, {label: this.translate("styles.lineWidth"), initial: this.initialStyle.strokeWidth,
+      fallback: this.baseStyle.strokeWidth ?? 1, min: 0.5, max: 8, step: 0.5});
 
     const strokeStyle = form.createEl("select");
     for (const [value, label] of Object.entries({ solid: this.translate("styles.solid"), dashed: this.translate("styles.dashed"), dotted: this.translate("styles.dotted") })) {
@@ -1221,16 +1212,10 @@ class OntologyLinkStyleModal extends StyleEditorModal {
     showLabel.checked = effective.showLabel ?? false;
     field(this.translate("styles.showOntologyLabel"), showLabel);
 
-    const fontSize = form.createEl("input");
-    fontSize.type = "number";
-    fontSize.min = "7";
-    fontSize.max = "24";
-    fontSize.step = "1";
-    fontSize.value = String(effective.fontSize ?? 10);
-    field(this.translate("styles.labelSize"), fontSize);
+    const fontSize = styleNumberSlider(form, this.translate, {label: this.translate("styles.labelSize"), initial: this.initialStyle.fontSize,
+      fallback: this.baseStyle.fontSize ?? 10, min: 7, max: 24, step: 1});
 
-    const openingControls = {width: strokeWidth.value, stroke: strokeStyle.value, start: startArrow.value, end: endArrow.value,
-      label: showLabel.checked, font: fontSize.value};
+    const openingControls = {stroke: strokeStyle.value, start: startArrow.value, end: endArrow.value, label: showLabel.checked};
 
     const actions = this.contentEl.createDiv({ cls: "kplex-style-actions" });
     const reset = actions.createEl("button", { cls: "mod-warning", text: this.translate("styles.reset") });
@@ -1246,12 +1231,12 @@ class OntologyLinkStyleModal extends StyleEditorModal {
     save.addEventListener("click", /** Capture one appearance override for the durable style owner. */ () => {
       const style: LinkStyle = {
         ...colorDraft,
-        strokeWidth: strokeWidth.value === openingControls.width ? this.initialStyle.strokeWidth : Math.max(0.5, Math.min(8, Number(strokeWidth.value) || 1)),
+        strokeWidth: strokeWidth.read(),
         strokeStyle: strokeStyle.value === openingControls.stroke ? this.initialStyle.strokeStyle : strokeStyle.value === "dashed" || strokeStyle.value === "dotted" ? strokeStyle.value : "solid",
         startArrowHead: startArrow.value === openingControls.start ? this.initialStyle.startArrowHead : startArrow.value as Arrowhead,
         endArrowHead: endArrow.value === openingControls.end ? this.initialStyle.endArrowHead : endArrow.value as Arrowhead,
         showLabel: showLabel.checked === openingControls.label ? this.initialStyle.showLabel : showLabel.checked,
-        fontSize: fontSize.value === openingControls.font ? this.initialStyle.fontSize : Math.max(7, Math.min(24, Number(fontSize.value) || 10)),
+        fontSize: fontSize.read(),
       };
       this.runOperation(/** Keep completion bound to this exact native form. */ isCurrent => this.onSave(style, isCurrent));
     });
@@ -1297,7 +1282,7 @@ class OntologyLinkStylesManagerModal extends StyleEditorModal {
     this.modalEl.addClass("kplex-style-manager-modal");
     this.contentEl.addClass("kplex-style-manager");
     this.contentEl.createEl("p", {
-      text: this.translate("styles.relationshipHelp"),
+      text: this.translate("styles.relationshipHelp", {scope: this.translate("styles.allRelationshipFields")}),
     });
 
     this.manager = new StyleManagerList(this.contentEl, this.translate,
@@ -2095,6 +2080,7 @@ export class KplexSettingTab extends PluginSettingTab {
     const link = key.endsWith("LinkStyle") || key === "hierarchyLinkStyles" || parts.at(-2) === "edge";
     const label = t(link ? linkColorLabel(field as typeof LINK_COLOR_FIELDS[number]) : nodeColorLabel(field as typeof NODE_COLOR_FIELDS[number]));
     if (key === "lens") return t("themes.lensColor", {name: settings.graphLenses.find(/** Stable lens IDs never become matching expressions or recreated definitions. */ lens => lens.id === parts[1])?.name ?? parts[1], field: label});
+    if (key === "hierarchyLinkStyles" && name === NOTE_TYPE_TAG_LINK_STYLE) return `${t("tagAssignment.linkStyle")} · ${label}`;
     if (key === "noteTypeStyles" || key === "tagNodeStyles" || key === "hierarchyLinkStyles") return `${name} · ${label}`;
     return `${t(`colors.standard.${key as typeof STANDARD_NODE_COLOR_STYLES[number] | typeof STANDARD_LINK_COLOR_STYLES[number]}`)} · ${label}`;
   }
@@ -2241,6 +2227,7 @@ export class KplexSettingTab extends PluginSettingTab {
     }
     // Imported overrides may outlive their ontology assignment; keep them inspectable/editable.
     for (const name of Object.keys(this.kplexPlugin.settings.hierarchyLinkStyles)) {
+      if (name === NOTE_TYPE_TAG_LINK_STYLE) continue;
       const key = normalizeOntologyStyleKey(name);
       if (key && !fields.has(key)) fields.set(key, { name, roles: [] });
     }
@@ -2260,9 +2247,9 @@ export class KplexSettingTab extends PluginSettingTab {
     const style = structuredClone(this.ontologyLinkStyle(fieldName) ?? {});
     const dialog = new OntologyLinkStyleModal(
       this.app,
-      fieldName,
+      fieldName === NOTE_TYPE_TAG_LINK_STYLE ? this.kplexPlugin.translator("tagAssignment.linkStyle") : fieldName,
       style,
-      this.kplexPlugin.settings.baseLinkStyle,
+      fieldName === NOTE_TYPE_TAG_LINK_STYLE ? noteTypeTagDefaultStyle(this.kplexPlugin.settings) : this.kplexPlugin.settings.baseLinkStyle,
       async (nextStyle, isCurrent) => this.commitStyleChange(/** Preserve other ontology overrides while committing this normalized key. */ draft => {
         // Normalize keys on write so aliases/casing in the ontology definition do not create
         // duplicate style entries for the same semantic property.
@@ -2270,6 +2257,7 @@ export class KplexSettingTab extends PluginSettingTab {
         if (openingExists && !current) throw new Error("Edited style no longer exists");
         const latest = current ?? {};
         const merged = mergeStyleDraft(style, nextStyle, latest, LINK_COLOR_FIELDS);
+        if (!current && Object.values(merged).every(value => value === undefined)) return;
         for (const field of LINK_COLOR_FIELDS) if (!colorValuesEqual(style[field], merged[field])) requireNamedColor(merged[field], draft.colorPreferences);
         delete draft.hierarchyLinkStyles[fieldName];
         draft.hierarchyLinkStyles[key] = merged;
@@ -2278,7 +2266,9 @@ export class KplexSettingTab extends PluginSettingTab {
         delete draft.hierarchyLinkStyles[fieldName];
         delete draft.hierarchyLinkStyles[key];
       }, isCurrent, owner, afterChange),
-      this.styleColorContext(owner), () => this.colorDialogs.delete(dialog),
+      fieldName === NOTE_TYPE_TAG_LINK_STYLE
+        ? {...this.styleColorContext(owner), linkStyle: () => noteTypeTagDefaultStyle(this.kplexPlugin.settings)}
+        : this.styleColorContext(owner), () => this.colorDialogs.delete(dialog), fieldName === NOTE_TYPE_TAG_LINK_STYLE,
     );
     this.colorDialogs.add(dialog); dialog.open();
   }
@@ -2605,6 +2595,7 @@ export class KplexSettingTab extends PluginSettingTab {
                   this.colorAction(translate("settings.ui.relationship.label.color"), () => this.standardSwatchItems("baseLinkStyle").filter(item => item.id === "textColor"), () => this.openStandardColor("baseLinkStyle", "textColor")),
                   { name: translate("settings.ui.relationship.label.size"), control: { type: "slider", key: "baseLinkStyle.fontSize", min: 7, max: 24, step: 1 } },
                   { name: translate("settings.ui.cross.link.opacity"), desc: translate("settings.ui.opacity.of.extra.links.between.visible.non.central.nodes"), control: { type: "slider", key: "crossLinkOpacity", min: 0, max: 100, step: 5 } },
+                  {name: translate("tagAssignment.linkStyle"), desc: translate("tagAssignment.linkStyleHelp"), action: () => this.openOntologyLinkStyleEditor(NOTE_TYPE_TAG_LINK_STYLE)},
                   {
                     name: translate("settings.ui.relationship.specific.styles"),
                     desc: customOntologyStyleCount
@@ -2768,29 +2759,33 @@ export class KplexSettingTab extends PluginSettingTab {
           for (const input of Array.from(setting.controlEl.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input,select"))) input.disabled = true;
           setting.clear(); owner = this.kplexPlugin.captureAppearanceOwner();
           const opening = owner, mount = ++generation, state = {pending: 0, refresh: (): void => {}}; mounted = state;
+          const document = setting.settingEl.ownerDocument;
+          /** An accepted write may outlive Settings. Never touch a retired/adopted window's native control. */
+          const currentControl = (): boolean => active && mount === generation && setting.settingEl.isConnected
+            && setting.settingEl.ownerDocument === document && !!document.defaultView && !document.defaultView.closed;
           const disabled = !!this.kplexPlugin.settings.appearanceThemesFuture || !!this.kplexPlugin.settings.colorPreferencesFuture
             || (typeof control.disabled === "function" ? control.disabled() : !!control.disabled);
           /** Capture at mount, never infer ownership from the selected theme when a delayed native event arrives. */
           const change = async (value: string | number | boolean): Promise<void> => {
-            if (!active || mount !== generation || disabled || !this.kplexPlugin.isAppearanceOwnerCurrent(opening)) return;
+            if (!currentControl() || disabled || !this.kplexPlugin.isAppearanceOwnerCurrent(opening)) return;
             state.pending++;
             try {await this.setControlValue(control.key, value, opening);}
             catch (error) {console.error("K-Plex appearance control was not saved", error); new Notice(this.kplexPlugin.translator("styles.operation.notSaved"));}
-            finally {state.pending--; if (active && mounted === state && !state.pending) state.refresh();}
+            finally {state.pending--; if (currentControl() && mounted === state && !state.pending) state.refresh();}
           };
           const value = this.getControlValue(control.key) ?? control.defaultValue;
           if (control.type === "slider") setting.addSlider(/** Retain native bounds, tooltip and keyboard gestures. */ slider => {
             slider.setLimits(control.min, control.max, control.step).setValue(Number(value)).setDynamicTooltip().setDisabled(disabled).onChange(change);
             slider.sliderEl.setAttribute("aria-label", item.name);
-            state.refresh = /** Same-activation edits update peers without replacing a live slider or emitting another change. */ () => {slider.setValue(Number(this.getControlValue(control.key) ?? control.defaultValue));};
+            state.refresh = /** Same-activation edits update peers without replacing a live slider or emitting another change. */ () => {if (currentControl()) slider.setValue(Number(this.getControlValue(control.key) ?? control.defaultValue));};
           });
           else if (control.type === "toggle") setting.addToggle(/** Initial seeding never submits a save. */ toggle => {
             toggle.setValue(Boolean(value)).setDisabled(disabled).onChange(change); toggle.toggleEl.setAttribute("aria-label", item.name);
-            state.refresh = /** Restore the committed value after another surface or a failed immediate save. */ () => {toggle.setValue(Boolean(this.getControlValue(control.key) ?? control.defaultValue));};
+            state.refresh = /** Restore the committed value after another surface or a failed immediate save. */ () => {if (currentControl()) toggle.setValue(Boolean(this.getControlValue(control.key) ?? control.defaultValue));};
           });
           else setting.addDropdown(/** Reuse the original finite choices and native select. */ dropdown => {
             dropdown.addOptions(control.options).setValue(typeof value === "string" ? value : "").setDisabled(disabled).onChange(change); dropdown.selectEl.setAttribute("aria-label", item.name);
-            state.refresh = /** Preserve native choices while reflecting the current committed field. */ () => {const value = this.getControlValue(control.key) ?? control.defaultValue; dropdown.setValue(typeof value === "string" ? value : "");};
+            state.refresh = /** Preserve native choices while reflecting the current committed field. */ () => {if (currentControl()) {const value = this.getControlValue(control.key) ?? control.defaultValue; dropdown.setValue(typeof value === "string" ? value : "");}};
           });
         };
         mount();

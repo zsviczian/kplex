@@ -69,11 +69,31 @@ export async function acceptSimplifiedLayout({app,p,c,check,wait,until,frames,ro
   }finally{plus.removeEventListener('click',observePlus)}
   check(trustedPlus,'Toolbar new-tab input was not trusted');
   const extra=app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>!originalTabs.has(leaf));owned.push(extra);c.leaves.push(extra);await extra.view.waitUntilReady();
+  check(extra.parent!==c.leaf.parent,'Toolbar opened the new Plex in the same tab group');
   const afterToolbar=new Set(app.workspace.getLeavesOfType('k-plex-react-view'));
   check(app.commands.executeCommandById('k-plex:kplex-new-tab'),'Published new Plex tab command absent');
   await until(()=>app.workspace.getLeavesOfType('k-plex-react-view').some(leaf=>!afterToolbar.has(leaf)),'Command reused an existing Plex tab');
   const commandTab=app.workspace.getLeavesOfType('k-plex-react-view').find(leaf=>!afterToolbar.has(leaf));owned.push(commandTab);c.leaves.push(commandTab);await commandTab.view.waitUntilReady();
+  check(commandTab.parent!==extra.parent,'Command opened the new Plex in the same tab group');
   check([...originalTabs].every(leaf=>leaf.view.containerEl.isConnected),'Opening another Plex replaced an existing tab');
+  /** Actual editor/node and Markdown mode controls must retain leaf-local native workspace state. */
+  const editor=leaf=>leaf.view.contentEl.querySelector('.kplex-central-editor-content');
+  const normal=async leaf=>{await navigate('Center',leaf);const collapse=leaf.view.contentEl.querySelector('button[aria-label="'+p.translator('app.useNormalCentralNode')+'"]');if(collapse){collapse.click();await until(()=>!editor(leaf),'Normal node did not return')}};
+  await normal(extra);await normal(commandTab);
+  const show=async leaf=>{const button=leaf.view.contentEl.querySelector('button[aria-label="'+p.translator('app.useCentralNodeEditor')+'"]');check(button,'Center editor action absent');button.click();await until(()=>editor(leaf),'Editor did not open')};
+  const globals=JSON.stringify([p.settings.embedCentralNode,p.settings.centralNodeMarkdownMode]);
+  await show(extra);check(!editor(commandTab),'Opening one center editor changed another Plex');await show(commandTab);
+  const sourceMode=async leaf=>{await until(()=>leaf.view.contentEl.querySelector('button[aria-label="'+p.translator('centralEditor.showPreview')+'"],button[aria-label="'+p.translator('centralEditor.showEditor')+'"]'),'Markdown mode control absent');const edit=leaf.view.contentEl.querySelector('button[aria-label="'+p.translator('centralEditor.showEditor')+'"]');if(edit)edit.click();await until(()=>leaf.view.getState().centerPresentation.centralNodeMarkdownMode==='source','Source mode not retained')};
+  await sourceMode(extra);await sourceMode(commandTab);
+  extra.view.contentEl.querySelector('button[aria-label="'+p.translator('centralEditor.showPreview')+'"]').click();
+  await until(()=>extra.view.getState().centerPresentation.centralNodeMarkdownMode==='preview','Reading mode not saved in leaf');
+  check(commandTab.view.getState().centerPresentation.centralNodeMarkdownMode==='source','Markdown mode leaked to another Plex');
+  await normal(extra);check(editor(commandTab),'Returning one Plex to node view closed another editor');
+  check(JSON.stringify([p.settings.embedCentralNode,p.settings.centralNodeMarkdownMode])===globals,'View toggle mutated plugin defaults');
+  const saved=structuredClone(commandTab.getViewState());check(saved.type==='k-plex-react-view','Native leaf saved the wrong view type');commandTab.detach();
+  const restored=app.workspace.getLeaf('split');owned.push(restored);c.leaves.push(restored);await restored.setViewState({...saved,active:true});await app.workspace.revealLeaf(restored);await restored.loadIfDeferred();await restored.view.waitUntilReady();await navigate('Center',restored);
+  await until(()=>editor(restored),'Native leaf restore lost its center editor');check(!editor(extra),'Restoring an editor changed another Plex');restored.detach();
+  c.cases.push({id:'independent-center-representations',status:'passed',actualControls:true,nodeAndEditorIsolation:true,markdownModeIsolation:true,nativeLeafRestore:true,globalDefaultsPreserved:true});
   extra.detach();commandTab.detach();await navigate('Center');native(c.leaf);await frames();
   check(!c.leaf.view.contentEl.querySelector('button .lucide-spline'),'Curved connectors still occupy the toolbar');
   c.cases.push({id:'new-plex-tabs',status:'passed',trustedToolbar:true,publishedCommand:true,independentTabs:true,curvedToolbarRemoved:true});

@@ -37,7 +37,8 @@ function productionFunction(path, name, dependencies) {
   return Function(...Object.keys(dependencies), `${output}\nreturn selected;`)(...Object.values(dependencies));
 }
 
-const structuralDropKind = productionFunction("src/ui/StructuralNodeDropActions.ts", "structuralDropKind", {});
+const tagMembershipPair = productionFunction("src/ui/structuralConnectionActions.ts", "tagMembershipPair", {});
+const structuralDropKind = productionFunction("src/ui/StructuralNodeDropActions.ts", "structuralDropKind", {tagMembershipPair});
 
 /** Minimal Markdown-backed graph page retaining exact endpoint paths and canonical identity. */
 function page(path) { return { path, file: { path, extension: "md" }, neighbours: new Map() }; }

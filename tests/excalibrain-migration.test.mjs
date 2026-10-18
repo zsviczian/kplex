@@ -48,6 +48,7 @@ await build({
         createDiv(options) { return this.createEl("div", options); }
         createSpan(options) { return this.createEl("span", options); }
         appendChild(child) { if (child.parent) child.parent.children = child.parent.children.filter(item => item !== child); this.children.push(child); child.parent = this; }
+        append(...children) { for (const child of children) this.appendChild(child); }
         prepend(child) { this.appendChild(child); this.children = [child, ...this.children.filter(item => item !== child)]; }
         setText(text) { this.text = text; }
         get tagName() { return this.tag.toUpperCase(); }
@@ -72,7 +73,19 @@ await build({
       export class SuggestModal extends Modal {}
       export class Notice { static messages = []; constructor(message) { Notice.messages.push(message); } }
       export class Setting {
-        constructor(container) { this.container = container; }
+        constructor(container) { this.container = container; this.settingEl = container.createDiv(); this.nameEl = this.settingEl.createDiv(); this.descEl = this.settingEl.createDiv(); this.controlEl = this.settingEl.createDiv(); }
+        setName(value) { this.nameEl.setText(value); return this; }
+        setDesc(value) { this.descEl.setText(value); return this; }
+        addSlider(create) {
+          const input = this.controlEl.createEl("input", {attr: {type: "range"}});
+          const api = {sliderEl: input, setLimits(min, max, step) {Object.assign(input, {min, max, step}); return api;}, setInstant() {return api;}, setValue(value) {input.value = String(value); return api;}, onChange(run) {input.addEventListener("input", () => run(Number(input.value))); return api;}};
+          create(api); return this;
+        }
+        addExtraButton(create) {
+          const input = this.controlEl.createEl("button");
+          const api = {extraSettingsEl: input, setIcon() {return api;}, setTooltip(value) {input.setAttribute("aria-label", value); return api;}, setDisabled(value) {input.disabled = value; return api;}, onClick(run) {input.addEventListener("click", run); return api;}};
+          create(api); return this;
+        }
         addButton(cb) {
           const button = { setButtonText(text) { this.text = text; return this; }, setDestructive() { return this; }, setDisabled(value) { this.disabled = value; return this; }, onClick(cb) { this.activate = cb; return this; } };
           this.container.buttons.push(button); cb(button); return this;
@@ -670,7 +683,8 @@ test("new node style explicitly selects a tag prefix and preserves the appearanc
   assert.deepEqual(select.children.map(option => [option.value, option.text]), [["property", "Note type"], ["tag", "Tag"]]);
   assert.equal(select.disabled, false);
   const name = byLabel("Note type"), icon = byLabel("Lucide icon"), prefix = byLabel("Label prefix");
-  icon.value = "briefcase"; assert.equal(byLabel("Background").tag, "button"); byLabel("Font size").value = "23";
+  icon.value = "briefcase"; assert.equal(byLabel("Background").tag, "button");
+  byLabel("Font size").value = "23"; await activate(byLabel("Font size"), "input");
   assert.equal(prefix.parent.visible, false);
   name.value = "project/active";
   select.value = "tag"; await activate(select, "change");
@@ -713,6 +727,13 @@ test("style editor controls expose visible linked descriptions and type switches
   const { tab, settings } = styleEditorFixture();
   const modal = openStyle(tab, "property"); const elements = formElements(modal);
   for (const control of elements.filter(element => ["input", "select"].includes(element.tag))) {
+    if (control.type === "range") {
+      assert(control.attrs["aria-label"]?.trim(), "Native dimension sliders need accessible names");
+      assert(control.attrs["aria-valuetext"]?.trim(), "Native dimension sliders expose their visible value");
+      assert(control.parent.children.some(element => element.tag === "output" && element.text.trim()));
+      assert.equal(control.attrs.title, undefined);
+      continue;
+    }
     const description = elements.find(element => element.attrs.id === control.attrs["aria-describedby"]);
     assert(description?.text.trim(), `${control.attrs["aria-label"]} needs a visible accessible description`);
     assert(elements.some(element => element.tag === "label" && element.attrs.for === control.attrs.id));

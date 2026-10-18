@@ -41,6 +41,7 @@ import { ActionMenuModal } from "./ActionMenuModal";
 import { KeyboardHelpModal } from "./KeyboardHelpModal";
 import { ActionTargetPicker, type ActionPickerItem } from "./ActionTargetPicker";
 import { usePlexActions, type GraphActionPorts, type SurfaceActionImplementations } from "./usePlexActions";
+import { centerViewSettings } from "./KplexCenterPresentation";
 import type { Translator } from "../lang";
 import { WanderController } from "../application/WanderController";
 import { WanderControls } from "./features/WanderControls";
@@ -202,7 +203,7 @@ function ToolButton({ icon, title, on, disabled, onClick }: {
 }
 
 /** Compose the native toolbar, filters and scene; shared visibility preferences persist through plugin-owned host effects. */
-export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady, displayModes }: {
+export function KplexApp({ plugin, surface, hostLeaf, translate, environment, onReady, displayModes, centerPresentation }: {
   plugin: KplexPlugin;
   surface: KplexViewSurface;
   hostLeaf: WorkspaceLeaf;
@@ -210,9 +211,11 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
   environment: PresentationEnvironment;
   onReady?: () => void;
   displayModes: KplexDisplayModes;
+  centerPresentation: import("./KplexCenterPresentation").KplexCenterPresentation;
 }) {
   const canvasNameId = useId();
   const displayState = useSyncExternalStore(displayModes.subscribe, displayModes.getSnapshot);
+  const centerMode = useSyncExternalStore(centerPresentation.subscribe, centerPresentation.getSnapshot);
   const rootRef = useRef<HTMLDivElement>(null);
   const syncMenuButtonRef = useRef<HTMLButtonElement>(null);
   const sidecarMoveButtonRef = useRef<HTMLButtonElement>(null);
@@ -749,23 +752,14 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     forceRender((value) => value + 1);
   };
 
-  /** Switch the center presentation immediately; persistence must not delay the node transition. */
+  /** Change only this native leaf; workspace state survives migration/restart without changing other views. */
   const setCentralNodeEditorEnabled = (enabled: boolean): void => {
-    if (plugin.settings.embedCentralNode === enabled) return;
-    plugin.settings.embedCentralNode = enabled;
-    forceRender((value) => value + 1);
-    void plugin.saveSettings(false, false).catch((error: unknown) => {
-      console.error("K-Plex failed to save the central-node editor preference.", error);
-    });
+    centerPresentation.update({embedCentralNode: enabled});
   };
 
   /** Remember the mode selected in the embedded center so the next center opens the same way. */
   const rememberCentralNodeMarkdownMode = (mode: SidecarMarkdownMode): void => {
-    if (plugin.settings.centralNodeMarkdownMode === mode) return;
-    plugin.settings.centralNodeMarkdownMode = mode;
-    void plugin.saveSettings(false, false).catch((error: unknown) => {
-      console.error("K-Plex failed to save the central-node Markdown mode.", error);
-    });
+    centerPresentation.update({centralNodeMarkdownMode: mode});
   };
 
   const setNodeSortOrder = async (order: NodeSortOrder) => {
@@ -888,14 +882,14 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
   /** Accept current native files and exact Plex URL/tag/placeholder links without source acquisition. */
   const handlePlexDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
-    const target = draggedGraphPage(plugin.app, plugin.index);
-    if (!target && (nodeLinkDragSource(plugin.app) || !getDraggedFile(plugin.app))) return;
+    const target = draggedGraphPage(plugin.app, plugin.index, event);
+    if (!target && (nodeLinkDragSource(plugin.app) || !getDraggedFile(plugin.app)) && !event.dataTransfer.types.includes("text/plain")) return;
     event.preventDefault();
   };
 
   /** Re-center on an existing dropped endpoint; only native files may wait for partial indexing. */
   const handlePlexDrop = (event: ReactDragEvent<HTMLDivElement>) => {
-    const target = draggedGraphPage(plugin.app, plugin.index);
+    const target = draggedGraphPage(plugin.app, plugin.index, event);
     const file = getDraggedFile(plugin.app);
     if (!target && (nodeLinkDragSource(plugin.app) || !file)) return;
     event.preventDefault();
@@ -1022,7 +1016,7 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     "view.depth.toggle": uiAction(/** Reuse the established projection depth setting. */ () => toggleExpandedView()),
     "view.connectors.toggle": uiAction(/** Camera and connector appearance remain presentation-only. */ () => toggleConnectorStyle()),
     "view.areas.toggle": uiAction(/** Area editing mode remains transient and surface-local. */ () => setAreaSettingsMode(value => !value)),
-    "view.center-editor.toggle": uiAction(/** Existing embedded editor capability and cleanup remain graph-owned. */ () => setCentralNodeEditorEnabled(!plugin.settings.embedCentralNode)),
+    "view.center-editor.toggle": uiAction(/** Existing embedded editor capability and cleanup remain graph-owned. */ () => setCentralNodeEditorEnabled(!centerMode.embedCentralNode)),
     "view.sync.choose": uiAction(/** Open the same keyboard-accessible native sync menu. */ () => showDocumentSyncMenu()),
     "view.sidecar.toggle": uiAction(/** Toggle only the managed companion for this owning leaf. */ () => page ? plugin.toggleSidecar(hostLeaf, page) : undefined, () => surface !== "sidepanel" && Boolean(page)),
     "view.sidecar.attach-from-center": uiAction(/** Reuse the eligible adjacent pane and populate it from this center. */ () => plugin.attachAdjacentSidecar(hostLeaf, "to-leaf", page),
@@ -1085,8 +1079,10 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
         : "panel-right-open";
   const condensedBySidecar = sidecarAvailable && sidecarOpen && hostWidth > 0 && hostWidth <= plugin.settings.sidecarCondensedBreakpoint;
   const profileSurface: KplexViewSurface = condensedBySidecar ? "sidepanel" : surface;
-  const viewSettings = useMemo(/** Display-mode-only renders retain the current scene settings identity; real settings/index changes still refresh it. */ () => plugin.getViewSettings(profileSurface), [plugin, profileSurface, renderRevision]);
-  const paintSettings = useMemo(/** Color publication keeps the scene's settings identity and geometry stable. */ () => plugin.getViewSettings(profileSurface), [plugin, profileSurface, renderRevision, paintRevision]);
+  const baseViewSettings = useMemo(/** Retain the existing profile's identity across non-settings publications. */ () => plugin.getViewSettings(profileSurface), [plugin, profileSurface, renderRevision]);
+  const basePaintSettings = useMemo(/** Only paint publication refreshes color-only inputs. */ () => plugin.getViewSettings(profileSurface), [plugin, profileSurface, renderRevision, paintRevision]);
+  const viewSettings = useMemo(/** Local center mode changes layout only in its own leaf. */ () => centerViewSettings(baseViewSettings, centerMode), [baseViewSettings, centerMode]);
+  const paintSettings = useMemo(/** Preserve inherited profile fields and paint-only ownership. */ () => centerViewSettings(basePaintSettings, centerMode), [basePaintSettings, centerMode]);
   const paintLenses = useMemo(/** Reuse compiled predicates while replacing only their already-sanitized style payloads. */ () => {
     const styles = new Map(plugin.settings.graphLenses.map(lens => [lens.id, lens.style]));
     return {...compiledGraphLenses, lenses: compiledGraphLenses.lenses.map(lens => ({...lens, style: styles.get(lens.id)}))};

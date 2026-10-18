@@ -1492,7 +1492,7 @@ function uiDefinitions(path, names) {
 
 /** Native-free real DOM checks for history targeting/cancellation and the center's shared menu button. */
 function editorHistoryBrowserEntry(){
-  const history=uiDefinitions("src/ui/StructuralNodeDropActions.ts",["structuralDropKind"])+uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
+  const history=uiDefinitions("src/ui/structuralConnectionActions.ts",["tagMembershipPair"])+uiDefinitions("src/ui/StructuralNodeDropActions.ts",["structuralDropKind"])+uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
   const editor=uiDefinitions("src/ui/CentralNodeEditor.tsx",["CentralNodeEditor"]);
   return `
 import {canDragNodeLink} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
@@ -1574,7 +1574,7 @@ try{
 
 /** Exercise production fixed-target routing with real DOM hit tests and the actual host file-drag adapter. */
 function externalAndPinnedDropBrowserEntry() {
-  const callbacks = uiDefinitions("src/ui/StructuralNodeDropActions.ts",["structuralDropKind"])+uiDefinitions("src/ui/PlexGraph.tsx", ["normalizedRole", "semanticRoleForGate", "toWorld", "isAreaControlTarget", "isEmptyAreaTarget", "areaHoverAt",
+  const callbacks = uiDefinitions("src/ui/structuralConnectionActions.ts",["tagMembershipPair"])+uiDefinitions("src/ui/StructuralNodeDropActions.ts",["structuralDropKind", "structuralAreaDrop"])+uiDefinitions("src/ui/PlexGraph.tsx", ["normalizedRole", "semanticRoleForGate", "toWorld", "isAreaControlTarget", "isEmptyAreaTarget", "areaHoverAt",
     "relationshipDropRoles", "historyRelationshipTarget", "clearHistoryDragHover", "updateHistoryDragHover", "openHistoryRelationshipMenu",
     "externalFileDropTarget", "dragExternalFileOver", "leaveExternalFile", "dropExternalFile", "semanticRoleForPosition", "nodeDropRole", "commitNodeAreaDrop", "relationshipDropArea", "up"]);
   return `
@@ -2253,13 +2253,14 @@ import React, {useMemo,useEffect,useState} from 'react';
 import {flushSync} from 'react-dom';import {createRoot} from 'react-dom/client';
 import {buildScene as realBuildScene} from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
 import {currentNodeColorStyle,nodePaint,nodePaintFallbacks} from ${JSON.stringify(join(root,'src/index/style.ts'))};
+import {centerViewSettings} from ${JSON.stringify(join(root,'src/ui/KplexCenterPresentation.ts'))};
 const result=document.querySelector('#result'),check=(condition,message)=>{if(!condition)throw Error(message)};
 const counters={layout:0,images:0,mounts:0};const buildScene=(...args)=>{counters.layout++;return realBuildScene(...args)};
 const page=path=>({path,name:path,file:{extension:'md'},aliases:[],tags:[],styleTags:[],neighbours:new Map()});
 const index={titleFor:p=>p.name,neighbourCount:()=>0,gateStats:()=>({}),neighbours:()=>[],visibleRelationshipsWithin:()=>[]};
 const layoutNeighborhood={center:page('Center.md'),parents:[],children:[{page:page('Child.md'),relationType:1}],leftFriends:[],rightFriends:[],siblings:[]};
 const layoutSectionExpansion=null,expandedSectionIds=new Set(),layoutRevision=0,showCrossLinks=false,globalFiltering=false,centralEditorSize=undefined;
-const profileSurface='tab',compiledGraphLenses={lenses:[],errors:[],usesFrontmatter:false};
+const profileSurface='tab',compiledGraphLenses={lenses:[],errors:[],usesFrontmatter:false},centerMode={embedCentralNode:false,centralNodeMarkdownMode:'source'};
 const plugin={settings:{baseNodeStyle:{fontSize:18,textColor:'#abcdef'},centralNodeStyle:{fontSize:30},baseLinkStyle:{},noteTypeStyles:{},tagNodeStyles:{},tagStyleList:[],hierarchyLinkStyles:{},graphLenses:[],
  compactingFactor:2,horizontalCompactingFactor:2,graphDepth:1,baseFontSize:12.4,compactView:false,maxItemCount:100,parentColumns:2,childColumns:5,parentMaxHeight:300,childMaxHeight:400,friendMaxHeight:350,siblingMaxHeight:250,siblingRelativeSize:50,minLinkLength:18,wrapNodeLabels:false},getViewSettings(){return {...this.settings}}};
 let sceneBefore,nodeBefore,inputBefore,cameraBefore;
@@ -2270,7 +2271,7 @@ function Scene({settings,paintSettings}){
  return <div className='camera' style={{transform:'translate(17px, 23px) scale(1.25)'}}>{scene.nodes.map(node=>{const paint=nodePaint(currentNodeColorStyle(node,paintSettings),nodePaintFallbacks(node));return <div key={node.page.path} data-path={node.page.path} style={{color:paint.foreground,left:node.x,top:node.y}}>{node.role==='center'?<NativeEditor/>:node.label}</div>})}</div>;
 }
 function App({paintRevision,renderRevision}){
- ${uiDefinitions('src/ui/App.tsx',['viewSettings','paintSettings','paintLenses'])}
+ ${uiDefinitions('src/ui/App.tsx',['baseViewSettings','basePaintSettings','viewSettings','paintSettings','paintLenses'])}
  return <Scene settings={viewSettings} paintSettings={paintSettings}/>;
 }
 try{const container=document.createElement('div');document.body.append(container);const root=createRoot(container);flushSync(()=>root.render(<App paintRevision={0} renderRevision={0}/>));

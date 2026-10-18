@@ -91,7 +91,7 @@ const artifacts = Object.fromEntries(
 );
 
 /** Run real style-manager operations with finite fault injection and exact native modal ownership. */
-function start(referenceOnly = false, referenceProperties = false) {
+function start(referenceOnly = false, referenceProperties = false, sidecarGateOnly = false, referenceSidecar = false) {
   const p = app.plugins.plugins["k-plex"],
     tab = p.settingsTab,
     remote = require("@electron/remote"),
@@ -474,6 +474,91 @@ function start(referenceOnly = false, referenceProperties = false) {
           p.getIndexStatus().upToDate && !p.index.hasSourceBackedStartup(),
         "Initial source startup did not settle"
       );
+      if (sidecarGateOnly) {
+        const plex = app.workspace.getLeavesOfType("k-plex-react-view").find(leaf => p.isKplexLeafVisible(leaf));
+        check(plex, "A visible main Plex is required");
+        const page = p.index.allPages().find(page => page.file?.extension === "md");
+        check(page, "A physical Markdown center is required");
+        app.workspace.setActiveLeaf(plex, {focus: true}); p.notifyNavigation(page.path);
+        await p.openSidecar(plex, page);
+        await until(() => p.isSidecarOpen(plex), "Sidecar did not open");
+        await until(() => !p.index.onDemandTasks.size && !p.index.hasActiveSemanticPreparation(), "Sidecar setup demand did not drain");
+        const before = {...c.counts};
+        for (const radius of [8, 2, 6.5, 5]) {
+          c.ownsSettings = true; p.openSettings();
+          await until(() => tab.containerEl.isConnected, "Settings did not attach");
+          check(tab.openSettingsPage(p.translator("settings.ui.visual.styling")), "Visual styling page absent");
+          await wait(100);
+          check(tab.openSettingsPage(p.translator("settings.ui.node.styling")), "Node styling page absent");
+          await wait(100);
+          const field = tab.containerEl.ownerDocument.querySelector('input[aria-label="' + p.translator("settings.ui.gate.radius") + '"]');
+          check(field, "Actual Settings gate radius slider absent");
+          field.value = String(radius);
+          field.dispatchEvent(new field.ownerDocument.defaultView.Event("input", {bubbles: true}));
+          field.dispatchEvent(new field.ownerDocument.defaultView.Event("change", {bubbles: true}));
+          await until(() => p.settings.baseNodeStyle.gateRadius === radius, "Gate radius was not committed");
+          await p.settingsWriteQueue;
+          record("sidecar-gate-settings-close", "start");
+          app.setting.close(); c.ownsSettings = false;
+          await wait(250);
+          record("sidecar-gate-settings-close", "end");
+          check(p.isSidecarOpen(plex), "Settings close lost Sidecar ownership");
+          check(plex.view.containerEl.querySelector(".kplex-plex"), "Settings close lost the graph");
+          passed("actual Settings gate radius save and close with managed Sidecar", {radius});
+        }
+        for (const mode of ["source", "preview"]) {
+          const companion = p.sidecarLeaves.get(plex);
+          check(companion, "Managed companion disappeared");
+          const saved = companion.getViewState();
+          await companion.setViewState({...saved, active: false, state: {...saved.state, mode}});
+          for (const closePending of [false, true]) {
+            await p.updateAppearanceThemes({kind: "select", id: "default"});
+            check(p.settings.appearanceThemes.selectedId === "default", "Factory theme selection failed");
+            c.ownsSettings = true; p.openSettings();
+            await until(() => tab.containerEl.isConnected, "Settings did not attach");
+            check(tab.openSettingsPage(p.translator("settings.ui.visual.styling")), "Visual styling page absent"); await wait(100);
+            check(tab.openSettingsPage(p.translator("settings.ui.node.styling")), "Node styling page absent"); await wait(100);
+            const doc = tab.containerEl.ownerDocument;
+            const field = doc.querySelector('input[aria-label="' + p.translator("settings.ui.gate.radius") + '"]');
+            check(field, "Native radius slider absent"); field.scrollIntoView({block: "center"}); await wait(50);
+            const host = doc.defaultView.require("@electron/remote").getCurrentWindow();
+            host.show(); host.focus(); host.webContents.focus();
+            await until(() => doc.hasFocus(), "Settings window did not focus");
+            const rectangle = field.getBoundingClientRect();
+            check(rectangle.width > 0 && rectangle.height > 0, "Native radius slider is hidden");
+            const trusted = []; const observe = event => trusted.push(event.isTrusted);
+            field.addEventListener("change", observe);
+            c.holdDisk = closePending;
+            try {
+              const point = {x: Math.round(rectangle.left + rectangle.width * (closePending ? 0.2 : 0.8)), y: Math.round(rectangle.top + rectangle.height / 2)};
+              for (const type of ["mouseDown", "mouseUp"]) host.webContents.sendInputEvent({type, ...point, button: "left", clickCount: 1});
+              await until(() => trusted.length > 0, "Trusted slider input did not reach Settings");
+              if (closePending) await until(() => Boolean(c.release), "Native save did not reach held storage");
+              else await p.settingsWriteQueue;
+              record("sidecar-gate-native-close", "start");
+              const close = doc.querySelector(".titlebar-button.mod-close");
+              check(close, "Native Settings window close control absent");
+              const closeBounds = close.getBoundingClientRect();
+              check(closeBounds.width > 0 && closeBounds.height > 0, "Settings close control hidden");
+              const closePoint = {x: Math.round(closeBounds.left + closeBounds.width / 2), y: Math.round(closeBounds.top + closeBounds.height / 2)};
+              for (const type of ["mouseDown", "mouseUp"]) host.webContents.sendInputEvent({type, ...closePoint, button: "left", clickCount: 1});
+              await until(() => !app.setting.isOpen, "Native close click did not close Settings");
+              c.ownsSettings = false; c.holdDisk = false; c.release?.(); c.release = null;
+              await p.settingsWriteQueue; await wait(250);
+              record("sidecar-gate-native-close", "end");
+              check(trusted.every(Boolean), "Slider input was not trusted");
+              check(p.settings.appearanceThemes.selectedId !== "default", "First actual appearance edit did not create an editable theme");
+              check(p.isSidecarOpen(plex) && plex.view.containerEl.querySelector(".kplex-plex"), "Native Settings close lost Sidecar/graph");
+              passed("trusted Settings gate slider and window close with managed Sidecar", {mode, closePending, radius: p.settings.baseNodeStyle.gateRadius});
+            } finally {field.removeEventListener("change", observe); c.holdDisk = false; c.release?.(); c.release = null;}
+          }
+        }
+        check(c.counts.semantics === before.semantics && c.counts.acquisitions === before.acquisitions,
+          "Gate radius editing requested semantic/source work");
+        c.result = {status: "passed", cases: c.cases, counts: c.counts, events: c.events,
+          scope: "Actual native Settings controls and Sidecar; programmatic input, no comparative timing"};
+        return;
+      }
       if(referenceOnly){
         check(p.settings.noteTypeField,'Configured style field required');
         const path=key+'-'+Date.now()+'.md';check(!app.vault.getFileByPath(path),'Reference fixture collision');
@@ -488,6 +573,11 @@ function start(referenceOnly = false, referenceProperties = false) {
         if(referenceProperties){c.properties=app.workspace.getLeaf('split');await c.properties.setViewState({type:'file-properties',active:false});await app.workspace.revealLeaf(c.properties);await c.properties.loadIfDeferred()}
         app.workspace.setActiveLeaf(plex,{focus:true});p.notifyNavigation(path);
         await until(()=>[...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Style fixture did not become central');
+        if (referenceSidecar) {
+          const center = p.index.get(path); check(center?.file === c.fixtureFile, "Physical Sidecar fixture center missing");
+          await p.openSidecar(plex, center);
+          await until(() => p.isSidecarOpen(plex), "Reference Sidecar did not open");
+        }
         await until(()=>!p.index.onDemandTasks.size&&!p.index.hasActiveSemanticPreparation(),'Style fixture demand did not drain');
         if(referenceProperties)await until(()=>c.properties.view.file===c.fixtureFile&&c.properties.view.modifyingFile===c.fixtureFile,'Native Properties did not adopt fixture');
         const body=document.body,heading='--h1-color',originalHeading=body.style.getPropertyValue(heading),priority=body.style.getPropertyPriority(heading);
@@ -527,12 +617,13 @@ function start(referenceOnly = false, referenceProperties = false) {
         check(JSON.stringify(p.settings.noteTypeStyles[key]?.borderColor)===JSON.stringify(expected),'Reference did not publish');
         check(JSON.stringify((await stored()).noteTypeStyles[key]?.borderColor)===JSON.stringify(expected),'Reference did not persist');
         app.setting.close();await wait(400);
+        if (referenceSidecar) check(p.isSidecarOpen(plex), "Style Save/Settings close lost Sidecar ownership");
         check([...document.querySelectorAll('.kplex-role-center')].some(el=>el.dataset.kplexPath===path),'Style Save lost central graph');
         check(c.counts.semantics===before.semantics&&c.counts.acquisitions===before.acquisitions,'Reference/size Save requested semantic/source work');
         const style=p.settings.noteTypeStyles[key],durable=(await stored()).noteTypeStyles[key];
         check(style.strokeWidth===3&&style.gateRadius===8&&durable.strokeWidth===3&&durable.gateRadius===8,'Native dimensions not persisted');
         await until(()=>{const center=[...document.querySelectorAll('.kplex-role-center')].find(el=>el.dataset.kplexPath===path);return center&&getComputedStyle(center).borderWidth==='3px'&&center.style.getPropertyValue('--kplex-gate-size')==='8.4px'},'Native dimension paint absent');
-        passed('actual Settings Node styles Border h1 reference child draft and parent Save',{source:expected,dimensions,counts:{writes:c.counts.writes-before.writes,presentations:c.counts.presentations-before.presentations,semantics:c.counts.semantics-before.semantics,acquisitions:c.counts.acquisitions-before.acquisitions},properties:referenceProperties,testOwnedHeadingToken:c.testHeadingToken,context:'Actual Visual styling / Node styling subpages'});
+        passed('actual Settings Node styles Border h1 reference child draft and parent Save',{source:expected,dimensions,counts:{writes:c.counts.writes-before.writes,presentations:c.counts.presentations-before.presentations,semantics:c.counts.semantics-before.semantics,acquisitions:c.counts.acquisitions-before.acquisitions},properties:referenceProperties,sidecar:referenceSidecar,testOwnedHeadingToken:c.testHeadingToken,context:'Actual Visual styling / Node styling subpages'});
         app.setting.close();c.ownsSettings=false;
         await until(()=>p.index.getNeighborhood(path)?.parents.some(node=>node.page.path===parentPath),'Parent fixture did not reconcile');
         const restartAt=Date.now();await app.plugins.disablePlugin('k-plex');await app.plugins.enablePlugin('k-plex');const reloaded=app.plugins.plugins['k-plex'];
@@ -983,6 +1074,9 @@ function start(referenceOnly = false, referenceProperties = false) {
       if(referenceOnly&&c.fixtureFile){
         const live=app.plugins.plugins['k-plex'],path=c.fixtureFile.path,neighborhood=live?.index.getNeighborhood(path);
         c.failureObservation={fixtureMetadata:app.metadataCache.getFileCache(c.fixtureFile)?.frontmatter,
+          indexStatus:live?.getIndexStatus(),sourceReady:live?.index.isCenterRecoverySourceReady(),
+          sourceBackedStartup:live?.index.hasSourceBackedStartup(),activeSemantic:live?.index.hasActiveSemanticPreparation(),
+          onDemandTasks:live?.index.onDemandTasks.size,sourceCounters:live?.index.getSourceAcquisitionCounters(),
           resolvedTargets:Object.keys(app.metadataCache.resolvedLinks[path]??{}),filePresent:app.vault.getFileByPath(path)===c.fixtureFile,
           parents:neighborhood?.parents.map(item=>item.page.path),children:neighborhood?.children.map(item=>item.page.path),
           centerFile:neighborhood?.center.file?.path,demanded:live?.index.semanticDemandCounts.get(path)??0,
@@ -1017,7 +1111,7 @@ const report = {
   activation: "programmatic native manager/editor DOM",
 };
 try {
-  evaluate("JSON.stringify((" + start.toString() + ")("+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_PROPERTIES==="true")+"))");
+  evaluate("JSON.stringify((" + start.toString() + ")("+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_PROPERTIES==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_SIDECAR_GATE_ONLY==="true")+","+JSON.stringify(process.env.KPLEX_STYLE_REFERENCE_SIDECAR==="true")+"))");
   const end = Date.now() + 180000;
   while (true) {
     await pause(100);

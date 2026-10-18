@@ -7,7 +7,7 @@ import { hostOracle, collect } from "./support/cachedSourceFixture.mjs";
 import { fullCenterIndex, centerGateSettings } from "./support/requestedCenterGateFixture.mjs";
 
 const bundle = await contributorBrowserBundle(["src/index/GraphIndex.ts", "src/index/GraphBuilder.ts", "src/index/IndexSnapshot.ts",
-  "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts"]);
+  "src/core/graph/compiler.ts", "src/adapters/obsidian/metadataSourceCollector.ts", "src/adapters/obsidian/ontologySourceCollector.ts", "src/ui/components/centerWatchdog.ts"]);
 
 const initialize = `(() => {
   const M=sourceModules,assert=Object.assign((v,m)=>ok(v,m),{equal});
@@ -496,6 +496,41 @@ for(const cancellation of ['navigation','same-stat-source-revision','file-replac
     let notifications=0;const stop=index.subscribePresentation(()=>notifications++);finish();await deadline(task,'retired repair');stop();
     equal(notifications,0,'Retired continuation does not repaint or acquire its next scope');equal(index.getIndexDiagnostics().filter(row=>row.centerCheck).at(-1).centerCheck.outcome,'cancelled','Exact stale lifetime is diagnosed');return true;
    }finally{finish?.();unblock?.();release?.();index?.destroy();f.close()}
+  })()`),true);
+ }finally{await browser.cleanup()}
+});
+
+test('stationary startup watchdog follows a late real local baseline while source inventory remains held',async()=>{
+ const browser=await chromiumHarness(bundle);try{
+  assert.equal(await browser.evaluate(contributorBrowserInitialize),true);assert.equal(await browser.evaluate(initialize),true);
+  assert.equal(await browser.evaluate(`(async()=>{
+   const M=sourceModules,{f,settings}=await startupSeed('late-local-watchdog');let index,release,stop,first,second,source;
+   const build=M.GraphBuilder.prototype.buildStructuralBaseline;
+   try{
+    settings.hierarchy={...settings.hierarchy,rightFriends:['Changed challenger policy']};
+    f.metadata.get('A.md').frontmatter.Large='x'.repeat(20000);f.files.get('A.md').stat.mtime++;
+    const firstGate=new Promise(r=>first=r),secondGate=new Promise(r=>second=r),sourceGate=new Promise(r=>source=r);let baselines=0;
+    M.GraphBuilder.prototype.buildStructuralBaseline=async function(...args){const ordinal=++baselines;await(ordinal===1?firstGate:secondGate);return build.apply(this,args)};
+    index=new M.GraphIndex({app:f.app,settings,getIndexSourceRevision:()=>0},f.app);index.scheduleOrphanCleanup=()=>{};
+    const reconcile=index.sourceAcquisition.reconcile.bind(index.sourceAcquisition);index.sourceAcquisition.reconcile=async(...args)=>{await sourceGate;return reconcile(...args)};
+    let requests=0;const request=index.ensureOnDemandCenter.bind(index);index.ensureOnDemandCenter=(...args)=>{requests++;return request(...args)};
+    await index.primePhysicalSearchCatalog();release=index.acquireSemanticDemand('A.md');await deadline((async()=>{while(!baselines)await new Promise(r=>setTimeout(r,0))})(),'first baseline');
+    const timers=new Map();let serial=0,initialFinished=false;
+    stop=M.startCenterWatchdog({schedule:run=>{const id=++serial;timers.set(id,run);return()=>timers.delete(id)},localReady:()=>index.hasLocalBaseline(),sourceReady:()=>index.isCenterRecoverySourceReady(),subscribe:fn=>index.subscribePresentation(fn),check:async(trigger,current)=>{const complete=await index.recheckVisibleCenter('A.md',[0,0,0,0,0],trigger,current);if(trigger==='initial')initialFinished=true;return complete}});
+    const fire=()=>{const [id,run]=timers.entries().next().value;timers.delete(id);run()};fire();
+    await index.publishHostMetadataPreview('A.md');equal(index.getNeighborhood('A.md')?.parents.length??0,0,'Oversized paint-preview metadata leaves the direct Parent absent');
+    await deadline((async()=>{while(requests<2)await new Promise(r=>setTimeout(r,0))})(),'watchdog joined original center owner');
+    const restoring=index.restorePersistedSnapshot(['A.md']);first();
+    await deadline((async()=>{while(!initialFinished||baselines<2)await new Promise(r=>setTimeout(r,0))})(),'pending first check and replacement baseline').catch(error=>{throw Error(error.message+' '+JSON.stringify({baselines,initialFinished,timers:timers.size,baselineReady:index.hasLocalBaseline(),arbitration:Boolean(index.eagerPreviewArbitration),tasks:index.onDemandTasks.size,source:index.isCenterRecoverySourceReady(),decisions:index.getIndexDiagnostics(),phase:index.getSnapshotHydrationDiagnostics()}))});
+    equal(index.getIndexDiagnostics().filter(row=>row.centerCheck).at(-1).centerCheck.outcome,'pending','Real retired startup owner produced the reported pending state');
+    equal(timers.size,0,'No polling while local baseline is held');ok(!index.hasLocalBaseline(),'Replacement local baseline remains held');
+    second();await deadline((async()=>{while(!index.hasLocalBaseline()||!timers.size)await new Promise(r=>setTimeout(r,0))})(),'local readiness notification');
+    ok(!index.isCenterRecoverySourceReady(),'Global source inventory remains held');fire();
+    await deadline((async()=>{while(!index.getIndexDiagnostics().some(row=>row.centerCheck?.trigger==='local-ready'&&row.centerCheck.outcome!=='checking'))await new Promise(r=>setTimeout(r,0))})(),'local milestone repair');
+    equal(index.getNeighborhood('A.md').parents.map(node=>node.page.path),['B.md'],'Stationary center has complete direct host Parent without navigation');
+    const receipt=index.getIndexDiagnostics().filter(row=>row.centerCheck?.trigger==='local-ready').at(-1);equal(receipt.centerCheck.sourceReadyAfter,false,'Local repair does not claim global source readiness');equal(timers.size,0,'No timer loop after local work');
+    stop();source();await deadline(restoring,'release held source inventory');return true;
+   }finally{first?.();second?.();source?.();stop?.();release?.();index?.destroy();M.GraphBuilder.prototype.buildStructuralBaseline=build;f.close()}
   })()`),true);
  }finally{await browser.cleanup()}
 });

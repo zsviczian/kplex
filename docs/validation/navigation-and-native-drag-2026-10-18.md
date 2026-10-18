@@ -644,3 +644,175 @@ verified, HANDOFF excluded. MANIFEST SHA-256
 `d8046052040695c2147e09edb667870ab5bf063edaa1e4f2f03698ae386f788a`.
 The source archive pins the runtime/test checkpoint; subsequent documentation
 records its verified backup. Originals and all prior backups remain private.
+
+## Tag assignment, structural moves and independent center modes
+
+This follow-up starts at `8f65dd5181d3cb0ef7bc90cb6a47336fdf008d10` on the
+same draft PR. The additional scope is the maintainer's tag/Note Type and
+central-folder gestures, adjacent new-tab default, independent center modes,
+and shared style sliders. All eight locales are maintained.
+
+Tag membership remains the existing `tag-tree` relationship. A native assignment
+form chooses ordinary YAML `tags` membership or that membership plus the single
+configured Note Type property. A different incoming type requires explicit
+keep/replace; replacement preserves the old type as an ordinary tag. Conversion
+and Unlink reuse the same per-file queue, fresh native frontmatter callback and
+saved-metadata observer. Normalized duplicate keys, unsupported values, stale
+drafts, replaced/renamed files and changed selector policy cannot overwrite
+unreviewed metadata. No body-tag editor, ontology role, source fact, index schema
+or second settings writer is added.
+
+Note Type tag links inherit ordinary tag styling with twice its actual rendered
+width (including the 1.2px renderer fallback). The optional override lives in the
+existing theme-owned `hierarchyLinkStyles` map at `k-plex:note-type-tag`; it is
+excluded from ontology-field discovery. Existing theme copying, palette usage,
+color reset, stale-editor and queued appearance ownership apply. Only prepared
+page facets choose the style; lens styling keeps its established final precedence.
+The frozen compatibility oracle is unchanged: exactly two expected scene-edge
+width deltas are asserted explicitly; graph facts, evidence and search remain exact.
+
+The existing node/link editors share native Obsidian sliders for font/label size,
+border/line width and gate radius, with visible values and a native inheritance
+reset action. Unchanged out-of-range/fractional legacy values remain intact;
+explicit edits are bounded. The relationship manager explains its existing
+All relationship fields/search workflow. No new picker or style-manager fork.
+
+Central tag gates accept Markdown scene/history/pin endpoints. Parent-area drops
+accept a captured tag from another Plex, a known native single-tag link payload,
+or exact single-tag text; resolved file headings, arbitrary prose and ambiguous
+native drags remain distinct. Center drops retain navigation. Central folder/file
+pairs reverse the existing physical move plan, including attachments. Confirmation
+and Alt/Option use the same final incarnation/collision/ancestry checks and native
+FileManager rename. The modifier bypasses consent UI only; placeholders/tags/URLs
+remain invalid physical files. No forced graph rebuild is added by these actions;
+real metadata edits/moves legitimately invoke existing local indexing.
+
+New K-Plex tabs use the public split-leaf operation. Center representation and
+Markdown mode are native-leaf workspace state, initialized from existing defaults,
+not a shared plugin setting. React remount/window migration retains the leaf's
+owner; workspace serialization contains only the two representation scalars.
+The per-view settings projection preserves inherited device/profile fields and
+retains paint/layout identity boundaries. Other Plexes and plugin defaults stay
+independent.
+
+### Latest startup report and bounded correction
+
+The supplied macOS diagnostic (2026-10-18 13:45:42 UTC, build `8f65dd5181d3.dirty`)
+records an initial check at about 5.6 seconds, `missing` coverage, zero role counts,
+and a `pending` result about one second later. The local baseline milestone occurs
+at about 36.9 seconds; global source readiness is still absent. These observations
+do not establish why that user's original scope was incomplete, but expose a
+confirmed missing local-readiness wakeup in the previous finite watchdog.
+
+The watchdog now observes the existing local-baseline milestone separately from
+global source readiness: initial, at most one `local-ready` follow-up, and at most
+one global `source-ready` follow-up. It does not poll, reset its delay on progress,
+weaken source/write proof or schedule a full build. The existing bounded diagnostics
+preserve the distinct trigger and actual source-readiness flags.
+
+A real GraphIndex/IndexedDB fixture holds the replacement structural baseline and
+global source reconciliation, admits the watchdog onto the original center owner,
+then retires that owner through normal restore admission. Oversized paint-preview
+metadata leaves the Parent absent. The initial check records pending; completion
+of the actual replacement local baseline admits the finite follow-up, and the
+stationary Parent is present while global inventory is still held. The prior
+committed watchdog fails this same fixture waiting for local readiness notification;
+the candidate passes. This is a functional causal control, not a performance trial
+or a full reproduction of every macOS/affected-vault startup condition.
+
+### Validation and retained failures
+
+Final full/native receipts are recorded after serial acceptance. Interim checks:
+78 focused structural/drag/locale/browser cases pass; 119 view/mode/action/diagnostic
+cases pass; 35 final slider/localization cases and Obsidian lint pass. Required
+Node is 22.22.2. Real builds pass; no comparative performance work or personal-vault
+access. Existing Windows/Obsidian 1.14.4 lanes use Small's original 107-file,
+88-Markdown inventory and restore owned state.
+
+Failed attempts remain private evidence. Early full runs exposed callback-extractor
+missing dependencies and the two intentional scene-style deltas; no semantic
+assertions were relaxed. Native conversion exposed an undocumented Modal.selection
+collision: the host overwrites it with focus restoration data. The draft now uses
+its own selectedType field. A Settings-control probe established that the editor
+belongs to the Settings document, which may differ from the Plex's document.
+A later per-view prototype-spread defect emptied the native React view; that
+attempt was stopped, its readiness waiter released solely for cancellation/cleanup,
+and configuration plus the original inventory restored. The implementation now
+preserves inherited settings, with a regression for that boundary; native fixture
+readiness also has a bounded deadline. Neither aborted nor failed trials count as
+acceptance. Prior unresolved Properties-open Parent timeouts and the unreproduced
+Save freeze remain recorded above.
+
+The maintainer subsequently reported a freeze when closing Settings after changing
+gate radius, with a normal central node and a Markdown Sidecar. No freeze fix is
+claimed. Trial1792334285798 passes eight native cases: four ordinary radius
+changes/close operations, then trusted slider and actual Settings-window close
+clicks in Markdown editing/reading modes, each after selecting Default theme,
+with storage either completed or held until after close. Copy-on-write, durable
+completion, graph and managed Sidecar ownership remain intact. Guarded edits
+request no semantic refresh or source acquisition. The earlier successful
+1792334236848 repeats the trusted matrix on an editable theme. Configuration
+and workspace are restored. Initial probes used an incorrect graph CSS selector
+and assumed Escape closed this host's standalone Settings window; those failed
+probes are retained, and only the actual title-bar-click runs count as acceptance.
+The reported intermittent freeze remains an open limitation, alongside the
+earlier style-Save freeze and Properties-open fixture failures.
+
+A separate real-Chromium regression confirms a narrower lifetime defect: hold an
+accepted native scalar save, detach its Settings row without calling the host's
+optional cleanup callback, then release storage. The previous completion writes
+to the retired slider, and a later detached input can submit another save. The
+callback now requires its captured generation, connected row, original document
+and live owning window before handling input or refreshing the native control.
+The accepted disk operation still completes and persists the requested radius.
+The regression fails before this guard and passes after it; all13 appearance UI
+cases, including actual iframe-document adoption/concurrent saves, pass. This is
+a confirmed retired-control correction, not evidence that the maintainer's
+full-application freeze has been reproduced or eliminated. Final native receipts
+below identify the rebuilt artifact containing this guard.
+
+### Verified feature checkpoint and open native failures
+
+Full `verify:obsidian`1792334769085 passes on Node22.22.2: architecture7,
+core130, Obsidian lint, Node1058, UI142, portable source334, browser/IndexedDB608,
+production build and native smoke. Runtime source is unchanged since that run
+started. The final native driver additionally captures bounded index activity on
+its synthetic-fixture failures; it does not install production diagnostics.
+
+| Exact-build native lane | Receipt | Result |
+| --- | --- | --- |
+| Structural actions |1792336059640 |12 passed |
+| Adjacent groups / independent modes / scoped layout |1792336113646 |6 passed |
+| Style operations, faults and concurrency |1792336147532 |15 passed |
+| Outbound/native dragging |1792336154825 |6 passed |
+| Settings gate radius + Markdown Sidecar |1792336187780 |8 passed, including trusted window close and held storage |
+| Custom style / restart, Properties closed |1792336195363 |4 passed |
+| Custom style / restart, Properties open |1792336205664 |4 passed |
+| Custom style / restart, Sidecar open |1792336216068 |Failed:3 checks passed, then the separate synthetic recovery fixture did not reach genuine idle within its prerequisite deadline |
+| Custom style, Sidecar + Properties open |1792336295440 |Failed:Save/Settings close passed, but the fixture Parent did not reconcile before reload |
+
+Both failed variants restore configuration and workspace and keep their full
+private evidence. They are not passes or discarded setup exclusions. The last
+failure observes a genuine missing Parent despite current fixture frontmatter
+and native resolved-link targets, with `upToDate:true`, phase `ready`, label
+`Local graph ready`, zero on-demand tasks, no active semantic preparation and
+`sourceReady:false`. This remains a focused follow-up; the feature checkpoint
+does not claim the stationary-graph/startup problem solved. Neither failed run
+reproduces an unresponsive application or a failed style Save. Each isolated Save
+records1 write/1 presentation/0 semantic refreshes/0 acquisitions after setup.
+
+Layout-only guards record zero reads/acquisitions/parses/snapshot writes/builds
+and semantic refreshes. Intentional structural edits/moves record58 reads,
+27 acquisitions,13 metadata writes and5 native moves, with zero forced full builds;
+these are functional counts, not comparative CPU/storage/latency evidence.
+No comparative performance tests or personal-vault access occurred.
+
+Sanity1792336350349 verifies original107 files/88Markdown, exact artifacts,
+no controllers/dialogs, desktop mode and opening CLI capture false. Main SHA-256
+`0ea42b2b1a627b5d61a3f0fb19ebc6e66a5f5fb4c1644287779e169c397eda07`;
+CSS `9664241e9e87f357ebfa57fcfe5477a5b8f592db4e4bbbb53f65db680dd6a7c0`;
+manifest `19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c`.
+Build provenance is8f65dd5.dirty. Windows11/Obsidian1.14.4 installer1.14.0,
+Electron43.3.0/Chrome150.0.7871.212/native Node24.18.1. macOS, minimum host,
+physical mobile/touch/IME, OS drag, actual Bases tag-cell gesture and affected
+full-process restart remain unverified. Keep PR draft; no merge/release.

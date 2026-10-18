@@ -6,8 +6,10 @@ PR #174 implementation reference (schema 1, capture 1; draft acceptance). Both *
 
 Each newly mounted visible Plex checks its initial stationary Markdown center after
 three seconds. Progress events do not postpone the check. An incomplete check may
-get one further check after the existing source owner becomes ready; there is no
-polling loop. Navigation, hiding, closing and window retirement fence or cancel
+get one check when its local baseline becomes ready and one when the existing
+global source owner becomes ready. Already-observed milestones do not repeat;
+there are at most three checks and no polling loop. The `local-ready` trigger
+does not claim global source or write authority. Navigation, hiding, closing and window retirement fence or cancel
 the check. Existing foreground readers and demand owners perform any repair;
 the watchdog does not start a full build or write notes.
 

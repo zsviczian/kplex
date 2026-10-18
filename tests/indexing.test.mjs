@@ -325,7 +325,7 @@ assert(createFolderNoteModalSource.includes('nameSetting.settingEl.addClass("kpl
 assert(createFolderNoteModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Folder creation must use the shared Ctrl/Cmd+Enter create default");
 assert(createFolderNoteModalSource.includes('this.plugin.settings.newNodeDefaultType'), "Folder creation must share the create-child Markdown/Excalidraw default");
 assert(!createFolderNoteModalSource.includes("addRelated.createPlaceholder"), "Folder creation must not offer a placeholder because folders require real files");
-assert(plexGraphSource.includes('if (event.button !== 0 || node.page.isTag || node.page.transient) return;'), "Physical folder gates must remain valid drag origins");
+assert(plexGraphSource.includes('if (event.button !== 0 || node.page.transient) return;'), "Persistent tag and physical folder gates must remain valid structural drag origins");
 assert(plexGraphSource.includes('drag.moved && drag.gate === "bottom" && !target'), "Only an empty-space folder child-gate drop starts file creation");
 assert(thoughtNodeSource.includes('translate("node.gateFolderChild")'), "Folder child gates must explain their creation gesture through localized copy");
 assert(plexGraphSource.includes("plugin.openStructuralNodeDrop(origin, target)"), "Dropping a physical node gate onto a folder must use native move confirmation");
@@ -471,6 +471,7 @@ for (const file of [
   "src/ui/AppearanceThemesModal.ts",
   "src/ui/StyleManagerList.ts",
   "src/ui/StyleColorControls.ts",
+  "src/ui/styleNumberSlider.ts",
   "src/ui/StyleSwatchScope.ts",
   "src/adapters/obsidian/colorChanges.ts",
   "src/ui/ColorLiteralEditor.ts",
@@ -1897,7 +1898,15 @@ try {
   };
   applyTypographySceneDelta("width", typographyWidths);
   applyTypographySceneDelta("x", typographyPositions);
-  assert.deepEqual(baseline, frozenBaseline, "Exact compatibility except approved URL, default Date-role and density-independent label geometry deltas");
+  // Explicit product change: only the two archived tag-backed Note Type connectors double width.
+  // All indexed facts, evidence, classification, search results and other scene fields stay exact.
+  for (const [source, target] of [["Note A.md", "tag:project"], ["tag:project", "Note C.md"]]) {
+    const edges = frozenBaseline.scene.edges.filter(edge => edge.sourcePath === source && edge.targetPath === target && edge.typeDefinition === "tag-tree");
+    assert.equal(edges.length, 1, "One exact archived Note Type tag edge");
+    assert.deepEqual(edges[0].style, {}, "Unreviewed archived Note Type tag styling");
+    edges[0].style = {strokeWidth: 2.4};
+  }
+  assert.deepEqual(baseline, frozenBaseline, "Exact compatibility except approved URL, Date-role, label geometry and two Note Type stroke-width deltas");
 
   // A new Markdown file may arrive after the last complete snapshot and before the five-minute
   // edit idle write. Warm startup must reuse that snapshot and ingest only the new source.
@@ -4585,11 +4594,12 @@ try {
     const edgeJs = ts.transpileModule(plexGraphSource.slice(markerStart, markerEnd) + plexGraphSource.slice(edgeStart, edgeEnd), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None, jsx: ts.JsxEmit.React },
     }).outputText;
-    const Edge = new Function("React", "LinkDirection", "gatesForEdge", "gatePoint", "edgeGeometry", "alphaHexToCss", "relationLabel", "NATIVE_LINK_STROKE", "NATIVE_LINK_TEXT", `${edgeJs}; return Edge;`)(
+    const Edge = new Function("React", "LinkDirection", "gatesForEdge", "gatePoint", "edgeGeometry", "alphaHexToCss", "relationLabel", "NATIVE_LINK_STROKE", "NATIVE_LINK_TEXT", "DEFAULT_RENDERED_LINK_WIDTH", `${edgeJs}; return Edge;`)(
       { createElement: (type, props, ...children) => ({ type, props, children }) }, LinkDirection,
       () => ({ source: "left", target: "right" }), () => ({ x: 0, y: 0 }),
       () => ({ d: "M0 0L1 1", midpoint: { x: 0, y: 0 } }), value => value, value => value,
       require(join(temp, "src/index/style.js")).NATIVE_LINK_STROKE, require(join(temp, "src/index/style.js")).NATIVE_LINK_TEXT,
+      require(join(temp, "src/index/style.js")).DEFAULT_RENDERED_LINK_WIDTH,
     );
     try {
       assert.equal(await arrowIndex.rebuild(), true);

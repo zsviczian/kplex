@@ -88,14 +88,23 @@ export function nodeLinkDragSource(app: App): NodeLinkDragSource | null {
 }
 
 /** Resolve current native file drags or this plugin's captured URL/tag/placeholder without scans. */
-export function draggedGraphPage(app: App, read: { get(path: string): GraphPage | undefined }): GraphPage | null {
+export function draggedGraphPage(app: App, read: { get(path: string): GraphPage | undefined }, event?: Pick<DragEvent, "dataTransfer">): GraphPage | null {
   const source = nodeLinkDragSource(app);
   if (source) {
     const page = resolveActionPage(read, source.node);
     return page && (!page.file || app.vault.getFileByPath(page.file.path) === page.file) ? page : null;
   }
   const file = getDraggedFile(app);
-  return file ? read.get(file.path) ?? null : null;
+  if (file) return read.get(file.path) ?? null;
+  const native = dragManager(app)?.draggable;
+  // An actual resolved file wins above: its #heading is not a tag. Accept only an unambiguous
+  // single tag from the known native link shape or ordinary text when no native drag owns it.
+  const link = native && "type" in native && native.type === "link" && "linktext" in native && typeof native.linktext === "string"
+    && "sourcePath" in native && typeof native.sourcePath === "string" && !("file" in native && native.file) ? native.linktext : null;
+  const text = link ?? (!native ? event?.dataTransfer?.getData("text/plain") : null);
+  if (!text || !/^#[^\s#[\]|]+$/u.test(text)) return null;
+  const page = read.get(`tag:${text.slice(1)}`);
+  return page?.isTag && !page.transient ? page : null;
 }
 
 /** Retire only the exact accepted source; native global dragend may already have cleaned it up. */

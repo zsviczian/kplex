@@ -684,7 +684,7 @@ export function buildScene(
       relationType: n.relationType,
       typeDefinition: n.typeDefinition,
       direction: n.linkDirection,
-      style: resolveLinkStyle(n, settings),
+      style: resolveLinkStyle(n, settings, neighborhood.center),
     }));
   };
   from(neighborhood.parents, "parent");
@@ -722,7 +722,7 @@ function appendSiblingParentLinks(
         relationType: relation.relationType,
         typeDefinition: relation.typeDefinition,
         direction: relation.linkDirection,
-        style: resolveLinkStyle(relation, settings),
+        style: resolveLinkStyle(relation, settings, parent.page),
       });
     }
   }
@@ -773,7 +773,7 @@ export function appendVisibleCrossLinks(
         relationType: relation.relationType,
         typeDefinition: relation.typeDefinition,
         direction: relation.linkDirection,
-        style: resolveLinkStyle(relation, settings),
+        style: resolveLinkStyle(relation, settings, source),
         isCrossLink: true,
       });
     }
@@ -963,7 +963,7 @@ export function buildSectionExpandedScene(
         relationType: sourced.relation.relationType,
         typeDefinition: sourced.relation.typeDefinition,
         direction: sourced.relation.linkDirection,
-        style: resolveLinkStyle(sourced.relation, settings),
+        style: resolveLinkStyle(sourced.relation, settings, sectionNode.page),
       });
     });
   };

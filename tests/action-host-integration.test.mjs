@@ -33,11 +33,11 @@ const enqueue = method('enqueueSettingsWrite');
 const persist = method('persistSettingsSnapshot');
 
 /** An explicit new-tab request never reuses a Plex or applies the generic startup-surface preference. */
-test('new Plex tab creates and reveals a new native tab on every invocation without index work', async () => {
+test('new Plex tab creates and reveals an adjacent native tab group on every invocation without index work', async () => {
   const create = method('createPlexTab', { KPLEX_VIEW_TYPE: 'kplex-view' }), opened = [], remembered = [];
   const context = { rememberDocumentLeaf: leaf => remembered.push(leaf), app: { workspace: {
     getMostRecentLeaf: () => 'recent-document',
-    getLeaf: kind => { assert.equal(kind, 'tab'); const leaf = { setViewState: async state => { leaf.state = state; } }; opened.push(leaf); return leaf; },
+    getLeaf: kind => { assert.equal(kind, 'split'); const leaf = { setViewState: async state => { leaf.state = state; } }; opened.push(leaf); return leaf; },
     revealLeaf: async leaf => { assert.deepEqual(leaf.state, { type: 'kplex-view', active: true }); leaf.revealed = true; },
   } } };
   await create.call(context); await create.call(context);

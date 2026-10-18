@@ -34,6 +34,15 @@ function fixture() {
   return { app, manager, calls, files, event, transfer };
 }
 
+test('native tag links and plain tag text resolve existing tag facets without treating file headings as tags',()=>{
+ const f=fixture(),tag=page({path:'tag:Parent/Child',isTag:true}),read={get:path=>path===tag.path?tag:undefined};
+ f.manager.draggable={type:'link',linktext:'#Parent/Child',sourcePath:'',file:null};assert.equal(api.draggedGraphPage(f.app,read),tag);
+ const file={path:'Note.md',extension:'md'};f.files.set(file.path,file);f.manager.draggable={type:'link',linktext:'#Parent/Child',sourcePath:file.path,file};assert.equal(api.draggedGraphPage(f.app,read),null);
+ f.manager.draggable=null;const text=value=>({dataTransfer:{getData:()=>value}});assert.equal(api.draggedGraphPage(f.app,read,text('#Parent/Child')),tag);
+ for(const value of ['#Unknown','some #Parent/Child','#Parent/Child more','[[#Parent/Child]]','https://example.com/#Parent/Child'])assert.equal(api.draggedGraphPage(f.app,read,text(value)),null);
+ f.manager.draggable={type:'files',files:[]};assert.equal(api.draggedGraphPage(f.app,read,text('#Parent/Child')),null);
+});
+
 /** Construct only the graph facets consumed by the real adapter. */
 function page(overrides = {}) {
   return { path: "Project/Missing", file: null, name: "Missing", isFolder: false, isTag: false, url: null, ...overrides };
