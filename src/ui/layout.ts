@@ -777,13 +777,16 @@ function appendSiblingParentLinks(
 
 /** Append semantic links between supplied visible persistent nodes, preserving existing structural
  * pairs. Mutates only the caller-owned edge array; the caller chooses full-scene or clipped membership.
- * Iterating adjacency avoids an O(visible²) pair scan and never queries section/transient sources. */
+ * Iterating adjacency avoids an O(visible²) pair scan and never queries section/transient sources.
+ * A focus reads only that endpoint's adjacency plus earlier incident endpoints to retain the
+ * ordinary projection's canonical orientation. It never acquires absent source information. */
 export function appendVisibleCrossLinks(
   nodes: PositionedNode[],
   edges: PositionedEdge[],
   index: GraphIndex,
   settings: KplexSettings,
   centerPath: string,
+  focus?: Readonly<{ path: string; accepts: (edge: PositionedEdge) => boolean }>,
 ): void {
   const visibleByPath = new Map<string, GraphPage>();
   for (const node of nodes) {
@@ -804,27 +807,49 @@ export function appendVisibleCrossLinks(
       : `${edge.targetPath}\u0000${edge.sourcePath}`;
     seenPairs.add(pairKey);
   }
-  for (const source of visibleByPath.values()) {
-    for (const relation of index.visibleRelationshipsWithin(source, visiblePaths)) {
-      if (source.path === relation.page.path) continue;
-      const pairKey = source.path < relation.page.path
-        ? `${source.path}\u0000${relation.page.path}`
-        : `${relation.page.path}\u0000${source.path}`;
-      if (seenPairs.has(pairKey)) continue;
-      seenPairs.add(pairKey);
-      edges.push({
-        id: `cross:${source.path}:${relation.page.path}:${relation.role}`,
-        sourcePath: source.path,
-        targetPath: relation.page.path,
-        role: relation.role,
-        relationType: relation.relationType,
-        typeDefinition: relation.typeDefinition,
-        direction: relation.linkDirection,
-        style: resolveLinkStyle(relation, settings, source),
-        isCrossLink: true,
-      });
-    }
+  /** Both ordinary and focused projection share identity, styling and structural deduplication. */
+  const append = (source: GraphPage, relation: Neighbour): void => {
+    if (source.path === relation.page.path) return;
+    const pairKey = source.path < relation.page.path
+      ? `${source.path}\u0000${relation.page.path}`
+      : `${relation.page.path}\u0000${source.path}`;
+    if (seenPairs.has(pairKey)) return;
+    seenPairs.add(pairKey);
+    const edge: PositionedEdge = {
+      id: `cross:${source.path}:${relation.page.path}:${relation.role}`,
+      sourcePath: source.path,
+      targetPath: relation.page.path,
+      role: relation.role,
+      relationType: relation.relationType,
+      typeDefinition: relation.typeDefinition,
+      direction: relation.linkDirection,
+      style: resolveLinkStyle(relation, settings, source),
+      isCrossLink: true,
+    };
+    if (!focus || focus.accepts(edge)) edges.push(edge);
+  };
+  if (!focus) {
+    for (const source of visibleByPath.values()) for (const relation of index.visibleRelationshipsWithin(source, visiblePaths)) append(source, relation);
+    return;
   }
+  const target = visibleByPath.get(focus.path);
+  if (!target) return;
+  const order = new Map([...visibleByPath.keys()].map((path, position) => [path, position]));
+  const candidates: { source: GraphPage; relation: Neighbour }[] = [];
+  for (const relation of index.visibleRelationshipsWithin(target, visiblePaths)) {
+    if (relation.page.path === target.path) continue;
+    const other = visibleByPath.get(relation.page.path);
+    if (!other) continue;
+    // The normal projection emits the first displayed endpoint's directed view. A reciprocal
+    // lookup preserves that exact role/style/orientation when the hovered node is the target.
+    if (order.get(other.path)! < order.get(target.path)!) {
+      const reciprocal = index.visibleRelationshipsWithin(other, new Set([target.path])).find(row => row.page.path === target.path);
+      if (reciprocal) { candidates.push({ source: other, relation: reciprocal }); continue; }
+    }
+    candidates.push({ source: target, relation });
+  }
+  candidates.sort((a, b) => order.get(a.source.path)! - order.get(b.source.path)!);
+  for (const candidate of candidates) append(candidate.source, candidate.relation);
 }
 
 /** Runtime layout for central-note heading expansion. Section headings form an outline tree

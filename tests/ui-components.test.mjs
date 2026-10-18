@@ -1346,7 +1346,7 @@ const predicate = null, lenses = { lenses: [] }, paintLenses = lenses, predicate
 let styleReads=0;const measuredStyle=()=>new Proxy({textColor:"#abcdef"},{ownKeys(target){styleReads++;return Reflect.ownKeys(target)}});
 settings.baseNodeStyle=measuredStyle();let paintSettings=settings;
 const graphLensNodeStyle = () => ({});
-const centralEditorCapable = true, finding = false, hover = null, activeNodeFlair = null, findNodePaths = new Set(), keyboardSelection = null;
+const centralEditorCapable = true, finding = false, hover = null, crossLinkPeek = null, activeNodeFlair = null, findNodePaths = new Set(), keyboardSelection = null;
 const connectionStateFor = () => "normal", onCentralNodeEditorChange = () => {}, gateKey = (path, gate) => path + ":" + gate;
 const persistentPageFor = (page) => page;
 const activePath = "Editor.md", centralEditorAvailable = true, sectionExpanded = false;
@@ -2297,3 +2297,67 @@ try{const container=document.createElement('div');document.body.append(container
 `;
 }
 test('color publication reuses actual scene layout, images, native editor, focus and camera',()=>runBrowserDom(colorPaintBrowserEntry(),'Color paint preserves layout and editor passed'));
+
+/** Mount the actual hover effect, edge projection/highlight memos and SVG renderer around finite host inputs. */
+function crosslinkPeekBrowserEntry(){
+ const source=ts.createSourceFile('PlexGraph.tsx',readFileSync('src/ui/PlexGraph.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),effects=[],edgeHighlights=[];
+ /** Keep production lifetime/visibility callbacks intact without constructing the native plugin shell. */
+ const visit=node=>{if(ts.isCallExpression(node)&&node.expression.getText(source)==='useEffect'&&
+   (node.arguments[0]?.getText(source).includes('const intent = new HoverHighlight<Exclude<HoverState, null>>')||node.arguments[0]?.getText(source).includes('!visibleNodePaths.has(crossLinkPeek.path)')))effects.push(node.getText(source)+';');
+   if(ts.isJsxAttribute(node)&&node.name.getText(source)==='highlighted'&&node.initializer?.expression?.getText(source).includes('edge.style.showLabel'))edgeHighlights.push(node.initializer.expression.getText(source));
+   ts.forEachChild(node,visit)};visit(source);assert.equal(effects.length,2);assert.equal(edgeHighlights.length,1);
+ const effectCode=ts.transpileModule(effects.join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2021}}).outputText;
+ return `
+import React,{useState,useMemo,useRef,useEffect} from 'react';import{flushSync}from'react-dom';import{createRoot}from'react-dom/client';
+import{HoverHighlight,bindHoverHighlight}from ${JSON.stringify(join(root,'src/ui/components/hoverHighlight.ts'))};
+import{LinkDirection}from ${JSON.stringify(join(root,'src/types.ts'))};
+import{buildScene as realBuildScene,sceneLayoutPolicyKey,neighborhoodSceneKey,bindSceneNeighborhood,appendVisibleCrossLinks,gateDiameter}from ${JSON.stringify(join(root,'src/ui/layout.ts'))};
+import{alphaHexToCss,resolveLinkStyle,DEFAULT_RENDERED_LINK_WIDTH,NATIVE_LINK_STROKE,NATIVE_LINK_TEXT,NATIVE_LINK_LABEL_FILL}from ${JSON.stringify(join(root,'src/index/style.ts'))};
+const result=document.querySelector('#result'),check=(value,message)=>{if(!value)throw Error(message)};
+const css=document.createElement('style');css.textContent=${JSON.stringify(readFileSync('styles.css','utf8'))};document.head.append(css);
+${uiDefinitions('src/ui/PlexGraph.tsx',['GATE_GAP','GENERIC_RELATION_LABELS','gateKey','gatesForEdge','gatePoint','gateVector','cubicPoint','edgeGeometry','relationLabel','markerFor','Edge'])}
+const page=path=>({path,name:path,file:{path,extension:'md'},aliases:[],tags:[],styleTags:[],neighbours:new Map()});
+const pages=new Map(['Center','A','B','C','D','E'].map(name=>[name,page(name)]));
+const pairs={A:[['B','child','ab'],['C','parent','ac'],['D','left','ad'],['E','right','ae']],B:[['A','parent','ab'],['C','left','unrelated']],C:[['A','child','ac'],['B','right','unrelated']],D:[['A','right','ad']],E:[['A','left','ae']]};
+const counters={layout:0,adjacency:0},buildScene=(...args)=>{counters.layout++;return realBuildScene(...args)};
+const index={titleFor:p=>p.name,neighbourCount:()=>0,gateStats:()=>({}),neighbours:()=>[],visibleRelationshipsWithin(source,targets){counters.adjacency++;return(pairs[source.path]??[]).filter(([path])=>targets.has(path)).map(([path,role,typeDefinition])=>({page:pages.get(path),role,typeDefinition,relationType:1,linkDirection:1}))}};
+const settings={baseNodeStyle:{fontSize:18},centralNodeStyle:{fontSize:30},baseLinkStyle:{},hierarchyLinkStyles:{ab:{showLabel:true,fontSize:12,strokeWidth:3}},noteTypeStyles:{},tagNodeStyles:{},tagStyleList:[],compactingFactor:2,horizontalCompactingFactor:2,graphDepth:1,baseFontSize:12.4,maxItemCount:100,parentColumns:2,childColumns:5,parentMaxHeight:300,childMaxHeight:400,friendMaxHeight:350,siblingMaxHeight:250,siblingRelativeSize:50,minLinkLength:18};
+const layoutNeighborhood={center:pages.get('Center'),parents:[],children:['A','B','C','D','E'].map(path=>({page:pages.get(path),role:'child',relationType:1})),leftFriends:[],rightFriends:[],siblings:[]};
+const layoutSectionExpansion=null,expandedSectionIds=new Set(),layoutRevision=0,globalFiltering=false,centralEditorSize=undefined,neighborhood=layoutNeighborhood,activePath='Center',hostLeaf={};let semanticRevision=0;
+const predicateEngine={},lenses={},paintLenses=lenses,paintSettings=settings,predicateRevision=0,graphLensEdgeStyle=()=>({}),connectDrag=null,nodeDrag=null,resizingArea=false,areaSettingsMode=false;
+const finding=true,findQuery='no search hit',matchesOntologyFind=()=>false;
+const listeners=new Set(),plugin={visible:true,subscribeKplexVisibility(fn){listeners.add(fn);return()=>listeners.delete(fn)},isKplexLeafVisible(){return this.visible}};
+let fixture;
+class PeekBoundary extends React.Component{state={error:null};static getDerivedStateFromError(error){return{error:String(error.stack||error)}}render(){return this.state.error?<pre data-peek-error>{this.state.error}</pre>:this.props.children}}
+function Graph(){
+ const viewport=useRef(null),hoverHighlight=useRef(null),[hover,setHover]=useState(null),[crossLinkPeek,setCrossLinkPeek]=useState(null),[required,setRequired]=useState(true),[showCrossLinks,setShown]=useState(false),[hidden,setHidden]=useState([]);
+ const viewSettings={hoverHighlightRequiresAlt:required},clearEdgeTooltip=()=>{};
+ ${uiDefinitions('src/ui/PlexGraph.tsx',['scenePolicyKey','sceneGeometryKey','sceneGeometry','scene','clearHoverIntent','scheduleHoverIntent'])}
+ const visibleNodePaths=useMemo(()=>new Set(scene.nodes.filter(node=>!hidden.includes(node.page.path)).map(node=>node.page.path)),[scene.nodes,hidden]);
+ const renderedNodeMap=useMemo(()=>new Map(scene.nodes.map(node=>[node.page.path,node])),[scene.nodes]);
+ ${uiDefinitions('src/ui/PlexGraph.tsx',['visibleEdges','paintedEdges','interaction'])}
+ ${effectCode}
+ fixture={enter(path,gate,alt=false){scheduleHoverIntent(gate?{kind:'gate',path,gate}:{kind:'node',path},{pointerType:'mouse',isTrusted:true,altKey:alt})},key:alt=>hoverHighlight.current.modifier(alt,true),leave:()=>clearHoverIntent(true),setRequired,setShown,setHidden,scene,interaction};
+ return <div ref={viewport} className='kplex-plex' style={{width:1000,height:800}}><input defaultValue='unsaved editor'/><svg width='1000' height='800'>{paintedEdges.map(edge=><Edge key={edge.id} edge={edge} nodes={renderedNodeMap} inverseArrowDirection={true} connectorStyle='bezier' labelBackground={NATIVE_LINK_LABEL_FILL} crossLinkOpacity={0} highlighted={${edgeHighlights[0]}} dimmed={false} passive={Boolean(crossLinkPeek&&!showCrossLinks&&edge.isCrossLink)} onHover={()=>{}} onMove={()=>{}} onLeave={()=>{}} onContextMenu={()=>{}}/>)}</svg>{scene.nodes.map(node=><div key={node.page.path} data-node={node.page.path}>{node.label}</div>)}</div>;
+}
+try{
+ const element=document.createElement('div');document.body.append(element);const root=createRoot(element);flushSync(()=>root.render(<PeekBoundary><Graph/></PeekBoundary>));const initial=counters.layout,nodes=[...element.querySelectorAll('[data-node]')],input=element.querySelector('input');check(input,element.querySelector('[data-peek-error]')?.textContent||'Mounted graph input absent');input.focus();input.setSelectionRange(2,2);
+ const ids=()=>[...element.querySelectorAll('.is-cross-link .kplex-edge-hit')].map(node=>node.dataset.kplexEdgeId).sort();
+ for(const required of[true,false]){
+  flushSync(()=>fixture.setRequired(required));flushSync(()=>fixture.enter('A',null));check(ids().length===0,'Unmodified hover revealed disabled crosslinks');flushSync(()=>fixture.key(true));check(ids().join('|')===['cross:A:B:child','cross:A:C:parent','cross:A:D:left','cross:A:E:right'].sort().join('|'),'Node peek set differs');
+  check(element.querySelectorAll('.is-cross-link.is-highlighted').length===4,'Peek connectors not highlighted');check([...element.querySelectorAll('.is-hover-peek .kplex-edge-hit')].every(node=>getComputedStyle(node).pointerEvents==='none'),'Peek steals pointer');
+  check([...element.querySelectorAll('.is-cross-link .kplex-edge-visible')].every(node=>getComputedStyle(node).opacity==='1'),'Zero ordinary crosslink opacity hid a highlighted peek');
+  const visits=counters.adjacency;flushSync(()=>fixture.key(true));check(counters.adjacency===visits,'Key repeat re-queried adjacency');flushSync(()=>fixture.key(false));check(ids().length===0,'Release retained temporary edges');
+  flushSync(()=>fixture.enter('A','top',true));check(ids().join('|')==='cross:A:C:parent','Gate peek included another gate');
+  flushSync(()=>fixture.setHidden(['C']));check(ids().length===0,'Peek revealed a filtered/clipped counterpart');flushSync(()=>fixture.setHidden(['A']));flushSync(()=>fixture.setHidden([]));check(ids().length===0,'Retired target resurrected without new entry');
+  flushSync(()=>fixture.enter('B','top',true));check(ids().join('|')==='cross:A:B:child','Target-side gate flipped canonical orientation');
+  flushSync(()=>{plugin.visible=false;for(const listener of listeners)listener()});check(ids().length===0,'Hidden view retained a peek');plugin.visible=true;flushSync(()=>fixture.leave());
+ }
+ check(counters.layout===initial,'Alt state rebuilt scene geometry');check(nodes.every(node=>node.isConnected),'Alt state replaced node DOM');check(element.querySelector('input')===input&&document.activeElement===input&&input.selectionStart===2,'Alt state changed editor focus/caret');
+ flushSync(()=>fixture.setShown(true));const normal=ids();check(normal.length===5,'Normal crosslink policy changed');flushSync(()=>fixture.enter('A',null,true));check(ids().join('|')===normal.join('|'),'Enabled crosslinks duplicated/changed');flushSync(()=>fixture.key(false));check(ids().join('|')===normal.join('|'),'Release hid normal crosslinks');
+ flushSync(()=>root.unmount());check(listeners.size===0,'Visibility listener leaked');element.remove();css.remove();result.dataset.status='passed';result.textContent='Transient crosslink paint passed';
+}catch(error){result.dataset.status='failed';result.textContent=String(error.stack||error)}
+`;
+}
+
+test('transient crosslink paint uses mounted projection/highlight/SVG owners without scene, focus or visibility changes',()=>runBrowserDom(crosslinkPeekBrowserEntry(),'Transient crosslink paint passed'));

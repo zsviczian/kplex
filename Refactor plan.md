@@ -5047,3 +5047,26 @@ excluded. MANIFEST SHA-256
 `7ff510049d3231bfc828952bd70731c2d9fd18ae477d1080fed4d1513b9cb5d0`.
 Originals remain in Temp; nothing raw published. CI runs asynchronously; no final
 CI-green claim or merge recommendation replaces the deferred combined checks.
+
+
+### 2026-10-18 PR181 — Alt/Option crosslink preview
+
+| Checkpoint | Result |
+| --- | --- |
+| Main integration | Main177/180 incorporated without rewriting; draft181 targets main@e95d3db through7d0a014. |
+| Shared owners | Optional trusted mouse feedback in HoverHighlight; focused appendVisibleCrossLinks, existing gates/style/paint/lifecycle. No indexing/settings/schema change; C14 remains paused. |
+| Focused checks | 60 hover/layout/UI +2 Eager/On-demand source-backed +23 gate/tooltip/motion;7architecture/130core/full lint/real build pass. Two projection/Find-highlight controls fail as expected; restored bytes. |
+| Native checks | Exact build1792348138137; native1792348226865 passes11: four gates/incoming, both modes, enabled dedup, zero opacity, main/popout and blur. Guarded reads/parses/acquisition/semantic/search/settings writes0; setup separate. |
+| Maintainer boundary | Complete/push181 then pause for maintainer testing/merge. Keep draft. No147 implementation, merge, release, personal vault or comparative performance test. Full/platform matrix pending. |
+
+Projection uses eligible displayed persistent endpoints; modifier changes do not
+enter geometry or semantic gate-count dependencies. Preserve canonical orientation
+through earlier incident reciprocal lookups, not all-pairs or a second classifier.
+Expanded minis keep their separate non-connection-hover policy. Extra hits passive.
+
+Report: docs/validation/alt-hover-crosslinks-181-2026-10-18.md. Initial UI fixture
+lacked explicit null peek input (59/60); corrected fixture passes60. Final sanity
+1792348322853 restores107files/88Markdown, configuration/workspace, no controllers/
+dialogs, desktop/captureoff. No CPU/memory/latency comparison. Remaining manual:
+native lens/section/scroll provenance; actual Eager/drag/paint; macOS/migration/
+physical devices. Maintainer will test181 before its merge or the next work package.

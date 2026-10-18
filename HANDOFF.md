@@ -19,41 +19,39 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR180 checkpoint then PR181
+# PR181 complete; pause for maintainer testing
 
-Maintainer authorized merging177 without waiting for new CI, then180, then181;
-broader checks deferred until147.177 mergedmain4396768; main fetched/updated;
-180branch2026-10-18-markdown-save-refresh integrated1160cb2 without rewriting.
-Commit/push checkpoints authorized. No release or180/181merge; keep drafts.
-No subagents or personal vault access. Small only, no comparative performance.
+Maintainer merged180 into main e95d3db. Existing181 branch
+2026-10-18-alt-hover-crosslinks integrated main through7d0a014 without rewriting;
+PR181 retargeted main, remains draft. Latest instruction: finish/push181 then pause.
+Do not start147 or another PR; do not merge181 or release. No subagents, personal
+vault or comparative performance. Only authorized Small.
 
-180runtime source is final and exactly built/staged from1160cb2.dirty. Fixes:
-canonical-body read continuity during active replacement with identity/policy and
-same-stat guards; dirty source admission retains prior compiled policy/fingerprint;
-stable weak prepared-settings facade; bounded consumed ordinary geometry keys
-with current-page rebinding. Sections conservative. No new scheduler/receipt.
-Source/compiler/write safeguards remain. Temporary planning marker removed.
+Implemented shared HoverHighlight optional trusted mouse candidate, stationary/
+held Alt in both hover modes and original ordinary deadline restoration. Focused
+appendVisibleCrossLinks uses eligible displayed persistent adjacency, earlier
+reciprocal orientation, same edge/style/dedup owner and actual physical gates.
+Existing lens/paint/highlight SVG; zero opacity and Find supported. Passive extra
+hits; no source/settings work, layout/camera or gate-count change. Existing
+lifecycle clears preview. Expanded minis retain their existing separate policy.
 
-Checks:111affected On-demand tests;8final held-parser mode/removal/same-stat cases;
-143focused tests; source controls fail when read/no-op/geometry corrections removed;
-architecture7/core130/lint/build/native smoke pass. Native strict1792346311955
-passes4, original adaptive positive1792346448185 passes7. Main SHA713b17c1316fc12edfdb20f4b8de6af333ee107ae17697323aa783d2d1b064d4.
-CSS433605d6f9a88b23e4ac35940de23afd2b37faf7102d3e978a077259ff281801.
-Source reads/parses and many presentation queries remain; no universal efficiency
-claim. Actual Eager native and full dependency/popout/platform matrix deferred147.
-Separate Settings-close freeze remains179. Full report records exact data/limits.
+Actual Node22.22.2 checks:60 hover/layout/UI,2 Eager/On-demand source-backed,
+23 gate/tooltip/motion,7architecture/130core/full lint/real build pass. Two source
+controls reject missing projection/Find highlight; runtime restored byte-for-byte.
+Initial59/60 fixture failure corrected with explicit null peek input; failed logs
+retained. Full verify/native combined matrix intentionally deferred.
 
-180committed/pushed256c6cc7bb15952b5ec58609f21798c5e10f07fa. Final35lifetime/
-policy cases pass; native adaptive positive7 and final sanity1792346630038 pass.
-Private backup1792346670447 verified42files/6,996,864bytes; ZIP544 CRC/per-fileSHA;
-HANDOFF excluded; manifest7ff510049d3231bfc828952bd70731c2d9fd18ae477d1080fed4d1513b9cb5d0.
-No active native/browser work; captureoff/original107files/88Markdown. No rawupload.
+Exact native build1792348138137; hover1792348226865 passes11, actual Settings,
+trusted four gates/incoming/node, both modes, zero opacity/dedup, independent main/
+popout and blur. Guarded reads/parses/acquisitions/semantic/search/settingswrites0;
+fixture setup20reads/13acquisitions/2semantic refreshes explicitly excluded.
+Sanity1792348322853 confirms107files/88Markdown/no controllers/dialogs, original
+config/workspace, desktop/captureoff. Native Windows11 Obsidian1.14.4. Installed
+main dd01303b8b00cf001090e816af5d0dcbb32a5099dfd0ed7cc1fae3e587622d8f.
 
-Next update180draft body/title and proceed181 existing branch, integrating main
-and180without rewriting history. Stack181on180 to preserve both changes for147;
-keep both drafts/no merge/release and do not wait for CI.181scope is current PR
-body: shared HoverHighlight modifier state, target-scoped eligible crosslinks via
-existing projection, no layout/camera/settings/source work; retain all visibility/
-filter/gate/occurrence boundaries. Existing branch2026-10-18-alt-hover-crosslinks.
-No new setting, broad indexing, personal vault or subagents. Main validation agent
-owns full environment. Report/ledger carry actual results and deferred147matrix.
+Report docs/validation/alt-hover-crosslinks-181-2026-10-18.md records exact scope,
+checks and pending native lens/section/scroll, Eager/drag/paint/platform matrix.
+Separate179 Settings-close freeze and broader20 remain outside181. No active test/
+controller. Preserve private evidence/originals; no raw publication. Commit/push
+authorized. Pause after final PR description/evidence pins, leaving staged Small
+build for maintainer testing.
