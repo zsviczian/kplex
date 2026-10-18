@@ -89,3 +89,14 @@ outcome from cache damage. A real IndexedDB regression proves retained body-only
 relations, zero source-recovery admission/body reads, and later valid display
 convergence. Compiler/source preparation retry contracts themselves remain a
 separate limitation; no whole-renderer-freeze resolution is claimed.
+
+
+First full verification at `941ddda` stops in the Node test group:1098 pass/29
+fail, all from the narrow migration host lacking `window.setTimeout` (or no window).
+The browser host already supplies real timers. The Node fixture now supplies real
+`setTimeout`/`clearTimeout` rather than a production fallback or synchronous fake;
+all88 migration/runner tests pass without changing their assertions. Native drawing
+cleanup now acquires ownership only after checking the companion returned the
+exact requested test path. Production source is unchanged by these corrections.
+The failed log remains private (`kplex-179-full-final.log`); the corrected full run
+uses `kplex-179-full-retry.log`. Acceptance remains pending until it completes.

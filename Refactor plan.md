@@ -5292,3 +5292,8 @@ Combined full verification at1137fc1 and exact native acceptance are recorded in
 ### PR179 bounded candidate (2026-10-19)
 
 Four causal owner reds green;105 surrounding cases pass before final boundary/copy additions,23 locales pass, prior lint/build pass. One bounded optional completion lease preserves disk/live publication, saved-pending, late errors/unload and semantic-obligation ownership. Settings-only adaptation capped8 attempts/64ms retry window with host yields; presentation subscriber snapshots/nonrecursive keyed-strength coalescing bounded4 synchronous rounds. Source/private preparation experiment restored to baseline: null could admit missing-cache recovery. Typed settings-pending catch at sole restore caller is protected by real IDB snapshot/zero-recovery/later-retry regression;3 final boundary tests pass. No source schema/compiler scheduler/receipt or private preparation redesign. Fullfinal/native candidate acceptance pending; exact source identity inGit. Remaining manual lanes depend on native outcomes and macOS/minimum-host/physical devices; do not claim original renderer freeze fixed. C14 paused.
+
+
+### PR179 test-host correction (2026-10-19)
+
+First full941ddda stops at Node group1098pass/29fail: migration fixture crypto-only or absent window lacks native timers required by completion owner. No production fallback/clock weakening: explicit Node host now supplies real task timers; migration/runner88 pass with original assertions. Native drawing ownership acquired only after exact requested-path guard. Runtime remains941ddda; corrected full verification must run again on clean committed source. Raw failed log retained private; no archive/publication. C14 paused.

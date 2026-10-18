@@ -13,6 +13,12 @@ import test from "node:test";
 import {styleSettingsHostSource} from "./support/styleSettingsHost.mjs";
 import { assertMigratedExcaliBrainSettings, localPreferenceKeys } from "./support/excalibrainMigration.mjs";
 
+// The production completion adapter owns native timers. This Node-only form fixture supplies
+// real task timers rather than a synchronous fake or a production no-window compatibility branch.
+const openingWindow = globalThis.window;
+globalThis.window = {crypto: globalThis.crypto, setTimeout, clearTimeout};
+process.on("exit", /** Retire only this isolated test process's host boundary. */ () => {globalThis.window = openingWindow;});
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = JSON.parse(readFileSync(join(root, "tests/fixtures/excalibrain-migration/data.json"), "utf8"));
 const temp = mkdtempSync(join(tmpdir(), "kplex-migration-"));
@@ -110,7 +116,7 @@ const migrated = importExcaliBrainGraphSettings(fixture);
 
 /** Keep theme identities native-shaped while preserving the real queue and all source/color policy. */
 async function withThemeWindow(run) {
-  const previous = globalThis.window; globalThis.window = {crypto: globalThis.crypto};
+  const previous = globalThis.window; globalThis.window = {...previous, crypto: globalThis.crypto};
   try {return await run();} finally {globalThis.window = previous;}
 }
 
