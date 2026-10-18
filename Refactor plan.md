@@ -4960,3 +4960,10 @@ total retry work follows actual churn, not a fixed latency/resource guarantee.
 The complete-app Save/Settings-close freeze is still unreproduced. Remaining
 manual acceptance: affected full-process startup/freeze, macOS/minimum host and
 physical mobile/native drag behavior. No merge/release or final platform claim.
+
+Saved/pushed checkpointba8ad7e7b1ad7d714edc2340f330e5f706e723d3. Verified private
+backup1792340626104 contains685files/38,971,887bytes and source ZIP541 entries,
+CRCs/per-file hashes; HANDOFF excluded. MANIFEST
+57c5c60589a7ce06d73d55ed49323eb8cb0d9d8cec1025381351eafe2b8ff8d5.
+Originals/prior backups retained; no raw publication. Exact-head remote CI is
+running when recorded, not claimed green. PR remains draft.

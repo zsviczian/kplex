@@ -19,10 +19,10 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR177 — validated startup follow-up, ready to save
+# PR177 — validated and pushed startup follow-up
 
-Main validation agent; branch2026-10-17-navigation-and-native-drag. Feature1941b48
-and docs dd4ef63 pushed; dd4 CI green. Commit/push authorized. Keep PR177 DRAFT;
+Main validation agent; branch2026-10-17-navigation-and-native-drag. Feature1941b48 and docs dd4ef63 pushed; dd4 CI green. Startup runtime/test
+checkpointba8ad7e7b1ad7d714edc2340f330e5f706e723d3 pushed and validated. Commit/push authorized. Keep PR177 DRAFT;
 no merge/release, no personal vault access and no comparative performance tests.
 Small only. Native/browser lanes serial; no independent CLI probes while polling.
 No native/browser driver active. No subagents.
@@ -65,12 +65,13 @@ remains unreproduced; the retired-control guard and these startup fixes do not
 prove it solved. Remaining affected full-process/macOS/minimum-host/physical
 mobile/touch/IME/OS-drag/Bases-tag-cell acceptance stays pending.
 
-NEXT: final diffcheck, commit/push this validated checkpoint; private verified
-backup outside Temp using %TEMP%/kplex-structural-drops-preserve.mjs <exact40commit>;
-then pin backup/source in report and update draft PR body. Old private backup
-1792336531810 and all originals remain untouched. Never archive HANDOFF or
-publish raw evidence. Final CI only green if observed for exact final head.
-
+Private durable backup1792340626104 verified outside Temp:685files/38,971,887bytes,
+sourceZIP541 entries/CRCs/per-file hashes, HANDOFF excluded. MANIFEST
+57c5c60589a7ce06d73d55ed49323eb8cb0d9d8cec1025381351eafe2b8ff8d5.
+Originals and prior backups retained; no raw publication. Remote CI forba8ad7e
+is running at16:24UTC, not claimed green. Evidence is pinned in the report. Recheck exact remote head/CI on resume; no
+uncommitted runtime work or additional benchmark is required. Keep
+PR draft and report unreproduced full-app freeze/platform limitations candidly.
 Report docs/validation/navigation-and-native-drag-2026-10-18.md; ledger
 Refactor plan.md. Private helpers use Node22.22.2 and explicit Small variables.
 No further implementation is required solely for closeout; no claimed resource

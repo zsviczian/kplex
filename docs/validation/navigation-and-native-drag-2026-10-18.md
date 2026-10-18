@@ -938,3 +938,14 @@ counts depend on fixture state and are not a comparison with prior trials.
 Sanity1792340561280 confirms original107 files/88Markdown, matching deployed
 artifacts, no controllers/dialogs, desktop mode and opening CLI capture off.
 All native lanes restore configuration/workspace; all old raw failures remain.
+
+Validated runtime/test checkpoint:
+`ba8ad7e7b1ad7d714edc2340f330e5f706e723d3`. Private durable backup:
+`%LOCALAPPDATA%/KplexValidation/structural-drops-177-20261018-1792340626104`;
+685 files/38,971,887 bytes; source ZIP541 entries with verified CRCs and per-file
+SHA-256, HANDOFF excluded. MANIFEST SHA-256
+`57c5c60589a7ce06d73d55ed49323eb8cb0d9d8cec1025381351eafe2b8ff8d5`.
+Originals and previous backups remain intact; nothing raw is published. CI for
+dd4ef63 passed; the new checkpoint's CI is running when recorded. Keep PR draft;
+no merge or release. Documentation-only evidence pinning does not change the
+validated runtime or require another performance experiment.
