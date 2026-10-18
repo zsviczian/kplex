@@ -1273,6 +1273,9 @@ const germanTranslations = {
   "tagAssignment.linkStyleHelp": "Tag-Verbindungen für Notiztypen sind standardmäßig doppelt so breit wie normale Tag-Verbindungen.",
   "moveNode.modifierTip": "Halte beim Ziehen {shortcut} gedrückt, um ohne diese Bestätigung zu verschieben.",
   "styles.inheritDimension": "Basiswert für {name} verwenden",
+  "settingsSync.conflict": "Die Einstellungen wurden auf einem anderen Gerät geändert. Öffne dieses Steuerelement erneut und wende deine Änderung nochmals an.",
+  "settingsSync.loadFailed": "Die geänderten K-Plex-Einstellungen konnten nicht geladen werden. Deine aktuellen Einstellungen bleiben erhalten. Prüfe die Synchronisierung und versuche es erneut.",
+  "settingsSync.refreshPending": "Einstellungen empfangen. Einige Ansichten konnten nicht aktualisiert werden. Öffne die betroffene Ansicht erneut.",
 } as const satisfies LocaleTranslationMap;
 
 export const germanCatalog = buildLocaleCatalog(germanTranslations);

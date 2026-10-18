@@ -1277,6 +1277,9 @@ const frenchTranslations = {
   "tagAssignment.linkStyleHelp": "Ces liens ont par défaut deux fois l’épaisseur des liens d’étiquettes ordinaires.",
   "moveNode.modifierTip": "Maintenez {shortcut} pendant le glissement pour déplacer sans cette confirmation.",
   "styles.inheritDimension": "Utiliser la valeur de base de {name}",
+  "settingsSync.conflict": "Les paramètres ont changé sur un autre appareil. Rouvrez ce contrôle et appliquez à nouveau votre modification.",
+  "settingsSync.loadFailed": "Impossible de charger les paramètres K-Plex modifiés. Vos paramètres actuels sont conservés. Vérifiez la synchronisation et réessayez.",
+  "settingsSync.refreshPending": "Paramètres reçus. Certaines vues n’ont pas pu être actualisées. Rouvrez la vue concernée.",
 } as const satisfies LocaleTranslationMap;
 
 export const frenchCatalog = buildLocaleCatalog(frenchTranslations);

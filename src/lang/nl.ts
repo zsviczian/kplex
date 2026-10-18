@@ -1273,6 +1273,9 @@ const dutchTranslations = {
   "tagAssignment.linkStyleHelp": "Deze verbindingen zijn standaard twee keer zo dik als gewone tagverbindingen.",
   "moveNode.modifierTip": "Houd {shortcut} ingedrukt tijdens het slepen om zonder deze bevestiging te verplaatsen.",
   "styles.inheritDimension": "Basiswaarde voor {name} gebruiken",
+  "settingsSync.conflict": "De instellingen zijn op een ander apparaat gewijzigd. Open deze bediening opnieuw en pas je wijziging opnieuw toe.",
+  "settingsSync.loadFailed": "De gewijzigde K-Plex-instellingen konden niet worden geladen. Je huidige instellingen blijven behouden. Controleer de synchronisatie en probeer het opnieuw.",
+  "settingsSync.refreshPending": "Instellingen ontvangen. Sommige weergaven konden niet worden vernieuwd. Open de betreffende weergave opnieuw.",
 } as const satisfies LocaleTranslationMap;
 
 export const dutchCatalog = buildLocaleCatalog(dutchTranslations);

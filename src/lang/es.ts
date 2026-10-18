@@ -1277,6 +1277,9 @@ const spanishTranslations = {
   "tagAssignment.linkStyleHelp": "Estas conexiones tienen por defecto el doble de grosor que las conexiones de etiquetas normales.",
   "moveNode.modifierTip": "Mantén {shortcut} al arrastrar para mover sin esta confirmación.",
   "styles.inheritDimension": "Usar {name} base",
+  "settingsSync.conflict": "Los ajustes cambiaron en otro dispositivo. Vuelve a abrir este control y aplica tu cambio de nuevo.",
+  "settingsSync.loadFailed": "No se pudieron cargar los ajustes modificados de K-Plex. Se conservan los ajustes actuales. Comprueba la sincronización e inténtalo de nuevo.",
+  "settingsSync.refreshPending": "Ajustes recibidos. Algunas vistas no se pudieron actualizar. Vuelve a abrir la vista afectada.",
 } as const satisfies LocaleTranslationMap;
 
 export const spanishCatalog = buildLocaleCatalog(spanishTranslations);

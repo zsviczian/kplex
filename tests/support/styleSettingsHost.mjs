@@ -12,7 +12,8 @@ export function styleSettingsHostSource(root) {
   const source = ts.createSourceFile("main.ts", readFileSync(new URL("src/main.ts", root), "utf8"), ts.ScriptTarget.Latest, true);
   const names = new Set(["updateStyleSettings", "saveSettings", "enqueueSettingsWrite", "settingsSnapshotForPersistence", "persistSettingsSnapshot", "setGraphLenses",
     "captureAppearanceOwner", "isAppearanceOwnerCurrent", "subscribeAppearanceThemes", "bindAppearanceEditor", "appearanceThemeNames", "updateAppearanceThemes",
-    "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance"]);
+    "createAppearanceTheme", "resetAppearanceThemeColors", "importLegacyAppearance", "settingsForWrite", "writeSettingsSnapshot",
+    "initializeSettingsReconciliation", "onExternalSettingsChange", "queueExternalSettingsAdoption", "reportExternalSettingsFailure", "installExternalSettings", "updateActionPreferences", "receivedSettingsOwner", "receivedSettingsRevision"]);
   const methods = [];
   /** The owning class keeps one definition for every requested method; a missing seam is an explicit failure. */
   const visit = node => {
@@ -21,7 +22,11 @@ export function styleSettingsHostSource(root) {
   };
   visit(source); assert.equal(methods.length, names.size);
   return `import * as appearanceThemes from "./src/core/plex/appearanceThemes";
-    import {DEFAULT_SETTINGS,importExcaliBrainGraphSettings} from "./src/settings";
+    import {DEFAULT_SETTINGS,importExcaliBrainGraphSettings,migrateAndMergeSettings} from "./src/settings";
+    import {SettingsReconciliation} from "./src/adapters/obsidian/settingsReconciliation";
+    import {assertExternalSettingsRecord} from "./src/adapters/obsidian/settingsInput";
+    import {readObsidianPresentationEnvironment} from "./src/adapters/obsidian/presentationEnvironment";
+    import {migrateActionPreferences,sanitizeActionPreferences,compileActionBindings} from "./src/core/plex/actionPreferences";
     import {Notice} from "obsidian";
     import {mergeGraphLensDefinitions} from "./src/lens/GraphLens";
     import {requireNamedColor} from "./src/core/plex/colorEditing";

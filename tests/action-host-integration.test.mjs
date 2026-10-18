@@ -199,6 +199,7 @@ function host(saveData) {
   return { settings: { actionPreferences: contracts.migrateActionPreferences(undefined).preferences, lastActivePath: 'A.md' }, unloading: false,
     translator: key => key, actionPreferenceQueue: Promise.resolve(), settingsWriteQueue: Promise.resolve(), actionPreferenceListeners: new Set(),
     enqueueSettingsWrite: enqueue, updateActionPreferences: update, persistSettingsSnapshot: persist, settingsSnapshotForPersistence: method("settingsSnapshotForPersistence"),
+    settingsForWrite: method('settingsForWrite'),writeSettingsSnapshot: method('writeSettingsSnapshot'),
     actionPublisher: { sync: () => ({ failures: [] }) }, saveData,
     index: new Proxy({}, { get() { assert.fail('Workflow persistence must not acquire/invalidate semantic data'); } }) };
 }
