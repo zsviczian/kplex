@@ -12,7 +12,7 @@ import type { GraphCompilerSettings } from "../../core/graph/compiler";
 import { sanitizeDatePropertyRelations, type SemanticIndexSettings } from "../../core/graph/settings";
 
 /** Read the explicit host node facets without inferring kind or case rules from its opaque ID. */
-function kindOf(page: GraphPage): GraphNodeKind {
+export function graphNodeKindFromLegacy(page: GraphPage): GraphNodeKind {
   if (page.isFolder) return "container";
   if (page.isTag) return "tag";
   if (page.url) return "url";
@@ -23,7 +23,7 @@ function kindOf(page: GraphPage): GraphNodeKind {
 
 /** Map one returned host page to a bounded read view; shared metadata remains revision-scoped. */
 export function graphNodeViewFromLegacy(page: GraphPage): GraphNodeView {
-  const kind = kindOf(page);
+  const kind = graphNodeKindFromLegacy(page);
   return {
     id: nodeId(page.path),
     name: page.name,

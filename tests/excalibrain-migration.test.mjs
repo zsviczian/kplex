@@ -1237,7 +1237,7 @@ test("standard adoption and named deletion durably clear an existing canvas thro
 
 
 test("hover modifier preferences default on while explicit false survives migration, restart and foreign import", () => {
-  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt"]) {
+  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt", "gateTooltipRequiresAlt"]) {
     assert.equal(defaults[key], true, key);
     for (const malformed of [undefined, null, "true", "false", 0, 1, [], {}])
       assert.equal(migrateAndMergeSettings({kplexInitialized: true, [key]: malformed})[key], true, `${key}: ${JSON.stringify(malformed)}`);
@@ -1251,7 +1251,7 @@ test("hover modifier preferences default on while explicit false survives migrat
 });
 
 test("hover modifier preferences remain independent of theme application and all graph work policies", () => {
-  const changed = {...defaults, hoverHighlightRequiresAlt: false, areaOutlineRequiresAlt: false};
+  const changed = {...defaults, hoverHighlightRequiresAlt: false, areaOutlineRequiresAlt: false, gateTooltipRequiresAlt: false};
   assert.deepEqual(classifySettingsChange(captureSettingsPolicy(defaults), captureSettingsPolicy(changed)), {
     semanticInvalidation: false, presentationFacets: false, searchTerms: false, nodeVisuals: false,
     render: false, typographyOnly: false, paintOnly: false, changedKeys: [],
@@ -1262,6 +1262,7 @@ test("hover modifier preferences remain independent of theme application and all
   themeModel.applyThemeAppearance(changed, appearance);
   assert.equal(changed.hoverHighlightRequiresAlt, false);
   assert.equal(changed.areaOutlineRequiresAlt, false);
+  assert.equal(changed.gateTooltipRequiresAlt, false);
 });
 
 test("native declarative hover controls expose both local preferences and persist explicit opt-outs", async () => {
@@ -1273,7 +1274,7 @@ test("native declarative hover controls expose both local preferences and persis
   const tab = new KplexSettingTab({}, plugin);
   const behavior = tab.getSettingDefinitions().find(item => item.name === "Plex behavior");
   const navigation = behavior.items.find(item => item.heading === "Navigation & interaction");
-  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt"]) {
+  for (const key of ["hoverHighlightRequiresAlt", "areaOutlineRequiresAlt", "gateTooltipRequiresAlt"]) {
     const row = navigation.items.find(item => item.control?.key === key);
     assert.equal(row?.control?.type, "toggle", key);
     assert.equal(typeof row?.desc, "string", key);
@@ -1281,5 +1282,5 @@ test("native declarative hover controls expose both local preferences and persis
     await tab.setControlValue(key, false);
     assert.equal(plugin.settings[key], false, key);
   }
-  assert.deepEqual(saves, [[], []], "workflow controls use the existing settings writer");
+  assert.deepEqual(saves, [[], [], []], "workflow controls use the existing settings writer");
 });

@@ -3,13 +3,15 @@
  * already displayed nodes, saved pins/history or pair-scoped connections; this shell never scans
  * the vault, resolves paths or mutates graph state. Close/unmount retires captured callbacks.
  */
-import { FuzzySuggestModal, type App, type FuzzyMatch } from "obsidian";
+import { FuzzySuggestModal, getIcon, type App, type FuzzyMatch } from "obsidian";
 
 export type ActionPickerEvent = MouseEvent | KeyboardEvent;
 
 export interface ActionPickerItem<T> {
   label: string;
   detail?: string;
+  /** Optional caller-provided native Lucide name; absent consumers retain their current rendering. */
+  icon?: string;
   disabled?: boolean;
   value: T;
 }
@@ -32,6 +34,16 @@ export class ActionTargetPicker<T> extends FuzzySuggestModal<ActionPickerItem<T>
 
   /** Include endpoint/path context in matching without interpreting canonical node identities. */
   getItemText(item: ActionPickerItem<T>): string { return `${item.label}${item.detail ? ` · ${item.detail}` : ""}`; }
+
+  /** Preserve native fuzzy highlighting while adding the same type icon as saved chips/Find. */
+  override renderSuggestion(match: FuzzyMatch<ActionPickerItem<T>>, element: HTMLElement): void {
+    const icon = match.item.icon ? getIcon(match.item.icon) : null;
+    if (!icon) { super.renderSuggestion(match, element); return; }
+    element.addClass("kplex-action-picker-row");
+    icon.setAttribute("aria-hidden", "true");
+    element.createSpan({ cls: "suggestion-icon" }).append(icon);
+    super.renderSuggestion(match, element.createDiv({ cls: "suggestion-content" }));
+  }
 
   /** Keep unavailable targets visible and inert; valid selection dispatches once then closes. */
   onChooseItem(item: ActionPickerItem<T>, event: MouseEvent | KeyboardEvent): void {

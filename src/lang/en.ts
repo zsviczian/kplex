@@ -1279,7 +1279,7 @@ export const englishCatalog = {
     params: ["gate"], referenceParams: [],
   },
   "node.gateFolderChild": {
-    message: "child gate · drag to create a note in this folder",
+    message: "Child gate · drag onto a folder to move; drag onto empty space to create a note here.",
     context: "Legacy K-Plex user-facing copy migrated during the full English catalog pass.",
     params: [],
   },
@@ -5211,6 +5211,23 @@ export const englishCatalog = {
   "ghost.relocationChanged": {"message":"The placeholder or its incoming links changed. Reopen the dialog and try again.","context":"Recoverable placeholder relocation and safe native note creation.","params":[]},
   "ghost.recoverCreated": {"message":"The note was created at {path}, but some updates are unfinished: {error}. Retry to finish using this same note.","context":"Recoverable placeholder relocation and safe native note creation.","params":["path","error"],"referenceParams":["path"]},
   "ghost.relocationUnsupported": {"message":"Choose a different folder. Some incoming links cannot be preserved safely at this destination.","context":"Safe destination selection when incoming placeholder references cannot be retargeted.","params":[]},
+  "moveNode.title": {"message": "Move {name}?", "context": "Explicit native tag membership and physical folder move actions.", "params": ["name"], "referenceParams": ["name"]},
+  "moveNode.description": {"message": "Move {source} to {destination}? Obsidian will update links according to your file settings.", "context": "Explicit native tag membership and physical folder move actions.", "params": ["source", "destination"], "referenceParams": ["source", "destination"]},
+  "moveNode.move": {"message": "Move", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "moveNode.changed": {"message": "The source or destination changed. Drag again.", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "moveNode.unsupported": {"message": "This item cannot be moved to a folder.", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "moveNode.root": {"message": "The vault root cannot be moved.", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "moveNode.recursive": {"message": "A folder cannot be moved into itself or a subfolder.", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "moveNode.same": {"message": "This item is already in that folder.", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "moveNode.conflict": {"message": "An item with this name already exists in the destination.", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "moveNode.movedWarning": {"message": "The item moved, but Obsidian reported a problem updating links. Check your links before continuing.", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "moveNode.failed": {"message": "Could not move: {error}", "context": "Explicit native tag membership and physical folder move actions.", "params": ["error"], "referenceParams": []},
+  "moveNode.gate": {"message": "Drag onto a folder to move this folder.", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "tagDrop.invalid": {"message": "The existing tags property has an unsupported value. Update it in Properties first.", "context": "Explicit native tag membership and physical folder move actions.", "params": [], "referenceParams": []},
+  "tagDrop.added": {"message": "Added {tag} to {name}.", "context": "Explicit native tag membership and physical folder move actions.", "params": ["tag", "name"], "referenceParams": ["tag", "name"]},
+  "tagDrop.existing": {"message": "{name} already has {tag}.", "context": "Explicit native tag membership and physical folder move actions.", "params": ["name", "tag"], "referenceParams": ["name", "tag"]},
+  "settings.gateTooltip.name": {"message": "Require modifier for gate tooltips", "context": "Global gate-tooltip preference, independent of appearance themes. The key parameter is the localized host alternate modifier.", "params": [], "referenceParams": []},
+  "settings.gateTooltip.help": {"message": "Hold {key} while hovering over a gate to show its tooltip. When disabled, hovering alone shows the tooltip after a short delay.", "context": "Global gate-tooltip preference, independent of appearance themes. The key parameter is the localized host alternate modifier.", "params": ["key"], "referenceParams": []},
 } as const;
 
 export type EnglishCatalog = typeof englishCatalog;

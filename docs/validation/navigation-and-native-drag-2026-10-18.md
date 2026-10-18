@@ -412,3 +412,65 @@ corrections are covered by their successful native runs. Final committed source,
 CI and verified private backup references are recorded in the draft PR. Original
 receipts remain private and retained. Earlier platform/gate/freeze limitations
 remain; no personal vault, merge, release or performance-win claim.
+
+## Saved targets, structural drops and gate hints
+
+Follow-up to `577b73c2ed6a79add9d3899362575cfbc583d4fb`, on the same draft
+PR #177 branch. History, pins and their native picker reuse Find's type icons;
+saved tags retain their complete hierarchy independently of graph label shortening.
+Markdown gate drops onto saved tags use the existing metadata-write observer and
+native YAML-list mutation. Unlink removes only exact YAML membership. Inline tags
+remain source-owned and open the existing evidence dialog; no inline text is
+rewritten. Folder membership offers inspection only, and neither structural edge
+offers an unrepresentable Hidden declaration.
+
+Physical note/attachment/folder gate drops onto folders use one native confirmation
+and FileManager move. Captured incarnation/path checks reject stale targets,
+collisions, root moves and recursive destinations. Cancel submits nothing. The
+existing empty-space child-gate creation gesture remains available for folders.
+Gate hints share the existing document tooltip owner and now require Alt/Option by
+default, with a durable opt-out under Plex behavior. Accessible gate names remain.
+All eight locales are maintained. No parser/compiler, schema, scheduler or broad
+source-acquisition change belongs to this checkpoint.
+
+Native Windows/Obsidian 1.14.4 acceptance, using only Small (107 files/88 Markdown):
+
+- Six structural cases pass: saved labels/icons; history/pin YAML assignments;
+  YAML-only, mixed and inline-only Unlink plus folder action policy; Cancel;
+  confirmed Markdown/attachment/folder moves; preserved child creation.
+- Cancel records zero reads, acquisitions, builds, metadata writes or moves.
+  The deliberate tag/move mutations produce normal local source work (26 observed
+  reads, 28 acquisitions, four metadata writes, three moves); no forced build.
+  These are functional operation counts, not comparative performance measurements.
+- Eight directly affected tooltip cases pass across main window, popout and
+  return: actual Settings opt-out/re-enable persistence, unmodified suppression,
+  stationary modifier activation/release, retained accessible names and retired
+  source-window ownership. The corrected broad tooltip lane passes all 24 control/menu/color-editor and
+  window-migration cases. Its prior 15-case failure at the old background-modal
+  selector remains preserved as a driver failure, not a product acceptance result.
+- Exact configuration bytes, original inventory and owned-resource cleanup pass.
+
+Private original receipts use `%TEMP%/kplex-structural-drops-`: structural
+`1792318577497`, tooltip nodes `1792318758983`, broad tooltip `1792320464560`
+(previous failure `1792318707216`), full verify `1792319239307`,
+focused tests `kplex-structural-extended-focused.txt`, indexing fixture
+`kplex-structural-index-final.txt`. Earlier failed setup/driver controls are
+retained, including hidden native window, icon alias and modal dismissal issues.
+The corrected driver follows the existing native backdrop dismissal path and
+waits for Settings subpage replacement before trusted toggle input.
+
+Exact functional candidate: main SHA-256
+`a2a4fdbba4fa86357e625a80db071ce48fd19fbdd045505199aec35eee7ffc94`;
+CSS `37f691d4ffafe822577ddf136868af0f721746fdc6e9372ec9bbe2f5fed5432d`;
+manifest `19d9ecce5557733e0ff0f2e27155e635c30158c3cfa6fbca0f11c16e4dedfd2c`.
+Full `verify:obsidian` passes on Node 22.22.2: architecture7/core130, lint,
+Node1048/UI132/source334/browser598, the actual production build and native smoke.
+Only native-driver corrections follow that full run; runtime/build hashes match.
+
+Separate newly reported investigations remain open: the native node-style Save
+freeze after choosing `--h1-color`, and a restart showing only the saved-preview
+center until navigation. The supplied diagnostics describe a non-authoritative
+preview during source validation and an ontology change; they do not establish a
+color-induced semantic invalidation. No personal-vault access or comparative
+performance run is authorized by that attachment. Per-style border width/gate
+size and confirmed fixes belong to the next independent checkpoint.

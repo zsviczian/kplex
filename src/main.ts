@@ -27,6 +27,9 @@
  * Creation dialogs choose vault-relative destinations from folder metadata; explicit placeholder
  * relocation approves bounded native reference occurrences and retains partial-write recovery locally.
  */
+import { tagMembershipPair } from "./ui/structuralConnectionActions";
+import { graphTagValue } from "./adapters/obsidian/tagMembership";
+import { StructuralNodeDropActions } from "./ui/StructuralNodeDropActions";
 import { mergeGraphLensDefinitions } from "./lens/GraphLens";
 import { appearanceColorReferences } from "./core/contracts/appearance";
 import { requireNamedColor } from "./core/plex/colorEditing";
@@ -240,6 +243,7 @@ export default class KplexPlugin extends Plugin {
   private readonly managedMetadataWrites = new Map<string, number>();
   /** Pending saved relationship observers release on unload, rename/delete or actual convergence. */
   private readonly relationshipWriteCancels = new Set<() => void>();
+  private structuralDrops: StructuralNodeDropActions | null = null;
   /** Paths suppress the synchronous vault:create rebuild; object identity protects optimistic UI. */
   private readonly managedCreatedPaths = new Map<string, number>();
   private readonly managedCreatedFiles = new WeakSet<TFile>();
@@ -566,6 +570,8 @@ export default class KplexPlugin extends Plugin {
   /** Release action publications, surface registrations and host resources before index teardown. */
   onunload(): void {
     this.unloading = true;
+    this.structuralDrops?.dispose();
+    this.structuralDrops = null;
     this.settingsTab?.disposeActionSettings();
     this.settingsTab = null;
     for (const dialog of this.actionDialogs.keys()) dialog.close();
@@ -5826,7 +5832,8 @@ export default class KplexPlugin extends Plugin {
 
   /** Resolve source locations for pair evidence while keeping actual note content untouched and localizing unavailable-source feedback. */
   async relationshipEvidenceLocations(evidence: RelationEvidence): Promise<Array<{ path: string; line: number; label: string }>> {
-    const file = this.app.vault.getFileByPath(evidence.declaredByPath);
+    const membership = evidence.sourceKind === "tag-tree" ? tagMembershipPair(this.index.get(evidence.sourcePath), this.index.get(evidence.targetPath)) : null;
+    const file = membership?.note.file ?? this.app.vault.getFileByPath(evidence.declaredByPath);
     if (!file || file.extension !== "md") return [];
 
     const positions: Array<{ path: string; line: number; label: string }> = [];
@@ -5835,6 +5842,14 @@ export default class KplexPlugin extends Plugin {
       if (positions.some((item) => item.line === safeLine && item.label === label)) return;
       positions.push({ path: file.path, line: safeLine, label });
     };
+
+    if (membership) {
+      const tag = graphTagValue(membership.tag)?.toLocaleLowerCase();
+      for (const occurrence of this.app.metadataCache.getFileCache(file)?.tags ?? []) {
+        if (occurrence.tag.replace(/^#/, "").toLocaleLowerCase() === tag) add(occurrence.position.start.line, this.translator("evidence.navigateLine", { line: occurrence.position.start.line + 1 }));
+      }
+      return positions;
+    }
 
     if (evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url"
       || evidence.sourceKind === "property-url" && evidence.line !== undefined) {
@@ -5881,7 +5896,8 @@ export default class KplexPlugin extends Plugin {
 
     const groups = new Map<string, { file: TFile; evidences: RelationEvidence[] }>();
     for (const evidence of evidences) {
-      const file = this.app.vault.getFileByPath(evidence.declaredByPath);
+      const membership = evidence.sourceKind === "tag-tree" ? tagMembershipPair(this.index.get(evidence.sourcePath), this.index.get(evidence.targetPath)) : null;
+      const file = membership?.note.file ?? this.app.vault.getFileByPath(evidence.declaredByPath);
       if (!file || file.extension !== "md") continue;
       const group = groups.get(file.path) ?? { file, evidences: [] };
       group.evidences.push(evidence);
@@ -5955,6 +5971,14 @@ export default class KplexPlugin extends Plugin {
         } else if ((evidence.sourceKind === "inline-ontology" || evidence.sourceKind === "body-url" || evidence.sourceKind === "property-url") && evidence.line) {
           const range = paragraphRange(evidence.line - 1);
           sections = [make(range.start, range.end, this.translator("evidence.paragraphAroundLine", { line: evidence.line }))];
+        } else if (evidence.sourceKind === "tag-tree") {
+          const locations = await this.relationshipEvidenceLocations(evidence);
+          const seen = new Set<number>();
+          for (const location of locations) {
+            if (seen.has(location.line)) continue;
+            seen.add(location.line);
+            sections.push(make(location.line, location.line, this.translator("evidence.navigateLine", { line: location.line + 1 })));
+          }
         } else if (evidence.sourceKind === "obsidian-link" || evidence.sourceKind === "unresolved-link") {
           const locations = await this.relationshipEvidenceLocations(evidence);
           const seen = new Set<string>();
@@ -6149,6 +6173,24 @@ export default class KplexPlugin extends Plugin {
   openCreateInFolderModal(folder: GraphPage, hostLeaf?: WorkspaceLeaf): void {
     if (!folder.isFolder) return;
     new CreateFolderNoteModal(this, folder, hostLeaf).open();
+  }
+
+  /** Reuse one plugin-owned metadata queue for assignment and unlink, including actions from other windows. */
+  private structuralDropOwner(): StructuralNodeDropActions {
+    this.structuralDrops ??= new StructuralNodeDropActions(this.app, this.translator,
+      /** Reuse exact-file saved-metadata observation and plugin cancellation ownership. */ (file, fields, mutate) => this.mutateCreatedNodeMetadata(file, fields, mutate));
+    return this.structuralDrops;
+  }
+
+  /** Handle explicit structural drops without changing ontology relationship semantics. */
+  openStructuralNodeDrop(origin: GraphPage, target: GraphPage): boolean {
+    return !this.unloading && this.structuralDropOwner().open(origin, target);
+  }
+
+  /** Remove only YAML tag membership; body tags remain source evidence and are never rewritten here. */
+  async unlinkTagMembership(note: GraphPage, tag: GraphPage, current: () => boolean): Promise<boolean> {
+    if (this.unloading) return false;
+    return this.structuralDropOwner().unlink(note, tag, current);
   }
 
   private configuredDisplayNameField(): string | null {

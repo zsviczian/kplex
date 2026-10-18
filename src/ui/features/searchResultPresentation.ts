@@ -9,7 +9,7 @@ const VIDEO_EXTENSIONS = new Set(["3gp", "m4v", "mkv", "mov", "mp4", "ogv", "web
 const AUDIO_EXTENSIONS = new Set(["aac", "aif", "aiff", "flac", "m4a", "mp3", "ogg", "opus", "wav"]);
 
 /** Preserve the explicit semantic type; extension only refines an already classified attachment. */
-export function searchResultIconName(node: Pick<GraphNodeView, "kind" | "file">): string {
+export function searchResultIconName(node: Pick<GraphNodeView, "kind"> & { file?: { extension: string } | null }): string {
   switch (node.kind) {
     case "container": return "folder";
     case "tag": return "tags";

@@ -4771,3 +4771,34 @@ Final source/CI/private evidence references are recorded through the draft PR.
 C14 remains accepted/paused. Highest-risk manual follow-up is narrow mobile footer
 layout and macOS modifier/IME handling; Windows automation cannot prove physical
 mobile or macOS behavior. No merge/release.
+
+### 2026-10-18 — PR #177 saved-target and structural-drop follow-up
+
+History/pins reuse Find's type icon vocabulary and retain complete tag hierarchy.
+Explicit saved-tag drops and Unlink reuse native frontmatter mutation plus the
+existing exact-cache/body write observer; inline tags remain source evidence.
+Structural context actions share one capability policy across menus, keyboard
+dispatch and details. Folder/file-tree membership cannot be unlinked or hidden.
+Physical gate-to-folder drops use a captured, revalidated FileManager move behind
+native confirmation, retaining child-gate empty-space creation. No parallel
+ontology classifier, source writer, scheduler or schema was introduced.
+
+The existing document tooltip owner now handles a default-on gate Alt/Option
+preference, including stationary modifier press/release, live opt-out, blur and
+exact listener cleanup. Preference remains global, outside appearance themes and
+semantic policy. All eight locales are updated.
+
+Focused checks pass 183 cases and the indexing fixture. Native Small passes six
+structural cases and eight gate/main/popout/return cases with exact inventory and
+configuration restoration. Cancel performs zero host/index work. The corrected broader
+tooltip lane passes all 24 controls/menu/color-editor/window-migration cases; its
+prior 15-case stale-selector failure remains preserved. Full verify passes architecture7/core130, lint,
+Node1048/UI132/source334/browser598, actual production build and native smoke. Evidence and
+exact artifact references live in the feature validation report. No comparative
+performance tests were run while the maintainer encodes videos. C14 stays paused.
+
+Separate queued work: investigate the reported `--h1-color` parent-style Save
+freeze, expose existing per-style border-width/gate-radius fields, and reproduce
+the saved-preview stationary-center restart symptom. The supplied aggregate
+diagnostics authorize no personal-vault access and do not prove a color-induced
+semantic invalidation. Preserve these separate checkpoints and original receipts.

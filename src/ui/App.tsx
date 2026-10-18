@@ -54,6 +54,7 @@ import { toolbarMenuAnchor } from "./menuAnchor";
 import type { DocumentSyncMode, KplexViewSurface, NodeSortOrder, SidecarMarkdownMode, SidecarPosition } from "../settings";
 import { SearchBox } from "./features/SearchBox";
 import { searchResultIconName } from "./features/searchResultPresentation";
+import { nodeListPresentation } from "./nodeListPresentation";
 import { createLegacyGraphSearchRead } from "../adapters/obsidian/graphContracts";
 import { isEmbeddedMarkdownLeaf } from "../adapters/obsidian/embeddedMarkdownLeaf";
 import { focusEmbeddedMarkdown } from "../adapters/obsidian/embeddedMarkdownFocus";
@@ -915,7 +916,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
     const paths = [...(kind === "pins" ? plugin.settings.pinnedNodes : plugin.settings.navigationHistory)];
     const items: ActionPickerItem<NodeRef | null>[] = paths.map(/** Retain unavailable saved rows explicitly. */ path => {
       const target = plugin.index.get(path);
-      return { label: target ? plugin.index.titleFor(target) : translate("actions.missingTarget", { path }),
+      const presentation = target ? nodeListPresentation(target, plugin.index.titleFor(target)) : null;
+      return { label: presentation?.label ?? translate("actions.missingTarget", { path }), icon: presentation?.icon ?? "file-question",
         detail: path, disabled: !target, value: target ? actionNodeRef(target) : null };
     });
     const sessionId = `${actions.surfaceId}:picker:${++dialogSerial.current}`;
@@ -1277,9 +1279,9 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
 
         {pinnedPages.length > 0 && <div className="kplex-pinned-bar" aria-label={translate("app.pinnedNodes")}>
           {pinnedPages.map((pinned) => {
-            const title = plugin.index.titleFor(pinned);
+            const { label: title, icon } = nodeListPresentation(pinned, plugin.index.titleFor(pinned));
             return <div key={pinned.path} className={`kplex-pinned-chip${pinned.path === page.path ? " is-active" : ""}`}>
-              <button className="kplex-pinned-open" data-kplex-pinned-path={pinned.path} aria-label={`${title}\n${pinned.path}`} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name="pin" size={12} /><span>{title}</span></button>
+              <button className="kplex-pinned-open" data-kplex-pinned-path={pinned.path} aria-label={`${title}\n${pinned.path}`} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name={icon} size={12} /><span>{title}</span></button>
               <button className="kplex-pinned-remove" aria-label={translate("app.unpinNode", { title })} onClick={() => actions.dispatch({ id: "pin.remove", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(pinned) } })}><ObsidianIcon name="x" size={11} /></button>
             </div>;
           })}
@@ -1325,8 +1327,8 @@ export function KplexApp({ plugin, surface, hostLeaf, translate, environment, on
           {plugin.settings.navigationHistory.slice(-14).reverse().map((path, indexValue) => {
             const item = plugin.index.get(path);
             if (!item) return null;
-            const title = plugin.index.titleFor(item);
-            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} aria-label={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(item) } })}><span className="kplex-history-text">{title}</span></button>;
+            const { label: title, icon } = nodeListPresentation(item, plugin.index.titleFor(item));
+            return <button key={`${path}:${indexValue}`} data-kplex-history-path={path} aria-label={`${title}\n${path}`} className={path === page.path ? "is-active" : ""} onClick={() => actions.dispatch({ id: "node.activate", source: "toolbar", target: { kind: "explicit", node: actionNodeRef(item) } })}><ObsidianIcon name={icon} size={12} /><span className="kplex-history-text">{title}</span></button>;
           })}
         </div>
       </footer>

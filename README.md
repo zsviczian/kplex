@@ -106,6 +106,10 @@ The toolbar search box (**F4**) searches notes, folders, tags, attachments, Canv
 
 Drag a note, attachment, URL or placeholder node into a Markdown editor to insert its link, or into another K-Plex view to navigate or start a relationship. Tags are inserted as `#tag` text and can also be dragged between Plexes for navigation. Desktop node dragging uses Obsidian's native link handling; gates retain their connection gestures.
 
+History and pins show type icons and full tag paths. Drag a Markdown note onto a tag in either list to add that tag to the note's **tags** property.
+
+Drag a file or folder's gate onto a folder to move it there. K-Plex shows the source and destination for confirmation; Obsidian updates links according to your file settings. Dragging a folder's child gate onto empty space still creates a note inside that folder.
+
 For a narrower Plex, open **Settings → K-Plex → Plex behavior → Simplified layout**, the first entry under **Layout & sizing**. Friends and challengers appear in separate groups on the left, retaining their relationship meanings and filters. Choose this separately for desktop, tablet and mobile, and for main tabs and side panels. Pop-outs use the main-tab choice for their device.
 
 Choose curved or straight connections under **Settings → K-Plex → Visual styling → Link styling → Link shape**.

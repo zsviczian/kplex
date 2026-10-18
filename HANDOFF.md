@@ -19,37 +19,56 @@ Obsidian is the production host; preserve the established portable semantic, ide
 
 ---
 
-# PR #177 relationship-composer follow-up: validated, ready for commit/push
+# PR #177 saved-target and structural-drop checkpoint
 
-Existing branch `2026-10-17-navigation-and-native-drag`, baseline54fef0c.
-Keep draft; Closes157/Refs175; no merge/release/personal-vault access. No further
-implementation or broad performance work. The feature report and latest ledger
-entry hold the delivered scope, native results and remaining limitations.
+Continue on `2026-10-17-navigation-and-native-drag`, base
+`577b73c2ed6a79add9d3899362575cfbc583d4fb`. Keep PR177 draft; Closes157/Refs175.
+Regular validated commits/pushes are authorized. No merge/release/personal vault.
+No comparative performance tests while Windows HandBrake encodes videos.
+Foreground native testing is authorized in kplex-test-small only for this work.
 
-Direction/ontology now share one row with All; known fields retain their assigned
-role and new fields require an explicit role. Completion/edit controls occupy a
-compact footer and show the effective configured result. FuzzySuggester lazy
-providers own visibility gating/memoization for Find and the note composer. The
-composer reuses physical-file search; no indexing/storage/scheduler change.
+Delivered: shared saved-node type icons/full tag labels; explicit history/pin tag
+assignment and exact YAML Unlink with retained inline evidence; shared structural
+edge capability policy; confirmed FileManager note/attachment/folder moves; default
+Alt/Option gate hints in the existing document tooltip owner. All eight locales.
+No parser/compiler/schema/scheduler change. See the feature report and ledger.
 
-Full verify PASS on requiredNode22.22.2:7/130/lint/1032/131/334/598 plus realbuild
-and native smoke. Native folder/composer10+reload, full action8/51native keys,
-Find8queries/6navigations and actual new/existing-modal visual inspection PASS.
-Source/test changes are complete; only native-driver fixes followed full verify.
-Failed setup/driver controls are retained, including absent fixture, suggestion-
-first Escape, and the former premature property-existence wait. Saved-file proof
-and exact-target metadata wait preserve the original deadline; two arrival gaps
-were observed without production writer failure.
+Full verify PASS on Node22.22.2: architecture7/core130, lint, Node1048/UI132/
+source334/browser598, actual production build and native smoke. Source/build
+unchanged during native follow-up. Structural6 and affected-tooltip8 main/popout/
+return pass with exact configuration/inventory restoration (107 files/88 Markdown).
+Cancel records zero host/index work. Final broad native tooltip24 PASS, including shared background editor and
+window migration. The prior stale-selector failure is retained. The reusable
+driver now targets the existing shared color editor.
 
-Private raw prefix `%TEMP%/kplex-composer-feedback-`: verify1792312440827,
-folders1792313724282, actions1792313842792, find1792313880908,
-preview1792313914841, sanity1792313974005.json. Current exact staged main SHA
-bed178e785babad2d2070097fbd291fd1a85cfe78d6add0be5e626b1838d4555.
-Final sanity restores107files/88Markdown, configuration, no controllers/dialogs,
-desktop and captureFALSE. Do not publish/delete raw evidence or archive HANDOFF.
+Private evidence prefix `%TEMP%/kplex-structural-drops-`: verify1792319239307,
+structural1792318577497, tooltips-nodes1792318758983, tooltips1792320464560; all failed controls retained.
+Functional main SHA a2a4fdbba4fa86357e625a80db071ce48fd19fbdd045505199aec35eee7ffc94.
+Do not publish/delete raw receipts or archive HANDOFF. Preserve a verified private
+backup and report the checkpoint's final commit/CI through the PR.
 
-Next: final diff/check; commit/push this scoped checkpoint; record exact final CI
-and append-only private evidence backup in PR. Do not create another code change
-just to record CI. Physicalmobile/macOS/minimum-host/OSdrag acceptance, native
-large-vault latency savings, the separate gate/filter failure and original
-unreproduced freeze remain limitations. Preserve previous evidence backups.
+Next independent checkpoint, explicitly requested by maintainer:
+- Reproduce parent Node style Save freeze after Border -> --h1-color through actual
+  Settings subpages. User confirms only one Plex; File properties may have been open.
+  Test single Plex with Properties closed/open. No cause is established yet.
+- Add per-style border width and gate size using existing supported NodeStyle fields
+  and current editor/queue/theme ownership. Preserve inherited/unchanged fields,
+  field-level merge, full record and all locales. Update APPEARANCE docs.
+- Investigate restart showing center without relations until away/back. Supplied
+  aggregate report: Eager saved-preview/source-authority; ontology.rightFriends
+  change recorded; demanded center1, no active local task. Do not infer color-induced
+  semantic invalidation. No personal vault access is authorized by the attachment.
+
+Private prepared reproductions (not run, not committed):
+`%TEMP%/kplex-style-reference-reproduction.mjs` reuses styleOperations helpers,
+actual Settings pages and optional KPLEX_STYLE_REFERENCE_PROPERTIES=true;
+`%TEMP%/kplex-stationary-startup-reproduction.test.mjs` uses actual GraphIndex/IDB
+with held source authority and offline changed relations, before/after demand plus
+policy variant. Run only after existing native/browser lanes finish. They are
+working probes, not established regression results; promote only useful verified
+cases into existing owners. Do not add speculative observer/scheduler fixes.
+
+MacOS, physical mobile, minimum-host and OS drag remain separate acceptance.
+Native Small cannot establish the cause of the maintainer's application freeze or
+large-vault resource gains. Preserve prior known gate/filter and double-click
+limitations in the report. C14 remains accepted/paused.

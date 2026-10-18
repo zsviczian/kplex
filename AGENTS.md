@@ -86,7 +86,7 @@ Rules:
 6. Import only legacy graph ontology and graph/node/link appearance, not plugin CSS, commands, hotkeys, navigation history, workspace/editor state or scheduling. Preserve existing K-Plex preferences when importing; loading K-Plex's own data remains separate from foreign-data import.
 7. Migrate old `hierarchy.friends` to `hierarchy.leftFriends`.
 8. If legacy ExcaliBrain is installed and running, automatically import compatible settings the first time K-Plex runs in that vault. Keep a manual import path as well.
-9. Folder and tag nodes may be central nodes. Relationship creation/relinking involving folder/tag endpoints stays disabled, except that dragging outward from a folder's child gate is an explicit file-creation gesture for creating a real child file inside that physical folder.
+9. Folder and tag nodes may be central nodes. Ontology relationship creation/relinking involving folder/tag endpoints stays disabled. Explicit structural drops are separate: Markdown onto a saved tag adds YAML tag membership; a physical file/folder gate onto a folder offers a confirmed native move. An empty-space drag from a folder's child gate creates a real child file inside that folder.
 10. A Markdown document property overrides an equivalent relationship discovered in body text. This rule is important for deterministic relinking.
 
 ## Disposable native test vaults

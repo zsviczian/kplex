@@ -325,10 +325,10 @@ assert(createFolderNoteModalSource.includes('nameSetting.settingEl.addClass("kpl
 assert(createFolderNoteModalSource.includes('this.scope.register(["Mod"], "Enter"'), "Folder creation must use the shared Ctrl/Cmd+Enter create default");
 assert(createFolderNoteModalSource.includes('this.plugin.settings.newNodeDefaultType'), "Folder creation must share the create-child Markdown/Excalidraw default");
 assert(!createFolderNoteModalSource.includes("addRelated.createPlaceholder"), "Folder creation must not offer a placeholder because folders require real files");
-assert(plexGraphSource.includes('const folderChildCreation = node.page.isFolder && gate === "bottom"'), "A folder child gate must be a valid creation drag origin");
-assert(plexGraphSource.includes('if (origin?.isFolder && drag.gate === "bottom")'), "Releasing a dragged folder child gate must open file-only folder creation");
+assert(plexGraphSource.includes('if (event.button !== 0 || node.page.isTag || node.page.transient) return;'), "Physical folder gates must remain valid drag origins");
+assert(plexGraphSource.includes('drag.moved && drag.gate === "bottom" && !target'), "Only an empty-space folder child-gate drop starts file creation");
 assert(thoughtNodeSource.includes('translate("node.gateFolderChild")'), "Folder child gates must explain their creation gesture through localized copy");
-assert(plexGraphSource.includes("plugin.openCreateInFolderModal(target, hostLeaf)"), "Dropping a regular note gate on a folder may continue to start the secondary file-only folder flow");
+assert(plexGraphSource.includes("plugin.openStructuralNodeDrop(origin, target)"), "Dropping a physical node gate onto a folder must use native move confirmation");
 assert(mainSource.includes("createNewNodeInFolder(folder: GraphPage"), "Folder creation must materialize directly in the selected folder");
 assert(newRelatedSource.includes('className: "kplex-add-related-control-row"'), "Ontology and open-for-editing controls must share the first responsive row");
 assert(newRelatedSource.includes('className: "kplex-add-related-compose-row"'), "Name search and create/link actions must share the second row");
@@ -447,6 +447,8 @@ for (const file of [
   "src/adapters/obsidian/embeddedMarkdownLeaf.ts",
   "src/adapters/obsidian/EmbeddedDrawingFit.ts",
   "src/ui/components/viewportFit.ts",
+  "src/ui/structuralConnectionActions.ts",
+  "src/adapters/obsidian/tagMembership.ts",
   "src/adapters/obsidian/embeddedMarkdownFocus.ts",
   "src/adapters/obsidian/externalUrl.ts",
   "src/adapters/obsidian/indexDiagnosticsReport.ts",
@@ -668,6 +670,7 @@ for (const [path, name] of [
   ["src/ui/NewRelatedNoteModal.js", "NewRelatedNoteModal"],
   ["src/ui/MaterializeGhostModal.js", "MaterializeGhostModal"],
   ["src/ui/CreateFolderNoteModal.js", "CreateFolderNoteModal"],
+  ["src/ui/StructuralNodeDropActions.js", "StructuralNodeDropActions"],
   ["src/editor/OntologySuggester.js", "OntologySuggester"],
   ["src/ui/AddToOntologyModal.js", "AddToOntologyModal"],
   ["src/ui/NoteTypeModal.js", "NoteTypeModal"],

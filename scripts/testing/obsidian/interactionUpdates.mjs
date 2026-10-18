@@ -12,10 +12,11 @@ import {obsidianCliExecutable,spawnNativeSync} from './processTools.mjs';
 import {validateTarget} from './runner.mjs';
 import {acceptSimplifiedLayout} from './interactionSimplifiedLayout.mjs';
 import {acceptNativeDragEnhancements} from './interactionNativeDragEnhancements.mjs';
+import {acceptStructuralDrops} from './interactionStructuralDrops.mjs';
 import {nativeHtmlDrag} from './nativeHtmlDrag.mjs';
 const root=fileURLToPath(new URL('../../..',import.meta.url)),vaultName=process.env.KPLEX_TEST_VAULT_NAME;
 const scenario=process.env.KPLEX_NATIVE_INTERACTION_SCENARIO??'legacy';
-assert(['legacy','layout','native-drag','navigation-enhancements'].includes(scenario),'Unknown native interaction scenario');
+assert(['legacy','layout','native-drag','navigation-enhancements','structural-drops'].includes(scenario),'Unknown native interaction scenario');
 assert.equal(vaultName,'kplex-test-small');
 const target=validateTarget({vaultName,vaultPath:process.env.KPLEX_TEST_VAULT_PATH,configDir:process.env.KPLEX_TEST_CONFIG_DIR});
 const output=process.env.KPLEX_HOST_REPORT_DIR;
@@ -27,10 +28,13 @@ function evaluate(code){return JSON.parse(cli('eval','code='+code).replace(/^=>\
 assert.equal(cli('vault','info=path'),target.vault);
 const backups=['plugins/k-plex/data.json','community-plugins.json','workspace.json','appearance.json'].filter(name=>existsSync(join(target.config,name))).map(name=>({name,bytes:readFileSync(join(target.config,name))}));
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+const privateDir=join(output,'private');mkdirSync(privateDir);
+for(const [index,backup]of backups.entries())writeFileSync(join(privateDir,'configuration-'+index+'.bin'),backup.bytes);
+writeFileSync(join(privateDir,'configuration-manifest.json'),JSON.stringify(backups.map((backup,index)=>({name:backup.name,file:'configuration-'+index+'.bin',sha256:hash(backup.bytes)})),null,2));
 const artifacts=Object.fromEntries(['main.js','styles.css','manifest.json'].map(name=>{const bytes=readFileSync(join(root,'dist',name));assert(bytes.equals(readFileSync(join(target.pluginDir,name))),'Stale installed '+name);return[name,hash(bytes)]}));
 
 /** Keep actual native controls and trusted pointer input inside their owning renderer. */
-function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag){
+function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag,structuralAcceptance){
  const p=app.plugins.plugins['k-plex'],remote=require('@electron/remote'),win=remote.getCurrentWindow();
  if(['__kplexInteractionUpdates','__kplexHoverProbe','__kplexInteractionTouch','__kplexInteractionGateProbe','__kplexActionWorkflows','__kplexActionDevice','__kplexDisplayModesProbe'].some(name=>window[name])||app.setting.isOpen||app.dragManager.draggable)throw Error('Clean native prerequisites required');
  const c=window.__kplexInteractionUpdates={settings:structuredClone(p.settings),policy:p.savedSettingsPolicy,layout:app.workspace.getLayout(),owners:{linked:p.linkedDocumentLeaf,last:p.lastDocumentLeaf,recent:[...p.recentLeafHistory],sidecars:[...p.sidecarLeaves]},bounds:win.getBounds(),minimum:win.getMinimumSize(),inventory:app.vault.getFiles().map(f=>f.path).sort(),files:[],leaves:[],releases:[],restores:[],cases:[],done:false,folder:'Kplex-Interaction-Updates-'+Date.now()};
@@ -39,7 +43,7 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag)
  const frames=()=>new Promise(r=>window.requestAnimationFrame(()=>window.requestAnimationFrame(r)));
  const path=name=>c.folder+'/'+name+'.md',root=()=>c.leaf.view.contentEl;
  /** Focus once per owning window, without changing background-throttling policy. */
- const native=leaf=>{const doc=leaf.view.contentEl.ownerDocument,w=doc.defaultView,r=w.require('@electron/remote'),n=r.getCurrentWindow();if(!n.isFocused()||!doc.hasFocus()){r.app.show?.();r.app.focus({steal:true});n.restore();n.show();n.focus();n.webContents.focus()}return n};
+ const native=leaf=>{const doc=leaf?.view.contentEl.ownerDocument??document,w=doc.defaultView,r=w.require('@electron/remote'),n=r.getCurrentWindow();if(!n.isFocused()||!doc.hasFocus()||doc.visibilityState!=='visible'||n.isMinimized()){r.app.show?.();r.app.focus({steal:true});n.restore();n.show();n.focus();n.webContents.focus()}return n};
  const center=el=>{const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}};
  const input=(type,point,modifiers=[])=>native(c.leaf).webContents.sendInputEvent({type,x:Math.round(point.x),y:Math.round(point.y),button:'left',clickCount:1,modifiers});
  const key=down=>native(c.leaf).webContents.sendInputEvent({type:down?'keyDown':'keyUp',keyCode:'Alt',modifiers:down?['alt']:[]});
@@ -74,6 +78,7 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag)
  const confirm=async()=>{await until(()=>root().ownerDocument.querySelector('[data-kplex-primary-action="true"]'),'Composer absent');const button=root().ownerDocument.querySelector('[data-kplex-primary-action="true"]');check(!button.disabled,'Composer primary disabled');button.click();await until(()=>!button.isConnected,'Composer did not close')};
  c.task=(async()=>{
   try{
+   c.phase='initial-fixture';native();
    await until(()=>!p.isStartupInitializing(),'Startup did not settle');await app.vault.createFolder(c.folder);c.folderCreated=true;
    const make=async(name,body='')=>{const f=await app.vault.create(path(name),body);c.files.push(f.path);return f};
    await make('A drop target');await make('Parent');await make('Center','---\nParent: "[['+c.folder+'/Parent]]"\nFriend: "[['+c.folder+'/Friend]]"\nChallenger: "[['+c.folder+'/Challenger]]"\nChild: "[['+c.folder+'/Ghost]]"\n---\n');
@@ -82,12 +87,12 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag)
    for(let i=0;i<32;i++)await make('Child '+String(i).padStart(2,'0'),'---\nParent: "[['+c.folder+'/Center]]"\n---\n');
    await until(()=>c.files.every(name=>app.metadataCache.getFileCache(app.vault.getFileByPath(name))),'Fixture metadata absent');
    Object.assign(p.settings,{embedCentralNode:false,documentSyncMode:'off',followActiveFile:false,autoOpenCentralDocument:false,animationSpeed:0,graphDepth:1,childMaxHeight:200,childColumns:3,renderSiblings:true,renderAlias:false,graphLenses:[],showVirtualNodes:true,hoverHighlightRequiresAlt:true,areaOutlineRequiresAlt:true,lastActivePath:path('Center'),navigationHistory:[path('Center')]});
-   p.settings.hierarchy={...p.settings.hierarchy,parents:['Parent'],children:['Child'],leftFriends:['Friend'],rightFriends:['Challenger']};await p.saveSettings(true,false);
-   for(const name of c.files)p.index.insertCreatedFile(app.vault.getFileByPath(name));await p.index.rebuild();c.releases.push(p.index.acquireSemanticDemand(path('Center')),p.index.acquireSemanticDemand(path('Parent')));
+   c.phase='initial-policy';p.settings.hierarchy={...p.settings.hierarchy,parents:['Parent'],children:['Child'],leftFriends:['Friend'],rightFriends:['Challenger']};await p.saveSettings(true,false);
+   c.phase="initial-build";for(const name of c.files)p.index.insertCreatedFile(app.vault.getFileByPath(name));await p.index.rebuild();c.releases.push(p.index.acquireSemanticDemand(path('Center')),p.index.acquireSemanticDemand(path('Parent')));
    // This fixture requires the shared parent's actual child scope, independent of optional
    // sibling-enrichment timing. Join the existing bounded owner before measuring presentation.
-   await p.index.refreshOnDemandGraph([path('Center'),path('Parent')],false);
-   c.leaf=app.workspace.getLeaf('tab');c.leaves.push(c.leaf);await c.leaf.setViewState({type:'k-plex-react-view',active:true});await c.leaf.view.waitUntilReady();await navigate('Center');native(c.leaf);await wait(300);
+   c.phase='initial-demand';await p.index.refreshOnDemandGraph([path('Center'),path('Parent')],false);
+   c.phase='initial-view';c.leaf=app.workspace.getLeaf('tab');c.leaves.push(c.leaf);native(c.leaf);await c.leaf.setViewState({type:'k-plex-react-view',active:true});await c.leaf.view.waitUntilReady();await navigate('Center');native(c.leaf);await wait(300);
    await until(()=>root().querySelectorAll('.kplex-role-child').length>=32&&root().querySelectorAll('.kplex-role-sibling').length===4&&!p.index.hasActiveSemanticPreparation()&&!p.index.hasPendingSemanticPreparation(),'Fixture graph and four sibling sources not settled');
    root().querySelector('button[aria-label="'+p.translator('graph.fitGraph')+'"]').click();await wait(350);
    const work={builds:0,semanticRefresh:0,acquisitions:0},stop=[];
@@ -98,6 +103,7 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag)
     // Outbound fixture/navigation work is legitimate; its module separately guards payload creation.
     for(const restore of stop)restore();
     if(scenario==='native-drag'||scenario==='navigation-enhancements')await nativeDragAcceptance(context);
+    if(scenario==='structural-drops')await structuralAcceptance(context);
     return;
    }
    await toggle(false);await toggle(true);const areas=await captureAreas();c.areas=areas;
@@ -205,13 +211,13 @@ function start(scenario='legacy',layoutAcceptance,nativeDragAcceptance,htmlDrag)
 }
 const report={status:'running',scenario,startedAt:new Date().toISOString(),node:process.version,host:process.platform,artifacts};
 try{
- report.obsidian=cli('version');evaluate('('+start.toString()+')('+JSON.stringify(scenario)+','+acceptSimplifiedLayout.toString()+','+acceptNativeDragEnhancements.toString()+','+nativeHtmlDrag.toString()+')');const end=Date.now()+600000;let completed=0;
- while(true){await new Promise(r=>setTimeout(r,350));const state=evaluate('JSON.stringify((()=>{const c=window.__kplexInteractionUpdates;return{done:c?.done,error:c?.error,cases:c?.cases,cleanup:c?.cleanup,areas:c?.areas}})())');if(state.cases?.length!==completed){completed=state.cases?.length??0;console.log(JSON.stringify({completed:state.cases}))}if(state.done){Object.assign(report,state);assert(!state.error,state.error);assert.deepEqual(state.cleanup.errors,[]);assert(state.cleanup.inventoryRestored);assert.deepEqual(state.cleanup.ownedFilesRemaining,[]);report.status='passed';break}assert(Date.now()<end,'Native interaction deadline')}
+ report.obsidian=cli('version');evaluate('('+start.toString()+')('+JSON.stringify(scenario)+','+acceptSimplifiedLayout.toString()+','+acceptNativeDragEnhancements.toString()+','+nativeHtmlDrag.toString()+','+acceptStructuralDrops.toString()+')');const end=Date.now()+600000;let completed=0,phase=null;
+ while(true){await new Promise(r=>setTimeout(r,350));const state=evaluate('JSON.stringify((()=>{const c=window.__kplexInteractionUpdates;return{done:c?.done,error:c?.error,cases:c?.cases,cleanup:c?.cleanup,areas:c?.areas,phase:c?.phase}})())');if(state.phase!==phase){phase=state.phase;console.log(JSON.stringify({phase}))}if(state.cases?.length!==completed){completed=state.cases?.length??0;console.log(JSON.stringify({completed:state.cases}))}if(state.done){Object.assign(report,state);assert(!state.error,state.error);assert.deepEqual(state.cleanup.errors,[]);assert(state.cleanup.inventoryRestored);assert.deepEqual(state.cleanup.ownedFilesRemaining,[]);report.status='passed';break}assert(Date.now()<end,'Native interaction deadline')}
 }catch(error){report.status='failed';report.error=String(error.stack||error);process.exitCode=1}
 finally{
  try{const end=Date.now()+100000;while(true){const state=evaluate('JSON.stringify((()=>{const c=window.__kplexInteractionUpdates;if(!c)return{absent:true};if(!c.done){c.cancelled=true;return{pending:true}}return{cleanup:c.cleanup,cases:c.cases,error:c.error,nativeDropDiagnostics:c.nativeDropDiagnostics,layoutWork:c.layoutWork}})())');if(!state.pending){report.finalState=state;assert(!state.cleanup?.errors.length,state.cleanup?.errors.join('\n'));assert(state.absent||state.cleanup?.inventoryRestored);evaluate('JSON.stringify(delete window.__kplexInteractionUpdates)');break}assert(Date.now()<end,'Controller still running; preserve configuration');await new Promise(r=>setTimeout(r,200))}for(const backup of backups)writeFileSync(join(target.config,backup.name),backup.bytes);report.configurationBytesRestored=backups.every(b=>readFileSync(join(target.config,b.name)).equals(b.bytes))}
  catch(error){report.cleanupError=String(error);report.status='failed';process.exitCode=1}
  report.completedAt=new Date().toISOString();writeFileSync(join(output,'report.json'),JSON.stringify(report,null,2)+'\n');writeFileSync(join(output,'driver-source.mjs'),readFileSync(new URL(import.meta.url)));
- for(const name of ['interactionSimplifiedLayout.mjs','interactionNativeDragEnhancements.mjs'])writeFileSync(join(output,name),readFileSync(new URL(name,import.meta.url)));
+ for(const name of ['interactionSimplifiedLayout.mjs','interactionNativeDragEnhancements.mjs','interactionStructuralDrops.mjs'])writeFileSync(join(output,name),readFileSync(new URL(name,import.meta.url)));
 }
 console.log(JSON.stringify(report));

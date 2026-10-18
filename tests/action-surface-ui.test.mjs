@@ -29,6 +29,7 @@ export class Setting {constructor(parent){this.settingEl=element(parent,'div');t
  addToggle(callback){const input=element(this.settingEl,'input');input.type='checkbox';callback({setValue(value){input.checked=value;return this},onChange(callback){input.addEventListener('change',()=>callback(input.checked));return this}});return this}
  addDropdown(callback){const input=element(this.settingEl,'select');callback({addOption(value,label){element(input,'option',{text:label,attr:{value}});return this},setValue(value){input.value=value;return this},onChange(callback){input.addEventListener('change',()=>callback(input.value));return this}});return this}
  addButton(callback){const input=element(this.settingEl,'button');callback({setButtonText(value){input.textContent=value;return this},setIcon(){return this},setCta(){return this},setDisabled(value){input.disabled=value;return this},onClick(callback){input.addEventListener('click',callback);return this}});return this}}
+export function getIcon(){return null;}
 export class FuzzySuggestModal {
  constructor(app){this.app=app;this.closed=false;this.inputEl=document.createElement('input');this.modalEl=element(document.createElement('div'),'div')}
  setPlaceholder(value){this.placeholder=value}

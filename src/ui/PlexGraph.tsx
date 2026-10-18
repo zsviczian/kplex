@@ -14,6 +14,9 @@
  * scene occurrences hold same-view relink authority. Touch and gates retain pointer ownership.
  * Explicit primary-modifier placeholder opening delegates folder choice to the native creation owner.
  */
+import { connectionActionAllowed, tagMembershipPair } from "./structuralConnectionActions";
+import { graphTagValue } from "../adapters/obsidian/tagMembership";
+import { structuralDropKind } from "./StructuralNodeDropActions";
 import { subscribeAppearanceSources } from "../adapters/obsidian/colorChanges";
 import {HoverHighlight, bindHoverHighlight} from "./components/hoverHighlight";
 import {compassPolygons} from "../core/plex/compassBackground";
@@ -2394,15 +2397,14 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     const origin = index.get(connectDrag.originPath);
     if (!origin) return new Set<string>();
     if (origin.isFolder) {
-      // A folder's child gate is a creation gesture, not a relationship gesture. Dim all other
-      // nodes while dragging because the drop position does not select a relationship target.
-      return new Set(scene.nodes.map((node) => node.page.path).filter((path) => path !== origin.path));
+      // Folder gates select physical destinations; only empty-space child-gate drops create notes.
+      return new Set(scene.nodes.filter((node) => node.page.path !== origin.path && !structuralDropKind(origin, node.page)).map((node) => node.page.path));
     }
     const blocked = index.gateNeighbourPaths(origin, connectDrag.gate);
-    // Tags are never writable relationship endpoints. Folders remain valid drop targets for the
-    // secondary file-only creation gesture that starts from a regular note gate.
+    // Scene tags remain read-only ontology endpoints; physical folders accept explicit native moves.
     for (const node of scene.nodes) {
-      if (node.page.isFolder) blocked.delete(node.page.path);
+      if (node.page.isFolder && structuralDropKind(origin, node.page)) blocked.delete(node.page.path);
+      else if (node.page.isFolder) blocked.add(node.page.path);
       else if (node.page.isTag) blocked.add(node.page.path);
     }
     if (!origin.file || origin.file.extension !== "md") {
@@ -2427,8 +2429,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
 
   /** Begin gate connection ownership; touch gate gestures cancel a pending node double-tap. */
   const startGateDrag = (node: PositionedNode, gate: GateSide, event: PointerEvent<HTMLSpanElement>) => {
-    const folderChildCreation = node.page.isFolder && gate === "bottom";
-    if (event.button !== 0 || node.page.isTag || node.page.transient || (node.page.isFolder && !folderChildCreation)) return;
+    if (event.button !== 0 || node.page.isTag || node.page.transient) return;
     areaOutline.current?.clear();
 
     if (event.pointerType === "touch") {
@@ -2856,6 +2857,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     const path = button?.dataset.kplexHistoryPath ?? button?.dataset.kplexPinnedPath;
     const target = path ? index.get(path) : undefined;
     if (!button || !target) return null;
+    if (structuralDropKind(origin, target)) return { button, target };
     const roles = relationshipDropRoles(origin, target, semanticRole);
     return (semanticRole ? roles.includes(semanticRole) : roles.length > 0) ? { button, target } : null;
   };
@@ -2884,6 +2886,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     const hit = historyRelationshipTarget(origin, clientX, clientY, ownerDocument, semanticRole);
     if (!hit) return false;
     const { target } = hit;
+    if (plugin.openStructuralNodeDrop(origin, target)) return true;
     const current = captureSurfaceContinuation(() => viewport.current, () => plugin.actionManager.readSnapshot(actionSurfaceId));
     if (semanticRole) {
       plugin.openRelationModal({ hostLeaf, mode: "create", origin, fixedTarget: target, semanticRole,
@@ -3087,13 +3090,6 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     if (connectDrag && e.pointerId === connectDrag.pointerId) {
       const drag = connectDrag;
       const origin = index.get(drag.originPath);
-      if (origin?.isFolder && drag.gate === "bottom") {
-        setConnectDrag(null);
-        clearHoverIntent(true);
-        suppressActivateUntil.current = Date.now() + 180;
-        if (drag.moved) plugin.openCreateInFolderModal(origin, hostLeaf);
-        return;
-      }
       if (origin && drag.moved && (openHistoryRelationshipMenu(origin, e.clientX, e.clientY, e.currentTarget.ownerDocument, semanticRoleForGate(drag.gate)) || relationshipChip)) {
         setConnectDrag(null);
         clearHoverIntent(true);
@@ -3120,7 +3116,11 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
       clearHoverIntent(true);
       suppressActivateUntil.current = Date.now() + 180;
       if (origin && target?.isFolder) {
-        plugin.openCreateInFolderModal(target, hostLeaf);
+        if (drag.moved) plugin.openStructuralNodeDrop(origin, target);
+        return;
+      }
+      if (origin?.isFolder) {
+        if (drag.moved && drag.gate === "bottom" && !target) plugin.openCreateInFolderModal(origin, hostLeaf);
         return;
       }
       if (origin && !target?.isTag) {
@@ -3317,6 +3317,9 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
   const performEdgeAction = async (context: ActionContext, edge: PositionedEdge, id: "relationship.details" | "relationship.relink" | "relationship.unlink" | "relationship.hide"): Promise<ActionOutcome> => {
     const sourcePath = edge.explanationSourcePath ?? edge.sourcePath;
     const targetPath = edge.explanationTargetPath ?? edge.targetPath;
+    const sourcePage = scene.nodes.find(node => node.page.path === sourcePath)?.page ?? index.get(sourcePath);
+    const targetPage = scene.nodes.find(node => node.page.path === targetPath)?.page ?? index.get(targetPath);
+    if (!connectionActionAllowed(id, sourcePage, targetPage)) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
     const explanation = sectionExpansion?.explanations.get(`${sourcePath}\u0000${targetPath}`) ?? index.explainRelationship(sourcePath, targetPath);
     if (!explanation) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
     /** Own inspection/role dialogs until native close, preserving canonical evidence and source choice. */
@@ -3358,6 +3361,17 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     const target = scene.nodes.find(node => node.page.path === edge.targetPath)?.page ?? index.get(edge.targetPath);
     const affected = [origin, target].filter((page): page is GraphPage => Boolean(page)).map(actionNodeRef);
     try {
+      const membership = tagMembershipPair(origin, target);
+      if (membership) {
+        const file = membership.note.file!;
+        const tag = graphTagValue(membership.tag);
+        const current = /** Retired windows/surfaces cannot submit a delayed destructive action. */ (): boolean => context.generation !== undefined && plugin.isActionSurfaceCurrent(actionSurfaceId, context.generation);
+        const changed = await plugin.unlinkTagMembership(membership.note, membership.tag, current);
+        if (!current()) return { status: "committed", affected };
+        const bodyTag = plugin.app.metadataCache.getFileCache(file)?.tags?.some(/** Exact native body occurrences retain the connection and its source inspection. */ item => item.tag.replace(/^#/, "").toLocaleLowerCase() === tag?.toLocaleLowerCase());
+        if (!changed || bodyTag) return openDetails();
+        clearHoverIntent(true); return { status: "committed", affected };
+      }
       const candidate = await plugin.directFrontmatterUnlinkCandidate(explanation.decisions.map(decision => decision.evidence));
       if (!candidate || !await plugin.unlinkFrontmatterEvidence(candidate)) {
         return openDetails();
@@ -3394,11 +3408,12 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     const items = edges.flatMap(/** Capture endpoint identities now, before the native picker takes focus. */ edge => {
       const source = scene.nodes.find(node => node.page.path === edge.sourcePath)?.page ?? index.get(edge.sourcePath);
       const target = scene.nodes.find(node => node.page.path === edge.targetPath)?.page ?? index.get(edge.targetPath);
-      if (!source || !target) return [];
+      if (!connectionActionAllowed(id, source, target) || !source || !target) return [];
       return [{ value: { origin: actionNodeRef(source), target: actionNodeRef(target), evidenceId: edge.id },
         label: `${scene.nodes.find(node => node.page.path === edge.sourcePath)?.label ?? source.name} → ${scene.nodes.find(node => node.page.path === edge.targetPath)?.label ?? target.name}`,
         detail: `${relationLabel(edge.typeDefinition) ?? translate(EVIDENCE_ROLE_LABEL[edge.role] ?? "role.child")} · ${relationTypeText(edge.relationType, translate)}` }];
     });
+    if (!items.length) return { status: "unavailable", reasonKey: "actions.target-unavailable" };
     return ownGraphPicker(items, translate("actions.connectionsPlaceholder"), /** Revalidate captured endpoints through manager and current pair evidence. */ pair => {
       void plugin.actionManager.dispatch({ id, source: "local-menu", surfaceId: actionSurfaceId, target: { kind: "edge", ...pair } });
     });
@@ -3555,8 +3570,13 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
   }
   for (const id of ["relationship.details", "relationship.relink", "relationship.unlink", "relationship.hide"] as const) {
     graphImplementations[id] = {
-      availability: /** Missing Hidden configuration is handled by explicit setup after activation, without source acquisition here. */ context => context.target.kind === "edge" || Boolean(graphActionPage(context))
-        ? { state: "enabled" } : { state: "disabled", reasonKey: "actions.target-unavailable" },
+      availability: /** Structural actions use the same endpoint capability as menus and execution, without source acquisition. */ context => {
+        if (context.target.kind === "edge") return connectionActionAllowed(id, resolveActionPage(index, context.target.origin) ?? undefined, resolveActionPage(index, context.target.target) ?? undefined)
+          ? { state: "enabled" } : { state: "disabled", reasonKey: "actions.target-unavailable" };
+        const page = graphActionPage(context);
+        return page && scene.edges.some(/** Only actually writable incident connections belong in the action picker. */ edge => (edge.sourcePath === page.path || edge.targetPath === page.path) && connectionActionAllowed(id, index.get(edge.sourcePath), index.get(edge.targetPath)))
+          ? { state: "enabled" } : { state: "disabled", reasonKey: "actions.target-unavailable" };
+      },
       execute: /** A picker exposes every displayed incident edge; selected edge actions use current evidence. */ context => pickConnection(context, id),
     };
   }
@@ -3829,6 +3849,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     const target = scene.nodes.find(node => node.page.path === edge.targetPath)?.page ?? index.get(edge.targetPath);
     if (!origin || !target) return;
     for (const [id, key, icon] of [["relationship.details", "graph.connectionDetails", "list-tree"], ["relationship.unlink", "graph.unlinkConnection", "unlink"], ["relationship.hide", "hide.title", "eye-off"]] as const) {
+      if (!connectionActionAllowed(id, origin, target)) continue;
       menu.addItem(/** Capture exact endpoints while native menus own arrow/Enter/Escape protocol. */ item => item
         .setTitle(translate(key)).setIcon(icon).onClick(() => void plugin.actionManager.dispatch({ id, source: "context-menu", surfaceId: actionSurfaceId,
           target: { kind: "edge", origin: actionNodeRef(origin), target: actionNodeRef(target), evidenceId: edge.id } })));
@@ -3984,7 +4005,7 @@ export function PlexGraph({ plugin, index, settings: viewSettings, paintSettings
     const path = target?.dataset.kplexPath;
     const page = path ? index.get(path) : null;
     let end = drag.current, targetGate = oppositeGate(drag.gate);
-    if (gateElement && root.contains(gateElement) && page && !page.isFolder && !page.isTag
+    if (gateElement && root.contains(gateElement) && page && !page.isTag
       && page.path !== drag.originPath && !connectBlockedPaths.has(page.path)) {
       const gate = gateElement.dataset.kplexGate;
       if (gate === "top" || gate === "bottom" || gate === "left" || gate === "right") {

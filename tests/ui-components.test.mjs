@@ -1492,7 +1492,7 @@ function uiDefinitions(path, names) {
 
 /** Native-free real DOM checks for history targeting/cancellation and the center's shared menu button. */
 function editorHistoryBrowserEntry(){
-  const history=uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
+  const history=uiDefinitions("src/ui/StructuralNodeDropActions.ts",["structuralDropKind"])+uiDefinitions("src/ui/PlexGraph.tsx",["normalizedRole","startNodeDrag","relationshipDropRoles","historyRelationshipTarget","clearHistoryDragHover","updateHistoryDragHover","cancel","lostPointerCapture"]);
   const editor=uiDefinitions("src/ui/CentralNodeEditor.tsx",["CentralNodeEditor"]);
   return `
 import {canDragNodeLink} from ${JSON.stringify(join(root,"src/adapters/obsidian/nodeLinkDrag.ts"))};
@@ -1519,7 +1519,7 @@ try{
  const point=button.getBoundingClientRect(),x=point.left+10,y=point.top+10;
  updateHistoryDragHover(origin,x,y,document);check(button.classList.contains("is-relationship-drop-target"),"eligible historical endpoint not highlighted");
  updateHistoryDragHover(origin,1,1,document);check(!button.classList.contains("is-relationship-drop-target"),"leaving the endpoint retained hover");
- target.isTag=true;updateHistoryDragHover(origin,x,y,document);check(!button.classList.contains("is-relationship-drop-target"),"ineligible tag history endpoint highlighted");delete target.isTag;
+ target.isTag=true;updateHistoryDragHover(origin,x,y,document);check(button.classList.contains("is-relationship-drop-target"),"saved tag membership endpoint not highlighted");delete target.isTag;
  updateHistoryDragHover(target,x,y,document);check(!button.classList.contains("is-relationship-drop-target"),"self history endpoint highlighted");
  updateHistoryDragHover(origin,x,y,document);cancel({pointerId:7,pointerType:"mouse"});check(connectDrag===null&&!button.classList.contains("is-relationship-drop-target"),"real pointer cancellation retained highlight or drag");
  const viewportElement=document.body.appendChild(document.createElement("div")),gateElement=viewportElement.appendChild(document.createElement("span"));
@@ -1574,7 +1574,7 @@ try{
 
 /** Exercise production fixed-target routing with real DOM hit tests and the actual host file-drag adapter. */
 function externalAndPinnedDropBrowserEntry() {
-  const callbacks = uiDefinitions("src/ui/PlexGraph.tsx", ["normalizedRole", "semanticRoleForGate", "toWorld", "isAreaControlTarget", "isEmptyAreaTarget", "areaHoverAt",
+  const callbacks = uiDefinitions("src/ui/StructuralNodeDropActions.ts",["structuralDropKind"])+uiDefinitions("src/ui/PlexGraph.tsx", ["normalizedRole", "semanticRoleForGate", "toWorld", "isAreaControlTarget", "isEmptyAreaTarget", "areaHoverAt",
     "relationshipDropRoles", "historyRelationshipTarget", "clearHistoryDragHover", "updateHistoryDragHover", "openHistoryRelationshipMenu",
     "externalFileDropTarget", "dragExternalFileOver", "leaveExternalFile", "dropExternalFile", "semanticRoleForPosition", "nodeDropRole", "commitNodeAreaDrop", "relationshipDropArea", "up"]);
   return `
@@ -1590,7 +1590,7 @@ try {
  const snapshot={mounted:true,interactionRevision:1,center:{identity:origin.path}};let shown=null,hoverCleared=0;
  const plugin={app:{dragManager:{draggable:{type:"file",file:{path:target.path}}},vault:{getFileByPath:path=>filePaths.has(path)?{path}:null}},
   actionManager:{readSnapshot:()=>({...snapshot,center:{...snapshot.center}})},
-  openRelationModal:options=>calls.push(options),showKplexMenuAtPosition:(menu,point,doc)=>{shown={menu,point,doc}}};
+  openStructuralNodeDrop:()=>false,openRelationModal:options=>calls.push(options),showKplexMenuAtPosition:(menu,point,doc)=>{shown={menu,point,doc}}};
  const translate=key=>key,clearHoverIntent=()=>hoverCleared++,onActivate=page=>navigated.push(page);
  class Menu {items=[];addItem(build){const item={setTitle(value){this.title=value;return this},setIcon(){return this},onClick(value){this.run=value;return this}};build(item);this.items.push(item)}}
  const surface=document.body.appendChild(document.createElement("div"));surface.style.cssText="position:absolute;left:0;top:0;width:900px;height:650px";
@@ -1634,10 +1634,10 @@ try {
  blocked.set("left",new Set([target.path]));updateHistoryDragHover(origin,40,365,document,"left");check(!pinned.classList.contains("is-relationship-drop-target"),"blocked pinned gate retained highlight");
  check(openHistoryRelationshipMenu(origin,40,365,document),"pinned body chooser rejected");check(shown.doc===document&&shown.menu.items.length===3&&!shown.menu.items.some(item=>item.title==="role.friend"),"body chooser did not filter canonical duplicate role");shown.menu.items[0].run();check(calls.at(-1).fixedTarget===target,"body chooser lost fixed endpoint");
  target.file={extension:"png"};check(relationshipDropRoles(origin,target).length===3,"Markdown origin cannot link attachment endpoint");origin.file={extension:"png"};check(relationshipDropRoles(origin,target).length===0,"two non-Markdown endpoints incorrectly writable");origin.file={extension:"md"};target.file={extension:"md"};
- for(const flag of ["isFolder","isTag"]) {target[flag]=true;check(!historyRelationshipTarget(origin,40,365,document),"structural pinned endpoint accepted");delete target[flag];}
+ for(const flag of ["isFolder","isTag"]) {target[flag]=true;check(historyRelationshipTarget(origin,40,365,document),"structural saved target rejected");delete target[flag];}
  check(!historyRelationshipTarget(target,40,365,document),"pinned self endpoint accepted");
- const rejectCount=calls.length;target.isFolder=true;connectDrag={pointerId:21,originPath:origin.path,gate:"top",moved:true};up({...event(40,365),pointerId:21,pointerType:"mouse"});
- check(connectDrag===null&&calls.length===rejectCount,"rejected pinned gate fell through into empty composer");delete target.isFolder;
+ const rejectCount=calls.length;origin.file={extension:"png"};target.isTag=true;connectDrag={pointerId:21,originPath:origin.path,gate:"top",moved:true};up({...event(40,365),pointerId:21,pointerType:"mouse"});
+ check(connectDrag===null&&calls.length===rejectCount,"rejected pinned gate fell through into empty composer");delete target.isTag;origin.file={extension:"md"};
  scene.nodes=[{page:target,role:"parent"}];nodeDrag={pointerId:22,path:target.path,startClientX:0,startClientY:0,moved:true};
  const touchDoubleTap={current:{reset(){}}},NODE_RELINK_MIN_DRAG_PX=36,NODE_RELINK_HYSTERESIS_PX=48;up({...event(40,365),pointerId:22,pointerType:"mouse"});
  check(nodeDrag===null&&calls.length===rejectCount,"rejected pinned body fell through into spatial relink");

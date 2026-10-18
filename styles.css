@@ -516,6 +516,12 @@ button.kplex-sidecar-unfold-plex,
 .kplex-history-list { min-width: 0; display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
 .kplex-history-list::-webkit-scrollbar { display: none; }
 .kplex-history-list button { flex: 0 0 auto; width: 180px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; justify-content: flex-start; color: var(--text-normal); border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-primary); padding: 5px 9px; cursor: pointer; font-size: 11px; }
+.kplex-history-list button { display: flex; align-items: center; gap: 5px; }
+.kplex-history-list button > .kplex-icon,
+.kplex-pinned-open > .kplex-icon { flex: 0 0 auto; }
+.kplex-action-picker-row { display: flex; align-items: center; gap: 8px; }
+.kplex-action-picker-row .suggestion-icon { flex: 0 0 auto; display: flex; }
+.kplex-action-picker-row .suggestion-content { min-width: 0; }
 /* A shrinking text box keeps overflowing history titles anchored to their first character,
    even when the host theme centers button contents with flexbox. */
 .kplex-history-text {

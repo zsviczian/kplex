@@ -1,6 +1,7 @@
 /**
  * Native Obsidian dialog for creating a real note in a physical folder. The plugin owns vault changes; this shell owns localized controls, validation feedback and close cleanup.
  */
+import { graphFolder } from "../adapters/obsidian/graphFolder";
 import { SavedRelationshipPendingError } from "../adapters/obsidian/relationshipMetadataWrite";
 import { Modal, Notice, Setting, type ButtonComponent, type TFolder, type WorkspaceLeaf } from "obsidian";
 import type KplexPlugin from "../main";
@@ -39,8 +40,7 @@ export class CreateFolderNoteModal extends Modal {
     private readonly invocation: RelatedNoteInvocation = {},
   ) {
     super(plugin.app);
-    const path = folder.path === "folder:/" ? "" : folder.path.slice("folder:".length);
-    this.nativeFolder = path ? plugin.app.vault.getFolderByPath(path) : plugin.app.vault.getRoot();
+    this.nativeFolder = graphFolder(plugin.app, folder);
     this.hostContainer = hostLeaf?.view.containerEl ?? null;
     this.invokingDocument = this.hostContainer?.ownerDocument ?? this.modalEl.ownerDocument;
     const active = this.invokingDocument.activeElement;

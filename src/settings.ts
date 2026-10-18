@@ -316,6 +316,8 @@ export interface KplexSettings {
   hoverHighlightRequiresAlt: boolean;
   /** Require the alternate modifier for area hover outlines outside explicit area-settings mode. */
   areaOutlineRequiresAlt: boolean;
+  /** Require the alternate modifier before showing mouse gate hints; accessible names remain available. */
+  gateTooltipRequiresAlt: boolean;
   toolbarExpanded: boolean;
   sidecarOpen: boolean;
   sidecarPosition: SidecarPosition;
@@ -459,6 +461,7 @@ const LEGACY_DEFAULT_SETTINGS: KplexSettings = {
   mouseInteractionMode: "smart",
   hoverHighlightRequiresAlt: true,
   areaOutlineRequiresAlt: true,
+  gateTooltipRequiresAlt: true,
   toolbarExpanded: false,
   sidecarOpen: false,
   sidecarPosition: "right",
@@ -707,6 +710,7 @@ export function migrateAndMergeSettings(raw: unknown): KplexSettings {
     typographyProfiles: sanitizeTypographyProfiles(old.typographyProfiles),
     hoverHighlightRequiresAlt: typeof old.hoverHighlightRequiresAlt === "boolean" ? old.hoverHighlightRequiresAlt : true,
     areaOutlineRequiresAlt: typeof old.areaOutlineRequiresAlt === "boolean" ? old.areaOutlineRequiresAlt : true,
+    gateTooltipRequiresAlt: typeof old.gateTooltipRequiresAlt === "boolean" ? old.gateTooltipRequiresAlt : true,
     mouseInteractionMode: old.mouseInteractionMode === "legacy" || old.mouseInteractionMode === "middle-only" ? old.mouseInteractionMode : "smart",
     // ExcaliBrain persisted `embedCentralNode` for its own center presentation. K-Plex's native
     // embedded editor is a different, explicitly opt-in surface, so legacy imports must start
@@ -2339,6 +2343,7 @@ export class KplexSettingTab extends PluginSettingTab {
             heading: translate("settings.ui.navigation.interaction"),
             items: [
               { name: translate("settings.hoverHighlight.name"), desc: translate("settings.hoverHighlight.help", {key: hoverModifier}), control: {type: "toggle", key: "hoverHighlightRequiresAlt"} },
+              { name: translate("settings.gateTooltip.name"), desc: translate("settings.gateTooltip.help", {key: hoverModifier}), control: {type: "toggle", key: "gateTooltipRequiresAlt"} },
               { name: translate("settings.areaOutline.name"), desc: translate("settings.areaOutline.help", {key: hoverModifier}), control: {type: "toggle", key: "areaOutlineRequiresAlt"} },
               { name: translate("settings.ui.animation.speed"), desc: translate("settings.ui.speed.multiplier.0.off.0.5.slow.1.normal.1.5.fast.2.very"), control: { type: "slider", key: "animationSpeed", min: 0, max: 2, step: 0.1 } },
               { name: translate("settings.ui.auto.fit.on.navigation"), control: { type: "toggle", key: "allowAutozoom" } },

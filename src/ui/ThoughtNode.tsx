@@ -231,14 +231,14 @@ export function ThoughtNode({
     />}
     {GATES.map((gate) => {
       const stat = node.gateStats[gate];
-      const gateDisabled = node.page.isTag || (node.page.isFolder && gate !== "bottom");
+      const gateDisabled = node.page.isTag;
       const gateLabel = physicalPositionLabel(gate, translate);
       const gateHint = node.page.isTag
         ? translate("node.gateTagDisabled", { gate: gateLabel })
         : node.page.isFolder
           ? gate === "bottom"
             ? translate("node.gateFolderChild")
-            : translate("node.gateFolderDisabled", { gate: gateLabel })
+            : translate("moveNode.gate")
           : stat.hasAny || stat.complete === false
             ? translate("node.gateVisible", { gate: gateLabel, count: stat.visibleCount })
             : translate("node.gateEmpty", { gate: gateLabel });
@@ -255,6 +255,8 @@ export function ThoughtNode({
           onPointerDown={(e: ReactPointerEvent<HTMLSpanElement>) => { onGatePointerDown(node, gate, e); }}
           onClick={(e: MouseEvent<HTMLSpanElement>) => e.stopPropagation()}
           aria-label={gateTitle}
+          data-kplex-control-tooltip
+          data-kplex-tooltip-requires-alt={settings.gateTooltipRequiresAlt !== false ? "true" : undefined}
           data-tooltip-position="top"
         />
         {settings.showNeighborCount && (stat.visibleCount > 0 || stat.complete === false) && <span className="kplex-gate-count">{

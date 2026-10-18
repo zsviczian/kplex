@@ -35,6 +35,24 @@ test('every hover waits even after a warm hint; top fits below and bottom flips 
  }finally{await host.cleanup()}
 });
 
+test('gate modifier withholds hints, accepts a stationary Alt/Option press, and hides on release or live preference change',async()=>{
+ const host=await chromiumHarness(result.outputFiles[0].text);
+ try{await fixture(host);
+  const data=await host.evaluate(`(async()=>{
+   const gate=document.querySelector('#top');gate.dataset.kplexControlTooltip='';gate.dataset.kplexTooltipRequiresAlt='true';
+   fire('#top','pointerover');await pause(720);const ordinary=read();
+   document.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Alt',altKey:true}));await pause(250);const early=read();await pause(470);const held=read();
+   document.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Alt',altKey:false}));const released=read();
+   delete gate.dataset.kplexTooltipRequiresAlt;await pause(720);const optedOut=read();
+   gate.dataset.kplexTooltipRequiresAlt='true';await pause(40);const optedIn=read();
+   document.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Alt',altKey:true}));await pause(720);const renewed=read();window.dispatchEvent(new Event('blur'));const blurred=read();
+   const accessible=gate.getAttribute('aria-label'),nativeSuppressed=getComputedStyle(gate).getPropertyValue('--no-tooltip').trim();window.release();
+   document.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Alt',altKey:true}));await pause(720);return{ordinary,early,held,released,optedOut,optedIn,renewed,blurred,accessible,nativeSuppressed,retired:read()};
+  })()`);
+  assert.equal(data.ordinary,null);assert.equal(data.early,null);assert.equal(data.held.text,'Top control');assert.equal(data.released,null);assert.equal(data.optedOut.text,'Top control');assert.equal(data.optedIn,null);assert.equal(data.renewed.text,'Top control');assert.equal(data.blurred,null);assert.equal(data.accessible,'Top control');assert.equal(data.nativeSuppressed,'true');assert.equal(data.retired,null);
+ }finally{await host.cleanup()}
+});
+
 test('range wrapper supplies measured help; quick crossing, clicking, scrolling and removal cancel work',/** Input labels remain accessible while the longer wrapper hint owns hover. */async()=>{
  const host=await chromiumHarness(result.outputFiles[0].text);
  try{await fixture(host);
